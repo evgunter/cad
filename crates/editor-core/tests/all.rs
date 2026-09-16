@@ -102,6 +102,8 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm7_delete_strands.rs"]
+mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
 #[path = "docm1_face_frame_interval.rs"]
@@ -130,8 +132,12 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_doc_param_unit.rs"]
+mod edit_doc_param_unit;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_step_segments.rs"]
+mod edit_step_segments;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -146,6 +152,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "rv_dm7_probes.rs"]
+mod rv_dm7_probes;
 
 #[path = "gui1_pick.rs"]
 mod gui1_pick;

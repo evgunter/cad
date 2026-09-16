@@ -2,8 +2,11 @@
 id: map-affine-retires-into-affine3-try-map
 kind: issue
 title: anchor::map_affine retires into Affine3::try_map in the PR that adopts it
-status: parked
+status: closed
+closed: 2026-09-16
 opened: 2026-09-08
+pr: 2743
+branch: props/affine-try-map
 blocked_on: [affine3-try-map-the-fallible-walk-has-no-kernel-door]
 refs: [2139]
 ---
@@ -28,3 +31,21 @@ both. `pinned_plane` still spells `SketchPlane::new(<walk>)`, so the
 door wants a `SketchPlane::try_map` beside `Affine3::try_map` or the
 shape survives the retirement; the note says so. Filed by EVAL-1 at the moment the note was
 written (`work/README.md`: disclosing a residue is not scheduling it).
+
+## Closed
+
+Landed on PR #2743, in the same PR that minted the door — the shape
+this item asked for ("never as a third spelling beside both"), and by
+the announced seam it permits. `crates/editor-core/src/eval/anchor.rs`'s
+`map_affine` and its probe module are deleted, and `pinned_plane` goes
+through `SketchPlane::try_map`. `git grep map_affine` at the head finds
+nothing.
+
+The refusal semantics are unchanged and were checked rather than
+assumed: the retired walk's error type was never read (its one caller
+already discarded it), and both spellings evaluate the columns in the
+same order, so the first component to refuse is the same one. The
+readouts the retirement touched went DOWN rather than up — the deleted
+probe's hand-written twelve-component reading was not re-derived
+elsewhere; the row that needed it compares through `SketchPlane::bit_eq`,
+which already is that reading off an irrefutable destructuring.

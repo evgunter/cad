@@ -26,8 +26,8 @@ fn probe_reversed_stacking_refuses_typed() {
     // z-translations negated.
     let places = stacked_at(&[0.0, -1.0, -2.0]);
     match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
-        Err(LoftError::ReversedStacking) => {}
-        other => panic!("expected ReversedStacking, got {other:?}"),
+        Err(LoftError::ReversedStacking { slab: 0 }) => {}
+        other => panic!("expected ReversedStacking naming slab 0, got {other:?}"),
     }
 }
 
@@ -43,7 +43,7 @@ fn probe_coincident_stacking_refuses_degenerate() {
         Affine3::identity(),
     ];
     match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
-        Err(LoftError::DegenerateStacking | LoftError::Skin(_)) => {}
+        Err(LoftError::DegenerateStacking { .. } | LoftError::Skin(_)) => {}
         other => panic!("expected a degenerate refusal, got {other:?}"),
     }
 }

@@ -629,8 +629,10 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
 /// D9: never a panic). All indices reference the *input* profile.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfileError {
-    /// The run's tolerance could not form a classification band
-    /// (misconfigured ε — see [`BandError`]).
+    /// The run's tolerance could not form a classification band — a
+    /// misconfigured ε **or** K, the two arms
+    /// [`Band::linear`](geom_core::Band::linear)'s `# Errors` states
+    /// with their conditions.
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,

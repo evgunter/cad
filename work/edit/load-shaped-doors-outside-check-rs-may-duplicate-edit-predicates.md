@@ -2,7 +2,7 @@
 id: load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates
 kind: issue
 title: Load-shaped doors outside persist/check.rs were never swept for edit-door predicates spelled twice
-status: open
+status: dispatched
 opened: 2026-09-16
 ---
 

@@ -221,3 +221,92 @@ one was written at default ε and failed at the other two rows when
 adopted, because `load` reconciles the file's recorded ε — the full
 matrix caught it. Filed: a CHROME row on `viewer/src/sketch.rs`'s false
 compile-break claim; evidence on LIB's short-vocabulary row.
+
+## 2026-09-16 — doc-param unit door merged (middle tier, PR #2732)
+
+`DocParam::with_display_unit` and `DocEdit::SetDocParamUnit`: a
+notation change is not a redeclaration because `bit_eq` already
+excludes the display unit, stated once and executed. The unit→dimension
+reading has one home, `UnitSym::measures()`, which the review found
+still copied in the parser (a claim of "one place" that was false);
+`SetDocParam` now refuses a mismatched pairing at the edit door too.
+Process: the lane pushed an empty commit and closed/reopened the PR
+to re-arm CI on a conflicting head — both forbidden and both recorded
+on the item and in the PR; the real cause was a conflicting PR, which
+GitHub does not run. The lane then reproduced the Python suite locally
+and caught a stale census row before pushing. Two residue rows filed.
+
+## 2026-09-16 — DM7 built: the delete door reports what it strands (middle tier, PR #2753)
+
+`Applied::maintenance` is one column, `Maintenance::{Cluster, Strand}`,
+strands leading; `DeleteNode` reports every surviving payload name whose
+minting node it removed, computed after the removal by the one
+`Node::payload_names` walk. The review found the count definition this
+unit wrote into CHROME's row disagreeing with the door on DOCM-7's own
+cascade (the door reports per edit, transients included; the affordance
+counts survivors) — both now written down and pinned; the carrier
+census in the test is derived by an exhaustive match, and the
+"after the removal" choice has the one row that can see it. One
+clause-scope residue filed for Ev: stranded appearance keys are the
+same shape one door over and DM7's letter does not reach them. The
+lane hit a push that produced no run and re-rolled the right way
+(merge main, real commit); the Python `Maintenance` union class is
+filed as LIB's question.
+
+## 2026-09-16 — EDIT-PICK2 merged (kernel unit, v6 dual, PR #2746); the t-width question goes to Ev
+
+The orchestrator's ruling (MEET ∧ INFORM) was measured false by the
+implementer before any review — the second false central premise on
+this door in two specs — and re-ruled to the closed comparison ∧
+INFORM. Under that rule no admitted barycentric carries an
+uninformative interval, order independence holds, and one door
+(`crossing`) serves the exact test and every corpus row. The dual
+converged on every finding (a false "costs no graze" sentence — a
+corner graze's verdict now depends on the tessellator's corner
+labelling, filed; a conditioning figure wrong by five orders, fixed
+and pinned; two mutants the unit rows could not see, now pinned) with
+no unilateral MAJOR: tally +0. The residual — what `t` the door
+answers for an admitted candidate and with what width — is filed as a
+`ruling` row with `needs_ev` and three rows parked on it: having
+ruled wrongly twice on this door's numerics, the orchestrator puts it
+to Ev on the next `[ev]` PR, together with DM7's scope question on
+stranded appearance keys.
+
+## 2026-09-16 — DM8 built: the authored-step → profile-edge map, both halves (middle tier, PR #2759)
+
+`ReplayStructure` gains the per-step segment span (S-BOOL's ground by
+announcement; that row closes here) and `editor-core` composes it with
+the naming anchor into `ProfileProgram::profile_edges_of`. The unit
+found the spec's premise wrong — the published `ProfileEdgeRef` is
+program-anchored, so `LoopCanonical`'s permutation is the CHECK, not a
+factor of the answer — measured it by mutation and filed DM8's wording
+for Ev rather than self-ratifying (item 3 of `[ev]` #2764). The style
+review's MAJOR: not one row could tell a right attribution from a
+wrong one (a boundary-shifting mutant survived 446 profile rows and
+all five acceptance rows), because the partition check was true by
+construction and the geometry rows read the segment, never the step.
+The fix pass reads each step's authored arguments back — the lesson
+for the next spec is the review brief's own line: an acceptance that
+re-checks the half that already worked is not an acceptance of the new
+fact. Two rows filed (EDIT's chain-radius widening, WIRE's loft
+section-0 anchor), one WIRE row gained its three waiting consumers
+instead of a duplicate, and the door has no caller outside its tests
+until that plumbing lands. VIEW's focus-marking row is open.
+
+## 2026-09-16 — second sitting: wave 3 cut (three middle-tier units)
+
+Wave 2 is on main (eight units, two rulings). Read every open row
+against the tree and cut the next wave, all middle tier: the
+`NodePick` name doors gain the DI3 stamp and A2a's refusal
+(`nodepick-name-doors-take-a-second-evaluation-unpaired`); round two
+of one-predicate-one-home over the assertion bound, the mate
+alignment and the placement registry, carrying the load-shaped-door
+sweep (`three-door-predicates-are-hand-copied-not-shared` +
+`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`);
+and the distribution carry-forward door
+(`doc-param-distribution-edit-has-no-door`, clearing ruled as the same
+door with `None`). Specs on the rows. Queued behind them: the
+ruled-carve fixture (middle), the `DocEdit` header rewrite and the
+replay/load boundary ruling (E-class, orchestrator's own), the chain
+radius widening, the recorded-argument notation shape. Three lanes is
+the box's ceiling.

@@ -548,6 +548,14 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
+    # The four cluster-record acts are one arm of `Maintenance`, the
+    # row `Doc.last_maintenance` answers in, and they cross as that
+    # row's tag and payload attributes rather than as a class of their
+    # own: Python reads `r.variant == "join"` and `r.absorbed_frame`
+    # off the same object it reads a strand off. The `NodeErrorKind`
+    # row's shape — a curated enum flattened onto its carrier's
+    # attribute.
+    "ClusterMaintenance": "Maintenance.variant",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
@@ -1285,6 +1293,26 @@ FAMILIES: dict[str, str] = {
         "run's four summaries out of the draws and hold them to the "
         "report's."
     ),
+    # THE FOURTH ARRIVED WITH ITS DOOR, the same way B-EDGE-KIND did.
+    # `ProfileProgram::profile_edges_of` (DM8) landed on the Rust
+    # side with EDIT's `authored-step-to-canonical-segment-map-has-no-home`;
+    # its refusal reached the façade with it and the binding did not
+    # move, because `crates/pncad-py/*` is LIB's ground. A Python
+    # caller can author a profile program and cannot ask which profile
+    # edges one of its steps became.
+    # `work/lib/python-has-no-step-to-profile-edge-door` carries the
+    # finding.
+    "B-STEP-SEGMENTS": (
+        "the authored-step to profile-edge map — "
+        "`ProfileProgram::profile_edges_of`, which answers which "
+        "`ProfileEdgeRef`s one step of a loop program became. Closing "
+        "it needs the two records the door reads to be reachable from "
+        "Python first (the replay/canonical structure record is not on "
+        "`ProfileValue` at all today, so this waits on the Rust-side "
+        "siting), then the method with its typed refusal, a `pncad.pyi` "
+        "entry, and one Python row asking a reversed loop for a step's "
+        "edges and naming the wall each addresses."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1541,7 +1569,7 @@ FAMILIES: dict[str, str] = {
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `ClusterMaintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `Maintenance`, `clusters`, `gauge_of`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -1952,6 +1980,22 @@ NOT_BOUND = {
     # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
     # one level in.
     "DirectionRefusal": SHAPE,
+    # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
+    # carry-forward doors was refused. It is `DirectionRefusal`'s row
+    # one carrier over, and flattened for a reason of its own: a Python
+    # caller holds the edit it just submitted, so `set_doc_param_value`
+    # versus `set_doc_param_unit` is answered by the call site together
+    # with the `doc_param_not_declared` tag. The field exists so the
+    # RUST sentence can name the door rather than say "a carry-forward
+    # edit" and leave a reader to work out which.
+    "CarryForwardDoor": SHAPE,
+    # `DocParam::with_display_unit`'s `Err`: which of the two reasons a
+    # notation cannot be written. It is flattened because no Python
+    # door answers in it — the binding's notation edit goes through
+    # `Doc.apply`, where the kernel has already mapped these two to
+    # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
+    # those are the words a caller branches on.
+    "DisplayUnitRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -2389,6 +2433,8 @@ NOT_BOUND = {
     "RunOutPolicy": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
+    "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
+    "that says which profile edges an authored step became",
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
     "ValidatedProfile": INTERIOR,
@@ -2868,12 +2914,11 @@ MEMBERS_BOUND_AS = {
     # the other two are the word.
     "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
-    # What an accepted edit did to the placement registry, read off
-    # `Doc.last_maintenance`.
-    "ClusterMaintenance::Join": "ClusterMaintenance.variant",
-    "ClusterMaintenance::Split": "ClusterMaintenance.variant",
-    "ClusterMaintenance::GaugeRewrite": "ClusterMaintenance.variant",
-    "ClusterMaintenance::Drop": "ClusterMaintenance.variant",
+    # What an accepted edit did that the caller did not ask for, read
+    # off `Doc.last_maintenance`: the four cluster-record acts, and the
+    # payload names a delete stranded.
+    "Maintenance::Cluster": "Maintenance.variant",
+    "Maintenance::Strand": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
@@ -2924,6 +2969,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ContinuousParamCannotBeCount": "EditError.variant",
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
+    "EditError::DocParamCountHasNoUnit": "EditError.variant",
+    "EditError::DocParamUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",

@@ -2,10 +2,12 @@
 id: BOOL-6
 kind: unit
 title: issue 368 — the per-slab stacking fold in loft.rs
-status: dispatched
+status: closed
 opened: 2026-09-01
 refs: [368]
 branch: bool/6-per-slab-stacking
+pr: 2752
+closed: 2026-09-16
 ---
 
 Under the Q2 ruling (2026-09-01, "decide now — Helix is coming"): replace

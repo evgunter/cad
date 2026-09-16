@@ -6,8 +6,10 @@
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
-//! [`DocEdit`]s that produce them, and the cluster-record maintenance
-//! those edits performed — the input documents are untouched,
+//! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
+//! those edits performed — the cluster-record acts the mate graph's
+//! motion forced, and the payload names a departing cut node
+//! stranded. The input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -101,9 +103,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::doc::Doc;
+use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::mate::ClusterMaintenance;
 use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
@@ -528,7 +530,7 @@ impl core::error::Error for InlineError {}
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
 /// caller's id, the remainder's from the input document), and the
-/// cluster-record maintenance each edit list performed. Undo of the
+/// [`crate::Maintenance`] each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -540,29 +542,30 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `remainder_edits` performed, in
-    /// edit order: what the A11 registry did as the cut's names
+    /// The maintenance `remainder_edits` performed, in edit order
+    /// ([`Maintenance`]): what the A11 registry did as the cut's names
     /// re-anchored onto the instance (a kept mate that welded nothing
     /// while its far end was a local body welds the instance to its
     /// near end once the name is instance-qualified — a join) and as
     /// the cut nodes left (a cut cluster's mates and members going is
-    /// its splits and drops). An accepted edit travels whole, so the
+    /// its splits and drops), and every payload name a departing cut
+    /// node stranded behind it (DM7). An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
     /// caller holding a document with the maintenance of its last
     /// accepted edit swaps `remainder` and this in together.
-    pub remainder_maintenance: Vec<ClusterMaintenance>,
+    pub remainder_maintenance: Vec<Maintenance>,
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `part_edits` performed, in edit
-    /// order. The part is built by inserting the cut nodes, and a cut
+    /// The maintenance `part_edits` performed, in edit order
+    /// ([`Maintenance`]). The part is built by inserting the cut nodes, and a cut
     /// mate welds its two members as it lands, so a multi-member
     /// cluster cut whole re-forms in the part as one join per mate
     /// that welded two clusters still separate when it landed. That
     /// insert is the one part-side edit that moves a mate graph: the
     /// tolerance, parameter, witness, placement and root edits
     /// reconcile nothing.
-    pub part_maintenance: Vec<ClusterMaintenance>,
+    pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
     /// Cut-node ids → their part-document ids (minted in document
@@ -572,7 +575,7 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it and the cluster-record maintenance they performed.
+/// that produce it and the maintenance they performed.
 /// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
@@ -580,23 +583,24 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `edits` performed, in edit
-    /// order: the part's mates weld their spliced members as they
-    /// land, a wrapped name's re-anchoring moves what the instance
+    /// The maintenance `edits` performed, in edit order
+    /// ([`Maintenance`]): the part's mates weld their spliced members
+    /// as they land, a wrapped name's re-anchoring moves what the
+    /// instance
     /// welded onto the spliced node (a split, where the spliced node
     /// is no member), and the instance's delete drops or re-keys its
     /// cluster's row. An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
-    pub maintenance: Vec<ClusterMaintenance>,
+    pub maintenance: Vec<Maintenance>,
     /// Part-document node ids → their host ids (minted in the part's
     /// document order).
     pub node_map: NodeMap,
 }
 
 /// A document under reconstruction by recorded edits: the value so
-/// far, the edits that produce it, and the cluster-record maintenance
-/// those edits performed. The ONE place a refactoring takes an
+/// far, the edits that produce it, and the maintenance those edits
+/// performed. The ONE place a refactoring takes an
 /// accepted edit up, which is what keeps each [`apply`] result's
 /// document and maintenance together — the record's minted id goes
 /// back to the caller, and its `structural` bit is a fact of the edit
@@ -605,7 +609,7 @@ pub struct InlineOutcome {
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
-    maintenance: Vec<ClusterMaintenance>,
+    maintenance: Vec<Maintenance>,
 }
 
 impl Recording {

@@ -62,8 +62,18 @@
 // an integer — is the whole of what that arm says beyond the name and
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
+// `CarryForwardDoor` rides with `EditError` by that same rule at the
+// carry-forward arm: it is what `EditError::DocParamNotDeclared`
+// carries beside the name, and which of the two doors was refused is
+// the whole of what that arm says beyond the parameter.
+// `Maintenance` rides with `Applied` by the same rule: it is what
+// `Applied::maintenance` answers in — the A11 cluster-record acts an
+// edit forced and the payload names a delete stranded (DM7) — and a
+// consumer that can hold an `Applied` in a typed field must be able to
+// hold what it carries.
 pub use editor_core::{
-    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
+    MetaVersionError, ProgramRefusal, apply,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -152,7 +162,11 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
-pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
+// `DisplayUnitRefusal` is what `DocParam::with_display_unit` answers
+// when a notation cannot be written — the same `VerbKind` rule: it is
+// that door's `Err`, and a consumer calling the door on a `DocParam`
+// it holds could otherwise read the reason only out of prose.
+pub use editor_core::{DisplayUnitRefusal, DocParam, DocParamValue, ParamName, UnitSym};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
@@ -269,7 +283,8 @@ pub use editor_core::{
 // authored payload (`Alignment` over two `MateFrame`s, a
 // `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
-// cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
+// cluster-record maintenance (`ClusterMaintenance`, one arm of the
+// `Maintenance` row carried above), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
@@ -416,8 +431,11 @@ pub use editor_core::{
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
 
-// The profile description node type and its document alias.
+// The profile description node type and its document alias, plus the
+// refusal of the door that reads a step's profile edges — matchable
+// here because a caller that asked which edges a step became has to be
+// able to say WHY it was not told.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg, resolve_loops,
+    RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
 };

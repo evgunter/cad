@@ -360,7 +360,16 @@ fn meridian_edge(
 
 fn check_patch(what: &str, s: &Surface<f64>, rect: [f64; 4], sigma: f64, flip_rims: bool) {
     let lp = patch_loop(s, rect, sigma, flip_rims);
-    let got: FaceContribution<f64> = curved_face(s, &lp.edges, true, band())
+    // `sigma` IS the face's sense bit: the loop above is built so the
+    // outward normal is `sigma × chart normal`, which is what
+    // `Face::sense` records. Passing `true` for both rows was harmless
+    // while no closed form read the bit on a rim-bearing face; the
+    // sphere's interior-side premise reads it, and a `sigma = −1` loop
+    // under `sense = true` is the contradiction tier 3's check 6
+    // exists to catch, not a legal face. The numbers are unchanged:
+    // the flux side is still `linear_rim_side`'s, read off the
+    // boundary.
+    let got: FaceContribution<f64> = curved_face(s, &lp.edges, sigma > 0.0, band())
         .unwrap_or_else(|e| panic!("{what}: closed form refused a legal iso-rectangle: {e:?}"));
     let (area, flux) = oracle(s, rect, sigma);
     assert_rel(&format!("{what} area"), got.area, area, 1e-9);

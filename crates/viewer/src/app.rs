@@ -62,13 +62,15 @@ use crate::drafts::Drafts;
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, IdQueryLog, StatusUpdate};
+use crate::frame::{self, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
+use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
 use crate::pickcache::{self, PickCache};
 use crate::pickindex::{PickIndex, PictureKey};
+use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -92,7 +94,7 @@ pub use crate::forms::FieldWriting;
 /// anything.** Both arms can answer [`prefs::PrefsStore::unusable`]
 /// with `Some`: `Absent` always does, and the native `FileStore` does
 /// in an environment that names no config directory, which is
-/// [`frame::prefs_path`]'s `None`. So everything the chrome does about
+/// [`platform::prefs_path`]'s `None`. So everything the chrome does about
 /// a store that keeps nothing keys on that read and not on the target
 /// — which is what makes the browser and a desktop launched from a
 /// stripped environment one case, and what leaves a future
@@ -107,7 +109,7 @@ fn prefs_store() -> Store {
     #[cfg(not(target_family = "wasm"))]
     {
         // The path comes from `frame`, the crate's one ambient door.
-        prefs::file::FileStore::new(frame::prefs_path())
+        prefs::file::FileStore::new(platform::prefs_path())
     }
     #[cfg(target_family = "wasm")]
     {
@@ -476,9 +478,9 @@ pub struct ViewerApp {
     /// nothing here survives into the next one.
     notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
-    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// once at startup ([`platform::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
-    chooser: frame::ChooserBackend,
+    chooser: platform::ChooserBackend,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -766,7 +768,7 @@ impl ViewerApp {
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
             notices: Vec::new(),
-            chooser: frame::chooser_backend(),
+            chooser: platform::chooser_backend(),
             store,
             keys_pref: saved.keys,
         })
@@ -1312,7 +1314,7 @@ impl ViewerApp {
             let chooser = self.chooser;
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm — `chooser` is `Absent`
@@ -1331,7 +1333,7 @@ impl ViewerApp {
             }
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm, for the reason the Open…
@@ -1895,7 +1897,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
 /// `rfd`'s wasm backend offers only the async dialog, and there are
 /// no paths behind it either — so the browser build does not have a
 /// half-open door here; it has no door, and
-/// [`frame::chooser_backend`] is what says so to the chrome.
+/// [`platform::chooser_backend`] is what says so to the chrome.
 #[cfg(not(target_family = "wasm"))]
 fn pick_open() -> Option<std::path::PathBuf> {
     rfd::FileDialog::new()
@@ -2027,7 +2029,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     // itself sets), so every other environment keeps winit's own
     // backend choice and needs nothing unset.
     #[cfg(target_os = "linux")]
-    if frame::running_under_wsl() {
+    if platform::running_under_wsl() {
         options.event_loop_builder = Some(Box::new(|builder| {
             use winit::platform::x11::EventLoopBuilderExtX11 as _;
             builder.with_x11();
