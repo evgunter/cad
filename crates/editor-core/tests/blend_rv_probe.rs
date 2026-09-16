@@ -117,7 +117,11 @@ fn probe_load_door_reports_position_one() {
         .expect("the selection is on the wire");
     let needle = "\"segment\": 2";
     let at = sel + text[sel..].find(needle).expect("entry 1 is on the wire");
-    let corrupt = format!("{}\"segment\": 9{}", &text[..at], &text[at + needle.len()..]);
+    let corrupt = format!(
+        "{}\"segment\": 9{}",
+        &text[..at],
+        &text[at + needle.len()..]
+    );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
             fault: InputFault::SelectionNotCanonical { at },
