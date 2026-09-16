@@ -5,6 +5,7 @@ title: the exact test accepts barycentrics whose rounding error exceeds the acce
 status: review
 opened: 2026-09-16
 branch: edit/pick-barycentrics
+pr: 2746
 ---
 
 
