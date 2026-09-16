@@ -2924,6 +2924,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ContinuousParamCannotBeCount": "EditError.variant",
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
+    "EditError::DocParamCountHasNoUnit": "EditError.variant",
+    "EditError::DocParamUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
