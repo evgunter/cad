@@ -354,8 +354,10 @@ applied, and a disagreement asserts. Wave 4, all middle tier: the
 ruled-carve document fixture; one-predicate round three (the load
 door's slot-dimension walk over every node kind, the unreachable
 count/continuous arm deleted, one float predicate for a document
-parameter); the recorded program's argument notation, ruled by D7 and
-the doc-param precedent. The appearance-key unit and the pick-`t`
+parameter); the recorded program's argument notation, ruled by
+DESIGN.md D6 ¶2 and the doc-param precedent (the dispatch said D7; the
+correction is on the item, and the class is
+`work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`). The appearance-key unit and the pick-`t`
 kernel unit (block EDIT-B1 slot 2) follow once #2764 merges.
 
 ## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
