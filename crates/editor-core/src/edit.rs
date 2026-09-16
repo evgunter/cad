@@ -6,11 +6,13 @@
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::DistributionFault;
-use crate::doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
+use crate::doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName, PlacementFault};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
-use crate::node::{Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName};
+use crate::node::{
+    AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName,
+};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -1675,26 +1677,26 @@ fn check_node_slots<P: crate::ProfilePayload>(
         return Err(EditError::MeasureMalformed { node: id, fault });
     }
     // An assertion's bound against the dimension of the measure it
-    // constrains — the one check that needs the DOCUMENT, which is why
-    // it lands here and not on the node.
-    if let Node::Assertion { measure, bound, .. } = node {
-        let measured = match doc.node(*measure) {
-            Some(Node::Measure { expr, .. }) => expr.dim(),
-            _ => {
-                return Err(EditError::AssertionTarget {
-                    node: id,
-                    measure: *measure,
-                });
+    // constrains (E10): `Node::assertion_bound_fault`, the one home the
+    // load door reads it from too. The predicate takes the document
+    // because the measured dimension is another node's property; this
+    // is the door's name for its answer.
+    if let Some(fault) = node.assertion_bound_fault(doc) {
+        return Err(match fault {
+            AssertionBoundFault::TargetNotMeasure { measure, .. } => {
+                EditError::AssertionTarget { node: id, measure }
             }
-        };
-        if measured != bound.dim() {
-            return Err(EditError::AssertionDimension {
-                node: id,
-                measure: *measure,
+            AssertionBoundFault::DimensionMismatch {
+                measure,
                 measured,
-                bound: bound.dim(),
-            });
-        }
+                bound,
+            } => EditError::AssertionDimension {
+                node: id,
+                measure,
+                measured,
+                bound,
+            },
+        });
     }
     Ok(())
 }
@@ -1889,9 +1891,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
             check_declare_input(&new, id, node)?;
-            if let Node::Mate { alignment, .. } = node
-                && !alignment.is_finite()
-            {
+            // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
+            // the one place a node is asked whether its alignment datum
+            // is decidable, which the load door's walk asks too.
+            if node.has_non_finite_alignment() {
                 return Err(EditError::NonFiniteAlignment { node: id });
             }
             check_node_slots(&new, id, node)?;
@@ -2327,22 +2330,29 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::SetPlacement { node, frame } => {
-            if !matches!(new.nodes.get(node), Some(Node::InstantiatePart { .. })) {
-                return Err(EditError::PlacementOnNonInstance { node: *node });
-            }
-            if !frame.is_finite() {
-                return Err(EditError::NonFinitePlacement { node: *node });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Err(EditError::ImproperPlacement {
-                    node: *node,
-                    determinant,
+            // A11's admission rule for a registry row, asked of the one
+            // predicate the load door's walk asks
+            // (`crate::doc::placement_fault`); this is the edit door's
+            // name for its answer.
+            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame) {
+                return Err(match fault {
+                    PlacementFault::NotAnInstance => {
+                        EditError::PlacementOnNonInstance { node: *node }
+                    }
+                    PlacementFault::NonFiniteFrame => EditError::NonFinitePlacement { node: *node },
+                    PlacementFault::ImproperFrame { determinant } => EditError::ImproperPlacement {
+                        node: *node,
+                        determinant,
+                    },
                 });
             }
             // A11: the record keys on the cluster, never the
             // instance. A singleton cluster's gauge IS the instance,
-            // so a mate-less document's registry is unchanged.
+            // so a mate-less document's registry is unchanged. This is
+            // also why no edit door asks the load door's GAUGE rule:
+            // the key is normalised here rather than refused, and the
+            // cluster maintenance re-keys the registry whenever the
+            // mate graph moves.
             let gauge = crate::mate::gauge_of(&new, *node);
             new.placements.insert(gauge, *frame);
             // Structural: a placement decides where the instance's

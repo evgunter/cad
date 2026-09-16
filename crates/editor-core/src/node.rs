@@ -1175,6 +1175,36 @@ impl core::fmt::Display for MeasureNodeFault {
 
 impl core::error::Error for MeasureNodeFault {}
 
+/// What makes a [`Node::Assertion`]'s bound unusable
+/// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
+/// door and the load door's re-check.
+///
+/// Two arms rather than one dimension-or-nothing answer: "the
+/// reference is not a measure" and "it is, and it measures something
+/// else" are different mistakes with different repairs, and a reader
+/// should not have to decode an absent dimension to tell them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AssertionBoundFault {
+    /// The reference names no live measure node — there is no measured
+    /// dimension for the bound to agree with.
+    TargetNotMeasure {
+        /// What the assertion references.
+        measure: RecipeNodeId,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+    /// The reference is a measure, and its dimension is not the
+    /// bound's: the assertion compares two different quantities.
+    DimensionMismatch {
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// What that measure yields.
+        measured: Dimension,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+}
+
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
 /// door, the persist re-check and the evaluation backstop.
@@ -2259,6 +2289,55 @@ impl<P> Node<P> {
     pub(crate) fn bad_declare_input(&self, doc: &crate::doc::Doc<P>) -> Option<RecipeNodeId> {
         self.declare_input()
             .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
+    }
+
+    /// **E10, stated once**: what is wrong with this assertion's bound
+    /// against the node it constrains, if anything — the dimension the
+    /// measure yields, or the absence of a measure at that reference.
+    /// `None` for every node that is not an [`Node::Assertion`].
+    ///
+    /// The predicate takes the DOCUMENT because the measured dimension
+    /// is another node's property; that is the shape
+    /// [`Node::bad_declare_input`] has, for the same reason, and it is
+    /// what lets both doors ask ONE question. The edit door renders the
+    /// answer as [`crate::EditError::AssertionTarget`] /
+    /// [`crate::EditError::AssertionDimension`] and the load door as
+    /// `SnapshotError::AssertionTarget` / `SnapshotError::AssertionBound`:
+    /// a refusal names the door it came from, and the rule is asked in
+    /// one place so the two cannot drift.
+    ///
+    /// The target's LIVENESS is not asked separately: a reference that
+    /// names no live node is not a measure, and reports as such.
+    pub(crate) fn assertion_bound_fault(
+        &self,
+        doc: &crate::doc::Doc<P>,
+    ) -> Option<AssertionBoundFault> {
+        let Node::Assertion { measure, bound, .. } = self else {
+            return None;
+        };
+        let (measure, bound) = (*measure, bound.dim());
+        match doc.nodes.get(&measure) {
+            Some(Node::Measure { expr, .. }) => {
+                let measured = expr.dim();
+                (measured != bound).then_some(AssertionBoundFault::DimensionMismatch {
+                    measure,
+                    measured,
+                    bound,
+                })
+            }
+            _ => Some(AssertionBoundFault::TargetNotMeasure { measure, bound }),
+        }
+    }
+
+    /// Whether this node is a mate whose alignment datum carries a
+    /// coordinate no predicate can decide on (ASM-R2a D-1).
+    ///
+    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
+    /// one place a NODE is asked it, so the edit door and the load
+    /// door's walk share the destructuring as well as the test.
+    /// `false` for every node that is not a [`Node::Mate`].
+    pub(crate) fn has_non_finite_alignment(&self) -> bool {
+        matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
     }
 
     /// **DM5, stated once**: what is wrong with this node's structural

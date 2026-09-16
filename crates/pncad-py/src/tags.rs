@@ -1681,12 +1681,14 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         // door, so it keeps the tag it has there.
         SnapshotError::Roots(fault) => root_fault_tag(fault),
         SnapshotError::PlacementSite { .. } => "placement_site",
-        SnapshotError::PlacementFrame { .. } => "placement_frame",
+        SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
+        SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
         SnapshotError::MeasureRefs { .. } => "measure_refs",
         SnapshotError::InputList { .. } => "input_list",
+        SnapshotError::AssertionTarget { .. } => "assertion_target",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
     }

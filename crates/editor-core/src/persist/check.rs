@@ -56,13 +56,13 @@
 
 use crate::appearance::AppearanceRecord;
 use crate::distribution::{DistributionFault, DistributionField};
-use crate::doc::{DocParam, ParamName};
+use crate::doc::{DocParam, ParamName, PlacementFault};
 use crate::edit::DocEdit;
 use crate::expr::Dimension;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::SlotId;
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 use geom_core::Tol;
@@ -418,11 +418,19 @@ pub enum SnapshotError {
         /// The offending key.
         node: RecipeNodeId,
     },
-    /// A placement frame a file must not carry: non-finite, or
-    /// improper (determinant ≤ 0, the A6 mirror case R4 gates). The
-    /// edit door refuses both, so a file holding one is corrupt —
-    /// refused, never repaired.
-    PlacementFrame {
+    /// A placement frame carrying a non-finite coordinate. The edit
+    /// door refuses it, so a file holding one is corrupt — refused,
+    /// never repaired.
+    PlacementNonFinite {
+        /// The offending key.
+        node: RecipeNodeId,
+    },
+    /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
+    /// case R4 gates. Its own arm rather than
+    /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
+    /// this build declines to admit, a non-finite coordinate is data no
+    /// predicate can read, and the repairs differ.
+    PlacementImproper {
         /// The offending key.
         node: RecipeNodeId,
         /// The linear part's determinant.
@@ -478,18 +486,31 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::InputFault,
     },
-    /// An assertion whose bound is dimensioned differently from the
-    /// measure it constrains, or which references something that is
-    /// not a measure at all (E10). The edit door refuses both; a file
-    /// carrying one is data the edit door would never have produced.
-    AssertionBound {
+    /// An assertion whose reference is not a measure at all (E10):
+    /// there is no measured dimension for the bound to agree with. The
+    /// edit door refuses it, so a file carrying one is data the edit
+    /// door would never have produced.
+    AssertionTarget {
         /// The offending assertion.
         node: RecipeNodeId,
         /// What it references.
         measure: RecipeNodeId,
-        /// The measure's dimension, absent when the reference is not a
-        /// measure at all.
-        measured: Option<crate::expr::Dimension>,
+        /// The bound's dimension.
+        bound: crate::expr::Dimension,
+    },
+    /// An assertion whose bound is dimensioned differently from the
+    /// measure it constrains (E10) — the assertion compares two
+    /// different quantities. Its own arm rather than
+    /// [`SnapshotError::AssertionTarget`]: a reader should not have to
+    /// decode an absent dimension to tell a missing measure from a
+    /// mismatched one, and the repairs differ.
+    AssertionBound {
+        /// The offending assertion.
+        node: RecipeNodeId,
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// What that measure yields.
+        measured: crate::expr::Dimension,
         /// The bound's dimension.
         bound: crate::expr::Dimension,
     },
@@ -560,10 +581,15 @@ impl core::fmt::Display for SnapshotError {
                 "a placement is keyed by node {}, which does not instantiate a part",
                 node.0
             ),
-            Self::PlacementFrame { node, determinant } => write!(
+            Self::PlacementNonFinite { node } => write!(
                 f,
-                "the placement frame on node {} is non-finite or improper (determinant \
-                 {determinant})",
+                "the placement frame on node {} carries a non-finite coordinate",
+                node.0
+            ),
+            Self::PlacementImproper { node, determinant } => write!(
+                f,
+                "the placement frame on node {} is improper (mirroring): determinant \
+                 {determinant}",
                 node.0
             ),
             Self::PlacementNotGauge { node, gauge } => write!(
@@ -586,7 +612,7 @@ impl core::fmt::Display for SnapshotError {
             Self::AssertionBound {
                 node,
                 measure,
-                measured: Some(measured),
+                measured,
                 bound,
             } => write!(
                 f,
@@ -597,10 +623,9 @@ impl core::fmt::Display for SnapshotError {
                 measure.0,
                 bound.article()
             ),
-            Self::AssertionBound {
+            Self::AssertionTarget {
                 node,
                 measure,
-                measured: None,
                 bound,
             } => write!(
                 f,
@@ -724,19 +749,38 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         if let Some(input) = node.bad_declare_input(doc) {
             return Err(SnapshotError::DeclareInput { node: id, input });
         }
-        if let Node::Assertion { measure, bound, .. } = node {
-            let measured = match doc.nodes.get(measure) {
-                Some(Node::Measure { expr, .. }) => Some(expr.dim()),
-                _ => None,
-            };
-            if measured != Some(bound.dim()) {
-                return Err(SnapshotError::AssertionBound {
-                    node: id,
-                    measure: *measure,
+        // An assertion's bound against the measure it constrains
+        // (E10), by the same `Node::assertion_bound_fault` the edit
+        // door asks: the predicate needs the DOCUMENT, so it takes one,
+        // and this door only names its two answers.
+        if let Some(fault) = node.assertion_bound_fault(doc) {
+            return Err(match fault {
+                AssertionBoundFault::TargetNotMeasure { measure, bound } => {
+                    SnapshotError::AssertionTarget {
+                        node: id,
+                        measure,
+                        bound,
+                    }
+                }
+                AssertionBoundFault::DimensionMismatch {
+                    measure,
                     measured,
-                    bound: bound.dim(),
-                });
-            }
+                    bound,
+                } => SnapshotError::AssertionBound {
+                    node: id,
+                    measure,
+                    measured,
+                    bound,
+                },
+            });
+        }
+        // ASM-R2a D-1: a mate's alignment is authored numbers a
+        // predicate must be able to decide on. Asked in THIS walk, of
+        // the same `Node::has_non_finite_alignment` the edit door asks
+        // — a second pass over the nodes would be a second place to
+        // forget the question.
+        if node.has_non_finite_alignment() {
+            return Err(SnapshotError::MateAlignment { node: id });
         }
     }
     for name in doc.appearance.keys() {
@@ -755,25 +799,23 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // have accepted.
     for (&node, frame) in &doc.placements {
         check_id(node)?;
-        if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
-            return Err(SnapshotError::PlacementSite { node });
+        if let Some(fault) = crate::doc::placement_fault(doc, node, frame) {
+            return Err(match fault {
+                PlacementFault::NotAnInstance => SnapshotError::PlacementSite { node },
+                PlacementFault::NonFiniteFrame => SnapshotError::PlacementNonFinite { node },
+                PlacementFault::ImproperFrame { determinant } => {
+                    SnapshotError::PlacementImproper { node, determinant }
+                }
+            });
         }
-        let determinant = frame.determinant();
-        if !frame.is_finite() || determinant <= 0.0 {
-            return Err(SnapshotError::PlacementFrame { node, determinant });
-        }
+        // The GAUGE rule is this door's alone, and that is the
+        // invariant rather than a gap: `SetPlacement` KEYS a row on the
+        // cluster's gauge instead of refusing a non-gauge key, and the
+        // cluster maintenance re-keys the registry whenever the mate
+        // graph moves, so a non-gauge row exists only in a file.
         let gauge = crate::mate::gauge_of(doc, node);
         if gauge != node {
             return Err(SnapshotError::PlacementNotGauge { node, gauge });
-        }
-    }
-    // ASM-R2a D-1: a mate's alignment is authored numbers a predicate
-    // must be able to decide on.
-    for (&node, n) in &doc.nodes {
-        if let Node::Mate { alignment, .. } = n
-            && !alignment.is_finite()
-        {
-            return Err(SnapshotError::MateAlignment { node });
         }
     }
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
@@ -946,9 +988,9 @@ fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId,
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::panic)]
+    #![allow(clippy::panic, clippy::expect_used)]
 
-    use crate::node::RecipeNodeId;
+    use crate::node::{Node, RecipeNodeId};
     use crate::persist::{PersistError, SnapshotError, save};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
@@ -976,6 +1018,103 @@ mod tests {
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
             other => panic!("order mismatch must refuse at save, got {other:?}"),
+        }
+    }
+
+    /// A document with `n` part instances, built through the edit
+    /// door so every invariant beside the one a row then breaks is the
+    /// one `apply` maintains.
+    fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
+        let doc_ref = crate::ident::DocRef {
+            id: crate::ident::DocumentId::derive("check-part"),
+            pin: crate::ident::ContentPin::of_bytes(b"check-part"),
+        };
+        let mut doc = ProfileDoc::empty_derived(label, Tol::witness());
+        let mut ids = Vec::new();
+        for _ in 0..n {
+            let applied = crate::edit::apply(
+                &doc,
+                &crate::edit::DocEdit::InsertNode {
+                    node: Node::instantiate_part(doc_ref),
+                },
+                Tol::witness(),
+            )
+            .expect("an instance inserts");
+            ids.push(applied.record.minted.expect("the insert minted an id"));
+            doc = applied.doc;
+        }
+        (doc, ids)
+    }
+
+    /// The two refusals a FILE cannot carry, pinned at the door that
+    /// can: JSON has no non-finite token, so a non-finite alignment or
+    /// placement coordinate reaches [`validate_document`] only from
+    /// memory — through the `pub` payloads or an in-crate bug. Both
+    /// documents are built through the edit door and then broken, so
+    /// each row's subject is the one coordinate it poked.
+    #[test]
+    fn non_finite_alignment_and_placement_refuse_at_save() {
+        let (mut doc, ids) = assembly("check-align", 2);
+        let name = |instance: RecipeNodeId| crate::names::StableName {
+            kind: crate::names::EntityKind::Face,
+            node: instance,
+            path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
+        };
+        let mate = Node::Mate {
+            a: crate::SitedRef::at_mint(name(ids[0])),
+            b: crate::SitedRef::at_mint(name(ids[1])),
+            class: topo::ContactClass::Rest,
+            alignment: crate::mate::Alignment {
+                a: crate::mate::MateFrame {
+                    origin: [0.0; 3],
+                    axis: [0.0, 0.0, 1.0],
+                    reference: [1.0, 0.0, 0.0],
+                },
+                b: crate::mate::MateFrame {
+                    origin: [0.0; 3],
+                    axis: [0.0, 0.0, 1.0],
+                    reference: [1.0, 0.0, 0.0],
+                },
+                primitive: crate::mate::MatePrimitive::FrameCoincidence,
+                sense: crate::mate::AxisSense::Aligned,
+                clocking: None,
+            },
+        };
+        let applied = crate::edit::apply(
+            &doc,
+            &crate::edit::DocEdit::InsertNode { node: mate },
+            Tol::witness(),
+        )
+        .expect("a finite alignment inserts");
+        let mate_id = applied.record.minted.expect("the insert minted an id");
+        doc = applied.doc;
+        // Finite, the document saves — so the refusal below is the
+        // poked coordinate's.
+        save(&doc, &[], Tol::witness()).expect("the mated assembly saves");
+        match doc.nodes.get_mut(&mate_id) {
+            Some(Node::Mate { alignment, .. }) => alignment.a.origin[0] = f64::NAN,
+            other => panic!("the fixture's mate is a mate, got {other:?}"),
+        }
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::MateAlignment { node })) => {
+                assert_eq!(node, mate_id);
+            }
+            other => panic!("a non-finite alignment must refuse at save, got {other:?}"),
+        }
+
+        let (mut doc, ids) = assembly("check-place", 1);
+        doc.placements.insert(
+            ids[0],
+            crate::placement::Frame {
+                columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                translation: [0.0; 3],
+            },
+        );
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node })) => {
+                assert_eq!(node, ids[0]);
+            }
+            other => panic!("a non-finite placement must refuse at save, got {other:?}"),
         }
     }
 }

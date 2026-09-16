@@ -771,20 +771,37 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &SnapshotError::AssertionBound {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: Some(Dimension::Length),
+            measured: Dimension::Length,
             bound: Dimension::Angle,
         },
         &["bounds a length measure", "with an angle expression"],
         &dumps,
     );
     assert_f6(
-        &SnapshotError::AssertionBound {
+        &SnapshotError::AssertionTarget {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: None,
             bound: Dimension::Count,
         },
         &["carries a count bound", "which is not a measure"],
+        &dumps,
+    );
+    // The placement frame's two arms, which the registry's one
+    // predicate answers apart: a coordinate no predicate can read, and
+    // a mirror this build declines to admit.
+    assert_f6(
+        &SnapshotError::PlacementNonFinite {
+            node: RecipeNodeId(7),
+        },
+        &["non-finite coordinate"],
+        &dumps,
+    );
+    assert_f6(
+        &SnapshotError::PlacementImproper {
+            node: RecipeNodeId(7),
+            determinant: -1.0,
+        },
+        &["improper (mirroring)", "determinant -1"],
         &dumps,
     );
 }

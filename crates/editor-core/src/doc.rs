@@ -720,3 +720,57 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             })
     }
 }
+
+/// What makes an A11 placement row inadmissible
+/// ([`placement_fault`]) — one vocabulary for the edit door and the
+/// load door's re-check of the registry.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PlacementFault {
+    /// The key names no live [`Node::InstantiatePart`]. A11 puts the
+    /// frame on an instance's cluster, so nothing else has one.
+    NotAnInstance,
+    /// The frame carries a non-finite coordinate: no predicate can
+    /// decide anything about where it puts the material.
+    NonFiniteFrame,
+    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
+    /// Admitting one is gated on the equivariance audit R4 owns.
+    ImproperFrame {
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
+/// **A11's admission rule for one placement row, stated once**: the
+/// key instantiates a part, and the frame is finite and proper.
+///
+/// One predicate with one home, asked by every door that admits a row
+/// — [`crate::DocEdit::SetPlacement`] and the load door's walk over the
+/// registry — each naming the answer in its own vocabulary. The
+/// question is asked in one place, so the two doors cannot disagree
+/// about which rows exist.
+///
+/// What is NOT here is the GAUGE rule (`SnapshotError::PlacementNotGauge`),
+/// and that asymmetry is the invariant rather than an omission:
+/// `SetPlacement` does not refuse a non-gauge key, it KEYS THE ROW ON
+/// THE GAUGE, and the cluster maintenance re-keys the whole registry
+/// whenever the mate graph moves ([`crate::mate::solve::reconcile`]).
+/// A non-gauge row is therefore unrepresentable through the edit doors
+/// and needs no refusal there; it is reachable only in a file, which is
+/// the door that asks.
+pub(crate) fn placement_fault<P>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    frame: &crate::placement::Frame,
+) -> Option<PlacementFault> {
+    if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
+        return Some(PlacementFault::NotAnInstance);
+    }
+    if !frame.is_finite() {
+        return Some(PlacementFault::NonFiniteFrame);
+    }
+    let determinant = frame.determinant();
+    if determinant <= 0.0 {
+        return Some(PlacementFault::ImproperFrame { determinant });
+    }
+    None
+}

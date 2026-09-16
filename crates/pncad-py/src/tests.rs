@@ -4933,6 +4933,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
+            "assertion_target",
             "count_continuous",
             "dangling_input",
             "declare_input",
@@ -4944,7 +4945,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",
-            "placement_frame",
+            "placement_improper",
+            "placement_non_finite",
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
