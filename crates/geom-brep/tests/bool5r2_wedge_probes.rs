@@ -153,6 +153,7 @@ fn the_two_lunes_of_a_split_ball_sum_to_the_whole_ball() {
 /// half-plane at azimuth `u` of the frame `(axis, u_ref)`, parameter
 /// the latitude, exactly as [`crate::shared::topo::sphere_great`]
 /// builds it for the polar one.
+#[allow(clippy::too_many_arguments)] // a fixture's frame, spelled out: centre, radius, axis, u_ref, azimuth, span, tags
 fn great_on(
     center: Point3<f64>,
     radius: f64,
