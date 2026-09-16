@@ -698,3 +698,125 @@ soon, because its whole value is four probes already run; then
 `the-field-brace-fingerprint-…`, which is routing and ties to the
 prose-census pair; and `dimension-mismatch-sentence-…`, E by size but a
 design question about two crates, on a file no open program claims.
+
+## CENSUS-ARRIVAL-RESIDUE merged (2026-09-16)
+
+PR 2704 merged as `6b10d748d`, green on `1634ae3f9` (39 jobs, 35
+success / 4 skipped, full matrix, python suite ran). Spec deleted per
+the ledger, item closed. Unit 6's four disclosed residues: three
+repaired, one measured and the measurement chose the disposition.
+
+**The fifth consecutive blind-spot list was short, and by two shapes.**
+A `trait` body was not a scope, so an associated `const` or a defaulted
+method landed under its bare name — *verbatim* residue 3's own
+complaint, closed for `mod` and left open for `trait`. **The unit had
+written the counterexample into its own fixture**: a `pub trait
+Declared` added for the `impl Trait` argument position, with the bare
+name pinned as the expected answer one row below, and nobody read it.
+And `declaration_heads` was still keyed on line starts, so
+`read_minting_items("impl Subject { pub const ALL… }")` answered `{}`.
+
+**That second one is where the form-keying came back, and it is not
+where the orchestrator pointed.** The spec named `starts_an_item` as
+the risk; it survived nineteen hand-built cases, admitting no type
+position and rejecting no stable-Rust item form. The defect was one
+reader over. Residue 1 had promoted `declaration_heads` from the
+attribution rule to the POPULATION key, which turned a mis-charged
+literal into a missing row — so the reader unit 6 freed from form-keying
+was not the reader that defines the population. **The conclusion was
+right and the location was wrong**, which is the useful shape: the
+question was worth asking and the answer was worth executing.
+
+**The hard stop kept unit 6's false premise and this unit widened its
+reach.** *"Rust rejects two such items in one crate"* is false for
+three legal shapes, and putting `mod` in the key exposed
+`#[cfg(test)] mod` — the commonest item shape in the language. Unit 6
+did the same thing with *"Qualify them apart in the same diff"*; this
+diff **reworded that message and kept the premise**. Seventh
+consecutive unit where the fix mints a fresh instance of the defect it
+closes.
+
+13. **A negative control that passes is a finding, not a relief.** The
+    fix pass mutated `trait_key` expecting no red, as a control — and
+    got none. Its generic arguments, which its own doc calls *"exactly
+    the case the trait was put in the key for"*, were pinned by
+    nothing. The same happened to `declares_test`'s boundaries: the
+    first probes (`fnx probe`, `xfn probe`) were refused earlier in the
+    pipeline and so proved nothing about the boundary at all. Both are
+    the style review's own lesson one level in — **a probe shaped like
+    the thing it checks** — and the general form is that a guard is
+    unpinned until an input exists that fails with THAT GUARD ALONE
+    removed. The unit ends with a mutation table of fifteen, each
+    reding a different named test.
+
+Standing finding 12 reached instances **five and six inside this
+unit** (`tests.rs:6872` and `:7833`, both born stale at 10 when the
+roster had moved to 13), in a unit whose spec said *"do not make it
+five."* And a seventh mechanism the row had not carried: the size
+row's count went stale **at a merge** — 7795 was true at
+`fa49e26b0` and the merge `17a68a0fa` carried another lane's
+`ortho_frame_error_tag` row on the other parent, so the number was
+right at the SHA it named and wrong at main. *State the command and the
+SHA* does not survive a concurrent change to the same file.
+
+### The file is the program's largest debt now, and it is not ours to split
+
+`crates/pncad-py/src/tests.rs` has gone **6798 → 7805 → 9162 over two
+units, about +35%**, while `pncad-py-tests-rs-is-six-thousand-lines-…`
+on this slate says it is too big. Both units updated that row in the
+same diff, as asked, and much of this unit's growth is the per-entry
+blind-spot list the spec REQUIRED at the site — the device that caught
+this unit's trap twice. So the growth bought something.
+
+But the debt is now the largest thing on this slate and it grows
+because CENSUS keeps working in that file. **The split is not CENSUS's
+to take**: `crates/pncad-py/*` is LIB's fence and this program claims
+no paths. The honest next move is to hand that row to LIB rather than
+take a third unit in the same file — recorded here as the
+orchestrator's reading, not as a decision, because re-homing a row is
+the owner's conversation.
+
+### What went right
+
+The measurement decided residue 1 **against the disclosure that named
+it**: the old disclosure offered a map forwarding `crate::tags`' and a
+word built from a kernel `Display`, and `errors.rs` holds no instance
+of either, while a live case — `EvalReason::ATTRIBUTES` — sat
+unrostered. A fig leaf in the precise sense. The old *"cannot see a
+word that is not a literal"* test went red when the fix landed, which
+is the evidence rather than the claim.
+
+Writing residue 2's pin found a **live, user-visible defect**:
+`ValidationError` is raised with `reason` and `pncad.pyi` declares only
+`door`, `failure_count`, `findings`. The lane refused to just add the
+line — that swaps a missing promise for a false one, since a
+validator-failure raise carries the other three — and filed it with the
+suppression reding if the stub gains it.
+
+And `scope_spans` took the free scan with the shared `boundary_*`
+guards that `hand_written_impl_census.rs` has always used, which is the
+**second** mechanism unit 2's census had solved and unit 6 re-invented
+more narrowly, after the `(path, trait, self type)` key.
+
+### The orchestrator's own charter defect, twice
+
+At unit 6's close-out the slate had drifted from the item files in both
+directions and was reconciled by hand. **At this one it had drifted
+again** — two more filed rows absent — because the first reconciliation
+was a spelling correction that left no instrument, which is exactly
+what this program exists to prosecute. Filed on META as
+`a-plan-whose-table-orders-the-work-has-no-check-that-it-lists-the-work`,
+because `scripts/work.py` is META's and CENSUS can only keep
+re-spelling the table by hand. The row records the measurement that
+kills the obvious rule: a plan is a NARRATIVE (`work/README.md:24`) and
+`blend` and `bool` have 25 and 44 open-and-unlisted items apiece, so
+the check has to be opt-in for programs whose plan is their order's
+input.
+
+## Next
+
+Before another unit in `crates/pncad-py/src/tests.rs`, settle the size
+row with LIB (above). Otherwise the `pncad-py` block, with
+`validation-error-reason-…` first of this unit's residue — the only row
+on the slate naming a live user-visible defect rather than a missing
+instrument.

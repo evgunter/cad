@@ -3407,3 +3407,51 @@ section.
 
 - `TINT-3-SPEC.md` — TINT-3, fourteen byte-identical aggregation guards
   (#2680)
+
+## Per-merge deletion — CENSUS-ARRIVAL-RESIDUE's spec (2026-09-16)
+
+Recoverable at `git show 1634ae3f9:docs/CENSUS-ARRIVAL-RESIDUE-SPEC.md`
+(PR #2704's last head before the merge). CENSUS's seventh unit — the
+four residues the sixth shipped disclosed and unscheduled. Its
+sentences that did not survive:
+
+- **acceptance 5's "7795 lines".** `main` was **7805**. 7795 was true
+  at `fa49e26b0`, the commit that wrote it, and the merge `17a68a0fa`
+  is 7805 because another lane added an `ortho_frame_error_tag` row to
+  `TAG_INVENTORY` **on the other parent**. So the size row's own
+  mitigation — *state the command that re-derives the count and the SHA
+  it was taken at* — **does not survive a concurrent change to the same
+  file**, and the stale number reached main, the row's title, the slate
+  and this spec. That is a mechanism for standing finding 12 that
+  nothing had recorded, and it is written into the size row.
+- **"What I verified" item 4's aim.** The spec pointed at
+  `starts_an_item` as where form-keying could return. Wrong: it
+  survived nineteen hand-built cases, admitting no type position and
+  rejecting no stable-Rust item form. **The form-keying was one reader
+  over**, in `declaration_heads`, whose `declaration_name` split a LINE
+  and required the keyword to be its first token — so
+  `read_minting_items("impl Subject { pub const ALL… }")` answered `{}`,
+  silently. Residue 1 had promoted that reader from the attribution
+  rule to the POPULATION key, which turned a mis-charged literal into a
+  missing row. The conclusion the spec drew was right and the location
+  it named was not.
+
+The spec's framing that survived: **not pre-deciding residue 1, and
+asking for a measurement instead.** The measurement found that the
+disclosure it was testing described two hypotheticals the file holds no
+instance of, while a live case — `EvalReason::ATTRIBUTES` — sat
+unrostered; that is what moved the population to the file's
+declarations.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-ARRIVAL-RESIDUE
+entry plus the PR body. Residue filed on `work/census/`:
+`validation-error-reason-is-raised-and-the-stub-declares-only-door`,
+`one-stub-convention-has-two-readers-in-two-languages` and
+`the-mint-reader-hosts-three-lexer-operations-of-its-own`; on other
+programs' slates, `work/tint/item-body-takes-a-const-generic-brace-for-an-item-body`
+and `work/ciw/doc-gate-cannot-see-a-broken-link-inside-a-cfg-test-module`;
+and on `work/meta/`,
+`a-plan-whose-table-orders-the-work-has-no-check-that-it-lists-the-work`.
+
+- `CENSUS-ARRIVAL-RESIDUE-SPEC.md` — CENSUS-ARRIVAL-RESIDUE, the arrival alarm's four disclosed residues, three repaired and one measured (#2704)
