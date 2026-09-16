@@ -2,8 +2,9 @@
 id: baseline-sizing-census-second-copy
 kind: issue
 title: docs/TESS-BUDGET.md carries four of the sizing census's asserted figures present-tense, and the census cannot edit it
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-17
 ---
 
 
