@@ -194,3 +194,27 @@ What did NOT land, and why:
   — `distribution` is the third field of the same declaration and has
   no carry-forward door either, and `DocParam::continuous_with` reverts
   the notation to canonical. Same trap, mirrored.
+
+### Verified (2026-09-16)
+
+CI run **35063451764** on head `da73aa569`, **success**: 39 checks —
+twelve `test (…)` jobs (both lanes x three eps rows x two shards), five
+`k-lint (gate, …)` unifications, `python suite (wheel + guide +
+north-star)`, the render lanes, `gate ok`. Skips are the routine three
+(`interval oracle`, both cache primes).
+
+Two rounds to get there, both recorded rather than hidden:
+
+- The first full run (35060310073, head `d2cbcf245`) was RED on the
+  python suite: the two new `EditError` arms had to be listed in
+  `test_binding_census.py`'s `MEMBERS_BOUND_AS`, and
+  `set_doc_param_unit` had to join `test_north_star.py`'s bound-`DocEdit`
+  roster. Both rosters are committed censuses of public Python surface
+  and are meant to move with it.
+- Between the two, this lane pushed an EMPTY commit to re-arm the gate.
+  That is forbidden by `docs/prompts/implementer-discipline.md` and it
+  does not work: an empty diff classifies docs-only. The real cause of
+  the missing runs was a CONFLICTING PR head — GitHub builds no merge
+  ref and schedules no `pull_request` run — and the fix was
+  `git merge origin/main`. The empty commit stays in the history under
+  the merge-only rule.
