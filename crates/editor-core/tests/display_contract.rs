@@ -806,6 +806,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
             predicate: "name_frag_side_of",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
+            source: editor_core::FlipSource::VerdictLog,
         },
         &["name_frag_side_of", "flipped from positive to negative"],
         // Every `Sign`, not the two this row happens to construct: a
@@ -813,6 +814,65 @@ fn a_predicate_flip_names_its_signs_as_words() {
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
         &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
+    );
+}
+
+/// The RECOVERED flip says so, and names the partner through the
+/// stable name's own `Display` — the two halves a reader needs to know
+/// that this flip is in no log they could go and check, and which pair
+/// it is about.
+#[test]
+fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
+    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
+    let sign_words = as_strs(&sign_debug);
+    assert_f6(
+        &Diagnosis::PredicateFlip {
+            predicate: "name_frag_side_of",
+            from: geom_core::predicate::Sign::Positive,
+            to: geom_core::predicate::Sign::Negative,
+            source: editor_core::FlipSource::ShadowExec {
+                partner: Box::new(face_name()),
+            },
+        },
+        &[
+            "name_frag_side_of",
+            "flipped from positive to negative",
+            &face_name().to_string(),
+            "recovered by re-running the pair at diagnosis time",
+        ],
+        &[
+            sign_words.as_slice(),
+            &["PredicateFlip", "ShadowExec", "FlipSource"],
+        ]
+        .concat(),
+    );
+}
+
+/// The shadow rung's REFUSAL states what stood between the diagnosis
+/// and evidence that exists — both arms, because a refusal a reader
+/// cannot act on is the fall-through it was written to replace.
+#[test]
+fn the_shadow_exec_refusal_states_which_wall_it_hit() {
+    assert_f6(
+        &Diagnosis::ShadowExecDeclined {
+            node: RecipeNodeId(7),
+            reason: editor_core::ShadowExecRefusal::PairTooWide {
+                pairs: 33,
+                ceiling: 32,
+            },
+        },
+        &["no verdict", "33", "32", "re-execute"],
+        &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
+    );
+    assert_f6(
+        &Diagnosis::ShadowExecDeclined {
+            node: RecipeNodeId(7),
+            reason: editor_core::ShadowExecRefusal::ProbeRefused {
+                probe: "a probe's own sentence".to_owned(),
+            },
+        },
+        &["a probe refused", "a probe's own sentence"],
+        &["ShadowExecDeclined", "ProbeRefused", "ShadowExecRefusal"],
     );
 }
 

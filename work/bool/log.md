@@ -637,3 +637,22 @@ ground: `self-overlapping-spines-build-and-validate`,
 item re-scoped with the measured hand-off (its `what` is false below
 ~1e-16 normalised). The klein one-body scene was filed at dispatch on
 `work/issues/`. Lane reclaimed.
+
+## BOOL-7 merged (2026-09-16)
+
+PR #2755 merged at the fix-pass head eb201b75d (run 35112107363
+green; main at the merge base at landing, so the state-sync commit is
+docs-only). A/B row BOOL7, ordinal 1111, sample #216, TALLY +1 for R1
+fable's unilateral executed MAJOR (a partner behind a Transform probed
+against the unplaced body — a fabricated flip); the first R1 attempt
+hung on a permission-classifier denial and was relaunched, disclosed
+at the row. Both reviews were not-mergeable and the fix pass
+redesigned the rung's second side (partners at the boolean's operand;
+per-partner side verdicts through one aggregation door, calibrated
+against the record; no pooling). Items closed: BOOL-7 and issue 134
+(`vdiff-pruned-pair-shadow-exec-rung`) with two halves recorded as
+limits — the OrderAlong half on WIRE's slate
+(`work/wire/order-along-qualifier-records-no-partner-…`) and the
+collapse half filed here
+(`side-of-vanish-by-fragment-group-collapse-stays-at-the-evidence-free-rungs`).
+Lane reclaimed. Window tally: BOOL-5 +0, BOOL-6 +0, BOOL-7 +1 (fable).

@@ -2,10 +2,11 @@
 id: BOOL-4
 kind: unit
 title: issue 750 — material containment separates the extent box from the material
-status: dispatched
+status: review
 opened: 2026-08-31
 refs: [750]
 branch: bool/4-material-containment
+pr: 2767
 ---
 
 A containment test separating "inside the extent box, outside the material"
