@@ -2907,6 +2907,26 @@ class DocEdit:
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
     @staticmethod
+    def set_doc_param_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+        """Write a new NOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and
+        distribution alike.
+
+        `set_doc_param_value`'s mirror over the other field of the same
+        declaration, and preferable over `set_doc_param` for the same
+        reason. A notation change is not a redeclaration: the display
+        unit is presentation metadata, excluded from `DocParam.bit_eq`,
+        so this edit changes nothing bit semantics see while still
+        entering the history and persisting.
+
+        The unit is one of the typed unit objects (`mm`, `deg`, ...),
+        so an off-table notation is a `TypeError` here rather than a
+        kernel refusal; a `Scalar` parameter has only the dimensionless
+        row and needs no door. Refuses typed on an undeclared name
+        (`doc_param_not_declared`), on a `Count`
+        (`doc_param_count_has_no_unit`) and on a unit that does not
+        measure the declared dimension (`doc_param_unit_mismatch`)."""
+    @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
 

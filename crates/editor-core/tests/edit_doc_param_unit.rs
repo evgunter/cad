@@ -299,8 +299,7 @@ fn the_unit_edit_saves_replays_and_loads() {
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(loaded.edits.len(), 2, "the log round-tripped");
     assert_eq!(
-        loaded.edits[0],
-        edits[0],
+        loaded.edits[0], edits[0],
         "the edit itself round-tripped, notation and all"
     );
     match loaded.doc.params()[&p("wall")] {
