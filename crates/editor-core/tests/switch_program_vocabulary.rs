@@ -103,6 +103,8 @@
 //! keep.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeSet;
+
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, SlotId,
@@ -281,6 +283,16 @@ fn chain_steps() -> Vec<ProgramStep> {
                 side: profile::ArcSide::Right,
             },
         },
+        // The travel sense the mode witnesses do not reach. Every
+        // other structural tag on this wire rides a generated block,
+        // but `mode_witness` has one `Center` and so one winding, and
+        // a tag the corpus never carries is a tag the persisted-
+        // spelling pin below says nothing about.
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: pt(6.0, 3.0),
+            winding: profile::ArcSweep::Ccw,
+            target: point(7.0, 3.0),
+        }),
         ProgramStep::FarEndTo(pt(7.0, 2.0)),
         ProgramStep::CloseTo,
     ]);
@@ -1121,4 +1133,159 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
             arg.dimension()
         );
     }
+}
+
+// ------------------------------------------------------------------
+// The persisted spelling
+// ------------------------------------------------------------------
+
+/// Every JSON object KEY and every JSON string the corpus's persisted
+/// form carries, read from the bytes and not from the declarations
+/// that produced them.
+///
+/// Externally-tagged enums put a variant's name in one of exactly
+/// those two places — an object key for a variant with a payload, a
+/// bare string for one without — and a struct variant's field names
+/// are object keys beside it. So this set IS the persisted vocabulary
+/// of everything the corpus reaches, with no per-variant walk to keep
+/// in step with the enums.
+fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
+    fn walk(v: &serde_json::Value, out: &mut BTreeSet<String>) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (key, value) in map {
+                    out.insert(key.clone());
+                    walk(value, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            serde_json::Value::String(s) => {
+                out.insert(s.clone());
+            }
+            serde_json::Value::Null
+            | serde_json::Value::Bool(_)
+            | serde_json::Value::Number(_) => {}
+        }
+    }
+    let mut out = BTreeSet::new();
+    walk(
+        &serde_json::to_value(program).expect("the program serializes"),
+        &mut out,
+    );
+    out
+}
+
+/// **The persisted spelling of the profile payload, pinned as
+/// literals.**
+///
+/// Every other census in this file compares one projection of a
+/// declaration against another projection of the same declaration, so
+/// renaming a variant moves both sides together and nothing reds. That
+/// is the right shape for a census of WHICH members a vocabulary has.
+/// It is the wrong shape for their SPELLING, because the document
+/// enums ARE the serde types: a renamed variant and a renamed field
+/// are changes to the FORMAT, and the format is not derivable from the
+/// declaration that changed with it.
+///
+/// So this list is written out, and that is the point of it — it is
+/// the one thing on this wire that a rename cannot move with itself.
+/// A red here is not repaired by copying the new tokens over: it says
+/// a document the previous build saved no longer reads the same. The
+/// repair is to decide the new spelling is right, regenerate the
+/// checked-in corpus (`PNCAD_BLESS=1`, `lib_dietool_crossing`'s
+/// header), and re-pin.
+///
+/// It covers what the corpus reaches, which is every member of all
+/// four document vocabularies (the censuses above are what make that
+/// true) plus the `Expr` records they carry.
+const PERSISTED_SPELLING: &[&str] = &[
+    // The `Expr` record and its closed tables: the dimensionless
+    // literal's display symbol is the empty string.
+    "",
+    "Length",
+    "Literal",
+    "Scalar",
+    "dim",
+    "m",
+    "rad",
+    "unit",
+    "value",
+    // `ProfileProgram` and `LoopProgram`.
+    "Chain",
+    "Circle",
+    "CircleSplit",
+    "centre",
+    "loops",
+    "n",
+    "phase",
+    "plane",
+    "radius",
+    // `ProgramStep`, and the field names of the four that name theirs.
+    "Angle",
+    "ArcFillet",
+    "ArcFilletArc",
+    "ArcTo",
+    "At",
+    "CloseTo",
+    "ContinueTo",
+    "Cusp",
+    "FarEndTo",
+    "Fillet",
+    "FilletArc",
+    "Line",
+    "LineTo",
+    "Tangent",
+    "TangentArcTo",
+    "Toward",
+    "Turn",
+    "dx",
+    "dy",
+    "spec",
+    "spec2",
+    // `ProgramArcData` and its fields, then the two kernel-foreign
+    // tags its fields carry (`profile::ArcSide`, `profile::ArcSweep`).
+    "ArcLen",
+    "Bulge",
+    "Center",
+    "Radius",
+    "Sweep",
+    "Via",
+    "angle",
+    "b",
+    "c",
+    "len",
+    "q",
+    "r",
+    "side",
+    "target",
+    "winding",
+    "Ccw",
+    "Cw",
+    "Left",
+    "Right",
+    // `ProgramTarget`. (`Angle` above is a step verb and a dimension
+    // both; `Radius`/`Sweep` are arc modes and `Line`/`Fillet` verbs —
+    // this is a set of TOKENS, not a table keyed by vocabulary.)
+    "Point",
+    "Start",
+    "StartArriving",
+];
+
+#[test]
+fn the_persisted_spelling_of_the_program_is_pinned() {
+    let found = persisted_tokens(&corpus());
+    let pinned: BTreeSet<String> = PERSISTED_SPELLING.iter().map(|s| (*s).to_string()).collect();
+    let added: Vec<&String> = found.difference(&pinned).collect();
+    let gone: Vec<&String> = pinned.difference(&found).collect();
+    assert!(
+        added.is_empty() && gone.is_empty(),
+        "the persisted spelling of the profile program moved. New on the wire: \
+         {added:?}. Gone from the wire: {gone:?}. A document the previous build saved \
+         no longer reads the same — decide whether the new spelling is right, \
+         regenerate the checked-in corpus, and re-pin."
+    );
 }
