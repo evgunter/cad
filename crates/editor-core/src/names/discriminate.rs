@@ -83,7 +83,7 @@ pub(crate) fn side_of_face<T: Decide>(
 /// **outside every log**, and hands back the verdicts they made.
 ///
 /// This is [`side_of_face`] with two differences and no third. The
-/// probes run under [`k_stats::detached`], whose recording is READ
+/// probes run under [`geom_core::k_stats::detached`], whose recording is READ
 /// here and never spliced, so nothing this function decides can reach
 /// a node's verdict log, an escalation log or a margin sink — the
 /// caller is a DIAGNOSIS, and a diagnosis that wrote to the substrate
