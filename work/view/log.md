@@ -12032,3 +12032,75 @@ the fixed tree: `cargo nextest run --workspace --no-fail-fast`, 7,570
 run, 7,570 passed, 38 skipped.
 
 Signed (VIEW implementer lane `view/frame-split`).
+
+## 2026-09-16 — the supersession lifetime is stated, not confessed (lane `view/supersession-lifetime`)
+
+`a-supersession-outlives-its-own-frame` is closed on Ev's fork-1
+ruling. `frame::Withdrawal`'s *Why the line and not a badge* section
+said *"That is a weaker lifetime than the argument above wants"* and
+pointed at this item as residue. It now states the lifetime the code
+has, in three legs with the row that holds each, and says why that
+lifetime is the right one — including the part the old sentence made
+underivable, that `Clear` is **tighter** than a per-instance
+retirement rather than looser.
+
+**Re-derived, not inherited.** `frame::acts` is
+`!matches!(op, SessionOp::Hover(_))` at `frame.rs:561-563`, not the
+`537-539` the item cites: `frame.rs` was split this morning and every
+number in the row predates it. `batch_status` is at `571-582` and
+reads as the ruling describes.
+
+**The "survives navigation" clause is true, and for two independent
+reasons rather than the one the item gives.** `SessionOp` has 29
+variants and none of them is a camera move — `camera::CameraOp` is its
+own vocabulary — so a fold never reaches `batch_status` at all; and
+the retirement a clean fold does issue is `Expire(Subject::Camera)`,
+which `apply` drops only against a message whose subject matches.
+Either alone is enough.
+
+**The ruling's one wrong fact.** It says `Subject::Document` *"has no
+typed `StatusUpdate::Expire` issuer where three other subjects do"*.
+Two do. `SUBJECTS_WITH_AN_EXPIRY_ISSUER` is `[Subject; 2]` —
+`Camera` and `Cursor` — and `Document` shares the absence with
+`Display` and `Preferences`, which the roster's own paragraph states
+in as many words. So `Document` is not the odd one out; it is one of
+three, and the asymmetry the ruling narrows the item's framing to does
+not exist in the direction it names. The conclusion is untouched: the
+arm's doc is accurate and was not this unit's to change.
+
+**No new assertion, and the argument is a mutation table rather than a
+preference.** Each leg of the sentence was falsified in the source and
+the suite run:
+
+| mutation | rows that red |
+|---|---|
+| `apply`'s `Keep` arm clears | `a_cursor_that_has_not_moved_retires_nothing`, `deliver_sends_news_to_the_notices_and_retirements_to_the_field`, `keep_clear_and_show_are_four_different_sentences` |
+| `acts` returns `true` (a hover acts) | `a_hover_only_batch_leaves_the_status_line_alone` |
+| `apply`'s `Expire` is subject-blind | `a_clean_fold_keeps_a_message_it_did_not_write`, `expiry_reaches_one_subject_and_no_other`, `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`, `a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it`, `a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ` |
+| `batch_status`'s acting arm keeps instead of clearing | `a_supersession_survives_the_accepted_edit_that_caused_it`, `a_superseded_free_move_is_news_the_ranking_shows`, `a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch`, `a_tool_notice_survives_the_batch_that_carried_its_own_pick`, `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on` |
+
+So a row composing the three legs over a real `Withdrawal` could not
+be red on any tree where it would be the row that caught the break —
+four sibling rows red first. That is the register's *an item's
+suggested assertion is a claim whose cheapest failure is being GREEN
+on the broken tree*, answered by measurement: this one would be green
+on the broken tree because the tree cannot be broken past it. The
+deliverable instead is that the doc NAMES the five rows, which is what
+the item was actually missing — a stated lifetime nobody could trace.
+
+The one leg with no mutation is `frame_status` delegating to
+`batch_status` on a hover-only batch, and it needs none:
+`a_tool_notice_survives_the_batch_that_carried_its_own_pick` asserts
+the two are equal verdict for verdict over `[Hover(None)]`, so a
+`frame_status` that stopped delegating reds there by construction.
+
+**Filed:** `a-doc-comment-names-a-test-row-and-nothing-checks-it-exists`
+— naming rows in a doc comment is the crate's convention
+(`blend.rs:347`, `readout.rs:121`) and is checked by nothing, because
+bracketing does not help: a `#[cfg(test)]` row and a row under
+`crates/viewer/tests/` are invisible to every rustdoc pass this repo
+runs, so a link would be broken rather than checked. 35 spans over 29
+names, all this crate's own resolving; five of them arrived with this
+unit.
+
+Signed (VIEW implementer lane `view/supersession-lifetime`).
