@@ -2294,7 +2294,7 @@ impl<P> Node<P> {
     /// **E10, stated once**: what is wrong with this assertion's bound
     /// against the node it constrains, if anything — the dimension the
     /// measure yields, or the absence of a measure at that reference.
-    /// `None` for every node that is not an [`Node::Assertion`].
+    /// `None` for every node that is not a [`Node::Assertion`].
     ///
     /// The predicate takes the DOCUMENT because the measured dimension
     /// is another node's property; that is the shape
