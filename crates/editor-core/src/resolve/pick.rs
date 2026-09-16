@@ -1531,9 +1531,11 @@ mod tests {
     /// the test computes `u = s_x / 4`, `v = s_y / 4`, `t = s_z`
     /// without a rounding. Every acceptance bound is then a hit AT the
     /// bound and a miss one ULP past it — the pin a mutant that opens
-    /// `u ≤ 1`, `v ≥ 0`, `u + v ≤ 1` or `t ≥ 0` cannot survive. A
-    /// static witness (memories/test-suite-cost: shape 2), not a
-    /// search.
+    /// `u ≥ 0`, `v ≥ 0`, `u + v ≤ 1` or `t ≥ 0` cannot survive. The
+    /// `u ≤ 1` comparison is an early exit, not a bound: `v ≥ 0` and
+    /// `u + v ≤ 1` imply it, so no input distinguishes its absence
+    /// and the row does not claim to. A static witness
+    /// (memories/test-suite-cost: shape 2), not a search.
     #[test]
     fn the_closed_boundaries_are_pinned_one_ulp_each_way() {
         let tri = [
