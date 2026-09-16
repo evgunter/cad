@@ -114,3 +114,16 @@ proposed gate is scoped to `crates/**/*.rs` and `crates/*/README.md`,
 which would have caught **none** of the thirteen above, and
 `tools/` is excluded from `Cargo.toml`'s workspace, so a gate written
 as a workspace test does not see it either.
+
+## One of the thirteen is gone (INSTR unit 1, 2026-09-16)
+
+`baseline_census.rs`'s `work/meter/baseline-sizing-census-second-copy`
+citation went with the paragraph that carried it: that paragraph said
+`docs/TESS-BUDGET.md` *"still carries four of the sizing figures
+asserted below in present-tense prose"*, which unit 1's fix made
+false, so it was rewritten and the pointer had nothing left to point
+at. **This is not the remedy this row asks for** — the citation was
+deleted as collateral, not re-pointed — and the other four in that
+file (`work/meter/C15.md` x2, `work/meter/D201.md`,
+`work/meter/tess-lint-ungated-columns-fold-silently`) are untouched.
+The table's `baseline_census.rs` row is 4, not 5, from this PR on.
