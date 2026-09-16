@@ -4,6 +4,7 @@ kind: ruling
 title: what t the pick door answers for an admitted candidate, and with what width
 status: open
 opened: 2026-09-16
+needs_ev: true
 ---
 
 

@@ -235,3 +235,22 @@ to re-arm CI on a conflicting head — both forbidden and both recorded
 on the item and in the PR; the real cause was a conflicting PR, which
 GitHub does not run. The lane then reproduced the Python suite locally
 and caught a stale census row before pushing. Two residue rows filed.
+
+## 2026-09-16 — EDIT-PICK2 merged (kernel unit, v6 dual, PR #2746); the t-width question goes to Ev
+
+The orchestrator's ruling (MEET ∧ INFORM) was measured false by the
+implementer before any review — the second false central premise on
+this door in two specs — and re-ruled to the closed comparison ∧
+INFORM. Under that rule no admitted barycentric carries an
+uninformative interval, order independence holds, and one door
+(`crossing`) serves the exact test and every corpus row. The dual
+converged on every finding (a false "costs no graze" sentence — a
+corner graze's verdict now depends on the tessellator's corner
+labelling, filed; a conditioning figure wrong by five orders, fixed
+and pinned; two mutants the unit rows could not see, now pinned) with
+no unilateral MAJOR: tally +0. The residual — what `t` the door
+answers for an admitted candidate and with what width — is filed as a
+`ruling` row with `needs_ev` and three rows parked on it: having
+ruled wrongly twice on this door's numerics, the orchestrator puts it
+to Ev on the next `[ev]` PR, together with DM7's scope question on
+stranded appearance keys.

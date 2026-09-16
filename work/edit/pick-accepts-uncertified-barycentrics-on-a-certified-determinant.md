@@ -2,10 +2,11 @@
 id: pick-accepts-uncertified-barycentrics-on-a-certified-determinant
 kind: unit
 title: the exact test accepts barycentrics whose rounding error exceeds the acceptance interval when the determinant is certified but small
-status: review
+status: closed
 opened: 2026-09-16
 branch: edit/pick-barycentrics
 pr: 2746
+closed: 2026-09-16
 ---
 
 
@@ -158,3 +159,11 @@ Verified by CI run `35076081918` on head `23fe58c8b` (the fix pass):
 code-tier, twelve `test (…)` jobs and five `k-lint (gate, …)` jobs,
 33 green and 6 skipped by the change filter, none failed. The
 re-ruling's own run was `35069024406` on `7d6222b4c`.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2746 after the v6 dual (ordinal 4801, sample #214; both
+reviews APPROVE-WITH-FIXES and convergent, no tally candidate) and the
+union fix pass. The residue is three rows parked on the ruling row
+`what-t-the-pick-door-answers-and-with-what-width`, plus the
+labelling-dependence row this unit's review found.
