@@ -583,8 +583,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 /// arm's evidence: the hemisphere it is written for measures exactly,
 /// and a lune bounded by meridians on two DIFFERENT great circles —
 /// which `Δu = π` would measure at the wrong width — is measured at
-/// its OWN width by the wedge arm (`props_wedge_azimuth`, issue 542),
-/// never at π.
+/// its OWN width by the wedge arm (`props_wedge_azimuth`), never at π.
 ///
 /// **What these rows do not carry:** the arcs' `v`-extent. The fold
 /// carries each arc's span-derived pole extremes, so the arcs need

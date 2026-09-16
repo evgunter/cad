@@ -2,6 +2,9 @@
 //! the structural arc rule under re-statements of the same loop, a
 //! tilted off-origin wedge, the coplanar arm's coincident-plane ladder
 //! at the band, a split meridian on a wedge, and a full-circle pair.
+//! Adopted by the unit with the blind-spot rows re-aimed at the typed
+//! refusals the fix pass added (`props_band_opposite` for a coincident
+//! pair, the pole-to-pole premise for a full-circle pair).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
@@ -188,10 +191,11 @@ fn probe_tilted_off_origin_wedge_measures_by_the_closed_form() {
 
 /// A wedge whose `u = 0` meridian is a genuinely SPLIT edge (two pieces
 /// carrying one `CarrierId`, abutting at the equator): geometrically the
-/// quarter wedge, refused as "not one pair". The torus arm folds such
-/// pieces; the sphere wedge arm does not.
+/// quarter wedge, refused as unfolded. The torus arm folds such pieces
+/// by lineage; the sphere wedge arm reads a two-edge boundary and says
+/// so.
 #[test]
-fn probe_a_split_meridian_wedge_refuses_as_not_one_pair() {
+fn probe_a_split_meridian_wedge_refuses_as_unfolded() {
     let band = band();
     let mut a1: LoopEdge<f64> = great(0.0, H, 0.0, 0, 1);
     let mut a2: LoopEdge<f64> = great(0.0, 0.0, -H, 1, 2);
@@ -201,36 +205,48 @@ fn probe_a_split_meridian_wedge_refuses_as_not_one_pair() {
     let got = curved_face(&sphere::<f64>(), &[a1, a2, b], true, band).map(|fc| fc.area);
     println!("[bool5r1] split-meridian wedge: {got:?}");
     assert!(
-        matches!(got, Err(PropsError::NotIsoRectangle { what }) if what.starts_with("rimless sphere face whose non-coplanar")),
+        matches!(got, Err(PropsError::NotIsoRectangle { what }) if what.starts_with("the wedge arm reads a two-edge boundary")),
         "{got:?}"
     );
 }
 
 /// Two FULL great circles (span exactly 2π, pole back to the same pole)
-/// on two planes, stated as a two-edge loop: what the rimless branch
-/// answers. Printed and pinned to whatever the head does.
+/// on two planes, stated as a two-edge loop: the wedge arm's premise
+/// that each arc runs pole to pole is decided, not inherited — a full
+/// circle has the far pole INSIDE its span (`props_meridian_pole`
+/// Positive) and refuses under the premise's name. The same pair on
+/// ONE plane is coplanar and runs its circle there and back, which
+/// `props_band_opposite` refuses as the slit it is.
 #[test]
-fn probe_two_full_circle_meridians_on_two_planes() {
+fn probe_two_full_circle_meridians_refuse_the_pole_to_pole_premise() {
     let band = band();
     let edges: Vec<LoopEdge<f64>> = vec![
         great(0.0, -H, 3.0 * H, 0, 1),
         great(FRAC_PI_2, 3.0 * H, -H, 1, 0),
     ];
-    let got = curved_face(&sphere::<f64>(), &edges, true, band).map(|fc| fc.area / (2.0 * RS * RS));
-    println!("[bool5r1] two full circles on two planes: du = {got:?}");
+    assert_eq!(
+        curved_face(&sphere::<f64>(), &edges, true, band).map(|_| ()),
+        Err(PropsError::NotIsoRectangle {
+            what: "a rimless wedge's meridians run pole to pole"
+        })
+    );
     let coplanar: Vec<LoopEdge<f64>> =
         vec![great(0.0, -H, 3.0 * H, 0, 1), great(0.0, 3.0 * H, -H, 1, 0)];
-    let got_c =
-        curved_face(&sphere::<f64>(), &coplanar, true, band).map(|fc| fc.area / (2.0 * RS * RS));
-    println!("[bool5r1] two full circles on ONE plane: du = {got_c:?}");
+    assert_eq!(
+        curved_face(&sphere::<f64>(), &coplanar, true, band).map(|_| ()),
+        Err(PropsError::NotIsoRectangle {
+            what: "a rimless sphere face whose coplanar meridians share one half-plane — a \
+                   slit the flux lane does not measure"
+        })
+    );
 }
 
 /// The coincident-plane ladder: the second meridian at azimuth
 /// `k·zero/R` for k across the band. The coplanar decide runs first,
-/// so a slit narrower than `zero/R` is measured as the hemisphere
-/// (Δu = π) — the blind spot the PR files forward — the ambiguity band
-/// escalates, and past `escalate` the wedge arm reads the slit's own
-/// width.
+/// so a slit narrower than `zero/R` reaches the coplanar branch — where
+/// `props_band_opposite` refuses it typed, the loop reversing at the
+/// poles — the ambiguity band escalates, and past `escalate` the wedge
+/// arm reads the slit's own width.
 fn ladder<T: Real + geom_core::Decide>(label: &str) -> Vec<(f64, Result<T, PropsError>)> {
     let band = band();
     let zero_over_r = eps() / RS;
@@ -251,16 +267,16 @@ fn ladder<T: Real + geom_core::Decide>(label: &str) -> Vec<(f64, Result<T, Props
 #[test]
 fn probe_the_coincident_plane_ladder_at_f64() {
     let rows = ladder::<f64>("f64");
-    let hemisphere = 2.0 * PI * RS * RS;
     for (k, got) in rows {
         match k {
-            k if k <= 0.5 => {
-                let area = got.expect("a slit narrower than zero/R takes the coplanar arm");
-                assert!(
-                    (area - hemisphere).abs() / hemisphere < 1e-12,
-                    "k = {k}: {area}"
-                );
-            }
+            k if k <= 0.5 => assert!(
+                matches!(
+                    got,
+                    Err(PropsError::NotIsoRectangle { what })
+                        if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+                ),
+                "k = {k}: a slit narrower than zero/R refuses typed, got {got:?}"
+            ),
             2.0 | 5.0 => assert!(
                 matches!(got, Err(PropsError::Escalated { .. })),
                 "k = {k}: {got:?}"
@@ -283,16 +299,16 @@ fn probe_the_coincident_plane_ladder_at_f64() {
 fn probe_the_coincident_plane_ladder_at_interval() {
     use geom_core::{Bounds, Interval};
     let rows = ladder::<Interval>("interval");
-    let hemisphere = 2.0 * PI * RS * RS;
     for (k, got) in rows {
         match k {
-            k if k <= 0.5 => {
-                let area = got.expect("a slit narrower than zero/R takes the coplanar arm");
-                assert!(
-                    area.lo() <= hemisphere && hemisphere <= area.hi(),
-                    "k = {k}: {area:?}"
-                );
-            }
+            k if k <= 0.5 => assert!(
+                matches!(
+                    got,
+                    Err(PropsError::NotIsoRectangle { what })
+                        if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+                ),
+                "k = {k}: a slit narrower than zero/R refuses typed, got {got:?}"
+            ),
             2.0 | 5.0 => assert!(
                 matches!(got, Err(PropsError::Escalated { .. })),
                 "k = {k}: {got:?}"

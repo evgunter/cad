@@ -7,9 +7,9 @@
 //! AND through `curved_face`, so the rows state where the two agree
 //! (a rectangle passes both, a notch refuses both by `props_rim_level`,
 //! an oblique sphere section refuses both by the same incidence name)
-//! and the ONE place they part: the rimless lune, a chart rectangle
-//! the door admits and the flux lane refuses on its own `Δu = π`
-//! premise. That divergence is the door's contract, not a gap in it.
+//! and the rimless lune, a chart rectangle the door admits on the
+//! shape alone while the flux lane measures it at the width its loop
+//! bounds — two premises, one face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -105,10 +105,8 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
 /// **Two homes, one lune.** A lune between two great circles a
 /// quarter turn apart is a chart rectangle in azimuth × latitude, so
 /// the door admits it; the flux lane measures it at the width the
-/// loop bounds (the wedge arm, `props_wedge_azimuth`, issue 542 —
-/// until then it refused on `props_band_coplanar`, its `Δu = π`
-/// premise). The door's answer is the shape's and did not move when
-/// the lane's premise did.
+/// loop bounds (`props_wedge_azimuth`). The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
 fn a_rimless_lune_passes_the_door_and_measures() {
     let half = core::f64::consts::FRAC_PI_2;

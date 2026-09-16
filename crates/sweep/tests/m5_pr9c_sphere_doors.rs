@@ -149,12 +149,11 @@ fn sphere_pierce_reads_the_material_side_from_the_discriminant() {
 /// classifies through it instead of refusing.
 ///
 /// The row is kept, per the S9 pattern, as the record of the frontier
-/// it used to pin — and of the one after it: a ray from outside a
-/// quarter ball can miss the body, and the at-infinity verdict then
+/// it used to pin — and it pins the door after it: a ray from outside
+/// a quarter ball can miss the body, and the at-infinity verdict then
 /// needs the body's signed volume, which the closed-form props lane
-/// refused for a rimless band whose meridians lie on two different
-/// great circles until the rim-free wedge arm read the width from the
-/// meridian pair (issue 542). Both sides of the quarter ball answer.
+/// gives a rimless band whose meridians lie on two different great
+/// circles (the wedge arm). Both sides of the quarter ball answer.
 #[test]
 fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
     let vp = validated(vec![half_disc()]);
@@ -172,9 +171,8 @@ fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
         SolidContainment::In
     );
     // The at-infinity side: a ray from here can miss the quarter ball,
-    // and the verdict is then read off the body's signed volume — which
-    // the props lane certifies since the rim-free wedge arm (issue 542;
-    // until then this query refused `VolumeUncertified`).
+    // and the verdict is then read off the body's signed volume, which
+    // the props lane certifies for the lune (the wedge arm).
     assert_eq!(
         point_in_solid(&t.body, Point3::new(-0.3, 0.1, 0.3), band(), Tol::witness()).unwrap(),
         SolidContainment::Out

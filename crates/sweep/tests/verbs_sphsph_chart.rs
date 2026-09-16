@@ -465,10 +465,10 @@ fn the_balls_two_bands_each_answer_for_their_own_half() {
 /// The EXTERIOR is a different question, answered one door further
 /// on, for a reason that has nothing to do with the chart: a ray from
 /// outside a quarter ball can miss the body entirely, and the verdict
-/// is then the at-infinity side, read off the body's signed volume —
-/// which the closed-form props lane refused for a rimless band whose
-/// meridians lie on two different great circles until the rim-free
-/// wedge arm (issue 542). The verdict is pinned here as `Out`.
+/// is then the at-infinity side, read off the body's signed volume,
+/// which the closed-form props lane gives a rimless band whose
+/// meridians lie on two different great circles (the wedge arm). The
+/// verdict is pinned here as `Out`.
 #[test]
 fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
     let body = lune(Revolution::Partial(core::f64::consts::FRAC_PI_2));
@@ -485,8 +485,7 @@ fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
         "on the sphere face"
     );
     // The at-infinity side is read off the body's signed volume, which
-    // the props lane certifies for the lune since the rim-free wedge
-    // arm (issue 542; until then this query refused `VolumeUncertified`).
+    // the props lane certifies for the lune (the wedge arm).
     assert_eq!(
         point_in_solid(&body, at(ch, OUT_AZ, 1.0, 0.5), b, t).unwrap(),
         SolidContainment::Out,

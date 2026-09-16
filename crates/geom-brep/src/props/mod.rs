@@ -75,7 +75,16 @@
 //! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
 //! the sanctioned re-inspection), stored circle centers/axes/radii,
 //! and carrier endpoint evaluations — never from endpoint `atan2`
-//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker). The
+//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
+//! endpoint inversions differenced lose the winding and sit on a
+//! branch cut wherever an arc is anchored at the seam or a pole). The
+//! one `atan2` in the module is not an inversion and is the stated
+//! exception: `curved::sphere_wedge_azimuth` takes the polar angle of
+//! one meridian's departure direction in the frame the other meridian
+//! and the face's interior direction span, and its cut — the two
+//! meridians on one great circle — is the pair `props_band_coplanar`
+//! has just decided definitely not present; its doc argues the
+//! interval case and the interval twin pins it. The
 //! boundary is structurally verified to be the M2 iso-parameter
 //! inventory: each carrier's kind, its rim/meridian role, and its
 //! **incidence on the surface** (rim centers on the axis with parallel
@@ -107,10 +116,11 @@
 //!   exemption**, so "every curved kind" is not the claim: the
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
-//!   establish (its meridians all lie on ONE great circle, which is
-//!   where `Δu = π` comes from; its `v`-extent, from the fold that
-//!   carries each arc's span-derived pole extremes) is stated at
-//!   `curved::sphere`, at the arm.
+//!   establish (its meridians all lie on ONE great circle that the loop
+//!   runs once, which is where `Δu = π` comes from — or on two, the
+//!   wedge, whose `Δu` is the azimuth between them on the face's side;
+//!   its `v`-extent, from the fold that carries each arc's span-derived
+//!   pole extremes) is stated at `curved::sphere`, at the arm.
 //! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
 //!   because every one of them reaches a side derivation that rests
 //!   on this premise. It was listed here as a second exemption, on the

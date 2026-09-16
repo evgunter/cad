@@ -95,8 +95,8 @@ fn partial_ball_both_sweep_directions_export_the_same_canonical_poles() {
             )
             .unwrap();
             // Tiers 1-2 here; the wedge's tier 3 (its rim-free band
-            // face measures by the meridian pair since issue 542) is
-            // `m9_d1_r2_probes`' subject, with the closed form.
+            // face measures by the meridian pair) is `m9_d1_r2_probes`'
+            // subject, with the closed form.
             assert_eq!(topo::validate(&t.body), Ok(()));
             assert_eq!(topo::validate_closed(&t.body), Ok(()));
             assert_ball_poles(&t);

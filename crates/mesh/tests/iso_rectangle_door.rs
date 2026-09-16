@@ -30,9 +30,9 @@
 //! door, and the walk it would otherwise have received collapses onto
 //! one rim level and IS its own bounding box — the spatial check admits
 //! it, which is the defeat the qualification recorded and the door now
-//! closes. A rimless lune (the partial sphere wedge) keeps meshing:
-//! the door is the shape predicate, not the flux lane's `Δu = π`
-//! premise.
+//! closes. A rimless lune (the partial sphere wedge) meshes and
+//! measures: the door is the shape predicate, and the flux lane reads
+//! the lune's own width.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -91,9 +91,8 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
 /// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
 /// `mass_properties` measures it by the flux lane's own reading of the
 /// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
-/// unit ball over `θ = 2`, volume `(2/3)·θ`. Until issue 542 the flux
-/// lane refused this body (`props_band_coplanar`, the two-band
-/// premise); the door's answer did not move when the lane's did.
+/// unit ball over `θ = 2`, volume `(2/3)·θ`. The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
 fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let body = sphere_wedge(2.0);

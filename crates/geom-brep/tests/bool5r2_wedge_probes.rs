@@ -1,8 +1,11 @@
 //! **Review probes for the rim-free spherical-wedge arm** (issue 542):
 //! the structural rule is attacked from the inputs it is allowed to
 //! read and from the ones it must not, the band ladder around the
-//! coplanar gate is walked, and the recorded blind spot is executed so
-//! that its cost is a number rather than a paragraph.
+//! coplanar gate is walked, and the coincident-pair blind spot the
+//! review executed is pinned as the typed refusal the fix pass gave it
+//! (`props_band_opposite`), with the wedge arm's pole-to-pole premise
+//! decided rather than inherited. Adopted by the unit; the blind-spot
+//! rows are re-aimed, the rest stand as written.
 //!
 //! Every row states its own closed form. The sphere is `R = 10 mm`
 //! about `+Z` at the origin unless the row builds its own.
@@ -215,12 +218,14 @@ fn an_off_origin_tilted_ball_of_another_radius_reads_the_same_width() {
 /// **The band ladder across the coplanar gate.** `props_band_coplanar`
 /// decides `R·|sin φ|` and `props_wedge_azimuth` decides `R·φ` against
 /// the SAME band, and `|φ| ≥ |sin φ|`, so the first decide is the only
-/// one that ever moves: below the coincidence threshold the wedge is
-/// measured as a HEMISPHERE, through the ladder's middle it escalates,
-/// and above the escalate threshold the wedge arm answers its own
-/// width. The `Zero` arm of `props_wedge_azimuth` — the arm's declared
-/// `DegenerateFace` floor — is never reached from `sphere()`, and this
-/// row is what goes red if it ever is.
+/// one that ever moves: below the coincidence threshold the pair is
+/// coplanar and `props_band_opposite` refuses the hairline wedge as the
+/// SLIT it is, through the ladder's middle the coplanar decide
+/// escalates, and above the escalate threshold the wedge arm answers
+/// its own width. The `Zero` arm of `props_wedge_azimuth` — the arm's
+/// declared `DegenerateFace` floor — is never reached from `sphere()`
+/// (by the factor K, not by rounding), and this row is what goes red
+/// if it ever is.
 #[test]
 fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
     let z = eps() / RS; // the azimuth whose lever puts it AT `zero`
@@ -241,6 +246,11 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
             }
             Err(PropsError::Escalated { .. }) => "escalated",
             Err(PropsError::DegenerateFace) => "degenerate",
+            Err(PropsError::NotIsoRectangle { what })
+                if what.starts_with("a rimless sphere face whose coplanar meridians") =>
+            {
+                "slit"
+            }
             Err(_) => "other refusal",
         };
         seen.push((f, tag));
@@ -261,9 +271,9 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
     assert_eq!(
         pinned,
         vec![
-            (0.25, "hemisphere"),
-            (0.5, "hemisphere"),
-            (1.0, "hemisphere"),
+            (0.25, "slit"),
+            (0.5, "slit"),
+            (1.0, "slit"),
             (2.0, "escalated"),
             (5.0, "escalated"),
             (9.0, "escalated"),
@@ -275,57 +285,56 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
     );
 }
 
-/// **The recorded blind spot, executed with its cost.** Two meridian
+/// **The coincident pair, refused in both readings.** Two meridian
 /// half-planes a hair apart are coplanar to `props_band_coplanar`,
-/// which cannot tell them from OPPOSITE half-planes, so both the
-/// hairline WEDGE and the hairline SLIT (a ball missing a sliver) are
-/// measured at `Δu = π` — the first over by `π/δ`, the second under by
-/// a factor of two. Nothing refuses; the number is silently wrong.
+/// which cannot tell them from OPPOSITE half-planes; what can is the
+/// loop's traversal, which REVERSES at each pole here and continues on
+/// the two-band face — `props_band_opposite`. Both the hairline WEDGE
+/// and the hairline SLIT (a ball missing a sliver) refuse under that
+/// name; nothing is measured at `Δu = π`.
 #[test]
-fn the_coplanar_arms_blind_spot_measures_a_hairline_wedge_and_a_slit_as_hemispheres() {
+fn the_coplanar_arm_refuses_a_hairline_wedge_and_a_slit_typed() {
     let delta = 0.5 * eps() / RS;
-    let hemisphere = PI;
-    let sliver = du_of(&wedge(delta), true);
-    assert!(
-        (sliver - hemisphere).abs() < 1e-12,
-        "a wedge of azimuth {delta} measures Δu = {sliver}"
-    );
-    let slit = du_of(&wedge(TAU - delta), true);
-    assert!(
-        (slit - hemisphere).abs() < 1e-12,
-        "a ball with a slit of {delta} measures Δu = {slit}, not 2π − δ"
-    );
+    for theta in [delta, TAU - delta] {
+        assert_eq!(
+            curved_face(&sphere(), &wedge(theta), true, band()).map(|_| ()),
+            Err(PropsError::NotIsoRectangle {
+                what: "a rimless sphere face whose coplanar meridians share one half-plane — a \
+                       slit the flux lane does not measure"
+            }),
+            "theta = {theta}"
+        );
+    }
 }
 
-/// **The wedge arm's own premise — that the two arcs meet at the poles
-/// — is argued from loop closure and checked by nothing here.** Two
-/// non-coplanar meridian arcs that stop short of both poles, tagged as
-/// a closed loop, are measured anyway, at a width that is neither of
-/// the two azimuthal arcs between their half-planes. The row records
-/// what the arm answers for a boundary only tier 1 could have refused.
+/// **The wedge arm's own premise — that the two arcs run pole to pole
+/// — is decided, not argued from loop closure.** Two non-coplanar
+/// meridian arcs that stop short of both poles, tagged as a closed
+/// loop, are a boundary only tier 1 could otherwise have refused; the
+/// arm refuses them under the premise's name, on the pole helper's own
+/// margins (`props_meridian_pole` definite Negative at both poles).
 #[test]
-fn meridian_arcs_that_never_reach_the_poles_are_measured_anyway() {
+fn meridian_arcs_that_never_reach_the_poles_refuse_the_premise() {
     let edges = vec![
         great(0.0, FRAC_PI_4, -FRAC_PI_4, 0, 1),
         great(FRAC_PI_2, -FRAC_PI_4, FRAC_PI_4, 1, 0),
     ];
-    let fc = curved_face(&sphere(), &edges, true, band()).expect("the arm answers");
-    let du = fc.area / (RS * RS * 2.0_f64.sqrt());
-    assert!(
-        (du - FRAC_PI_2).abs() > 0.1 && (du - 3.0 * FRAC_PI_2).abs() > 0.1,
-        "Δu = {du} is neither azimuthal arc between the half-planes"
+    assert_eq!(
+        curved_face(&sphere(), &edges, true, band()).map(|_| ()),
+        Err(PropsError::NotIsoRectangle {
+            what: "a rimless wedge's meridians run pole to pole"
+        })
     );
 }
 
-/// **A wedge whose meridians are SPLIT is refused as "not a wedge".**
-/// The arm reads a two-edge boundary only, so the same lune with both
+/// **A wedge whose meridians are SPLIT is refused as unfolded.** The
+/// arm reads a two-edge boundary only, so the same lune with both
 /// meridians cut at the equator — four arcs on two great circles,
-/// which is exactly a wedge — refuses under a `what` that says it is
-/// not one. The merge base refused the same face on
-/// `props_band_coplanar`, so nothing regressed; the row pins the scope
-/// and the wording.
+/// which is exactly a wedge — refuses under a `what` that says that
+/// and nothing more (the torus arm folds pieces by lineage; the sphere
+/// arm does not). The row pins the scope and the wording.
 #[test]
-fn a_wedge_whose_meridians_are_split_refuses_as_not_a_wedge() {
+fn a_wedge_whose_meridians_are_split_refuses_as_unfolded() {
     let four = vec![
         great(0.0, FRAC_PI_2, 0.0, 0, 1),
         great(0.0, 0.0, -FRAC_PI_2, 1, 2),
@@ -335,8 +344,8 @@ fn a_wedge_whose_meridians_are_split_refuses_as_not_a_wedge() {
     assert_eq!(
         curved_face(&sphere(), &four, true, band()).map(|_| ()),
         Err(PropsError::NotIsoRectangle {
-            what: "rimless sphere face whose non-coplanar meridians are not one pair (neither \
-                   the two-band face nor a wedge)"
+            what: "the wedge arm reads a two-edge boundary; a meridian in pieces is not folded \
+                   on the sphere"
         })
     );
 }

@@ -657,8 +657,8 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
 /// sphere centre, which the sphere flux closed form's boundary parse
 /// classifies as meridian carriers and then refuses as not great
 /// (`props_meridian_great`) — the inventory has no lens. (The
-/// OPERAND's own wall, two meridians on two great circles, measures
-/// since issue 542.) That standing wall is pinned with its payload by
+/// OPERAND's own wall, two meridians on two great circles, measures by
+/// the meridian pair.) That standing wall is pinned with its payload by
 /// `torax_the_sphere_lune_next_door_is_the_props_inventory` below; this
 /// row pins what this unit built.
 ///
@@ -813,7 +813,7 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 ///
 /// The OPERAND measures: its wall is a rim-free band between two
 /// meridians on two great circles, which the sphere flux arm reads by
-/// the meridian pair since issue 542 (`props_wedge_azimuth`), so the
+/// the meridian pair (`props_wedge_azimuth`), so the
 /// quarter-turn lune's tier 3 passes at the ball wedge's closed form
 /// `πr³/3`. `shell` then walks the WHOLE hollow — corners, carriers,
 /// pcurves, containment — and its last act, tier 3's +V invariant,

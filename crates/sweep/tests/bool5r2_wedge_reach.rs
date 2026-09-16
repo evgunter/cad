@@ -13,10 +13,9 @@
 //! The body below is that profile: a flat ring of outer radius `L`
 //! with a hemispherical dimple of radius `r` on its axis (the
 //! rectangle minus the half-disc), so `r_max = L` and the dimple's
-//! wall is a rimless sphere band. Nothing here is a claim about this
-//! unit's arm — the same shape measures the same way at its merge
-//! base — it is a measurement of what the recorded blind spot costs
-//! where a door can reach it.
+//! wall is a rimless sphere band. Adopted by the unit with the window
+//! row inverted: the coplanar branch refuses the coincident pair typed
+//! (`props_band_opposite`) where it measured it at `π`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -78,30 +77,23 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
     );
 }
 
-/// **The window, executed, and what actually stands in it.**
-/// `r_max = 100` and `R = 0.01`, so the angle is definite at
-/// `revolve`'s lever (`θ·r_max ≫ 10·zero`) and coincident at the
-/// sphere's (`R·sin θ ≤ zero`): `revolve` builds the body and
-/// `mass_properties` — the public props door — ANSWERS, with the
-/// dimple's wall measured at `Δu = π` instead of `Δu = θ`, a volume
-/// short by `(2/3)R³(π − θ)`. So the recorded blind spot is reachable
-/// from a certified door and costs a silent number there.
-///
-/// What saves the FULL tier-3 walk is a different gate entirely: at
-/// this angle the two end caps are a knife edge and
-/// `validate_geometric` refuses `LaminaWedge`, which is not the props
-/// lane's answer and not a check `mass_properties` runs. The row pins
-/// both halves, because the half that matters depends on which door a
-/// consumer asks (`point_in_solid`'s at-infinity arm asks
-/// `mass_properties`).
-///
-/// Nothing here is this unit's doing: the coplanar arm answered `π`
-/// for this face at the merge base too.
+/// **The window, executed, and what stands in it.** `r_max = 100` and
+/// `R = 0.01`, so the angle is definite at `revolve`'s lever
+/// (`θ·r_max ≫ 10·zero`) and coincident at the sphere's
+/// (`R·sin θ ≤ zero`): `revolve` builds the body and the dimple's wall
+/// reaches the coplanar branch as a pair of meridians on one
+/// half-plane. `mass_properties` — the public props door — refuses it
+/// typed under `props_band_opposite` (the loop reverses at the poles),
+/// where a lune measured at `Δu = π` would have been short by
+/// `(2/3)R³(π − θ)`. The full tier-3 walk refuses too; whichever of
+/// its checks reports first (the knife-edge caps' `LaminaWedge` or the
+/// volume), the props door's own answer is the typed refusal, which is
+/// the half `point_in_solid`'s at-infinity arm asks for.
 ///
 /// Stated against the run's own ε rather than a literal: the row
 /// asserts the window it uses is the window it computed.
 #[test]
-fn a_hairline_revolve_of_a_dimpled_ring_reports_a_silently_wrong_volume() {
+fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
     let zero = eps();
     let l = 100.0;
     let theta = 0.5 * zero / R_SPHERE;
@@ -115,27 +107,21 @@ fn a_hairline_revolve_of_a_dimpled_ring_reports_a_silently_wrong_volume() {
     );
     let vp = validated(vec![dimpled_ring(l)]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
-    // The full tier-3 walk refuses — on the knife-edge caps, not on
-    // the props lane, and after `mass_properties` has already
-    // answered.
-    let tier3 = format!("{:?}", topo::validate_geometric(&t.body, Tol::witness()));
+    let tier3 = topo::validate_geometric(&t.body, Tol::witness());
     assert!(
-        tier3.contains("LaminaWedge") && !tier3.contains("Volume"),
-        "tier 3 stops on the caps, not on the volume: {tier3}"
+        tier3.is_err(),
+        "the full tier-3 walk refuses the hairline body"
     );
-    let v = topo::mass_properties(&t.body, Tol::witness())
-        .expect("the props door answers")
-        .volume;
-    let want = exact_volume(l, theta);
-    // The dimple's wall contributes its hemisphere's worth instead of
-    // its wedge's: the reported volume is short by (2/3)R³(π − θ).
-    let predicted = want - 2.0 / 3.0 * R_SPHERE.powi(3) * (core::f64::consts::PI - theta);
+    println!("[bool5r2] tier 3 on the hairline ring: {tier3:?}");
+    let got = topo::mass_properties(&t.body, Tol::witness()).map(|m| m.volume);
     assert!(
-        (v - predicted).abs() / predicted.abs() < 1e-9,
-        "reported {v:.15e}, want {want:.15e}, predicted-wrong {predicted:.15e}"
-    );
-    assert!(
-        (v - want).abs() / want > 0.1,
-        "the error must be visible: {v:.15e} vs {want:.15e}"
+        matches!(
+            &got,
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::PropsError::NotIsoRectangle { what },
+                ..
+            }) if what.starts_with("a rimless sphere face whose coplanar meridians share one half-plane")
+        ),
+        "the props door refuses the coincident pair typed, got {got:?}"
     );
 }

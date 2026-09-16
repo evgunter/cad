@@ -10,13 +10,13 @@
 //! (caps through the centre, flux 0) has volume `(2/3)·R³·Δu`.
 //!
 //! **Which arc the face covers is read structurally, and the rows
-//! drive both readings.** The face's interior at a meridian arc is
-//! `sense × traversal` — the outward normal crossed with the traversal
-//! tangent — so reversing the loop, or flipping the sense bit, hands
-//! the arm the complementary lune `2π − θ`. The four angles include
-//! `π` (the two-band geometry, which the coplanar arm already measured
-//! and must keep measuring by the same closed form) and `3π/2` (a
-//! wedge whose SHORT azimuthal arc is on the wrong side).
+//! drive both readings.** The rule and its derivation live in one
+//! place, `curved::sphere_wedge_azimuth`'s doc; what the rows use of
+//! it is that reversing the loop, or flipping the sense bit, hands the
+//! arm the complementary lune `2π − θ`. The four angles include `π`
+//! (the two-band geometry, measured by the coplanar arm and pinned
+//! bitwise below) and `3π/2` (a wedge whose SHORT azimuthal arc is on
+//! the wrong side).
 //!
 //! Offsets are none: the shapes are exact at every ε row, so this file
 //! rides CI's `eps ∈ {default, 1e-6, 1e-12}` matrix without a literal
@@ -195,14 +195,14 @@ fn the_covered_arc_is_the_one_the_loops_vector_area_points_into() {
     }
 }
 
-/// **A rimless boundary of three meridians on two great circles is
-/// neither the two-band face nor a wedge, and refuses typed** — the
-/// `u = 0` meridian split at the equator beside the `u = π/2` one. The
-/// closed form's premise is one pair of half-planes; three arcs on two
-/// circles state no lune the arm may integrate, and the refusal names
-/// that rather than answering for the pair it can see.
+/// **A split meridian on a wedge refuses as unfolded** — the `u = 0`
+/// meridian in two pieces abutting at the equator beside the `u = π/2`
+/// one is geometrically the quarter wedge, and the wedge arm reads a
+/// two-edge boundary: it does not fold a meridian's pieces (the torus
+/// arm does, by lineage), and the refusal says that rather than
+/// answering for the pair it can see.
 #[test]
-fn three_meridians_on_two_great_circles_refuse_typed() {
+fn a_split_meridian_wedge_refuses_as_unfolded() {
     let band = band();
     let three = vec![
         great(0.0, FRAC_PI_2, 0.0, 0, 1),
@@ -212,16 +212,16 @@ fn three_meridians_on_two_great_circles_refuse_typed() {
     assert_eq!(
         curved_face(&sphere::<f64>(), &three, true, band).map(|_| ()),
         Err(PropsError::NotIsoRectangle {
-            what: "rimless sphere face whose non-coplanar meridians are not one pair (neither \
-                   the two-band face nor a wedge)"
+            what: "the wedge arm reads a two-edge boundary; a meridian in pieces is not folded \
+                   on the sphere"
         })
     );
 }
 
 /// **The same split on ONE great circle is still the two-band face**:
-/// the count refusal is gated on the pair being non-coplanar, so a
-/// hemisphere stated as three coplanar arcs measures `2πR²` exactly as
-/// it did before the wedge arm existed.
+/// the two-edge premise is the wedge arm's, gated on the pair being
+/// non-coplanar, so a hemisphere stated as three coplanar arcs —
+/// the loop continuing through both junctions — measures `2πR²`.
 #[test]
 fn three_coplanar_meridians_still_measure_the_hemisphere() {
     let band = band();
@@ -239,13 +239,13 @@ fn three_coplanar_meridians_still_measure_the_hemisphere() {
     );
 }
 
-/// **The doors answer for the wedge exactly as they did before the arm**
-/// (deliverable 4, as measured: the wedge's meridians END at the poles,
-/// so MESH-11's branch door ADMITS it and the shape door always did).
-/// The flux lane's premise moved; neither door's did, and the boundary
-/// still encodes no material side for a rimless face.
+/// **The doors answer for the wedge as they answer for any rimless
+/// lune**: the wedge's meridians END at the poles, so MESH-11's branch
+/// door admits it and the shape door admits every rimless lune; the
+/// boundary encodes no material side for a rimless face. Neither
+/// door's answer depends on which lunes the flux lane measures.
 #[test]
-fn the_doors_answers_for_the_wedge_are_those_of_the_merge_base() {
+fn the_doors_answers_for_the_wedge_are_those_of_any_rimless_lune() {
     let band = band();
     for theta in ANGLES {
         for reversed in [false, true] {
@@ -267,6 +267,139 @@ fn the_doors_answers_for_the_wedge_are_those_of_the_merge_base() {
                 "{kind}"
             );
         }
+    }
+}
+
+/// **A slit refuses typed, in both of its readings.** Two pole-to-pole
+/// arcs on ONE half-plane, traversed there and back, are coplanar to
+/// `props_band_coplanar`; what tells them from the two-band face is
+/// that the loop REVERSES at each pole (`props_band_opposite`). The
+/// face they claim is a slit of no width (`Δu → 0`) or, on the other
+/// sense, the ball less a slit (`Δu → 2π`) — neither is a lune the
+/// closed form measures, and both senses refuse under the same name;
+/// nothing is silently measured at π.
+#[test]
+fn a_coplanar_slit_refuses_typed_in_both_senses() {
+    let band = band();
+    let slit = vec![
+        great::<f64>(0.0, FRAC_PI_2, -FRAC_PI_2, 0, 1),
+        great(0.0, -FRAC_PI_2, FRAC_PI_2, 1, 0),
+    ];
+    for sense in [true, false] {
+        assert_eq!(
+            curved_face(&sphere::<f64>(), &slit, sense, band).map(|_| ()),
+            Err(PropsError::NotIsoRectangle {
+                what: "a rimless sphere face whose coplanar meridians share one half-plane — a \
+                       slit the flux lane does not measure"
+            }),
+            "sense = {sense}"
+        );
+    }
+}
+
+/// **The hemisphere still runs the coplanar arm, bitwise.** At θ = π
+/// the two meridian planes coincide and `props_band_coplanar` decides
+/// Zero, so the face takes the two-band branch whose closed form is
+/// `R²·π·(hi − lo)` with `hi − lo = 2` — the arm and the expression are
+/// the merge base's, and so are the bits: `area = 0x3f4496b7c53c5b02`
+/// (6.283185307179586e-4 m²) and `flux = ±0x3eda5a84d380747e`
+/// (6.283185307179587e-6 m³·m⁻¹·m… the radial term `R·area`, signed by
+/// the sense). A change to the coplanar branch's arithmetic, or a
+/// re-route of θ = π through the wedge arm's `atan2`, moves a bit here.
+#[test]
+fn the_hemisphere_at_pi_measures_bitwise_as_the_coplanar_arm() {
+    let band = band();
+    for (sense, flux_bits) in [
+        (true, 0x3eda5a84d380747e_u64),
+        (false, 0xbeda5a84d380747e_u64),
+    ] {
+        for reversed in [false, true] {
+            let fc = curved_face(&sphere::<f64>(), &wedge(PI, reversed), sense, band).unwrap();
+            assert_eq!(
+                fc.area.to_bits(),
+                0x3f4496b7c53c5b02,
+                "sense = {sense}, reversed = {reversed}: area {:e}",
+                fc.area
+            );
+            assert_eq!(
+                fc.flux.to_bits(),
+                flux_bits,
+                "sense = {sense}, reversed = {reversed}: flux {:e}",
+                fc.flux
+            );
+        }
+    }
+}
+
+/// The `u = theta` meridian carrier LEANED out of its meridian plane
+/// by `lean` radians about its own equatorial direction: the axis
+/// gains the component `sin lean` along the sphere axis (what
+/// `props_circle_axis_class` meters, at the lever `R`), the arc still
+/// departs from a point `lean·R` off the south pole toward the pole's
+/// side of the plane, and its half-plane direction at the equator is
+/// unchanged.
+fn leaned_meridian(theta: f64, lean: f64, a: u32, b: u32) -> LoopEdge<f64> {
+    let n = Vec3::new(theta.sin(), -theta.cos(), 0.0);
+    let axis = Vec3::new(0.0, 0.0, 1.0);
+    let (s, c) = lean.sin_cos();
+    topo::edge(
+        geom::Curve3::Circle {
+            center: geom_core::Point3::origin(),
+            axis: n * c + axis * s,
+            radius: RS,
+            u_ref: axis * -c + n * s,
+        },
+        0.0,
+        PI,
+        a,
+        b,
+    )
+}
+
+/// **The parse's slack on a meridian carrier is a measured, bounded
+/// slack.** `props_circle_axis_class` classifies a carrier a meridian
+/// while `R·|n·â| ≤ zero`; every other fixture in this file has
+/// `n·â = 0` exactly. A carrier leaned by `0.5·zero/R` is admitted and
+/// the face measures: the lean rotates the arc about its equatorial
+/// point, so the half-plane direction and hence `Δu` are unchanged,
+/// and the leaned arc departs from the exact meridian by at most
+/// `lean·R` at the poles, ANTISYMMETRICALLY — the sliver it adds north
+/// of the equator it removes south of it — so the true area differs
+/// from the lune's closed form by `O(lean²·R²)`; the row pins the
+/// answer against the closed form to `lean² + 1e-12`, the bound that
+/// is load-bearing at the coarse ε rows. A carrier leaned by
+/// `2·zero/R` lands the classify in its ambiguity band and escalates
+/// there, under that predicate's name, before any width is read.
+#[test]
+fn a_meridian_carrier_within_the_classify_slack_measures_and_past_it_escalates() {
+    let band = band();
+    let theta = FRAC_PI_2;
+    let within = 0.5 * band.zero() / RS;
+    let edges = vec![
+        great::<f64>(0.0, FRAC_PI_2, -FRAC_PI_2, 0, 1),
+        leaned_meridian(theta, within, 1, 0),
+    ];
+    let fc = curved_face(&sphere::<f64>(), &edges, true, band)
+        .expect("a lean inside the coincidence band is a meridian");
+    let exact = 2.0 * RS * RS * theta;
+    let rel = (fc.area - exact).abs() / exact;
+    assert!(
+        rel < within * within + 1e-12,
+        "lean {within:e}: area {:.15e} vs {exact:.15e} (rel {rel:.3e})",
+        fc.area
+    );
+    let past = 2.0 * band.zero() / RS;
+    let edges = vec![
+        great::<f64>(0.0, FRAC_PI_2, -FRAC_PI_2, 0, 1),
+        leaned_meridian(theta, past, 1, 0),
+    ];
+    match curved_face(&sphere::<f64>(), &edges, true, band) {
+        Err(PropsError::Escalated { cause }) => assert_eq!(
+            cause.predicate,
+            Some("props_circle_axis_class"),
+            "the lean escalates at the rim/meridian classify"
+        ),
+        other => panic!("a lean of 2·zero/R must escalate at the classify, got {other:?}"),
     }
 }
 
