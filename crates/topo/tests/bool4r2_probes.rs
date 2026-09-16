@@ -402,8 +402,10 @@ fn a_vertex_touching_straddler_certifies_when_its_three_touches_are_declared() {
         3,
         "three touches and NO placement finding: {errors:?}"
     );
-    let mut records = ContactRecords::default();
-    records.b_on_a = touches;
+    let records = ContactRecords {
+        b_on_a: touches,
+        ..Default::default()
+    };
     let declared = validate_pseudomanifold(&body, &records, tol);
     println!("vertex-straddle declared: {declared:?}");
     // MEASURED at the head: certified, with the materials overlapping.
