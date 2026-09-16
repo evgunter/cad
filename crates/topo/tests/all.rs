@@ -144,6 +144,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "props_sphere_cap_door.rs"]
+mod props_sphere_cap_door;
 #[path = "quad_lane_is_the_certified_lane.rs"]
 mod quad_lane_is_the_certified_lane;
 #[path = "r1_mate4a_probes.rs"]

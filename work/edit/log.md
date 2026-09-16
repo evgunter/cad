@@ -271,3 +271,42 @@ answers for an admitted candidate and with what width — is filed as a
 ruled wrongly twice on this door's numerics, the orchestrator puts it
 to Ev on the next `[ev]` PR, together with DM7's scope question on
 stranded appearance keys.
+
+## 2026-09-16 — DM8 built: the authored-step → profile-edge map, both halves (middle tier, PR #2759)
+
+`ReplayStructure` gains the per-step segment span (S-BOOL's ground by
+announcement; that row closes here) and `editor-core` composes it with
+the naming anchor into `ProfileProgram::profile_edges_of`. The unit
+found the spec's premise wrong — the published `ProfileEdgeRef` is
+program-anchored, so `LoopCanonical`'s permutation is the CHECK, not a
+factor of the answer — measured it by mutation and filed DM8's wording
+for Ev rather than self-ratifying (item 3 of `[ev]` #2764). The style
+review's MAJOR: not one row could tell a right attribution from a
+wrong one (a boundary-shifting mutant survived 446 profile rows and
+all five acceptance rows), because the partition check was true by
+construction and the geometry rows read the segment, never the step.
+The fix pass reads each step's authored arguments back — the lesson
+for the next spec is the review brief's own line: an acceptance that
+re-checks the half that already worked is not an acceptance of the new
+fact. Two rows filed (EDIT's chain-radius widening, WIRE's loft
+section-0 anchor), one WIRE row gained its three waiting consumers
+instead of a duplicate, and the door has no caller outside its tests
+until that plumbing lands. VIEW's focus-marking row is open.
+
+## 2026-09-16 — second sitting: wave 3 cut (three middle-tier units)
+
+Wave 2 is on main (eight units, two rulings). Read every open row
+against the tree and cut the next wave, all middle tier: the
+`NodePick` name doors gain the DI3 stamp and A2a's refusal
+(`nodepick-name-doors-take-a-second-evaluation-unpaired`); round two
+of one-predicate-one-home over the assertion bound, the mate
+alignment and the placement registry, carrying the load-shaped-door
+sweep (`three-door-predicates-are-hand-copied-not-shared` +
+`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`);
+and the distribution carry-forward door
+(`doc-param-distribution-edit-has-no-door`, clearing ruled as the same
+door with `None`). Specs on the rows. Queued behind them: the
+ruled-carve fixture (middle), the `DocEdit` header rewrite and the
+replay/load boundary ruling (E-class, orchestrator's own), the chain
+radius widening, the recorded-argument notation shape. Three lanes is
+the box's ceiling.

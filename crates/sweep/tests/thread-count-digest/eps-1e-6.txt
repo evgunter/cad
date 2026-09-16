@@ -1,7 +1,7 @@
 # f64
 quintic_prism v=3f8b3f7a19eba024 a=3fd89d360a67b436 vpad=3f06df1453497155 apad=3f69215a38e8dc40 | verdicts n=8 h=682f20aee17acb35 esc n=0 h=cbf29ce484222325
 tilted_cut_upper v=3fd921fa57b1b92b a=40096d2db8daefd7 vpad=3f1469c1a6aacaab apad=3f3e9ea27a000800 | verdicts n=4 h=a864897d83ec43ed esc n=0 h=cbf29ce484222325
-bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=19 h=c9f2412ce27cfdb0 esc n=0 h=cbf29ce484222325
+bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=18 h=e708d7a38dd23edd esc n=0 h=cbf29ce484222325
 loft_prism v=4022000000000004 a=4039524a6c672f51 vpad=3d3e300000000000 apad=3fc84532b9a39d48 | verdicts n=8 h=682f20aee17acb35 esc n=0 h=cbf29ce484222325
 arc_loft_1e11eps REFUSED mass properties: face FaceKey(4v1): integral properties: the certified quadrature enclosure cannot reach the 1.024e-3 m target (which scales with the run's tolerance): its mean boundary displacement is 1.105e-2 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=4 h=77e953f037b0ae42 esc n=0 h=cbf29ce484222325
 arc_loft_1e9eps v=4201070d13e975c9 a=4178663913c2e5fe vpad=408ead6f98a00000 apad=40f4f65eba1fafe0 | verdicts n=15 h=fb22889cccf6acbb esc n=0 h=cbf29ce484222325

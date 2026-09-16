@@ -19,7 +19,7 @@ use editor_core::{
     HitTestError, InterrogateError, Maintenance, MateFault, MateSide, MeshPickError, MintRefusal,
     NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
     RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg,
+    SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -1551,4 +1551,50 @@ fn maintenance_display_says_what_the_edit_did() {
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `StepSegmentsError`'s census — see [`NODE_PICK_ERROR`]. The
+    /// step→profile-edge door's refusals (DM8): every arm is a question
+    /// the door could not answer, so every arm must say which question
+    /// in words a consumer can act on.
+    const STEP_SEGMENTS_ERROR: StepSegmentsError =
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RecordsDisagree, SpanOffTheLoop];
+}
+
+#[test]
+fn step_segments_error_display_names_its_content_not_its_struct() {
+    let cases = [
+        (StepSegmentsError::NoSuchLoop { loops: 2 }, vec!["2 loops"]),
+        (StepSegmentsError::NoSuchStep { steps: 5 }, vec!["5 steps"]),
+        (
+            StepSegmentsError::NoRecord { loop_: 1 },
+            vec!["structure record", "loop 1"],
+        ),
+        (
+            StepSegmentsError::RecordShape {
+                loop_: 1,
+                authored: 5,
+                recorded: 4,
+            },
+            vec!["loop 1", "authors 5 steps", "describes 4"],
+        ),
+        (
+            StepSegmentsError::NoAnchor { loop_: 0 },
+            vec!["naming anchor", "loop 0"],
+        ),
+        (
+            StepSegmentsError::RecordsDisagree { loop_: 3 },
+            vec!["loop 3", "two different permutations"],
+        ),
+        (
+            StepSegmentsError::SpanOffTheLoop {
+                step: 2,
+                end: 9,
+                segments: 4,
+            },
+            vec!["step 2", "up to 9", "4 of them"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &STEP_SEGMENTS_ERROR, &[]);
 }

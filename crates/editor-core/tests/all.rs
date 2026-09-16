@@ -130,6 +130,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_unit;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_step_segments.rs"]
+mod edit_step_segments;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
