@@ -28,7 +28,9 @@ posture under §Process.
 1. **Ruled and ready** — `cut-off-arc-persists-as-a-corner-arc`
    merged (E-class, PR #2717); the fixture it was split from,
    `a-ruled-carve-has-no-editor-fixture-…`, is **merged** (PR #2778,
-   middle tier).
+   middle tier); its residue
+   `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` is
+   **spec'd**, middle tier (wave 6).
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
@@ -41,7 +43,9 @@ posture under §Process.
    "canonical" were ruled on the third `[ev]` PR (#2764): DM8's
    follow-through is **merged** (E-class, PR #2785); DM7's second
    carrier, `stranded-appearance-keys-are-not-reported-by-dm7`, is
-   **in review** (PR #2784, middle tier). `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
+   **merged** (PR #2784, middle tier); its residue
+   `document-stablename-carriers-have-no-enumeration` is **spec'd**,
+   middle tier (wave 6). `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
    not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` merged (kernel unit);
@@ -55,6 +59,9 @@ posture under §Process.
    the code's). `recorded-program-arguments-carry-no-notation` is
    **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
    doc-param precedent; LIB's Python half unparked at that merge).
+   Round three's residue
+   `load-door-does-not-check-payload-expression-param-refs` is
+   **spec'd**, middle tier (wave 6).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK and EDIT-PICK2 merged. Three
