@@ -256,3 +256,201 @@ fn rv_a_stranded_appearance_key_is_in_the_report() {
         "and leaves the attachment where it is: DM7 reports, never repairs"
     );
 }
+
+/// **The appearance strand is inside the strand segment, ahead of the
+/// cluster acts** — the second boundary of `Applied::maintenance`'s
+/// order contract, for the second carrier.
+///
+/// `a_mates_head_strands_and_its_read_site_does_not` pins that
+/// boundary for a PAYLOAD strand only: its fixture paints nothing, so
+/// a walk that appended the appearance rows after `reconcile` passes
+/// it. This is the edit that produces all three kinds at once — a
+/// mate head stranded, a painted instance face stranded, and the
+/// registry act the deleted instance forced.
+#[test]
+fn rv_an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
+    use editor_core::{Attr, Rgba8};
+
+    let mut store = PartStore::new();
+    let part = ProfileDoc::empty_derived("rv_app_order_part", Tol::witness());
+    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let doc_ref = store.insert(part, Tol::witness());
+
+    let doc = ProfileDoc::empty(DocumentId::derive("rv_app_order"), Tol::witness());
+    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
+    let head_a = instance_face(ia, part_body);
+    let (doc, _mate) = insert(
+        doc,
+        Node::Mate {
+            a: SitedRef::at_mint(head_a.clone()),
+            b: SitedRef::at_mint(instance_face(ib, part_body)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: mate_frame(),
+                b: mate_frame(),
+                primitive: MatePrimitive::Coaxial,
+                sense: AxisSense::Aligned,
+                clocking: Some(0.0),
+            },
+        },
+    );
+    let painted = instance_face(ia, part_body);
+    let doc = apply(
+        &doc,
+        &DocEdit::SetAppearance {
+            name: painted.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        Tol::witness(),
+    )
+    .expect("the painted instance is live")
+    .doc;
+
+    let applied = delete(&doc, ia);
+    let cluster = applied
+        .maintenance
+        .iter()
+        .position(|row| matches!(row, Maintenance::Cluster(_)))
+        .expect("the deleted instance forces a registry act, so the row is not vacuous");
+    let strand = applied
+        .maintenance
+        .iter()
+        .position(|row| matches!(row, Maintenance::StrandedAppearance { .. }))
+        .expect("the delete stranded the painted key");
+    assert!(
+        strand < cluster,
+        "the strands are read at the door, before the registry reconciles: {:?}",
+        applied.maintenance
+    );
+}
+
+/// **The delete leaves the appearance store BIT-IDENTICAL**, not
+/// merely still holding the reported key. The unit's rows assert
+/// `contains_key` on the names they painted, which a walk that
+/// emptied a record's attrs, or dropped an unrelated key, would
+/// survive. "DM7 reports, it never repairs" is a statement about the
+/// whole store, so the whole store is what is compared.
+#[test]
+fn rv_the_delete_leaves_the_whole_appearance_store_alone() {
+    use editor_core::{Attr, Rgba8};
+
+    let doc = ProfileDoc::empty_derived("rv_app_untouched", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let mut doc = doc;
+    for name in [
+        fname(victim, wall(0)),
+        fname(victim, wall(2)),
+        fname(body, wall(0)),
+    ] {
+        doc = apply(
+            &doc,
+            &DocEdit::SetAppearance {
+                name,
+                attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+            },
+            Tol::witness(),
+        )
+        .expect("every painted node is live")
+        .doc;
+    }
+    let before = doc.appearance().clone();
+
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        applied.doc.appearance(),
+        &before,
+        "every key and every record survives the delete unchanged"
+    );
+}
+
+/// **A reported key survives the save/load boundary as a stranded
+/// key**, so the report is about durable document state and not about
+/// an in-memory residue the next load would tidy away. The unit's
+/// round-trip row saves the document BEFORE the delete; this one
+/// saves the one the delete produced.
+#[test]
+fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
+    use editor_core::{Attr, Rgba8};
+
+    let doc = ProfileDoc::empty_derived("rv_app_persist", Tol::witness());
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let painted = fname(victim, wall(0));
+    let doc = apply(
+        &doc,
+        &DocEdit::SetAppearance {
+            name: painted.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        Tol::witness(),
+    )
+    .expect("the name's node is live")
+    .doc;
+
+    let after = delete(&doc, victim).doc;
+    let text = editor_core::persist::save(&after, &[], Tol::witness())
+        .expect("the post-delete document saves with its stranded key");
+    let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
+    assert!(
+        loaded.doc.appearance().contains_key(&painted),
+        "the stranded attachment is document state, not a residue"
+    );
+    assert!(
+        loaded.doc.node(victim).is_none(),
+        "and its minting node is still gone"
+    );
+}
+
+/// **`Rebind` is the other repair the arm's doc names, and it moves a
+/// reported key.** `ClearAppearance` has a row in the unit's suite;
+/// this is the half that needs a live node to move TO, which is what
+/// makes it the repair `Strand` and `StrandedAppearance` share.
+#[test]
+fn rv_a_reported_appearance_strand_is_rebindable() {
+    use editor_core::{Attr, Rgba8};
+
+    let doc = ProfileDoc::empty_derived("rv_app_rebind", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let painted = fname(victim, wall(0));
+    let doc = apply(
+        &doc,
+        &DocEdit::SetAppearance {
+            name: painted.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        Tol::witness(),
+    )
+    .expect("the name's node is live")
+    .doc;
+
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::StrandedAppearance {
+            name: painted.clone()
+        }],
+        "the door named the key"
+    );
+    let live = fname(body, wall(0));
+    let repaired = apply(
+        &applied.doc,
+        &DocEdit::Rebind {
+            from: painted.clone(),
+            to: live.clone(),
+        },
+        Tol::witness(),
+    )
+    .expect("the reported key is rebindable onto a live name")
+    .doc;
+    assert!(
+        !repaired.appearance().contains_key(&painted),
+        "the stranded key is gone"
+    );
+    assert!(
+        repaired.appearance().contains_key(&live),
+        "and the attachment moved to the live name"
+    );
+}
