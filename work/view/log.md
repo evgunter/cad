@@ -11976,4 +11976,18 @@ the gate DECIDES is untouched. Territory names `scripts/gates/*` as
 GUARD's, the same warning VIEW already carries for
 `viewer-vocab-declared-once.sh`.
 
+**One roster elsewhere had to register the move**, and the local viewer
+suite was structurally incapable of seeing it — #2293's shape again.
+`crates/pncad-py/src/prose_census.rs`'s `UNDECIDED` table names
+`Disagreement`'s positional `{:?}` site by PATH, so the row said
+`crates/viewer/src/frame.rs` and the file is now `idpass.rs`. Caught by
+hosted CI: six `test (…, 1/2)` shards red on
+`prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`,
+one test, deterministic across all six lane/eps points. The path was
+corrected in place — a census that exists so a site registers itself,
+which is the registration half rather than the audit half, announced
+here because `prose_census.rs` is LIB's ground by territory. Receipt on
+the fixed tree: `cargo nextest run --workspace --no-fail-fast`, 7,570
+run, 7,570 passed, 38 skipped.
+
 Signed (VIEW implementer lane `view/frame-split`).
