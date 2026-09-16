@@ -165,3 +165,22 @@ row; both fixed, with rows that name the mutant each kills. Two
 residue rows filed on EDIT's slate (three hand-copied door predicates
 in `check.rs`; the load-shaped doors outside `check.rs` the sweep could
 not see).
+## 2026-09-16 — EDIT-PICK merged (kernel unit, v6 dual, PR #2721)
+
+The program's first kernel unit, and the spec was wrong at its centre:
+the box-entry guard the orchestrator recommended is unsound in `f64`,
+and both reviewers proved it by execution (R1 on a fan-triangulated cap,
+R2 on `cut_cylinder`, where the service answered a wall above the rim).
+A bilateral MAJOR, so the pair adds nothing to the v6 tally. The fix
+pass withdrew the guard for a certified determinant with a derived
+bound — and found that alone insufficient for the item's own ring case,
+where the determinant is certified, the barycentrics are exactly zero,
+and the quotient for `t` cancels; `t` now comes from the hit point's
+projection onto the ray, a disclosed and measured deviation. The answer
+is now `Pruned == Every` on every landing. Residue: three rows on the
+slate, one asking for a ruling on how far the acceptance certifies its
+barycentrics. Lesson for the orchestrator's next spec: a guard that
+compares a rounded value against a certified bound needs the value's
+own error accounted for, and the reviewers' differently-aimed sweeps
+(interior hits, vertex grazes across the whole corpus) are the
+instruments the spec should have demanded.
