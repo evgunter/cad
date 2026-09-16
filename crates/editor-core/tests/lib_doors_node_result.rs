@@ -434,7 +434,10 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
             spline.to_string(),
         ),
         (
-            K::Loft(sweep::LoftError::StackingEscalated { source: escalation }),
+            K::Loft(sweep::LoftError::StackingEscalated {
+                slab: 1,
+                source: escalation,
+            }),
             escalation.to_string(),
         ),
         (
