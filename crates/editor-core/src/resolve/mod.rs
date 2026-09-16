@@ -279,33 +279,85 @@ impl ResolveError {
 /// log contains. A reader that treats the two alike would be citing
 /// a line of a log that was never written, so the distinction is a
 /// field rather than prose.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FlipSource {
     /// Read out of both runs' verdict logs (the population diff).
     VerdictLog,
-    /// Recomputed at diagnosis time by re-running the vanished pair's
-    /// own predicates against the prior and the current context
-    /// (issue 134's rung). Nothing was written to any log.
-    ShadowExec,
+    /// Recomputed at diagnosis time by re-running ONE of the vanished
+    /// name's discriminator pairs — the one named here — against the
+    /// prior and the current context (issue 134's rung). Nothing was
+    /// written to any log.
+    ///
+    /// The partner rides the marker rather than sitting beside it
+    /// because it is only meaningful for this arm: a flip read out of
+    /// a log is attributed to a NODE, and this one is attributed to a
+    /// PAIR, which is a strictly finer answer that the type should not
+    /// let a reader ask for in the other case.
+    ShadowExec {
+        /// The discriminator partner whose side verdict changed.
+        partner: Box<StableName>,
+    },
+}
+
+/// Why the shadow-exec rung refused ([`Diagnosis::ShadowExecDeclined`]).
+///
+/// Both arms are cases where the rung was ELIGIBLE — the name carries
+/// a pair and the log has no population for it — and could not finish.
+/// A reader who sees one of these knows the evidence exists and what
+/// stood between the diagnosis and it, which is a different fact from
+/// "no evidence".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShadowExecRefusal {
+    /// The pair is wider than [`SHADOW_EXEC_MAX_PAIRS`], so
+    /// re-executing it is not the bounded diagnosis-time work the rung
+    /// is allowed to be.
+    PairTooWide {
+        /// How many discriminator partners the pair carries.
+        pairs: usize,
+        /// The ceiling it exceeded.
+        ceiling: usize,
+    },
+    /// A probe refused typed — a dangling face, a vertex without a
+    /// point, a non-planar carrier, or an in-band margin the shadow
+    /// run met where the recorded run did not. The emission's own
+    /// sentence, carried rather than swallowed: these are kernel-gap
+    /// and band facts a reader can act on, and turning one into a
+    /// silent fall-through is exactly the fail-quiet this kernel
+    /// refuses.
+    ProbeRefused {
+        /// The refusal, rendered through its own `Display`.
+        probe: String,
+    },
+}
+
+// The WHY clause of [`Diagnosis::ShadowExecDeclined`]'s sentence: what
+// stood between the diagnosis and evidence that exists.
+impl core::fmt::Display for ShadowExecRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PairTooWide { pairs, ceiling } => write!(
+                f,
+                "{pairs} discriminator partners exceeds the {ceiling} this diagnosis \
+                 is allowed to re-execute"
+            ),
+            Self::ProbeRefused { probe } => write!(f, "a probe refused — {probe}"),
+        }
+    }
 }
 
 /// The shadow-exec rung's ceiling: the widest discriminator pair it
 /// will re-execute.
 ///
-/// The work is one face probe per partner per side, so the rung's
-/// cost is linear in the `SideOf` vector's length and the ceiling is
-/// what keeps "diagnosis-time only" a bound rather than a hope. The
-/// number carries headroom over what the emission actually produces:
-/// a fragment group's partners are the faces meeting it across SEAM
-/// edges, and the widest vector the evaluation corpus mints is
-/// TWELVE (`nested_islands_106_depth2`) — measured, not assumed, and
-/// kept as a row (`bool7_shadow_exec`'s
-/// `the_corpus_widest_pair_is_well_under_the_ceiling`), so a corpus
-/// that grows past the ceiling says so instead of quietly starting
-/// to decline. A pair above this refuses typed
-/// ([`Diagnosis::ShadowExecDeclined`]) rather than running, because
-/// a diagnosis that can cost an unbounded walk is one a caller
-/// learns not to ask for.
+/// The work is two face probes per partner, so the rung's cost is
+/// linear in the `SideOf` vector's length and this is what keeps
+/// "diagnosis-time only" a bound rather than a hope. The widest
+/// vector the evaluation corpus mints is TWELVE, measured and pinned
+/// (`bool7_shadow_exec::the_corpus_widest_pair_is_twelve`); a pair
+/// STRICTLY above this number refuses
+/// ([`ShadowExecRefusal::PairTooWide`]).
+///
+/// `pub` because the suite's ceiling fixture authors a pair of
+/// `ceiling + 1` partners and cannot name that width otherwise.
 pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
 
 /// Why a name vanished — N5 verbatim plus the reserved
@@ -327,19 +379,16 @@ pub enum Diagnosis {
         /// ([`FlipSource`]).
         source: FlipSource,
     },
-    /// The shadow-exec rung DECLINED on a vanish it was otherwise
-    /// eligible for: the pair is wider than the rung's ceiling
-    /// ([`SHADOW_EXEC_MAX_PAIRS`]), so re-executing it is not the
-    /// bounded diagnosis-time work the rung is allowed to be. A
-    /// refusal with its number, never a silent fall-through to a
-    /// weaker rung that would read as evidence.
+    /// The shadow-exec rung REFUSED on a vanish it was otherwise
+    /// eligible for, and says why ([`ShadowExecRefusal`]) — never a
+    /// silent fall-through to a weaker rung that would read as
+    /// "cause not in evidence" when the cause was in evidence and
+    /// merely unreachable.
     ShadowExecDeclined {
         /// The vanished name's minting node.
         node: RecipeNodeId,
-        /// How many discriminator partners the pair carries.
-        pairs: usize,
-        /// The ceiling it exceeded.
-        ceiling: usize,
+        /// Why the rung refused.
+        reason: ShadowExecRefusal,
     },
     /// A structural parameter changed on the derivation path.
     StructuralParam {
@@ -413,22 +462,17 @@ impl core::fmt::Display for Diagnosis {
                 predicate,
                 from,
                 to,
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { partner },
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} on the name's \
-                 derivation path — recovered by re-running the pair at diagnosis \
-                 time, because the run recorded no verdict for it"
+                "predicate {predicate} flipped from {from} to {to} against the {partner} \
+                 — recovered by re-running the pair at diagnosis time, because neither \
+                 run recorded a verdict for it"
             ),
-            Self::ShadowExecDeclined {
-                node,
-                pairs,
-                ceiling,
-            } => write!(
+            Self::ShadowExecDeclined { node, reason } => write!(
                 f,
-                "the run recorded no verdict for the vanished pair at node {}, and \
-                 re-running it was refused: {pairs} discriminator partners exceeds \
-                 the {ceiling} this diagnosis is allowed to re-execute",
+                "a run recorded no verdict for the vanished pair at node {}, and \
+                 re-running it was refused: {reason}",
                 node.0
             ),
             Self::StructuralParam { node, param } => write!(
@@ -855,7 +899,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         let recorded = |flips: &[(RecipeNodeId, VerdictFlip)], family_only: bool| {
             let mut it = flips.iter();
             let hit = if family_only {
-                it.find(|(_, f)| f.predicate.starts_with("name_frag_"))
+                it.find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY))
             } else {
                 it.next()
             };
@@ -887,9 +931,8 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
             return Some(Diagnosis::RecipeEdit { edit });
         }
         // Global fallbacks (off-path evidence, in the same order).
-        if let Some(d) =
-            recorded(&flips.report(), true).or_else(|| recorded(&flips.report(), false))
-        {
+        let global = flips.report();
+        if let Some(d) = recorded(&global, true).or_else(|| recorded(&global, false)) {
             return Some(d);
         }
         if let Some((node, param)) = structural_param_change(self.doc(), new.doc, &ddiff, None) {
@@ -1037,85 +1080,111 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     })
 }
 
-/// The SHADOW-EXECUTION rung (issue 134, Ev's option-(a) ruling of
-/// 2026-07-29 as routed by the Q3 ruling of 2026-09-01): when the
-/// vanished name's own discriminator PAIR recorded no verdict at all
-/// in one of the two runs, re-run that pair's predicates against both
-/// contexts and report the flip they make.
+/// The SHADOW-EXECUTION rung: when the vanished name's own
+/// discriminator PAIRS recorded no verdict at all in one of the two
+/// runs, re-run them against both contexts and report the first
+/// partner whose side verdict changed.
 ///
 /// # Why a rung exists here at all
 ///
 /// `Vanished`'s evidence is a diff of two verdict LOGS, and a log can
 /// only be diffed where it has entries. The realized sweep prunes
-/// candidate pairs (C10) and a fragment group that stops being
-/// multi-fragment re-runs none of its own probes, so exactly the
-/// interaction-boundary edits that vanish a discriminated fragment —
-/// overlapping to disjoint, crossing to landing short — are the ones
-/// that leave the pair's population EMPTY. The population never
-/// existed; there is nothing to cancel and nothing to reconcile. The
-/// banked alternative, recording pseudo-verdicts for pruned pairs,
-/// stays ruled out: it re-introduces the quadratic in space that
-/// pruning removed.
+/// candidate pairs (C10), so exactly the interaction-boundary edits
+/// that vanish a discriminated fragment — overlapping to disjoint —
+/// are the ones that leave the pair's population EMPTY. The
+/// population never existed; there is nothing to cancel and nothing
+/// to reconcile. The banked alternative, recording pseudo-verdicts
+/// for pruned pairs, stays ruled out: it re-introduces the quadratic
+/// in space that pruning removed.
 ///
-/// # What is re-executed, and from what
+/// # What is re-executed, against what
 ///
 /// The pair is written IN the name. A `Fragment(SideOf(v))` qualifier
 /// is one entry per SEAM PARTNER, each a recipe-covariant
 /// [`StableName`], so the vanished name names its own partners. For
-/// each of them the rung probes:
+/// each of them, in the qualifier's order:
 ///
-/// - the PRIOR side: the vanished name's own face, in the prior
-///   evaluation's body, against that partner's oriented carrier in
-///   the prior evaluation;
-/// - the CURRENT side: the SURVIVOR — the same name with its trailing
-///   fragment qualifier dropped, which is what an un-fragmented group
-///   is called — in the current evaluation, against the same
-///   partner's carrier there.
+/// - the vertex set is the PRIOR FRAGMENT's own boundary, on both
+///   sides. The question the qualifier answers is "which side of this
+///   partner is this fragment on", and a side verdict is only
+///   comparable between two runs when it is taken over the same
+///   vertices. Probing the prior fragment against one carrier and the
+///   current survivor — a different face, with a different boundary —
+///   against another answers a different question, and its residual is
+///   dominated by whichever face has more seam vertices.
+/// - the PARTNER is resolved at the boolean's OPERAND in each run:
+///   the body the minting node actually consumed, found by walking
+///   the minting node's recipe inputs to the one whose table carries
+///   the partner name ([`operand_face`]). A partner name is minted at
+///   the operand's own node and carried unchanged through every
+///   name-preserving placer above it, so resolving it at its first
+///   carrying node reads the carrier off the UNPLACED body and probes
+///   against a wall that is not where the boolean saw it.
+/// - the per-vertex sign stream becomes a [`crate::names::SideVerdict`]
+///   through the emission's OWN rule
+///   ([`crate::names::aggregate_side`]) — one door, so the rung
+///   cannot disagree with the emitter about what a fragment's side is.
+/// - the two streams go through THE population diff
+///   ([`vdiff::shadow_flips`], the one core): a pair whose per-vertex
+///   populations are identical did not move at all and is skipped
+///   before its verdicts are aggregated.
 ///
-/// Every input is already in hand: the bodies ride the node values,
+/// Every input is already in hand — the bodies ride the node values,
 /// the faces come from the same table lookup resolution itself uses,
 /// and the partner's plane is read through the emission's own
-/// `face_plane` door. **Nothing replays the op.** The probe is a pure
-/// function of the two contexts — no sweep, no reduction, no boolean
-/// state — which is why this rung can exist while re-running the
-/// pruned CANDIDATE pair's `bool_*` classification cannot: that would
-/// need the construction replayed up to the pair.
-///
-/// Both sides go through ONE door ([`crate::names::shadow_side_of`]),
-/// so the orientation convention that decides every sign is the same
-/// on both, and the answer is a shadow-vs-shadow diff rather than a
-/// shadow-vs-recorded one. That is what makes the recovered flip a
-/// flip and not an artifact of how the two runs happened to orient a
-/// reference.
+/// `face_plane` door. **Nothing replays the op**; the probe is a pure
+/// function of the two contexts.
 ///
 /// # What it costs, and what it refuses
 ///
 /// Diagnosis-time only, and nothing reaches a log: the probes run
 /// detached and their recording is read, never spliced. The work is
-/// bounded by the pair's own width — two face probes per partner —
-/// and a pair wider than [`SHADOW_EXEC_MAX_PAIRS`] refuses TYPED
-/// ([`Diagnosis::ShadowExecDeclined`]) rather than running or
-/// quietly falling through.
+/// two face probes per partner, bounded by
+/// [`SHADOW_EXEC_MAX_PAIRS`]; above it, and on a typed probe refusal,
+/// the rung answers [`Diagnosis::ShadowExecDeclined`] rather than
+/// falling through silently.
 ///
-/// It declines, to the next rung, when there is no pair to execute:
-/// the name carries no `SideOf` qualifier (an `OrderAlong` rank
-/// records no partner — see below), the survivor or a partner does
-/// not resolve, the pair's population is NOT empty (then the log has
-/// the evidence and this rung must not second-guess it), or the two
-/// shadow populations net to nothing.
+/// It declines TO THE NEXT RUNG, reporting nothing, in four cases,
+/// and each is an absence of evidence rather than a refusal: the name
+/// carries no `SideOf` qualifier; the prior run does not hold the
+/// fragment's face or a run does not hold the partner's operand body;
+/// a partner's verdict has no single [`Sign`] on one side
+/// (`SideVerdict::Mixed` — definite probes on both sides is not one
+/// sign, the R9 honesty pin); and **no partner's verdict changed**.
 ///
-/// # The OrderAlong half of issue 134 is NOT recovered
+/// # The two halves of the SideOf vanish, and only one is recovered
 ///
-/// `Qualifier::OrderAlong { rank, of }` records an ordinal and a
-/// group size and NO partner, so the siblings the rank was decided
-/// against cannot be read back out of the name — and in the run that
-/// pruned the pair there is no sibling left to rank against, a
-/// single-member group running zero `name_frag_order_along` pairs.
-/// Recovering that half needs the naming vocabulary to carry the
-/// partner, which is the names lane's design surface, not this
-/// rung's. The diagnosis corpus's own pruned-pair row is an
-/// `OrderAlong` edge fragment and is deliberately unchanged by this
-/// rung.
+/// That last case is the COLLAPSE half and it is a limit, not a gap.
+/// A fragment group stops being multi-fragment when the partner walls
+/// stop CUTTING the face — the bar lands short of the far edge — and
+/// the walls have not moved relative to the fragment at all, so every
+/// side verdict is what it was. There is no flip, the rung honestly
+/// finds none, and the vanish rests on the later rungs. What this
+/// rung recovers is the PRUNED half: the partner moved, the sweep
+/// pruned the pair, and the verdict that re-qualified the name was
+/// never written down.
+///
+/// The `OrderAlong` half of the same issue is not recovered either,
+/// for a different reason: `Qualifier::OrderAlong { rank, of }`
+/// records an ordinal and a group size and NO partner, so the pair it
+/// was ranked against cannot be read back out of the name — and the
+/// pruned run has no sibling left to rank against, a single-member
+/// group running zero `name_frag_order_along` pairs. Recovering it
+/// needs the naming vocabulary to carry the partner, which is the
+/// names lane's design surface. This is the one statement of that
+/// limit; the sites that need it point here.
+///
+/// # The trigger is node-granular, which is a narrowing
+///
+/// A run's log holds per-node POPULATIONS, not per-pair attributions,
+/// so "this PAIR recorded nothing" is not a question the log can be
+/// asked. The trigger reads the minting node's whole
+/// `name_frag_side_of` population instead, in either run. A node
+/// carrying a SECOND fragment group whose pair was not pruned
+/// therefore keeps the rung out of the pruned one
+/// (`bool7r1_probes::a_second_pair_at_the_node_keeps_the_rung_out_of_a_pruned_one`
+/// pins it). Making it pair-granular means attributing recorded
+/// verdicts to pairs, which is a verdict-LOG format change.
 fn shadow_exec_flip<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
@@ -1123,14 +1192,12 @@ fn shadow_exec_flip<T: Decide, U: Decide>(
     tol: Tol,
 ) -> Option<Diagnosis> {
     // The pair, read off the name: the trailing SideOf qualifier.
-    let (RoleSeg::Fragment(Qualifier::SideOf(partners)), Some(survivor)) =
-        (name.path.last()?, unqualified(name))
-    else {
+    let RoleSeg::Fragment(Qualifier::SideOf(partners)) = name.path.last()? else {
         return None;
     };
-    // The trigger: one run recorded no `name_frag_side_of` verdict at
-    // the minting node at all. A recorded population is the log's
-    // evidence and belongs to the rungs above.
+    // The trigger: at least one run recorded no `name_frag_side_of`
+    // verdict at the minting node at all. A recorded population is the
+    // log's evidence and belongs to the rungs above.
     if !pair_population_is_empty(prior.eval, name.node)
         && !pair_population_is_empty(new.eval, name.node)
     {
@@ -1139,37 +1206,149 @@ fn shadow_exec_flip<T: Decide, U: Decide>(
     if partners.len() > SHADOW_EXEC_MAX_PAIRS {
         return Some(Diagnosis::ShadowExecDeclined {
             node: name.node,
-            pairs: partners.len(),
-            ceiling: SHADOW_EXEC_MAX_PAIRS,
+            reason: ShadowExecRefusal::PairTooWide {
+                pairs: partners.len(),
+                ceiling: SHADOW_EXEC_MAX_PAIRS,
+            },
         });
     }
-    let (mut old_log, mut new_log) = (Vec::new(), Vec::new());
-    for (partner, _) in partners {
-        old_log.extend(probe(prior, name, partner, tol)?);
-        new_log.extend(probe(new, &survivor, partner, tol)?);
+    // The two faces the qualifier is about: the vanished fragment, in
+    // the run that still had it, and the SURVIVOR it became — the same
+    // name without its trailing qualifier, which is what an
+    // un-fragmented group is called.
+    let (old_body, old_face) = face_at(prior.eval, name)?;
+    let (now_body, now_face) = face_at(new.eval, &unqualified(name)?)?;
+    let refused = |e: &crate::names::NamingError| {
+        Some(Diagnosis::ShadowExecDeclined {
+            node: name.node,
+            reason: ShadowExecRefusal::ProbeRefused {
+                probe: e.to_string(),
+            },
+        })
+    };
+    for (partner, recorded) in partners {
+        let (pb_old, pk_old) = operand_face(prior, name.node, partner)?;
+        let (pb_new, pk_new) = operand_face(new, name.node, partner)?;
+        let old = match crate::names::shadow_side_of(old_body, old_face, pb_old, pk_old, tol) {
+            Ok(signs) => signs,
+            Err(e) => return refused(&e),
+        };
+        let now = match crate::names::shadow_side_of(now_body, now_face, pb_new, pk_new, tol) {
+            Ok(signs) => signs,
+            Err(e) => return refused(&e),
+        };
+        // The emission's own rule, on both sides (one door).
+        let (Some(was), Some(is), Some(from)) = (
+            crate::names::aggregate_side(&old)
+                .as_ref()
+                .and_then(verdict_sign),
+            crate::names::aggregate_side(&now)
+                .as_ref()
+                .and_then(verdict_sign),
+            verdict_sign(recorded),
+        ) else {
+            // `Mixed` on a side: definite probes both ways is not one
+            // sign, and this is where the COLLAPSE half lands — the
+            // survivor is still cut by the wall, so it has no side.
+            continue;
+        };
+        // THE CALIBRATION, and the D9 replay statement at the pair.
+        // The recorded verdict is the same question this rung just
+        // asked of the same face, so the prior side must re-execute to
+        // it — up to the ONE thing that can differ, the sense of the
+        // carrier the probe read. The emission reads the partner off
+        // the boolean's OUTPUT body, where a subtract's tool walls face
+        // the other way; the rung reads it off the OPERAND, which is
+        // the only body both runs hold. A plane's orientation admits
+        // exactly two answers, so agreeing with the record or negating
+        // it are the only two consistent outcomes, and anything else
+        // means the rung is not probing the pair the name recorded —
+        // in which case it says nothing rather than guessing.
+        let negated = if was == from {
+            false
+        } else if was == from.flip() {
+            true
+        } else {
+            continue;
+        };
+        let to = if negated { is.flip() } else { is };
+        if from == to {
+            // This partner did not re-qualify the fragment.
+            continue;
+        }
+        return Some(Diagnosis::PredicateFlip {
+            predicate: crate::names::SIDE_OF,
+            from,
+            to,
+            source: FlipSource::ShadowExec {
+                partner: Box::new(partner.clone()),
+            },
+        });
     }
-    let flip = vdiff::shadow_flips(&old_log, &new_log).into_iter().next()?;
-    Some(Diagnosis::PredicateFlip {
-        predicate: flip.predicate,
-        from: flip.from,
-        to: flip.to,
-        source: FlipSource::ShadowExec,
-    })
+    None
 }
 
-/// One shadow probe: `face`'s `name_frag_side_of` verdicts against
-/// `partner`'s carrier, both resolved in `run`'s own tables and
-/// bodies. `None` when `run` does not hold both faces — the rung then
-/// has no context to execute in and declines.
-fn probe<T: Decide>(
-    run: RunCtx<'_, T>,
-    face: &StableName,
+/// A fragment name without its trailing qualifier — what the SAME
+/// group is called once it stops being multi-fragment, and therefore
+/// the current-run counterpart of a vanished fragment.
+///
+/// Not [`widened_base`], which pops a trailing `OrderAlong` for a
+/// different purpose (the over-tie widening reads the row the
+/// reference actually tied against). The operations look alike and the
+/// questions are not: that one asks which ROW a ranked reference
+/// landed on and must refuse a `SideOf` tail; this one asks which FACE
+/// a discriminated fragment became and must refuse an `OrderAlong`
+/// tail. Neither can answer the other's question.
+fn unqualified(name: &StableName) -> Option<StableName> {
+    if !matches!(
+        name.path.last(),
+        Some(RoleSeg::Fragment(Qualifier::SideOf(_)))
+    ) {
+        return None;
+    }
+    let mut base = name.clone();
+    base.path.pop();
+    (!base.path.is_empty()).then_some(base)
+}
+
+/// The body and face key `partner` denotes AT `node`'s operand in
+/// `run` — the body the node actually consumed, not the body the name
+/// was minted on.
+///
+/// A discriminator partner is an operand-node name, and the placers
+/// above it ([`crate::node::Node::Transform`], the pattern, the
+/// part-instance doors) are name-PRESERVING: the same rows ride the
+/// placed table. So a plain table scan finds the partner at its
+/// minting node and reads the carrier off geometry that has not been
+/// placed yet. Walking the minting node's own recipe inputs picks the
+/// operand instead, whatever chain of placers sits between them, and
+/// that is the body whose walls the boolean cut against.
+fn operand_face<'a, T: Decide>(
+    run: RunCtx<'a, T>,
+    node: RecipeNodeId,
     partner: &StableName,
-    tol: Tol,
-) -> Option<Vec<geom_core::k_stats::Verdict>> {
-    let (fb, fk) = face_at(run.eval, face)?;
-    let (pb, pk) = face_at(run.eval, partner)?;
-    crate::names::shadow_side_of(fb, fk, pb, pk, tol).ok()
+) -> Option<(&'a topo::Body<T>, topo::FaceKey)> {
+    let inputs = run.doc.node(node)?.inputs();
+    inputs
+        .into_iter()
+        .find_map(|input| face_in(run.eval, input, partner))
+}
+
+/// The body and face key a face name denotes in ONE node's value.
+fn face_in<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Option<(&'a topo::Body<T>, topo::FaceKey)> {
+    let value = eval.value(node)?;
+    let Entry::Unique(entity) = value.name_table.lookup(name)? else {
+        return None;
+    };
+    let EntityKey::Face(key) = entity.key else {
+        return None;
+    };
+    let body = crate::names::interrogate::output_body(&value.payload, entity.body).ok()?;
+    Some((body, key))
 }
 
 /// The body and face key a face name denotes in one run — the same
@@ -1179,13 +1358,8 @@ fn face_at<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
 ) -> Option<(&'a topo::Body<T>, topo::FaceKey)> {
-    let (node, entity) = lookup_unique(eval, name)?;
-    let EntityKey::Face(key) = entity.key else {
-        return None;
-    };
-    let body =
-        crate::names::interrogate::output_body(&eval.value(node)?.payload, entity.body).ok()?;
-    Some((body, key))
+    let (node, _) = lookup(eval, name)?;
+    face_in(eval, node, name)
 }
 
 /// Whether `node` recorded NO `name_frag_side_of` verdict in `eval` —
@@ -1198,15 +1372,23 @@ fn pair_population_is_empty<T: Decide>(eval: &Evaluation<T>, node: RecipeNodeId)
     })
 }
 
-/// A fragment name without its trailing qualifier — what the SAME
-/// group is called once it stops being multi-fragment, and therefore
-/// the current-run counterpart of a vanished fragment. `None` when
-/// dropping the segment leaves no path at all (nothing survives a
-/// bare qualifier).
-fn unqualified(name: &StableName) -> Option<StableName> {
-    let mut base = name.clone();
-    base.path.pop();
-    (!base.path.is_empty()).then_some(base)
+/// The single [`Sign`] an aggregated side verdict has, if any.
+///
+/// `On` HAS one: every probe decided `Zero`, so `Zero` is the
+/// unanimous per-vertex sign and reporting it states what the probes
+/// found. `Mixed` has none, and deriving one would be fabrication
+/// (the R9 honesty pin).
+///
+/// [`pure_sign`] is this filtered further, for a different rung — its
+/// docs carry the difference.
+fn verdict_sign(v: &crate::names::SideVerdict) -> Option<Sign> {
+    use crate::names::SideVerdict;
+    match v {
+        SideVerdict::Positive => Some(Sign::Positive),
+        SideVerdict::Negative => Some(Sign::Negative),
+        SideVerdict::On => Some(Sign::Zero),
+        SideVerdict::Mixed => None,
+    }
 }
 
 /// The qualifier-delta diagnosis rung (review Finding 1 ruling): a

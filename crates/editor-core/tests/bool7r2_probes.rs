@@ -271,7 +271,7 @@ fn probe_sweep_cells_a_rotation_and_three_translations() {
                 matches!(
                     d,
                     Diagnosis::PredicateFlip {
-                        source: FlipSource::ShadowExec,
+                        source: FlipSource::ShadowExec { .. },
                         ..
                     }
                 ),
@@ -305,7 +305,7 @@ fn probe_the_trigger_is_emptiness_not_pruning() {
         if matches!(
             c.diagnosis,
             Some(Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             })
         ) {
@@ -376,7 +376,7 @@ fn probe_a_prior_without_its_body_declines_to_the_next_rung() {
         matches!(
             honest,
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -389,7 +389,7 @@ fn probe_a_prior_without_its_body_declines_to_the_next_rung() {
         !matches!(
             d,
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -424,7 +424,7 @@ fn probe_a_partner_absent_from_the_current_run_declines_to_the_next_rung() {
         !matches!(
             d,
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -457,7 +457,7 @@ fn probe_an_absent_survivor_declines_to_the_next_rung() {
         !matches!(
             d,
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -587,7 +587,7 @@ fn probe_two_stacked_fragment_qualifiers_answer_typed() {
     assert!(!matches!(
         d,
         Diagnosis::PredicateFlip {
-            source: FlipSource::ShadowExec,
+            source: FlipSource::ShadowExec { .. },
             ..
         }
     ));
@@ -632,7 +632,7 @@ fn probe_partners_in_two_different_nodes_answer_typed() {
     assert!(!matches!(
         d,
         Diagnosis::PredicateFlip {
-            source: FlipSource::ShadowExec,
+            source: FlipSource::ShadowExec { .. },
             ..
         }
     ));

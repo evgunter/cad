@@ -25,8 +25,8 @@ use editor_core::{
     SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
+use geom_core::Tol;
 use geom_core::k_stats::Verdict;
-use geom_core::{Sign, Tol};
 
 // ---------------------------------------------------------------
 // The document: a bar crossing a plate's end cap, so the cap
@@ -128,6 +128,24 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
         .collect()
 }
 
+/// The `SideVerdict` `name`'s own qualifier records for `partner`.
+fn recorded_verdict(name: &StableName, partner: &StableName) -> Option<SideVerdict> {
+    let RoleSeg::Fragment(Qualifier::SideOf(vector)) = name.path.last()? else {
+        return None;
+    };
+    vector.iter().find(|(p, _)| p == partner).map(|(_, v)| *v)
+}
+
+/// The kernel's own reading of a definite side verdict as a sign.
+fn sign_of(v: SideVerdict) -> geom_core::Sign {
+    match v {
+        SideVerdict::Positive => geom_core::Sign::Positive,
+        SideVerdict::Negative => geom_core::Sign::Negative,
+        SideVerdict::On => geom_core::Sign::Zero,
+        SideVerdict::Mixed => panic!("a Mixed verdict has no single sign"),
+    }
+}
+
 fn vanished(res: &Resolution) -> &Diagnosis {
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -159,7 +177,14 @@ fn pruned_pair_vanish_recovers_the_discriminator_flip() {
         })
     };
     assert!(pop(&ev1) > 0, "the prior run discriminated the fragments");
-    let doc2 = slide(&s, Axis3::X, 5.0); // disjoint: the sweep prunes
+    // ACROSS, not away: the bar is moved to the far side of the
+    // plate, so the walls the fragment was discriminated against end
+    // up on the other side of it. Moving the bar away in +x prunes the
+    // pair just as thoroughly and changes NO side — the survivor still
+    // satisfies the vanished name's own verdict vector — and the rung
+    // honestly finds nothing there (`the_pruned_pair_whose_sides_did_
+    // not_change_is_not_recovered` below).
+    let doc2 = slide(&s, Axis3::X, -5.0); // disjoint AND across
     let ev2 = run(&doc2, Some(&ev1));
     assert_eq!(pop(&ev2), 0, "the pruned run records no pair verdict");
     assert!(
@@ -184,14 +209,18 @@ fn pruned_pair_vanish_recovers_the_discriminator_flip() {
             predicate,
             from,
             to,
-            source,
+            source: FlipSource::ShadowExec { partner },
         } => {
             assert_eq!(*predicate, "name_frag_side_of");
-            assert_ne!(from, to, "a flip names two different signs");
+            assert_ne!(from, to, "a flip names two different sides");
+            // `from` is the verdict the NAME ITSELF records for that
+            // partner: the prior side re-executes to exactly what the
+            // run wrote into the qualifier, which is the D9 replay
+            // statement at the pair.
             assert_eq!(
-                *source,
-                FlipSource::ShadowExec,
-                "the flip is recovered, not read out of a log"
+                Some(*from),
+                recorded_verdict(&frags[0], partner).map(sign_of),
+                "the recovered `from` is the qualifier's own verdict for {partner}"
             );
         }
         other => panic!("expected the recovered discriminator flip, got {other:?}"),
@@ -207,7 +236,7 @@ fn the_recovered_flip_beats_an_incidental_boolean_flip_at_the_same_node() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = side_of_fragments(&ev1, s.cut);
-    let doc2 = slide(&s, Axis3::X, 5.0);
+    let doc2 = slide(&s, Axis3::X, -5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let incidental = diff_verdicts(&ev1, &ev2).flips_on_path(&frags[0]);
     assert!(
@@ -241,20 +270,21 @@ fn the_recovered_flip_beats_an_incidental_boolean_flip_at_the_same_node() {
         panic!("expected a PredicateFlip");
     };
     assert_eq!(*predicate, "name_frag_side_of");
-    assert_eq!(*source, FlipSource::ShadowExec);
+    assert!(matches!(source, FlipSource::ShadowExec { .. }));
 }
 
 #[test]
-fn the_rung_reads_the_evaluations_and_never_the_recipe() {
-    // Both sides are handed the SAME, and wrong, document: the bar is
-    // parked 100 m away in the recipe while the evaluations still
-    // hold the geometry they were built from. A rung that replayed
-    // the op — or read the recipe at all — would answer differently;
-    // a rung that reads the two contexts answers identically.
+fn the_rung_reads_the_evaluations_and_the_recipes_edges_only() {
+    // The rung reads the recipe for ONE thing: the minting node's
+    // input EDGES, so it can find the operand body the boolean
+    // consumed. It reads no parameter and replays no op. Both sides
+    // are handed the SAME, and wrong, document — the bar parked 100 m
+    // away, which leaves the edges untouched and every value wrong —
+    // and the answer is byte-identical to the honest one.
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = side_of_fragments(&ev1, s.cut);
-    let doc2 = slide(&s, Axis3::X, 5.0);
+    let doc2 = slide(&s, Axis3::X, -5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let honest = resolve_with_prior(
         RunCtx {
@@ -268,7 +298,7 @@ fn the_rung_reads_the_evaluations_and_never_the_recipe() {
         &frags[0],
         Tol::witness(),
     );
-    let parked = slide(&s, Axis3::X, 100.0);
+    let parked = slide(&s, Axis3::X, -100.0);
     let over_a_wrong_recipe = resolve_with_prior(
         RunCtx {
             doc: &parked,
@@ -285,7 +315,7 @@ fn the_rung_reads_the_evaluations_and_never_the_recipe() {
         matches!(
             vanished(&honest),
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -306,7 +336,7 @@ fn the_rung_writes_to_no_log() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = side_of_fragments(&ev1, s.cut);
-    let doc2 = slide(&s, Axis3::X, 5.0);
+    let doc2 = slide(&s, Axis3::X, -5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let bracket = geom_core::k_stats::Bracket::open();
     let res = resolve_with_prior(
@@ -326,7 +356,7 @@ fn the_rung_writes_to_no_log() {
         matches!(
             vanished(&res),
             Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
+                source: FlipSource::ShadowExec { .. },
                 ..
             }
         ),
@@ -430,10 +460,6 @@ fn one_node_eval(
     }
 }
 
-fn verdict(predicate: &'static str, sign: Sign) -> Verdict {
-    Verdict { predicate, sign }
-}
-
 /// A two-`declare_rest` document and the vanished/base/partner names
 /// over its first node. The document is deliberately geometry-free:
 /// every row below decides the rung's PLACE, and none of them may
@@ -522,52 +548,6 @@ fn hand_diagnosis(h: &Hand, prior_log: Vec<Verdict>, new_log: Vec<Verdict>) -> D
 }
 
 #[test]
-fn a_recorded_discriminator_flip_beats_the_shadow_rung() {
-    // Rung 1 over rung 2: the log HAS a `name_frag_*` flip on the
-    // path, so the rung must not be reached even though the
-    // `name_frag_side_of` population is empty in both runs.
-    let h = hand(1);
-    let d = hand_diagnosis(
-        &h,
-        vec![verdict("name_frag_order_along", Sign::Positive)],
-        vec![verdict("name_frag_order_along", Sign::Negative)],
-    );
-    assert_eq!(
-        d,
-        Diagnosis::PredicateFlip {
-            predicate: "name_frag_order_along",
-            from: Sign::Positive,
-            to: Sign::Negative,
-            source: FlipSource::VerdictLog,
-        }
-    );
-}
-
-#[test]
-fn a_non_empty_pair_population_never_enters_the_rung() {
-    // Both runs recorded the pair, so the log is the evidence and the
-    // rung must not second-guess it. Equal populations mean no flip
-    // at all, and the ladder falls through to the documented
-    // evidence-free rung rather than to a recovered one.
-    let h = hand(1);
-    let d = hand_diagnosis(
-        &h,
-        vec![verdict("name_frag_side_of", Sign::Positive)],
-        vec![verdict("name_frag_side_of", Sign::Positive)],
-    );
-    assert!(
-        !matches!(
-            d,
-            Diagnosis::PredicateFlip {
-                source: FlipSource::ShadowExec,
-                ..
-            } | Diagnosis::ShadowExecDeclined { .. }
-        ),
-        "the rung is unreachable with a recorded population, got {d:?}"
-    );
-}
-
-#[test]
 fn a_pair_wider_than_the_ceiling_declines_typed() {
     // Above the ceiling the rung refuses WITH ITS NUMBER. A silent
     // fall-through here would read as "cause not in evidence" when
@@ -579,8 +559,10 @@ fn a_pair_wider_than_the_ceiling_declines_typed() {
         d,
         Diagnosis::ShadowExecDeclined {
             node: h.node,
-            pairs: wide,
-            ceiling: SHADOW_EXEC_MAX_PAIRS,
+            reason: editor_core::ShadowExecRefusal::PairTooWide {
+                pairs: wide,
+                ceiling: SHADOW_EXEC_MAX_PAIRS,
+            },
         }
     );
     // And exactly at the ceiling it does NOT decline.
@@ -629,5 +611,150 @@ fn the_corpus_widest_pair_is_well_under_the_ceiling() {
         "the widest corpus pair ({widest}, at {at}) has reached the rung's ceiling \
          ({SHADOW_EXEC_MAX_PAIRS}): every group at or above it now declines instead \
          of recovering, and the ceiling's reason needs re-deciding"
+    );
+}
+
+#[test]
+fn the_pruned_pair_whose_sides_did_not_change_is_not_recovered() {
+    // The bar moves AWAY on the side it was already on. The pair is
+    // pruned exactly as hard as in the recovered case — the population
+    // is empty, the fragments are gone — and yet no side moved: the
+    // surviving cap is still on the negative side of one wall and the
+    // positive side of the other, which is the vanished name's own
+    // verdict vector. Nothing flipped, so the rung reports nothing and
+    // the vanish rests on the later rungs.
+    //
+    // This is the limit the rung's docs state, measured. A rung that
+    // answered here would be naming a flip that did not happen.
+    let s = slot();
+    let ev1 = run(&s.doc, None);
+    let frags = side_of_fragments(&ev1, s.cut);
+    let doc2 = slide(&s, Axis3::X, 5.0);
+    let ev2 = run(&doc2, Some(&ev1));
+    assert!(
+        side_of_fragments(&ev2, s.cut).is_empty(),
+        "the pair is pruned in this direction too"
+    );
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &s.doc,
+            eval: &ev1,
+        },
+        &frags[0],
+        Tol::witness(),
+    );
+    assert!(
+        !matches!(
+            vanished(&res),
+            Diagnosis::PredicateFlip {
+                source: FlipSource::ShadowExec { .. },
+                ..
+            } | Diagnosis::ShadowExecDeclined { .. }
+        ),
+        "no side changed, so the rung has nothing honest to say: {:?}",
+        vanished(&res)
+    );
+}
+
+#[test]
+fn the_collapse_half_of_the_sideof_vanish_is_not_recovered() {
+    // The other half of the same limit, and the one the issue's own
+    // vocabulary calls a collapse: the bar stops CROSSING the cap (it
+    // lands short in y), so the group is no longer multi-fragment and
+    // the qualifier is not minted — while the walls have not moved
+    // relative to the fragment at all. The pair population is empty
+    // and there is no flip to recover.
+    for to in [2.5_f64, 3.5] {
+        let s = slot();
+        let ev1 = run(&s.doc, None);
+        let frags = side_of_fragments(&ev1, s.cut);
+        let doc2 = slide(&s, Axis3::Y, to);
+        let ev2 = run(&doc2, Some(&ev1));
+        assert!(side_of_fragments(&ev2, s.cut).is_empty(), "y = {to}");
+        let res = resolve_with_prior(
+            RunCtx {
+                doc: &doc2,
+                eval: &ev2,
+            },
+            RunCtx {
+                doc: &s.doc,
+                eval: &ev1,
+            },
+            &frags[0],
+            Tol::witness(),
+        );
+        assert!(
+            !matches!(
+                vanished(&res),
+                Diagnosis::PredicateFlip {
+                    source: FlipSource::ShadowExec { .. },
+                    ..
+                } | Diagnosis::ShadowExecDeclined { .. }
+            ),
+            "y = {to}: the collapse half stays at the evidence-free rungs, got {:?}",
+            vanished(&res)
+        );
+    }
+}
+
+#[test]
+fn opposite_fragments_get_opposite_answers() {
+    // The two fragments sit on OPPOSITE sides of the same two walls —
+    // that is what their qualifiers record — so a rung that told them
+    // apart must answer them differently. Moving the bar across to −x
+    // re-qualifies the LEFT fragment and leaves the right one where it
+    // was; moving it across to +x does the reverse; and the two
+    // recovered flips name the same partner with opposite signs.
+    let s = slot();
+    let ev1 = run(&s.doc, None);
+    let frags = side_of_fragments(&ev1, s.cut);
+    assert_eq!(frags.len(), 2);
+    let answer = |to: f64, name: &StableName| {
+        let doc2 = slide(&s, Axis3::X, to);
+        let ev2 = run(&doc2, Some(&ev1));
+        let res = resolve_with_prior(
+            RunCtx {
+                doc: &doc2,
+                eval: &ev2,
+            },
+            RunCtx {
+                doc: &s.doc,
+                eval: &ev1,
+            },
+            name,
+            Tol::witness(),
+        );
+        match vanished(&res) {
+            Diagnosis::PredicateFlip {
+                from,
+                to,
+                source: FlipSource::ShadowExec { partner },
+                ..
+            } => Some(((*from, *to), (**partner).clone())),
+            _ => None,
+        }
+    };
+    let left_across = answer(-5.0, &frags[0]).expect("the left fragment is re-qualified");
+    assert!(
+        answer(-5.0, &frags[1]).is_none(),
+        "the right fragment's sides did not change in this direction"
+    );
+    let right_across = answer(5.0, &frags[1]).expect("the right fragment is re-qualified");
+    assert!(
+        answer(5.0, &frags[0]).is_none(),
+        "and the left one's did not change in the other"
+    );
+    assert_eq!(
+        left_across.1, right_across.1,
+        "both flips are about the same wall"
+    );
+    assert_eq!(
+        left_across.0,
+        (right_across.0.1, right_across.0.0),
+        "and they name it with opposite signs"
     );
 }

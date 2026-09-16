@@ -40,7 +40,7 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{SIDE_OF, shadow_side_of};
+pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, shadow_side_of};
 pub(crate) use emit::name_in_part;
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{

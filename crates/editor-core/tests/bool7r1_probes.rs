@@ -189,7 +189,7 @@ fn is_shadow(d: Option<&Diagnosis>) -> bool {
     matches!(
         d,
         Some(Diagnosis::PredicateFlip {
-            source: FlipSource::ShadowExec,
+            source: FlipSource::ShadowExec { .. },
             ..
         })
     )
@@ -698,15 +698,30 @@ fn a_partner_behind_a_transform_is_probed_against_which_body() {
     assert_eq!(pop(&ev2, s.cut), [0, 0, 0]);
     let res = resolve((&doc2, &ev2), (&doc1, &ev1), &frags[0]);
     eprintln!("prior bar at +0.5, current at +5.5 -> {}", describe(&res));
+    // RE-AIMED at the fix pass (the row is kept, its expectation is
+    // not): the redesign reports the first PARTNER whose side VERDICT
+    // changed, through the emission's own aggregation rule, so the
+    // honest answer here is a definite side flip naming a partner —
+    // not the pooled residual this row was written against. What the
+    // row still pins is the MAJOR it was written for: the partner is
+    // read at the boolean's operand, so a bar behind a `Transform` is
+    // probed against the PLACED wall. Against the untransformed
+    // extrude the prior side would read the same as the current one
+    // and the rung would find no flip at all.
+    let Some(Diagnosis::PredicateFlip {
+        predicate,
+        from,
+        to,
+        source: FlipSource::ShadowExec { partner },
+    }) = vanished(&res)
+    else {
+        panic!("expected the recovered flip, got {}", describe(&res));
+    };
+    assert_eq!(*predicate, "name_frag_side_of");
+    assert_ne!(from, to, "a flip names two different sides");
     assert_eq!(
-        vanished(&res),
-        Some(&Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: Sign::Zero,
-            to: Sign::Positive,
-            source: FlipSource::ShadowExec,
-        }),
-        "the prior side must be probed against the PLACED partner body"
+        partner.node, s.bar,
+        "the partner is the bar's own operand-node name"
     );
 }
 
