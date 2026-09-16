@@ -18,13 +18,15 @@ use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 
-/// The rectangle `[0, w] × [−r, r]` less the half-disc of radius `r`
-/// on the axis (the arc bulges into the rectangle), counterclockwise.
+/// The trapezoid `(0, ∓r) – (w, ∓(r + 1))` less the half-disc of radius
+/// `r` on the axis (the arc bulges into it; the slanted sides keep the
+/// pole joints non-tangent), counterclockwise. Revolved by `α` its
+/// volume is `α·(r·w² + (2/3)·w² − (2/3)·r³)` by Pappus.
 fn dimple(r: f64, w: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, -r), 0.0),
-        ProfileVertex::new(p2(w, -r), 0.0),
-        ProfileVertex::new(p2(w, r), 0.0),
+        ProfileVertex::new(p2(w, -r - 1.0), 0.0),
+        ProfileVertex::new(p2(w, r + 1.0), 0.0),
         ProfileVertex::new(p2(0.0, r), -1.0),
     ])
 }
@@ -46,8 +48,9 @@ fn report(label: &str, r: f64, w: f64, angle: f64) {
         topo::validate_closed(&t.body),
         topo::validate_geometric(&t.body, Tol::witness()),
     );
-    let exact = angle * (w * w * r - 2.0 / 3.0 * r * r * r);
-    let blind = angle * w * w * r - 2.0 / 3.0 * r * r * r * PI;
+    let solid = r * w * w + 2.0 / 3.0 * w * w;
+    let exact = angle * (solid - 2.0 / 3.0 * r * r * r);
+    let blind = angle * solid - 2.0 / 3.0 * r * r * r * PI;
     let mp = topo::mass_properties(&t.body, Tol::witness()).map(|m| m.volume);
     println!(
         "[bool5r1 {label}] angle = 2pi - {:e}: tiers = {tiers:?}; volume = {mp:?}; exact = {exact:.15e}; \
