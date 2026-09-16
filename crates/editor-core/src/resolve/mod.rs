@@ -321,8 +321,9 @@ impl core::fmt::Display for Diagnosis {
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path (node {}, slot \
-                 {param:?})",
-                node.0
+                 {})",
+                node.0,
+                param.label()
             ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
@@ -1291,7 +1292,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::CornerArc {
+            | RoleSeg::EndArc {
                 vertex: a,
                 edge: b,
             } => {

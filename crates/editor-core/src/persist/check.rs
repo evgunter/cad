@@ -853,8 +853,10 @@ pub enum ProgramFault {
 // could not follow it, keeping their `Debug` spellings for the reason
 // `profile`'s `ReplayError` rendering states: the pair is the
 // transition table's coordinate. The dimensions beside them are
-// quantity kinds, so they render as words (`Dimension`'s `Display`).
-// The typed variant remains the machine contract.
+// quantity kinds, so they render as words (`Dimension`'s `Display`),
+// and the slot and the step argument render through their own prose
+// spellings ([`SlotId::label`], [`crate::StepArg::label`]). The typed
+// variant remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -868,8 +870,9 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                "loop {loop_} step {step}'s {} argument needs {} {expected} \
                  expression, got {} {found}",
+                arg.label(),
                 expected.article(),
                 found.article()
             ),
@@ -879,7 +882,8 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                "slot {} needs {} {expected} expression, got {} {found}",
+                slot.label(),
                 expected.article(),
                 found.article()
             ),

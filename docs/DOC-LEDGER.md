@@ -3455,3 +3455,44 @@ and on `work/meta/`,
 `a-plan-whose-table-orders-the-work-has-no-check-that-it-lists-the-work`.
 
 - `CENSUS-ARRIVAL-RESIDUE-SPEC.md` — CENSUS-ARRIVAL-RESIDUE, the arrival alarm's four disclosed residues, three repaired and one measured (#2704)
+
+## Per-merge deletion — CENSUS-HAND-LISTED-SIBLINGS's spec (2026-09-16)
+
+Recoverable at `git show 0687260bc:docs/CENSUS-HAND-LISTED-SIBLINGS-SPEC.md`
+(PR #2712's last head before the merge). CENSUS's eighth unit — the six
+hand-listed `PartialEq`/`Debug` walks CENSUS-DEBUG checked and filed
+rather than swept. Its sentences that did not survive:
+
+- **"four fences".** The territory section's heading undercounted its
+  own body: five programs over five paths, the fifth being
+  `crates/test-utils/*` (TCOST's and TINT's), which the body named and
+  the heading did not.
+- **the citation `hand_written_impl_census.rs:774`** for
+  `every_known_hand_listed_impl_is_still_found`. `:774` is inside the
+  assert message; the `fn` was at `:747` when the spec was written.
+  The spec's own fact 5 told the lane to re-derive it and the spec did
+  not — and the row it binds closes with the sentence *"line citations
+  rot on every edit above them"*.
+- **the framing of `SignCertificate` as having no correspondence to
+  restore.** The spec said the render "makes `finish()`'s completeness
+  claim by hand while having no tie to the declaration to restore", and
+  that half is true of `SignCertificate`'s own five fields. It is false
+  one type out: the render prints `VolumeEnclosure`'s complete
+  three-field roster under their own names, so there was a field list
+  to tie and the unit's first pass did not tie it. A style review added
+  a fourth field to that type and `topo` compiled clean.
+
+The spec's framing that survived: **not choosing `SignCertificate`'s
+disposition and asking for a measurement instead.** The measurement —
+zero of four rendered things are fields, zero of five fields are
+rendered — is what decided the braces, and it is right; what it did not
+reach is the paragraph above.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-HAND-LISTED-SIBLINGS
+entry plus the PR body. Residue filed on `work/census/`:
+`componentwise-equality-of-the-linear-types-is-hand-listed`; and on
+`work/tint/`, `the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks`
+and `census-answers-no-field-read-for-a-walk-that-reads-a-field`.
+
+- `CENSUS-HAND-LISTED-SIBLINGS-SPEC.md` — CENSUS-HAND-LISTED-SIBLINGS, six hand-listed walks get a tie to their declaration (#2712)

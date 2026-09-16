@@ -132,7 +132,7 @@ pub mod structure;
 mod sugar;
 mod validate;
 
-use geom_core::{Affine3, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -732,12 +732,25 @@ impl SketchPlane<f64> {
     /// place every sketch point identically, by construction.
     pub fn bit_eq(&self, other: &Self) -> bool {
         let bits = |p: &Self| {
-            let (o, l) = (p.origin(), p.placement.linear);
-            [
-                o.x, o.y, o.z, l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y,
-                l.c2.z,
-            ]
-            .map(f64::to_bits)
+            // **What holds the twelve complete is the four patterns,
+            // not this function's own arithmetic.** A field added to
+            // `SketchPlane`, to the `Affine3` it stores, to that map's
+            // `Mat3` or to a `Vec3` column is an E0027 here, so a new
+            // stored component cannot land outside the comparison
+            // quietly. Read straight off `translation` rather than
+            // through `Self::origin`, which transcribes exactly those
+            // three components and nothing else: same bits, and a
+            // pattern where there was a call.
+            let Self { placement } = p;
+            let Affine3 {
+                linear,
+                translation,
+            } = placement;
+            let Mat3 { c0, c1, c2 } = linear;
+            [translation, c0, c1, c2].map(|v| {
+                let Vec3 { x, y, z } = v;
+                [x.to_bits(), y.to_bits(), z.to_bits()]
+            })
         };
         bits(self) == bits(other)
     }
@@ -754,6 +767,17 @@ impl SketchPlane<f64> {
 /// PARTIAL and no [`Eq`], deliberately: the type carries no hash on
 /// either side of the binding boundary, and a plane is a placement to
 /// compare, not a key to tally by.
+///
+/// **The tie to the declaration is inside [`SketchPlane::bit_eq`] and
+/// no census can see it from here.** The arrival census over hand-written
+/// `PartialEq` and `Debug` impls
+/// (`crates/test-utils/tests/hand_written_impl_census.rs`) reads impl
+/// bodies as text: this one calls a method, and no text reader can tell
+/// a getter or a delegation from any other call without resolving it,
+/// so the census records "reads no field" and would record the same
+/// whether or not the twelve coordinates one level down were bound by
+/// name. Putting a pattern HERE would buy nothing and cost the truth —
+/// the reading is in `bit_eq`, so the tie belongs there, beside it.
 impl PartialEq for SketchPlane<f64> {
     fn eq(&self, other: &Self) -> bool {
         self.bit_eq(other)

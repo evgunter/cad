@@ -820,3 +820,76 @@ row with LIB (above). Otherwise the `pncad-py` block, with
 `validation-error-reason-…` first of this unit's residue — the only row
 on the slate naming a live user-visible defect rather than a missing
 instrument.
+
+## CENSUS-HAND-LISTED-SIBLINGS merged (2026-09-16)
+
+PR 2712 merged as `32b6af999`, green on `0687260bc` (35 success, 4
+skipped). Spec deleted per the ledger, item closed. Six hand-listed
+walks tied to their declarations, the added-field case executed at each
+before and after, and the four `KNOWN_HAND_LISTED` entries deleted in
+the same diff.
+
+**The unit's biggest finding is about an instrument this program has
+been relying on, and it is not ours.** `every_known_hand_listed_impl_is_still_found`
+was documented as supplying per-impl blindness detection, marked
+*"Measured"*. A one-line mutation — stop after each file's first
+`Debug`/`PartialEq` impl — reds it on `origin/main` and leaves this
+branch **entirely green**. So the arrival census has no per-impl sight
+now and, on the measurement, never had more than **one impl's worth**:
+the failure names exactly one entry, `mate/coset.rs`, the only one of
+five with a compliant sibling above it. Filed on TINT, whose file it
+is. What this costs CENSUS is that a row here can no longer say "the
+census would catch a partial blindness"; nothing does.
+
+**The fix minted a fresh instance of the defect it closes, for the
+eighth consecutive unit, and this time at the site the unit called the
+hard one.** `SignCertificate`'s render prints `VolumeEnclosure`'s
+complete three-field roster under their own names — a field list, just
+a different type's — under a 28-line justification concluding *"there
+is no correspondence to be short of."* A fourth field on that type
+compiled `topo` clean. The style review found it; the unit's own
+destructure satisfied the census (`HandListed` → `Destructured`, entry
+deleted, row green) while the reading that actually renders stayed
+untied. Closed, and the one reader no pattern can bind — `FaceRun::open_at`
+through an iterator adaptor — is named rather than papered over.
+
+14. **A count written to correct an overclaim is the likeliest place
+    for the next one.** Standing finding 12 said a stale count can be
+    born stale; this is the sharper version. The sentence retracting
+    *"the anchor supplies per-impl sight"* asserted that four of five
+    entries had a compliant sibling — the mutation's own failure
+    message names one. It reached three places at once (the census
+    header, the filed TINT row whose measurement table contradicted it,
+    and the PR body) because a retraction gets copied where the claim
+    was. **Read the failure output, not the theory of the failure.**
+
+Also falsified by execution, and worth keeping as shapes: a doc that
+excludes an impl from a group for a reason true of its neighbours and
+false of it (`Serialize` returns `Result`, not `&StableName`); a tie
+claimed to reach a leaf it does not (`coset.rs` — a fourth `Vec3`
+component compiles `editor-core` clean, the comparison being a file
+away in `vec_eq`); and **doc rot a change creates about itself**
+(`expr.rs`'s *"adding a `[u8; 6]` field here still compiles"* was true
+until this diff's own destructure made it an E0027 fifteen lines
+below, and the lane quoted the sentence approvingly in the same diff).
+
+### What went right
+
+The added-field probe was run **before** each repair as well as after,
+so the silence is executed rather than asserted — that is what made
+`Lit`'s case legible (one `E0063` at the sole constructor, the
+`size_of` assertion beside it silent, nothing at the walk).
+
+And the unit **refused the easy win**: a pattern in `SketchPlane`'s
+`eq` would have turned the census green while the reading stayed in
+`bit_eq`, and the lane declined it and said so at the site. That is the
+spec's second trap shape, declined rather than taken — the first time
+in this program a lane has named a trap and walked past it rather than
+into it.
+
+## Next
+
+Before another unit in `crates/pncad-py/src/tests.rs`, settle the size
+row with LIB. Otherwise the `pncad-py` block, with
+`validation-error-reason-…` first — the only row on the slate naming a
+live user-visible defect rather than a missing instrument.

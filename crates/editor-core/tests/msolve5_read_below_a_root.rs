@@ -412,7 +412,7 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
 
 // ---- what it is precedes where it is rooted ----
 
-/// A mate naming a root's BODY refuses `NotAFace { kind: Body }`. The
+/// A mate naming a root's BODY refuses `NotAFace { found: Body }`. The
 /// product's table is silent on it — the product's own body is
 /// nobody's root body, so body rows do not carry — and the operand's
 /// own table answers with a body: a non-face never mints anywhere,
@@ -447,13 +447,13 @@ fn a_mate_naming_a_roots_body_refuses_not_a_face() {
     assert_eq!(
         *why,
         RefusedRef::NotAFace {
-            kind: EntityKind::Body
+            found: EntityKind::Body
         }
     );
 }
 
 /// The same body read BELOW a root — `T(top)`'s body, read at `T`
-/// under the pattern — refuses `NotAFace { kind: Body }` too, not
+/// under the pattern — refuses `NotAFace { found: Body }` too, not
 /// `ReadBelowARoot`: the kind question is asked before the root
 /// question, so a non-face is a non-face wherever it is read.
 #[test]
@@ -483,7 +483,7 @@ fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
     assert_eq!(
         *why,
         RefusedRef::NotAFace {
-            kind: EntityKind::Body
+            found: EntityKind::Body
         }
     );
 }
@@ -525,7 +525,7 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!(*why, RefusedRef::Ambiguous { width });
 }
 
-/// A TIED EDGE refuses `NotAFace { kind: Edge }` wherever it is read:
+/// A TIED EDGE refuses `NotAFace { found: Edge }` wherever it is read:
 /// the kind question is asked before the root question and before the
 /// tie, for a tied entry exactly as for a unique one — the name's kind
 /// is every candidate's kind, so a tie answers it as readily. Read
@@ -544,7 +544,7 @@ fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
     assert_eq!(width, 2, "the row is a TIE, which is what it is here to be");
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
     let not_a_face = RefusedRef::NotAFace {
-        kind: EntityKind::Edge,
+        found: EntityKind::Edge,
     };
 
     let b = SitedRef::new(s.xf, tied.clone());

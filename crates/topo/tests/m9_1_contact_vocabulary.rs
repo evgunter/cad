@@ -12,16 +12,12 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
     union_with,
 };
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
 fn stacked() -> (Body<f64>, Body<f64>) {
