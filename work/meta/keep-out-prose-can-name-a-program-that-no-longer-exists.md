@@ -69,3 +69,48 @@ That the predicate's owner had closed is also why
 `is-finite-length-homed-in-the-query-seat` could be taken by FIX at all
 — recorded in `work/fix/log.md`, 2026-09-11. This row is about the
 board being unable to say so, not about that decision.
+
+## The class measured, and where its boundary actually falls (2026-09-16)
+
+INSTR unit 0's sweep (PR 2735) measured the wider class this row is the
+load-bearing corner of. Across the tree, **28 distinct `work/<program>/`
+prefixes no longer resolve** — `ab`, `cert`, `code-quality`, `fillet`,
+`gui`, `m10`, `meter`, `verbs` and twenty more — and **almost all of
+them sit in `Moved from …` provenance lines**, past tense, inside dated
+disclosure blocks.
+
+That measurement sharpens this row rather than widening it, and the
+distinction is worth stating because the next reader will meet the 28
+before they meet the two:
+
+- **A dangling prefix in a dated provenance line is the tracker working
+  as designed.** `work/README.md` requires a closing program's directory
+  to be deleted and the deletion recorded in `docs/DOC-LEDGER.md`, and
+  ids are stable — so `work/meter/C15.md` names a row that still exists
+  as `C15`, reachable by id. Repairing those 28 is churn against
+  records, and `baseline_census.rs`'s own doctrine (*"a dated record may
+  keep the FIGURES it reported"*) is the argument for leaving the
+  sentence alone.
+- **A `keep_out` clause naming a closed program is not that**, and the
+  two instances above are why: each told a lane that ground belonged to
+  a program that could have adjudicated a crossing, and neither program
+  existed. `work/fix/is-finite-length-homed-in-the-query-seat` sat
+  parked on an owner that could never answer. The clause is read
+  FORWARD, as a live statement about who owns what, so a dangling name
+  in one is a false claim rather than a stale record.
+
+**So the detector's scope stays `keep_out`, and now has a reason rather
+than an origin.** The dividing line is not whether the name resolves; it
+is whether the sentence is read as a record of what happened or as a
+claim about what is true now. A general "no tracker prose may name a
+closed program" check would fire 28 times on correct text and be
+softened within the day, which is the failure mode this row already
+names for #2337's `_names` check.
+
+**One residue the measurement turned up and this row does not cover.**
+`work/instr/tess-budget-doc-identity-column-list.md` cites `D201`, which
+exists nowhere as a row — not a moved id but an id with no referent at
+all. It is past tense in a dated block, so it is a record by the test
+above and INSTR left it; noting it here because "the id resolves
+elsewhere" is doing work in the argument above, and this is the case
+where it does not.
