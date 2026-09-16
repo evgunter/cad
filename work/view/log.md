@@ -12243,7 +12243,9 @@ holds the far boundary.
 
 **No second latch was minted.** `frame::datums_badge` reads a count,
 `Subject::Camera`, `Tone::Actionable`, silent at zero — and
-`ViewerApp::update` zeroes the local the panes write **before** they
+the frame entry point (`<ViewerApp as eframe::App>::ui`, which is what
+the crate's prose elsewhere miscalls `update`) zeroes the local the
+panes write **before** they
 draw and assigns it back **unconditionally** after, whether or not the
 viewport was one of them. That is `profile_form_drawn`'s discipline,
 which `projection-fault-has-no-sweeper.md` names as the pattern the
@@ -12284,3 +12286,22 @@ picture) and
 hit list and the patterns' blind spots are in the PR body.
 
 Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+**Addendum, same lane.** The first push's `rustdoc (gate)` went red on
+three intra-doc links this unit wrote to `ViewerApp::update`. There is
+no such function and there never has been — the frame entry point is
+`<ViewerApp as eframe::App>::ui` — and the name was taken from prose
+already in the tree (`frame.rs`'s `projection_badge` doc, and one row
+in `work/view/`), which says `update` in a code span where nothing
+checks it. Links were corrected; the two pre-existing spans are left as
+written and filed as
+`viewer-prose-calls-the-frame-entry-point-update`, per the in-fence
+rule about a citation that was wrong at the merge base.
+
+**And the receipt that missed it was mine.** `scripts/doc-gate.sh 2>&1
+| tail -20; echo "BARE=$?"` reports **`tail`'s** exit code, not the
+gate's. The bare pass had in fact failed locally before the push and
+the `0` was a measurement of the pipeline's last stage. Redirect to a
+file and read `$?` off the command itself; a pipeline's `$?` is never
+the receipt you think you are taking. All three forms re-run this way:
+`--selftest` 0, bare 0, `--skip-viewer-toolkit` 0.

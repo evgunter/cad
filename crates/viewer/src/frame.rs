@@ -1806,8 +1806,9 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 ///
 /// **What it does not do is HOLD.** The three display seams above
 /// keep a refusal until the seam succeeds; this is a per-frame count
-/// its writer re-takes, zeroed by [`crate::app::ViewerApp::update`]
-/// before the panes draw whether or not the viewport is one of them.
+/// its writer re-takes, zeroed by the frame entry point
+/// (`<crate::app::ViewerApp as eframe::App>::ui`) before the panes
+/// draw whether or not the viewport is one of them.
 /// So it needs no sweeper and cannot outlive the view it describes,
 /// which is the defect `work/view/projection-fault-has-no-sweeper.md`
 /// records against the field beside it.

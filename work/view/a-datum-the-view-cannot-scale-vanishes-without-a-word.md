@@ -131,7 +131,8 @@ reads a count and says *"datums: 4 datums this view draws nothing of"*
 gates.** `work/view/projection-fault-has-no-sweeper.md` is open
 because `projection_fault` is written only where the viewport draws,
 so a pane tabbed away leaves the last value standing forever. The
-count is not written that way: `ViewerApp::update` zeroes a local
+count is not written that way: the frame entry point
+(`<ViewerApp as eframe::App>::ui`) zeroes a local
 before the panes draw and assigns it back **unconditionally** after,
 whether or not the viewport was among them — `profile_form_drawn`'s
 discipline, which that row names as the pattern the fault still lacks.

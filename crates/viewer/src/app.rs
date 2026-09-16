@@ -353,10 +353,11 @@ pub struct ViewerApp {
     /// frame it drew**, read by [`crate::frame::datums_badge`].
     ///
     /// One frame behind for the reason above. Unlike the fault above
-    /// it is not held past the frame that made it: [`Self::update`]
-    /// zeroes the value the panes write and assigns the result back
-    /// unconditionally, so this says what the LAST FRAME found and
-    /// never what some earlier one did.
+    /// it is not held past the frame that made it: the frame entry
+    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
+    /// panes write and assigns the result back unconditionally, so
+    /// this says what the LAST FRAME found and never what some
+    /// earlier one did.
     datums_vanished: usize,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
@@ -1799,8 +1800,9 @@ pub(crate) struct ViewerBehavior<'a> {
     ///
     /// Written by the viewport pane and read by the toolbar next
     /// frame, like the fault above — and unlike it, it does not have
-    /// to be cleared by anyone. [`ViewerApp::update`] zeroes the local
-    /// this borrows before the panes draw and assigns the result back
+    /// to be cleared by anyone. The frame entry point
+    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
+    /// borrows before the panes draw and assigns the result back
     /// after, whether or not the viewport was one of them, so a
     /// viewport dragged shut or tabbed away reports none rather than
     /// leaving the last count it made standing. That is

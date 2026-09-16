@@ -555,7 +555,7 @@ impl ViewerBehavior<'_> {
             let drawn = datums::draws(doc, evaluation, view);
             // **Counted every frame, never latched.** The count is
             // recomputed here from this frame's drawings and written
-            // back by `ViewerApp::update` whether or not this pane
+            // back by the frame entry point whether or not this pane
             // drew — so a viewport tabbed away reports none rather
             // than leaving yesterday's count standing, which is the
             // hole `work/view/projection-fault-has-no-sweeper.md`
