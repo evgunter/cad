@@ -2,9 +2,10 @@
 id: hand-listed-partialeq-siblings-outside-the-census-debug-fence
 kind: unit
 title: six hand-listed PartialEq and Debug walks outside CENSUS-DEBUG's fence, four held by the arrival census's suppression list and two invisible to it
-status: review
+status: closed
 opened: 2026-09-15
 branch: census/hand-listed-siblings
+closed: 2026-09-16
 ---
 
 
