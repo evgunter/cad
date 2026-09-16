@@ -113,6 +113,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
+use crate::face_normal::plane_outward_normal;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
 
@@ -381,9 +382,10 @@ impl core::fmt::Display for PointInSolidError {
 
 impl std::error::Error for PointInSolidError {}
 
-/// The face's plane, F5-gated: origin and **outward** normal (chart
-/// normal times the face's `sense_sign`, S10 — the callers of this
-/// door are handed a material direction, not a chart datum).
+/// The face's plane, F5-gated: origin and **outward** normal (the
+/// chart normal with the face's sense folded in through
+/// [`plane_outward_normal`] — the callers of this door are handed a
+/// material direction, not a chart datum).
 ///
 /// Its one external consumer feeds the normal to [`point_in_face`],
 /// whose answer is ray-crossing parity and therefore blind to the
@@ -397,7 +399,9 @@ pub(super) fn face_plane<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal * f.sense_sign::<T>())),
+        Some(Surface::Plane { origin, normal, .. }) => {
+            Ok((*origin, plane_outward_normal(f, *normal).vec()))
+        }
         // A resolved non-plane is a CAPABILITY answer; only a surface
         // key that does not resolve is corruption.
         Some(s) => Err(PointInSolidError::KindUnsupported {
@@ -417,8 +421,8 @@ pub(super) fn face_plane<T: Decide>(
 /// iso-lines too).
 ///
 /// **Orientation (S10)**: every arm's outward direction is the chart's
-/// times the face's `sense_sign`. The plane arm carries it in the
-/// normal itself (there is a vector to multiply); the curved arms have
+/// with the face's sense folded in. The plane arm carries it in the
+/// normal itself (there is a vector to fold it into); the curved arms have
 /// no stored normal — their outward direction is recomputed at each
 /// ray hit — so they carry the face's `sense` bit and the doors apply
 /// it to the sign they derive. Only the material-side signs need it:
@@ -612,9 +616,10 @@ fn face_geo<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => {
-            Ok(FaceGeo::Plane(*origin, *normal * f.sense_sign::<T>()))
-        }
+        Some(Surface::Plane { origin, normal, .. }) => Ok(FaceGeo::Plane(
+            *origin,
+            plane_outward_normal(f, *normal).vec(),
+        )),
         Some(&Surface::Cylinder {
             origin,
             axis,

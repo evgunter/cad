@@ -349,7 +349,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -361,7 +361,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -381,7 +381,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
         FaceSurface::New(bottom_plane),
         tol,
     )?;
@@ -416,7 +416,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -428,7 +428,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -439,7 +439,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
             FaceSurface::Shared(bottom_surface),
             tol,
         )?;
@@ -485,7 +485,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he1: struts[j].he_minus,
                     he2,
                 },
-                placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to),
+                placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to, tol),
                 FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
                 tol,
             )?;
@@ -602,6 +602,18 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// states a pairing, by design — *"no honest way to guess a
 /// correspondence that was not given"* ([`loft_geometry`]).
 ///
+/// **And the vertex order decides more than the pairing**: the whole
+/// surface's v-parameterization is the FIRST STRIP's, so a section
+/// spelled from a different starting vertex — or rolled about its own
+/// normal by a symmetry that leaves its ring pointwise identical —
+/// builds a different body. [`loft_geometry`]'s comment at the
+/// parameterization is the statement of it.
+///
+/// `places[i]` is the caller's. For the plane normal to a curve at a
+/// point, `geom_core::linalg::frame::path_start_frame(point, tangent,
+/// tol)` is the door that hands one out, and a different roll is a
+/// rotation composed about the tangent onto it.
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
@@ -627,8 +639,21 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// index pairing is the identity whatever the profile's vertex order
 /// was. What the canonical start still decides is which wall of the
 /// built body is which — the segment order the returned
-/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
-/// path frame ([`sweep_places`]), not from the sections.
+/// [`Lofted::side_faces`] is keyed in, and, through the first strip,
+/// the surface's v-parameterization ([`loft_body`]). The body's roll
+/// comes from the path frame ([`sweep_places`]), not from the
+/// sections.
+///
+/// # The starting frame
+///
+/// `place` — the frame every station is carried from — is the
+/// caller's, and `geom_core::linalg::frame::path_start_frame(path
+/// start, start tangent, tol)` is where a caller gets it: the plane
+/// through the start point whose local +Z is the start tangent, its
+/// roll off a reference ladder decided under the tolerance band, with
+/// a typed refusal when no rung decides. A caller wanting a different
+/// roll composes a rotation about the tangent onto that frame; there
+/// is no second door.
 ///
 /// # Errors
 ///

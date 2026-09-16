@@ -549,16 +549,17 @@ Six ways a name escapes the old pattern, all live today:
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides
    direction length for the whole workspace
-   (`topo::query::decide_unit_direction`: finiteness, then underflow,
+   (`geom_core::decide_unit_direction`: finiteness, then underflow,
    then the sign of the norm, then normalize or refuse) and it takes
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
-   `decide(` at that site names a variable: `datum_unit_norm` is
-   passed by `UnitVec3::new` a few dozen lines below for a datum's
-   normal or axis direction, and `eval_direction_norm` by
-   `editor-core`'s `unit()`, a crate away, for the directions the
-   evaluation layer owns (a transform's rotation axis, a pattern's
+   `decide(` at that site names a variable: `datum_unit_norm` (the
+   name `topo` owns) is passed to `geom_core::UnitVec3::new` by
+   `editor-core`'s `datum_unit` — the datum arms of `wire_datum` —
+   for a datum's normal or axis direction, and `eval_direction_norm`
+   by `editor-core`'s `unit()`, in the same file, for the directions
+   the evaluation layer owns (a transform's rotation axis, a pattern's
    direction, and the mate solve's re-derivation of both from the
    recipe). Two names, one body — Ev's ratified answer to the
    direction-family question, executed by SEAT-DN. The consequence
@@ -576,7 +577,11 @@ Six ways a name escapes the old pattern, all live today:
    roster at all (see "Maintenance: this roster is a RECORD" below).
    That is this document's standing hole made one route wider, not a
    new one: a third caller of the shared body owes an entry here, by
-   hand, exactly as a new `decide("literal")` site does.
+   hand, exactly as a new `decide("literal")` site does. **And the
+   reach of that route is every `geom-core` dependent** — the body
+   and the witness live in `geom-core` now, so a crate below `topo`
+   (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
+   as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
@@ -723,6 +728,58 @@ seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
 behavioural half does not, which is the second blind spot this section
 names, in its live form. The first sweep after the consumer lands is
 what reads their distribution.
+
+**Roster change (FRAME-WITNESS): two tube frame names RETIRE, and the
+new frame mint carries the caller's name.** `sweep`'s tube door used to
+decide its own frame — `tube_frame_unit` (the axis's and the reference
+direction's length against 1, `Margin::levered` on `major + minor`) and
+`tube_frame_orthogonal` (their dot product on the same lever). Both are
+gone: the door takes a `geom_core::OrthoFrame`, whose axes were decided
+at whichever mint built it, so the two names are no longer emitted by
+anything and drop out of the roster. Neither was ever recorded here —
+both were bare literals at their `decide` sites — so this paragraph is
+the record of their retirement rather than a deletion from a table.
+
+What replaces them is not a name of the kernel's: `OrthoFrame`'s mints
+take the funnel site as a PARAMETER, exactly as `decide_unit_direction`
+does and for the same reason (the name belongs to the layer that owns
+the value). The names that reach the funnel through them today:
+
+| name | carrier | reaches the sweep's corpus? |
+|---|---|---|
+| `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
+| `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
+| `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, same names | as before, at a slightly SMALLER count — see below |
+| `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
+| `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
+| `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
+
+`tour_frame_axis` is a demo minting a roster name because the type's
+decision-free mints are the three cyclic world frames and the tour's
+planes are not all among them; that friction is filed at
+`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
+the two shapes a fix could take. The two names the sweep's corpus does
+NOT reach — `sketch_plane_frame_norm`, which is production code, and
+`fixture_frame_axis` — are filed at
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
+
+**The three ladder names keep their names and lose a few samples.**
+The aiming ladders' roll offset used to be classified by a bare
+`decide`, which recorded a sample for every offset it was handed. It
+now goes through `UnitVec3::new`, whose two format gates refuse BEFORE
+the funnel (that door's own K-consequence paragraph), so an offset
+whose length is not finite, or underflowed out of the format, no
+longer contributes. Reachable only for a tangent within about 1e-170
+of ±ẑ, so the expected effect on any shipped corpus is zero samples;
+it is recorded because "unchanged" is true of the names and not quite
+of the counts.
+
+**None of this is a threshold move.** A retired name removes samples; a
+new one adds them under its own name; no margin's arithmetic changed
+anywhere — the tube's frame decides were `Zero`-passing gates, not
+comparands anything else reads. The first `k-lint` sweep after the
+merge is what reads the new distribution, as the maintenance note above
+says for every roster change.
 
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
@@ -1537,9 +1594,9 @@ the committed snapshot, which still says 233 because it still contains
 the six old names.
 
 **And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
-`datum_unit_norm` is the length decision inside `topo::query`'s
-`UnitVec3::new`, which is where a datum's normal or axis direction is
-now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+`datum_unit_norm` is the length decision `editor-core`'s `datum_unit`
+passes to `geom_core::UnitVec3::new`, which is where a datum's normal
+or axis direction is normalized. It does not REPLACE `eval_direction_norm`, which keeps
 the directions the evaluation layer owns (a transform's rotation axis,
 a linear pattern's direction) — so this is one name in, none out. The
 population it takes is small and it moves rather than grows: the datum
@@ -1577,7 +1634,7 @@ one triple under two names by road is a property of the roads, not a
 defect of either site.
 
 What SEAT-DN did collapse is the BODY: both names are now passed as a
-parameter to `topo::query::decide_unit_direction`, the workspace's only
+parameter to `geom_core::decide_unit_direction`, the workspace's only
 decide/normalize/refuse for a 3-D direction length. The census
 consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at

@@ -131,7 +131,7 @@ impl Stretch {
             .find(close)
             .unwrap_or_else(|| panic!("{}: the closing sentinel is gone", self.file));
         assert!(start < end, "{}: the sentinels are inverted", self.file);
-        let first_line = self.source[..start].lines().count();
+        let first_line = test_utils::source::line(self.source, start);
         (&self.source[start..end], first_line)
     }
 }

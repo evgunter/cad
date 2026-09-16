@@ -116,6 +116,8 @@ mod docm6_seam_declarations;
 mod docm7_union_declare;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
+#[path = "docm9_range.rs"]
+mod docm9_range;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -409,6 +411,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "scalar_frame_r1_probes.rs"]
+mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]
@@ -433,19 +437,14 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "trim_3_windows_interval.rs"]
+mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "cert_m2r1_corpus.rs"]
 mod cert_m2r1_corpus;
@@ -502,11 +501,25 @@ mod m10_10_pins_interval;
 mod m10_10_r1_probes_interval;
 #[path = "m10_10_r2_probes_interval.rs"]
 mod m10_10_r2_probes_interval;
+#[path = "m10_bulge_interval.rs"]
+mod m10_bulge_interval;
+#[path = "m10_derived_frame_interval.rs"]
+mod m10_derived_frame_interval;
+#[path = "m10_derived_frame_tilted_interval.rs"]
+mod m10_derived_frame_tilted_interval;
+#[path = "m10_sym_drive_memo_interval.rs"]
+mod m10_sym_drive_memo_interval;
+#[path = "m10_sym_profile_interval.rs"]
+mod m10_sym_profile_interval;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
+#[path = "wire_entity_door.rs"]
+mod wire_entity_door;
 #[path = "wire_frame_placement_carry.rs"]
 mod wire_frame_placement_carry;
+#[path = "wire_legal_union_refusals.rs"]
+mod wire_legal_union_refusals;
 #[path = "wire_operand_door.rs"]
 mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]

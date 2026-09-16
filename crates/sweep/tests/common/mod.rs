@@ -103,6 +103,14 @@ pub mod germ_pair;
 /// reader three suites check a cone face with, so it routes here.
 pub mod cone_nappe;
 
+/// The same-surface latitude-seam fixtures the SHELL-9 suites and
+/// `revert_plane_charts` share — the collinear-cap drum, the two-arc
+/// sphere, the axial door's cavity of either — and the three readers
+/// their rows run over one (the graft's meter, the void evidence, a
+/// body's plane-chart images). Body authoring plus readers that
+/// evaluate no surface, so it routes here.
+pub mod latitude_seam;
+
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
 /// its module doc carries the rule for which per-suite spellings come
@@ -110,33 +118,29 @@ pub mod cone_nappe;
 pub mod oracles;
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::linalg::frame::path_start_frame;
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::RawLoop;
 use profile::{Profile, SketchPlane};
 use sweep::{ProfileLoop, ProfileVertex, Section};
 use topo::Body;
 
-/// The placement a path sweep starts from: the plane through the
-/// path's start point whose normal is the start TANGENT, with the
-/// in-plane axes built off whichever world axis is least parallel to
-/// it. `sweep::sweep_places` carries this frame along the path by
-/// minimal rotation, so a section placed here stays normal to the
-/// path — the recipe every path-swept fixture in this corpus starts
-/// from, and the one the tour's sweep cells narrate.
+/// The placement a path sweep starts from, read off the path's start:
+/// `geom_core::linalg::frame::path_start_frame`, the kernel's own
+/// door for it. The frame's local +Z is the start TANGENT, so the
+/// local XY plane is the plane the profile is drawn in, and the roll
+/// comes from the door's reference ladder (world +Z, then world +X)
+/// under the tolerance band. `sweep::sweep_places` carries this frame
+/// along the path by minimal rotation, so a section placed here stays
+/// normal to the path.
+///
+/// The door returns a typed refusal for a path whose start tangent
+/// fixes no frame; a fixture whose path is that degenerate is a fixture
+/// bug, so this unwraps with the refusal in the message.
 pub fn normal_start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
     let (lo, _) = path.domain();
-    let d = path.deriv(lo);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::new(0.0, 0.0, 1.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    let v = n.cross(u);
-    let p = path.eval(lo);
-    Affine3::from_parts(Mat3::from_cols(u, v, n), Vec3::new(p.x, p.y, p.z))
+    path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
+        .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}"))
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the
@@ -407,7 +411,5 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// `+z` translations — the stacking that makes a loft of identical
 /// sections reproduce the EXTRUSION of that section exactly.
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
-    z.iter()
-        .map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h * s)))
-        .collect()
+    sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }

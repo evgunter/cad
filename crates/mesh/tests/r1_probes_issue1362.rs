@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point3, Vec3};
+use geom_core::{OrthoFrame, Point3, Vec3};
 use profile::RawLoop;
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -311,11 +311,8 @@ fn r1_the_unwrap_near_tie_is_a_real_two_pi_cliff() {
 /// sphere is exactly the `no_rim` pole-to-pole shape `loop_area`
 /// serves, so this is the real consumer path.
 fn placed_ball(d: f64) -> Result<topo::Body<f64>, String> {
-    let plane = profile::SketchPlane::from_frame(
-        geom_core::Point3::new(d, d, d),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane =
+        profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(d, d, d)));
     let lp = profile::ProfileLoop::new(vec![
         profile::ProfileVertex::new(geom_core::Point2::new(0.0, -1.0), 1.0),
         profile::ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
@@ -393,11 +390,8 @@ fn r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit() {
 
 /// A unit-scaled ball of radius `r` on a sketch plane at `(d, d, d)`.
 fn placed_ball_r(d: f64, r: f64) -> Result<topo::Body<f64>, String> {
-    let plane = profile::SketchPlane::from_frame(
-        geom_core::Point3::new(d, d, d),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane =
+        profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(d, d, d)));
     let lp = profile::ProfileLoop::new(vec![
         profile::ProfileVertex::new(geom_core::Point2::new(0.0, -r), 1.0),
         profile::ProfileVertex::new(geom_core::Point2::new(0.0, r), 0.0),

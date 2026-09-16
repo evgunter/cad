@@ -14,36 +14,105 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, DeclareError, Diagnosis, Dimension, DimensionError,
-    DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
-    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
-    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg,
+    AssemblyError, CapEnd, CarriedRefusal, ContactClass, DeclareError, Diagnosis, Dimension,
+    DimensionError, DocParamValue, EditError, EntityKind, EvalError, HitTestError,
+    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NamingError, NodeErrorKind,
+    NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg,
 };
 use geom_core::BandError;
 
-/// Asserts the F6 shape over one rendering: the wanted content is
-/// present, no variant identifier leaks, no Debug punctuation, and the
-/// sentence is not simply the dump.
-fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(err: &E, wants: &[&str], dumps: &[&str]) {
-    let shown = err.to_string();
-    for want in wants {
-        assert!(
-            shown.contains(want),
-            "{err:?} renders as {shown:?}, missing {want:?}"
-        );
+/// The gate's refusal over ONE of this document's own mates: the arm
+/// carries every row the gather recorded, and a row read here is read
+/// through the door that raises it.
+fn mint(refusal: MintRefusal) -> AssemblyError {
+    AssemblyError::Mint {
+        refusals: vec![refusal],
     }
-    for dump in dumps {
-        assert!(
-            !shown.contains(dump),
-            "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-        );
+}
+
+/// The `Debug` field-name punctuation **this binary can ban**, which is
+/// far short of what its refusal payloads carry.
+///
+/// Written ONCE for the binary rather than once per suite:
+/// `m4_pr4_hit`'s hit-test row goes through the same roster, and the
+/// divergence between its old one and this one is what a second
+/// spelling cost
+/// (`work/view/f6-display-predicate-is-spelled-three-times-with-no-home`).
+///
+/// **That scope is why the roster is two tokens and not twenty-odd.**
+/// It is binary-wide, so a token may be banned only if NO rendering
+/// anywhere in the binary opens on it as prose. `index:` is the live
+/// counter-example — `MeshPickError::PositionOutOfRange` renders "pick
+/// index: triangle … of patch …", which is a sentence — so `index:`
+/// is unbannable here although it is a genuine payload field name.
+/// Every other field these payloads carry is in the same position
+/// until someone checks it against all eight enums' renderings.
+///
+/// **Which scope is right.** Per-enum, as `mesh` and `topo` spell it:
+/// the ban is only as wide as the renderings it must hold against, so a
+/// per-enum roster can carry that enum's whole payload vocabulary,
+/// while a binary-wide one is bounded by the most prose-like door in
+/// the binary. This one stays binary-wide because its eight enums share
+/// one wrapper and one suite pair; splitting it is a change to make
+/// when a site needs a token this roster cannot hold, not before.
+const FIELDS: &[&str] = &["node:", "name:"];
+
+/// [`test_utils::f6::assert_f6`] with this binary's field roster.
+pub(crate) fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(
+    err: &E,
+    wants: &[&str],
+    dumps: &[&str],
+) {
+    test_utils::f6::assert_f6(err, wants, dumps, FIELDS);
+}
+
+/// [`test_utils::f6::assert_f6_every_variant`] with this binary's
+/// field roster. The weld itself — what the census guarantees, and
+/// what it still does not weld — is documented there, where the
+/// mechanism is, rather than restated per adopting suite.
+pub(crate) fn assert_f6_every_variant<E: core::fmt::Debug + core::fmt::Display>(
+    cases: &[(E, Vec<&str>)],
+    census: &test_utils::f6::VariantCensus<E>,
+    also_banned: &[&str],
+) {
+    test_utils::f6::assert_f6_every_variant(cases, census, also_banned, FIELDS);
+}
+
+/// Every [`Dimension`]'s `Debug`, which is what a refusal that names a
+/// dimension must not leak.
+///
+/// Taken off `Dimension::ALL` rather than written down, so a dimension
+/// added to the lattice is forbidden at every site that uses this
+/// without an edit — and it is ONE derivation, because two copies of
+/// it are two lists to keep in step.
+fn dimension_dump_words() -> Vec<String> {
+    Dimension::ALL
+        .iter()
+        .map(|dim| format!("{dim:?}"))
+        .collect()
+}
+
+/// Every [`Sign`](geom_core::predicate::Sign), so a ban list built from
+/// it is the whole enum rather than the signs one row happens to
+/// construct. The `match` is the exhaustiveness token: a sign added to
+/// the lattice leaves it non-exhaustive and this file stops compiling,
+/// which is what sends the author to the array beside it.
+fn all_signs() -> Vec<geom_core::predicate::Sign> {
+    use geom_core::predicate::Sign;
+    let all = vec![Sign::Negative, Sign::Zero, Sign::Positive];
+    for sign in &all {
+        match sign {
+            Sign::Negative | Sign::Zero | Sign::Positive => (),
+        }
     }
-    assert!(
-        !shown.contains('{') && !shown.contains("node:") && !shown.contains("name:"),
-        "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-    );
-    assert_ne!(shown, format!("{err:?}"));
+    all
+}
+
+/// The `&str` view of a list of derived identifier words.
+fn as_strs(words: &[String]) -> Vec<&str> {
+    words.iter().map(String::as_str).collect()
 }
 
 /// A face name minted by node 7 — enough for the kind + minting-node
@@ -69,10 +138,21 @@ fn stable_name_display_is_kind_plus_minting_node() {
     );
 }
 
+test_utils::f6_variants! {
+    /// `NodePickError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling, and writing it here
+    /// is writing it into the roster, so it then reds until it has a
+    /// case. What the weld does NOT hold is documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const NODE_PICK_ERROR: NodePickError =
+        [Standing, NotABody, NoSuchBody, Tessellate, Index];
+}
+
 #[test]
 fn node_pick_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(4);
-    let dumps = ["NotABody", "NoSuchBody", "Standing", "Tessellate", "Index"];
     let cases = [
         (
             NodePickError::NotABody { node },
@@ -83,10 +163,16 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             vec!["node 4", "index 2"],
         ),
         // The wrapped standing/kernel refusals are forwarded in their
-        // own doors' words, not paraphrased.
+        // own doors' words, not paraphrased — prefix included.
         (
             NodePickError::Standing(HitTestError::NodeFailed { node }),
             vec!["hit test:", "node 4", "failed"],
+        ),
+        (
+            NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
+                value: -1.0,
+            }),
+            vec!["tessellate:", "chordal tolerance"],
         ),
         (
             NodePickError::Index(MeshPickError::PositionOutOfRange {
@@ -97,23 +183,17 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             vec!["triangle 5", "patch 1", "position 99"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
-    // The tessellation arm forwards the kernel's own prose, prefix
-    // included.
-    let err =
-        NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance { value: -1.0 });
-    let shown = err.to_string();
-    assert!(
-        shown.contains("tessellate:") && shown.contains("chordal tolerance"),
-        "the kernel refusal was not forwarded: {shown:?}"
-    );
+    assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ResolveIndeterminate`'s census — see [`NODE_PICK_ERROR`].
+    const RESOLVE_INDETERMINATE: ResolveIndeterminate =
+        [TargetFailed, TargetPoisoned, TargetNotEvaluated];
 }
 
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
-    let dumps = ["TargetFailed", "TargetPoisoned", "TargetNotEvaluated"];
     let cases = [
         (
             ResolveIndeterminate::TargetFailed {
@@ -134,42 +214,63 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
             vec!["minting node 6", "no result"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &RESOLVE_INDETERMINATE, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
 }
 
 #[test]
 fn declare_error_display_names_its_content_not_its_struct() {
-    let dumps = ["NoFindings", "NoMintedId"];
-    assert_f6(
-        &DeclareError::NoFindings,
-        &["no findings", "records no intent"],
-        &dumps,
-    );
-    assert_f6(
-        &DeclareError::NoMintedId,
-        &["minted no node id", "kernel bug"],
-        &dumps,
-    );
+    let cases = [
+        (
+            DeclareError::NoFindings,
+            vec!["no findings", "records no intent"],
+        ),
+        // The wrapping arm forwards the document edit's own refusal,
+        // which already carries its slot and its recourse.
+        (
+            DeclareError::Edit(EditError::SlotDimensionMismatch {
+                slot: SlotId::Radius,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            }),
+            vec![
+                "the document edit refused",
+                "needs a length expression",
+                "got an angle",
+            ],
+        ),
+        (
+            DeclareError::NoMintedId,
+            vec!["minted no node id", "kernel bug"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
+    const INTERROGATE_ERROR: InterrogateError = [
+        NodeNotEvaluated,
+        NodeFailed,
+        NodePoisoned,
+        NoSuchName,
+        Ambiguous,
+        WrongKind,
+        WholeBody,
+        NoBodies,
+        NoSuchBody,
+        Readback,
+    ];
 }
 
 #[test]
 fn interrogate_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(7);
     let through = RecipeNodeId(3);
-    let dumps = [
-        "NodeNotEvaluated",
-        "NodeFailed",
-        "NodePoisoned",
-        "NoSuchName",
-        "Ambiguous",
-        "WrongKind",
-        "WholeBody",
-        "NoBodies",
-        "NoSuchBody",
-        "Readback",
-    ];
     let cases = [
         (
             InterrogateError::NodeNotEvaluated { node },
@@ -214,26 +315,92 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["interrogate:", "scaffolding"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
+    assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);
+}
+
+/// `SelectRefusal`'s exhaustiveness token — **the one here that the
+/// compiler does not keep**. `SelectRefusal` carries
+/// `#[non_exhaustive]`, so a `match` outside `editor-core` is REQUIRED
+/// to carry a wildcard arm and rustc checks nothing about the arms
+/// above it: a variant added to the enum compiles fine here. What the
+/// arms still buy is the other half — a variant renamed or removed
+/// breaks the pattern and the file stops compiling, exactly as for the
+/// six ordinary enums. Only ADDITION is unchecked, and the wildcard
+/// below does not repair it: reaching the panic needs a case that
+/// constructs the new variant, which is the vacuity this file exists to
+/// close. The real home is a unit test beside the enum, inside the
+/// crate where the attribute does not apply
+/// (`work/wire/select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`);
+/// the other six are not weakened to match this one.
+fn select_refusal_is_exhaustive(e: &SelectRefusal) {
+    match e {
+        SelectRefusal::InBand { .. }
+        | SelectRefusal::TiedDisagrees { .. }
+        | SelectRefusal::Unreadable { .. }
+        | SelectRefusal::NotADatum { .. }
+        | SelectRefusal::NotALength { .. }
+        | SelectRefusal::PairInBand { .. }
+        | SelectRefusal::BadValue(_)
+        | SelectRefusal::Band(_) => (),
+        other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
+    }
+}
+
+/// `SelectRefusal`'s census, built by hand rather than by
+/// [`test_utils::f6_variants!`] — the ONE site in this tree that
+/// cannot use the macro, for the reason stated on
+/// [`select_refusal_is_exhaustive`]: the macro writes a wildcard-free
+/// `match`, which a `#[non_exhaustive]` enum from another crate does
+/// not permit. So the token and the roster are two spellings here, as
+/// they were everywhere before, and only a rename or a removal is
+/// rustc's.
+const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
+    test_utils::f6::VariantCensus::hand_written(
+        select_refusal_is_exhaustive,
+        &[
+            "InBand",
+            "TiedDisagrees",
+            "Unreadable",
+            "NotADatum",
+            "NotALength",
+            "PairInBand",
+            "BadValue",
+            "Band",
+        ],
+    );
+
+/// An in-band margin with a named predicate — the shape a selection
+/// refusal carries out of the funnel.
+fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
+    geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::Value(3e-11),
+        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
+        predicate: Some(predicate),
     }
 }
 
 #[test]
 fn select_refusal_display_names_its_content_not_its_struct() {
-    let dumps = [
-        "InBand",
-        "TiedDisagrees",
-        "Unreadable",
-        "NotADatum",
-        "NotALength",
-        "PairInBand",
-        "BadValue",
-        // The dimension's variant identifier: `NotALength` states the
-        // dimension it read, and states it as a word.
-        "Angle",
-    ];
+    // `NotALength` states the dimension it read, and states it as a
+    // word, so the dimension identifiers are banned here too.
+    let dimension_words = dimension_dump_words();
+    let also_banned = as_strs(&dimension_words);
+
     let cases = [
+        (
+            SelectRefusal::InBand {
+                name: Box::new(face_name()),
+                predicate: editor_core::SEL_DATUM_DISTANCE,
+                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+            },
+            vec![
+                "face",
+                "node 7",
+                "neither certified in nor out",
+                "ambiguity band",
+                editor_core::SEL_DATUM_DISTANCE,
+            ],
+        ),
         (
             SelectRefusal::TiedDisagrees {
                 name: Box::new(face_name()),
@@ -258,9 +425,34 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         ),
         (
             SelectRefusal::NotALength {
-                dim: editor_core::Dimension::Angle,
+                dim: Dimension::Angle,
             },
             vec!["distance is a distance", "dimension angle"],
+        ),
+        // The detector's pair-shaped sibling of `InBand`: it names the
+        // PAIR, and says that detection reports only definite findings.
+        (
+            SelectRefusal::PairInBand {
+                pair: Box::new((face_name(), face_name())),
+                predicate: "bool_plane_side_of",
+                source: in_band("bool_plane_side_of"),
+            },
+            vec![
+                "the pair (",
+                "face",
+                "node 7",
+                "neither certified in nor out",
+                "only definite findings",
+            ],
+        ),
+        (
+            SelectRefusal::BadValue(EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            }),
+            vec![
+                "the stated value did not evaluate",
+                "does not evaluate as a count",
+            ],
         ),
         // The F6 shape only; the arm's REACHABILITY and the payload
         // it must forward are pinned through the real doors in
@@ -274,14 +466,16 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
+}
+
+test_utils::f6_variants! {
+    /// `ResolveFault`'s census — see [`NODE_PICK_ERROR`].
+    const RESOLVE_FAULT: ResolveFault = [PinMismatch, EpsilonSeam, Unresolved];
 }
 
 #[test]
 fn resolve_fault_display_names_its_content_not_its_struct() {
-    let dumps = ["PinMismatch", "EpsilonSeam", "Unresolved"];
     let cases = [
         (
             ResolveFault::PinMismatch,
@@ -296,25 +490,28 @@ fn resolve_fault_display_names_its_content_not_its_struct() {
             vec!["did not resolve", "unknown id"],
         ),
     ];
-    for (fault, wants) in cases {
-        assert_f6(&fault, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &RESOLVE_FAULT, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ParseError`'s census — see [`NODE_PICK_ERROR`].
+    const PARSE_ERROR: ParseError = [
+        UnexpectedChar,
+        UnexpectedEnd,
+        UnexpectedToken,
+        TrailingInput,
+        MalformedNumber,
+        IntegerOverflow,
+        UnknownUnit,
+        UnknownFunction,
+        WrongArity,
+        UnknownParam,
+        Dimension,
+    ];
 }
 
 #[test]
 fn parse_error_display_names_its_content_not_its_struct() {
-    let dumps = [
-        "UnexpectedChar",
-        "UnexpectedEnd",
-        "UnexpectedToken",
-        "TrailingInput",
-        "MalformedNumber",
-        "IntegerOverflow",
-        "UnknownUnit",
-        "UnknownFunction",
-        "WrongArity",
-        "UnknownParam",
-    ];
     let cases = [
         (
             ParseError::UnexpectedChar { pos: 3, ch: '#' },
@@ -386,10 +583,21 @@ fn parse_error_display_names_its_content_not_its_struct() {
             },
             vec!["byte 0", "not a parameter"],
         ),
+        // The text door forwards the smart constructor's own refusal
+        // and adds only the position, so the dimension checker's words
+        // are what a reader sees.
+        (
+            ParseError::Dimension {
+                pos: 6,
+                error: DimensionError::MulNeedsScalar {
+                    left: Dimension::Length,
+                    right: Dimension::Length,
+                },
+            },
+            vec!["byte 6", "needs a scalar operand", "length x length"],
+        ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &PARSE_ERROR, &[]);
 }
 
 /// Every rendering of a [`Dimension`] a user can reach, in one place.
@@ -405,15 +613,8 @@ fn parse_error_display_names_its_content_not_its_struct() {
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     let name = ParamName("width".to_string());
-    // The forbidden identifiers ARE the enum's `Debug`, taken off
-    // `Dimension::ALL`: a dimension added to the lattice is forbidden
-    // here without an edit, where a list written here would let its
-    // identifier through.
-    let dump_words: Vec<String> = Dimension::ALL
-        .iter()
-        .map(|dim| format!("{dim:?}"))
-        .collect();
-    let dumps: Vec<&str> = dump_words.iter().map(String::as_str).collect();
+    let dump_words = dimension_dump_words();
+    let dumps = as_strs(&dump_words);
 
     // The edit door.
     assert_f6(
@@ -555,7 +756,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             found: Dimension::Count,
         },
         &["needs a length expression", "got a count"],
-        &["Length", "Count"],
+        &dumps,
     );
     assert_f6(
         &ProgramFault::SlotDimension {
@@ -593,6 +794,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
 /// payload's own rendering.
 #[test]
 fn a_predicate_flip_names_its_signs_as_words() {
+    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
+    let sign_words = as_strs(&sign_debug);
     assert_f6(
         &Diagnosis::PredicateFlip {
             predicate: "name_frag_side_of",
@@ -600,7 +803,11 @@ fn a_predicate_flip_names_its_signs_as_words() {
             to: geom_core::predicate::Sign::Negative,
         },
         &["name_frag_side_of", "flipped from positive to negative"],
-        &["Positive", "Negative", "PredicateFlip"],
+        // Every `Sign`, not the two this row happens to construct: a
+        // rendering that leaked `Zero` would be just as much a dump.
+        // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
+        // renders that one arm.
+        &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
     );
 }
 
@@ -612,12 +819,12 @@ fn a_predicate_flip_names_its_signs_as_words() {
 fn refusals_that_name_a_stable_name_forward_its_display() {
     let phrase = face_name().to_string();
 
-    let reference = AssemblyError::Reference {
+    let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Vanished,
-    };
+    });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("(a {phrase})")),
@@ -647,14 +854,14 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
 /// compares against the impl, so this is their one home.
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let below = AssemblyError::Reference {
+    let below = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::B,
         name: Box::new(face_name()),
         why: RefusedRef::ReadBelowARoot {
             at: RecipeNodeId(5),
         },
-    };
+    });
     assert_f6(
         &below,
         &[
@@ -666,12 +873,12 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
         &["ReadBelowARoot", "Reference"],
     );
 
-    let tied = AssemblyError::Reference {
+    let tied = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
-    };
+    });
     assert_f6(
         &tied,
         &[
@@ -697,28 +904,28 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
 
-    let reference = AssemblyError::Reference {
+    let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
         why: RefusedRef::NotAFace {
             kind: EntityKind::Edge,
         },
-    };
+    });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("(an {edge_name})")) && shown.contains("it names an edge"),
         "an edge-kind mate reference reads as \"a edge\": {shown:?}"
     );
 
-    let face = AssemblyError::Reference {
+    let face = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::NotAFace {
             kind: EntityKind::Vertex,
         },
-    };
+    });
     let shown = face.to_string();
     assert!(
         shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
@@ -727,21 +934,21 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
 }
 
 /// The mint door's at-rest refusal ends on
-/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — and so does the
-/// `MintRefusal` row it is raised from, because one function renders
-/// the sentence for both. A recourse reached by only one of the two
-/// carriers is a user who sees the repair or not depending on how deep
-/// the mate was declared.
+/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — read as the row's
+/// own sentence and read through the gate arm that carries it, because
+/// the gate FORWARDS the row rather than restating it. A recourse
+/// reached by only one of the two carriers is a user who sees the
+/// repair or not depending on how deep the mate was declared.
 #[test]
 fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
-    let raised = AssemblyError::NoAtRestRecord {
+    let row = MintRefusal::NoAtRestRecord {
         mate: RecipeNodeId(5),
         class: ContactClass::Tangent,
         why,
     };
     assert_f6(
-        &raised,
+        &row,
         &[
             "mate 5's class Tangent has no at-rest kernel record",
             why,
@@ -749,16 +956,116 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
         ],
         &["NoAtRestRecord"],
     );
-
-    let row = editor_core::MintRefusal::NoAtRestRecord {
-        mate: RecipeNodeId(5),
-        class: ContactClass::Tangent,
-        why,
-    };
     assert_f6(
-        &row,
-        &[why, editor_core::NO_AT_REST_RECORD_RECOURSE],
+        &mint(row),
+        &[
+            "mate 5's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
         &["NoAtRestRecord"],
+    );
+}
+
+/// **Every refusal the gate holds is rendered**, each on its own
+/// indented line under a header that counts them — the two mint arms
+/// answer with the whole list the gather recorded, so an author with
+/// two broken mates reads two repairs rather than the first.
+///
+/// The count is built from the FIXTURE's own length rather than
+/// written as a word, so a header that reports a constant, or reports
+/// a count off by one, reds here. It is not a guard on the header
+/// tracking the body: those are one expression over one slice and
+/// cannot drift. What each arm's rows carry — each mate's own
+/// sentence, and for the carried arm the route and the ONE recourse in
+/// the header — is the rest of it.
+#[test]
+fn the_mint_arms_render_every_refusal_they_hold() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let raised = AssemblyError::Mint {
+        refusals: vec![
+            MintRefusal::Reference {
+                mate: RecipeNodeId(2),
+                side: MateSide::A,
+                name: Box::new(face_name()),
+                why: RefusedRef::Vanished,
+            },
+            MintRefusal::NoAtRestRecord {
+                mate: RecipeNodeId(5),
+                class: ContactClass::Tangent,
+                why,
+            },
+        ],
+    };
+    let AssemblyError::Mint { refusals } = &raised else {
+        panic!("built as the mint arm");
+    };
+    let counted = format!(
+        "this document did not mint {} of its own mate(s)",
+        refusals.len()
+    );
+    assert_f6(
+        &raised,
+        &[
+            &counted,
+            "mate 2's a reference",
+            "mate 5's class Tangent has no at-rest kernel record",
+        ],
+        &["Reference", "NoAtRestRecord"],
+    );
+
+    let route = Route {
+        through: RecipeNodeId(1),
+        of: editor_core::DocumentId::derive("display-contract-carried"),
+        via: vec![],
+    };
+    let carried = AssemblyError::CarriedMintRefusal {
+        refusals: vec![
+            CarriedRefusal {
+                route: route.clone(),
+                refusal: MintRefusal::Reference {
+                    mate: RecipeNodeId(2),
+                    side: MateSide::A,
+                    name: Box::new(face_name()),
+                    why: RefusedRef::Vanished,
+                },
+            },
+            CarriedRefusal {
+                route,
+                refusal: MintRefusal::NoAtRestRecord {
+                    mate: RecipeNodeId(5),
+                    class: ContactClass::Tangent,
+                    why,
+                },
+            },
+        ],
+    };
+    let AssemblyError::CarriedMintRefusal { refusals } = &carried else {
+        panic!("built as the carried arm");
+    };
+    let counted = format!(
+        "{} mate(s) of documents below this one did not mint",
+        refusals.len()
+    );
+    let shown = carried.to_string();
+    assert_f6(
+        &carried,
+        &[
+            &counted,
+            "mate 2's a reference",
+            "mate 5's class Tangent has no at-rest kernel record",
+        ],
+        &["CarriedMintRefusal", "CarriedRefusal"],
+    );
+    // ONE recourse for the list, in the header: the repair is the same
+    // sentence for every row, and a per-row copy is the generic tail
+    // the finding sink exists to forbid.
+    assert_eq!(
+        shown
+            .matches("open those documents and repair the mates there")
+            .count(),
+        1,
+        "the carried repair is stated once, not once per row: {shown:?}"
     );
 }
 
@@ -928,4 +1235,138 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         shown.contains(editor_core::CONTRADICTORY_RECOURSE),
         "{shown:?}"
     );
+}
+
+test_utils::f6_variants! {
+    /// `NamingError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases.
+    ///
+    /// This enum's sentences are checked in its own crate
+    /// (`names::emit`'s `display_tests`), which is where the framing a
+    /// variant must open with lives. What that suite cannot do is
+    /// notice a variant with no sample at all: its coverage check
+    /// compares sampled indices against `0..rows.len()`, which a
+    /// variant APPENDED past the end satisfies — measured, by adding a
+    /// probe variant and watching it stay green. This census is what
+    /// closes that.
+    const NAMING_ERROR: NamingError = [
+        Duplicate,
+        Unnamed,
+        MissingUpstream,
+        Emission,
+        SplitLineage,
+        FragmentLineage,
+        SeamVertexParentage,
+        SharedRim,
+        Band,
+        Escalated,
+    ];
+}
+
+/// Two distinct keys of each kind, out of ONE real arena — slotmap keys
+/// have no hand constructor, and two bodies hand out the same index
+/// twice. Nothing below depends on their values.
+fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
+    let mut body = topo::Body::<f64>::new();
+    let born = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .expect("mvfs births a solid, shell, face and lone vertex");
+    let edge = body
+        .mev_line(
+            topo::MevSite::Lone {
+                r#loop: born.r#loop,
+            },
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Tol::witness(),
+        )
+        .expect("mev_line adds an edge")
+        .edge;
+    (edge, born.face, born.vertex)
+}
+
+/// **Every `NamingError` renders its subject, and no variant escapes
+/// the census.**
+///
+/// The emitter's refusals are the one route by which a naming failure
+/// reaches a human (Python's typed exception text is exactly this
+/// string), and this crate's own `display_tests` check what each
+/// SENTENCE says — which framing it opens with, that it leaks no braced
+/// payload, that it carries its subject. What they cannot check is that
+/// every variant has a sample at all. This does, and the two live
+/// together rather than one replacing the other.
+#[test]
+fn naming_error_display_names_its_content_not_its_struct() {
+    let (edge, face, vertex) = keys();
+    let cases = [
+        (
+            NamingError::Duplicate {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(7),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+            },
+            vec!["minted twice"],
+        ),
+        (
+            NamingError::Unnamed {
+                kind: EntityKind::Edge,
+                body: 3,
+            },
+            vec!["edge", "output body 3", "unnamed"],
+        ),
+        (
+            NamingError::MissingUpstream {
+                node: RecipeNodeId(11),
+            },
+            vec!["upstream node 11"],
+        ),
+        (
+            NamingError::Emission {
+                what: "section face classified On",
+            },
+            vec!["section face classified On"],
+        ),
+        (
+            NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
+            vec!["split lineage of edge"],
+        ),
+        (
+            NamingError::FragmentLineage { face },
+            vec!["fragment lineage of face"],
+        ),
+        (
+            NamingError::SeamVertexParentage { vertex },
+            vec!["seam vertex", "half-decided"],
+        ),
+        (
+            NamingError::SharedRim {
+                node: RecipeNodeId(23),
+                face,
+                other: face,
+                found: RimShare::Several,
+            },
+            vec!["operand node 23", "more than one edge"],
+        ),
+        (
+            NamingError::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["classification band", "5e-324"],
+        ),
+        (
+            NamingError::Escalated {
+                predicate: "side_of_plane",
+                source: geom_core::Indeterminate {
+                    margin: geom_core::predicate::MarginDiag::Invalid,
+                    band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
+                    predicate: Some("side_of_plane"),
+                },
+            },
+            vec!["side_of_plane", "escalated"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
 }

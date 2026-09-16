@@ -490,11 +490,10 @@ pub fn frame_placement(
     ) {
         return None;
     }
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
-    else {
+    let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
         return None;
     };
-    Some(SketchPlane::from_frame(*origin, u.get(), v.get()))
+    Some(SketchPlane::from_frame(*f))
 }
 
 /// **Every frame datum in the document, in document order** — what the

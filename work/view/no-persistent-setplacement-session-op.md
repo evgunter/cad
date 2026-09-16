@@ -42,7 +42,7 @@ its slate landed. VIEW holds the ground on both sides of this now:
 the session vocabulary (`crates/viewer/src/session/op.rs`) is this
 program's after unit 1, and the item that waits on this one —
 `two-hand-written-copies-of-the-g1-gesture-machine` — is this
-program's too. DI5 (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) is what
+program's too. DI5 (`crates/editor-core/IDENTITY.md`, ratified) is what
 turns the gap into a build: the free-move commit becomes a
 `DocEdit::SetPlacement`, which is exactly the door this item says the
 session vocabulary lacks.

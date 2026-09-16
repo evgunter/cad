@@ -57,6 +57,20 @@ R1's review measured `arc_diameter_clearance` on a two-hole bracket at a
 away from zero — the same widening, on a predicate nobody would call an
 identity.
 
+## A third site, and the bulge family's literal arc
+
+SYM-3's render of R2's D-tab with its bulge a LITERAL (`0.4`, and the
+dyadic control `0.5`, `m10_10_evidence_interval`'s `r2_d_tab_literal`
+rows): under the shipped set the document certifies 0.4308 (ε = 1e-6),
+0.5611 (1e-9), 0.5611 (1e-12) of its real study, bounded at ceiling + δ
+by `dihedral_wedge` `[9.99e-6, 2.49e-2]` at 1e-6 and
+`arc_diameter_clearance` `[−5.16e-8, 5.63e-4]` at the finer rows — the
+annulus's pattern, predicate for predicate. With the algebra off it is
+`7.81e2·ε` on `carrier_matches_mapped_source`. The same document with
+the bulge a PARAMETER stays ε-relative (`3.52e2·ε`, on and off alike),
+so on this family the literal arc is already in this class and the
+parameter arc is not yet.
+
 ## Why it is filed rather than fixed
 
 M10-7's scope is the identity tier and E3's lever. This is the mechanism
@@ -95,6 +109,25 @@ these two sites are a class or a pair.
   mechanism and the ceiling band, so a move here reds that row rather
   than passing silently.
 - `crates/geom-brep/` — `arc_diameter_clearance`, R1's bracket site.
+- `crates/editor-core/tests/m10_10_r2_probes_interval.rs` — `d_tab`
+  with a literal bulge, the third site; `m10_10_evidence_interval`'s
+  `m10_10_ceilings_and_the_over_band_set` at `CAD_M10_10_DOCS=r2_d_tab_literal`
+  reproduces the bracket.
+- **A derived placement's re-derived Newell offsets — the fourth site,
+  and the first where the widening stops being a bound and becomes a
+  REFUSAL.** A boss on a `Datum::FaceFrame` over a body whose height is
+  the widened parameter: at the boss's side plane the translate-to-origin
+  offset `(p − centroid).z` encloses `[-0.19954, 0.44840]` for a true
+  `−0.125`, the cross-sum's `N.y` then encloses `[-2.0507, 0.8977]` for
+  a true `−0.5`, and `Vec3::normalize` divides by a length whose
+  enclosure is `[0, 2.0924]` — so the margin is not merely wide, it is
+  `MarginDiag::Invalid` and clause 1 refuses before the symbolic tier is
+  asked. The tier PROVES that residual zero (its early form is the zero
+  form), which makes this the sharpest statement of what this class
+  costs. The row, with the eight-call probe and three candidate fixes,
+  is `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`;
+  its acceptance test is
+  `editor-core/tests/m10_derived_frame_interval`'s ported parity row.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 

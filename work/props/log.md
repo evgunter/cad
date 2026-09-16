@@ -1068,6 +1068,35 @@ R2 fable. Briefs for both duals stored on `props/b2-block`; four
 review lanes run at once on the box now that the two implementer
 build trees (27 GB) are freed.
 
+**Sign-hull dual adjudicated (2026-09-12).** Both lanes
+NOT-MERGEABLE-AS-IS on `c6f5d7aea`. R1 (opus) 2 MAJOR / 10 MINOR / 6
+NOTE, rubric 4/3/3; R2 (fable) 2 / 5 / 5, rubric 4/3/2.
+Correspondence: the seam regression is BILATERAL by execution (R1: a
+45° face through `newell_plane` at `Interval` hulls to a non-unit
+frame and DOCM's `datum_unit_norm` refuses where main served; R2: an
+extrude on a 45°-tilted sketch frame puts two walls on the `n.x = 0`
+meridian where the two candidates are ANTIPARALLEL — a half-turn flip
+the constructor doc denies — and M10-5's `refines` door refuses where
+main served); both swept ρ over the three corpora: any ρ ≠ 1 gives 0
+of 817 on the seam. R1's second MAJOR is that measured alternative,
+not a defect. **R2's MAJOR 2 is UNILATERAL: the DL6 claim "unbounded
+only where the box contains the zero vector" is false — three boxes
+without a zero vector return `Trv` on every component where Duff's
+`1 + |n.z|` denominator stayed bounded; R1 tested the same claim (C3)
+and reported it upheld. v6 tally candidate +1 (R2, FABLE).** Rulings:
+the comparison becomes `|n.z| ≤ max(|n.x|, |n.y|)/2` (ρ = 1/2, dyadic;
+seam at elevation atan(1/2), off every chamfer, wall, cap and corner
+direction; put to Ev in chat, who may still override before landing);
+a candidate whose norm's lower bound is zero encloses as the unit cube
+at `Def`, never `Trv`; rows that can red on the seam class (both
+reviewers' probes adopted); the census asserted at ρ, constructor
+frames distinguished from stored ones; the STEP receipt corrected (75
+records / 12 files, bottom caps flip); the (c)1 finding folded into
+the trim item that already owns it; eight files of stale rule prose;
+one M10 finding filed (a `Violated` witness off the trimmed face).
+Fix pass dispatched to the unit's own lane; two live specs
+(`TRIM-3`, `PCURVE-P2`) carry the Duff premise and get seam notes at
+landing.
 **Seam announced by BLEND (2026-09-13, at unit 9's dispatch):** BLEND
 unit 9 (`docs/BLEND-9-SPEC.md`, item
 `work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`) adds
@@ -1111,3 +1140,114 @@ registered-identity door's file — stays here, and SYM reaches it by
 announced seam; three of its rows say so in their bodies.
 `crates/bvh/src/*`, which this program's `keep_out` had parked on M10,
 is now in no program's paths.
+
+**(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
+`docs/SYM-1-SPEC.md`): a test-only cargo feature `sym-profile-testing` on
+`crates/geom-core/Cargo.toml`, forwarded through `crates/editor-core/Cargo.toml`'s
+dev-dependency edge exactly as `identity-pass-testing` is — the two
+Cargo files are this glob's; the code behind the feature is in
+`sym.rs`/`sym/*` (SYM's). `drive.rs`'s `SymbolicDials` cost note is
+touched only if the profile shows it wrong, and then by this seam.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): `Real::register_equal` gains a `tol: Tol`
+parameter in `crates/geom-core/src/real.rs` (PROPS' file) and the
+`f64` witness's slack becomes `tol.eps() · max(|a|, |b|, 1)` with
+`WITNESS_REL` retired; `interval.rs`'s impl ignores the parameter (the
+meet is exact) and says so. Ev's D1 = (1) on `[ev]` #2552. Nothing
+else in `real.rs` moves; D2 (the refusal arms) is held on the same PR.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6** (PR #2604):
+the lane also re-took one paragraph of `docs/ERROR-DESIGN.md` (E12's
+sentence that the point witness is ε-INDEPENDENT, which cited the
+`WITNESS_REL` this PR deletes) in the present tense, nothing else in
+E12; the sentence was M10-9's fix pass's (`4f8262ad9`, agent-authored,
+no Ev ratification found by `git log -S`), and Ev's D1 = (1) on #2552
+is what reversed it. Disclosed in the PR body; the dual reads it. A
+row on this slate from the same lane:
+`register-equals-witness-limits-citation-names-no-file`.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6 fix pass** (PR
+#2604): the fix pass also re-points `Real::register_equal`'s dangling
+citation of `m10_9_witness_limits_interval.rs` (a file that never
+existed) at the rows that establish the clause, in the same doc
+paragraph the unit re-takes, and closes the row the lane had filed
+here (`register-equals-witness-limits-citation-names-no-file`) as
+fixed by that PR; and adds one sentence to E12 in
+`docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
+D2 on #2552), beside the ε sentence already disclosed.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-7** (`sym/7-plain-memo`,
+`docs/SYM-7-SPEC.md`): `crates/editor-core/src/drive.rs` (PROPS') gains
+the creation of one `DriveMemo` per drive around the level loop,
+passed into `classify`'s `with_session_rules` call, a `DriveConfig.plain_memo`
+flag (default on), and `frozen` on the drive's receipt re-defined as
+distinct nodes frozen over the drive (its `serialize`/`render` docs) —
+nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
+receipt-identity row across schedules is the acceptance the memo is
+shared (not per worker) to keep.
+
+**Session moved to a local machine (2026-09-14).** The cloud session hit
+its usage limit twice; on the second, the sign-hull fix pass died three
+items in (nothing pushed) and the mignitude R2 reviewer died before
+reading its brief. Ev moved the orchestrator to a local box. What was
+lost: every lane worktree, both implementer target dirs, and — the one
+that costs something — all four reviewers' probe files, which are
+reported in their reports but were never pushed. Both units' branches
+and both PRs were untouched at their frozen heads, and `props/b2-block`
+kept every stored brief. Re-dispatched: the mignitude R2 review against
+a re-pathed copy of its stored brief (claims byte-identical, the
+deviation disclosed in the A/B record), and the sign-hull fix pass as a
+fresh lane on the same arm, re-deriving the adopted rows from the
+reports' quoted numbers. Its first job is the merge of `main`, which
+has moved ~2300 commits under it — `crates/geom-core/src/sym.rs` alone
+by ~2670 lines (SYM-5, SYM-7), where this unit adds the tier's first
+three-child node; SYM-8 (#2616) is open on the same file and the lane
+reports whether `SymOp::Select` collides with it.
+
+**Mignitude-floor dual adjudicated (2026-09-15).** Both arms
+APPROVE-WITH-FIXES on `c8fd64033`, **no MAJOR either arm — v6 tally
++0**. R1 (fable) 0/4/8, rubric 4/4/4; R2 (opus) 0/6/3, rubric 4/4/3.
+The bound survived both attacks by execution and independently: R1
+sampled every cell of every round grid on six bases (worst
+`e_lo`/sampled-min ratio 0.9987, ~9300 cells), R2 on five (worst
+0.9434, 1485 cells); the red and green digits, the 24-of-70 corpus
+move, the 807.7× and the single grown bound all reproduced on both,
+and each rebuilt the merge base in its own tree to do it.
+Correspondence: the `m_sup` f64 fold BILATERAL (R1 by reading, R2 by
+execution — 306 of 308 cells carry a divisor below the ring reading,
+worst 4.70e-16 relative, on the unsound side, against the PR's own
+"every intermediate stays a `RingInterval`"; R2 extends the class to
+`ssi/certify.rs`'s `stretch`, which has no `sqrt_up` at all); the test
+`decompose` copy BILATERAL (R2 sharper — it already diverges by a
+missing guard, falsifying the row's own "differ in exactly one
+expression"); the face count 7-vs-8 and the stall row's unasserted
+premise BILATERAL. Unilateral to R1: the D2 "never into them" sentence
+overclaims against this unit's own non-monotonicity item, and the
+filed item's remedies are miscast (executed: the OLD 780-cell grid
+reads the identical bound under the witness reading, so the whole 1.8%
+is schedule divergence at round 1). Unilateral to R2: two stale
+certified digits the change itself moved — one in the module doc, one
+an entire false measured ladder in the recentring row — and the
+bit-identity sentence, false on the four requests whose schedule moved
+the fit's knot count. Fix pass dispatched on the same arm as a fresh
+lane; R2's probe files survived the machine move and are adopted from
+disk, R1's did not and are re-derived from its report.
+
+**Mignitude-floor MERGED (2026-09-15).** PR #2469 at `f050e2d6f` (run
+35015861638 green, 35 jobs; two merge-forwards, main having moved 442
+then 17 commits under the branch and touched all three of its files —
+D290's `on_domain` and RATE-PAIR's speed tags — with no certified digit
+moving, argued by reading `on_domain`'s identity on a `[0,1]` chart and
+measured at all six lane/eps points). Item closed, spec into the
+ledger, A/B row at ordinal 2404, sample #208. The fix pass took all
+twelve adjudicated items, including two the lane was right to decide
+its own way: an unrecoverable digest table retired rather than a byte
+order invented, and a Ratified README sentence measured false and
+corrected after `git log -S` found no ratification behind it. Three
+rows adopted from the review lanes plus a fourteen-column corpus
+census that costs the suite nothing. Filed on other slates: the
+`f64`-fold divisor class on SHELL (`cell_normal`'s assembly B) and
+TRIM (`Box3::speed_sup`, where the extraction's own doc settles the
+rounding difference the wrong way — "folding them into one would move
+bits" is the reading discipline section 3 forbids as a justification).

@@ -600,10 +600,9 @@ class MateError(PncadError):
 class AssemblyError(PncadError):
     """The at-rest assembly gate refused.
 
-    `variant` is the refusing arm's stable tag; `mate`, `side`,
-    `name`, `why`, `class_`, `findings`, `node`, `through` are the
-    arms' payloads, present on every arm and `None` where that arm
-    does not carry one.
+    `variant` is the refusing arm's stable tag; `refusals`,
+    `findings`, `node`, `through`, `name` are the arms' payloads,
+    present on every arm and `None` where that arm does not carry one.
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
@@ -613,21 +612,23 @@ class AssemblyError(PncadError):
     either way. A gather refusal arrives under the GATHER's own tag
     (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
 
-    `carried_mint_refusal` is an inner part's own mate that could not
-    be minted at all: an outer assembly is not at rest over a part
-    whose contact nothing verified. It carries a FOREIGN mate, so it
-    carries the route with it — `of` is the document to open, `via`
-    the instances this document reached it through (nearest first,
-    starting at `through`), and `mate` is a node of `of`, not of the
+    The two MINT arms each answer with a LIST, because a document with
+    two broken mates is two repairs and learning about the second only
+    after fixing the first makes the gate's answer a function of how
+    many times you ran it. `unminted_mates` is this document's own
+    mates, `refusals` a `MintRefusal` per mate in document order, each
+    carrying its own `variant` (`mate_reference_refused`,
+    `no_at_rest_record`). `carried_mint_refusal` is the same fact for
+    mates of documents BELOW this one — an outer assembly is not at
+    rest over a part whose contact nothing verified — and `refusals`
+    is then a `CarriedRefusal` per mate, each carrying the route it
+    arrived by, because its `mate` is a node of `of` and not of the
     document that was gathered."""
 
     variant: str
-    mate: Optional[NodeId]
-    side: Optional[MateSide]
-    name: Optional[str]
-    why: Optional[RefusedRef]
-    class_: Optional[ContactClass]
+    refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
     findings: Optional[list[AtRestFinding]]
+    name: Optional[str]
     node: Optional[NodeId]
     of: Optional[str]
     via: Optional[list[NodeId]]
@@ -706,7 +707,10 @@ class ReadbackError(PncadError):
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
     picking a candidate. `Evaluation.denotation` is how a caller asks
-    before reading a frame.
+    before reading a frame. It is asked AFTER `wrong_kind`: a door
+    handed a name of a kind it does not read is not a door that has
+    to pick a candidate, so such a name refuses `wrong_kind` whether
+    or not it is tied, and narrowing it is never the recourse.
 
     Every field is present on every arm, `None` where that arm does
     not carry it."""
@@ -3939,20 +3943,24 @@ class Mesh:
         polyline's POSITION here is the handle
         `NodePick.boundary_names` inverts, entry for entry."""
 
-    def to_stl_ascii(self, solid_name: str = "") -> str:
+    def to_stl_ascii(self, solid_name: Optional[str] = None) -> str:
         """The ASCII STL text, `solid <name>` first line.
 
         The name is validated, not sanitized: a character outside the
         printable ASCII the single-line grammar admits raises
-        `StlError`."""
+        `StlError`. Omitted, it is the Rust default — the generic part
+        name `AsciiOptions` carries, so the file this door writes with
+        no arguments is the file a Rust caller gets with none."""
 
-    def to_stl_binary(self, header: str = "") -> bytes:
+    def to_stl_binary(self, header: Optional[str] = None) -> bytes:
         """The binary STL bytes.
 
         `header` is the 80-byte header field's free text —
         conventionally the producer. A header that does not fit, or
         that would make the file sniff as ASCII STL, raises
-        `StlError` rather than being truncated or written."""
+        `StlError` rather than being truncated or written. Omitted, it
+        is the Rust default — the producer text `BinaryOptions`
+        carries, not 80 zero bytes."""
 
 class Datum:
     @property
@@ -4130,9 +4138,13 @@ class Denotation:
     `Evaluation.denotation` answers with.
 
     A TIE is a naming success and a referencing failure: the name is
-    well formed and several entities answer to it equally, so the
-    frame doors refuse (`ReadbackError`, `variant == "ambiguous"`)
-    rather than picking one. `tied` is the fact to branch on;
+    well formed and several entities answer to it equally, so a frame
+    door that reads THAT KIND refuses (`ReadbackError`,
+    `variant == "ambiguous"`) rather than picking one. A door handed a
+    name of a kind it does not read is not a door that has to pick
+    one, and refuses `wrong_kind` first, tied or not — so a tie here
+    predicts `ambiguous` only at the door for the name's own kind.
+    `tied` is the fact to branch on;
     `candidates` is how many answer, which is `1` exactly when `tied`
     is `False`. It carries a COUNT and never the candidates — those
     are arena keys, which do not cross."""
@@ -4438,10 +4450,11 @@ class Evaluation:
         half.
 
         Raises `ReadbackError`, typed: `no_such_name` for a stale
-        selection, `ambiguous` for a tie (ask `denotation` first),
-        `wrong_kind` for an edge or vertex name,
-        `no_canonical_frame` for a NURBS carrier, and the node ladder
-        for a node this evaluation did not produce."""
+        selection, `wrong_kind` for an edge or vertex name (tied or
+        not — the kind is asked before the tie), `ambiguous` for a tie
+        among FACES (ask `denotation` first), `no_canonical_frame` for
+        a NURBS carrier, and the node ladder for a node this
+        evaluation did not produce."""
 
     def edge_frame(self, node: NodeId, name: str) -> Pose:
         """Where the named edge sits — `face_frame`'s sibling, same
@@ -4475,10 +4488,12 @@ class Evaluation:
     def denotation(self, node: NodeId, name: str) -> Denotation:
         """How this name resolves — uniquely, or as a tie. The
         referencing question, answered without exposing what it
-        resolves to, and the door to ask BEFORE a frame: the three
-        frame doors refuse a tie rather than picking a candidate, and
-        this says whether one is coming. Raises `ReadbackError` for
-        `no_such_name` and the node ladder."""
+        resolves to, and the door to ask BEFORE a frame: a frame door
+        for the name's OWN kind refuses a tie rather than picking a
+        candidate, and this says whether one is coming. A door for
+        another kind refuses `wrong_kind` before it looks at the tie,
+        so this answer does not predict that one. Raises
+        `ReadbackError` for `no_such_name` and the node ladder."""
 
     def resolve(self, name: str) -> Resolution:
         """Does this STORED name still denote, in THIS evaluation? —
@@ -5241,6 +5256,58 @@ class AtRestFinding:
     @property
     def attribution(self) -> Attribution: ...
 
+class MintRefusal:
+    """One mate whose declaration the gather could not mint — a row of
+    `AssemblyError.refusals` under `unminted_mates`.
+
+    `str(refusal)` is the refusal in the library's own words, its
+    recourse included."""
+
+    @property
+    def variant(self) -> str:
+        """`mate_reference_refused` or `no_at_rest_record`."""
+
+    @property
+    def mate(self) -> NodeId:
+        """The mate that did not mint. Both arms carry one."""
+
+    @property
+    def side(self) -> Optional[MateSide]:
+        """Which side the refused reference is on."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The reference that named no product face."""
+
+    @property
+    def why(self) -> Optional[RefusedRef]:
+        """Why that reference did not resolve.
+
+        `None` for `no_at_rest_record`, whose reason is of a different
+        kind: the class's own entry in the admission table. Ask
+        `class_admission(refusal.class_).why` for it — the same string
+        `str(refusal)` carries, from the one place it lives."""
+
+    @property
+    def class_(self) -> Optional[ContactClass]:
+        """The class that carries no kernel record at rest."""
+
+class CarriedRefusal:
+    """One mate a document BELOW this one could not mint — a row of
+    `AssemblyError.refusals` under `carried_mint_refusal`.
+
+    `refusal.mate` is a node of `of`, not of the document that was
+    gathered, so the route travels with it."""
+
+    @property
+    def refusal(self) -> MintRefusal: ...
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
 class Assembly:
     """A validated assembly: the gathered body, its product names, one
     minted declaration per solved mate of THIS document, and one
@@ -5278,9 +5345,10 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
-    `carried_mint_refusal`, the gather's own tags) refuse before any
-    verdict."""
+    remaining arms (`unminted_mates`, `carried_mint_refusal`, the
+    gather's own tags) refuse before any verdict. The two mint arms
+    answer with `refusals`, every mate that did not mint rather than
+    the first."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -5695,12 +5763,19 @@ def subject_body(
     through its value, and a declared boolean's own certified seam is
     not reported here as an undeclared contact."""
 
-def import_step(text: str) -> ImportReport:
+def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its
     solid, answering the whole report: `.body`, the gate's own
     `.enclosure` of it, and what the adoption changed.
 
     Reading `.enclosure` measures the import once — the gate already
-    ran that quadrature. Raises StepImportError, typed."""
+    ran that quadrature. Raises StepImportError, typed.
+
+    `eps_in` overrides the file's declared
+    `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
+    the reading end of the ε `Evaluation.step_string` writes as
+    `uncertainty`. Omitted, the file's own declaration is read; an
+    explicit one that is not finite and strictly positive is a
+    `StepImportError` with `variant == "invalid_eps_override"`."""
 
 __build_info__: Final[dict[str, Any]]

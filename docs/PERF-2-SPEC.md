@@ -52,8 +52,8 @@ descent depth, with **every observable unchanged**:
 ## 2. The design space, and the constraint on it
 
 `RoleSeg`'s nesting is the readable statement of descent and it is
-the naming design's vocabulary (`docs/DOCM-IDENTITY-DESIGN.md`, D5,
-the `Node::Union` `FromMember` argument in `role.rs`). This unit does
+the naming design's vocabulary (`crates/editor-core/REFERENCES.md`
+DM4, D5, the `Node::Union` `FromMember` argument in `role.rs`). This unit does
 not redefine what a name IS. Within that:
 
 - **Sharing** — `Rc<StableName>` (or an arena handle) in place of

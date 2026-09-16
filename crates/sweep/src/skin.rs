@@ -888,6 +888,13 @@ pub fn loft_geometry(
     // particular.) It is computed through the same helper
     // [`loft_parameters`] answers with — ONE code path, so the query
     // can never drift from the construction it reports.
+    //
+    // WHICH strip is first is therefore load-bearing, and it is the
+    // caller's: a section authored from a different starting vertex,
+    // or rolled about its own normal by one of the profile's own
+    // symmetries, leaves every station's ring the same set of points
+    // and still builds a measurably different solid, because a
+    // different strip sets v.
     let params = first_strip_parameters(&validated, places)?;
     let mut walls = Vec::with_capacity(loops);
     let mut kept = Vec::with_capacity(loops);
@@ -1046,6 +1053,14 @@ fn first_strip_parameters(
 /// tangent has no such rotation and refuses typed
 /// ([`SkinError::PathTangentReversal`]) rather than picking one.
 ///
+/// `place` — the STARTING frame the rest is carried from — is the
+/// caller's, and `geom_core::linalg::frame::path_start_frame` is where
+/// a caller gets it: the plane through the path's start point whose
+/// local +Z is the start tangent, its roll off a reference ladder
+/// decided under the band. A caller wanting a different roll composes
+/// a rotation about the tangent onto that frame; there is no second
+/// door.
+///
 /// # C6: the anti-parallel knife edge, stated honestly
 ///
 /// The turn is selected from `sin = |t₀ × tᵢ|` and `cos = t₀ · tᵢ` by
@@ -1098,6 +1113,14 @@ pub fn sweep_geometry(
 /// assembly (M6-3, `crate::loft`) rides the exact same machinery with
 /// no semantic fork. All the docs (and the C6 anti-parallel knife
 /// edge) above apply verbatim: this IS that function's frame, moved.
+///
+/// `place` — the STARTING frame every other placement is carried from
+/// — is the caller's, and `geom_core::linalg::frame::path_start_frame`
+/// is where a caller gets it: the plane through the path's start point
+/// whose local +Z is the start tangent, its roll off a reference
+/// ladder decided under the band. A different roll is a rotation
+/// composed about the tangent onto that frame; there is no second
+/// door.
 ///
 /// # Errors
 ///

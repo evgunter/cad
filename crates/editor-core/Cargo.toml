@@ -113,12 +113,24 @@ test-utils = { path = "../test-utils" }
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
+# `sweep` again, with `test-support` ON, for the same reason `profile`
+# is named twice above: the corpus `loft_prism` document and the perf12
+# BVH differential author the SAME two section polygons the kernel's
+# own loft fixture is built from, and a second spelling of them here is
+# a divergence waiting to happen. Test builds only.
+sweep = { path = "../sweep", features = ["test-support"] }
 # M10-9's staged-ceiling evidence needs geom-core's test-only funnel
 # dial (`identity-pass-testing`), which lets one named identity
 # residual's indeterminate answer pass so a ceiling can be measured "as
 # if" it were discharged. Dev-dependencies are the only place it turns
 # on; the ordinary `geom-core` edge above does not carry it.
-geom-core = { path = "../geom-core", features = ["identity-pass-testing"] }
+# `sym-profile-testing` rides the same edge for the same reason: the
+# symbolic tier's cost profile (`geom_core::sym::profile`) is read by
+# evidence rows under `tests/m10_*` and by nothing shipped.
+geom-core = { path = "../geom-core", features = [
+    "identity-pass-testing",
+    "sym-profile-testing",
+] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

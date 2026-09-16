@@ -88,6 +88,8 @@ mod display_budget;
 mod doc_io;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
+#[path = "docm9_range_vs_probe.rs"]
+mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "error_display.rs"]
@@ -165,11 +167,4 @@ mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();

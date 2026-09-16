@@ -26,6 +26,7 @@
 use crate::common::cap_rims::chart_counts;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::validate_geometric;
 
@@ -53,10 +54,11 @@ fn rect(plane: SketchPlane<f64>, sx: f64, sy: f64) -> ValidatedProfile<f64> {
 /// frame `fillet_h6_cap_rim`'s tilted row uses).
 fn plane_under_env() -> SketchPlane<f64> {
     match std::env::var("RK_PLANE").as_deref() {
-        Ok("tilted") => SketchPlane::from_frame(
+        Ok("tilted") => sketch_from_axes(
             Point3::new(0.3, -0.2, 0.7),
-            Vec3::new(1.0, 1.0, 0.0).normalize(),
-            Vec3::new(-1.0, 1.0, 2.0).normalize(),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(-1.0, 1.0, 2.0),
+            Tol::witness(),
         ),
         _ => SketchPlane::xy(),
     }

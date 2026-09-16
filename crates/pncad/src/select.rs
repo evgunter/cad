@@ -36,10 +36,11 @@
 //!    names and hand back a [`Pose`] or a count, and
 //!    [`face_carrier_kind`] hands back the face's stored
 //!    [`SurfaceKind`](crate::prelude::SurfaceKind) tag — a value too, the one "is this face
-//!    planar" is a comparison of. Arena keys are
+//!    planar" is a comparison of — with [`edge_carrier_kind`] doing
+//!    the same for an edge's [`CurveKind`] tag. Arena keys are
 //!    body-lineage-scoped and do not leave `editor-core`; a NURBS
-//!    face has no canonical frame, so `face_frame` refuses it rather
-//!    than nominating one (its kind is still readable).
+//!    face or edge has no canonical frame, so the frame doors refuse
+//!    it rather than nominating one (its kind is still readable).
 //!
 //! **A name can also be MINTED, not only answered.** A selection that
 //! is AUTHORED rather than materialized — a shell's open list, a
@@ -71,11 +72,16 @@
 // failure out of prose.
 //
 // **That placement is the general rule and not a one-name
-// exception**, and `EntityKind` and `SplitHalf` below are the rest of
-// it. Both are `document::NodeErrorKind`'s payload as well — and
-// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
-// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
-// `Denotation`. A payload whose vocabulary one of the curated
+// exception**, and `EntityKind`, `SplitHalf` and `RimShare` below are
+// the rest of it. `EntityKind` and `SplitHalf` are
+// `document::NodeErrorKind`'s payload as well — and `RefusedRef`'s and
+// `PartSelect`'s — and both are the naming-role vocabulary this module
+// owns, beside `RoleSeg`, `SegTag` and `Denotation`. `RimShare` is on
+// the list for the payload rule alone, one level further in: it is the
+// typed discriminant `NamingError::SharedRim` carries instead of
+// prose, so a consumer that cannot name it is back to reading the
+// refusal out of its sentence, which is what that payload exists to
+// stop. A payload whose vocabulary one of the curated
 // lists owns lives on THAT list, spelled once; a payload whose only
 // home is the refusal holding it rides its carrier, which is what
 // `crate::document`'s `VerbKind` does. The cost is one extra `use`
@@ -86,11 +92,12 @@ pub use editor_core::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
     SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
-    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
+    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, meridian_vertex, select, select_where,
+    vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this

@@ -382,7 +382,7 @@ pub(crate) fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<N
 #[allow(clippy::expect_used)]
 mod map_affine_probe {
     use super::map_affine;
-    use geom_core::{Affine3, Dual64, Point3, Real, Vec3};
+    use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
 
     /// The twelve components in a fixed order, so a transposition
     /// between two walks cannot hide.
@@ -410,10 +410,16 @@ mod map_affine_probe {
     /// and pins the round trip through the fallible direction.
     #[test]
     fn map_affine_is_affine3_map_when_f_never_refuses() {
-        let a = Affine3::from_frame(
-            Point3::new(10.0, 11.0, 12.0),
-            Vec3::new(1.0, 2.0, 3.0),
-            Vec3::new(4.0, 5.5, -6.0),
+        // Deliberately NOT a frame: three unrelated columns and a
+        // translation, so a transposition between the two walks
+        // cannot be hidden by a symmetry the axes happen to have.
+        let a = Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::new(1.0, 2.0, 3.0),
+                Vec3::new(4.0, 5.5, -6.0),
+                Vec3::new(-7.25, 0.5, 8.0),
+            ),
+            Vec3::new(10.0, 11.0, 12.0),
         );
         let door: Affine3<Dual64> = a.map(Dual64::from_f64);
         let walk: Affine3<Dual64> = map_affine(&a, |x| {

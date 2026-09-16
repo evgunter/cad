@@ -40,8 +40,8 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
+pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
 };
@@ -61,8 +61,8 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
-    vertex_position,
+    Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
+    face_frame, vertex_position,
 };
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;

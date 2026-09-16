@@ -174,10 +174,12 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `UnitVec3`/`UnitVec3Error` ride with `DatumValue` because they are
-// its field type: a consumer cannot read a datum's normal, or build a
-// datum at all, without naming the type that makes it unit — and the
-// constructor's refusal is the only way a datum direction is rejected.
+// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// through the re-exported `geom_core` crate rather than curated here:
+// a consumer cannot read a datum's normal, or build a datum at all,
+// without naming the type that makes it unit, and it names it at the
+// crate that mints it — the constructor's refusal (`UnitVec3Error`,
+// there too) is the only way a datum direction is rejected.
 // `VerbKind`/`Arity` ride with `NodeErrorKind` for the same reason:
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
@@ -191,10 +193,17 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // a memo was refused without naming it. The name is not the memo's —
 // it is the one payload all three pairing doors carry (DI3), which is
 // why it is spelled for the QUESTION rather than for any one door.
+// `Found` rides with `NodeErrorKind` by the same rule: it is the
+// `found` field of the four entity-kind refusals, so a consumer can
+// match those variants but not name what they say was there instead.
+// It carries an `EntityKind`, never a key, so it is not the LB13
+// exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
+// which is the point of it: its field is private to the door that
+// mints it.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -322,15 +331,19 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // what a finding says about a declaration it names — this document's
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
-// outermost gate's refusal over an inner mate that could not be minted
-// at all. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence the
-// `NoAtRestRecord` arm ends on, carried for the reason
-// `UNDER_RECOURSE` is: a caller asserting that a refusal reaches its
-// recourse must not do it by re-typing the sentence.
+// outermost gate's refusal over inner mates that could not be minted
+// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
+// row of the gate's refusal over this document's own mates. Both arms
+// raise EVERY row they hold, so the row types are what the gate's
+// answer is made of and a consumer matching that answer must name
+// them. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence a
+// `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
+// is: a caller asserting that a refusal reaches its recourse must not
+// do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef, Relation, Route, assemble,
-    assemble_gathered,
+    CarriedRefusal, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef,
+    Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

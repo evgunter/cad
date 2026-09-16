@@ -66,6 +66,8 @@ mod crosslap_rest;
 mod cube_by_hand;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "geom_origin_rows.rs"]
+mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -78,6 +80,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "loop_reparenting_pcurve_rows.rs"]
+mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
 mod m3_pr1_surgery;
 #[path = "m3_pr2_reduce.rs"]
@@ -212,19 +216,14 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "split_edge_pcurve_rows.rs"]
+mod split_edge_pcurve_rows;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 #[path = "f7d_delta_probes.rs"]
 mod f7d_delta_probes;
 #[path = "probe_census.rs"]

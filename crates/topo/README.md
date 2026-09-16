@@ -17,7 +17,7 @@ feeds a decision, every walk is bounded.
 
 | Area | Modules |
 |---|---|
-| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomSource`, a description's recipe identity), `src/live.rs` |
+| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomOrigin`, the one provenance row a body keeps per geometric description: `GeomSource`, a description's recipe identity, on its `Recipe` arm, and imported / kernel-direct / cleared-and-not-re-stamped on the other three), `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter (`Candidates` — the sweeps and the backstop examine only pairs whose padded boxes overlap, a cleared pair being decided apart by the box answer with pad ≥ escalate + 2·zero, so carrier-stage escalations and refusals about entities the boxes prove apart are not raised), the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
@@ -245,7 +245,7 @@ backs; `SameSide` refuses naming the verdict and is the future
 declared-interpenetration hook (C6 consumes it as admission evidence, so
 no bool may stand there; today it reaches the refusal only as rendered
 witness text, not a typed field); `Undecided` escalates `CensusEscalated`.
-The side is read via `Face::sense_sign` and
+The side is read by handing both faces' `Face::sense` bits to
 `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
 sense-invariant.

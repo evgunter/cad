@@ -26,7 +26,6 @@ use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
@@ -52,34 +51,32 @@ fn door_rows() -> [(&'static str, SymRules); 2] {
     ]
 }
 
-/// The four documents, each as a function of the SCALE of its real
-/// study, so a ceiling is a multiple of the study a user would ask for.
+/// The five documents, in THIS file's reporting order — the builders
+/// themselves live once, in the gating half's measured table
+/// (`m10_9_pins_interval::measured_studies`), so a document that is
+/// re-cut moves in one place (R1 S1; this file used to carry a second
+/// copy of all five).
 fn documents(tol: Tol) -> Vec<NamedStudy> {
-    vec![
-        (
-            "two_hole_plate",
-            Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0)
-                as Box<dyn Fn(f64) -> ProfileDoc>,
-        ),
-        (
-            "r2_filleted_bracket",
-            Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
-        ),
-        (
-            "r1_annulus",
-            Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
-        ),
-        (
-            "r2_rounded_pad",
-            Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
-        ),
-        // R2's own arc document, adopted so the corrected diagnosis is
-        // read on the same five documents both reviews measured.
-        (
-            "r2_link",
-            Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
-        ),
+    let mut by_name: BTreeMap<&'static str, Box<dyn Fn(f64) -> ProfileDoc>> =
+        crate::m10_9_pins_interval::measured_studies(tol)
+            .into_iter()
+            .map(|study| (study.name, study.at))
+            .collect();
+    [
+        "two_hole_plate",
+        "r2_filleted_bracket",
+        "r1_annulus",
+        "r2_rounded_pad",
+        "r2_link",
     ]
+    .into_iter()
+    .map(|name| {
+        let at = by_name
+            .remove(name)
+            .unwrap_or_else(|| panic!("{name} is not in measured_studies"));
+        (name, at)
+    })
+    .collect()
 }
 
 /// **The ceilings, door OFF and door ON, and THE OVER-BAND SET AT
@@ -160,16 +157,11 @@ fn m10_9_per_predicate_split_at_the_nominal() {
         for (col, (_, rules)) in door_rows().into_iter().enumerate() {
             let (shapes, _, counts) = replay(&doc, &box_, rules, tol);
             println!("== {name} {:?}", counts);
-            for s in &shapes {
-                let row = table.entry(s.predicate).or_default();
-                let k = match s.outcome {
-                    ShapeOutcome::Theorem => 0,
-                    ShapeOutcome::SignGated => 1,
-                    ShapeOutcome::Registered => 2,
-                    _ => 3,
-                };
-                row[col][k] += 1;
-                totals[col][k] += 1;
+            for (pred, row) in crate::m10_8_harness::split(&shapes) {
+                table.entry(pred).or_default()[col] = row;
+                for k in 0..4 {
+                    totals[col][k] += row[k];
+                }
             }
         }
         for (pred, cols) in &table {
@@ -335,11 +327,11 @@ fn the_two_fillet_forms() {
         // And what the door answers when the registrant states it.
         println!(
             "   register(|h_registrant|, r) -> {:?}",
-            h_registrant.abs().register_equal(r)
+            h_registrant.abs().register_equal(r, Tol::witness())
         );
         println!(
             "   register(|h_consumer|,   r) -> {:?}",
-            h_consumer.abs().register_equal(r)
+            h_consumer.abs().register_equal(r, Tol::witness())
         );
     });
     println!("   counts {counts:?}");

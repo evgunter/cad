@@ -850,11 +850,11 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(12);
             d.point3(*position);
         }
-        ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+        ValuePayload::Datum(DatumValue::Frame(f)) => {
             d.u64(13);
-            d.point3(*origin);
-            d.vec3(u.get());
-            d.vec3(v.get());
+            d.point3(f.origin());
+            d.vec3(f.u().get());
+            d.vec3(f.v().get());
         }
         ValuePayload::Datum(DatumValue::AxisInPlane {
             plane_origin,

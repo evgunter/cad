@@ -31,7 +31,7 @@ use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::marks;
-use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
+use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds, PictureKey};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -66,7 +66,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -624,6 +630,117 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         .expect("a ray onto the plate hits it");
     let overlay = marks::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
     assert!(overlay.is_empty(), "a face selection marks no edge");
+}
+
+// --- the two halves' opposite conventions ----------------------------
+
+/// **One gesture, two answers to "is this hovered?", and the
+/// difference is deliberate.** Hovering what is already selected
+/// leaves `Highlight::hovered` carrying the selected patch's id —
+/// `gpu`'s `fs_main` tests the selected lane first, so the face path
+/// rules downstream where the fragment can see both — while
+/// `EdgeOverlay::hovered` comes back EMPTY, because an edge vertex
+/// carries exactly one mark word and the pass that draws it neither
+/// blends nor writes depth, so a hovered lane holding the same
+/// geometry would overdraw the selected mark rather than lose to it.
+///
+/// Each half is already pinned on its own, a file apart:
+/// `select_pick.rs`'s
+/// `the_highlight_is_a_function_of_the_scene_and_the_selection` and
+/// `the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else`
+/// above. Neither says the other exists, so a lane that reds one of
+/// them has no way to learn that the opposite convention next door is
+/// the intended one. This row is the pair, asserted together: swapping
+/// the two conventions reds it whichever way the swap goes.
+///
+/// The two negative assertions each carry their own control — a hover
+/// on a DIFFERENT edge must still fill `hovered`, and the selected
+/// patch's id must not be `NOTHING` — so neither can pass by the mark
+/// having stopped working altogether.
+#[test]
+fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mark() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+
+    // The face half: both lanes carry the picked patch.
+    let face = index
+        .face_at(
+            eval_of(&session),
+            &pncad::select::Ray {
+                origin: Point3::new(0.005, 0.005, 1.0),
+                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
+            },
+        )
+        .expect("no refusal")
+        .expect("a ray onto the plate hits it");
+    session.perform(SessionOp::Select(Selection::Face(face.clone())));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(face))));
+    let lit = marks::highlight(&index, session.selection(), session.hover());
+    assert_ne!(
+        lit.selected,
+        viewer::pickindex::IdMap::NOTHING,
+        "the control: the picked patch is marked at all"
+    );
+    assert_eq!(
+        lit.hovered, lit.selected,
+        "the face mark keeps a hover that is the selection; the shader rules"
+    );
+
+    // The edge half: the hovered lane is dropped.
+    let (rim, _) = hole_rim(&index, extrude);
+    let selection = EdgeSelection {
+        name: index
+            .edge_name_of(rim)
+            .expect("a drawn edge has a name")
+            .clone(),
+        node: extrude,
+        body: 0,
+    };
+    let other = drawn_edges(&index, extrude)
+        .into_iter()
+        .find(|(id, run)| *id != rim && run.len() >= 2)
+        .expect("the plate draws more than one edge");
+    session.perform(SessionOp::Select(Selection::Edge(selection.clone())));
+
+    session.perform(SessionOp::Hover(Some(Hovered::Edge(EdgeSelection {
+        name: index
+            .edge_name_of(other.0)
+            .expect("a drawn edge has a name")
+            .clone(),
+        node: extrude,
+        body: 0,
+    }))));
+    let elsewhere = marks::edge_overlay(
+        &index,
+        &DisplayView::none(),
+        session.selection(),
+        session.hover(),
+    );
+    assert!(
+        !elsewhere.hovered.is_empty(),
+        "the control: a hover off the selection does fill the hovered lane"
+    );
+
+    session.perform(SessionOp::Hover(Some(Hovered::Edge(selection))));
+    let on_it = marks::edge_overlay(
+        &index,
+        &DisplayView::none(),
+        session.selection(),
+        session.hover(),
+    );
+    assert!(
+        !on_it.selected.is_empty(),
+        "the control: the selected edge is still marked"
+    );
+    assert!(
+        on_it.hovered.is_empty(),
+        "the edge mark drops a hover that is the selection; nothing downstream could"
+    );
+    assert!(
+        !on_it.hovered_probed,
+        "the dropped lane carries no probe flag either"
+    );
 }
 
 // --- survival -------------------------------------------------------

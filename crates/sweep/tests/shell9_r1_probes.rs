@@ -15,16 +15,16 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use geom_core::{Point2, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
-use super::shell7_common::{
-    face_of_he, hollow_moves, point, polyline, tol, tube_torus, tube_torus_hollow,
-};
+use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
+use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
-use super::verbs_shell::{boxy, hollow_box, two_void_box, vessel};
+use super::verbs_shell::{hollow_box, two_void_box, vessel};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -198,12 +198,16 @@ fn r1_rows_corpus() {
         &cap_at_y(&frustum, 2.0),
     );
     // SHELL-8's multi-solid bodies.
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     dump_shelled("box beside vessel sealed", &pair, 0.1, &[]);
     let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
         .expect("hollows")
         .body;
-    let pair_h = beside(&boxy(2.0, 3.0, 4.0), &hollow_vessel, 10.0);
+    let pair_h = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hollow_vessel, 10.0);
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
         .solids()
@@ -377,7 +381,7 @@ fn r1_end_to_end() {
     let hv = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
         .expect("the vessel hollows")
         .body;
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &hv, 10.0);
+    let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
         .find(|(k, _)| pair.get_solid(*k).unwrap().shells.len() == 2)
@@ -408,33 +412,21 @@ fn r1_end_to_end() {
 // Claim 3: the drum's cause by execution; claim 4: hunting the arm
 // ---------------------------------------------------------------------
 
-fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
-    let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
-        .expect("the door takes it");
-    cavity
-}
-
 /// **The drum**: the reverted cavity alone, through `validate_geometric`.
 #[test]
 fn r1_drum_reverted_cavity_alone() {
-    let drum = polyline(
-        &[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.5, 2.0), (0.0, 2.0)],
-        Revolution::Full,
-    );
+    let drum = collinear_cap_drum();
     let cavity = door_cavity(&drum, 0.05);
-    assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
-        Ok(()),
-        "cavity tier 3"
-    );
     let reverted = cavity.revert().expect("revert");
     let v = topo::validate_geometric(&reverted, tol());
     println!("[r1drum] reverted cavity alone: {v:?}");
-    let e = topo::shell(&drum, 0.05, tol()).expect_err("the drum refuses");
-    println!("[r1drum] shell: {e}");
-    assert!(matches!(e, ShellError::Insert { .. }));
+    assert_eq!(
+        v,
+        Err(vec![topo::ValidationError::NegativeVolume]),
+        "the reversal mirrors the cap plane's images: only the complement's volume fails"
+    );
+    let out = topo::shell(&drum, 0.05, tol()).expect("the drum shells");
+    println!("[r1drum] shell: {} shells", out.body.shells().count());
     // The sphere's reverted cavity for contrast.
     let cavity = door_cavity(&two_arc_sphere(), 0.05);
     let reverted = cavity.revert().expect("revert");

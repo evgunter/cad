@@ -62,6 +62,16 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+/// The certified locally-valid range of ONE field — the on-demand
+/// query whose answer is meant to REPLACE the sampling probe's
+/// reading, in a consumer nothing in this tree has built yet
+/// (`work/chrome/certify-affordance-on-the-bounds-panel`,
+/// `work/lib/certified-range-has-no-python-door`). Gated on `interval`
+/// for [`mod@drive`]'s reason: the certificate IS a drive's leaves,
+/// and a query that fell back to `f64` would be the sampler it exists
+/// to improve on.
+#[cfg(feature = "interval")]
+pub mod range;
 pub mod refactor;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
@@ -118,8 +128,12 @@ pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
     EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,
     NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar,
-    SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    SplitSide, ValuePayload, VerbKind, evaluate,
 };
+// The entity door's token: a field of four `NodeErrorKind` variants, so
+// a reader that matches one needs to be able to name it here rather
+// than through the module path.
+pub use eval::entity_door::Found;
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
@@ -148,12 +162,12 @@ pub use names::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
-    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_frame,
-    face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
-    vertex_position,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
+    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf,
+    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
+    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
@@ -176,6 +190,10 @@ pub use product::{
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
+};
+#[cfg(feature = "interval")]
+pub use range::{
+    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 #[cfg(feature = "interval")]

@@ -562,7 +562,7 @@ pub fn extrude<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -574,7 +574,7 @@ pub fn extrude<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -599,7 +599,7 @@ pub fn extrude<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
         FaceSurface::New(bottom_plane),
         tol,
     )?;
@@ -632,7 +632,7 @@ pub fn extrude<T: Decide>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -644,7 +644,7 @@ pub fn extrude<T: Decide>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -657,7 +657,7 @@ pub fn extrude<T: Decide>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
             FaceSurface::Shared(bottom_surface),
             tol,
         )?;
@@ -835,7 +835,7 @@ fn sweep_loop<T: Decide>(
             (false, None) => struts[j].he_minus,
         };
         let surface = side_surface(
-            body, loop_index, segs, &pair, &faces, j, qs, place, normal, w, band,
+            body, loop_index, segs, &pair, &faces, j, qs, place, normal, w, band, tol,
         )?;
         let top_q_from = qs[j] + w;
         let top_q_to = qs[(j + 1) % n] + w;
@@ -844,7 +844,7 @@ fn sweep_loop<T: Decide>(
                 he1: struts[j].he_minus,
                 he2,
             },
-            placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to),
+            placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to, tol),
             surface,
             tol,
         )?;
@@ -1076,6 +1076,7 @@ fn side_surface<T: Decide>(
     normal: Vec3<T>,
     w: Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
     let n = segs.len();
     if j > 0 {
@@ -1126,7 +1127,7 @@ fn side_surface<T: Decide>(
             // at the same guarantee and through the same helper: this
             // wall's `u_ref` is built from the same lamina vertex and
             // the same extruded center (`swept::register_rim_identity`).
-            crate::swept::register_rim_identity(rim, radius);
+            crate::swept::register_rim_identity(rim, radius, tol);
             Ok(FaceSurface::New(Surface::Cylinder {
                 origin: c_world,
                 axis: turn_axis(turn, normal),

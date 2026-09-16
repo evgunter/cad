@@ -245,6 +245,22 @@ pub(crate) fn d_tab(
     bulge_is_a_parameter: bool,
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    d_tab_at(scale, bulge_is_a_parameter, 0.4, tol)
+}
+
+/// [`d_tab`] with the bulge's NOMINAL chosen: `0.4` is the D-tab as
+/// authored; a DYADIC nominal (`0.5`) is the control that separates
+/// what the bulge's 53-bit mantissa costs the coefficient ring
+/// (`fl(0.4) = 3602879701896397·2^-53`, an odd 52-bit denominator
+/// every sagitta coefficient carries) from what the bulge's SIGN
+/// costs the algebra — the two are one document at `0.4` and two
+/// documents at `0.5`.
+pub(crate) fn d_tab_at(
+    scale: f64,
+    bulge_is_a_parameter: bool,
+    bulge_nominal: f64,
+    tol: Tol,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
@@ -283,7 +299,7 @@ pub(crate) fn d_tab(
             &mut r,
             "bulge",
             Dimension::Scalar,
-            0.4,
+            bulge_nominal,
             Distribution::Uniform {
                 lo: -0.05 * scale,
                 hi: 0.05 * scale,
@@ -291,7 +307,7 @@ pub(crate) fn d_tab(
         );
         Expr::param(ParamName::new("bulge"), Dimension::Scalar)
     } else {
-        scl(0.4)
+        scl(bulge_nominal)
     };
     let plane = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],

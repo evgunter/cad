@@ -186,10 +186,15 @@ REGISTER=(
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
-  "crates/topo/src/pcurves.rs|validate_pcurves||2|unaudited"
+  # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
+  # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry
+  # and the loop-re-parenting doors' drop all read it, and none of them
+  # discards a boundary of its own.
+  "crates/topo/src/pcurves.rs|loop_rows||1|audited: the discarded variant is named and answered — a loop whose boundary is not a cycle returns the NoCycle answer, distinct from Corrupt, and it holds no half-edge, so it holds no pcurve row"
   "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
+  "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"

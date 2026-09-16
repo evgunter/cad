@@ -12,6 +12,7 @@
 use crate::common::cavity::{cavity_edges, vented_cavity};
 use crate::common::oracles::chamfered_cube_removed;
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -108,7 +109,7 @@ fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
         panic!("every face this carve mints is a plane");
     };
-    *normal * f.sense_sign::<f64>()
+    OutwardNormal::from_chart(*normal, f.sense).vec()
 }
 
 /// A point on a face's carrier plane.

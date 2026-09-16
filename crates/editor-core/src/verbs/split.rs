@@ -186,8 +186,8 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
 #[cfg(test)]
 #[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
 mod tests {
-    use geom_core::{Band, Point3};
-    use topo::query::UnitVec3;
+    use geom_core::{Band, Point3, UnitVec3};
+    use topo::DATUM_UNIT_NORM;
     use verbs::VerbKind;
 
     use super::*;
@@ -218,7 +218,8 @@ mod tests {
     fn the_tool_reading_takes_a_plane_only() {
         let corr = split::<f64>();
         let band = Band::linear(Tol::witness()).expect("the witnessed band");
-        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), band).expect("a unit direction");
+        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), DATUM_UNIT_NORM, band)
+            .expect("a unit direction");
         let origin = Point3::new(0.0, 0.0, 0.5);
         let plane = (corr.tool)(&DatumValue::Plane { origin, normal: up })
             .expect("a plane datum is a parting plane");

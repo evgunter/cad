@@ -252,7 +252,6 @@ impl<'de> serde::Deserialize<'de> for NameRef {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum EntityKind {
     /// A whole body.
     Body,
@@ -340,7 +339,6 @@ pub type RolePath = Vec<RoleSeg>;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum CapEnd {
     /// Where the sweep vector ends: on the sketch plane translated by
     /// it.
@@ -381,7 +379,6 @@ pub struct ProfileVertexRef {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum MeridianEnd {
     /// Partial: the start-cap side (on the sketch plane).
     Start,
@@ -399,7 +396,6 @@ pub enum MeridianEnd {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum SplitHalf {
     /// Material on the tool plane's normal side.
     Above,
@@ -444,7 +440,6 @@ impl SplitHalf {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum SideVerdict {
     /// Every off-plane probe decided positive.
     Positive,
@@ -474,8 +469,8 @@ pub enum Qualifier {
     ///
     /// "Oriented" means **outward**-oriented: a partner face's
     /// reference plane takes its normal from the face's material side
-    /// — `topo::Face::sense_sign()` times the stored chart normal (M5
-    /// S10). The verdicts are signs against that plane, so the
+    /// — the stored chart normal with `topo::Face::sense` folded in
+    /// (M5 S10). The verdicts are signs against that plane, so the
     /// orientation sense is part of the geometry these names are
     /// covariant with; see `emit_topo::face_plane`.
     SideOf(Vec<(StableName, SideVerdict)>),
@@ -546,7 +541,6 @@ pub enum Qualifier {
 // unconditionally, so this attribute guards only a FUTURE variant that
 // carries fields. Its siblings above carry it for the same reason;
 // issue #1308 owns the workspace-wide disposition.
-#[serde(deny_unknown_fields)]
 pub enum RimSupport {
     /// The HOST support: the planar one wherever the rim has one (on a
     /// ladder rim, the face carrying the rim as a ring), otherwise the

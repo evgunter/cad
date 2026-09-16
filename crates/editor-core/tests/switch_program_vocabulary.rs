@@ -836,39 +836,6 @@ struct CorpusVocabulary {
     targets: Vec<String>,
 }
 
-/// **The one set comparison in this file**, reported rather than
-/// asserted, and printing only the direction that actually failed.
-///
-/// Both censuses below compare a declared set against a witnessed set
-/// and owe the same two answers. Writing that twice is a second copy of
-/// the comparator kept in step by hand — in a file whose subject is a
-/// second list kept in step by hand — so it is written once, and the
-/// two call sites differ only in the sentence each direction earns.
-fn set_difference(
-    declared: &[&str],
-    witnessed: &[&str],
-    subject: &str,
-    undeclared_says: &str,
-    unwitnessed_says: &str,
-) -> Option<String> {
-    let unwitnessed: Vec<&&str> = declared.iter().filter(|d| !witnessed.contains(d)).collect();
-    let undeclared: Vec<&&str> = witnessed.iter().filter(|w| !declared.contains(w)).collect();
-    if unwitnessed.is_empty() && undeclared.is_empty() {
-        return None;
-    }
-    // Only the failing direction is printed. A clean direction rendered
-    // as `[]` beside a real one is noise in a message whose entire
-    // purpose is that a reader can act on it without a local repro.
-    let mut out = format!("{subject}:");
-    if !unwitnessed.is_empty() {
-        out.push_str(&format!("\n    {unwitnessed:?} — {unwitnessed_says}"));
-    }
-    if !undeclared.is_empty() {
-        out.push_str(&format!("\n    {undeclared:?} — {undeclared_says}"));
-    }
-    Some(out)
-}
-
 /// One document vocabulary's complaint, or `None` where it is whole.
 ///
 /// The caller is the census; this only answers for one vocabulary, so
@@ -878,7 +845,7 @@ fn set_difference(
 /// whole file was opened to fix.
 fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
     let witnessed: Vec<&str> = witnessed.iter().map(String::as_str).collect();
-    set_difference(
+    test_utils::census::set_difference(
         declared,
         &witnessed,
         &format!("`{vocabulary}` declares members the corpus does not witness"),
@@ -947,7 +914,7 @@ fn every_document_vocabulary_member_is_witnessed() {
         .map(|(name, _)| *name)
         .collect();
     let supplied: Vec<&str> = witnesses.iter().map(|(name, _)| *name).collect();
-    if let Some(report) = set_difference(
+    if let Some(report) = test_utils::census::set_difference(
         &declared,
         &supplied,
         "the vocabularies `document_vocabulary!` declares are not the vocabularies this \

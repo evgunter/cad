@@ -30,9 +30,9 @@ pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
 /// entire discriminator, and it goes straight into a stable name as
 /// `Qualifier::SideOf`. Negating it swaps every Positive for a
 /// Negative and renames fragments that never moved. Callers obtain the
-/// oriented plane from `emit_topo::face_plane`, which applies
-/// `topo::Face::sense_sign` once, at the read; this function
-/// deliberately does not re-apply it (it is handed a plane, not a
+/// oriented plane from `emit_topo::face_plane`, which folds
+/// `topo::Face::sense` in once, at the read; this function
+/// deliberately does not fold it again (it is handed a plane, not a
 /// face) and must not, or the two would cancel.
 pub(crate) fn side_of_face<T: Decide>(
     body: &Body<T>,
