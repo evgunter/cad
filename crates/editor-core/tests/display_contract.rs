@@ -14,12 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, ContactClass, DeclareError, Diagnosis, Dimension,
-    DimensionError, DocParamValue, EditError, EntityKind, EvalError, HitTestError,
-    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NamingError, NodeErrorKind,
-    NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError,
-    StableName, StepArg, StepSegmentsError,
+    AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
+    Diagnosis, Dimension, DimensionError, DocParamValue, EditError, EntityKind, EvalError,
+    HitTestError, InterrogateError, Maintenance, MateFault, MateSide, MeshPickError, MintRefusal,
+    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -1461,6 +1461,96 @@ fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
         ),
     ];
     assert_f6_every_variant(&cases, &PROGRAM_FAULT, &also_banned);
+}
+
+test_utils::f6_variants! {
+    /// `ClusterMaintenance`'s census — see [`NODE_PICK_ERROR`]. The
+    /// four registry acts render beside their own type, so this is the
+    /// list that guards them; `Maintenance` delegates and carries only
+    /// its own two arms.
+    const CLUSTER_MAINTENANCE: ClusterMaintenance = [Join, Split, GaugeRewrite, Drop];
+}
+
+test_utils::f6_variants! {
+    /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
+    const MAINTENANCE: Maintenance = [Cluster, Strand];
+}
+
+/// **Each registry act says what it did to the placement registry.**
+/// The maintenance column is rendered to a person, so these are prose
+/// and not the `Debug` dump of a frame.
+#[test]
+fn cluster_maintenance_display_names_the_act_not_its_struct() {
+    let gauge = RecipeNodeId(3);
+    let other = RecipeNodeId(5);
+    let cases = [
+        (
+            ClusterMaintenance::Join {
+                survived: gauge,
+                absorbed: other,
+                absorbed_frame: None,
+            },
+            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+        ),
+        (
+            ClusterMaintenance::Split {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["separated from", "node 3", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::GaugeRewrite {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["node 3", "lost that instance", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::Drop { gauge, frame: None },
+            vec!["node 3", "lost its last instance", "placement record"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
+}
+
+/// **What an accepted edit DID reads as prose too** — the strand count
+/// beside the cascade count is rendered from these sentences.
+///
+/// The cluster arm FORWARDS its carried act's own words (the
+/// `NodePickError::Standing` shape one row up), which is why its case
+/// here asserts the delegated sentence rather than a paraphrase of it.
+/// The strand sentence's relative clause binds to the NODE: the name
+/// is what survives a strand, so a sentence reading "a name, which
+/// this edit deleted" would name the wrong casualty.
+#[test]
+fn maintenance_display_says_what_the_edit_did() {
+    let gauge = RecipeNodeId(3);
+    let other = RecipeNodeId(5);
+    let cases = [
+        (
+            Maintenance::Cluster(ClusterMaintenance::Join {
+                survived: gauge,
+                absorbed: other,
+                absorbed_frame: None,
+            }),
+            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+        ),
+        (
+            Maintenance::Strand {
+                node: other,
+                name: face_name(),
+            },
+            vec![
+                "node 5 carries a face name minted by node 7",
+                "this edit deleted node 7",
+                "resolves to nothing until it is rebound",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
 }
 
 test_utils::f6_variants! {

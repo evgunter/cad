@@ -60,8 +60,8 @@ mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use pick::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget,
-    certified_determinant, pick_face, ray_triangle,
+    Crossing, MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget,
+    crossing, pick_face, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -1194,6 +1194,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetExpression { .. }
         | DocEdit::SetDocParam { .. }
         | DocEdit::SetDocParamValue { .. }
+        | DocEdit::SetDocParamUnit { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }

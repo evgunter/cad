@@ -705,6 +705,10 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
 /// distribution survives BIT for bit, and the analysis still sees a
 /// varying axis. Its two refusals are here too, because a door whose
 /// safety depends on the caller checking first is not safe.
+///
+/// The NOTATION field has the same pair of rows, at the same strength,
+/// in `edit_doc_param_unit.rs` — that suite's header says why the two
+/// cross-cite rather than merge.
 #[test]
 fn the_value_door_carries_the_declaration_forward() {
     let dist = Distribution::Normal { sigma: 1e-5 };
@@ -767,7 +771,10 @@ fn the_value_door_carries_the_declaration_forward() {
             Tol::witness(),
         ),
         Err(EditError::DocParamNotDeclared {
-            name: p("never_declared")
+            name: p("never_declared"),
+            // The arm both carry-forward doors share; the field is
+            // which one refused.
+            door: editor_core::CarryForwardDoor::Value,
         })
     );
     // Refusal 2: a kind change is a redeclaration, not a value edit.

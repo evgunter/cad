@@ -2367,7 +2367,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ContinuousParamCannotBeCount { name: param() },
         &["param"],
     );
-    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
+    carries(
+        &E::DocParamNotDeclared {
+            name: param(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &["param"],
+    );
     carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
     carries(
         &E::DocParamValueKindMismatch {
@@ -4020,11 +4026,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "cluster_maintenance_tag",
-        values: &["drop", "gauge_rewrite", "join", "split"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
@@ -4082,8 +4083,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
+            "doc_param_count_has_no_unit",
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
+            "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
@@ -4324,6 +4327,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin",
             "stacking_escalated",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split", "strand"],
         delegates: &[],
     },
     TagEntry {

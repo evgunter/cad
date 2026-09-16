@@ -582,8 +582,8 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 /// the boundary to lie on ONE great circle. These two rows are that
 /// arm's evidence: the hemisphere it is written for measures exactly,
 /// and a lune bounded by meridians on two DIFFERENT great circles —
-/// which would take `Δu = π` for a domain of width `π/2` and measure
-/// twice its area — is refused.
+/// which `Δu = π` would measure at the wrong width — is measured at
+/// its OWN width by the wedge arm (`props_wedge_azimuth`), never at π.
 ///
 /// **What these rows do not carry:** the arcs' `v`-extent. The fold
 /// carries each arc's span-derived pole extremes, so the arcs need
@@ -682,21 +682,27 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
         )
     };
     let half = core::f64::consts::FRAC_PI_2;
-    // Pole to pole at azimuth 0, back pole to pole at azimuth π/2: a
-    // quarter lune. `Δu = π` would measure it at twice its area.
+    // Pole to pole at azimuth 0, back pole to pole at azimuth π/2:
+    // the two meridian planes a quarter turn apart. Which of the two
+    // lunes between them this loop bounds is the loop's own statement
+    // — interior-left about the outward normal puts the interior on
+    // the `−u` side of a NORTHWARD meridian, so with `sense = true`
+    // this is the THREE-quarter lune and with `sense = false` the
+    // quarter one. `Δu = π` would measure either at the wrong width.
     let lune = vec![
         great(0.0, -half, half, 0, 1),
         great(half, half, -half, 1, 0),
     ];
-    assert!(
-        matches!(
-            curved_face(&s, &lune, true, band()),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_band_coplanar"
-            })
-        ),
-        "a rimless domain whose meridians span two great circles must be refused"
-    );
+    for (sense, du) in [(true, 3.0 * half), (false, half)] {
+        let fc = curved_face(&s, &lune, sense, band())
+            .expect("a lune on two great circles measures at its own width");
+        let exact = 2.0 * rs * rs * du;
+        assert!(
+            (fc.area - exact).abs() / exact < 1e-12,
+            "sense = {sense}: area {:.15e} != {exact:.15e}",
+            fc.area
+        );
+    }
 }
 
 /// **The torus arm of the gate needs the premise too, and the reason

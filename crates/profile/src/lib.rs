@@ -675,6 +675,24 @@ impl<T: Real> SketchPlane<T> {
         SketchPlane::new(self.placement.map(f))
     }
 
+    /// The same plane read at another scalar where the read may
+    /// REFUSE: the stored placement through [`Affine3::try_map`] —
+    /// twelve components, no arithmetic, the first refusal returned —
+    /// and the plane rebuilt around whatever comes back.
+    ///
+    /// The fallible direction of [`Self::map`], and everything that
+    /// method says about WHAT THE LIFT MEANS holds here unchanged: the
+    /// stored normal is carried as a value, not recomputed at the
+    /// target scalar.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<SketchPlane<U>, E> {
+        Ok(SketchPlane::new(self.placement.try_map(f)?))
+    }
+
     /// Maps a sketch point to world space: `placement`·(x, y, 0),
     /// exactly [`Affine3::transform_point`] on the embedded point (fixed
     /// order, D9).

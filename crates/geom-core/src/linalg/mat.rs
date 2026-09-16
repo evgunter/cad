@@ -11,6 +11,7 @@
 //! combination of columns. No array storage and no indexing, per the
 //! module-level policy (D9: no panic paths).
 
+use core::convert::Infallible;
 use core::ops::Mul;
 
 use crate::linalg::Vec3;
@@ -45,9 +46,33 @@ impl<T: Real> Mat3<T> {
     /// The same matrix read at another scalar: `f` applied to every
     /// entry, column by column ([`Vec3::map`]). A structural map — no
     /// arithmetic, so exact whenever `f` is.
+    ///
+    /// ONE body with [`Self::try_map`]: this is that walk under an `f`
+    /// that cannot refuse, so the column order `c0, c1, c2` is stated
+    /// once and a transposition cannot appear in one direction only.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Mat3<U> {
-        Mat3::from_cols(self.c0.map(&f), self.c1.map(&f), self.c2.map(&f))
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
+        self.try_map(|e| Ok::<U, Infallible>(f(e)))
+            .unwrap_or_else(|never| match never {})
+    }
+
+    /// The same matrix read at another scalar where the read may
+    /// REFUSE: `f` applied to every entry, column by column
+    /// ([`Vec3::try_map`]), and the FIRST refusal returned — no entry
+    /// after it is consulted. Structural like [`Self::map`]: no
+    /// arithmetic, so exact whenever `f` is.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first entry it refuses on.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Mat3<U>, E> {
+        Ok(Mat3::from_cols(
+            self.c0.try_map(&f)?,
+            self.c1.try_map(&f)?,
+            self.c2.try_map(&f)?,
+        ))
     }
 
     /// The transpose. Pure field shuffling — no arithmetic, so

@@ -1397,3 +1397,30 @@ the boundary's encoding against the sense bit and σ reads that bit, so
 the comparison would become a tautology. That argument is the first
 thing both reviewers are told to adjudicate, and it is the one place
 the spec is not treated as settled.
+
+**Band-doors MERGED (2026-09-16).** PR #2729, an E rider. Both items
+closed, spec into the ledger. The unit's shape is worth keeping: a lane
+that re-derived a filed measurement instead of quoting it and found the
+filing off by one tie case; a lane that refuted the orchestrator's
+ruling with evidence; a review that confirmed the refutation and found
+a second reason for it the lane had missed; and a fix pass that took
+the review's harder reading — the derivation gets ONE home with links
+from four citing sites, the private helper the door had made
+byte-identical is retired, and the pathological pairs go through the
+real validator in their own processes rather than through a local copy
+of its conditions.
+
+**Affine-try-map MERGED (2026-09-16).** PR #2743, an E rider, both
+items closed and the spec into the ledger. All eleven review items
+taken, none deviated, and three of them improved on what was asked:
+the reviewer's adopted oracle went into the module's own test block so
+it reuses the existing readout instead of minting a third; the
+hand-written readouts went DOWN from seven to seven rather than up to
+eight, by deleting one and comparing through the door that already is
+that reading; and one of the reviewer's three adopted rows was DROPPED
+with its reason — it asserts nothing a bug could break, which
+discipline §2 calls documentation — with its census content moved into
+a row that can fail. The transposed-column mutation now reds eleven
+rows where it red eight. The lane also recorded how its earlier clippy
+errors reached CI: a `tail` on the output truncated one crate's errors
+behind another's.
