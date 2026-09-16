@@ -4,7 +4,7 @@ kind: issue
 title: the lift census comparator classes a lift whose vertex table is bit-identical but whose tangent_joints differ as Mismatch — the ruling-true lift of undeclared cocircular data reads as a failure
 status: open
 opened: 2026-09-08
-refs: [BOOL-10, 2135, BOOL-9]
+refs: [2135]
 ---
 
 Found by BOOL-10 (PR 2135) when `repair_same_carrier` was re-targeted

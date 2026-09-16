@@ -4,7 +4,7 @@ kind: issue
 title: BOOL-9's shut-build proof (a downstream crate cannot mint a ProfileLoop without the test-support edge) is a measurement, not a row — it needs a gate with a toolchain
 status: open
 opened: 2026-09-08
-refs: [BOOL-9, 2134]
+refs: [2134]
 ---
 
 BOOL-9 (PR 2134 §11) measured the enforcement by hand — a witness crate
