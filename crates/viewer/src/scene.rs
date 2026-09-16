@@ -57,8 +57,8 @@ pub const MM_PER_METRE: f64 = 1.0e3;
 pub struct DisplayTolerance(f64);
 
 impl DisplayTolerance {
-    /// A display tolerance, refused unless finite and strictly
-    /// positive.
+    /// A display tolerance, refused unless it is a finite, strictly
+    /// positive length whose millimetre value is a finite number too.
     ///
     /// **Two conditions, and they answer different questions.** The
     /// first is `mesh::tessellate`'s `InvalidChordalTolerance` —
