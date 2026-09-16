@@ -7519,11 +7519,16 @@ fn errors_rs_spells_literals_in_exactly_these_items() {
 /// this file where a hand-written list is the subject rather than the
 /// defect: it is what the reader is measured AGAINST.
 ///
-/// **Three of these rows are the reader's key and its alphabet, and
-/// all three were arrived at by running it.** `Taxonomy` carries two
+/// **Five of these rows are the reader's key and its alphabet, and
+/// all of them were arrived at by running it.** `Taxonomy` carries two
 /// `fmt`s — `Display` and `Debug` — which is ordinary correct Rust and
 /// which a key without the trait in it cannot tell apart; they answer
-/// to `<Taxonomy as Display>::fmt` and `<Taxonomy as Debug>::fmt`.
+/// to `<Taxonomy as Display>::fmt` and `<Taxonomy as Debug>::fmt`. It
+/// carries two `eq`s as well, `PartialEq` and `PartialEq<Other>`,
+/// which is the case [`trait_key`] keeps the trait's ARGUMENTS for:
+/// dropping them puts both under `<Taxonomy as PartialEq>::eq` and
+/// hard-stops the census on correct code. That argument was written
+/// down and pinned by nothing until these two rows.
 /// `SEP` carries `'/'`, a character literal, counted as a literal and
 /// carried as written. And `after_the_attribute` carries the
 /// `#[deprecated]` literal ABOVE it, because an outer attribute is
@@ -7607,6 +7612,18 @@ impl fmt::Debug for Taxonomy {
     }
 }
 
+impl PartialEq for Taxonomy {
+    fn eq(&self, other: &Self) -> bool {
+        self.word("same") == other.word("same")
+    }
+}
+
+impl PartialEq<Other> for Taxonomy {
+    fn eq(&self, other: &Other) -> bool {
+        self.word("other") == other.word("other")
+    }
+}
+
 impl<'a> Borrowed<'a> {
     fn borrowed(&self) -> &'static str {
         "borrowed"
@@ -7664,6 +7681,8 @@ pub fn after_the_attribute() -> &'static str {
     let expected: Vec<(&str, Vec<&str>)> = vec![
         ("<Taxonomy as Debug>::fmt", vec!["the debug word"]),
         ("<Taxonomy as Display>::fmt", vec!["the display word"]),
+        ("<Taxonomy as PartialEq<Other>>::eq", vec!["other", "other"]),
+        ("<Taxonomy as PartialEq>::eq", vec!["same", "same"]),
         ("<Taxonomy as Sealed>::MARK", vec!["marked"]),
         ("Borrowed::borrowed", vec!["borrowed"]),
         ("Declared::DECLARED_WORD", vec!["declared"]),
@@ -7872,10 +7891,12 @@ fn attribute_run<'a>(
 ///
 /// [`declares_test`] is read by every row of two committed lists, and
 /// a lookup that answered yes to everything would leave both asserting
-/// nothing. The three rows that answer no are the three the lookup got
-/// wrong or could: a keyword inside a longer word at either end, and a
-/// `fn` with no `#[test]` over it — which is not a hypothetical, it is
-/// what let a roster row name a reader and pass.
+/// nothing. The rows that answer no are the ones the lookup got wrong
+/// or could: `fnprobe()` runs the keyword into the name and is
+/// [`boundary_after`]'s row, `pubfn probe()` runs it into a modifier
+/// the item walk strips and is [`boundary_before`]'s, and a `fn` with
+/// no `#[test]` over it is not a hypothetical — it is what let a
+/// roster row name a reader and pass.
 #[test]
 fn the_test_lookup_recognises_what_it_claims() {
     for (what, code, expected) in [
@@ -7886,8 +7907,16 @@ fn the_test_lookup_recognises_what_it_claims() {
             true,
         ),
         ("a plain function", "fn probe() {}\n", false),
-        ("a keyword with a tail", "#[test]\nfnx probe() {}\n", false),
-        ("a keyword with a head", "#[test]\nxfn probe() {}\n", false),
+        (
+            "a keyword run into its name",
+            "#[test]\nfnprobe() {}\n",
+            false,
+        ),
+        (
+            "a keyword run into a modifier",
+            "#[test]\npubfn probe() {}\n",
+            false,
+        ),
         (
             "a test of another name",
             "#[test]\nfn probeish() {}\n",
