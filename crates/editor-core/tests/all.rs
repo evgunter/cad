@@ -88,6 +88,8 @@ mod bool12r2_ec_probe;
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
+#[path = "bool7_shadow_exec.rs"]
+mod bool7_shadow_exec;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
