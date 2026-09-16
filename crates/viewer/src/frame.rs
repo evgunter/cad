@@ -366,7 +366,8 @@ impl Message {
 
     /// **One line carrying several notices**, separated by
     /// [`NOTICE_SEPARATOR`] — the rank-2 line [`frame_status`]
-    /// composes.
+    /// composes, and the startup line [`startup_notices`] composes
+    /// before any frame has run.
     ///
     /// **The one place a [`NOTICE_MARK`] is written into a message's
     /// text, and the reason [`Message::new`] can rewrite every
@@ -580,8 +581,9 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// 1. A **refusal** wins, alone. It is the answer to the action the
 ///    user asked the DOCUMENT for, and it is the louder of the two.
 /// 2. Else **every notice the frame produced**, in the order they
-///    happened, joined with the separator the preferences path already
-///    joins its startup notices with. Not the last one: assigning
+///    happened, joined with [`NOTICE_SEPARATOR`] — the same boundary
+///    the preferences path writes between its own startup notices
+///    ([`startup_notices`]). Not the last one: assigning
 ///    `status` from each in turn keeps the last and loses the rest,
 ///    which is the same keep-last defect [`batch_status`] exists to
 ///    stop for refusals. Not the first one either — a frame CAN drop
@@ -693,7 +695,8 @@ fn joined_subject(notices: &[Message]) -> Subject {
 /// rather than hoping for it.
 pub const NOTICE_MARK: char = '\u{2022}';
 
-/// **What [`frame_status`] puts between two of a frame's notices.**
+/// **What [`frame_status`] puts between two of a frame's notices**,
+/// and [`startup_notices`] between two of the preferences file's.
 ///
 /// Built from [`NOTICE_MARK`], so the joined line splits back into
 /// exactly the notices it was made from: there are `n - 1` of these
@@ -711,7 +714,10 @@ pub const NOTICE_MARK: char = '\u{2022}';
 pub const NOTICE_SEPARATOR: &str = " \u{2022} ";
 
 /// **What ONE notice puts between the items of a list of its own** —
-/// a [`Withdrawal`]'s causes, the preferences path's startup notices.
+/// a [`Withdrawal`]'s causes, which are the items its counted preamble
+/// introduces. The preferences path's startup notices were joined with
+/// this and are not such a list: they are several notices and take the
+/// boundary mark ([`startup_notices`]).
 ///
 /// A level in from [`NOTICE_SEPARATOR`], and spelled differently for
 /// that reason: the two levels are two questions, and one spelling
@@ -1400,13 +1406,44 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// when it had nothing.
 ///
 /// [`Subject::Preferences`]. **Not type-pinned**: the notices arrive
-/// already rendered, from three sources with three types
-/// ([`crate::prefs::Notice`], [`crate::prefs::PrefsError`], and the
-/// theme and preset resolutions), so what this door buys is one place
+/// already rendered, from three types — [`crate::prefs::Notice`],
+/// which is what the file's own complaints AND the theme and preset
+/// resolutions both produce, [`crate::prefs::PrefsError`] when the
+/// document is not TOML at all, and [`crate::prefs::StoreError`] when
+/// the store could not be read — so what this door buys is one place
 /// the decision is made rather than a type that forbids the other
 /// answer.
+///
+/// # Several notices, not the items of one notice's list
+///
+/// Each of these becomes its own [`Message`] and the line between them
+/// is [`NOTICE_SEPARATOR`], the same boundary [`frame_status`] writes.
+/// Nothing counts them and no preamble introduces them: an unknown
+/// key, an unresolved theme name and an unresolved preset name are
+/// separate pieces of news that happen to share a subject, where a
+/// [`Withdrawal`]'s causes are the items a single counted sentence
+/// carries. Reading them as one notice's list was the category error,
+/// and [`LIST_SEPARATOR`] between them was its rendering.
+///
+/// **So the guarantee is the one the outer level already holds**, and
+/// it is needed here rather than merely available. Three of
+/// [`crate::prefs::Notice`]'s four arms write a [`LIST_SEPARATOR`]
+/// inside one sentence, so a flat join on that mark made a two-notice
+/// line read as four items — reachable with no error path at all, from
+/// a file naming a theme and a preset the registries no longer hold.
+/// No second mark could have been chosen instead: two of those four
+/// arms echo a key straight out of the user's file, and a TOML quoted
+/// key may hold any character, so nothing is out of band here. What
+/// holds the line is [`Message::new`] taking the boundary mark out of
+/// every text that reaches it and [`Message::joined`] being the only
+/// thing that writes one — a claim about the door rather than about
+/// anybody's sentences.
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
-    (!notices.is_empty()).then(|| Message::new(Subject::Preferences, notices.join(LIST_SEPARATOR)))
+    let notices: Vec<Message> = notices
+        .iter()
+        .map(|text| Message::new(Subject::Preferences, text.as_str()))
+        .collect();
+    (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
 
 /// **What a cursor action the pick index refused says.**

@@ -1211,6 +1211,19 @@ reviewer inherits its framing. This is the program's own
 row-covers-the-rule-not-the-install finding, turned on the row being
 written to close it.
 
+**...and the OTHER way a suggested assertion fails is by being red on
+both trees.** The rule above says an item's proposed read most cheaply
+fails by passing on the broken tree. `startup-notices-join-on-a-mark-…`
+found the mirror image: counting `LIST_SEPARATOR` pieces gives **4 on
+the base tree and 3 on the fixed one** for two notices — red either way,
+because the right fix moved the boundary to a different mark rather than
+removing the semicolons from the sentences. An assertion that fails on
+both trees is worse than one that passes on both: it looks like a
+working receipt, and it certifies the WRONG repair. So the test of a
+suggested read is not "does it red today" but **"does it distinguish the
+fixed tree from the broken one"** — which means running it against both,
+and means the fix shape and the assertion have to be chosen together.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

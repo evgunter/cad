@@ -12636,3 +12636,123 @@ made the split return **nine pieces for eight causes** —
 rendered as a number.
 
 Item **closed**. **VIEW stands at 78 open / 104 closed.**
+
+## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
+
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed (#2710). Unlike
+its two siblings the defect was live, so the red is on the base tree
+rather than a post-hoc mutation: a preferences file naming a theme and
+an input preset the registries do not hold renders
+``preferences: no theme called `aurora`; using `dark-neutral`;
+preferences: no input preset called `modal`; using the default`` — four
+`"; "`-delimited pieces for two notices, no error path involved.
+
+None of the item's three candidate fixes was taken and the reason is
+one fact: two of `prefs::Notice`'s four arms echo a TOML key out of the
+user's own file, so there is no mark out of band here and no type that
+bounds the sentences. `withdrawal-causes-…` rejected its own option 2
+because one level in there is no mark that is never legitimate in band;
+the objection is stronger at this level, not weaker.
+
+What was wrong was the classification. A `Withdrawal`'s causes are the
+items a counted preamble introduces; the startup notices have no
+preamble and nothing counts them, so they are several notices and take
+the boundary mark. `startup_notices` now builds one `Message` per
+element and joins with `Message::joined`, which puts the startup line
+under the hold `frame_status`'s line already has.
+
+The door's own doc claimed three types and named the wrong three:
+`resolve_theme` and `resolve_keys` return `Option<Notice>`, the same
+type `from_toml` yields; the unnamed third is `prefs::StoreError`.
+Corrected at the door and in the README, whose *"NOT held this way"*
+paragraph this change falsified and replaces.
+
+Two findings filed outside the fence, both the same class:
+`work/exch/step-import-joins-rendered-refusals-on-a-mark-they-may-contain`
+and
+`work/props/stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`.
+`seat-line-spells-the-list-mark-as-a-literal` is NOT subsumed and stays
+open: its argument is about a constant spelled twice, not about a mark
+an element may carry.
+
+Signed (VIEW implementer lane `view/startup-notices`).
+
+## 2026-09-16 — #2710 merged; the fix was none of the three, because the item's CLASSIFICATION was the error
+
+**#2710 merged** (`d90436b6ee`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed.
+
+**The first of this separator family that is LIVE, and it was
+reproduced**: a prefs file naming an unknown theme and an unknown preset
+renders ``preferences: no theme called `aurora`; using `dark-neutral`;
+preferences: no input preset called `modal`; using the default`` — four
+`"; "`-delimited pieces for two notices, no error path involved. **Red
+taken on the BASE tree** at `4d3ff671c0`, which none of the five units
+before it could do.
+
+**The fix is none of the three the item named, and the reason is that
+the item mis-CLASSIFIED the level.** A `Withdrawal`'s causes are the
+items a counted preamble introduces; the startup notices have no
+preamble and nothing counts them. They are **several notices**, so they
+take the boundary mark and inherit the hold the outer level already
+has — `startup_notices` now builds one `Message` per element and joins
+with `Message::joined`. No new mechanism, no wording changed.
+
+**One fact kills all three candidates, and I verified it**: two of
+`prefs::Notice`'s four arms echo a TOML key straight out of the user's
+file — `UnknownKey(String)`, *"Carries the dotted path"*, and
+`WrongType { key: String }`, *"The dotted path of the offending key"* —
+and a quoted TOML key may hold any character. **No type bounds that
+payload**, so the type pin cannot make the claim, and the two-half
+treatment has no mark that is never legitimate in band.
+
+**#2693's in-band objection applies here and is STRONGER, not weaker**,
+which is the observation worth keeping: there the in-band marks were
+punctuation four *authored* sentences were entitled to; here the payload
+is arbitrary user text, so every mark is in band. And a rewriting door
+has nowhere to demote to — `Message::new` can rewrite a bullet to a
+semicolon because there is a level below; at the bottom there is not.
+
+**A NEW failure mode of the suggested-assertion rule.** Yesterday's rule
+says an item's suggested read fails most cheaply by being GREEN on the
+broken tree. This one fails the other way: counting `LIST_SEPARATOR`
+pieces gives **4 on base and 3 on the fixed tree** for two notices — red
+on BOTH, because the fix moves the boundary rather than removing the
+semicolons. It would have sent a lane after the wrong fix. Measured,
+not reasoned. `plan.md` extended.
+
+**Two corrections to the item, one of them to a door's own doc**: the
+door says the notices come *"from three sources with three types
+(`prefs::Notice`, `prefs::PrefsError`, and the theme and preset
+resolutions)"* — the count is right, the **membership is wrong**, since
+`resolve_theme`/`resolve_keys` return `Option<Notice>`, the same type.
+The unnamed third is `prefs::StoreError`. And a measured property the
+fix deliberately does **not** lean on: a list of more than one element
+is always all-`Notice` today, because both `Err` arms produce a
+singleton — a property of two arms that nothing carries, which is
+exactly what #2693 refused to rest on.
+
+**The sweep widened its own scope rather than inheriting one.** #2693
+swept `crates/viewer/src`; this one swept the literal across **every
+cargo root**, and filed two out-of-fence rows —
+`work/exch/step-import-joins-rendered-refusals-on-a-mark-they-may-contain`
+(one of whose sites is the `for`-loop + `write!(f, "; ")` shape a
+`.join(` sweep cannot see) and
+`work/props/stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`.
+New stated blind spot worth keeping: **`Debug` on a collection joins on
+`", "` and is invisible to every pattern** — and it is live in one of
+the filed rows.
+
+**`seat-line-…` is NOT subsumed**, said explicitly rather than quietly
+folded: its argument is a constant spelled twice, not a mark an element
+may carry. This change shrinks the drift population from three sites to
+two and the finding stands.
+
+**Neither README clause it falsified was ratified** — `git log -S` on
+both returns #2693's and #2665's own lanes, no commit from Ev — so it
+proceeded and said where it looked, which is `CLAUDE.md`'s rule working
+as intended for the third time this week.
+
+Item **closed**. **VIEW stands at 77 open / 105 closed.**
