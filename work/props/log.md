@@ -1343,3 +1343,26 @@ against the reviewer on the door's NAME: `_at` is right because
 instrument rather than a door — which carries the obligation to weigh
 `#[doc(hidden)]` on the same precedent, since all five consumers are
 suites pinning a chosen ε.
+
+**Affine-try-map in review (2026-09-16).** PR #2743 at `b8a316ede`
+(run 35067530064 green, 35 jobs, nothing narrowed), the second E rider.
+The kernel now owns the fallible twelve-component walk it lacked:
+`try_map` at `Vec3`, `Mat3`, `Affine3` and `SketchPlane`, with `map`
+respelled as `try_map` over `Infallible` rather than kept as a second
+body — the lane's reason being that two bodies would move the walk from
+two copies with two owners to two copies with one, the same defect
+smaller. `editor-core`'s private `map_affine` is retired and
+`pinned_plane` routed through the door, by the announced seam both
+items permit.
+
+The part worth the record is what the lane's own mutation test caught.
+Its lifting row first read the lifted channels back through `map`, so a
+`c0`/`c1` swap in the walk was re-applied by the readout and CANCELLED:
+the row PASSED under the mutation it was written to catch. The lane
+found that, fixed the row to read through a hand-written third
+spelling, and wrote the lesson into the row's doc. A test that cannot
+fail for the reason it is named after is the style lane's Q3, caught
+here by the author rather than the reviewer, which is the cheaper place
+to catch it. Two findings that were not this unit's deliverables were
+filed rather than folded in — one new, one APPENDED to the row whose
+subject it already was, with a correction to that row's own site list.
