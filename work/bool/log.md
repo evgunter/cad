@@ -580,3 +580,19 @@ S-BOOL's window tally: BOOL-9 +1 (fable found the unilateral MAJOR),
 BOOL-10 +1 (opus found it). Slate next: BOOL-4/5/6/7, BOOL-Q, and this
 window's filed findings (the over-full sweep, `carriers_are_identical`,
 the lift comparator, the raw-door gate).
+
+## Close-out wave 1: BOOL-5, BOOL-6, BOOL-7 dispatched (2026-09-16)
+
+Ev, in chat 2026-09-16: proceed, and finish S-BOOL. The remaining
+slate is BOOL-4/5/6/7, BOOL-Q's track lanes, and this window's filed
+findings; the exit walk follows. Wave 1 dispatches the three M units
+beside each other, each with its own binding spec landed here:
+BOOL-5 (`docs/BOOL-5-SPEC.md`, the rim-free wedge props arm —
+`props/curved.rs`, Track R seam recorded), BOOL-6
+(`docs/BOOL-6-SPEC.md`, the per-slab stacking fold — `loft.rs`, sweep
+ground, seam announced to VERBS here: no VERBS unit is live in
+`loft.rs` at dispatch), BOOL-7 (`docs/BOOL-7-SPEC.md`, the vdiff
+shadow-exec rung — `resolve/vdiff.rs`, M10 keep-outs hard). Arms from
+block BOOL-B4 per the private draw file, quoted before the arms were
+named. Wave 2 is BOOL-4 (L); wave 3 the BOOL-Q rows as two lanes;
+then the exit walk.
