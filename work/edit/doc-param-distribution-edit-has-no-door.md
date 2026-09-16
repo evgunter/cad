@@ -129,7 +129,8 @@ Branch `edit/doc-param-distribution`.
   real float carrier, unlike the notation door — reporting the
   offending field through the existing `NonFiniteSite::DocParam`.
 - Nine rows in `crates/editor-core/tests/edit_doc_param_distribution.rs`;
-  the F6 row for the new refusal also sits in `display_contract.rs`.
+  the F6 prose contract for the new refusal is `display_contract.rs`'s
+  census, and the suite row holds only the residue.
   The corpus sink exercises the new kind (`EDIT_KINDS` is 17).
 - The `pncad-py` follow-through is LIB's, taken here mechanically:
   the façade re-export, `DocEdit.set_doc_param_distribution`, the
@@ -137,3 +138,33 @@ Branch `edit/doc-param-distribution`.
   payload arm and the two census rows.
 - Filed on LIB's slate:
   `work/lib/doc-param-edit-doors-drop-the-python-dimension.md`.
+
+## After the review (2026-09-16)
+
+- `write_doc_param`'s and `check_node_slots`' rustdoc, which the
+  extraction of `distribution_fault_error` had stacked above the
+  extracted function, are re-homed. The sweep behind it — every free
+  `fn` in `edit.rs` and `persist/check.rs` against the doc block
+  immediately above it — found no other instance.
+- `write_doc_param`'s header names its four callers (create-or-replace
+  plus the three carry-forward doors), `DocEdit`'s header and
+  `EditError::DocParamNotDeclared` name the third door, and the two
+  `use crate::distribution::` lines are one.
+- E11.3 ("a count is a structural parameter, fixed under any error
+  analysis") has ONE declared home, a section of
+  `DocParam::with_distribution`'s rustdoc; five other sites cite it in
+  a clause. The Python pair cites `DocParam.count`, which already
+  declares it in that language.
+- The doubled `Distribution::check` stays doubled, with the reason
+  written at the door: `SetDocParam` reaches the shared write path
+  without `with_distribution`, and `with_distribution` is a `pub` door
+  reachable without `apply`.
+- The Python door's reason for dropping the annotation's dimension is
+  the true one (a kernel `Distribution` is dimension-free, so the
+  wrapper's `dim` is discarded building the payload), pointing at
+  `work/lib/doc-param-edit-doors-drop-the-python-dimension.md`; the
+  two LIB doc sites that told a caller to wait for this door are
+  present tense.
+- The suite's F6 row keeps only what the `display_contract.rs` census
+  does not say — that the parameter name is interpolated, and that
+  `DistributionRefusal` renders on its own.

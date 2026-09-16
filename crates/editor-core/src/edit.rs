@@ -5,8 +5,7 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
-use crate::distribution::Distribution;
-use crate::distribution::DistributionFault;
+use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, ParamName,
 };
@@ -28,8 +27,9 @@ use geom_core::Tol;
 /// `UpdateReference`). The document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
-/// rest (`SetDocParamValue`, `SetDocParamUnit`; [`CarryForwardDoor`]
-/// names them in a refusal). The explicit repairs and the document's
+/// rest (`SetDocParamValue`, `SetDocParamUnit`,
+/// `SetDocParamDistribution`; [`CarryForwardDoor`] names them in a
+/// refusal). The explicit repairs and the document's
 /// presentation state: `Rebind`, the ONLY name repair — the
 /// automatic-rebinding policy menu is empty by ratified decision
 /// (NAMING-DESIGN N5); `ReWitness`/`ReWitnessBulk`, the recorded
@@ -203,8 +203,9 @@ pub enum DocEdit<P> {
     /// Refuses typed on a name the document does not declare
     /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
     /// carry forward), on a `Count`
-    /// ([`EditError::DocParamCountHasNoDistribution`] — a structural
-    /// parameter is fixed under any error analysis) and on a
+    /// ([`EditError::DocParamCountHasNoDistribution`] — a count takes
+    /// no annotation, the argument again being
+    /// [`DocParam::with_distribution`]'s rustdoc) and on a
     /// distribution that breaks an E2 invariant
     /// ([`EditError::NonFiniteDocParam`],
     /// [`EditError::InvalidDistribution`] — the invariants the
@@ -641,18 +642,19 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
-    /// A carry-forward edit — [`DocEdit::SetDocParamValue`] or
-    /// [`DocEdit::SetDocParamUnit`] — named a parameter this document
-    /// does not declare. Both doors carry an existing declaration
-    /// forward, so there has to be one; declaring a parameter is
-    /// [`DocEdit::SetDocParam`]'s job.
+    /// A carry-forward edit — [`DocEdit::SetDocParamValue`],
+    /// [`DocEdit::SetDocParamUnit`] or
+    /// [`DocEdit::SetDocParamDistribution`] — named a parameter this
+    /// document does not declare. All three carry an existing
+    /// declaration forward, so there has to be one; declaring a
+    /// parameter is [`DocEdit::SetDocParam`]'s job.
     ///
-    /// ONE arm for both doors because the FAULT is one — the missing
+    /// ONE arm for all of them because the FAULT is one — the missing
     /// declaration, which neither door is about — and so is the
     /// recourse. What differs is which edit the user submitted, and
     /// that rides along in `door` so the sentence can say it: a
     /// refusal that read "a carry-forward edit" would make a reader
-    /// work out which of their two edits it was talking about.
+    /// work out which of their edits it was talking about.
     DocParamNotDeclared {
         /// The undeclared parameter.
         name: ParamName,
@@ -672,9 +674,9 @@ pub enum EditError {
         name: ParamName,
     },
     /// An annotation edit ([`DocEdit::SetDocParamDistribution`]) named
-    /// a `Count` parameter. A count is a STRUCTURAL parameter, fixed
-    /// under any error analysis (E11.3): it takes no distribution and
-    /// carries no field to write one into.
+    /// a `Count` parameter, which takes no distribution and carries no
+    /// field to write one into — the argument is
+    /// [`DocParam::with_distribution`]'s rustdoc (E11.3).
     ///
     /// [`Self::DocParamCountHasNoUnit`]'s sibling at the third field,
     /// and separate from it for the same reason the two doors are
@@ -1612,19 +1614,6 @@ fn check_param_refs<P>(
     Ok(())
 }
 
-/// Validate every slot of a node payload against slot dimensions and
-/// the param table, keyed as `id` for error reporting.
-/// Write a fully-formed [`DocParam`] into the document: the shared
-/// tail of both parameter doors, so the create-or-replace door and the
-/// value door cannot come to disagree about what a legal parameter is.
-///
-/// **The check order is the LOAD door's** (`persist::check`'s
-/// `validate_document`): floats first, then the distribution's shape,
-/// then the structural `dim: Count` fault that
-/// [`validate_snapshot`](crate::persist) reports last. A document
-/// broken in two ways at once therefore names the same fault whichever
-/// door refuses it, which is the property a caller comparing an edit
-/// refusal against a load refusal actually relies on.
 /// A broken E2 invariant as the edit door reports it, in ONE place.
 ///
 /// The split is by CLASS, not by door: a non-finite offset is a
@@ -1644,6 +1633,22 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
     }
 }
 
+/// Write a fully-formed [`DocParam`] into the document: the shared
+/// tail of every parameter door, so no two of them can come to
+/// disagree about what a legal parameter is. Four doors reach it —
+/// the create-or-replace door ([`DocEdit::SetDocParam`]) and the three
+/// carry-forward doors, one per movable field of the declaration:
+/// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
+/// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
+/// declaration routes through here too, and adds itself to that list.
+///
+/// **The check order is the LOAD door's** (`persist::check`'s
+/// `validate_document`): floats first, then the distribution's shape,
+/// then the structural `dim: Count` fault that
+/// [`validate_snapshot`](crate::persist) reports last. A document
+/// broken in two ways at once therefore names the same fault whichever
+/// door refuses it, which is the property a caller comparing an edit
+/// refusal against a load refusal actually relies on.
 fn write_doc_param<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     name: &ParamName,
@@ -1708,6 +1713,8 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     })
 }
 
+/// Validate every slot of a node payload against slot dimensions and
+/// the param table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,

@@ -79,9 +79,9 @@ pub enum DocParam {
     },
     /// An integer Count parameter (structural material, spec D3).
     ///
-    /// Carries NO distribution, and cannot: structural parameters are
-    /// fixed under any error analysis (E11.3), which comes out
-    /// UNREPRESENTABLE here rather than as a refusal — there is no
+    /// Carries NO distribution, and cannot — the argument is
+    /// [`Self::with_distribution`]'s rustdoc (E11.3). It comes out
+    /// UNREPRESENTABLE here rather than as a refusal: there is no
     /// spelling to refuse.
     Count {
         /// The exact value.
@@ -183,10 +183,9 @@ impl core::error::Error for DisplayUnitRefusal {}
 /// which applies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DistributionRefusal {
-    /// The parameter is a [`DocParam::Count`]. A count is a
-    /// STRUCTURAL parameter, fixed under any error analysis (E11.3):
-    /// it takes no annotation, and the arm carries no field to write
-    /// one into.
+    /// The parameter is a [`DocParam::Count`], which takes no
+    /// annotation and carries no field to write one into — the
+    /// argument is [`DocParam::with_distribution`]'s rustdoc (E11.3).
     CountHasNoAnnotation,
     /// The offered distribution breaks an E2 invariant — the same
     /// [`Distribution::check`] the persistence doors run, so an
@@ -426,17 +425,39 @@ impl DocParam {
     /// removes the row rather than writing a value; that is a
     /// different shape, and this is the one sentence that says so.
     ///
+    /// # A COUNT takes no annotation (E11.3)
+    ///
+    /// **This is the home of that argument**; everywhere else that
+    /// needs it cites this paragraph rather than restating it, the
+    /// convention [`Self::with_display_unit`] follows for its own.
+    ///
+    /// A count is a STRUCTURAL parameter — it says how many of a
+    /// thing there are — and an error analysis prices the spread of a
+    /// continuous quantity, so a count is fixed under any of them.
+    /// That is why [`Self::Count`] carries no field to hang a
+    /// distribution on, which makes the rule UNREPRESENTABLE in the
+    /// declaration rather than refused at it; and it is why every door
+    /// that can be handed a count and an annotation TOGETHER refuses
+    /// instead of ignoring one of them.
+    ///
     /// # Errors
     ///
     /// A TYPED reason rather than a bare `None`, for
     /// [`Self::with_display_unit`]'s reason: there are two of them and
     /// the edit door reports them as different refusals.
     /// [`DistributionRefusal::CountHasNoAnnotation`] for a
-    /// [`Self::Count`] — a structural parameter is fixed under any
-    /// error analysis (E11.3), which is why that arm has no field to
-    /// hang one on — and [`DistributionRefusal::Invalid`] for an
+    /// [`Self::Count`] (the section above) and
+    /// [`DistributionRefusal::Invalid`] for an
     /// offered distribution [`Distribution::check`] refuses, the SAME
     /// check the persistence doors run.
+    ///
+    /// [`crate::DocEdit::SetDocParam`] reaches that same
+    /// [`Distribution::check`] without this door, so the shared write
+    /// path runs it again rather than trusting this one; neither copy
+    /// is the other's fallback, and a door that leaned on the tail
+    /// would hand a caller OUTSIDE `apply` a parameter no file could
+    /// carry. [`Self::with_display_unit`] and the pairing check are
+    /// doubled the same way, for the same reason.
     ///
     /// Clearing a `Count`'s annotation is refused too, rather than
     /// accepted as a no-op: a caller aiming an annotation edit at a

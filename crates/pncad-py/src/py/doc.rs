@@ -2862,8 +2862,10 @@ impl DocParam {
     /// No `distribution`: the kernel's own notation doors carry none
     /// (`DocParam::written_length` writes `distribution: None`), and
     /// this binding does not reach past them to build the payload by
-    /// hand. A parameter that wants both is authored through
-    /// [`Self::length`] today.
+    /// hand. A parameter that wants both is declared here and then
+    /// annotated through `DocEdit.set_doc_param_distribution`,
+    /// which carries the notation forward; [`Self::length`] takes
+    /// both at once and records the canonical metre row.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
         Self(d::DocParam::written_length(value.0))
@@ -3356,18 +3358,21 @@ impl DocEdit {
     ///
     /// Refuses typed on a name the document does not declare
     /// (`doc_param_not_declared`), on a `Count` parameter
-    /// (`doc_param_count_has_no_distribution` — a count is structural,
-    /// fixed under any error analysis) and on a distribution that
-    /// breaks an E2 invariant (`non_finite_doc_param`,
-    /// `invalid_distribution`).
+    /// (`doc_param_count_has_no_distribution` — a count takes no
+    /// annotation, for the reason `DocParam.count` gives) and on a
+    /// distribution that breaks an E2 invariant
+    /// (`non_finite_doc_param`, `invalid_distribution`).
     ///
     /// The `Distribution`'s own dimension is NOT checked against the
-    /// parameter's here, because an edit is a payload built without
-    /// the document it will be applied to. That is
+    /// parameter's here: a kernel `Distribution` is dimension-free
+    /// offsets, so this wrapper's `dim` is dropped building the
+    /// payload and nothing survives for `apply` to compare. That is
     /// `set_doc_param_value`'s position too — it takes a typed
     /// quantity and carries only the number — and the difference from
     /// the `DocParam` constructors, which hold the declaration and its
-    /// annotation at once and do check.
+    /// annotation at once and do check. Whether the binding should
+    /// instead carry the dropped dimension and refuse at `apply` is
+    /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
     #[staticmethod]
     #[pyo3(signature = (name, distribution))]
     fn set_doc_param_distribution(

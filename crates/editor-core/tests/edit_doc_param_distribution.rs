@@ -424,27 +424,21 @@ fn the_annotation_door_refuses_typed() {
     }
 }
 
-/// **F6**: the new refusal renders as a sentence naming the parameter
-/// and its reason, never as a struct dump.
+/// **F6**, the half the census does not say. `display_contract.rs`'s
+/// `a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant`
+/// is the ONE home for the new `EditError`'s prose contract — the
+/// reason words, the punctuation ban, and that the rendering is not
+/// its `Debug`. Two things sit outside it and only here: that the
+/// parameter NAME is interpolated rather than described, and that the
+/// DOOR's own `DistributionRefusal` renders for a caller holding the
+/// `Err` without an `EditError` around it.
 #[test]
-fn the_count_refusal_renders_as_prose() {
+fn the_count_refusal_names_its_parameter_and_the_door_renders_alone() {
     let shown = EditError::DocParamCountHasNoDistribution { name: p("ribs") }.to_string();
-    for want in [
-        "parameter ribs",
-        "is a count",
-        "structural parameter",
-        "no distribution",
-    ] {
-        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
-    }
-    for banned in ["DocParamCountHasNoDistribution", "{", "name:"] {
-        assert!(
-            !shown.contains(banned),
-            "{shown:?} leaks {banned:?} — that is a struct dump, not a sentence"
-        );
-    }
-    // And the DOOR's own refusal renders too, for a caller holding the
-    // `Err` without an `EditError` around it.
+    assert!(
+        shown.contains("parameter ribs"),
+        "{shown:?} describes the parameter instead of naming it"
+    );
     let door = DistributionRefusal::CountHasNoAnnotation.to_string();
     assert!(
         door.contains("structural parameter") && !door.contains("CountHasNoAnnotation"),
