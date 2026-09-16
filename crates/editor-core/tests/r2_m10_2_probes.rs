@@ -1320,14 +1320,30 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             },
         },
     );
+    let assertion = *doc.order().last().expect("the assertion is the last node");
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let split = text.find('{').expect("the JSON body follows the id header");
+    let (header, body) = text.split_at(split);
+    let wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
-    // Length, so `measured: Length` against `bound: Angle`. The
-    // assertion is the LAST node, so its literal is the last one.
-    let at = text.rfind("\"Length\"").expect("a Length literal exists");
-    let mut dim_corrupt = text.clone();
-    dim_corrupt.replace_range(at..at + "\"Length\"".len(), "\"Angle\"");
+    // Length, so `measured: Length` against `bound: Angle`. BOTH
+    // halves of the literal move — the notation with the dimension —
+    // because a literal whose unit measures something else is refused
+    // one door earlier, by the wire's `Expr::literal_with_unit`
+    // rebuild, and would never reach the snapshot walk this row is
+    // about.
+    let mut corrupt = wire.clone();
+    let lit =
+        &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
+    assert_eq!(
+        lit["dim"],
+        serde_json::json!("Length"),
+        "the surgery is aimed at the bound's length literal"
+    );
+    lit["dim"] = serde_json::json!("Angle");
+    lit["unit"] = serde_json::json!("rad");
+    let dim_corrupt = format!("{header}{corrupt}");
     assert_ne!(dim_corrupt, text, "the dimension corruption must land");
     match editor_core::load(&dim_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
@@ -1339,11 +1355,15 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     }
 
     // (b) the assertion's target repointed at a non-measure node.
-    let tgt_corrupt = text.replacen(
-        &format!("\"measure\": {}", measure.0),
-        &format!("\"measure\": {}", b.0),
-        1,
+    let mut corrupt = wire;
+    let target = &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+    assert_eq!(
+        *target,
+        serde_json::json!(measure.0),
+        "the surgery is aimed at the assertion's target"
     );
+    *target = serde_json::json!(b.0);
+    let tgt_corrupt = format!("{header}{corrupt}");
     assert_ne!(tgt_corrupt, text, "the target corruption must land");
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget {

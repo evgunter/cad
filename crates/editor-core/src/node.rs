@@ -1212,7 +1212,7 @@ impl AssertionBoundFault {
     ///
     /// The entry point for a caller that already HAS the measured
     /// dimension and cannot reach the measure node —
-    /// [`crate::eval::wire`]'s assertion backstop, which reads it off
+    /// `eval::wire`'s assertion backstop, which reads it off
     /// the evaluated payload, the dimension the measure node's own
     /// expression put there. [`Node::assertion_bound_fault`] is the
     /// entry point for a caller holding the document, and reaches this
