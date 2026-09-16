@@ -11,8 +11,10 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
+use crate::revolve_common;
+
 use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 
