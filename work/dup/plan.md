@@ -40,7 +40,7 @@ claims one by `git mv`, per `work/README.md`'s one-file-one-item rule.
 
 | row | the class, as measured |
 | --- | --- |
-| `topo-tests-brick-copies` | 24 `fn brick` in 22 `crates/topo/tests/` suites; blocked on whether `topo` may dev-depend on `sweep`, which is a crate-graph decision with three options worked out in the row |
+| `topo-tests-brick-copies` | **CLOSED 2026-09-16, PR #2720.** The row said 24; the class was **66** — 23 named `fn brick`, 17 renamed or inline, 26 let-bound `Prism`s read only for `.body`. Three instruments, no one of which found half of it. Its stated blocker — a `topo`→`sweep` dev-dependency — was not one: the copies already build the body the row said they could not, and `topo`'s manifest already carries three edges of that kind. Split; the residue is the row below |
 | `tests-common-body-fixtures-triplicated` | `ball`, `donut`, `l_prism` byte-identical across three `tests/common` trees; `cone`, `washer`, `holed_prism` **already drifted**, so it reconciles rather than merges |
 | `mass-properties-bit-comparison-has-thirty-spellings` | ~110 occurrences over 31 files, and the spellings **disagree about whether the pads are in the comparison** — which is what gives the class teeth |
 | `run-with-a-prior-evaluation-has-seven-private-copies` | seven files, of which three are byte-identical pairs: one function and three option presets, written out seven times |
@@ -52,6 +52,7 @@ claims one by `git mv`, per `work/README.md`'s one-file-one-item rule.
 | `editor-core-raw-twin-planes-unreconciled` | two spellings of one placement, kept in step by hand |
 | `corpus-result-node-loops-skip-silently` | the shape, not a copy count |
 | `value-channel-digest-tag-24-collides` | two tags claiming 24 |
+| `brick-has-two-constructions-and-two-homes` | **opened 2026-09-16**, not inherited: the Euler-built and extrude-built boxes are two spellings in two homes, and the shared home is `topo`'s, downhill, not `sweep`'s uphill. Owes a measurement before a fix |
 
 ## Method — what SUITE learned, as the way this program works
 
@@ -85,7 +86,41 @@ claims one by `git mv`, per `work/README.md`'s one-file-one-item rule.
 
 Test-side, S-TINT's posture: one style review per unit, and a full
 review where a unit changes manifests, feature gates, or what a suite
-measures. No A/B unless Ev reinstates it.
+measures. **No A/B** — Ev, 2026-09-16, and it is not to be reinstated
+without him.
+
+Ev set the same rule from the other side in the same sitting:
+**style-only by default, a full review reserved for units whose logic
+is tricky to get right.** The two readings agree, because a unit that
+changes what a suite MEASURES is exactly a unit whose logic is tricky —
+its diff can be green and wrong, and green is then evidence about the
+new assertion rather than about the kernel. So the tier is decided by
+one question: **can this unit change a verdict?** A diff that only
+moves a fixture's declaration site cannot; a diff that reconciles two
+drifted fixtures, or unifies comparisons that disagree about what they
+cover, can.
+
+### The slate, tiered
+
+| row | tier | why |
+| --- | --- | --- |
+| `topo-tests-brick-copies` | style | 24 wrappers over one builder every suite already imports; no call site's body changes |
+| `sweep-boolean-suite-brick-and-prism-copies` | style | byte-identical copies, home already exists |
+| `run-with-a-prior-evaluation-has-seven-private-copies` | style | one `run_with_prior`, seven call sites, no assertion moves |
+| `sweep-test-support-two-wrapper-conventions` | style | a signature convention and two senses of `_at`; no verdict rides on it |
+| `three-part-resolver-stub-residues-resist-the-shared-fixture` | style | three residues against a fixture that already exists |
+| `orient-module-prose-accumulation` | style | prose only |
+| `value-channel-digest-tag-24-collides` | **full** | the discriminator is not injective and a comment says it is; the fix has to make the tag allocation stop being hand-written, or it mints the next collision |
+| `tests-common-body-fixtures-triplicated` | **full** | three of six fixtures have already DRIFTED, so reconciling them changes what `mesh`, `stl` and `step-export` suites measure — a merge would silently pick one behaviour |
+| `mass-properties-bit-comparison-has-thirty-spellings` | **full** | ~110 sites that disagree about whether the pads are in the comparison; unifying them decides 31 suites' coverage. Likely more than one unit |
+| `editor-core-raw-twin-planes-unreconciled` | **full** | the rows assert two spellings reach the same body; the fix decides whether that equality is enforced or merely restated |
+| `brick-has-two-constructions-and-two-homes` | **full** | owes a measurement first, and if the bodies differ the remedy inverts from "share it" to "name them apart" |
+
+Two rows on the opening slate are **not this program's** and stay with
+S-TINT: `mate6r1-shared-has-eleven-tests-and-no-assertions` (a coverage
+defect, S-TINT's charter) and `corpus-result-node-loops-skip-silently`
+(a shape, not a copy count). They were listed because the units that
+found them were duplication units, which is provenance, not ownership.
 
 ## Exit criteria
 

@@ -8,17 +8,13 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::{brick, prism_z};
+use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
-use geom_core::{COINCIDENCE_RECOURSE, Decide};
 use topo::{
-    Body, BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
+    BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// The recourse a message must carry exactly once. Contact-tier
 /// findings carry the TWO-arm contact menu (SELECT-DESIGN §3d,

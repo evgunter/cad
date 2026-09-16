@@ -29,7 +29,7 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::{brick, prism_z};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, boolean_reduce,
@@ -41,12 +41,7 @@ use topo::{
 /// disjoint one — the refusal (or its absence) is the gates' own
 /// signal, uncontaminated by contact machinery.
 fn distant_brick() -> Body<f64> {
-    prism_z::<f64>(
-        &[(50.0, 50.0), (51.0, 50.0), (51.0, 51.0), (50.0, 51.0)],
-        50.0,
-        51.0,
-    )
-    .body
+    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0))
 }
 
 /// The half-edge of `face`'s outer loop starting at the vertex whose

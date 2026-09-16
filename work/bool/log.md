@@ -544,3 +544,39 @@ builders in `crates/sweep/src/*`, passed from the nearest holder and
 never minted (`witness-not-ambient.sh` is the gate). The parameter and
 nothing else; what each registrant states is unchanged. Ev's D1 = (1)
 on `[ev]` #2552.
+
+## BOOL-10 merged (2026-09-16) — arc_continue retired; the split form built, then dropped
+
+PR 2135 merged at the stripped head `af006c649` (run 35048280142
+green). What landed: `arc_continue` removed on every layer (tag 28
+retired), the sealed verb module recorded as an inventory with a
+`compile_fail` and its claim narrowed to what is true, the lift's
+`repair_same_carrier` re-targeted to `Tangent` + `TangentArcTo`, the
+half-disc equator authored through `.tangent().tangent_arc_to(p)`
+(bit-identical to the retired verb's table), no wire-shape change.
+
+**The split form, and why it is not here.** The second-round ruling
+(2026-09-01) asked for `arc_continue`'s one need to re-spell as a
+declared split on the arc leg; the unit built `arc_to(spec.split(n))`
+with a placement contract, and it was dual-reviewed and fix-passed.
+Ev then asked on the PR (2026-09-10) why the form exists when the
+sixth round already admits adjacent same-carrier arcs as declared
+tangent joints — and it does not need to: the tangent spelling is
+bit-identical, and the split bought convenience and 1–2 ulp of bulge
+at the cost of a required wire field, three types and a leaky
+admissibility surface. **Ruling (in-chat, 2026-09-13): drop it.** The
+form as built is preserved in history at **`f79fa7081`** (review head
+`3f8163dd8`, fix-pass head `231b4db83`) in case it is wanted later; the
+strip took main's tree whole and re-applied the kept pieces.
+
+**The dual (ordinal 1108, sample #212)**, run on the split-form head:
+R1 opus NOT MERGEABLE 1/8/5, R2 fable mergeable-after-MINORs 0/5/4;
+R1's MAJOR — a split on a fused verb's incoming spec compiled and was
+silently dropped, contradicting the ratified text — was unilateral and
+executed: **tally +1**. The findings stand as found on that head; the
+form they were found on is gone by ruling.
+
+S-BOOL's window tally: BOOL-9 +1 (fable found the unilateral MAJOR),
+BOOL-10 +1 (opus found it). Slate next: BOOL-4/5/6/7, BOOL-Q, and this
+window's filed findings (the over-full sweep, `carriers_are_identical`,
+the lift comparator, the raw-door gate).

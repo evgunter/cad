@@ -7,7 +7,7 @@
 
 use crate::common;
 
-use common::{cube_into, mapped_cube, prism, prism_z};
+use common::{brick, cube_into, mapped_cube, prism, prism_z};
 use geom_core::Tol;
 use geom_core::{Bounds, Decide, Point3, Vec3};
 use topo::{
@@ -15,10 +15,6 @@ use topo::{
     SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
     SplitPlane {

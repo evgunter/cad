@@ -241,9 +241,6 @@ pub enum ProgramStep {
     ArcTo(ProgramArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
-    /// `arc_continue(target)` — the declared-subdivision step
-    /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
-    ArcContinue([Expr; 2]),
     /// `.fillet(r)` — line incoming, line arrival.
     Fillet(Expr),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
@@ -668,7 +665,6 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
-        P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
         P::FilletArc { spec, .. } => {
@@ -762,8 +758,6 @@ macro_rules! step_arg_access {
         match ($step, $arg) {
             (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
-            (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
-            (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
             (P::Toward { dx, .. }, A::DirX) => Some(dx),
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
@@ -1031,7 +1025,6 @@ fn res_step<T: Decide>(
         ProgramStep::TangentArcTo(t) => {
             Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
         }
-        ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -1432,7 +1425,6 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
         | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
-        (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
             P::FilletArc {
@@ -1478,7 +1470,6 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::ContinueTo(_)
             | P::ArcTo(_)
             | P::TangentArcTo(_)
-            | P::ArcContinue(_)
             | P::Fillet(_)
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
@@ -1751,7 +1742,6 @@ impl LoopProgram {
                 Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
-                Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
                 Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
                     radius: len_lit(*radius)?,
