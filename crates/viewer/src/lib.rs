@@ -133,7 +133,7 @@ pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
     EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineEvaluator,
-    InlineIndexer,
+    InlineIndexer, Worker, WorkerGone,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
@@ -142,7 +142,7 @@ pub use display::{
     free_move_check, mates_naming,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};

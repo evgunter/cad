@@ -376,6 +376,37 @@ anyway — a spinner for the life of the window, a repaint every frame to
 collect a result nobody will send, and every click refused with *the
 picture is still being indexed*.
 
+**And a seam that will never answer is a SECOND question, not a third
+value of the first.** Clearing those flags is what stops the indicator
+lying, and it is also what makes a dead seam report exactly what an
+idle one reports: `busy()` is `false` either way, by design. So each
+seam publishes `worker_gone()` beside `busy()` —
+`EvalService::worker_gone` and its two siblings, `None` on every inline
+implementation because an inline seam runs the work inside `poll` and
+has no worker to lose — and the consumers pass it through
+(`DocSession::eval_worker_gone`, `PickCache::worker_gone`, the fit
+handle directly). Three things read it, and none of them could be
+derived from what was already published:
+
+- **The chrome badges it**, one badge per dead seam
+  (`frame::dead_seam_badge`), `Tone::Actionable` with the restart in
+  the badge's own words. A dead worker is a whole-run environmental
+  fact that outlives the frame it started on, which is the provenance
+  rule the preferences badge already follows.
+- **The Re-evaluate control is disabled by it** and says the seam's own
+  sentence, the `CancelDoor` posture: a door that cannot act says so
+  rather than vanishing. Its click would otherwise reach a `Sender`
+  whose receiver died with the worker and change nothing.
+- **The index build is REFUSED rather than taken** when the fit seam is
+  the dead one (`evalseam::settled_delta`). A dead fitter used to read
+  as a finished one, and the index was then built at the δ in force —
+  the un-budgeted build the display budget exists to prevent, taken
+  silently, on exactly the documents the budget was cut for. Refusing
+  costs the picking on those documents for the life of the window; a
+  frozen window is worse than one that cannot be clicked, and the
+  badge says both losses rather than naming only the fitter.
+  (Ev, in-chat, 2026-09-16.)
+
 ### What the session knows because of the document is one value
 
 `DocSession` holds a `Derived`: what is selected, what is hovered,
@@ -793,11 +824,16 @@ and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
-fault, the budget's δ, the store that keeps no preferences, and the
+fault, the budget's δ, the store that keeps no preferences, the
 three display seams that hold a refusal (scene, pick index,
-projection) — each a function of the typed value it reads, so each
-one's SILENCE is a row a test can write. **The population is every
-`frame` function returning `Option<Badge>`** — eight — and that rule
+projection), and the seam whose WORKER has died — each a function of
+the typed value it reads, so each
+one's SILENCE is a row a test can write. The last is one door drawn
+three times, once per seam, because the three losses are three
+sentences a reader acts on differently; what is written once is the
+composition, and each call site hands the fact its own seam publishes.
+**The population is every
+`frame` function returning `Option<Badge>`** — nine — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so

@@ -170,12 +170,21 @@
 //! SILENCE is a row a test can write; each states its own [`Tone`],
 //! which is the actionable-or-not rule the toolbar used to pick a
 //! colour for at four call sites; and one draw at the toolbar consumes
-//! them all. The members are the at-rest verdict ([`at_rest_badge`]),
-//! the advisory checks ([`checks_badge`]), the δ the display budget
-//! chose ([`delta_badge`]), the product fault ([`product_badge`]), and
-//! the three display seams that hold a refusal — the scene
-//! ([`scene_badge`]), the pick index ([`index_badge`]) and the
-//! projection ([`projection_badge`]).
+//! them all. **The population is every function in this module
+//! returning `Option<Badge>`** — the rule ranges over the return type
+//! rather than over the `_badge` naming convention it happens to agree
+//! with, and it is complete because [`Badge`]'s fields and its three
+//! constructors are private here, so no badge can be built anywhere
+//! else. Run that rule and the members are the at-rest verdict
+//! ([`at_rest_badge`]), the advisory checks ([`checks_badge`]), the δ
+//! the display budget chose ([`delta_badge`]), the product fault
+//! ([`product_badge`]), the three display seams that hold a refusal —
+//! the scene ([`scene_badge`]), the pick index ([`index_badge`]) and
+//! the projection ([`projection_badge`]) — the store that keeps no
+//! preferences ([`prefs_badge`]), and the seam whose worker has died
+//! ([`dead_seam_badge`], one badge per dead seam). `crates/viewer/README.md`
+//! states the count and `tests/frame_policy.rs` counts it from the
+//! source.
 //!
 //! # Two rules that follow, one per channel
 //!
@@ -194,6 +203,7 @@ use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeN
 use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
+use crate::evalseam::{Worker, WorkerGone};
 use crate::idpass::IdStep;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickError, PickIndexError};
@@ -1323,6 +1333,15 @@ trait SeamSubject {
 /// would be back to the convention.
 const PICK_INDEX_SEAM: Subject = Subject::Display;
 
+/// **The evaluation seam's subject.** What ends a fact about the
+/// evaluation seam is the next act the document accepts and the run it
+/// provokes — the same subject the two reads of a landed pair already
+/// wear ([`at_rest_badge`], [`product_badge`]). Written as a constant
+/// for [`PICK_INDEX_SEAM`]'s reason: this seam's refusal does not
+/// arrive as a type [`SeamSubject`] can be implemented for, so the
+/// alternative is a literal at the door.
+const EVALUATION_SEAM: Subject = Subject::Document;
+
 /// **The scene seam's subject**, named by the rebuild's refusal and by
 /// the δ field's two doors — the δ on screen and the mesh drawn at it
 /// are one seam, and [`delta_not_a_number`] never reaches a
@@ -1776,6 +1795,57 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
     })
 }
 
+/// **What the chrome badges about a seam whose worker has died**, and
+/// `None` while an answer is still possible.
+///
+/// **One door, three badges.** The three seams are three subjects with
+/// three different consequences — no picks, a stale result whose
+/// Re-evaluate cannot act, no index at all — so the toolbar draws one
+/// badge per dead seam rather than a single sentence that would have
+/// to name all three or none. What is written once here is the
+/// COMPOSITION: the prefix, the tone and the subject rule. Each call
+/// site hands the fact its own seam publishes
+/// (`crate::evalseam::EvalService::worker_gone` and its two siblings),
+/// so a seam cannot be badged by a name it did not give.
+///
+/// **A badge, by the provenance rule**, and by the same argument
+/// [`prefs_badge`] carries: a dead worker is a whole-run environmental
+/// fact settled long before the frame that draws it and true on every
+/// frame after, which has no correct sentence on a line that carries
+/// one frame's news. It is a read of held state — the seam's own — and
+/// nothing retires it, because nothing in this application respawns a
+/// worker.
+///
+/// **[`Tone::Actionable`], and the tone decides the words.**
+/// [`Tone::Advisory`] is *there is nothing to do about it*; restarting
+/// the viewer is something to do, and a dead seam means every later
+/// answer from it is missing for the life of the window — a verdict a
+/// reader needs to act on. So the recourse is in the badge's own text
+/// rather than in a tooltip, where a reader who needs to keep it open
+/// while acting would lose it the moment the pointer moved
+/// ([`Affordance::Opens`] makes the same argument for the findings
+/// window). (Ev, in-chat, 2026-09-16.)
+///
+/// The words are [`WorkerGone`]'s own, rendered unaltered; the
+/// "<seam> worker: " opening is this badge naming itself, as its
+/// siblings do. It names the WORKER and not the seam's product, so it
+/// cannot be read as a second [`index_badge`] — that one says a build
+/// refused, this one says no build will ever be attempted again.
+pub fn dead_seam_badge(gone: Option<&WorkerGone>) -> Option<Badge> {
+    gone.map(|gone| {
+        let worker = gone.worker();
+        Badge::read(
+            match worker {
+                Worker::Evaluation => EVALUATION_SEAM,
+                Worker::Index => PICK_INDEX_SEAM,
+                Worker::Fit => SCENE_SEAM,
+            },
+            format!("{worker} worker: {gone}"),
+            Tone::Actionable,
+        )
+    })
+}
+
 /// What the toolbar has to say about work the picture is waiting on.
 ///
 /// **One state, not a badge per seam.** The chrome had three
@@ -1793,6 +1863,17 @@ pub enum Progress {
     /// The picture is older than the document and **no EVALUATION is
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
+    ///
+    /// **A cancel is not its only producer.** An evaluation seam whose
+    /// worker has died reports no work either, so this arm is what the
+    /// chrome reaches for a picture nothing will ever refresh. The
+    /// cause is [`dead_seam_badge`]'s to say and the recourse beside
+    /// this state is disabled by it
+    /// (`crate::session::DocSession::eval_worker_gone`); what this arm
+    /// still gets right is the only thing it claims, which is that the
+    /// picture is old and nobody is working on it. That the label
+    /// drawn for it says *canceled* is
+    /// `work/view/the-canceled-label-names-a-cause-a-dead-worker-did-not-have.md`.
     ///
     /// `indexing` is whether a seam BELOW the evaluation is
     /// nonetheless busy — an index build, or the display fit the index
