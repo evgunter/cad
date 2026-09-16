@@ -10,6 +10,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 use topo::{Body, FaceKey};
 
 use super::emit::{NamingError, face_half_edges};
+use super::emit_topo::face_plane;
 use super::role::SideVerdict;
 
 /// The classification band (kernel-ambient tolerance) for the
@@ -55,13 +56,13 @@ pub(crate) fn side_of_face<T: Decide>(
             .and_then(|vd| body.get_point(vd.point))
             .ok_or_else(|| bug("side_of: vertex without point"))?;
         any = true;
-        match decide("name_frag_side_of", Margin::of((p - origin).dot(normal)), b) {
+        match decide(SIDE_OF, Margin::of((p - origin).dot(normal)), b) {
             Ok(Sign::Positive) => pos = true,
             Ok(Sign::Negative) => neg = true,
             Ok(Sign::Zero) => {}
             Err(source) => {
                 return Err(NamingError::Escalated {
-                    predicate: "name_frag_side_of",
+                    predicate: SIDE_OF,
                     source,
                 });
             }
@@ -77,6 +78,63 @@ pub(crate) fn side_of_face<T: Decide>(
         (false, false) => SideVerdict::On,
     })
 }
+
+/// Re-runs ONE (fragment, partner) pair's `name_frag_side_of` probes
+/// **outside every log**, and hands back the verdicts they made.
+///
+/// This is [`side_of_face`] with two differences and no third. The
+/// probes run under [`k_stats::detached`], whose recording is READ
+/// here and never spliced, so nothing this function decides can reach
+/// a node's verdict log, an escalation log or a margin sink — the
+/// caller is a DIAGNOSIS, and a diagnosis that wrote to the substrate
+/// it diagnoses would be diffing its own footprints. And the answer
+/// is the verdict STREAM rather than the aggregated [`SideVerdict`],
+/// because the consumer is the population diff
+/// (`resolve::vdiff`), which counts signs.
+///
+/// `partner` is a face of `partner_body`; its outward-oriented
+/// carrier is read through the same [`face_plane`] door the emission
+/// reads it through, so a caller cannot orient the reference
+/// differently from the run it is reconstructing (the orientation IS
+/// the discriminator — [`side_of_face`]'s docs).
+///
+/// An escalation is not an error here: an in-band probe recorded no
+/// definite verdict in the run either, so it contributes nothing to a
+/// population and the surviving definite verdicts are still the
+/// honest partial answer. Only a structural fault (a dangling face, a
+/// non-planar carrier) refuses, and it refuses typed.
+pub(crate) fn shadow_side_of<T: Decide>(
+    body: &Body<T>,
+    fragment: FaceKey,
+    partner_body: &Body<T>,
+    partner: FaceKey,
+    tol: Tol,
+) -> Result<Vec<geom_core::k_stats::Verdict>, NamingError> {
+    let b = band(tol)?;
+    let (out, recording) = geom_core::k_stats::detached(|| {
+        let (origin, normal) = face_plane(partner_body, partner)?;
+        side_of_face(body, fragment, origin, normal, b)
+    });
+    match out {
+        Ok(_) => {}
+        // The escalation arm: the definite verdicts made before it are
+        // the population, exactly as the run's own log holds them.
+        Err(NamingError::Escalated { .. }) => {}
+        Err(other) => return Err(other),
+    }
+    Ok(recording
+        .recorded()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == SIDE_OF)
+        .copied()
+        .collect())
+}
+
+/// The `name_frag_side_of` predicate name, written once: the emission
+/// records it and the shadow probe filters its recording by it, so the
+/// two cannot name different predicates.
+pub(crate) const SIDE_OF: &str = "name_frag_side_of";
 
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the

@@ -801,6 +801,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
             predicate: "name_frag_side_of",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
+            source: editor_core::FlipSource::VerdictLog,
         },
         &["name_frag_side_of", "flipped from positive to negative"],
         // Every `Sign`, not the two this row happens to construct: a

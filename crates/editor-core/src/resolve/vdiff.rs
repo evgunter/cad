@@ -49,6 +49,21 @@
 //! diagnosis"). The PR 6 audit inherits the caveat with this
 //! paragraph as its record.
 //!
+//! **The cancelling exchange is NOT what the shadow-exec rung
+//! addresses, and the two absences must not be confused.** That rung
+//! ([`shadow_flips`], `super`'s ladder) fires on an EMPTY pair
+//! population — the run recorded no verdict for the pair at all,
+//! because the sweep pruned it or the fragment group collapsed — and
+//! re-runs the pair's own predicates to recover what was never
+//! written down. An exchange records a population; it records the
+//! SAME population in both runs. So the rung's trigger is false
+//! there by construction, and it would recover nothing if it fired:
+//! re-executing a pair whose two sides genuinely net to zero
+//! reproduces the zero. This blind spot stays exactly as this
+//! paragraph states it, with the recorded-qualifier delta
+//! (`super::qualifier_delta`, which reads the names rather than the
+//! log) as its live partial answer.
+//!
 //! # The two derived forms, in one module
 //!
 //! A node's verdict log is the substrate, and this module holds BOTH
@@ -254,15 +269,7 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
         if let (Some(a), Some(b)) = (old.value(id), new.value(id))
             && a.verdicts != b.verdicts
         {
-            // Per-predicate sign populations (module docs).
-            let populate = |log: &[geom_core::k_stats::Verdict]| {
-                let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
-                for v in log {
-                    m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
-                }
-                m
-            };
-            let (pa, pb) = (populate(&a.verdicts), populate(&b.verdicts));
+            let (pa, pb) = (populations(&a.verdicts), populations(&b.verdicts));
             let (flips, diverged) = diff_populations(&pa, &pb);
             delta.flips = flips
                 .into_iter()
@@ -287,6 +294,51 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
         }
     }
     FlipSet { nodes: out }
+}
+
+/// A verdict log's per-predicate sign populations — the projection
+/// [`diff_populations`] consumes, written once so the in-process
+/// engine and the shadow-execution rung ([`shadow_flips`]) count the
+/// same way.
+fn populations(log: &[geom_core::k_stats::Verdict]) -> BTreeMap<&'static str, [u32; 3]> {
+    let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
+    for v in log {
+        m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
+    }
+    m
+}
+
+/// The net flips between two SHADOW-EXECUTED verdict streams — the
+/// `Vanished` ladder's recovery rung (`super` module docs, the
+/// shadow-exec rung; issue 134).
+///
+/// Neither stream is a log: both were decided at diagnosis time,
+/// outside every frame, by re-running one pair's own predicates
+/// against the prior and the current context. They are still verdict
+/// streams, so they take THE population diff rather than a second one
+/// — the whole point of the rung is that the recovered flip is the
+/// same object [`diff_verdicts`] would have reported had the run
+/// recorded the pair.
+///
+/// Divergence is deliberately dropped: a shadow pair whose two sides
+/// probe a different number of vertices has no NET flip to report,
+/// and an instance-count change between two faces that are not the
+/// same face is not evidence about a predicate. The caller reads an
+/// empty answer as "no flip recovered" and takes the next rung.
+pub(super) fn shadow_flips(
+    old: &[geom_core::k_stats::Verdict],
+    new: &[geom_core::k_stats::Verdict],
+) -> Vec<VerdictFlip> {
+    let (flips, _diverged) = diff_populations(&populations(old), &populations(new));
+    flips
+        .into_iter()
+        .map(|(predicate, from, to, count)| VerdictFlip {
+            predicate,
+            from,
+            to,
+            count,
+        })
+        .collect()
 }
 
 /// THE population-diff core (module docs): per-predicate sign

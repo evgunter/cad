@@ -502,6 +502,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
                     predicate: "coincidence",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
+                    source: editor_core::FlipSource::VerdictLog,
                 },
                 last_good: None,
             }

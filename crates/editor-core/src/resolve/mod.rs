@@ -44,15 +44,38 @@
 //! realized boolean sweep records no verdicts for pairs its candidate
 //! generation pruned, so a vanish whose flip evidence lived on a
 //! now-pruned pair (an interaction-boundary edit — overlapping ↔
-//! disjoint) has no recorded flip to cite — two
+//! disjoint) has no recorded flip to cite — three
 //! honest rungs remain, in order: `Cascade` when an embedded operand
-//! name itself fails to resolve, and the QUALIFIER-DELTA rung
+//! name itself fails to resolve; the SHADOW-EXECUTION rung
+//! ([`shadow_exec_flip`]); and the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
-//! `SideOf` entry. If that too finds nothing, the total fallback is
+//! `SideOf` entry. If those too find nothing, the total fallback is
 //! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
 //! the value rather than in prose here.
+//!
+//! **The front door N5's amended text pointed at now exists** (issue
+//! 134, Ev's option (a); the amendment called it the recovery rung
+//! that does not exist yet). When the pruned pair is a
+//! `name_frag_side_of` pair — one the name WRITES DOWN, as the
+//! partner list of its own `SideOf` qualifier — the rung re-executes
+//! exactly that pair against the prior and the current context and
+//! reports the flip, marked [`FlipSource::ShadowExec`] so no reader
+//! mistakes it for a line of a log. Nothing is written anywhere and
+//! the work is bounded by the pair's own width.
+//!
+//! **Two limits of that door, stated here because they are what a
+//! reader will otherwise assume away.** The population-cancel blind
+//! spot is UNTOUCHED: a cancelling exchange records a population — the
+//! same one in both runs — so the rung's trigger is false there by
+//! construction and re-executing the pair would reproduce the zero
+//! (`vdiff` module docs carry the argument). And the `OrderAlong`
+//! half of the pruned-pair case is NOT recovered: that qualifier
+//! records a rank and a group size and no partner, so the pair it was
+//! ranked against cannot be read back out of the name. The diagnosis
+//! corpus's own pruned-pair row is an `OrderAlong` edge fragment and
+//! still lands on the evidence-free fallback.
 
 mod hit;
 mod pick;
@@ -242,6 +265,44 @@ impl ResolveError {
     }
 }
 
+/// Where a [`Diagnosis::PredicateFlip`]'s evidence came from.
+///
+/// N5's promise is a RECORDED flip, and for every flip the engine
+/// reads out of two verdict logs that is what this says. The second
+/// arm exists because one honest case has no record to read: the
+/// realized sweep prunes candidate pairs and a collapsed fragment
+/// group re-runs none of its own probes, so a pair's population can
+/// be EMPTY in a run whose geometry moved underneath the name. The
+/// recovery rung re-executes that pair at diagnosis time and reports
+/// the flip it finds — a true flip of a real predicate, and one no
+/// log contains. A reader that treats the two alike would be citing
+/// a line of a log that was never written, so the distinction is a
+/// field rather than prose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlipSource {
+    /// Read out of both runs' verdict logs (the population diff).
+    VerdictLog,
+    /// Recomputed at diagnosis time by re-running the vanished pair's
+    /// own predicates against the prior and the current context
+    /// (issue 134's rung). Nothing was written to any log.
+    ShadowExec,
+}
+
+/// The shadow-exec rung's ceiling: the widest discriminator pair it
+/// will re-execute.
+///
+/// The work is one face probe per partner per side, so the rung's
+/// cost is linear in the `SideOf` vector's length and the ceiling is
+/// what keeps "diagnosis-time only" a bound rather than a hope. The
+/// number is an order of magnitude above what the emission actually
+/// produces: a fragment group's partners are the faces meeting it
+/// across SEAM edges, four in the widest fixture in this repo's
+/// naming suites. A pair above this refuses typed
+/// ([`Diagnosis::ShadowExecDeclined`]) rather than running, because
+/// a diagnosis that can cost an unbounded walk is one a caller
+/// learns not to ask for.
+pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
+
 /// Why a name vanished — N5 verbatim plus the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3; constructed by the M6
 /// solver).
@@ -256,6 +317,24 @@ pub enum Diagnosis {
         from: Sign,
         /// Its sign now.
         to: Sign,
+        /// WHERE the flip was found — a recorded population, or a
+        /// shadow execution that recomputed one the run never wrote
+        /// ([`FlipSource`]).
+        source: FlipSource,
+    },
+    /// The shadow-exec rung DECLINED on a vanish it was otherwise
+    /// eligible for: the pair is wider than the rung's ceiling
+    /// ([`SHADOW_EXEC_MAX_PAIRS`]), so re-executing it is not the
+    /// bounded diagnosis-time work the rung is allowed to be. A
+    /// refusal with its number, never a silent fall-through to a
+    /// weaker rung that would read as evidence.
+    ShadowExecDeclined {
+        /// The vanished name's minting node.
+        node: RecipeNodeId,
+        /// How many discriminator partners the pair carries.
+        pairs: usize,
+        /// The ceiling it exceeded.
+        ceiling: usize,
     },
     /// A structural parameter changed on the derivation path.
     StructuralParam {
@@ -294,8 +373,11 @@ impl Diagnosis {
     /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
     /// realized sweep records no verdicts for pruned pairs, so an
     /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended; the shadow
-    /// re-execution recovery rung is banked there).
+    /// 2026-07-29, NAMING-DESIGN N5 as amended). The pruned-pair half
+    /// of that is narrower than it was: [`shadow_exec_flip`] recovers
+    /// it wherever the name writes its own pair down, and what still
+    /// arrives here is a pruned `OrderAlong` rank, whose partners the
+    /// qualifier does not record.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -313,10 +395,36 @@ impl core::fmt::Display for Diagnosis {
                 predicate,
                 from,
                 to,
+                source: FlipSource::VerdictLog,
             } => write!(
                 f,
                 "predicate {predicate} flipped from {from} to {to} on the name's \
                  derivation path"
+            ),
+            // The recovered flip says so: it is a real flip of a real
+            // predicate, and it is in no log a reader could go and
+            // check (the rung's docs).
+            Self::PredicateFlip {
+                predicate,
+                from,
+                to,
+                source: FlipSource::ShadowExec,
+            } => write!(
+                f,
+                "predicate {predicate} flipped from {from} to {to} on the name's \
+                 derivation path — recovered by re-running the pair at diagnosis \
+                 time, because the run recorded no verdict for it"
+            ),
+            Self::ShadowExecDeclined {
+                node,
+                pairs,
+                ceiling,
+            } => write!(
+                f,
+                "the run recorded no verdict for the vanished pair at node {}, and \
+                 re-running it was refused: {pairs} discriminator partners exceeds \
+                 the {ceiling} this diagnosis is allowed to re-execute",
+                node.0
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
@@ -560,8 +668,9 @@ pub fn resolve_with_prior<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
     name: &StableName,
+    tol: Tol,
 ) -> Resolution {
-    resolve_impl(new, prior, name)
+    resolve_impl(new, Prior { ctx: prior, tol }, name)
 }
 
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
@@ -602,8 +711,9 @@ pub fn enrich_appearance_loss_with_prior<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
     loss: &AppearanceLoss,
+    tol: Tol,
 ) -> Resolution {
-    enrich_impl(new, prior, loss)
+    enrich_impl(new, Prior { ctx: prior, tol }, loss)
 }
 
 fn enrich_impl<T: Decide, P: PriorCtx>(
@@ -664,6 +774,30 @@ trait PriorCtx {
 
 struct NoPrior;
 
+/// The last-good run AND the band the ladder decides at — what a
+/// with-history diagnosis needs and a single-run resolution does not.
+///
+/// The band rides HERE rather than on [`RunCtx`] because it is the
+/// with-prior ladder's own requirement: the shadow-exec rung
+/// re-executes a predicate, and D4's calling convention says a band
+/// is taken at the operation's entry, not minted inside it. A
+/// single-run resolve has no second run to diff, re-runs nothing, and
+/// therefore needs no band — which is exactly why `resolve` and
+/// `enrich_appearance_loss` keep their signatures while their
+/// with-prior twins take a [`Tol`].
+#[derive(Clone, Copy)]
+struct Prior<'a, U: Decide> {
+    ctx: RunCtx<'a, U>,
+    tol: Tol,
+}
+
+impl<U: Decide> Prior<'_, U> {
+    /// The document the prior run is OF.
+    fn doc(&self) -> &Doc<ProfileProgram> {
+        self.ctx.doc
+    }
+}
+
 impl PriorCtx for NoPrior {
     fn diagnose<T: Decide>(
         &self,
@@ -679,7 +813,7 @@ impl PriorCtx for NoPrior {
     }
 }
 
-impl<U: Decide> PriorCtx for RunCtx<'_, U> {
+impl<U: Decide> PriorCtx for Prior<'_, U> {
     /// The with-history diagnosis ladder (deterministic; first honest
     /// evidence wins): path-restricted verdict flips, then structural
     /// parameters on the path, then recipe edits on the path, then
@@ -687,56 +821,82 @@ impl<U: Decide> PriorCtx for RunCtx<'_, U> {
     /// their flips at the deciding node, so the global lanes are the
     /// honesty fallback, not the common case).
     ///
-    /// Attribution among several path flips: the `name_frag_*`
-    /// discriminator family wins when present — those predicates are
-    /// the name's OWN qualifier vocabulary (a discriminator flip is
-    /// definitionally the flip that re-qualified the fragment);
-    /// otherwise the first flip in deterministic order. This is a
-    /// consumer-side attribution choice — the diff engine itself
-    /// stays cause-agnostic and unspecialized.
+    /// Attribution among several path flips, in order:
+    ///
+    /// 1. **A recorded `name_frag_*` flip wins** — those predicates
+    ///    are the name's OWN qualifier vocabulary, so a discriminator
+    ///    flip is definitionally the flip that re-qualified the
+    ///    fragment.
+    /// 2. **The shadow-exec rung** ([`shadow_exec_flip`], issue 134),
+    ///    which recovers a discriminator flip the run never recorded.
+    ///    It sits HERE, above the generic fallback and not below it,
+    ///    for the same reason rung 1 does: a recovered
+    ///    `name_frag_side_of` flip is the name's own vocabulary, and
+    ///    an incidental `bool_*` flip at the same node — the
+    ///    containment walk re-deciding when two operands come apart —
+    ///    is not. Ranking the incidental flip first would answer "why
+    ///    did this fragment name vanish" with a sentence about the
+    ///    boolean's interior.
+    /// 3. Otherwise the first flip in deterministic order.
+    ///
+    /// This is a consumer-side attribution choice — the diff engine
+    /// itself stays cause-agnostic and unspecialized.
     fn diagnose<T: Decide>(
         &self,
         new: RunCtx<'_, T>,
-        _name: &StableName,
+        name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
-        let pick = |flips: &[(RecipeNodeId, VerdictFlip)]| {
-            flips
-                .iter()
-                .find(|(_, f)| f.predicate.starts_with("name_frag_"))
-                .or_else(|| flips.first())
-                .map(|(_, f)| Diagnosis::PredicateFlip {
-                    predicate: f.predicate,
-                    from: f.from,
-                    to: f.to,
-                })
+        let recorded = |flips: &[(RecipeNodeId, VerdictFlip)], family_only: bool| {
+            let mut it = flips.iter();
+            let hit = if family_only {
+                it.find(|(_, f)| f.predicate.starts_with("name_frag_"))
+            } else {
+                it.next()
+            };
+            hit.map(|(_, f)| Diagnosis::PredicateFlip {
+                predicate: f.predicate,
+                from: f.from,
+                to: f.to,
+                source: FlipSource::VerdictLog,
+            })
         };
-        let flips = diff_verdicts(self.eval, new.eval);
-        if let Some(d) = pick(&flips.flips_on_nodes(path)) {
+        let flips = diff_verdicts(self.ctx.eval, new.eval);
+        let on_path = flips.flips_on_nodes(path);
+        if let Some(d) = recorded(&on_path, true) {
             return Some(d);
         }
-        let ddiff = self.doc.diff(new.doc);
-        if let Some((node, param)) = structural_param_change(self.doc, new.doc, &ddiff, Some(path))
+        if let Some(d) = shadow_exec_flip(new, self.ctx, name, self.tol) {
+            return Some(d);
+        }
+        if let Some(d) = recorded(&on_path, false) {
+            return Some(d);
+        }
+        let ddiff = self.doc().diff(new.doc);
+        if let Some((node, param)) =
+            structural_param_change(self.doc(), new.doc, &ddiff, Some(path))
         {
             return Some(Diagnosis::StructuralParam { node, param });
         }
-        if let Some(edit) = recipe_edit_change(self.doc, new.doc, &ddiff, Some(path)) {
+        if let Some(edit) = recipe_edit_change(self.doc(), new.doc, &ddiff, Some(path)) {
             return Some(Diagnosis::RecipeEdit { edit });
         }
         // Global fallbacks (off-path evidence, in the same order).
-        if let Some(d) = pick(&flips.report()) {
+        if let Some(d) =
+            recorded(&flips.report(), true).or_else(|| recorded(&flips.report(), false))
+        {
             return Some(d);
         }
-        if let Some((node, param)) = structural_param_change(self.doc, new.doc, &ddiff, None) {
+        if let Some((node, param)) = structural_param_change(self.doc(), new.doc, &ddiff, None) {
             return Some(Diagnosis::StructuralParam { node, param });
         }
-        recipe_edit_change(self.doc, new.doc, &ddiff, None)
+        recipe_edit_change(self.doc(), new.doc, &ddiff, None)
             .map(|edit| Diagnosis::RecipeEdit { edit })
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.eval, name)?;
-        let table = &self.eval.value(node)?.name_table;
+        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
             key: EntityKey::Body,
@@ -872,6 +1032,178 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     })
 }
 
+/// The SHADOW-EXECUTION rung (issue 134, Ev's option-(a) ruling of
+/// 2026-07-29 as routed by the Q3 ruling of 2026-09-01): when the
+/// vanished name's own discriminator PAIR recorded no verdict at all
+/// in one of the two runs, re-run that pair's predicates against both
+/// contexts and report the flip they make.
+///
+/// # Why a rung exists here at all
+///
+/// `Vanished`'s evidence is a diff of two verdict LOGS, and a log can
+/// only be diffed where it has entries. The realized sweep prunes
+/// candidate pairs (C10) and a fragment group that stops being
+/// multi-fragment re-runs none of its own probes, so exactly the
+/// interaction-boundary edits that vanish a discriminated fragment —
+/// overlapping to disjoint, crossing to landing short — are the ones
+/// that leave the pair's population EMPTY. The population never
+/// existed; there is nothing to cancel and nothing to reconcile. The
+/// banked alternative, recording pseudo-verdicts for pruned pairs,
+/// stays ruled out: it re-introduces the quadratic in space that
+/// pruning removed.
+///
+/// # What is re-executed, and from what
+///
+/// The pair is written IN the name. A `Fragment(SideOf(v))` qualifier
+/// is one entry per SEAM PARTNER, each a recipe-covariant
+/// [`StableName`], so the vanished name names its own partners. For
+/// each of them the rung probes:
+///
+/// - the PRIOR side: the vanished name's own face, in the prior
+///   evaluation's body, against that partner's oriented carrier in
+///   the prior evaluation;
+/// - the CURRENT side: the SURVIVOR — the same name with its trailing
+///   fragment qualifier dropped, which is what an un-fragmented group
+///   is called — in the current evaluation, against the same
+///   partner's carrier there.
+///
+/// Every input is already in hand: the bodies ride the node values,
+/// the faces come from the same table lookup resolution itself uses,
+/// and the partner's plane is read through the emission's own
+/// `face_plane` door. **Nothing replays the op.** The probe is a pure
+/// function of the two contexts — no sweep, no reduction, no boolean
+/// state — which is why this rung can exist while re-running the
+/// pruned CANDIDATE pair's `bool_*` classification cannot: that would
+/// need the construction replayed up to the pair.
+///
+/// Both sides go through ONE door ([`crate::names::shadow_side_of`]),
+/// so the orientation convention that decides every sign is the same
+/// on both, and the answer is a shadow-vs-shadow diff rather than a
+/// shadow-vs-recorded one. That is what makes the recovered flip a
+/// flip and not an artifact of how the two runs happened to orient a
+/// reference.
+///
+/// # What it costs, and what it refuses
+///
+/// Diagnosis-time only, and nothing reaches a log: the probes run
+/// detached and their recording is read, never spliced. The work is
+/// bounded by the pair's own width — two face probes per partner —
+/// and a pair wider than [`SHADOW_EXEC_MAX_PAIRS`] refuses TYPED
+/// ([`Diagnosis::ShadowExecDeclined`]) rather than running or
+/// quietly falling through.
+///
+/// It declines, to the next rung, when there is no pair to execute:
+/// the name carries no `SideOf` qualifier (an `OrderAlong` rank
+/// records no partner — see below), the survivor or a partner does
+/// not resolve, the pair's population is NOT empty (then the log has
+/// the evidence and this rung must not second-guess it), or the two
+/// shadow populations net to nothing.
+///
+/// # The OrderAlong half of issue 134 is NOT recovered
+///
+/// `Qualifier::OrderAlong { rank, of }` records an ordinal and a
+/// group size and NO partner, so the siblings the rank was decided
+/// against cannot be read back out of the name — and in the run that
+/// pruned the pair there is no sibling left to rank against, a
+/// single-member group running zero `name_frag_order_along` pairs.
+/// Recovering that half needs the naming vocabulary to carry the
+/// partner, which is the names lane's design surface, not this
+/// rung's. The diagnosis corpus's own pruned-pair row is an
+/// `OrderAlong` edge fragment and is deliberately unchanged by this
+/// rung.
+fn shadow_exec_flip<T: Decide, U: Decide>(
+    new: RunCtx<'_, T>,
+    prior: RunCtx<'_, U>,
+    name: &StableName,
+    tol: Tol,
+) -> Option<Diagnosis> {
+    // The pair, read off the name: the trailing SideOf qualifier.
+    let (RoleSeg::Fragment(Qualifier::SideOf(partners)), Some(survivor)) =
+        (name.path.last()?, unqualified(name))
+    else {
+        return None;
+    };
+    // The trigger: one run recorded no `name_frag_side_of` verdict at
+    // the minting node at all. A recorded population is the log's
+    // evidence and belongs to the rungs above.
+    if !pair_population_is_empty(prior.eval, name.node)
+        && !pair_population_is_empty(new.eval, name.node)
+    {
+        return None;
+    }
+    if partners.len() > SHADOW_EXEC_MAX_PAIRS {
+        return Some(Diagnosis::ShadowExecDeclined {
+            node: name.node,
+            pairs: partners.len(),
+            ceiling: SHADOW_EXEC_MAX_PAIRS,
+        });
+    }
+    let (mut old_log, mut new_log) = (Vec::new(), Vec::new());
+    for (partner, _) in partners {
+        old_log.extend(probe(prior, name, partner, tol)?);
+        new_log.extend(probe(new, &survivor, partner, tol)?);
+    }
+    let flip = vdiff::shadow_flips(&old_log, &new_log).into_iter().next()?;
+    Some(Diagnosis::PredicateFlip {
+        predicate: flip.predicate,
+        from: flip.from,
+        to: flip.to,
+        source: FlipSource::ShadowExec,
+    })
+}
+
+/// One shadow probe: `face`'s `name_frag_side_of` verdicts against
+/// `partner`'s carrier, both resolved in `run`'s own tables and
+/// bodies. `None` when `run` does not hold both faces — the rung then
+/// has no context to execute in and declines.
+fn probe<T: Decide>(
+    run: RunCtx<'_, T>,
+    face: &StableName,
+    partner: &StableName,
+    tol: Tol,
+) -> Option<Vec<geom_core::k_stats::Verdict>> {
+    let (fb, fk) = face_at(run.eval, face)?;
+    let (pb, pk) = face_at(run.eval, partner)?;
+    crate::names::shadow_side_of(fb, fk, pb, pk, tol).ok()
+}
+
+/// The body and face key a face name denotes in one run — the same
+/// table lookup resolution itself performs, projected onto the
+/// geometry the probe reads.
+fn face_at<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    name: &StableName,
+) -> Option<(&'a topo::Body<T>, topo::FaceKey)> {
+    let (node, entity) = lookup_unique(eval, name)?;
+    let EntityKey::Face(key) = entity.key else {
+        return None;
+    };
+    let body =
+        crate::names::interrogate::output_body(&eval.value(node)?.payload, entity.body).ok()?;
+    Some((body, key))
+}
+
+/// Whether `node` recorded NO `name_frag_side_of` verdict in `eval` —
+/// the rung's trigger (the pair population never existed there).
+fn pair_population_is_empty<T: Decide>(eval: &Evaluation<T>, node: RecipeNodeId) -> bool {
+    eval.value(node).is_none_or(|v| {
+        !v.verdicts
+            .iter()
+            .any(|w| w.predicate == crate::names::SIDE_OF)
+    })
+}
+
+/// A fragment name without its trailing qualifier — what the SAME
+/// group is called once it stops being multi-fragment, and therefore
+/// the current-run counterpart of a vanished fragment. `None` when
+/// dropping the segment leaves no path at all (nothing survives a
+/// bare qualifier).
+fn unqualified(name: &StableName) -> Option<StableName> {
+    let mut base = name.clone();
+    base.path.pop();
+    (!base.path.is_empty()).then_some(base)
+}
+
 /// The qualifier-delta diagnosis rung (review Finding 1 ruling): a
 /// re-qualified fragment's OLD name carries `(partner, s)` where a
 /// same-shape sibling in the new tables carries `(partner, s')` —
@@ -895,9 +1227,10 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
         for (candidate, _) in table.iter() {
             if let Some((from, to)) = single_pure_sideof_delta(name, candidate) {
                 return Some(Diagnosis::PredicateFlip {
-                    predicate: "name_frag_side_of",
+                    predicate: crate::names::SIDE_OF,
                     from,
                     to,
+                    source: FlipSource::VerdictLog,
                 });
             }
         }
