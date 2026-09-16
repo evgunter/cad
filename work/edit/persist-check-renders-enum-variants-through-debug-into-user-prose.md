@@ -5,6 +5,7 @@ title: persist/check.rs writes {arg:?} and {slot:?} into user-facing sentences, 
 status: review
 opened: 2026-09-15
 branch: edit/error-prose
+pr: 2719
 ---
 
 

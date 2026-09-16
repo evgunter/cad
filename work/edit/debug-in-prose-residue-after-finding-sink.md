@@ -7,6 +7,7 @@ opened: 2026-08-25
 github: 985
 refs: [984, 981]
 branch: edit/error-prose
+pr: 2719
 ---
 
 ## From GitHub issue 985

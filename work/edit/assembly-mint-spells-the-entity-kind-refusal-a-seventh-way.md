@@ -5,6 +5,7 @@ title: The mate mint's NotAFace is a seventh spelling of the entity-kind refusal
 status: review
 opened: 2026-09-13
 branch: edit/error-prose
+pr: 2719
 ---
 
 
