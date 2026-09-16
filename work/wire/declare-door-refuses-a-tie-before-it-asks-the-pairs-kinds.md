@@ -2,10 +2,11 @@
 id: declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds
 kind: unit
 title: resolve_declarations refuses Ambiguous for a tied name before DeclareUnsupportedPair can ask the pair's kinds
-status: review
+status: closed
 opened: 2026-09-15
 branch: wire/tie-before-kind
 pr: 2681
+closed: 2026-09-15
 ---
 
 
