@@ -675,3 +675,19 @@ CURVED: `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`,
 on TOPO: `an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned`.
 Lane reclaimed. Every unit on the slate is merged; the exit walk
 follows (`docs/S-BOOL-EXIT-WALK.md`).
+
+## Exit walk proposed; residue re-homed; PATHS opened (2026-09-16)
+
+Ev, in chat 2026-09-16: finish the units, close the program, and roll
+the residue over to a new program where it coheres. Every unit is
+merged (thirteen, ordinals 1100–1112; window tally BOOL-9 +1 fable,
+BOOL-10 +1 opus, BOOL-7 +1 fable). `docs/S-BOOL-EXIT-WALK.md` is
+proposed in the same PR that opens `work/paths/` (PATHS — the profile
+lattice, band 5000–5099) and moves every open item off this slate by
+file: the eight lattice items to PATHS; 23 boolean, containment, join
+and declaration items and six Track Q rows to CURVED; four to TOPO;
+six to BLEND (with `crates/sweep/src/loft.rs` passing to BLEND's
+`paths`); one each to GUARD, LIB and WIRE; three Track Q ledger rows
+to PRED, two to S-TINT, one to PROPS; the two heat-sink demo items to
+`work/issues/`. BOOL-Q closed as dissolved. This directory is deleted
+at the walk's ratification, per `work/README.md`.
