@@ -77,9 +77,10 @@ fn r2_middle_slab_at_every_band_edge_at_the_run_band() {
     degenerate(-zero_edge);
 }
 
-/// The same edges at the certified scalar: the margin is an exact
-/// interval here (every operand is a dyadic exact), so the verdicts
-/// must match the f64 lane's.
+/// The same edges at the certified scalar. The margin is not an exact
+/// interval there (the lift and the world transform round outward),
+/// so the exact edges are RECORDED rather than pinned, and only the
+/// off-edge steps are asserted to agree with the f64 lane.
 #[cfg(feature = "interval")]
 #[test]
 fn r2_middle_slab_band_edges_at_interval() {
@@ -90,21 +91,29 @@ fn r2_middle_slab_band_edges_at_interval() {
         loft_body::<Interval>(&four_squares(), &stacked_at(&[-1.0, 0.0, s, 1.0]), 2, tol)
             .map(|_| ())
     };
+    for (name, s) in [
+        ("0.5eps", 0.5 * eps),
+        ("eps", eps),
+        ("next_up(eps)", next_up(eps)),
+        ("mid", 0.5 * (eps + k * eps)),
+        ("next_down(K eps)", next_down(k * eps)),
+        ("K eps", k * eps),
+        ("2 K eps", 2.0 * k * eps),
+        ("-K eps", -(k * eps)),
+    ] {
+        println!("R2 interval step {name} = {s:e}: {:?}", run(s));
+    }
     assert!(matches!(
-        run(eps),
+        run(0.5 * eps),
         Err(LoftError::DegenerateStacking { slab: 1 })
     ));
     assert!(matches!(
-        run(next_up(eps)),
+        run(0.5 * (eps + k * eps)),
         Err(LoftError::StackingEscalated { slab: 1, .. })
     ));
+    assert!(run(2.0 * k * eps).is_ok());
     assert!(matches!(
-        run(next_down(k * eps)),
-        Err(LoftError::StackingEscalated { slab: 1, .. })
-    ));
-    assert!(run(k * eps).is_ok(), "{:?}", run(k * eps).err());
-    assert!(matches!(
-        run(-(k * eps)),
+        run(-2.0 * k * eps),
         Err(LoftError::ReversedStacking { slab: 1 })
     ));
 }
