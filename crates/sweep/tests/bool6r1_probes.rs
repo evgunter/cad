@@ -198,10 +198,7 @@ fn an_interior_slab_at_the_band_edges_tracks_the_run_band() {
 #[test]
 fn a_rotated_top_traversal_decides_identically() {
     let tol = Tol::witness();
-    for (zs, tag) in [
-        (vec![0.0, 1.0], "forward"),
-        (vec![0.0, -1.0], "reversed"),
-    ] {
+    for (zs, tag) in [(vec![0.0, 1.0], "forward"), (vec![0.0, -1.0], "reversed")] {
         let places = stacked_at(&zs);
         let straight = loft_body::<f64>(&vec![sq(), sq()], &places, 1, tol).map(|_| ());
         let rotated = loft_body::<f64>(&vec![sq(), sq_rotated()], &places, 1, tol).map(|_| ());
@@ -273,9 +270,7 @@ fn the_sliver_hands_off_from_the_loft_to_the_skin() {
             Err(LoftError::DegenerateStacking { .. }) => "loft: DegenerateStacking",
             Err(LoftError::StackingEscalated { .. }) => "loft: StackingEscalated",
             Err(LoftError::ReversedStacking { .. }) => "loft: ReversedStacking",
-            Err(LoftError::Skin(SkinError::DegenerateSection { .. })) => {
-                "skin: DegenerateSection"
-            }
+            Err(LoftError::Skin(SkinError::DegenerateSection { .. })) => "skin: DegenerateSection",
             Err(_) => "other",
         };
         println!("   sliver {step:e} -> {door}");

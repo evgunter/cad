@@ -72,6 +72,9 @@ fn a_forward_stack_builds_at_interval_at_every_station_count() {
         let zs: Vec<f64> = (0..k).map(|i| i as f64).collect();
         let sections = vec![sq(); k];
         let out = loft_body::<Interval>(&sections, &stacked(&zs), k.min(4) - 1, tol);
-        assert!(out.is_ok(), "the forward stack of {k} sections builds at interval");
+        assert!(
+            out.is_ok(),
+            "the forward stack of {k} sections builds at interval"
+        );
     }
 }
