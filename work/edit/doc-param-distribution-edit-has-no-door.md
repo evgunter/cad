@@ -4,6 +4,7 @@ kind: issue
 title: No DocEdit annotates a standing document parameter — SetDocParam would drop the notation
 status: review
 opened: 2026-09-16
+pr: 2774
 branch: edit/doc-param-distribution
 ---
 
