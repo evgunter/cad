@@ -12123,17 +12123,23 @@ rule breaks, and 20,000 random unit normals, the pair turns about the
 normal for every normal sampled — none agreed to within 1e-9°. What a
 reader sees is less: a square grid is symmetric under a quarter turn
 and a tick under a half, so the six world axes (which move by exact
-multiples of 90°) leave the three default PLANES pixel-identical while
-an axis datum along ±y or ±z has its end ticks turned 90° about
+multiples of 90°) leave the three default PLANES drawing the same
+picture — **while `MAX_GRID_LINES` does not bind; the review of #2783
+measured it binding at 2560 px and the row carries the correction** —
+while an axis datum along ±y or ±z has its end ticks turned 90° about
 itself. Every other normal's grid turns visibly, up to 45°.
 
 Not a cost to weigh: the pair is a display convention with no document
 meaning — the module says so itself, and `a_frames_grid_follows_its_
 own_axes` is the row that exists because a frame must NOT be drawn
 through it. What the trade buys is measured too: the replaced rule is
-discontinuous at each of its three magnitude ties, jumping the
-in-plane pair by 101–104° there; the kernel's door has one seam, the
-equator, and states it. Three discontinuity surfaces for one.
+discontinuous at each of its three magnitude ties and the kernel's
+door at one seam, the equator, which it states. Three conditions for
+one circle. **The per-crossing figures this entry first carried were
+seam samples read as seam values and are corrected on the row**: all
+three local ties share one profile (grid 0°→30°), and the door's
+equator costs up to 45° of grid, which is worse per crossing, not
+better.
 
 **The dispatch's premise was half wrong and the item's was right.**
 The brief called the overflowed-norm-to-paint-path a live defect that

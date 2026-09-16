@@ -27,9 +27,17 @@ there is no heading.
 **`arc_points`' centre** (same file, the `half == 0.0 || sin_half ==
 0.0` `continue`) takes `half = dx.hypot(dy) / 2.0` and builds the left
 normal as `(-dy / (2.0 * half), dx / (2.0 * half))`. The same infinite
-`half` passes the guard and gives `(0.0, 0.0)`, so `centre` becomes the
-chord's midpoint — an arc whose centre is silently placed ON its own
-chord, whatever its bulge said.
+`half` passes the guard, and `apothem = half / tan(θ/2)` is infinite
+beside it, so **`centre` comes out `[NaN, NaN]`** and the arc's points
+are all `NaN` — it is not placed anywhere, and a `NaN` polyline is
+pushed into the drawn output.
+
+Both routes were executed rather than reasoned, because this row first
+claimed the wrong shape (see the correction below): with `dy` finite
+and `dx` overflowing, `nx = -dy / inf = -0.0` and `-0.0 * inf = NaN`;
+with both overflowing, `nx = -inf / inf = NaN` directly. Either way
+`centre = [NaN, NaN]`, where the chord's midpoint would have been
+`[0, 0]`.
 
 Both are the shape `datums.rs`'s `unit` had before that row closed —
 *a guard that admits everything except zero is not a bound* — and in
@@ -45,3 +53,19 @@ argument about callers, not a property of the door.
 
 **Confidence**: sure (the arithmetic reads as quoted; the infinite-
 length arm was not executed).
+
+## Corrected before this row was ever worked (orchestrator, 2026-09-17)
+
+As filed, the second bullet said `centre` *"becomes the chord's
+midpoint — an arc whose centre is silently placed ON its own chord."*
+**It does not.** The VIEW review of #2783 caught it and the arithmetic
+was then executed under `rustc -O` on both input shapes: the centre is
+`[NaN, NaN]`.
+
+The correction makes the defect **worse**, not milder — a centre on
+its own chord is a wrong arc, and `NaN` coordinates in a drawn
+polyline are not an arc at all — so the row is strengthened rather
+than withdrawn. It is recorded here because this program's own rule is
+that **a filed row that is wrong is worse than no row**: the next
+reader would have gone looking for a misplaced centre and found
+nothing of the kind.
