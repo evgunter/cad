@@ -244,6 +244,11 @@ impl EvalService for NeverIdle {
     fn busy(&self) -> bool {
         true
     }
+
+    /// The seam is an [`InlineEvaluator`]: there is no worker to lose.
+    fn worker_gone(&self) -> Option<viewer::evalseam::WorkerGone> {
+        self.0.worker_gone()
+    }
 }
 
 /// **The eighth combination is answered, not merely commented.**
@@ -838,4 +843,60 @@ fn the_fit_seams_traffic_is_send() {
     assert_send::<FitRequest>();
     assert_send::<FitDone>();
     assert_send::<FitSubject>();
+}
+
+/// **An inline seam has no worker to lose**, and that is a row rather
+/// than a comment.
+///
+/// The door exists because a threaded seam cannot be told apart from an
+/// idle one by `busy()` alone. On the wasm lane and in every row in
+/// this file the seam runs the work inside `poll`, so the answer is
+/// `None` on every path including a busy one — and a consumer written
+/// against the threaded lane therefore behaves identically here, which
+/// is the standing claim this whole file exists to hold.
+#[test]
+fn an_inline_seam_never_reports_a_worker_gone() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    assert_eq!(
+        session.eval_worker_gone(),
+        None,
+        "with the first run still owed",
+    );
+    session.pump();
+    assert_eq!(session.eval_worker_gone(), None, "and once it has landed");
+
+    let mut index = InlineIndexer::new();
+    assert_eq!(index.worker_gone(), None);
+    index.submit(IndexRequest {
+        key: PictureKey::of(session.generation(), fit_delta_request()),
+        doc: session.doc().clone(),
+        evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
+        tol,
+    });
+    assert!(index.busy());
+    assert_eq!(index.worker_gone(), None, "busy is not gone");
+
+    let mut fit = InlineFitter::new();
+    assert_eq!(fit.worker_gone(), None);
+    fit.submit(
+        session
+            .fit_request(fit_delta_request())
+            .expect("a landing to price"),
+    );
+    assert!(fit.busy());
+    assert_eq!(fit.worker_gone(), None);
+    assert_eq!(
+        viewer::evalseam::settled_delta(&fit, fit_delta_request()),
+        None,
+        "a live fitter still pricing the document settles nothing",
+    );
+    assert!(fit.poll().is_some());
+    assert_eq!(
+        viewer::evalseam::settled_delta(&fit, fit_delta_request()),
+        Some(fit_delta_request()),
+        "and once it has answered, the δ in force is settled",
+    );
 }
