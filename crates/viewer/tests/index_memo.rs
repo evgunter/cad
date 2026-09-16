@@ -1198,6 +1198,80 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     );
 }
 
+/// **A ray aimed at a vertex answers the vertex, not a candidate
+/// whose barycentrics carry no information.** After the gallery
+/// ring's bump, the `−y` ray through the tube vertex
+/// `(0.2452, 0, 0.0488)` meets a flat face of the ring nearly
+/// edge-on: that candidate's determinant is certified, but its `u`
+/// and `v` are quotients by it whose forward rounding bound is wider
+/// than the whole of `[0, 1]`, so the hit point they place —
+/// `0.031` short of the vertex — is a number the arithmetic cannot
+/// vouch for. The exact test refuses a barycentric interval that
+/// covers the admissible range, so the candidate drops out and the
+/// vertex's own triangles answer at `t = reach` to the bit, from the
+/// reference and the service alike. The runtime value that reds this
+/// row is any `t` that is not the aimed parameter: a re-admitted
+/// uninformative candidate answers short, and a graze lost at the
+/// closed boundary answers beyond or misses.
+#[test]
+fn the_ring_answers_an_aimed_vertex_over_an_uninformative_candidate() {
+    let tol = Tol::witness();
+    let text = common::gallery_ring_at(tol);
+    let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
+    let doc = loaded.snapshot;
+    let (node, slot, expr) = first_length_slot(&doc);
+    let bump = Edit {
+        node,
+        slot,
+        text: unparse(&expr),
+    };
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(bump.op());
+    assert!(
+        outcome.refusal.is_none(),
+        "the bump lands: {:?}",
+        outcome.refusal
+    );
+    session.pump();
+    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
+    let reach = 1.48;
+    let ray = Ray {
+        origin: Point3::new(vertex.x, vertex.y + reach, vertex.z),
+        dir: Vec3::new(0.0, -1.0, 0.0),
+    };
+    assert!(
+        index.parts().iter().any(|part| {
+            part.mesh().positions.iter().any(|p| {
+                (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
+                    == (vertex.x.to_bits(), vertex.y.to_bits(), vertex.z.to_bits())
+            })
+        }),
+        "the probe's premise: the aimed point is a vertex of the bumped ring's mesh, so the ray \
+         through it is a graze"
+    );
+    let reference = FlatReference::of(&index);
+    let (hit, _) = reference.pick(&ray);
+    let hit = hit.expect("the ray meets the ring");
+    assert_eq!(
+        hit.t.to_bits(),
+        reach.to_bits(),
+        "the reference answers the aimed vertex at t = {reach}, not a candidate whose \
+         barycentrics carry no information: {hit:?}"
+    );
+    let (_, eval) = session.landed_pair().expect("a landed pair");
+    let picked = index
+        .pick(eval, &ray)
+        .expect("the pick resolves")
+        .expect("the service meets the ring");
+    assert_eq!(
+        picked.t.to_bits(),
+        hit.t.to_bits(),
+        "the service answers the reference's t: {picked:?} against {hit:?}"
+    );
+}
+
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
