@@ -1274,3 +1274,14 @@ this orchestrator did not follow it for a design fork. Standing from
 here: a fork, a ruling request or anything else needing Ev's decision
 gets its `[ev]` PR **at the moment it is put**, not after it is
 answered; chat is the notification, the PR is the artifact.
+
+**Sphere-pole-side dispatched (2026-09-15).** Block PROPS-B3 slot 0
+(OPUS, drawn 2026-09-08), branch `props/sphere-pole-side` from main at
+`bfc577bbd`, dual review at the frozen head. The unit takes four items
+as one gap — the rim-only polar cap that refuses `DegenerateFace`, the
+two-face sphere whose complement cancels it to volume `0.0`, `Rim`'s
+duplicated traversal direction, and the cycle-order row the spec's
+amendment folds in as the trap to avoid rather than a deliverable. The
+dispatch carries this machine's build-mutex rules, which the
+orchestrator's earlier briefs omitted, and tells the lane to expect to
+lose the slot and let hosted CI be the record.
