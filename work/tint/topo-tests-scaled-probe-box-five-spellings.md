@@ -1,7 +1,7 @@
 ---
 id: topo-tests-scaled-probe-box-five-spellings
 kind: issue
-title: The scaled probe box is spelled five times across four topo suites
+title: topo's suites spell the box wrapper n ways, of which the scaled probe box is five
 status: open
 opened: 2026-09-16
 ---
@@ -39,3 +39,26 @@ body builder.
 **Residue disclosed, not scheduled.** The `dup-brick` PR fixed the
 construction copies; this is what its sweep left standing, and it is
 filed here rather than left in that PR body.
+
+## Widened, 2026-09-16 — the class is not five
+
+Filed first as five instances. The style review of the same PR showed
+the class is *"topo's suites spell the box wrapper n ways"*, and that it
+is much larger than the scaled-probe family:
+
+- 49 spellings of the unit cube across 19 suites, and three coexisting
+  conventions for naming a nullary wrapper over `brick` —
+  `topo-tests-unit-cube-has-fifty-spellings`.
+- Named wrappers whose bodies are one `brick` call under a domain name
+  (`corner_table.rs`'s `top`/`leg`, `review_f7_pole_r1_probes.rs`'s
+  `distant_brick`), converted by that PR but left as wrappers.
+- Hand-built seats that never reach the shared builder at all —
+  `topo-tests-straddle-seat-hand-copies`.
+
+So the decision this row owes is narrower than the class but should be
+taken with those in view: **one scale convention for the box wrapper**
+(`f64` factor, which four of the five want, or an arbitrary
+`Fn(f64) -> f64` map, which `rim_dim_boolean_twins.rs` uses to run two
+configurations off one builder), homed in `common`. Whoever takes it
+should read the unit-cube row first, because both answers land in the
+same door.

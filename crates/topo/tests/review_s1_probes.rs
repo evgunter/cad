@@ -104,13 +104,9 @@ fn probe_symmetric_two_patch_bridge() {
 /// `DeclarationContradicted`, never a silent no-op.
 #[test]
 fn probe_near_miss_false_declaration_contradicts() {
-    let bot = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
-    let top = prism_z::<f64>(
-        &[(0.0625, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0625, 2.0)],
-        1.0,
-        2.0,
-    );
-    let mut decls = flush_declarations(&bot.body, &top.body);
+    let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    let top = brick::<f64>((0.0625, 2.0), (0.0, 2.0), (1.0, 2.0));
+    let mut decls = flush_declarations(&bot, &top);
     assert!(
         !decls.coincident_faces.is_empty(),
         "genuine contact declared"
@@ -127,10 +123,10 @@ fn probe_near_miss_false_declaration_contradicts() {
             .unwrap()
     };
     decls.coincident_faces.push(topo::FacePairDeclaration::rest(
-        side_of(&bot.body, 0.0),
-        side_of(&top.body, 0.0625),
+        side_of(&bot, 0.0),
+        side_of(&top, 0.0625),
     ));
-    let err = union_with(&bot.body, &top.body, &decls, Tol::witness()).unwrap_err();
+    let err = union_with(&bot, &top, &decls, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "near-miss false declaration must contradict: {err:?}"

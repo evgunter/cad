@@ -229,32 +229,14 @@ fn annular_rest_contact_unions_exactly_additively() {
 /// that counterexample.
 #[test]
 fn rest_subtract_and_intersect_resolve_structurally() {
-    let beam_a = prism_z::<f64>(
-        &[(0.0, 1.75), (4.0, 1.75), (4.0, 2.25), (0.0, 2.25)],
-        0.0,
-        0.5,
-    );
-    let cut_a = prism_z::<f64>(
-        &[(1.75, 1.5), (2.25, 1.5), (2.25, 2.5), (1.75, 2.5)],
-        0.25,
-        0.75,
-    );
-    let BooleanResult::Body(a) = subtract(&beam_a.body, &cut_a.body, Tol::witness()).unwrap()
-    else {
+    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
+    let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).unwrap() else {
         panic!("notch A yields a body");
     };
-    let beam_b = prism_z::<f64>(
-        &[(1.75, 0.0), (2.25, 0.0), (2.25, 4.0), (1.75, 4.0)],
-        0.0,
-        0.5,
-    );
-    let cut_b = prism_z::<f64>(
-        &[(1.5, 1.75), (2.5, 1.75), (2.5, 2.25), (1.5, 2.25)],
-        -0.25,
-        0.25,
-    );
-    let BooleanResult::Body(b) = subtract(&beam_b.body, &cut_b.body, Tol::witness()).unwrap()
-    else {
+    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
+    let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).unwrap() else {
         panic!("notch B yields a body");
     };
     let decls = flush_declarations(&a.body, &b.body);
