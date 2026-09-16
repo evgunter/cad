@@ -122,6 +122,8 @@ mod docm9_range;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "blend_rv_probe.rs"]
+mod blend_rv_probe;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
 #[path = "eval10_section_reads_the_nominal.rs"]
