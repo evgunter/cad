@@ -1836,4 +1836,64 @@ mod tests {
         );
         assert_eq!(refused, 0, "a fan cap loses an interior hit to the guard");
     }
+
+    /// **Review probe (not for merge).** The residue the spec asked to
+    /// measure: a NOISE hit (the ray all but in the triangle's plane,
+    /// `|det|` at rounding level) whose noise `t` lands at or ABOVE
+    /// its own box's entry and so survives the guard. General-position
+    /// triangles; the out-of-plane component is drawn down to `1e-18`.
+    #[test]
+    fn probe_noise_hits_that_survive_the_guard() {
+        use geom_core::{Point3, Vec3};
+        let mut rng = Lcg(0x2222_3333_4444_5555);
+        let mut accepted = 0usize;
+        let mut refused = 0usize;
+        let mut worst = String::new();
+        for _case in 0..400_000 {
+            let pt = |r: &mut Lcg| {
+                Point3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0))
+            };
+            let a = pt(&mut rng);
+            let b = pt(&mut rng);
+            let c = pt(&mut rng);
+            let (bu, bv) = (rng.range(0.1, 0.6), rng.range(0.1, 0.6));
+            if bu + bv > 0.85 {
+                continue;
+            }
+            let target = a + (b - a) * bu + (c - a) * bv;
+            let n = (b - a).cross(c - a);
+            let inplane = (b - a) * rng.range(-1.0, 1.0) + (c - a) * rng.range(-1.0, 1.0);
+            let scale = 10f64.powf(rng.range(-20.0, -15.0));
+            let dir: Vec3<f64> = inplane + n * scale;
+            let reach = rng.range(0.5, 3.0);
+            let origin = target - dir * reach;
+            let ray = bvh::Ray { origin, dir };
+            let bx = bvh::Aabb::from_points([a, b, c]).unwrap();
+            let Some(t_enter) = ray.slab_enter(&bx) else {
+                continue;
+            };
+            let Some((t, u, v, det)) = unguarded(&ray, &[a, b, c]) else {
+                continue;
+            };
+            let (ee1, ee2) = (b - a, c - a);
+            let cond = det.abs() / (ee1.norm() * ee2.norm() * dir.norm());
+            if cond > 1e-14 {
+                continue;
+            }
+            if ray_triangle(&ray, &[a, b, c], t_enter).is_some() {
+                accepted += 1;
+                if worst.is_empty() {
+                    worst = format!(
+                        "t={t:e} t_enter={t_enter:e} u={u:e} v={v:e} det={det:e} cond={cond:e}\n  a={a:?}\n  b={b:?}\n  c={c:?}\n  origin={origin:?}\n  dir={dir:?}"
+                    );
+                }
+            } else {
+                refused += 1;
+            }
+        }
+        println!(
+            "PROBE-NOISE: noise hits accepted_by_the_guard={accepted} refused={refused}\nfirst survivor: {worst}"
+        );
+        assert_eq!(accepted, 0, "a noise hit survived the guard");
+    }
 }
