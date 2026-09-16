@@ -194,6 +194,25 @@ fn main() {
                  decade above the escalation band; the floor is the calibrated statement"
             ));
         }
+        // Never a silent ruling either: an eps-coupled name kept OFF
+        // the roster is kept off because it has no distribution to cut
+        // rule (4)'s floor from (lib.rs, `EPS_COUPLED_UNRULED`). A row
+        // here is that premise expiring, and the reader needs it
+        // BEFORE the flags below, whose recourse is the wrong one for
+        // this family.
+        for (name, count) in &scan.unruled {
+            say(format_args!(
+                "  note: {name} carries {count} row(s) here and is eps-coupled but \
+                 deliberately OFF the rule (4) roster. Its rows are judged by rules (2) \
+                 and (3), so any flag on them below points at the baseline floor and its \
+                 recourse does NOT apply: the open question is rule (4)'s floor for this \
+                 family, which no committed era has a draw for. Rule it — see \
+                 docs/K-REPORT.md, \"Maintenance: this roster is a RECORD\" — rather than \
+                 re-deriving BASELINE_FLOOR_MARGIN, which did not move. Reason on record: \
+                 {}",
+                k_lint::eps_coupled_excuse(name).unwrap_or_default()
+            ));
+        }
         // Print every flag, but cap the per-file dump so a systematic
         // regression cannot drown the job log; the summary count above
         // is always complete.

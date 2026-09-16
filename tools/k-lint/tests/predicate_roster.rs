@@ -22,7 +22,7 @@
 //! `geom_core::k_stats` that this roster imports and no longer has to
 //! parse, would each be cheaper and neither needs a lexer; both are
 //! edits under `crates/`, which is PROPS' seam and not METER's.
-//! `work/meter/k-lint-roster-wants-a-kernel-side-vocabulary` carries
+//! `work/props/k-lint-roster-wants-a-kernel-side-vocabulary` carries
 //! that trade with both shapes written out.
 //!
 //! # What these pins can and cannot see
@@ -37,13 +37,20 @@
 //!   value `QUAD_TARGET_LEN_FACTOR * eps` with the factor finite and
 //!   positive;
 //! - **every mint whose margin derives from `target_len` is rostered**,
-//!   or is named in [`NOT_ROSTERED`] with a reason — the ADDED
+//!   or is named in [`EPS_COUPLED_UNRULED`] with a reason — the ADDED
 //!   direction, closed for `target_len`-derived mints in these sources
 //!   and for nothing wider;
 //! - **every `classify_len` in these sources is a parsed mint or the
 //!   function's own declaration** — a site respelled out of the parse
 //!   reds rather than dropping quietly out of the population every pin
 //!   above quantifies over.
+//!
+//! One further row here is not a source pin at all: an
+//! [`EPS_COUPLED_UNRULED`] name is ruled off rule (4) on the grounds
+//! that it has no distribution, and
+//! [`an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`]
+//! derives from the kernel's own factor that rule (3) reds the day it
+//! has one. It sits here because that factor is read here.
 //!
 //! They cannot see:
 //!
@@ -52,7 +59,7 @@
 //!   margin, that property is written nowhere a test can evaluate over
 //!   a name, and `target_len` is this family's spelling for it rather
 //!   than the criterion —
-//!   `work/meter/k-lint-eps-coupled-criterion-unwritten` is where the
+//!   `work/instr/k-lint-eps-coupled-criterion-unwritten` is where the
 //!   criterion is scheduled;
 //! - **anything outside [`MINT_SOURCES`].** A rostered mint that moves
 //!   to an unlisted file reds the name pin; a NEW ε-coupled family
@@ -90,7 +97,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use k_lint::EPS_COUPLED_PREDICATES;
+// The mints deliberately kept OFF the roster, with their reasons, read
+// from the crate the ruling governs rather than copied here: it is a
+// ruling about the LINT's rules and `k-lint`'s CLI reads it too, so an
+// unruled name's rows print under their own recourse instead of the
+// baseline floor's. A copy here would be the ruling written twice.
+use k_lint::{
+    BASELINE_FLOOR_MARGIN, EPS_COUPLED_PREDICATES, EPS_COUPLED_UNRULED, Reason, lint_sample,
+};
 use std::sync::OnceLock;
 use test_utils::source;
 
@@ -130,21 +144,6 @@ const MINT_CALL: &str = "classify_len::<T>(";
 /// other pins quantify over.
 const MINT_FN: &str = "classify_len";
 const MINT_DECL: &str = "fn classify_len";
-
-/// Mints whose margin derives from [`TARGET`] and which are
-/// deliberately NOT on [`EPS_COUPLED_PREDICATES`], with the reason.
-///
-/// [`every_target_len_mint_is_rostered_or_excused`] would otherwise red
-/// on each of these, which is the point: a mint that starts deriving
-/// from the ε-scaled target and has not been ruled on reds, and ruling
-/// on it is a line here or a line on the roster.
-const NOT_ROSTERED: [(&str, &str); 1] = [(
-    "props_quad_last_round",
-    "ε-coupled by the same reading as the rostered family. Rule (4)'s floor is cut from a \
-     population this predicate has never contributed a row to — it emits none in any committed \
-     baseline — so rostering it would be a distribution ruling with no distribution: \
-     work/meter/k-lint-last-round-is-eps-coupled-but-unrostered",
-)];
 
 /// A `(code_only, code_and_literals)` pair per [`MINT_SOURCES`] entry,
 /// lexed once and held in `cache`.
@@ -384,7 +383,7 @@ fn enclosing_fn(code: &str, at: usize) -> (std::ops::Range<usize>, std::ops::Ran
 /// spelling reds it — deliberately, per (3)'s reason. It does not
 /// generalise to a roster entry the kernel has not minted yet; that
 /// wants the criterion
-/// `work/meter/k-lint-eps-coupled-criterion-unwritten` schedules.
+/// `work/instr/k-lint-eps-coupled-criterion-unwritten` schedules.
 #[test]
 fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
     let mut rostered = 0usize;
@@ -448,12 +447,12 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
 /// `EPS_COUPLED_PREDICATES` is a subset selected from an open
 /// vocabulary by a property nothing writes down, so its completeness is
 /// not checkable in general
-/// (`work/meter/k-lint-eps-coupled-criterion-unwritten`). What IS
+/// (`work/instr/k-lint-eps-coupled-criterion-unwritten`). What IS
 /// checkable is that property's spelling in this family's own source: a
 /// margin metered against `target_len` is a headroom against
 /// `QUAD_TARGET_LEN_FACTOR·ε`, which the pin above establishes for
 /// every rostered mint. A mint that acquires one and is neither
-/// rostered nor in [`NOT_ROSTERED`] gets ruled on here, instead of
+/// rostered nor in [`EPS_COUPLED_UNRULED`] gets ruled on here, instead of
 /// being judged by rules (2) and (3) with nobody noticing the question
 /// was open.
 #[test]
@@ -464,20 +463,91 @@ fn every_target_len_mint_is_rostered_or_excused() {
         }
         let name = mint.name.as_str();
         assert!(
-            EPS_COUPLED_PREDICATES.contains(&name) || NOT_ROSTERED.iter().any(|(n, _)| *n == name),
+            EPS_COUPLED_PREDICATES.contains(&name)
+                || EPS_COUPLED_UNRULED.iter().any(|(n, _)| *n == name),
             "{name:?} is minted in {path} with margin {:?} — a headroom against the ε-scaled \
              `{TARGET}`, which is the property rule (4) exempts a family for — but it is neither \
-             on EPS_COUPLED_PREDICATES nor excused in NOT_ROSTERED. Rule it: a line on the \
-             roster, or a line in NOT_ROSTERED saying why the metre rules are right for it",
+             on EPS_COUPLED_PREDICATES nor excused in EPS_COUPLED_UNRULED. Rule it: a line on the \
+             roster, or a line in EPS_COUPLED_UNRULED saying why the metre rules are right for it",
             mint.margin
         );
     }
-    for (name, _) in NOT_ROSTERED {
+    for (name, _) in EPS_COUPLED_UNRULED {
         assert!(
             !EPS_COUPLED_PREDICATES.contains(&name),
             "{name:?} is both rostered and excused from the roster"
         );
     }
+}
+
+/// **What reds when an excused name stops having no distribution** —
+/// the guard the [`EPS_COUPLED_UNRULED`] ruling owes, derived rather
+/// than promised.
+///
+/// The ruling keeps `props_quad_last_round` off rule (4) because rule
+/// (4)'s floor is the lower tail of a population it has no draw in. A
+/// ruling that rests on "there is no distribution" is only honest
+/// while something reds the day there is one, and the thing that does
+/// is rule (3) — not by policy but by arithmetic, which is why this
+/// reads the factor out of the kernel instead of writing 1024 down.
+///
+/// An ε-coupled margin's POSITIVE side is a headroom against
+/// `QUAD_TARGET_LEN_FACTOR·ε`, so it lies in
+/// `(0, QUAD_TARGET_LEN_FACTOR·ε]`. At both tight ε rows that whole
+/// interval sits below [`BASELINE_FLOOR_MARGIN`], so the FIRST such
+/// row a fresh sweep records flags — and every code-tier run sweeps
+/// and lints all three rows. At 1e-6 it does not, which is the same
+/// asymmetry the lint's module docs state and
+/// `tests/review_probes.rs` measures; that row is asserted here too,
+/// so the guard's shape is stated where it holds and where it does
+/// not.
+///
+/// **What it does not cover, and the reason it is left stated.** The
+/// NEGATIVE side is the budget refusal, `last_round_len` over the
+/// target by an amount nothing bounds, so a large `|m|` passes both
+/// metre rules clean. A population made only of those would arrive
+/// silently here. It is not guarded because it cannot arrive quietly
+/// anywhere else either: a definite negative reading is the exit that
+/// refuses the face, so a corpus emitting only those has started
+/// failing to compute face properties, which is a red test long
+/// before it is a lint row.
+#[test]
+fn an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows() {
+    let (path, code, _) = kernel_views()[0];
+    let factor: f64 = code[source::sole_initializer(code, path, FACTOR_DECL)]
+        .trim()
+        .parse()
+        .expect("QUAD_TARGET_LEN_FACTOR is a float literal");
+    let unruled = EPS_COUPLED_UNRULED[0].0;
+    assert!(
+        !EPS_COUPLED_PREDICATES.contains(&unruled),
+        "this test is about a name the roster does NOT carry"
+    );
+    for eps in [1e-9_f64, 1e-12] {
+        let top = factor * eps;
+        assert!(
+            top < BASELINE_FLOOR_MARGIN,
+            "an ε-coupled headroom at ε={eps:e} tops out at {top:e}, which is not below \
+             the baseline floor {BASELINE_FLOOR_MARGIN:e} — rule (3) no longer reds on the \
+             first row an unruled family records, and {unruled:?}'s excuse has lost its guard"
+        );
+        // The consequence in the lint's own voice, at the range's
+        // loudest-to-miss point: the largest headroom the family can
+        // record still flags.
+        assert!(
+            lint_sample(unruled, top, eps, eps * 10.0, "positive")
+                .contains(&Reason::BelowBaselineFloor),
+            "{unruled:?} at its widest possible headroom {top:e} passes rule (3) clean at ε={eps:e}"
+        );
+    }
+    // The 1e-6 row is the one where it does NOT hold, stated rather
+    // than left for a reader to assume symmetry.
+    let top = factor * 1e-6;
+    assert!(top > BASELINE_FLOOR_MARGIN);
+    assert!(
+        lint_sample(unruled, top / 2.0, 1e-6, 1e-5, "positive").is_empty(),
+        "a mid-range headroom at ε=1e-6 is expected SILENT — the guard is the tight rows'"
+    );
 }
 
 /// The locator reads a mint and not prose about it, the coverage

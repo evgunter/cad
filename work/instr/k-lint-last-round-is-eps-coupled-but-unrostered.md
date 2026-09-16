@@ -81,3 +81,56 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Ruled (2026-09-16): stays off, and one premise above was wrong
+
+**The second branch, with the first branch's measurement taken anyway.**
+`docs/K-REPORT.md` now carries the ruling beside "Maintenance: this
+roster is a RECORD", and `k_lint::EPS_COUPLED_UNRULED` is its
+machine-readable half — the list moved out of
+`tools/k-lint/tests/predicate_roster.rs`'s `NOT_ROSTERED` and into the
+crate, because the CLI reads it too.
+
+**What this file got wrong.** *"it emits zero rows in every committed
+baseline"* is true and VACUOUS, and the Finding's argument leans on it
+as though it were a measurement. The kernel first minted
+`props_quad_last_round` on 2026-09-03 (`33342b11f`, TCOST-K1); the
+newest committed era, `m7-eps-*`, was swept on 2026-08-07. **No
+committed row could have named it.** The grep in the Confidence line
+found an absence it could not distinguish from the predicate not
+existing.
+
+**So the sweep was run.** `scripts/k_probe_sweep.sh` at `89c8766`:
+**zero rows at all three ε rows**, over 1 263 818 / 1 263 826 /
+1 263 838 samples and 277 names, against `props_quad_converged`'s
+92 / 104 / 116. The name is minted once per face and only when round 0
+fails to certify, and nothing in the Band 4 corpus or the demo scenes
+gets there. The Confidence line's open half — *"unsure whether a corpus
+that reaches the budget exit exists in the wild set at all"* — is now
+closed: it does not.
+
+**And rule (4) would need a second floor even with draws**, which this
+file raises and does not settle. `props_quad_converged` meters the
+round that STOPPED, bounded above by the target; this one meters a
+LOWER BOUND on a round that never runs, and only a definite negative
+reading refuses — so its population has a refusal side nothing bounds
+below, where rule (4)'s single lower-tail threshold says nothing.
+
+**What keeps the ruling honest** is three rows and one stated residue,
+written out in the K-REPORT ruling: the committed-era guard
+(`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`),
+the derivation that rule (3) reds on the first positive row at either
+tight ε row
+(`an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`,
+reading `QUAD_TARGET_LEN_FACTOR` out of the kernel rather than writing
+1024 down), and the CLI note `Scan::unruled` drives so that red is not
+spoken in the metre rules' recourse. The residue is a purely-negative
+population.
+
+**Consistent with `k-lint-eps-coupled-criterion-unwritten`, which stays
+parked.** That row's account of the cost — the family judged by the
+metre rules, below `BASELINE_FLOOR_MARGIN` at the tight rows, with the
+CLI's recourse pointing at a baseline re-derivation that will not move
+— is exactly right, and the note above is what stops it being the
+reader's problem for THIS name. It does not touch the general
+criterion, which is still PROPS' to supply.
