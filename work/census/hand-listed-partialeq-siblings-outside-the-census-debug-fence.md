@@ -48,7 +48,7 @@ probe returned after.
 | `crates/editor-core/src/program.rs` (`:1276`) | `PartialEq for ProfileProgram` | `plane`, `loops` | both | complete today; nothing holds it complete. | E0027 at both patterns. |
 | `crates/topo/src/props.rs` (`:491`) | `Debug for SignCertificate` | `body`, `band`, `tol`, `runs`, `refused` | `runs`, plus two method calls | **rendered in braced struct shape** — so it made the same completeness claim `finish()` makes, by hand, and none of the four things it printed was a field. | E0027 at the new pattern. The braces are gone (see below). |
 | `crates/profile/src/lib.rs` (`:733`) | `SketchPlane::bit_eq`, which `PartialEq` delegates to | `placement`, and under it `Affine3`'s two fields, `Mat3`'s three columns, `Vec3`'s three components | twelve coordinates, read through `origin()` and `placement.linear` | **invisible to the census**: a field read through a METHOD is a call, and no text reader can tell a getter from any other call. The delegation is fine; the hand-list one level down is the finding. | E0027 at each of the four levels, probed separately (`SketchPlane`, `Mat3`, `Vec3`). Still invisible to the census — the impl body is still one call — and the delegation site now says so. |
-| `crates/editor-core/src/names/role.rs` (`:219`) | `PartialEq for NameRef`, and `Hash`, `Ord`, `Debug` and `Display` beside it | `Held`'s `name` and `stamp` | `self.0.name` only | **invisible to the census** for the sibling reason one row up. Omitting `stamp` is right and documented — it is a cache, never a decision (D9) — but a third field on `Held` landed outside all of them with no E0027 anywhere. | E0027 at all seven patterns across the five walks. Still invisible to the census, and the group now says what holds it. |
+| `crates/editor-core/src/names/role.rs` (`:238`) | `PartialEq for NameRef`, and `Hash`, `Ord`, `Debug` and `Display` beside it | `Held`'s `name` and `stamp` | `self.0.name` only | **invisible to the census** for the sibling reason one row up. Omitting `stamp` is right and documented — it is a cache, never a decision (D9) — but a third field on `Held` landed outside all of them with no E0027 anywhere. | E0027 at all seven patterns across the five walks. Still invisible to the census, and the group now says what holds it. |
 
 ## Three of the row's own claims were wrong
 
@@ -61,9 +61,13 @@ other two are this lane's.
    so of `program.rs`; it is a `match` whose every struct-variant arm
    binds every field and whose fallthrough spells the variants out
    rather than using `_`. Executed: a `probe_zzz` field added to
-   `LoopProgram::Circle` is an E0027 at `program.rs:1299` and `:1303`,
-   inside `loop_bit_eq`, plus five more in the same file and one in
-   `persist/wire.rs`. The compiler holds it and always did.
+   `LoopProgram::Circle` is an E0027 at `program.rs:1309` and `:1313`
+   (re-derived at this branch's head; the first writing of this line
+   carried `origin/main`'s coordinates, 1299 and 1303, into a document
+   committed on the branch), inside `loop_bit_eq`, plus five more in
+   the same file and **two** in `persist/wire.rs` — an E0027 and an
+   E0063, where this line first said one. The compiler holds it and
+   always did.
 3. **`SketchPlane`'s declared column said "placement, origin".**
    `origin` is a method (`placement.translation`, transcribed), not a
    field; `SketchPlane` declares exactly one field. The hand-list there

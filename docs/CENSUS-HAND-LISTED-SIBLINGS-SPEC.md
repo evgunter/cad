@@ -48,7 +48,10 @@ them.
 5. **The census forces your bookkeeping, and this is the mechanical
    fact to plan around.**
    `every_known_hand_listed_impl_is_still_found`
-   (`crates/test-utils/tests/hand_written_impl_census.rs:774`) reds
+   (`crates/test-utils/tests/hand_written_impl_census.rs:756` at the
+   fix-pass head; the spec first said `:774`, which is inside the
+   assert message rather than at the `fn`, and a style review caught
+   it — the row's own closing line is that line citations rot) reds
    when an entry names an impl the walk no longer finds hand-listed.
    So **repairing a suppressed site without removing its entry in the
    same diff reds the suite** — which is the loud direction and is

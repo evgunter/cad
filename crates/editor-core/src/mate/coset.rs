@@ -146,11 +146,17 @@ impl PartialEq for Subgroup {
 
 impl PartialEq for Coset {
     fn eq(&self, other: &Self) -> bool {
-        // Both levels are bound by name: a field added to `Coset` is
+        // Two levels are bound by name: a field added to `Coset` is
         // an E0027 at the two patterns below, and one added to the
-        // placement it carries is an E0027 inside `m`. The tie and the
-        // reading are the same lines, so neither can drift from the
-        // other.
+        // `Affine3` it carries — or to the `Mat3` inside it — is an
+        // E0027 inside `m`.
+        //
+        // **The leaf is not tied here and this comment used to say it
+        // was.** A fourth component on `Vec3` compiles this crate
+        // clean: the four vectors go to `vec_eq`, which is a file
+        // away and reads three components by name. That arm is
+        // `work/census/componentwise-equality-of-the-linear-types-is-hand-listed.md`,
+        // measured by a style review rather than by an instrument.
         let m = |x: &Affine3<f64>| {
             let Affine3 {
                 linear,

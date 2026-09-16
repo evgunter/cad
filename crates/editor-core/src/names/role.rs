@@ -197,10 +197,25 @@ impl From<StableName> for NameRef {
 // this file as the standing example; whether that verdict should
 // change is
 // `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`).
-// `Deref`, `AsRef`, `Borrow` and
-// `Serialize` are not in the group: each hands back `&StableName`, so
-// its return TYPE names the one field it projects and there is no list
-// that could be short.
+// `Deref`, `AsRef` and `Borrow` are not in the group: each hands back
+// `&StableName`, so its return TYPE names the one field it projects
+// and there is no list that could be short.
+//
+// `Serialize` is not in the group either and NOT for that reason — a
+// style review caught this sentence claiming it was. It returns
+// `Result<S::Ok, S::Error>`, which names nothing, and it projects
+// `self.0.name` in its body: the same shape this group is about. It
+// sits outside because the handle has no wire form at all, which the
+// note above its impl states; that reason is about serialization, not
+// about return types.
+//
+// `NameRef::name()` and `stamped_for_tests()` read `Held`'s fields too
+// and are covered by nothing here. The group's scope is the impls
+// BELOW it, which is itself a hand-written list of impls no
+// declaration holds — a sixth walk added under `Ord` would inherit
+// this claim without being in it. Recorded rather than closed; the
+// closing instrument would be a per-impl population, which is
+// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
 
 // The rendering a `NameRef` gave: the name, with no wrapper of
 // its own. Name digests are taken over this text.

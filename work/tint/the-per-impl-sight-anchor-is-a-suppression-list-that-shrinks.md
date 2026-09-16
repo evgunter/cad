@@ -23,13 +23,23 @@ paragraph on `IMPL_FILES_TODAY` acknowledged that and named
 case — keyed by self type, so it reds wherever in its file the impl
 sits.
 
-**That was never per-impl sight.** It was the accident that four of
-the five entries had a COMPLIANT sibling impl earlier in their file
-(`coset.rs` holds `PartialEq for Subgroup` above `PartialEq for
-Coset`), so a reader that stopped after a file's first match lost the
-entry's impl and the row red. The fifth, `clearance.rs`'s
-`GeometryWitness`, is its file's only `Debug`-or-`PartialEq` impl, and
-now it is the only entry.
+**That was never per-impl sight.** It was the accident that **ONE of
+the five** entries had a compliant sibling impl earlier in its file —
+`coset.rs`, which holds `PartialEq for Subgroup` above `PartialEq for
+Coset` — so a reader that stopped after a file's first match lost that
+one entry's impl and the row red, naming it and nothing else. The
+other four (`clearance.rs`, `expr.rs`, `program.rs`, `props.rs`) are
+each their file's only `Debug`-or-`PartialEq` impl, so the mutation
+never lost them and they contributed no sight at all.
+
+**This row was filed saying FOUR of five**, and a style review ran the
+mutation and read the failure message, which names exactly one entry.
+The measurement table below was right and the sentence above it was
+wrong — corrected 2026-09-16. The correction matters for whoever takes
+this row: per-impl sight here was never a property of sibling ordering
+across the list, it was one impl's worth, over one file, for the whole
+of main's history — and `coset.rs` is one of the four the repairing
+unit removed.
 
 ## Measured, both trees
 

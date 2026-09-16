@@ -68,12 +68,14 @@
 //! - **A field of an INNER type, read through a tuple index.**
 //!   `self.0.name` is a hand-list one level down: `self.0` ties this
 //!   impl to nothing but the newtype's own single field, and the named
-//!   field belongs to a declaration this reader never sees. Live
-//!   The standing example is
-//!   `crates/editor-core/src/names/role.rs`'s `NameRef`, whose five
-//!   walks over the shared `Held` this reader reports as
-//!   [`Verdict::NoFieldRead`] — `self.0` is a tuple index and it stops
-//!   there. Each of those walks destructures `Held`, so `Held`'s
+//!   field belongs to a declaration this reader never sees. The
+//!   standing example is
+//!   `crates/editor-core/src/names/role.rs`'s `NameRef`, which has
+//!   five walks over the shared `Held` — of which **this reader looks
+//!   at two**, `Debug` and `PartialEq`, because [`TRAITS`] is those
+//!   two; it reports both as [`Verdict::NoFieldRead`], `self.0` being
+//!   a tuple index it stops at, and never looks at `Display`, `Hash`
+//!   or `Ord` at all. Each of the five destructures `Held`, so `Held`'s
 //!   fields are held by E0027 and not by anything on this page. That
 //!   is the same shape as the method case one line up, reached through
 //!   a field rather than a call.
@@ -288,7 +290,14 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// row before and is entirely green now, because the single remaining
 /// entry names its file's ONLY such impl and so survives the
 /// blindness. The anchor was never per-impl sight; it was the accident
-/// that four of five entries had a compliant sibling above them.
+/// that ONE of five entries — `mate/coset.rs`, which holds
+/// `PartialEq for Subgroup` above `PartialEq for Coset` — had a
+/// compliant sibling above it, and that entry is one of the four this
+/// unit repaired. The other four entries were each their file's first
+/// and only such impl, so they never carried per-impl sight at all.
+/// (An earlier draft of this paragraph said FOUR of five, and a style
+/// review executed the mutation and read the failure, which names one
+/// entry.)
 ///
 /// **So no row here sees a partial blindness inside a file**, for this
 /// file's 22 or any of them: `hull.rs`, `knots.rs` and

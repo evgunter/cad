@@ -505,15 +505,28 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
     /// emit, and `finish_non_exhaustive` exists to say when such a
     /// dump is partial, so the braces tell a reader these ARE the
     /// fields. That is already false of every element here, and a
-    /// sixth field could not make it any falser. There is no omission
-    /// for a tie to catch, because there is no correspondence to be
-    /// short of: the defect is the shape claiming one. The braces are
-    /// what goes, and a reading of the certificate is what this says
-    /// it is.
+    /// sixth field could not make it any falser. The braces are what
+    /// goes, and a reading of the certificate is what this says it is.
     ///
-    /// The pattern below is a separate obligation and stays: `runs` is
-    /// read by name, so a sixth field is an E0027 here and has to be
-    /// given a rendering or a reason.
+    /// # The correspondence that IS here, and is tied
+    ///
+    /// An earlier draft of this comment said there was "no
+    /// correspondence to be short of". **That was false and a style
+    /// review executed it.** [`Self::enclosure`] returns a
+    /// [`VolumeEnclosure`], which declares exactly three fields, and
+    /// all three are rendered below under their own names and nothing
+    /// else of it is. So the render is a field list — that type's —
+    /// and a fourth field on it compiled clean while this comment
+    /// argued no such list existed.
+    ///
+    /// Both patterns below are the tie. [`VolumeEnclosure`] is
+    /// destructured for the same reason `Self` is: a field added to
+    /// either is an E0027 here and has to be given a rendering or a
+    /// reason. What stays untied is `FaceRun::open_at`, read through
+    /// `runs.iter().filter_map(…)` — a field reached through an
+    /// iterator adaptor, which no pattern here can bind and which
+    /// `componentwise-equality-of-the-linear-types-is-hand-listed`'s
+    /// sibling question covers.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
             // The body is what the certificate READS; rendering it
@@ -530,14 +543,18 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
             // order — is stated.
             refused: _,
         } = self;
-        let e = self.enclosure();
+        let VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area,
+        } = self.enclosure();
         write!(
             f,
             "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
              rounds still open {:?}, target refusal {:?}",
-            e.volume_lo,
-            e.volume_hi,
-            e.surface_area,
+            volume_lo,
+            volume_hi,
+            surface_area,
             // The rounds that REMAIN, not the rounds run: `None` here
             // is a finished walk (every face converged, exhausted its
             // schedule, or is closed-form), which is what a certificate

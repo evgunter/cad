@@ -497,9 +497,16 @@ pub(crate) struct Lit {
 // regressed, and makes it exact rather than threshold-dependent.
 //
 // It pins the PADDED size, and claims no more: re-inlining the row
-// goes red here, and so does any growth past 16 bytes, but the six
-// padding bytes beside the one-byte code are free (adding a
-// `[u8; 6]` field here still compiles).
+// goes red here, and so does any growth past 16 bytes, and the six
+// padding bytes beside the one-byte code are free OF THIS ASSERTION —
+// a `[u8; 6]` field added here leaves it silent.
+//
+// It no longer compiles, though, and that is new as of the destructure
+// below: such a field is now an E0027 at both of `PartialEq`'s
+// patterns. The parenthetical here said "still compiles" and was true
+// until that repair landed in the same diff; a style review executed
+// it. What this assertion does not see is unchanged — the tie that
+// sees it is the pattern, not the size.
 //
 // (`Expr` itself is not pinned: its size is the largest `ExprKind`
 // variant and moves for unrelated reasons. `Lit` is where the
