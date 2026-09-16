@@ -634,8 +634,9 @@ BOUND_AS = {
     # NOT a narrowing. Rust's `pick_face` takes a slice of them;
     # Python's takes a list of `NodePick`s and makes each target
     # itself — because CUR3 recorded `MeshPick` DECIDED absent from the
-    # façade and `PickTarget::pick` is a `&MeshPick`, so through
-    # `pncad` a raw target has no constructor in EITHER language. The
+    # façade and `PickTarget`'s raw mint (`PickTarget::new`) takes a
+    # `&MeshPick`, so through `pncad` a raw target has no constructor
+    # in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
     # pairing cannot be mis-asserted. The carrier-projection rule reads
     # out the same way it did for `DanglingRef` above: a payload's
@@ -2375,10 +2376,11 @@ NOT_BOUND = {
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
     # handed the wrong document. Nothing in Python hands one out. The
-    # two ERRORING doors project their arm as a tag word
-    # (`evaluation_of_another_document`,
-    # `mate_poses_of_another_document`), which is what a Python caller
-    # branches on; the memo's arm is not an error at all, and the fact
+    # ERRORING doors project their arm as a tag word
+    # (`evaluation_of_another_document` on the gather, the checks, the
+    # name-level edit door and the pick index's three doors;
+    # `mate_poses_of_another_document` on the solve), which is what a
+    # Python caller branches on; the memo's arm is not an error at all, and the fact
     # it records reaches Python where it always did, as
     # `Evaluation.reused` being 0 with every node recomputed. Not a
     # `gap:`: the debt, if there is one, is the `evaluate` door's
@@ -3025,6 +3027,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::NodeNotEvaluated": "HitTestError.variant",
     "HitTestError::NodeFailed": "HitTestError.variant",
     "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
@@ -3254,6 +3257,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

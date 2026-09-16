@@ -418,30 +418,104 @@ impl MeshPick {
     }
 }
 
-/// One displayed mesh offered to a pick: which node/body the mesh
-/// renders, and its prebuilt index.
+/// One displayed mesh offered to a pick: which document and which
+/// node/body the mesh renders, and its prebuilt index.
 ///
-/// # The provenance contract (loud, unenforceable here)
+/// # The document half is CHECKED AT THE DOOR (DI3, A2a)
 ///
-/// **`(node, body)` MUST be the pair `pick`'s mesh was tessellated
-/// from.** This module cannot verify it: arena keys collide
-/// numerically across sibling nodes, so a mismatched pairing does not
-/// error — [`pick_face`] resolves the hit triangle's face key against
-/// the wrong node's table and answers a **plausible, confidently
-/// wrong name** (the failure a selection consumer cannot detect;
-/// same convention family as [`super::MeshPatchKey`]). Assemble raw
-/// targets only from state that carries the pairing — e.g. a cache
-/// keyed by ([`Evaluation::epoch`], node, body) holding the mesh and
-/// its index together — or use [`NodePick`], which establishes the
-/// pairing by construction and cannot be mis-assembled.
-#[derive(Clone, Copy)]
+/// The document is the one the evaluation passed to [`PickTarget::new`]
+/// (or held by the [`NodePick`] that minted this) was of, and
+/// [`pick_face`] refuses an evaluation of any OTHER document before it
+/// reads a triangle — the one predicate every pairing door shares. It
+/// is stamped rather than inferred because node ids are minted per
+/// document: a twin recipe's evaluation satisfies every standing check
+/// and answers every name lookup, about other geometry.
+///
+/// # Every half is a contract on the RAW path (loud, unenforceable here)
+///
+/// The fields are private and there are exactly two mints:
+/// [`NodePick::target`], where all three of `(document, node, body)`
+/// and the mesh come from one tessellation and the pairing is true by
+/// construction; and [`PickTarget::new`], where the caller declares
+/// them. **A minted target cannot be taken apart and re-stamped** —
+/// neither [`NodePick`] nor this type hands its `MeshPick` out — so a
+/// forged document half needs a mesh the forger tessellated, which is
+/// the raw path and its contract, below.
+///
+/// On the raw path, **`(document, node, body)` MUST be what `pick`'s
+/// mesh was tessellated from**, and this module can verify none of it.
+/// The node half cannot be checked even in principle: arena keys
+/// collide numerically across sibling nodes OF ONE DOCUMENT, so a
+/// mismatched pairing inside the handed document does not error —
+/// [`pick_face`] resolves the hit triangle's face key against the wrong
+/// node's table and answers a **plausible, confidently wrong name**
+/// (the failure a selection consumer cannot detect; same convention
+/// family as [`super::MeshPatchKey`]). The document half is checked
+/// against the evaluation at the door, which catches every target that
+/// declared it honestly and is handed the wrong evaluation — the class
+/// that reaches a live consumer — and not a caller who declares a mesh
+/// of one document to be of another. Assemble raw targets only from
+/// state that carries the pairing — e.g. a cache keyed by
+/// ([`Evaluation::epoch`], node, body) holding the mesh and its index
+/// together — or use [`NodePick`], which establishes every half by
+/// construction and cannot be mis-assembled.
+///
+/// Re-stamping a minted target is a compile error, which is what makes
+/// the paragraph above a statement about the type rather than about
+/// its callers:
+///
+/// ```compile_fail,E0451
+/// use editor_core::{DocumentId, PickTarget};
+/// fn forge<'a>(honest: PickTarget<'a>, other: DocumentId) -> PickTarget<'a> {
+///     PickTarget { document: other, ..honest }
+/// }
+/// ```
+///
+/// `Debug` dumps the whole target, the mesh index included, which is
+/// how a row compares two indexes table for table without a door that
+/// hands the index itself out (one that did would re-open the mint
+/// above).
+#[derive(Clone, Copy, Debug)]
 pub struct PickTarget<'a> {
+    /// The document whose evaluation produced the displayed body —
+    /// the half [`pick_face`] checks against the handed evaluation.
+    document: DocumentId,
     /// The node whose evaluation produced the displayed body.
-    pub node: RecipeNodeId,
+    node: RecipeNodeId,
     /// The output body index within that node's value.
-    pub body: u32,
+    body: u32,
     /// The body's mesh index ([`MeshPick::build`]).
-    pub pick: &'a MeshPick,
+    pick: &'a MeshPick,
+}
+
+impl<'a> PickTarget<'a> {
+    /// A target assembled BY HAND from a mesh index the caller built:
+    /// the raw path, whose contract is this type's docs.
+    ///
+    /// The document half is not an argument — it is read off `eval`,
+    /// the evaluation `pick`'s mesh is claimed to have been
+    /// tessellated from — so no caller can name a document it has no
+    /// evaluation of, and a target minted by [`NodePick::target`]
+    /// cannot be re-stamped with another (its mesh index never leaves
+    /// the index).
+    ///
+    /// Prefer [`NodePick`]: it is the door that establishes every half
+    /// by construction. This exists for a caller that already holds a
+    /// [`MeshPick`] over a mesh of its own — a display cache, or a row
+    /// measuring [`pick_face`] over a mesh no tessellation produces.
+    pub fn new<T: Decide>(
+        eval: &Evaluation<T>,
+        node: RecipeNodeId,
+        body: u32,
+        pick: &'a MeshPick,
+    ) -> Self {
+        Self {
+            document: eval.document,
+            node,
+            body,
+            pick,
+        }
+    }
 }
 
 /// Typed failure of [`NodePick::build`] (closed; no silent lanes).
@@ -544,8 +618,31 @@ fn standing_value<T: Decide>(
 /// source of truth. The mesh and the index are shared, so a clone is
 /// a handle: [`PickMemo`] keeps one per displayed (node, body) across
 /// pictures, and the index the viewer holds is another.
+///
+/// **The building evaluation's document is stamped too**, because the
+/// pairing a constructor establishes has to survive the constructor:
+/// the doors that take a SECOND evaluation —
+/// [`NodePick::patch_names`], [`NodePick::boundary_names`], and
+/// [`pick_face`] through [`NodePick::target`] — read THAT
+/// evaluation's tables, and node ids are minted per document, so an
+/// evaluation of a twin recipe answers every one of those lookups out
+/// of its own tables, in patch order, with no refusal. Each door runs
+/// `ident::mispaired` against this stamp before reading anything of
+/// the evaluation (DI3, A2a). The version half is deliberately not
+/// stamped — a later evaluation of the SAME document is admitted, and
+/// what may be reused across it is the content keys' business.
+///
+/// **What admission costs a caller that went through [`PickMemo`]:
+/// nothing.** An index is served back only under the evaluation memo's
+/// own reuse condition, so a later run in which this node's value
+/// MOVED misses the memo and rebuilds; the admitted case is reachable
+/// only by holding an index across pictures by hand. The rows are
+/// `edit_pair_apply_names::a_later_evaluation_of_the_same_document_is_admitted`
+/// (what the doors answer) and `::what_the_admitted_later_evaluation_answers`
+/// (what it costs, and the memo's miss).
 #[derive(Debug, Clone)]
 pub struct NodePick {
+    document: DocumentId,
     node: RecipeNodeId,
     body: u32,
     mesh: Arc<Mesh>,
@@ -553,8 +650,12 @@ pub struct NodePick {
 }
 
 /// One memoised (node, body): what it was built for, and the pick.
+///
+/// The document half of the key is not a field here: it is the stamp
+/// the memoised [`NodePick`] already carries, so the two cannot drift
+/// into an entry whose pick is of one document and whose key says
+/// another.
 struct PickEntry {
-    document: DocumentId,
     content_key: ContentKey,
     naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
@@ -578,6 +679,17 @@ struct PickEntry {
 /// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
 /// picture's, BVH included, because a `NodePick` is a pure function of
 /// what the key names.
+///
+/// **The document comparison is this memo's DI3 refusal**, and it is
+/// the only half of the key that CAN refuse a prior of another
+/// document: node ids are minted per document, so two documents of one
+/// recipe carry the same ids AND the same content and naming keys for
+/// the same node, and every other half of the key matches. The row is
+/// `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`
+/// — the seam owns one memo across builds
+/// (`viewer::evalseam::build_index`), so a second document's build
+/// reaching the first document's entry is a live shape and not a
+/// hypothetical one.
 ///
 /// **Face level.** A node that was recomputed is tessellated through
 /// [`mesh::tessellate_with`] over the patch memo, which answers every
@@ -831,6 +943,18 @@ impl PickMemo {
     }
 }
 
+/// The pairing for the three doors that take a second evaluation:
+/// `None` when `eval` is of `expected`, else the typed refusal, which
+/// is `HitTestError`'s `From<Mispaired>` and no second spelling of
+/// which field goes where.
+///
+/// The comparison is `ident::mispaired`, the one predicate the pairing
+/// doors share (A2a) — identity only, never a version, so a LATER
+/// evaluation of the same document still pairs.
+fn mispairing<T: Decide>(expected: DocumentId, eval: &Evaluation<T>) -> Option<HitTestError> {
+    crate::ident::mispaired(expected, eval.document).map(HitTestError::from)
+}
+
 fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
     let ambient = tol.get();
     [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
@@ -868,6 +992,7 @@ impl NodePick {
         let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
+            document: eval.document,
             node,
             body,
             mesh: Arc::new(mesh),
@@ -904,7 +1029,7 @@ impl NodePick {
         let tolerances = tolerance_bits(delta, tol);
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
-            && entry.document == eval.document
+            && entry.pick.document == eval.document
             && entry.content_key == value.content_key
             && entry.naming_key == value.naming_key
             && entry.tolerances == tolerances
@@ -923,6 +1048,7 @@ impl NodePick {
         let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
             .map_err(NodePickError::Index)?;
         let pick = Self {
+            document: eval.document,
             node,
             body,
             mesh: Arc::new(tessellation.mesh),
@@ -931,7 +1057,6 @@ impl NodePick {
         memo.nodes.insert(
             (node, body),
             PickEntry {
-                document: eval.document,
                 content_key: value.content_key,
                 naming_key: value.naming_key,
                 tolerances,
@@ -943,10 +1068,11 @@ impl NodePick {
         Ok(pick)
     }
 
-    /// The pick target this index answers for — pre-paired, ready for
-    /// [`pick_face`].
+    /// The pick target this index answers for — pre-paired in both
+    /// halves ([`PickTarget`]), ready for [`pick_face`].
     pub fn target(&self) -> PickTarget<'_> {
         PickTarget {
+            document: self.document,
             node: self.node,
             body: self.body,
             pick: &self.pick,
@@ -1051,8 +1177,41 @@ impl NodePick {
     /// OWN slot rather than a refusal of the whole call, because one
     /// naming-emission bug should not cost a consumer the names of
     /// every other patch it is drawing.
-    pub fn patch_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
-        self.mesh
+    ///
+    /// **`eval` must be an evaluation OF the document this index was
+    /// built from** (DI3, A2a). The index is built from one evaluation
+    /// and handed another here, and node ids and output-body indices
+    /// are minted per document, so a twin recipe's evaluation answers
+    /// these lookups out of ITS tables: other geometry's names, in
+    /// patch order, with no `Unnamed` and no refusal. The pairing is
+    /// checked against the building evaluation's stamp before any
+    /// table is read.
+    ///
+    /// The refusal is of the CALL and sits OUTSIDE the vector, which
+    /// is the shape of the fact: a mispairing is one thing that is
+    /// wrong with the arguments, not one thing wrong with each patch,
+    /// and a per-slot `Err` repeating it once per patch would read as
+    /// `n` unnamed faces. The per-patch lane keeps its own meaning.
+    ///
+    /// A LATER evaluation of the SAME document is admitted, even one
+    /// that re-tessellated this node: identity is what a pairing is
+    /// about (DI3), and whether the patches still line up is the
+    /// content keys' business, which is what [`PickMemo`] reads them
+    /// for.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
+    /// the call as a whole refuses.
+    pub fn patch_names(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+        if let Some(refusal) = mispairing(self.document, eval) {
+            return Err(refusal);
+        }
+        Ok(self
+            .mesh
             .patches
             .iter()
             .map(|patch| {
@@ -1066,7 +1225,7 @@ impl NodePick {
                 )
                 .cloned()
             })
-            .collect()
+            .collect())
     }
 
     /// The stable name of every boundary polyline of
@@ -1085,8 +1244,26 @@ impl NodePick {
     /// evaluated-but-unnamed edge is [`HitTestError::Unnamed`] for
     /// that polyline alone, because one naming-emission bug should not
     /// cost a consumer the names of every other edge it is drawing.
-    pub fn boundary_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
-        self.mesh
+    ///
+    /// The pairing is [`NodePick::patch_names`]', for the same reason
+    /// and with the same boundary: `eval` must be an evaluation of the
+    /// document this index was built from, a later evaluation of that
+    /// document is admitted, and the refusal is of the call rather
+    /// than of each polyline.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
+    /// the call as a whole refuses.
+    pub fn boundary_names(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+        if let Some(refusal) = mispairing(self.document, eval) {
+            return Err(refusal);
+        }
+        Ok(self
+            .mesh
             .boundaries
             .iter()
             .map(|boundary| {
@@ -1100,7 +1277,7 @@ impl NodePick {
                 )
                 .cloned()
             })
-            .collect()
+            .collect())
     }
 
     /// The node this index answers for.
@@ -1138,6 +1315,13 @@ pub struct PickHit {
 /// miss** — the ray hits no offered triangle. Errors are never
 /// flattened into a miss:
 ///
+/// - every target must be OF the document `eval` is of — a target
+///   stamped with another document answers
+///   [`HitTestError::EvaluationOfAnotherDocument`] up front (first
+///   offending target in slice order), before any standing is read,
+///   because node ids are minted per document and a twin's evaluation
+///   would answer every standing check and then name the hit out of
+///   its own tables (DI3, A2a);
 /// - every target's node must have an `Ok` value in `eval` — a target
 ///   whose node has no result / failed / was poisoned answers the
 ///   corresponding [`HitTestError`] up front (first offending target
@@ -1182,13 +1366,21 @@ pub struct PickHit {
 ///
 /// # Errors
 ///
-/// [`HitTestError`] as above — target standing first, then the
-/// winning face's inversion.
+/// [`HitTestError`] as above — the targets' pairing first, then their
+/// standing, then the winning face's inversion.
 pub fn pick_face<T: Decide>(
     eval: &Evaluation<T>,
     targets: &[PickTarget<'_>],
     ray: &Ray,
 ) -> Result<Option<PickHit>, HitTestError> {
+    // The pairing, before any standing is read: a foreign
+    // evaluation has an `Ok` value for these node ids too (docs).
+    for target in targets {
+        if let Some(refusal) = mispairing(target.document, eval) {
+            return Err(refusal);
+        }
+    }
+
     // Target standing, up front (docs: an error, never a silent miss).
     for target in targets {
         match eval.nodes.get(&target.node) {

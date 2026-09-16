@@ -104,6 +104,11 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
         s::HitTestError::NodePoisoned { node: n, through } => {
             [node(*n), node(*through), none(), none()]
         }
+        // The pairing arm names two DOCUMENTS, which this
+        // node/through/kind/body quadruple cannot carry; the message
+        // states both, and the tag is what a caller branches on (the
+        // `product` door's convention for the same refusal).
+        s::HitTestError::EvaluationOfAnotherDocument { .. } => [none(), none(), none(), none()],
         s::HitTestError::Unnamed { node: n, entity } => {
             [node(*n), none(), kind(entity.key.kind()), int(entity.body)]
         }
@@ -476,9 +481,20 @@ impl NodePick {
     /// such bug must not cost a consumer the names of every other patch
     /// it is drawing. Branch with `isinstance(entry, str)`; the
     /// exception in a slot is a value, not something raised.
+    ///
+    /// **`evaluation` must be an evaluation of the document this index
+    /// was built from**, and one of another document RAISES
+    /// `HitTestError` with variant `evaluation_of_another_document`
+    /// before a single name is read. Node ids are minted per document,
+    /// so a twin recipe's evaluation would answer every slot out of
+    /// its own tables: other geometry's names, in patch order, with no
+    /// slot marked. That is one thing wrong with the arguments, so it
+    /// is raised rather than written into every slot. A LATER
+    /// evaluation of the same document is fine.
     fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .patch_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -491,10 +507,14 @@ impl NodePick {
     /// `Mesh.boundaries` is the drawing side: entry `i` here names the
     /// edge polyline `i` of that list, so a consumer that drew the
     /// wireframe and hit-tested an edge reads its selectable name out
-    /// of here, with the arena key never leaving.
+    /// of here, with the arena key never leaving — and it pairs the
+    /// way [`Self::patch_names`] does, raising `HitTestError` with
+    /// variant `evaluation_of_another_document` for an evaluation of
+    /// another document.
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()

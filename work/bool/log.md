@@ -656,3 +656,22 @@ limits — the OrderAlong half on WIRE's slate
 collapse half filed here
 (`side-of-vanish-by-fragment-group-collapse-stays-at-the-evidence-free-rungs`).
 Lane reclaimed. Window tally: BOOL-5 +0, BOOL-6 +0, BOOL-7 +1 (fable).
+
+## BOOL-4 merged (2026-09-16) — the last unit
+
+PR #2767 merged at the fix-pass head eeda139a0 plus one landing merge
+of main (BOOL-7's editor-core changes; CI re-run on the merged head).
+A/B row BOOL4, ordinal 1112, sample #217, no tally candidate (both
+MAJORs falsified the same claim — the single-witness invariant — by
+different constructions: a crossing degraded to vertex-on-face
+touches; a container's void shell inside the part). The fix pass
+redesigned the arm's soundness conditions (every vertex, both
+orderings always, rest-only touches under a local side analysis, the
+honest argument) and withdrew the forward-binding design-page clause
+the first head had added. Items closed: BOOL-4 and issue 750
+(`containment-examination-is-extent-box-coarse`). Filed forward on
+CURVED: `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`,
+`touch-kinds-without-a-local-side-analysis-block-the-material-test`;
+on TOPO: `an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned`.
+Lane reclaimed. Every unit on the slate is merged; the exit walk
+follows (`docs/S-BOOL-EXIT-WALK.md`).
