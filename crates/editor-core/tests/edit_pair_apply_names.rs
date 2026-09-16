@@ -184,3 +184,41 @@ fn apply_with_names_refuses_an_evaluation_of_another_document() {
         "an edit carrying no name",
     );
 }
+
+/// REVIEW PROBE (lane `pair-rv`, claim 2): the pairing is IDENTITY and
+/// never a version. `ident::mispaired` is `!=` on `DocumentId` alone,
+/// so a document that has moved on — a new version under the same id,
+/// the shape a re-save produces — still pairs with an evaluation taken
+/// before the move, and the door answers out of its own tables. A pin
+/// in the stamp would turn this row red, which is the cost DI3
+/// declines to pay.
+#[test]
+fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
+    let tol = Tol::witness();
+    let (square, sq) = prism("edit-pair-apply-square", 4);
+    let ev_square = run(&square);
+
+    // A new version under the SAME identity.
+    let moved = editor_core::apply(&square, &DocEdit::SetTolerance { eps: 1e-7 }, tol)
+        .expect("the edit is legal")
+        .doc;
+    assert_eq!(moved.id(), square.id(), "identity survives every edit");
+
+    let fourth = ename(
+        sq,
+        RoleSeg::RimEdge(
+            CapEnd::End,
+            ProfileEdgeRef {
+                loop_index: 0,
+                segment: 3,
+            },
+        ),
+    );
+    let edit = DocEdit::InsertNode {
+        node: Node::fillet(sq, len(0.1), vec![fourth]),
+    };
+    assert!(
+        apply_with_names(&moved, &edit, &ev_square, tol).is_ok(),
+        "a stale-but-own evaluation still pairs: the stamp is the id"
+    );
+}
