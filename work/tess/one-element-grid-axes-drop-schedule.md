@@ -29,3 +29,7 @@ Refs: issue 685, PR #1507, S29, issue 678 (adjacent pole floor, distinct).
 ## Home
 
 `work/mesh/` — every cited site is in `crates/mesh/*`, S-MESH's territory glob, and sizing intent versus budget is its charter line.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

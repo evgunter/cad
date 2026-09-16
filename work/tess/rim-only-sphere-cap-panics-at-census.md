@@ -30,3 +30,7 @@ Band: S-MESH (1200–1299). Not scheduled; parked behind MESH-12.
 ## Home
 
 `work/mesh/` — the panic is in `crates/mesh/src/tessellate.rs`, an S-MESH territory glob, and the issue names the S-MESH band and parks itself behind MESH-12.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

@@ -21,3 +21,7 @@ chart or a tessellation arm that reads the description directly is
 the mesh program's call.
 
 Home: `crates/mesh` (S-MESH).
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

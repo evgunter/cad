@@ -103,3 +103,7 @@ lofted round section will meet it again, and will then also meet the
 quadrature door behind it; the two are worth reading together, because
 the cheapest remedy above (a doc line on `LoopProgram::Circle`) would
 now be wrong if it stopped at "point at `CircleSplit`".
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

@@ -23,3 +23,7 @@ first, as BOOL-9 did), or whether the materialized form stays open with
 `check_mesh` as the only contract and the docs say so. The STL / STEP
 export lanes and the viewer read `Mesh` and are the consumers to keep
 bit-identical. Difficulty M (survey-first). Not scheduled.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

@@ -16,9 +16,11 @@ keep_out: [props/quad.rs and patch_bound.rs and the area lanes and the tess-budg
 coherence detectors relocated to `topo::coherence`), sizing intent versus
 budget, structure (ε as named operations, iso-rectangle door ownership), and
 SMELL track R's mesh rows, under D9's byte-identical replay. The defect
-cluster MESH-1 … MESH-8 and MESH-10/11 is merged; the live slate is MESH-12
-(the saturated span and the rim-continuation witness), MESH-9 parked on its
-typed trigger, and the MESH-R track lanes; cross-program follow-ons 1587,
+cluster MESH-1 … MESH-8 and MESH-10/11/12 is merged; the exit walk is
+proposed (`docs/S-MESH-EXIT-WALK.md`) and the slate is re-homed — the mesh
+items, MESH-9 (parked) and the Track R rows to the successor TESS, the
+quad.rs rows to PROPS, the suite-integrity pair to S-TINT — so this
+directory closes at the walk's ratification; cross-program follow-ons 1587,
 1588, 1597, 1598 and 1602 are issues on other programs' ground. Charter,
 ratified ground, the three rulings and the unit list: `work/mesh/plan.md`;
 narrative in `work/mesh/log.md`. Same orchestrator as S-BOOL.

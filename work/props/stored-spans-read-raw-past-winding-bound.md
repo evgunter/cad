@@ -26,3 +26,7 @@ Difficulty S. Band: S-MESH (1200–1299). Not scheduled; a candidate for the MES
 ## Home
 
 `work/mesh/` — filed by the S-MESH orchestrator out of MESH-12's class sweep, named for the S-MESH band and the MESH-R track lane, continuing the meridian-winding class MESH-12 and MESH-10 closed.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to PROPS (props/quad.rs and the stored-span reads are PROPS' certify ground) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

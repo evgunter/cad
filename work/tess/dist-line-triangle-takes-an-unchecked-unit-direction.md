@@ -36,3 +36,7 @@ this is the carrier case. The sweep's grep did not match this site —
 its signature spans several lines and the `Vec3<` is not on the `fn`
 line — so it is here from the ruling's survey; that blind spot is
 stated in the PR.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
