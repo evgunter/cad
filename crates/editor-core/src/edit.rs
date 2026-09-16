@@ -15,16 +15,27 @@ use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
-/// The v1 edit vocabulary (spec D6), extended by M4 PR 4 with the two
-/// explicit-repair edits: `Rebind` (NAMING-DESIGN N5 — the ONLY name
-/// repair; the automatic-rebinding policy menu is EMPTY by ratified
-/// decision) and `ReWitness`/`ReWitnessBulk` (SOLVER-DESIGN W4 — the
-/// recorded witness adoption; never silent write-back).
-///
-/// M4 PR 6 landed the reserved `SetTolerance` arm (the recorded-ε
-/// edit; its flipped-predicate audit reports through the PR 4
-/// verdict-diff engine) plus the D7 metadata pair
-/// (`SetAppearanceMeta`/`ClearAppearanceMeta`).
+/// The recorded edit vocabulary (spec D6): a closed set of intents over
+/// a document value, every arm plain data, applied by the pure
+/// [`apply`] (spec D2), which answers a new document and leaves its
+/// input untouched. The set has three shapes. Structural edits over
+/// nodes, their slots and the document's roots and placements
+/// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetParam`,
+/// `SetStructuralParam`, `SetExpression`, `SetRoots`, `SetPlacement`,
+/// `UpdateReference`). The document-parameter family: one
+/// create-or-replace door (`SetDocParam`) and the carry-forward doors,
+/// each moving ONE field of a standing declaration and keeping the
+/// rest (`SetDocParamValue`, `SetDocParamUnit`; [`CarryForwardDoor`]
+/// names them in a refusal). The explicit repairs and the document's
+/// presentation state: `Rebind`, the ONLY name repair — the
+/// automatic-rebinding policy menu is empty by ratified decision
+/// (NAMING-DESIGN N5); `ReWitness`/`ReWitnessBulk`, the recorded
+/// witness adoption, never a silent write-back (SOLVER-DESIGN W4);
+/// `SetTolerance`, the recorded ε; and the appearance and metadata
+/// pairs (`SetAppearance`/`ClearAppearance`,
+/// `SetAppearanceMeta`/`ClearAppearanceMeta`, spec D7). Each arm's own
+/// doc states what it does and what it refuses; every refusal is a
+/// typed [`EditError`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
@@ -2513,6 +2524,17 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
     /// deterministically). The document id is supplied, not replayed:
     /// identity is authored data the log never carries (ASM-1 D-1).
+    ///
+    /// The answer is the document, not the maintenance its edits
+    /// performed: [`Applied::maintenance`] is a fact about ONE
+    /// application, reported to the caller who made it, and what it
+    /// did is already in the document it produced — a registry act
+    /// rewrote the registry, and a stranded name (DM7) resolves to
+    /// nothing until rebound, which the next evaluation reports typed
+    /// (N5). The replayed document is the state, the same boundary the
+    /// load door draws ([`crate::persist::Loaded`]); the round trip is
+    /// lossless because the same delete against the replayed document
+    /// reports the same strands, which DM7's round-trip row pins.
     pub fn replay(
         id: crate::DocumentId,
         edits: &[DocEdit<P>],

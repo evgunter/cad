@@ -2,9 +2,10 @@
 id: replay-and-load-keep-the-document-without-its-maintenance
 kind: issue
 title: Doc::replay and persist load keep the document without the maintenance its edits performed, and Loaded has no column for it
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2165]
+closed: 2026-09-16
 ---
 
 (EVAL orchestrator) From EVAL-4's sweep (PR 2165), filed onto DOCM's
@@ -27,3 +28,21 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Ruled and closed (2026-09-16, EDIT orchestrator) — E-class
+
+**The asymmetry is the boundary, and it stays.** `Doc::replay` and
+`persist::load` answer the document, not the maintenance its edits
+performed, and `Loaded` gains no column: `Applied.maintenance` is a
+fact about ONE application, reported to the caller who made it, and
+what it did is already in the document it produced — a registry act
+rewrote the registry, and a stranded name (DM7) resolves to nothing
+until rebound, which the next evaluation reports typed (N5). The
+documented load boundary — the loaded document IS the state — already
+said this for `load`; the ruling says it for `replay` too, in present
+tense on both doors. The discard is lossless, and DM7's round-trip row
+`a_round_tripped_document_reports_the_same_strands` is the evidence:
+the same delete against the round-tripped document reports exactly the
+rows it reported before. This is DOCM's call inherited by EDIT (the
+row says so), not a change to a ratified clause; the PR body says
+where the orchestrator looked.

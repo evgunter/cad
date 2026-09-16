@@ -4339,7 +4339,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 89] = [
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4365,6 +4365,7 @@ const NOT_CARRIED: [&str; 89] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
+    "FlipSource",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4390,8 +4391,10 @@ const NOT_CARRIED: [&str; 89] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SHADOW_EXEC_MAX_PAIRS",
     "SectionScalar",
     "SeedScalar",
+    "ShadowExecRefusal",
     "ShellLane",
     "SideVerdict",
     "StructureFlip",
