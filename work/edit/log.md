@@ -311,22 +311,6 @@ replay/load boundary ruling (E-class, orchestrator's own), the chain
 radius widening, the recorded-argument notation shape. Three lanes is
 the box's ceiling.
 
-<<<<<<< HEAD
-## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
-
-With EDIT-PICK2 (#2746) and DM7 (#2753) on main, the two questions
-they left for Ev go up together on one `[ev]` PR:
-`what-t-the-pick-door-answers-and-with-what-width` (kind: ruling; the
-interval, the width-then-order tie-break, the clamped hit point, the
-box only as the early-out's bound; closed-vs-MEET left to the unit's
-measurement) and `stranded-appearance-keys-are-not-reported-by-dm7`
-(widen DM7 with a second `Maintenance` arm). The DM8 wording row the
-step-segment-map lane filed
-(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`)
-joins the same PR once that unit's review confirms its premise; until
-then it rides the unit's branch. Recommendations on the rows; the
-decision document is the PR body.
-=======
 ## 2026-09-16 — the pick index carries its document (middle tier, PR #2773)
 
 First of wave 3 to land. The review (MERGEABLE) earned its keep on
@@ -341,4 +325,18 @@ because four rows need a raw target the index cannot build. A2a's
 opening sentence, widened by this unit's predecessor to cover a value
 of a document, now says the rule binds only where both halves carry a
 stamp.
->>>>>>> origin/main
+
+## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
+
+With EDIT-PICK2 (#2746) and DM7 (#2753) on main, the two questions
+they left for Ev go up together on one `[ev]` PR:
+`what-t-the-pick-door-answers-and-with-what-width` (kind: ruling; the
+interval, the width-then-order tie-break, the clamped hit point, the
+box only as the early-out's bound; closed-vs-MEET left to the unit's
+measurement) and `stranded-appearance-keys-are-not-reported-by-dm7`
+(widen DM7 with a second `Maintenance` arm). The DM8 wording row the
+step-segment-map lane filed
+(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`)
+joins the same PR once that unit's review confirms its premise; until
+then it rides the unit's branch. Recommendations on the rows; the
+decision document is the PR body.
