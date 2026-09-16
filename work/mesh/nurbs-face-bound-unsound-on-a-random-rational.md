@@ -69,3 +69,54 @@ untouched by PR 1850, whose only `crates/mesh/` hunk is a `//!` comment in
 3. If the bound is wrong, every consumer of `NurbsFaceBound`'s `mvv` inherits
    the unsoundness — the split-step selection and the tessellation budget both
    read it.
+
+## Second instance, 2026-09-16 — and it is NOT the same defect
+
+Hosted run [35050942262](https://github.com/evgunter/cad/actions/runs/35050942262),
+same job and same step, on branch `dup/topo-brick-copies` at `7dd81c6f`
+— a PR whose diff is `crates/topo/tests/*.rs` and `work/*.md` only
+(`git diff --name-only origin/main...HEAD -- crates/mesh` is empty, so
+`crates/mesh` on that branch is byte-identical to main):
+
+```
+UNSOUND at trial 29: (1.249e0,6.659e0,4.294e0) vs (1.249e0,6.659e0,4.294e0)
+  — reproduce with CAD_FUZZ_SEED=0x5ca58da03160d407 CAD_FUZZ_EFFORT=1
+```
+
+Reproduced locally from the seed, deterministically. **The three
+components print equal at `{:.3e}`, which is the first thing to record:
+the assertion's own message cannot show the margin it failed on.** At
+`{:.17e}`:
+
+```
+sampled  (1.24859234123372476, 6.65945472815095485, 4.29417353797470724)
+bound    (1.24859234123372431, 6.65945472815121153, 4.29417353797474810)
+```
+
+So `wuu` exceeds `muu` by **4.44e-16 — two ULPs, 3.6e-16 relative** —
+while `uv` and `vv` pass with 2.6e-13 and 4.1e-14 of room.
+
+**This is a different cause from the 2026-09-04 instance above**, and the
+distinction matters for what is owed:
+
+- 2026-09-04 was `wvv` over `mvv` by 1.7 %. That is a bound that is
+  genuinely wrong, as the section above argues.
+- 2026-09-16 is `wuu` over `muu` by two ULPs. No sampling-versus-bound
+  argument reaches two ULPs; this is the certificate and the sampler
+  rounding differently on a surface where the bound is tight, against an
+  assertion written as a bare `<=`.
+
+So **fixing the `vv` bound will not stop this row reddening.** A
+certificate that claims domination has to claim it with a rounding
+margin, or the comparison has to be made in a way that cannot lose to
+the last bit — and the assertion message has to print enough digits for
+the next reader to tell which of the two failures they are looking at.
+
+**Why this keeps landing on other programs' PRs.** `fuzz::start` draws a
+fresh seed per run, so the row is a tree-wide flake generator: any PR
+can draw the seed that exposes either defect, and the lane that draws it
+has no way to tell a real regression from this row without reproducing
+by hand. Related: `work/mesh/cert10-strict-gap-floor-gates-on-a-varying-seed.md`
+and `work/mesh/mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed.md`.
+
+Evidence added by the `dup-brick` lane (S-DUP), which drew the seed.

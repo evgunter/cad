@@ -10,14 +10,10 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// Full geometric dump of a body: every vertex's point coordinates (via
 /// Debug — bit-faithful for f64) plus entity counts. Operand-untouched

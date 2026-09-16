@@ -423,6 +423,21 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
     }
 }
 
+/// The axis-aligned box `[x.0, x.1] x [y.0, y.1] x [z.0, z.1]` — the
+/// rectangular case of [`prism_z`], body only; a caller that needs the
+/// keys calls `prism_z` and keeps its [`Prism`].
+///
+/// Of this file's three cube doors only [`geometric_cube`] builds a
+/// different body: it stops before [`describe_as_intersections`] and so
+/// keeps the conventional chords its rows assert on. `brick` at the
+/// unit ranges and [`mapped_cube`] under the identity map are
+/// arena-identical — they differ in reach (any extent and any `Decide`
+/// scalar / any point map but `f64` and the unit cube), not in what
+/// they build.
+pub fn brick<T: geom_core::Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
+    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
