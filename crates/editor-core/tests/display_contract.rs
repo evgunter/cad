@@ -1453,7 +1453,11 @@ fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
                 state: profile::TipState::Entry,
                 verb: None,
             },
-            vec!["loop 0 step 2", "not a legal chain-lattice walk", "unclosed"],
+            vec![
+                "loop 0 step 2",
+                "not a legal chain-lattice walk",
+                "unclosed",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &PROGRAM_FAULT, &also_banned);
