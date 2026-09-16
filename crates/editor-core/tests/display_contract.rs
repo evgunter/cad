@@ -16,10 +16,10 @@
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, ContactClass, DeclareError, Diagnosis, Dimension,
     DimensionError, DocParamValue, EditError, EntityKind, EvalError, HitTestError,
-    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NodeErrorKind,
+    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NamingError, NodeErrorKind,
     NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError, StableName,
-    StepArg,
+    ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg,
 };
 use geom_core::BandError;
 
@@ -1235,4 +1235,138 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         shown.contains(editor_core::CONTRADICTORY_RECOURSE),
         "{shown:?}"
     );
+}
+
+test_utils::f6_variants! {
+    /// `NamingError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases.
+    ///
+    /// This enum's sentences are checked in its own crate
+    /// (`names::emit`'s `display_tests`), which is where the framing a
+    /// variant must open with lives. What that suite cannot do is
+    /// notice a variant with no sample at all: its coverage check
+    /// compares sampled indices against `0..rows.len()`, which a
+    /// variant APPENDED past the end satisfies — measured, by adding a
+    /// probe variant and watching it stay green. This census is what
+    /// closes that.
+    const NAMING_ERROR: NamingError = [
+        Duplicate,
+        Unnamed,
+        MissingUpstream,
+        Emission,
+        SplitLineage,
+        FragmentLineage,
+        SeamVertexParentage,
+        SharedRim,
+        Band,
+        Escalated,
+    ];
+}
+
+/// Two distinct keys of each kind, out of ONE real arena — slotmap keys
+/// have no hand constructor, and two bodies hand out the same index
+/// twice. Nothing below depends on their values.
+fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
+    let mut body = topo::Body::<f64>::new();
+    let born = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .expect("mvfs births a solid, shell, face and lone vertex");
+    let edge = body
+        .mev_line(
+            topo::MevSite::Lone {
+                r#loop: born.r#loop,
+            },
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Tol::witness(),
+        )
+        .expect("mev_line adds an edge")
+        .edge;
+    (edge, born.face, born.vertex)
+}
+
+/// **Every `NamingError` renders its subject, and no variant escapes
+/// the census.**
+///
+/// The emitter's refusals are the one route by which a naming failure
+/// reaches a human (Python's typed exception text is exactly this
+/// string), and this crate's own `display_tests` check what each
+/// SENTENCE says — which framing it opens with, that it leaks no braced
+/// payload, that it carries its subject. What they cannot check is that
+/// every variant has a sample at all. This does, and the two live
+/// together rather than one replacing the other.
+#[test]
+fn naming_error_display_names_its_content_not_its_struct() {
+    let (edge, face, vertex) = keys();
+    let cases = [
+        (
+            NamingError::Duplicate {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(7),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+            },
+            vec!["minted twice"],
+        ),
+        (
+            NamingError::Unnamed {
+                kind: EntityKind::Edge,
+                body: 3,
+            },
+            vec!["edge", "output body 3", "unnamed"],
+        ),
+        (
+            NamingError::MissingUpstream {
+                node: RecipeNodeId(11),
+            },
+            vec!["upstream node 11"],
+        ),
+        (
+            NamingError::Emission {
+                what: "section face classified On",
+            },
+            vec!["section face classified On"],
+        ),
+        (
+            NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
+            vec!["split lineage of edge"],
+        ),
+        (
+            NamingError::FragmentLineage { face },
+            vec!["fragment lineage of face"],
+        ),
+        (
+            NamingError::SeamVertexParentage { vertex },
+            vec!["seam vertex", "half-decided"],
+        ),
+        (
+            NamingError::SharedRim {
+                node: RecipeNodeId(23),
+                face,
+                other: face,
+                found: RimShare::Several,
+            },
+            vec!["operand node 23", "more than one edge"],
+        ),
+        (
+            NamingError::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["classification band", "5e-324"],
+        ),
+        (
+            NamingError::Escalated {
+                predicate: "side_of_plane",
+                source: geom_core::Indeterminate {
+                    margin: geom_core::predicate::MarginDiag::Invalid,
+                    band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
+                    predicate: Some("side_of_plane"),
+                },
+            },
+            vec!["side_of_plane", "escalated"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
 }

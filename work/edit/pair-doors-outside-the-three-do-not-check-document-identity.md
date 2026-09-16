@@ -1,10 +1,11 @@
 ---
 id: pair-doors-outside-the-three-do-not-check-document-identity
-kind: issue
+kind: unit
 title: Beyond product/assemble/placement, (document, evaluation) doors do not check the pairing, and the three that do spell the predicate three ways
-status: open
+status: spec
 opened: 2026-09-04
 refs: [1808]
+branch: edit/pair-apply-names
 ---
 
 
@@ -85,3 +86,31 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `DOCM-4` stood for: `DOCM-4` = #1808 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/pair-apply-names`. EDIT builds the one remaining door on
+its ground and re-homes the rest.
+
+1. `resolve::apply_with_names(doc, edit, eval, tol)`
+   (`crates/editor-core/src/resolve/mod.rs`) runs `ident::mispaired(doc.id(),
+   eval.document)` before any name is checked (`Evaluation.document`
+   exists, `eval/mod.rs`) and refuses typed through a new `EditError`
+   arm `EvaluationOfAnotherDocument { expected, found }` — the per-door
+   vocabulary pattern the row records (`ProductError`, `MateFault`,
+   `ChecksError` each carry their own arm over the one predicate).
+   `Display` in prose, F6-shaped; the `pncad-py` tag row for the new
+   arm (LIB's file, mechanical, said in the PR).
+2. The red probe first: `origin/docm/4-review-r2` still exists; fetch
+   it and lift R2's probe (two documents of one recipe, ids colliding
+   by construction, `apply_with_names` against the twin's evaluation —
+   a spurious `NameUnresolvedInEvaluation` or a false admission).
+   Adopt it authorship-preserving if it is fit, else write your own,
+   pinning BOTH directions (the twin's evaluation refused; the own
+   evaluation still admitted).
+3. Re-home the row: after this door the remaining entries (`stackup`
+   ×3, `drive::certifying`) are all PROPS's (`work.py territory`).
+   `git mv` the file to `work/props/` with a `## Re-homed` section
+   saying EDIT's door landed and what remains is PROPS's, keeping the
+   id; one-file-one-item says the move is how a finding reaches its
+   owner (`work/README.md`). Say in the PR that PROPS was not asked.
