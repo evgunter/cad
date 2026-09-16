@@ -98,29 +98,44 @@ pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
     newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
-/// Builds the geometric unit cube through the public operators: the
-/// §9.4.2-minimal sequence with real geometry at every step — every
-/// `mef` supplies its face's Newell plane, every edge a certified
-/// chord-line carrier; the seed face (which survives as the top cap)
-/// gets its plane via `set_face_surface` at the end (the documented
-/// seed-face path).
-pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
-    let c = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+/// **The Euler sequence both of this file's cube doors run**, into
+/// `body` and through `map`: the §9.4.2-minimal sequence with real
+/// geometry at every step — every `mef` supplies its face's Newell
+/// plane, every edge a certified chord-line carrier; the seed face
+/// (which survives as the top cap) gets its plane via
+/// `set_face_surface` at the end (the documented seed-face path).
+/// Returns the seed, the seven `mev`s and the five `mef`s in
+/// construction order.
+///
+/// **It stops there, and the construction-final
+/// [`describe_as_intersections`] is the CALLER's.** That one call is
+/// the whole of the difference between the two doors: run it and every
+/// transverse edge trades its conventional chord for the
+/// `Intersection` its two faces determine; skip it and all twelve stay
+/// `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
+/// [`assert_every_chord_named_by_both_rules`] is about. So the choice
+/// belongs where a reader can see it, not inside a shared body.
+///
+/// A second call on the same `body` seeds a second solid, so the
+/// caller also chooses whether the body is fresh.
+fn cube_ops<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+) -> (MvfsCreated, [MevCreated; 7], [MefCreated; 5]) {
     // Corners: A(0,0,0) B(1,0,0) C(1,1,0) D(0,1,0), primed = z+1.
     let (a, b, cc, d) = (
-        c(0.0, 0.0, 0.0),
-        c(1.0, 0.0, 0.0),
-        c(1.0, 1.0, 0.0),
-        c(0.0, 1.0, 0.0),
+        map(0.0, 0.0, 0.0),
+        map(1.0, 0.0, 0.0),
+        map(1.0, 1.0, 0.0),
+        map(0.0, 1.0, 0.0),
     );
     let (a1, b1, c1, d1) = (
-        c(0.0, 0.0, 1.0),
-        c(1.0, 0.0, 1.0),
-        c(1.0, 1.0, 1.0),
-        c(0.0, 1.0, 1.0),
+        map(0.0, 0.0, 1.0),
+        map(1.0, 0.0, 1.0),
+        map(1.0, 1.0, 1.0),
+        map(0.0, 1.0, 1.0),
     );
 
-    let mut body = Body::<T>::new();
     let seed = body.mvfs(a).unwrap();
     let e_ab = body
         .mev(
@@ -141,8 +156,8 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
         )
         .unwrap()
     };
-    let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
-    let e_cd = strut(&mut body, e_bc.he_minus, cc, d);
+    let e_bc = strut(body, e_ab.he_minus, b, cc);
+    let e_cd = strut(body, e_bc.he_minus, cc, d);
     // Bottom face: outward normal −z ⇒ CCW viewed from below is
     // A, D, C, B.
     let he_dc = body
@@ -160,10 +175,10 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             Tol::witness(),
         )
         .unwrap();
-    let e_aa = strut(&mut body, e_ab.he_plus, a, a1);
-    let e_bb = strut(&mut body, e_bc.he_plus, b, b1);
-    let e_cc = strut(&mut body, e_cd.he_plus, cc, c1);
-    let e_dd = strut(&mut body, f_bottom.he_plus, d, d1);
+    let e_aa = strut(body, e_ab.he_plus, a, a1);
+    let e_bb = strut(body, e_bc.he_plus, b, b1);
+    let e_cc = strut(body, e_cd.he_plus, cc, c1);
+    let e_dd = strut(body, f_bottom.he_plus, d, d1);
     // Side faces: outward-CCW corner orders (interior-left rule).
     let f_front = body
         .mef(
@@ -214,11 +229,29 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
     body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
         .unwrap();
 
+    (
+        seed,
+        [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
+        [f_bottom, f_front, f_right, f_back, f_left],
+    )
+}
+
+/// The geometric unit cube with its key bundle, at any `Decide` scalar:
+/// [`cube_ops`] at the identity map into a fresh body, and **no**
+/// description step. So every chord is still at the scaffolding door,
+/// named by both at-rest rules — the state this fixture's suites
+/// measure, and the one thing that distinguishes it from every other
+/// box builder in this file.
+pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
+    let mut body = Body::<T>::new();
+    let (seed, mevs, mefs) = cube_ops(&mut body, |x, y, z| {
+        Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    });
     GeoCube {
         body,
         seed,
-        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
-        mefs: [f_bottom, f_front, f_right, f_back, f_left],
+        mevs,
+        mefs,
     }
 }
 
@@ -429,11 +462,10 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 ///
 /// Of this file's three cube doors only [`geometric_cube`] builds a
 /// different body: it stops before [`describe_as_intersections`] and so
-/// keeps the conventional chords its rows assert on. `brick` at the
-/// unit ranges and [`mapped_cube`] under the identity map are
-/// arena-identical — they differ in reach (any extent and any `Decide`
-/// scalar / any point map but `f64` and the unit cube), not in what
-/// they build.
+/// keeps the conventional chords its rows assert on. `brick` and
+/// [`mapped_cube`] agree arena for arena wherever their domains meet —
+/// an axis-aligned box — and differ only in reach: any extent at any
+/// `Decide` scalar against `f64` under any point map, tilts included.
 pub fn brick<T: geom_core::Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
@@ -482,8 +514,11 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
     }
 }
 
-/// A cube built like `geometric_cube` but through an arbitrary
-/// point transform (tilted operands are outside the prism builder).
+/// A cube built like [`geometric_cube`] but through an arbitrary point
+/// transform (tilted operands are outside the prism builder) — and
+/// **with** the description step, so its edges carry
+/// `Intersection`/`Derived` where `geometric_cube`'s carry
+/// `Scaffold(ExtrudedPoint …)`/`Declared`.
 pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>) -> Body<f64> {
     let mut body = Body::<f64>::new();
     cube_into(&mut body, map);
@@ -493,101 +528,9 @@ pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>) -> Body<f64> {
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
 pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>) {
-    let (a, b, cc, d) = (
-        map(0.0, 0.0, 0.0),
-        map(1.0, 0.0, 0.0),
-        map(1.0, 1.0, 0.0),
-        map(0.0, 1.0, 0.0),
-    );
-    let (a1, b1, c1, d1) = (
-        map(0.0, 0.0, 1.0),
-        map(1.0, 0.0, 1.0),
-        map(1.0, 1.0, 1.0),
-        map(0.0, 1.0, 1.0),
-    );
-    let seed = body.mvfs(a).unwrap();
-    let e_ab = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            line(a, b),
-            Tol::witness(),
-        )
-        .unwrap();
-    let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(
-            MevSite::Fan { he1: at, he2: at },
-            to,
-            line(from, to),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let e_bc = strut(body, e_ab.he_minus, b, cc);
-    let e_cd = strut(body, e_bc.he_minus, cc, d);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            line(d, a),
-            FaceSurface::New(plane(&[a, d, cc, b])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_aa = strut(body, e_ab.he_plus, a, a1);
-    let e_bb = strut(body, e_bc.he_plus, b, b1);
-    let e_cc = strut(body, e_cd.he_plus, cc, c1);
-    let e_dd = strut(body, f_bottom.he_plus, d, d1);
-    let f_front = body
-        .mef(
-            MefSite::Chords {
-                he1: e_aa.he_minus,
-                he2: e_bb.he_minus,
-            },
-            line(a1, b1),
-            FaceSurface::New(plane(&[a, b, b1, a1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_bb.he_minus,
-            he2: e_cc.he_minus,
-        },
-        line(b1, c1),
-        FaceSurface::New(plane(&[b, cc, c1, b1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_cc.he_minus,
-            he2: e_dd.he_minus,
-        },
-        line(c1, d1),
-        FaceSurface::New(plane(&[cc, d, d1, c1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_dd.he_minus,
-            he2: f_front.he_plus,
-        },
-        line(d1, a1),
-        FaceSurface::New(plane(&[d, a, a1, d1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
-        .unwrap();
+    cube_ops(body, map);
+    // Construction-final description step (D6) — the whole of what
+    // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body);
 }
 
