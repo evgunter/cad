@@ -102,6 +102,8 @@ mod fillet_recourse_followability;
 mod fillet_stored_tangency;
 #[path = "generic_replay.rs"]
 mod generic_replay;
+#[path = "review_stepmap_rv_probes.rs"]
+mod review_stepmap_rv_probes;
 #[path = "guided_replay.rs"]
 mod guided_replay;
 #[path = "interval_lane.rs"]
