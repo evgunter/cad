@@ -2,7 +2,7 @@
 id: BOOL-4
 kind: unit
 title: issue 750 — material containment separates the extent box from the material
-status: open
+status: spec
 opened: 2026-08-31
 refs: [750]
 ---
