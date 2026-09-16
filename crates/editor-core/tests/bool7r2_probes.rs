@@ -225,8 +225,12 @@ fn probe_sweep_cells_a_rotation_and_three_translations() {
 
     let cells: Vec<(&str, Cell)> = vec![
         (
-            "translate x 5.0 (the unit's own cell)",
+            "translate x 5.0 (the unit's own cell, withdrawing)",
             cell(&s, edit(&s, SlotId::Translation(Axis3::X), 5.0), f, &ev1),
+        ),
+        (
+            "translate x -5.0 (crossing)",
+            cell(&s, edit(&s, SlotId::Translation(Axis3::X), -5.0), f, &ev1),
         ),
         (
             "translate y 4.0 (the PR's flip-free cell)",
@@ -253,32 +257,58 @@ fn probe_sweep_cells_a_rotation_and_three_translations() {
         );
     }
 
-    // The PR's measurement, as an assertion on the cells that vanish
-    // the name AND prune the pair: a residual `bool_*` flip is on the
-    // path, so the rung is the only thing that can outrank it.
-    for (label, c) in &cells {
-        if let Some(d) = &c.diagnosis
-            && c.population == 0
-            && !c.path_predicates.is_empty()
-        {
-            assert!(
-                c.path_predicates.iter().any(|p| p.starts_with("bool_")),
-                "{label}: the PR's measurement says every such cell leaves a \
-                 residual bool_* flip; got {:?}",
-                c.path_predicates
-            );
-            assert!(
-                matches!(
-                    d,
-                    Diagnosis::PredicateFlip {
-                        source: FlipSource::ShadowExec { .. },
-                        ..
-                    }
-                ),
-                "{label}: the rung must beat the incidental flip; got {d:?}"
-            );
-        }
-    }
+    // RE-AIMED at the fix pass. The row was written against a rung
+    // that answered on EVERY pruned cell, and that is what the fix
+    // removed: pruning the pair is not the same event as a side
+    // changing. Withdrawing the bar along +x prunes the pair and
+    // re-qualifies nothing — the surviving cap satisfies the vanished
+    // name's own verdict vector — so the honest answer there is the
+    // later rungs. Crossing to −x moves a side, and there the rung
+    // must outrank the incidental `bool_*` flip that every such cell
+    // leaves on the path. Both halves are asserted; the rest of the
+    // cells print.
+    let crossing = cells
+        .iter()
+        .find(|(label, _)| label.starts_with("translate x -5.0"))
+        .map(|(_, c)| c)
+        .expect("the crossing cell is in the table");
+    assert_eq!(crossing.population, 0, "the crossing cell prunes the pair");
+    assert!(
+        crossing
+            .path_predicates
+            .iter()
+            .any(|p| p.starts_with("bool_")),
+        "and leaves a residual bool_* flip on the path: {:?}",
+        crossing.path_predicates
+    );
+    assert!(
+        matches!(
+            crossing.diagnosis,
+            Some(Diagnosis::PredicateFlip {
+                source: FlipSource::ShadowExec { .. },
+                ..
+            })
+        ),
+        "so the rung must outrank it; got {:?}",
+        crossing.diagnosis
+    );
+    let withdrawing = cells
+        .iter()
+        .find(|(label, _)| label.starts_with("translate x 5.0"))
+        .map(|(_, c)| c)
+        .expect("the withdrawing cell is in the table");
+    assert_eq!(withdrawing.population, 0, "it prunes the pair just as hard");
+    assert!(
+        !matches!(
+            withdrawing.diagnosis,
+            Some(Diagnosis::PredicateFlip {
+                source: FlipSource::ShadowExec { .. },
+                ..
+            })
+        ),
+        "and no side changed, so the rung says nothing: {:?}",
+        withdrawing.diagnosis
+    );
 }
 
 /// The trigger is EMPTY-population, which is wider than "the sweep
@@ -292,7 +322,19 @@ fn probe_the_trigger_is_emptiness_not_pruning() {
     let f = &frags[0];
     let mut recovered = 0usize;
     for (label, doc2) in [
-        ("x 5.0", edit(&s, SlotId::Translation(Axis3::X), 5.0)),
+        // RE-AIMED at the fix pass: the crossing cell is the one that
+        // reaches the rung now — pruning the pair and MOVING a side are
+        // different events, and only the second is a flip. The
+        // withdrawing and collapse cells stay in the table as the
+        // contrast this row is about.
+        (
+            "x -5.0 (crossing)",
+            edit(&s, SlotId::Translation(Axis3::X), -5.0),
+        ),
+        (
+            "x 5.0 (withdrawing)",
+            edit(&s, SlotId::Translation(Axis3::X), 5.0),
+        ),
         ("y 2.5", edit(&s, SlotId::Translation(Axis3::Y), 2.5)),
         ("y 3.5", edit(&s, SlotId::Translation(Axis3::Y), 3.5)),
         ("y 4.0", edit(&s, SlotId::Translation(Axis3::Y), 4.0)),
@@ -369,7 +411,9 @@ fn probe_a_prior_without_its_body_declines_to_the_next_rung() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = side_of_fragments(&ev1, s.cut);
-    let doc2 = edit(&s, SlotId::Translation(Axis3::X), 5.0);
+    // RE-AIMED at the fix pass to the crossing cell: the baseline this
+    // row poisons has to be one the rung actually answers.
+    let doc2 = edit(&s, SlotId::Translation(Axis3::X), -5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let honest = diagnose_against(&s, &doc2, &ev1, &ev2, &frags[0]);
     assert!(
@@ -775,23 +819,44 @@ fn probe_the_prior_shadow_population_against_the_prior_runs_own_log() {
 }
 
 /// The two fragments the bar cuts sit on OPPOSITE sides of the same
-/// partners — that is what their qualifiers record. The rung pools
-/// every partner's probes into one population before diffing, so this
-/// row asks whether its answer distinguishes them.
+/// partners — that is what their qualifiers record — so a rung that
+/// told them apart must answer them differently.
+///
+/// INVERTED at the fix pass. The row was written against a rung that
+/// pooled every partner's probes into one population and gave both
+/// fragments a byte-identical answer; that equality WAS the defect,
+/// and this row now asserts the inequality the fix produces.
 #[test]
-fn probe_the_rung_gives_both_opposite_fragments_the_same_answer() {
+fn probe_the_rung_gives_opposite_fragments_different_answers() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = side_of_fragments(&ev1, s.cut);
     assert_eq!(frags.len(), 2);
-    let doc2 = edit(&s, SlotId::Translation(Axis3::X), 5.0);
+    let doc2 = edit(&s, SlotId::Translation(Axis3::X), -5.0);
     let ev2 = run(&doc2, Some(&ev1));
     let a = diagnose_against(&s, &doc2, &ev1, &ev2, &frags[0]);
     let b = diagnose_against(&s, &doc2, &ev1, &ev2, &frags[1]);
     println!("FRAGMENT 0 -> {a:?}");
     println!("FRAGMENT 1 -> {b:?}");
-    assert_eq!(
-        a, b,
-        "recorded for the review: the two fragments' recovered flips"
+    assert_ne!(a, b, "the two fragments are not one fragment");
+    assert!(
+        matches!(
+            a,
+            Diagnosis::PredicateFlip {
+                source: FlipSource::ShadowExec { .. },
+                ..
+            }
+        ),
+        "the fragment the bar crossed is the one re-qualified: {a:?}"
+    );
+    assert!(
+        !matches!(
+            b,
+            Diagnosis::PredicateFlip {
+                source: FlipSource::ShadowExec { .. },
+                ..
+            }
+        ),
+        "and the other one's sides did not move: {b:?}"
     );
 }

@@ -336,8 +336,16 @@ fn a_recorded_population_in_both_runs_keeps_the_rung_out_on_the_real_document() 
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -375,8 +383,16 @@ fn a_recorded_discriminator_flip_beats_the_rung_on_the_real_document() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -428,8 +444,16 @@ fn the_prior_only_empty_direction_also_triggers() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -475,8 +499,16 @@ fn partner_node_value_missing_in_the_prior_falls_through_without_panic() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -499,8 +531,16 @@ fn partner_node_value_missing_in_the_current_run_is_a_cascade() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -527,8 +567,16 @@ fn the_rung_reads_the_prior_payload_not_only_the_prior_table() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -568,8 +616,16 @@ fn survivor_absent_in_the_current_run_falls_through_without_panic() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -613,8 +669,16 @@ fn a_stacked_qualifier_name_declines_or_answers_typed() {
         s.doc.clone(),
         DocEdit::SetParam {
             node: s.tr,
+            // RE-AIMED at the fix pass: the cell moved from +5.0 to
+            // −5.0 (the bar crosses to the far side instead of
+            // withdrawing on the side it was already on). The row's
+            // subject is unchanged; what changed under the fix is that
+            // withdrawing re-qualifies NOTHING — the survivor still
+            // satisfies the vanished name's own verdict vector — so
+            // the rung honestly answers nothing there and this row
+            // needs a cell where a side actually moves.
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.0),
+            expr: len(-5.0),
         },
     )
     .0;
@@ -640,22 +704,25 @@ fn a_stacked_qualifier_name_declines_or_answers_typed() {
     );
 }
 
-/// RED on the frozen head by design: the row pins the honest
-/// expectation and the head answers `Negative->Positive`, the
-/// untransformed-carrier signature.
+/// RED on the frozen head by design, and GREEN after the fix: the row
+/// pins that the partner is read at the boolean's OPERAND.
 #[test]
 fn a_partner_behind_a_transform_is_probed_against_which_body() {
     // The partner names are minted at the bar's extrude node and
-    // carried (same rows) through the transform's table. `face_at`
-    // resolves a name at the FIRST carrying node in evaluation order,
-    // so the partner's carrier plane may be read off the UNTRANSFORMED
-    // bar. With the prior bar shifted by +0.5 the honest prior-side
-    // stream against the placed walls (x = 1.5, 2.5) is
-    // [N4, Z2, P2]; against the extrude's own walls (x = 1, 2) it is
-    // [N6, Z0, P2]. The survivor's current-side stream is [N4, Z0, P4]
-    // either way, so the recovered flip reads Zero->Positive when the
-    // placed body is probed and Negative->Positive when the
-    // untransformed one is.
+    // carried (same rows) through the transform's table, so a table
+    // scan finds them at the FIRST carrying node and reads their
+    // carrier off the UNTRANSFORMED bar.
+    //
+    // RE-AIMED at the fix pass, and the discriminator is sharper than
+    // it was: the current cell moves the bar ACROSS (to −5.5) instead
+    // of withdrawing it. Read at the operand, the current carriers are
+    // the walls at x = −4.5 and −3.5 and the surviving cap is
+    // definitely on one side of each — a side that changed, which is
+    // the recovered flip. Read at the extrude, the current carriers do
+    // not move with the transform AT ALL: they stay at x = 1 and 2,
+    // the 0..3 cap straddles both, every probe aggregates to `Mixed`,
+    // and the rung finds nothing. So this row reds outright on the
+    // unplaced reading.
     let s = slot();
     let doc1 = step(
         s.doc.clone(),
@@ -690,14 +757,14 @@ fn a_partner_behind_a_transform_is_probed_against_which_body() {
         DocEdit::SetParam {
             node: s.tr,
             slot: SlotId::Translation(Axis3::X),
-            expr: len(5.5),
+            expr: len(-5.5),
         },
     )
     .0;
     let ev2 = run(&doc2, Some(&ev1));
     assert_eq!(pop(&ev2, s.cut), [0, 0, 0]);
     let res = resolve((&doc2, &ev2), (&doc1, &ev1), &frags[0]);
-    eprintln!("prior bar at +0.5, current at +5.5 -> {}", describe(&res));
+    eprintln!("prior bar at +0.5, current at −5.5 -> {}", describe(&res));
     // RE-AIMED at the fix pass (the row is kept, its expectation is
     // not): the redesign reports the first PARTNER whose side VERDICT
     // changed, through the emission's own aggregation rule, so the
