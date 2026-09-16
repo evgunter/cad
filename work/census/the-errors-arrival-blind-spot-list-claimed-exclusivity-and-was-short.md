@@ -2,9 +2,10 @@
 id: the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short
 kind: unit
 title: a fourth consecutive blind-spot list claimed exclusivity and was short by two shapes, and the survivors are what matter
-status: spec
+status: closed
 opened: 2026-09-15
 branch: census/arrival-residue
+closed: 2026-09-16
 ---
 
 
