@@ -30,8 +30,8 @@ use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{
-    LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face,
-    require_iso_rectangle, require_one_chart_branch,
+    LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face, require_iso_rectangle,
+    require_one_chart_branch,
 };
 use geom_core::{Real, Vec3};
 
@@ -78,7 +78,11 @@ fn wedge<T: Real>(theta: f64, reversed: bool) -> Vec<LoopEdge<T>> {
 /// `theta`; reversing the loop OR flipping the sense hands the face
 /// the complement, and doing both hands it back.
 fn covered(theta: f64, reversed: bool, sense: bool) -> f64 {
-    if reversed == sense { TAU - theta } else { theta }
+    if reversed == sense {
+        TAU - theta
+    } else {
+        theta
+    }
 }
 
 /// The azimuth interval `[u0, u1]` the face covers, from the
@@ -89,7 +93,11 @@ fn covered(theta: f64, reversed: bool, sense: bool) -> f64 {
 fn covered_interval(theta: f64, reversed: bool, sense: bool) -> (f64, f64) {
     let start = if reversed { theta } else { 0.0 };
     let du = covered(theta, reversed, sense);
-    if sense { (start, start + du) } else { (start - du, start) }
+    if sense {
+        (start, start + du)
+    } else {
+        (start - du, start)
+    }
 }
 
 /// **The natural wedge measures at all four angles, both senses, both
@@ -110,7 +118,11 @@ fn the_natural_wedge_measures_at_four_angles_both_senses_both_directions() {
                     .unwrap_or_else(|e| panic!("{kind}: refused: {e:?}"));
                 let area = 2.0 * RS * RS * du;
                 let rel = (fc.area - area).abs() / area;
-                assert!(rel < 1e-12, "{kind}: area {:.15e} != {area:.15e} (rel {rel:.3e})", fc.area);
+                assert!(
+                    rel < 1e-12,
+                    "{kind}: area {:.15e} != {area:.15e} (rel {rel:.3e})",
+                    fc.area
+                );
                 let s_f = if sense { 1.0 } else { -1.0 };
                 let volume = s_f * (2.0 / 3.0) * RS.powi(3) * du;
                 let rel = (fc.flux / 3.0 - volume).abs() / volume.abs();
@@ -239,7 +251,11 @@ fn the_doors_answers_for_the_wedge_are_those_of_the_merge_base() {
         for reversed in [false, true] {
             let edges = wedge::<f64>(theta, reversed);
             let kind = format!("theta = {theta:.6}, reversed = {reversed}");
-            assert_eq!(require_iso_rectangle(&sphere::<f64>(), &edges, band), Ok(()), "{kind}");
+            assert_eq!(
+                require_iso_rectangle(&sphere::<f64>(), &edges, band),
+                Ok(()),
+                "{kind}"
+            );
             assert_eq!(
                 require_one_chart_branch(&sphere::<f64>(), &edges, band),
                 Ok(()),
