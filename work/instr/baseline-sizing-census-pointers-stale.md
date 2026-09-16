@@ -135,3 +135,46 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Re-swept at the fix (2026-09-16), and four of the seven resolved by deletion
+
+The citations above were taken at `origin/main` merged at `ef3edaa3f`,
+when `work/meter/` still existed. **METER's closing sweep deleted that
+directory**, so rows 4, 5, 6 and 7 — every `work/meter/` row — went
+with it. They are not fixed; they stopped existing. The headline
+"seven mentions across six files" is therefore a figure this row
+reported on the day it reported it, and it is kept as one; what
+follows is the live list.
+
+Re-run at merge base `f8fbf916e`, with the pattern this row states:
+`grep -rn "baseline_sizing_census\|baseline_census"` over `*.rs`
+`*.md` `*.toml` `*.py` `*.yml` `*.yaml` `*.sh` from the repo root,
+plus the framing pattern. Four sites named the deleted path outside
+this row itself, and the framing at `docs/TESS-BUDGET.md` named none:
+
+- `tools/tess-lint/tests/report_columns_pin.rs` — the one in code —
+  and `docs/TESS-BUDGET.md`'s two, all three re-pointed at
+  `the_committed_baseline_sizes_this_much` in
+  `tools/tess-lint/tests/baseline_census.rs`, by test name rather than
+  by line.
+- `docs/TESS-BUDGET.md`'s *"the neighbouring `baseline_census.rs`"* and
+  *"the two test files together"* — the claim survives, the mechanism
+  does not: one file, two censuses.
+- `work/instr/tess-lint-ungated-columns-fold-silently.md` — open, so
+  its pointer follows.
+- `work/instr/baseline-sizing-census-second-copy.md` — judged a dated
+  record whose POINTER still had to follow, on
+  `baseline_census.rs`'s own precedent (its dated list's paths
+  followed a tracker re-home while its figures stayed frozen). The
+  provenance claim is unchanged; the path now names where the sentence
+  went.
+
+**Two sites are NOT stale and are listed so a later reader does not
+re-file them.** `work/instr/plan.md` names the deleted file as
+deleted, which is a record and not a pointer; and `work/STATUS.md` is
+generated from this row's own title.
+
+The line-citation half of this row —
+`work/instr/baseline-census-partition-assert-cannot-fail`'s
+`:228-233` range — was NOT done here: that file is another unit's,
+running concurrently, and the fix was handed to it.

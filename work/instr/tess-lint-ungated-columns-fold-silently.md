@@ -76,7 +76,8 @@ because the fold has no diff. This is `docs/TESS-BUDGET.md`'s
 DOES cover, which that passage does not reach.
 
 **A second consumer is affected and it is not obvious from here.**
-`tools/tess-lint/tests/baseline_sizing_census.rs` reads totals only, so
+The sizing census — `the_committed_baseline_sizes_this_much`, in
+`tools/tess-lint/tests/baseline_census.rs` — reads totals only, so
 all seven movers above are invisible to it; its "fourth thing a re-cut
 can be" says a re-cut whose only movers are `opt_cells` and
 `span_opt_cells` is an instrument-resolution change and never a

@@ -11,9 +11,10 @@ opened: 2026-09-08
 
 disclosed by METER unit 10's style review, on the fold of the two
 baseline census files, and filed in the PR that carries the fold. The
-defect is INHERITED — `baseline_sizing_census.rs` carried the same
-false sentence — but unit 10 restated it and briefly widened it into a
-claim about both censuses, which is what made a reviewer read it.
+defect is INHERITED — the sizing census's own file carried the same
+false sentence before the fold absorbed it into `baseline_census.rs` —
+but unit 10 restated it and briefly widened it into a claim about both
+censuses, which is what made a reviewer read it.
 
 ## Finding
 
