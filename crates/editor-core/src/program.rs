@@ -433,7 +433,8 @@ pub enum LoopProgram {
 /// coincide today are two different documents, because editing one
 /// frame moves only one of them. Display units are invisible to it
 /// (they are invisible to `bit_eq` itself, D7).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProfileProgram {
     /// The frame node this profile is drawn on — a
     /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
@@ -445,6 +446,19 @@ pub struct ProfileProgram {
     /// what a reference DENOTES is the evaluator's question, answered
     /// once at the door with a typed refusal, not the recipe
     /// vocabulary's.
+    ///
+    /// **It reads through a door, not through `u64`'s own
+    /// `Deserialize`.** A document written before the sketch plane
+    /// became a node carries a twelve-float placement OBJECT here, and
+    /// serde's own report for that — `invalid type: map, expected u64`
+    /// — says nothing about which field of which node changed shape,
+    /// which is the whole job of an `Unreadable` refusal. `plane_ref`'s
+    /// visitor names the placement in its `expecting`. `deny_unknown_fields`
+    /// above is not what fires: `plane` is a field this build knows, so
+    /// the refusal is the field type's. No migration, by `persist`'s
+    /// ruling — nothing has shipped and every checked-in document is
+    /// regenerable.
+    #[serde(deserialize_with = "crate::persist::wire::plane_ref")]
     pub plane: RecipeNodeId,
     /// The loop programs.
     pub loops: Vec<LoopProgram>,

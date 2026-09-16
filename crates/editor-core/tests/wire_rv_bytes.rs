@@ -1,16 +1,21 @@
-//! REVIEW PROBE (lane `wire-rv`, PR #2738): the persisted bytes of a
-//! profile program that reaches every `ProgramStep` variant, every
-//! `ProgramArcData` mode, both sides, both windings, every
-//! `ProgramTarget` form and all three `LoopProgram` forms.
+//! **The persisted ARRANGEMENT of the profile program, frozen as
+//! bytes.**
 //!
-//! It writes the serialization to `$WIRE_RV_OUT` so the same corpus can
-//! be run on main's kernel and on the PR head and the bytes diffed.
-//! Deliberately self-contained (public API only) so it cherry-picks
-//! onto either tree.
+//! The corpus is a program reaching every `ProgramStep` variant, every
+//! `ProgramArcData` mode, both sides, both windings, every
+//! `ProgramTarget` form, all three `LoopProgram` forms and every
+//! expression shape; its serialization is checked in and compared byte
+//! for byte. It began as a review probe (lane `wire-rv`, PR #2738),
+//! which is why its rows carry that prefix, and its corpus is
+//! unchanged from the one the review diffed across the two trees.
+//!
+//! It reaches the wire through the public API only, so it says what a
+//! caller's document would say and nothing about a private path.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    Dimension, Expr, LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    Dimension, Expr, LoopProgram, ParamName, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget,
 };
 
 fn len(v: f64) -> Expr {
@@ -69,6 +74,11 @@ fn every_spec() -> Vec<ProgramArcData> {
 }
 
 fn steps() -> Vec<ProgramStep> {
+    // The compound expressions ride the four steps whose argument
+    // dimensions they match. Every other slot stays a bare literal:
+    // the expression wire is one tree shape wherever it appears, so
+    // covering it once per dimension covers it.
+    let e = exprs();
     let mut steps = vec![
         ProgramStep::At(pt(0.0, 0.0)),
         ProgramStep::Angle(ang(0.25)),
@@ -83,6 +93,13 @@ fn steps() -> Vec<ProgramStep> {
         ProgramStep::Fillet(len(0.2)),
         ProgramStep::FarEndTo(pt(7.0, 2.0)),
         ProgramStep::CloseTo,
+        ProgramStep::Line(e.length),
+        ProgramStep::Angle(e.angle),
+        ProgramStep::Toward {
+            dx: e.scalar,
+            dy: e.counted,
+        },
+        ProgramStep::Fillet(e.millimetres),
     ];
     for target in [
         ProgramTarget::Start,
@@ -123,12 +140,158 @@ fn program() -> ProfileProgram {
     }
 }
 
+/// Every [`crate::Dimension`]-legal expression shape, spread over the
+/// slots that take each dimension.
+///
+/// The step corpus above is all bare literals, and a program of bare
+/// literals pins two of the expression wire's fifteen variants. The
+/// `Expr` tree is on this wire too and is persisted by the same module,
+/// so a reordered `Literal` record or a renamed operator is the same
+/// class of format change as a renamed verb — and unpinned is unpinned
+/// whichever type it lives on.
+///
+/// Built through the public dimension-checking constructors only: each
+/// is placed where its dimension belongs, so the tree that reaches the
+/// wire is one the authoring API would actually produce.
+struct Exprs {
+    /// Length: `Add`, `Sub`, `Neg`, `Mul`, `Div`, `Min`, `Max`, `Param`.
+    length: Expr,
+    /// Angle: `Atan2` over two lengths.
+    angle: Expr,
+    /// Scalar: `Sin`, `Cos`, `Tan`.
+    scalar: Expr,
+    /// Scalar: `CountToScalar` over `Count` — the exact-integer leaf and
+    /// its one promotion, which no other slot on this wire reaches.
+    counted: Expr,
+    /// Length, authored in millimetres: the `unit` field carrying a
+    /// symbol other than the canonical one.
+    millimetres: Expr,
+}
+
+fn exprs() -> Exprs {
+    let length = Expr::max(
+        Expr::min(
+            Expr::add(
+                Expr::sub(Expr::neg(len(3.0)), len(0.5)).unwrap(),
+                Expr::mul(len(2.0), sca(1.5)).unwrap(),
+            )
+            .unwrap(),
+            Expr::div(len(8.0), sca(4.0)).unwrap(),
+        )
+        .unwrap(),
+        Expr::param(ParamName::new("width"), Dimension::Length),
+    )
+    .unwrap();
+    let angle = Expr::atan2(len(1.0), len(2.0)).unwrap();
+    let scalar = Expr::mul(
+        Expr::sin(ang(0.3)).unwrap(),
+        Expr::mul(Expr::cos(ang(0.4)).unwrap(), Expr::tan(ang(0.5)).unwrap()).unwrap(),
+    )
+    .unwrap();
+    let counted = Expr::count_to_scalar(Expr::count(7)).unwrap();
+    let mm = quantity::unit_by_symbol("mm").expect("mm is a table row");
+    let millimetres = Expr::literal_with_unit(0.012, Dimension::Length, mm).unwrap();
+    Exprs {
+        length,
+        angle,
+        scalar,
+        counted,
+        millimetres,
+    }
+}
+
+/// Every `WireExpr` variant the module declares, so the row below can
+/// say what it covers instead of a reader counting arms by eye.
+const EXPRESSION_VARIANTS: &[&str] = &[
+    "Literal",
+    "Count",
+    "Param",
+    "Add",
+    "Sub",
+    "Neg",
+    "Mul",
+    "Div",
+    "Sin",
+    "Cos",
+    "Tan",
+    "Atan2",
+    "Min",
+    "Max",
+    "CountToScalar",
+];
+
+/// The committed bytes, relative to the crate manifest.
+const FILE: &str = "tests/corpus/wire_rv_bytes.json";
+
+/// **The frozen bytes of a program reaching every vocabulary member.**
+///
+/// `switch_program_vocabulary`'s `PERSISTED_SPELLING` pins the persisted
+/// vocabulary as a SET of tokens, which is what makes it cheap to read
+/// and is also its blind spot: a swapped `Ccw`/`Cw`, a `spec`/`spec2`
+/// exchanged between two fused verbs, or a reordered `Literal` record
+/// all leave the token set identical. This row pins the BYTES, so each
+/// of those reds it.
+///
+/// The two are not redundant. The set pin says which words the format
+/// uses and localises a rename to the word; this one says where each
+/// word goes and localises nothing. A reader chasing a red starts at
+/// the set pin if both fired and here if only this one did — "the
+/// spelling is unchanged and the arrangement moved" is the whole of
+/// what that difference means.
+///
+/// A red is never repaired by blessing. It says a document the previous
+/// build saved no longer reads the same: decide whether the new
+/// arrangement is right, THEN regenerate the checked-in corpus
+/// (`lib_dietool_crossing`'s header, `corpus/die_composed_tour.rs`'s)
+/// and this file with it.
 #[test]
-fn wire_rv_every_variant_serializes() {
+fn wire_rv_the_bytes_of_every_variant_are_pinned() {
     let text = serde_json::to_string_pretty(&program()).expect("serializes");
     let back: ProfileProgram = serde_json::from_str(&text).expect("deserializes");
     assert_eq!(back, program(), "round trip");
-    if let Ok(path) = std::env::var("WIRE_RV_OUT") {
-        std::fs::write(&path, &text).expect("write");
+
+    // The subject is asserted rich before the comparison: bytes that
+    // agree because the program collapsed to nothing agree for the
+    // wrong reason.
+    for variant in EXPRESSION_VARIANTS {
+        assert!(
+            text.contains(&format!("\"{variant}\"")),
+            "the corpus offered to the byte pin carries no `{variant}` expression, so \
+             these bytes say nothing about how one persists"
+        );
     }
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FILE);
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the fixture writes");
+        return;
+    }
+    let recourse = "regenerate it: PNCAD_BLESS=1 cargo test -p editor-core \
+                    --test all wire_rv_bytes (default env) — after deciding the new \
+                    arrangement is right, and with the other checked-in documents";
+    let committed = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("the every-variant fixture is missing: {e} — {recourse}"));
+    if text == committed {
+        return;
+    }
+    let (line, was, now) = text
+        .lines()
+        .zip(committed.lines())
+        .enumerate()
+        .find(|(_, (a, b))| a != b)
+        .map_or_else(
+            || {
+                (
+                    text.lines().count().min(committed.lines().count()),
+                    "<the shorter text ends here>",
+                    "<and the longer one continues>",
+                )
+            },
+            |(i, (a, b))| (i + 1, b.trim(), a.trim()),
+        );
+    panic!(
+        "the persisted arrangement of the profile program moved, first at line {line}: \
+         the committed bytes have `{was}` and this build writes `{now}`. A document the \
+         previous build saved no longer reads the same — {recourse}"
+    );
 }

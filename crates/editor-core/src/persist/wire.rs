@@ -1,38 +1,50 @@
-//! Wire (serde) representations for the two types that must NOT
-//! deserialize field-by-field:
+//! **What the document types cannot say for themselves.** Everything
+//! else in the recipe derives serde where it is declared; four things
+//! cannot, and this module is exactly those four.
+//!
+//! # Two expression languages that must NOT deserialize field-by-field
 //!
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
 //!   non-finite literal) past the construction door. The cached
 //!   dimension is deliberately not persisted: it re-derives.
-//! - [`ProfileProgram`] persists STRUCTURALLY (the `plane` NODE ID —
-//!   twelve placement columns until the sketch plane became a node —
-//!   plus per-loop step lists whose continuous args are [`Expr`]s).
-//!   Crucially, deserialization can NEVER mint a
-//!   `profile::ProfileLoop`: the wire rebuilds the PROGRAM only; loops
-//!   exist only through the replay driver at evaluation (serde is
-//!   transport, the driver is the door — LIB-SWITCH §4h, the
-//!   strict-door rule at the program layer).
+//! - [`MeasureExpr`] is the same rule over the leaves the measurement
+//!   language adds, and a SEPARATE wire form for the reason the type is
+//!   separate: a shared one would make a primitive leaf representable
+//!   in a slot expression.
 //!
-//! # What is NOT here
+//! # One FIELD that must not, inside a type that otherwise does
 //!
-//! The document's own step vocabulary. [`crate::program::ProgramStep`]
-//! and its two companions derive serde where they are declared, so the
-//! document form IS the persisted form: there is one spelling of a
-//! verb in this crate and nothing to keep in step with anything. The
-//! consequence to hold onto is that a rename in `program.rs` is a
-//! FORMAT change — pinned as literals by
-//! `tests/switch_program_vocabulary.rs`, which is what used to be
-//! bought by the vocabulary stopping here.
+//! [`ProfileProgram`](crate::program::ProfileProgram) derives serde on
+//! its own declaration — its loop programs are the document vocabulary
+//! and persist as themselves. Its `plane` does not: a document written
+//! before the sketch plane became a node carries a placement object
+//! there, and [`plane_ref`] is the visitor that refuses it in terms
+//! naming what moved. What the derive still buys unchanged is the
+//! strict door at the program layer: deserialization can NEVER mint a
+//! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
+//! exist through the replay driver at evaluation and nowhere else
+//! (serde is transport, the driver is the door — LIB-SWITCH §4h).
 //!
-//! What stays on this side of the layer is the part `program.rs`
-//! cannot say: the two kernel-foreign tags a spec carries
-//! (`profile::ArcSweep`, `profile::ArcSide`), which the orphan rule
-//! puts out of reach of a derive and G1 layering keeps out of the
-//! kernel crate, so they persist through the [`arc_sweep`] and
-//! [`arc_side`] adapters below.
-
+//! # Two KERNEL-FOREIGN tags
+//!
+//! `profile::ArcSweep` and `profile::ArcSide` ride a
+//! [`ProgramArcData`](crate::program::ProgramArcData) field. The orphan
+//! rule puts them out of reach of a derive here and G1 layering keeps
+//! serde out of the kernel crate, so they persist through the
+//! [`arc_sweep`] and [`arc_side`] adapters, both minted from one macro.
+//!
+//! # What is NOT here, and the consequence
+//!
+//! The document's own step vocabulary. `ProgramStep`, `ProgramTarget`,
+//! `ProgramArcData` and `LoopProgram` derive serde where they are
+//! declared, so the document form IS the persisted form: there is one
+//! spelling of a verb in this crate and nothing to keep in step with
+//! anything. What that costs is that a RENAME in `program.rs` is a
+//! FORMAT change — held by two rows in
+//! `tests/switch_program_vocabulary.rs` and `tests/wire_rv_bytes.rs`,
+//! which is what used to be bought by the vocabulary stopping here.
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -40,7 +52,6 @@ use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
-use crate::program::{LoopProgram, ProfileProgram};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -175,96 +186,87 @@ impl<'de> Deserialize<'de> for Expr {
     }
 }
 
-/// `profile::ArcSweep` on the wire.
+/// **One kernel-foreign two-variant tag's persistence, minted from its
+/// two words.**
 ///
-/// A travel sense is the kernel's type, so `editor-core` cannot derive
-/// serde for it — the orphan rule, and G1 layering says the kernel
-/// crate does not gain the derive either. What is left is an adapter:
-/// a private local enum with the persisted spelling, and the pair of
-/// functions [`ProgramArcData`]'s `winding` field names through
-/// `#[serde(with = …)]`.
+/// A tag like `profile::ArcSweep` is the kernel's type, so this crate
+/// cannot derive serde for it (the orphan rule) and G1 layering says
+/// the kernel crate does not gain the derive either. What is left is a
+/// `#[serde(with = …)]` adapter: a private local enum carrying the
+/// persisted spelling, plus the two functions the attribute names.
 ///
-/// [`ProgramArcData`]: crate::program::ProgramArcData
-pub(crate) mod arc_sweep {
-    use profile::ArcSweep;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+/// That adapter is the same six lines for every such tag, so it is
+/// written once here rather than per tag. Each invocation below is the
+/// module name, the kernel type and the two variant words — which is
+/// all that ever differs — so a third tag pair is one more line and
+/// cannot drift from the shape of the other two.
+///
+/// **What it does not cover:** a tag with other than two variants, or
+/// one whose persisted word differs from its Rust variant name. Both
+/// would need the macro grown rather than another invocation, and
+/// neither exists on this wire.
+macro_rules! foreign_tag {
+    ($(
+        $(#[$meta:meta])*
+        $module:ident => $tag:path { $a:ident, $b:ident }
+    )*) => {
+        $(
+            $(#[$meta])*
+            pub(crate) mod $module {
+                use super::*;
+                use $tag as Tag;
 
-    /// The persisted spelling of a travel sense.
-    #[derive(Debug, Serialize, Deserialize)]
-    enum Wire {
-        /// Counterclockwise.
-        Ccw,
-        /// Clockwise.
-        Cw,
-    }
+                /// The persisted spelling of the tag.
+                #[derive(Debug, Serialize, Deserialize)]
+                enum Wire {
+                    /// The first form.
+                    $a,
+                    /// The second form.
+                    $b,
+                }
 
-    /// Writes the tag.
-    ///
-    /// # Errors
-    ///
-    /// The serializer's own.
-    pub(crate) fn serialize<S: Serializer>(w: &ArcSweep, ser: S) -> Result<S::Ok, S::Error> {
-        match w {
-            ArcSweep::Ccw => Wire::Ccw,
-            ArcSweep::Cw => Wire::Cw,
-        }
-        .serialize(ser)
-    }
+                /// Writes the tag.
+                ///
+                /// # Errors
+                ///
+                /// The serializer's own.
+                pub(crate) fn serialize<S: Serializer>(
+                    t: &Tag,
+                    ser: S,
+                ) -> Result<S::Ok, S::Error> {
+                    match t {
+                        Tag::$a => Wire::$a,
+                        Tag::$b => Wire::$b,
+                    }
+                    .serialize(ser)
+                }
 
-    /// Reads the tag. Total: the wire enum has no form the kernel
-    /// enum lacks, so anything that parses converts.
-    ///
-    /// # Errors
-    ///
-    /// The deserializer's own — a tag outside the two above.
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ArcSweep, D::Error> {
-        Ok(match Wire::deserialize(de)? {
-            Wire::Ccw => ArcSweep::Ccw,
-            Wire::Cw => ArcSweep::Cw,
-        })
-    }
+                /// Reads the tag. Total: the wire enum has no form the
+                /// kernel enum lacks, so anything that parses converts.
+                ///
+                /// # Errors
+                ///
+                /// The deserializer's own — a word outside the two.
+                pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+                    de: D,
+                ) -> Result<Tag, D::Error> {
+                    Ok(match Wire::deserialize(de)? {
+                        Wire::$a => Tag::$a,
+                        Wire::$b => Tag::$b,
+                    })
+                }
+            }
+        )*
+    };
 }
 
-/// `profile::ArcSide` on the wire — [`arc_sweep`]'s twin, there for
-/// the same reason.
-pub(crate) mod arc_side {
-    use profile::ArcSide;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+foreign_tag! {
+    /// `profile::ArcSweep` on the wire: a travel sense.
+    arc_sweep => profile::ArcSweep { Ccw, Cw }
 
-    /// The persisted spelling of a side.
-    #[derive(Debug, Serialize, Deserialize)]
-    enum Wire {
-        /// Centre on the left of travel.
-        Left,
-        /// Centre on the right of travel.
-        Right,
-    }
-
-    /// Writes the tag.
-    ///
-    /// # Errors
-    ///
-    /// The serializer's own.
-    pub(crate) fn serialize<S: Serializer>(s: &ArcSide, ser: S) -> Result<S::Ok, S::Error> {
-        match s {
-            ArcSide::Left => Wire::Left,
-            ArcSide::Right => Wire::Right,
-        }
-        .serialize(ser)
-    }
-
-    /// Reads the tag. Total, for its twin's reason: the wire enum has
-    /// no form the kernel enum lacks.
-    ///
-    /// # Errors
-    ///
-    /// The deserializer's own — a tag outside the two above.
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ArcSide, D::Error> {
-        Ok(match Wire::deserialize(de)? {
-            Wire::Left => ArcSide::Left,
-            Wire::Right => ArcSide::Right,
-        })
-    }
+    /// `profile::ArcSide` on the wire: which side of the tangent the
+    /// carrier's centre sits on.
+    arc_side => profile::ArcSide { Left, Right }
 }
 
 /// The profile's `plane`, read so that a document written before the
@@ -276,7 +278,7 @@ pub(crate) mod arc_side {
 /// changed shape, which is the whole job of an `Unreadable` refusal
 /// (a reader has to know what to regenerate). The visitor's `expecting`
 /// is where that sentence goes.
-fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
+pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
     struct PlaneRef;
     impl serde::de::Visitor<'_> for PlaneRef {
         type Value = RecipeNodeId;
@@ -292,58 +294,6 @@ fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error>
         }
     }
     de.deserialize_u64(PlaneRef)
-}
-
-/// The profile payload's wire shape (module docs): the FRAME NODE it
-/// is drawn on + loop PROGRAMS. No derived value is on this wire —
-/// segments, bulges and joints are all replay products (V3: caches are
-/// not persisted).
-///
-/// **It is [`ProfileProgram`]'s shape field for field**, and it is
-/// still a separate type because its `plane` carries a DOOR the
-/// document type has no room for: the reading below. The loop
-/// programs need no such thing, so they are on this wire as
-/// themselves — the document vocabulary is the persisted vocabulary.
-///
-/// **`plane` was four placement columns and is now a node id.** That
-/// is a BREAKING change to the format, which this format's one door
-/// handles by refusing typed: a document written before it names a
-/// `plane` object where this build expects a number, and `plane_ref`'s
-/// visitor refuses that shape — naming the placement in its own
-/// `expecting` — onto [`super::PersistError::Unreadable`] with the
-/// regenerate recourse. `deny_unknown_fields` on this struct is not
-/// what fires: `plane` is a field this build knows, so the refusal is
-/// the field type's and not the attribute's.
-/// No migration, by the module header's ruling — nothing has shipped,
-/// and every checked-in document is regenerable.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireProfile {
-    /// The frame datum node this profile is drawn on.
-    #[serde(deserialize_with = "plane_ref")]
-    plane: RecipeNodeId,
-    /// The loop programs: outer first, then holes, description order.
-    loops: Vec<LoopProgram>,
-}
-
-impl Serialize for ProfileProgram {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        WireProfile {
-            plane: self.plane,
-            loops: self.loops.clone(),
-        }
-        .serialize(ser)
-    }
-}
-
-impl<'de> Deserialize<'de> for ProfileProgram {
-    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        let wire = WireProfile::deserialize(de)?;
-        Ok(ProfileProgram {
-            plane: wire.plane,
-            loops: wire.loops,
-        })
-    }
 }
 
 /// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same
