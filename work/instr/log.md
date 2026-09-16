@@ -347,3 +347,37 @@ the remaining seven: the ledger's *A note on inbound references*
 settles DELETED files, while these name rows that moved and are open,
 where the recovery recipe yields a superseded snapshot — a pointer that
 resolves and lies.
+
+## Ev rules the roster's membership rule (2026-09-16)
+
+The first `[ev]` PR of this program (#2733) asked whether a test-support
+name is K-roster material. **The question was wrong and Ev's first reply
+said so**: *"isn't everything that reaches the funnel dependent on our
+particular demos and tests?"* It is — every sample in the distribution
+comes from running our demos and tests, for every rostered row — so
+*"reaches the sweep's corpus?"* divides the corpus, not the names, and a
+roster built on it is a property of what we ran last.
+
+Re-framed on the axis the tree already states: **whose decision the name
+records.** `sketch_plane_frame_norm`'s own doc says the pair reaches it
+*"from a user's Python call"*; `crates/sweep/src/lib.rs` gates
+`test_support` behind `#[cfg(any(test, feature = "test-support"))]` and
+`#[doc(hidden)]`. So `fixture_frame_axis` is not a name the corpus
+happens to miss — nothing outside a test build can reach it at all.
+
+**Ruled (a): the roster records decisions the kernel can be ASKED to
+make.** `fixture_frame_axis` leaves; `sketch_plane_frame_norm` stays
+with its coverage gap as the finding; and — the part larger than the two
+names — `docs/K-REPORT.md`'s stated rule (*"from anywhere the sweep can
+execute"*) is reading (b) and is now wrong. The `chart_bound_*`
+paragraph already practises (a). Unit 16 rewrites the stated rule and
+keeps the coverage column as the behavioural half; `K-REPORT` is
+`Reference`, so that edit is the ruling landing rather than a second
+conversation.
+
+**Worth keeping as process, not just as content**: the useful output of
+this `[ev]` PR was not the answer to the question asked. It was Ev
+rejecting the question's premise, which turned a one-name membership
+query into a ruling on the roster's meaning and exposed two sentences in
+the governing document that disagree. Opening it early — before unit 16
+was anywhere near dispatch — is what made that cheap.
