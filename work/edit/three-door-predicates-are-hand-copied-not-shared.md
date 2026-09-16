@@ -5,6 +5,7 @@ title: Three more node predicates are hand-copied at both doors instead of share
 status: review
 opened: 2026-09-16
 branch: edit/one-predicate-round-two
+pr: 2772
 refs: [blend-selection-canonical-check-load-only]
 ---
 

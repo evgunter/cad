@@ -5,6 +5,7 @@ title: Load-shaped doors outside persist/check.rs were never swept for edit-door
 status: review
 opened: 2026-09-16
 branch: edit/one-predicate-round-two
+pr: 2772
 ---
 
 
