@@ -221,10 +221,11 @@ pub enum NamingError {
     ///
     /// The cause is NOT unique — a validated
     /// [`Tolerance`](geom_core::tolerance::Tolerance) reaches
-    /// [`BandError::InvalidValue`] when K·ε overflows to infinity, and
-    /// [`BandError::Empty`] when K·ε rounds back down onto ε, which for
-    /// ε = n·2⁻¹⁰⁷⁴ happens exactly when K·n rounds back to n (every K
-    /// below 1.5 at the smallest ε; no admitted K above ε = 2⁻¹⁰²³).
+    /// [`BandError::InvalidValue`] when K·ε overflows to infinity and
+    /// [`BandError::Empty`] when K·ε rounds back down onto ε, the two
+    /// arms [`Band::linear`](geom_core::Band::linear)'s `# Errors`
+    /// states with their conditions (stated there once, and not
+    /// restated here).
     /// So the constructor's own diagnostic rides along rather than being
     /// relabelled as an emission inconsistency, which this is not:
     /// nothing about the result body is wrong here.
