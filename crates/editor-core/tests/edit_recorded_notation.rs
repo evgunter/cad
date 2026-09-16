@@ -413,3 +413,107 @@ fn a_notation_entry_off_the_program_refuses() {
         );
     }
 }
+
+// ------------------------------------------------------------------
+// REVIEW PROBES (lane `notation-rv`) — rows the suite does not have.
+// Adoptable as-is by a fix pass.
+// ------------------------------------------------------------------
+
+/// **Probe 1 — the role address is per role, not per step.**
+///
+/// `in_millimetres` writes BOTH `TargetX` and `TargetY` of the leg, so
+/// the headline row survives a mutant that swaps the two roles inside
+/// `from_recorded_with_notation`'s loop. Writing ONE of the pair gives
+/// the role map its own tension.
+#[test]
+fn probe_one_role_of_a_pair_takes_the_notation_alone() {
+    let mut n = RecordedNotation::new();
+    n.set(LEG, StepArg::TargetX, quantity::MM.def())
+        .expect("mm measures a length");
+    let program =
+        LoopProgram::from_recorded_with_notation(&square(0.025), &n).expect("the square lifts");
+    let doc = doc_of(program);
+    assert_eq!(read_back(&doc, LEG, StepArg::TargetX), (0.025, "mm"));
+    assert_eq!(
+        read_back(&doc, LEG, StepArg::TargetY),
+        (0.0, "m"),
+        "the sibling role of the same step keeps the canonical unit"
+    );
+}
+
+/// **Probe 2 — the round trip read off the PERSISTED TEXT.**
+///
+/// `a_recorded_notation_round_trips_through_save_and_load` asserts on
+/// the RELOADED document; a save that dropped the symbol and a load
+/// that re-derived it would pass it. This reads the stored form.
+#[test]
+fn probe_the_saved_text_carries_the_symbol() {
+    let program =
+        LoopProgram::from_recorded_with_notation(&square(0.025), &in_millimetres()).expect("lifts");
+    let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
+    let text = save(&base, &edits_of(program), Tol::witness()).expect("the log saves");
+    assert!(
+        text.contains("mm"),
+        "the persisted text names the notation; got:\n{text}"
+    );
+    let plain = save(
+        &base,
+        &edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")),
+        Tol::witness(),
+    )
+    .expect("the log saves");
+    assert!(
+        !plain.contains("mm"),
+        "and a recording with no notation stores none"
+    );
+    assert_ne!(text, plain, "the two save to different text");
+}
+
+/// **Probe 3 — roles outside the four the suite exercises.**
+///
+/// Every row above addresses `PointX/Y`, `TargetX/Y`, `CenterX`,
+/// `Radius`. A mutant remapping `StepArg::Length` to `StepArg::Radius`
+/// inside the notation loop survives all eight. A `line`/`turn` square
+/// puts a `Length` role and an `AngleVal`/`TurnVal` role on one program.
+#[test]
+fn probe_an_angle_role_and_a_length_role_on_one_program() {
+    let t = Tol::witness();
+    let l = 0.025;
+    let q = std::f64::consts::FRAC_PI_2;
+    let steps = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, t)
+        .expect("a departure direction")
+        .line(l, t)
+        .expect("the first side")
+        .turn(q, t)
+        .expect("a corner")
+        .line(l, t)
+        .expect("the second side")
+        .turn(q, t)
+        .expect("a corner")
+        .line(l, t)
+        .expect("the third side")
+        .line_to(Start, t)
+        .expect("the square closes")
+        .program;
+    let mut n = RecordedNotation::new();
+    n.set(2, StepArg::Length, quantity::MM.def())
+        .expect("a leg length is a length");
+    n.set(3, StepArg::TurnVal, quantity::DEG.def())
+        .expect("a turn is an angle");
+    let program =
+        LoopProgram::from_recorded_with_notation(&steps, &n).expect("the square lifts");
+    let doc = doc_of(program);
+    assert_eq!(read_back(&doc, 2, StepArg::Length), (l, "mm"));
+    assert_eq!(
+        read_back(&doc, 3, StepArg::TurnVal),
+        (q, "deg"),
+        "the turn reads back in degrees and the VALUE stays canonical radians"
+    );
+    assert_eq!(
+        read_back(&doc, 4, StepArg::Length),
+        (l, "m"),
+        "the next side was written with no notation"
+    );
+}
