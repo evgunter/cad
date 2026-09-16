@@ -49,3 +49,7 @@ the decisions, not about the choice of `u`.
 is this ladder written once, with both lengths decided and a typed
 refusal naming which axis. `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum.md`
 is the same undecided `normalize` one crate over.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

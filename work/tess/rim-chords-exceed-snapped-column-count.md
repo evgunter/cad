@@ -30,3 +30,7 @@ Either teach the rim chord count to snap UP to the least multiple of `patch_nuc`
 ## Home
 
 `band_schedule` and `chords::nurbs_tighten` are `crates/mesh/*`, S-MESH's territory, and sizing intent versus budget is its charter.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

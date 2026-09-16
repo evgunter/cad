@@ -49,3 +49,7 @@ Printing it is one `.field("closed", closed)` per walk and an
 change and whatever reads these dumps. Nothing in the tree asserts on
 either dump's text today (`assert_send::<PickMemo>()` is the only
 mention). If it is shown, both walks return to `finish()`.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

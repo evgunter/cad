@@ -120,3 +120,7 @@ by hand. Related: `work/mesh/cert10-strict-gap-floor-gates-on-a-varying-seed.md`
 and `work/mesh/mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed.md`.
 
 Evidence added by the `dup-brick` lane (S-DUP), which drew the seed.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

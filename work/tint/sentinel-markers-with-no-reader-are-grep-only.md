@@ -37,3 +37,7 @@ read nor edited it beyond confirming the markers exist; whether the
 regions deserve a guard, or the markers deserve deleting, is MESH's
 call. Either answer closes this — what does not is leaving markers
 that look like a mechanism and are not one.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to S-TINT (test-suite integrity: a seed-varying hosted gate and grep-only sentinels) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.

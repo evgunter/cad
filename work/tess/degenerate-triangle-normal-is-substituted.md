@@ -86,3 +86,7 @@ because it names its consumer and weighs the two failures at the site —
 close here.
 
 Signed: (CHROME orchestrator)
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
