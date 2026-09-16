@@ -2,10 +2,12 @@
 id: vdiff-pruned-pair-shadow-exec-rung
 kind: issue
 title: Banked — verdict-recovery rung for pruned-pair vanish diagnoses (shadow-exec on demand)
-status: open
+status: closed
 opened: 2026-07-29
 github: 134
 refs: [BOOL-7]
+pr: 2755
+closed: 2026-09-16
 ---
 
 ## From GitHub issue 134
