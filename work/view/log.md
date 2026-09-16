@@ -11946,3 +11946,38 @@ and in neither design doc; checked rather than assumed, so nothing was
 owed there.
 
 Signed (VIEW implementer lane `view/render-mm-inf`).
+
+## 2026-09-16 — `view/two-spellings`: rule 1 moves down for the value drag
+
+`the-value-drags-in-flight-refusal-has-two-spellings` closed with a
+change rather than a written reason. `SessionOp::BeginGesture` and
+`BeginParamGesture` are `true` in `permitted_during_value_gesture`, and
+the second-begin refusal a user meets is `g1::Slot::begin`'s — the same
+door the probe's begin goes through, with the value drag's words.
+
+The site a user reached before was the table's: `perform` consults it
+before dispatch, so the slot's arm was unreachable through the only
+door that calls it. The alternative — keep the floor, write down which
+row is policy and which is safety — was refused because the two answers
+have no input on which they differ: same state, same `GestureInFlight`.
+The table's own certifying sentence did not cover the rows either
+(*"everything else moves the document, the history or the file"*, false
+of both begins, and of `ProbeBounds`, which is now named as the one
+refusal that reads rather than moves).
+
+Both doors' target checks moved inside `DocSession::start`'s closure, so
+rule 1 still answers before them and no user-visible refusal changed —
+`driver_of` and `guard_driven` are free functions over the committed
+document to make that borrow work. Nothing could red on the base tree
+as a result, so the receipt is the other direction: deleting
+`g1::Slot::begin`'s in-flight arm reds 5 tests on `origin/main` (all
+probe rows) and 12 on this branch, the seven new ones all the value
+drag's.
+
+The hand-written `expected` table keeps its census — the free-move
+table's property shape is not available here, because `ProbeBounds` is
+a counterexample to the nearest short description of the 24 refusals.
+Its calibration paragraph was re-measured on this tree rather than
+carried forward.
+
+Signed (VIEW implementer lane `view/two-spellings`).
