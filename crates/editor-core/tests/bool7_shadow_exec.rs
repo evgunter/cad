@@ -593,3 +593,41 @@ fn a_pair_wider_than_the_ceiling_declines_typed() {
         "the ceiling is inclusive"
     );
 }
+
+#[test]
+fn the_corpus_widest_pair_is_well_under_the_ceiling() {
+    // The reason [`SHADOW_EXEC_MAX_PAIRS`] is the number it is, kept
+    // as a row rather than as a sentence: a fragment group's partners
+    // are the faces meeting it across seam edges, and the widest the
+    // evaluation corpus mints is what sets the headroom. If a
+    // document ever mints a wider one, the rung starts declining
+    // where it used to recover — and this row says so rather than the
+    // decline going unnoticed.
+    let mut widest = 0usize;
+    let mut at = "";
+    for cd in crate::corpus::documents() {
+        let ev = run(&cd.doc, None);
+        for res in ev.nodes.values() {
+            let editor_core::NodeResult::Ok(v) = res else {
+                continue;
+            };
+            for (n, _) in v.name_table.iter() {
+                for seg in &n.path {
+                    if let RoleSeg::Fragment(Qualifier::SideOf(vector)) = seg
+                        && vector.len() > widest
+                    {
+                        widest = vector.len();
+                        at = cd.name;
+                    }
+                }
+            }
+        }
+    }
+    assert!(widest > 0, "the corpus does mint discriminated fragments");
+    assert!(
+        widest < SHADOW_EXEC_MAX_PAIRS,
+        "the widest corpus pair ({widest}, at {at}) has reached the rung's ceiling \
+         ({SHADOW_EXEC_MAX_PAIRS}): every group at or above it now declines instead \
+         of recovering, and the ceiling's reason needs re-deciding"
+    );
+}

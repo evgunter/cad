@@ -294,10 +294,14 @@ pub enum FlipSource {
 /// The work is one face probe per partner per side, so the rung's
 /// cost is linear in the `SideOf` vector's length and the ceiling is
 /// what keeps "diagnosis-time only" a bound rather than a hope. The
-/// number is an order of magnitude above what the emission actually
-/// produces: a fragment group's partners are the faces meeting it
-/// across SEAM edges, four in the widest fixture in this repo's
-/// naming suites. A pair above this refuses typed
+/// number carries headroom over what the emission actually produces:
+/// a fragment group's partners are the faces meeting it across SEAM
+/// edges, and the widest vector the evaluation corpus mints is
+/// TWELVE (`nested_islands_106_depth2`) — measured, not assumed, and
+/// kept as a row (`bool7_shadow_exec`'s
+/// `the_corpus_widest_pair_is_well_under_the_ceiling`), so a corpus
+/// that grows past the ceiling says so instead of quietly starting
+/// to decline. A pair above this refuses typed
 /// ([`Diagnosis::ShadowExecDeclined`]) rather than running, because
 /// a diagnosis that can cost an unbounded walk is one a caller
 /// learns not to ask for.
