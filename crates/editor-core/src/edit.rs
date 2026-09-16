@@ -836,11 +836,11 @@ pub enum EditError {
 // way this impl used to. They are outside the amendment that changed
 // this one, so they keep their spelling until someone decides for
 // them; a reader comparing the two should not read this paragraph as
-// describing the crate. What still renders through `Debug` here is the
-// SLOT id
-// ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
-// use — that is a separate question, outside the amendment that
-// removed the other two, and it is filed rather than taken here.
+// describing the crate. The SLOT id renders through `SlotId::label`
+// for the same reason a name does: a variant identifier dropped into a
+// sentence is the `Debug` dump's fingerprint, and the slot vocabulary
+// has one prose spelling of its own, so a message reads "slot origin x"
+// rather than "slot Origin(X)".
 /// The AXIS's refusal, in the authoring vocabulary — what makes
 /// `Frame::rotate_then_translate(..)?` compose with
 /// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
@@ -924,7 +924,7 @@ impl core::fmt::Display for EditError {
                 id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
-                write!(f, "node {} has no slot {slot:?}", id.0)
+                write!(f, "node {} has no slot {}", id.0, slot.label())
             }
             Self::SlotDimensionMismatch {
                 slot,
@@ -932,15 +932,20 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                "slot {} needs {} {expected} expression, got {} {found}",
+                slot.label(),
                 expected.article(),
                 found.article()
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => {
-                write!(f, "slot {slot:?} is structural — use a structural edit")
+                write!(
+                    f,
+                    "slot {} is structural — use a structural edit",
+                    slot.label()
+                )
             }
             Self::NotStructuralSlot { slot } => {
-                write!(f, "slot {slot:?} is continuous, not structural")
+                write!(f, "slot {} is continuous, not structural", slot.label())
             }
             Self::UnknownPayloadParam { name, node } => write!(
                 f,
@@ -990,8 +995,10 @@ impl core::fmt::Display for EditError {
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
-                "document parameter {} does not exist (referenced by node {}, slot {slot:?})",
-                name.0, node.0
+                "document parameter {} does not exist (referenced by node {}, slot {})",
+                name.0,
+                node.0,
+                slot.label()
             ),
             Self::DocParamDimensionMismatch {
                 name,
@@ -1001,8 +1008,10 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "parameter {} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
-                name.0, node.0
+                "parameter {} is declared {declared} but node {} (slot {}) references it as {referenced}",
+                name.0,
+                node.0,
+                slot.label()
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,

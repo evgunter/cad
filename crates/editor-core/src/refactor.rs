@@ -750,7 +750,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
             vertex: one(vertex)?,
             support: one(support)?,
         },
-        R::CornerArc { vertex, edge } => R::CornerArc {
+        R::EndArc { vertex, edge } => R::EndArc {
             vertex: one(vertex)?,
             edge: one(edge)?,
         },

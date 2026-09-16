@@ -324,8 +324,9 @@ pub enum RefusedRef {
     /// reference is a different statement, refused rather than
     /// widened, wherever it is rooted.
     NotAFace {
-        /// What it did name.
-        kind: EntityKind,
+        /// What it did name — `found`, the word every entity-kind
+        /// refusal in this crate spells its answer with.
+        found: EntityKind,
     },
 }
 
@@ -709,8 +710,13 @@ impl core::fmt::Display for RefusedRef {
                 "{width} entities answer to it — a mate declaration names ONE face, and \
                  a tie is never broken by picking"
             ),
-            Self::NotAFace { kind } => {
-                write!(f, "it names {} {}, not a face", kind.article(), kind.noun())
+            Self::NotAFace { found } => {
+                write!(
+                    f,
+                    "it names {} {}, not a face",
+                    found.article(),
+                    found.noun()
+                )
             }
         }
     }
@@ -1084,7 +1090,7 @@ fn resolve_face<P, T: Decide>(
     // readily as a unique row does — and an edge named here and the
     // same edge named one node below get one word for one fact.
     if name.kind != EntityKind::Face {
-        return Err(refuse(RefusedRef::NotAFace { kind: name.kind }));
+        return Err(refuse(RefusedRef::NotAFace { found: name.kind }));
     }
     match entry {
         Entry::Unique(ent) => {
@@ -1100,7 +1106,7 @@ fn resolve_face<P, T: Decide>(
             );
             ent.key.face().ok_or_else(|| {
                 refuse(RefusedRef::NotAFace {
-                    kind: ent.key.kind(),
+                    found: ent.key.kind(),
                 })
             })
         }
@@ -1155,7 +1161,7 @@ fn operand_answer<P, T: Decide>(
     match entry {
         None => RefusedRef::Vanished,
         Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
-            RefusedRef::NotAFace { kind }
+            RefusedRef::NotAFace { found: kind }
         }
         Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
         Some(Entry::Unique(_) | Entry::Tied(_)) => {

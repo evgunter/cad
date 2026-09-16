@@ -102,3 +102,51 @@ Next: the `[ev]` PR (decisions 2 and 5 above), then the first wave —
 the cut-off-arc rename (E-class), the doc-param door (middle tier),
 and the error-surface hygiene unit (E-class) — while the specs for the
 three kernel units are written.
+
+## 2026-09-16 — the `[ev]` PR answered: DM7 and DM8
+
+Ev answered on the `[ev]` PR the same hour. Decision 1 (a payload name
+is not an edge; the delete door reports what it stranded as
+maintenance) accepted as "sensible". Decision 2 (the step→segment map
+composed in `editor-core` from the replay's span and canonicalization's
+permutation) accepted as reasonable, with an invitation to discuss if
+real downsides existed; the two rejected options in the body are the
+downsides that were weighed, and the orchestrator said so on the PR
+and took it as ratified. Recorded as **DM7** and **DM8** in
+`crates/editor-core/REFERENCES.md`; the companion table in
+`docs/DESIGN.md` updated; both rows re-kinded `unit` with specs
+(middle tier), `needs_ev` cleared. Filed by announcement:
+`work/bool/replay-structure-gains-the-per-step-segment-span` (DM8's
+profile half, built by EDIT's unit) and
+`work/chrome/cascade-delete-shows-the-strand-count` (DM7's chrome
+consequence), both parked on the EDIT units.
+
+Also this sitting: three lanes dispatched — the cut-off-arc rename
+(E-class), the error-prose unit (E-class), and EDIT-PICK (block
+EDIT-B1 slot 0, the draw recorded on `edit/b1-block`). Specs for the
+four middle-tier units merged with #2716.
+## 2026-09-16 — cut-off-arc rename merged (E-class, PR #2717)
+
+`RoleSeg::CornerArc` is `RoleSeg::EndArc`; the three docs state the
+structural role; `CornerFace` keeps its word. The lane read V3 first
+and judged the axis different (corner → structural, not fillet →
+blend); the orchestrator agrees. Four computed name-table digests
+re-baselined on the four blend-bearing documents; the persisted text
+of all 28 registry documents byte-identical. One rotted literal in a
+test header corrected in passing. No rows filed.
+
+## 2026-09-16 — error-prose unit merged (E-class, PR #2719)
+
+Twelve `Debug` placeholders in `editor-core`'s user prose re-pointed
+at prose doors that already existed (`SlotId::label`, `StepArg::label`,
+`Dimension`'s `Display`); `RefusedRef::NotAFace`'s field is `found`,
+the word the crate's other entity-kind refusals use; one F6 guard over
+`ProgramFault` verified red. The lane measured first: the census did
+not silently permit either site (one allowlisted, one named undecided)
+and the deeper gap — a fieldless enum's identifier passes the census as
+prose — was already CENSUS's row, which gained the evidence. Three
+rows closed; residue filed as its own files (`quoted-parameter-name-…`
+here, `node-error-kind-renders-the-slot-id-through-debug` on WIRE's
+slate); LIB's row parked on the residue row unparked since its trigger
+fired. A closed FIX row's "no `Dimension` reaches a user through
+`Debug`" claim was found false at one door and the door repaired.

@@ -1704,53 +1704,21 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
         "EditError",
         "path",
         1,
-        "`ExprPath` is a named-field struct; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md. \
-         This one BLOCKS A DOOR rather than only degrading a message: \
+        "`ExprPath` is a named-field struct. This one BLOCKS A DOOR \
+         rather than only degrading a message: \
          `path_off_tree` is what an expression-path edit refuses with, \
          so binding that edit would panic the gate exactly where the \
          door is supposed to refuse (work/lib/\
          the-expression-path-edit-cannot-refuse-as-prose.md)",
     ),
     (
-        "crates/editor-core/src/edit.rs",
-        "EditError",
-        "slot",
-        6,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
         "crates/editor-core/src/eval/mod.rs",
         "NodeErrorKind",
         "slot",
         2,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/persist/check.rs",
-        "ProgramFault",
-        "slot",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/program.rs",
-        "ProgramRefusal",
-        "slot",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/resolve/mod.rs",
-        "Diagnosis",
-        "param",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
+        "`SlotId::Profile` is a struct variant, and `SlotId::label` is \
+         the prose spelling this site does not use — WIRE's, filed at \
+         work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
     ),
     (
         "crates/step-import/src/error.rs",
@@ -1789,15 +1757,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         POSITIONAL,
         1,
         "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
-        "crates/editor-core/src/persist/check.rs",
-        "ProgramFault",
-        "arg",
-        1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
-         this census reads — `slot: SlotId::Profile { .., arg }` — so no declared\
-         type reaches it",
     ),
     (
         "crates/editor-core/src/persist/check.rs",

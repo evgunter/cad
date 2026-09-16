@@ -246,7 +246,6 @@ fn chain_steps() -> Vec<ProgramStep> {
     );
     steps.extend([
         ProgramStep::TangentArcTo(ProgramTarget::Start),
-        ProgramStep::ArcContinue(pt(3.0, 1.0)),
         ProgramStep::Fillet(len(0.2)),
     ]);
     // Every mode in the ARRIVAL (spec₂) position, then every mode in
@@ -383,7 +382,6 @@ fn step_members(step: &ProgramStep) -> StepMembers {
         | ProgramStep::Cusp
         | ProgramStep::Turn(_)
         | ProgramStep::Line(_)
-        | ProgramStep::ArcContinue(_)
         | ProgramStep::Fillet(_)
         | ProgramStep::FarEndTo(_)
         | ProgramStep::CloseTo => (vec![], vec![]),
@@ -599,7 +597,6 @@ fn every_target_form_is_a_document_program() {
             | profile::Step::Cusp
             | profile::Step::Turn(_)
             | profile::Step::Line(_)
-            | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }
             | profile::Step::FarEndTo(_)
             | profile::Step::CloseTo
@@ -688,7 +685,6 @@ fn every_arc_mode_is_a_document_program() {
             | profile::Step::LineTo(_)
             | profile::Step::ContinueTo(_)
             | profile::Step::TangentArcTo(_)
-            | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }
             | profile::Step::FarEndTo(_)
             | profile::Step::CloseTo
