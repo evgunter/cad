@@ -1592,7 +1592,7 @@ pub struct RodChord {
 /// arc is then the shorter of the two.
 #[must_use]
 pub fn rod_chord_at(flat: f64) -> RodChord {
-    let half = (ROD_R * ROD_R - flat * flat).sqrt();
+    let half = (ROD_R.powi(2) - flat.powi(2)).sqrt();
     let wall = 2.0 * (core::f64::consts::PI - half.atan2(flat));
     RodChord {
         half,
