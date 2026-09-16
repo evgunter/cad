@@ -62,12 +62,16 @@ posture under §Process.
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
-   `nodepick-name-doors-take-a-second-evaluation-unpaired` is the next
-   door on this ground. The pairing row went to PROPS with EDIT's door built.
-5. **Error-surface hygiene** — one E-class unit over
+   `nodepick-name-doors-take-a-second-evaluation-unpaired` is
+   **dispatched**, middle tier. The pairing row went to PROPS with
+   EDIT's door built.
+5. **Error-surface hygiene** — the E-class unit over
    `persist-check-renders-enum-variants-through-debug-into-user-prose`,
    `debug-in-prose-residue-after-finding-sink` and
-   `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way`.
+   `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
+   **merged** (PR #2719); its residue
+   `quoted-parameter-name-in-error-prose-has-no-decision` stands, and
+   `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
    E-class this line first guessed: the collapse crossed the persisted
