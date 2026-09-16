@@ -11,6 +11,12 @@
 //! report: one `Maintenance::Strand` per surviving `(node, name)`
 //! whose minting node the edit removed.
 //!
+//! The document holds a `StableName` in one other place — the
+//! appearance store, whose keys `DocEdit::SetAppearance` gives the
+//! same N5 semantics — so the report has a second carrier and a
+//! second arm, `Maintenance::StrandedAppearance { name }`, with no
+//! carrying node because the store is what carries it.
+//!
 //! These rows are what goes red when a strand goes unreported.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -19,9 +25,10 @@ use crate::docm7_union_declare::{block, declared_union, flush_pairs};
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError, EntityKind,
-    Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
+    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
+    EditError, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive,
+    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
+    cascade_delete_order,
 };
 use fixture::{ang, fname, insert, len, wall};
 use geom_core::Tol;
@@ -33,9 +40,36 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
-            Maintenance::Cluster(_) => None,
+            Maintenance::Cluster(_) | Maintenance::StrandedAppearance { .. } => None,
         })
         .collect()
+}
+
+/// The appearance keys an accepted edit reported stranded, in the
+/// order it reported them — the store's half of the same report.
+fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
+    applied
+        .iter()
+        .filter_map(|row| match row {
+            Maintenance::StrandedAppearance { name } => Some(name.clone()),
+            Maintenance::Strand { .. } | Maintenance::Cluster(_) => None,
+        })
+        .collect()
+}
+
+/// Paint one face red, expecting the door to accept it: the name's
+/// node is live at the edit, which is all `SetAppearance` asks.
+fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
+    apply(
+        doc,
+        &DocEdit::SetAppearance {
+            name: name.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        Tol::witness(),
+    )
+    .expect("the painted name's node is live")
+    .doc
 }
 
 /// Delete one node, expecting the door to accept it.
@@ -495,5 +529,221 @@ fn a_round_tripped_document_reports_the_same_strands() {
         direct.maintenance, after_load.maintenance,
         "the report is derived from the document and the edit, so it survives the boundary \
          by being recomputable rather than by being carried"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The second carrier: the appearance store.
+// ---------------------------------------------------------------------
+
+/// **A delete reports the appearance keys it stranded, and leaves the
+/// attachments alone.**
+///
+/// The store is not a `Node::payload_names` carrier, so the payload
+/// walk cannot see a key: this row is what the store's own pass
+/// answers for. The attachment survives the delete — that is what
+/// makes the key stranded rather than gone — and DM7 reports it
+/// rather than repairing it, so the store is asserted unchanged
+/// beside the report.
+#[test]
+fn a_delete_reports_the_appearance_keys_it_stranded() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let one = fname(victim, wall(0));
+    let two = fname(victim, wall(2));
+    let live = fname(body, wall(0));
+    let doc = paint(&doc, &one);
+    let doc = paint(&doc, &two);
+    let doc = paint(&doc, &live);
+
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        appearance_strands(&applied.maintenance),
+        vec![one.clone(), two.clone()],
+        "both keys the deleted node minted, and only those"
+    );
+    for name in [&one, &two, &live] {
+        assert!(
+            applied.doc.appearance().contains_key(name),
+            "the store is untouched: DM7 reports, it never repairs ({name})"
+        );
+    }
+}
+
+/// **A key whose minting node is live is never reported.** The report
+/// is a report of what this edit did, not a dump of the store: a
+/// document full of paint is silent about all of it when the deleted
+/// node minted none of the keys.
+#[test]
+fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance_live", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let doc = paint(&doc, &fname(body, wall(0)));
+    let doc = paint(&doc, &fname(body, wall(2)));
+
+    let applied = delete(&doc, spare);
+    assert!(
+        applied.maintenance.is_empty(),
+        "the deleted node minted none of the painted names: {:?}",
+        applied.maintenance
+    );
+}
+
+/// **The payload strands come first, then the appearance strands.**
+///
+/// The order on `Applied::maintenance` is a contract, and this is the
+/// edit that produces both kinds at once: one node mints the name a
+/// surviving fillet carries AND the key the store holds. Written out
+/// as one vector, so a walk that ran the store first goes red here
+/// rather than somewhere a consumer finds it.
+#[test]
+fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    // The fillet's own DAG input is `body`; what it NAMES is a face of
+    // `victim`, which is a payload name and not an edge, so deleting
+    // `victim` is accepted and strands it.
+    let carried = fname(victim, wall(0));
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: body,
+            radius: len(0.1),
+            selection: vec![carried.clone()],
+        },
+    );
+    let painted = fname(victim, wall(2));
+    let doc = paint(&doc, &painted);
+
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Strand {
+                node: fillet,
+                name: carried,
+            },
+            Maintenance::StrandedAppearance { name: painted },
+        ],
+        "the payload carriers are walked before the store"
+    );
+}
+
+/// **A cascade reports each appearance strand at the step that made
+/// it**, and the store keeps every attachment the cascade orphaned.
+///
+/// The payload half has a case where a strand is never reported at
+/// all — a carrier deleted alongside the node it names
+/// (`a_carrier_deleted_with_the_node_it_names_reports_nothing`). The
+/// store has no such case: it is not a node and no cascade removes
+/// it, so a key whose minting node goes is reported at that node's
+/// step and outlives the whole cascade. That asymmetry is the shape a
+/// caller counting strands over a doomed set has to know about.
+#[test]
+fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: body,
+            radius: len(0.1),
+            selection: vec![fname(body, wall(0))],
+        },
+    );
+    let on_fillet = fname(fillet, wall(2));
+    let on_body = fname(body, wall(2));
+    let doc = paint(&doc, &on_fillet);
+    let doc = paint(&doc, &on_body);
+
+    let order = cascade_delete_order(&doc, body);
+    assert_eq!(order, vec![fillet, body], "the consumer goes first");
+    let mut doc = doc;
+    let mut reported = Vec::new();
+    for id in order {
+        let applied = delete(&doc, id);
+        reported.push(appearance_strands(&applied.maintenance));
+        doc = applied.doc;
+    }
+    assert_eq!(
+        reported,
+        vec![vec![on_fillet.clone()], vec![on_body.clone()]],
+        "each key at the step that removed the node that minted it"
+    );
+    for name in [&on_fillet, &on_body] {
+        assert!(
+            doc.appearance().contains_key(name),
+            "the attachment outlives the whole cascade ({name})"
+        );
+    }
+}
+
+/// **The repair path still works on a reported key.**
+/// `ClearAppearance` deliberately does not require a live node — it is
+/// how a stranded attachment is retired — so the row the door just
+/// reported is actionable, and clearing it is what takes it out of the
+/// store. `Rebind` is the other repair; this is the one that needs the
+/// dead node to be acceptable.
+#[test]
+fn a_reported_appearance_strand_is_still_clearable() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance_clear", Tol::witness());
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let painted = fname(victim, wall(0));
+    let doc = paint(&doc, &painted);
+
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        appearance_strands(&applied.maintenance),
+        vec![painted.clone()],
+        "the door named the key"
+    );
+
+    let cleared = apply(
+        &applied.doc,
+        &DocEdit::ClearAppearance {
+            name: painted.clone(),
+            kind: AttrKind::Color,
+        },
+        Tol::witness(),
+    )
+    .expect("clearing does not require the name's node to be live")
+    .doc;
+    assert!(
+        !cleared.appearance().contains_key(&painted),
+        "the stranded attachment is gone once its last attribute is cleared"
+    );
+}
+
+/// **The appearance half of the report survives the load boundary the
+/// same way the payload half does**: by being recomputable. The store
+/// round-trips with the document, so the same delete against the
+/// loaded value reports the same keys — a stranded key's dead minting
+/// node is below the mint counter and the save validator accepts it.
+#[test]
+fn a_round_tripped_document_reports_the_same_appearance_strands() {
+    let doc = ProfileDoc::empty_derived("dm7_appearance_round_trip", Tol::witness());
+    let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let doc = paint(&doc, &fname(victim, wall(0)));
+    let doc = paint(&doc, &fname(victim, wall(2)));
+
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
+    assert!(loaded.doc.bit_eq(&doc), "the snapshot round-trips");
+
+    let direct = delete(&doc, victim);
+    let after_load = delete(&loaded.doc, victim);
+    assert_eq!(
+        appearance_strands(&direct.maintenance).len(),
+        2,
+        "the delete strands both painted faces"
+    );
+    assert_eq!(
+        direct.maintenance, after_load.maintenance,
+        "the store's half is derived from the document and the edit too"
     );
 }

@@ -213,14 +213,17 @@ fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
     );
 }
 
-/// **An appearance attachment the same delete strands is NOT
-/// reported.** `DocEdit::SetAppearance`'s own doc says a later
-/// `DeleteNode` "MAY strand the attachment (N5 dangling semantics,
-/// same as Declare)", and `Rebind` moves appearance keys exactly as it
-/// moves payload names — but the store is not a `Node::payload_names`
-/// carrier, so DM7's walk does not see it and the column is silent.
+/// **An appearance attachment the same delete strands IS reported,
+/// and is left where it is.** DM7's second carrier, end to end at the
+/// door: paint a face of `victim`, delete `victim`, and the report
+/// names the key while the store still holds the attachment — the
+/// clause reports, it never repairs.
+///
+/// The key is not a `Node::payload_names` carrier, so the payload
+/// walk cannot see it: a row here is evidence of the store's own
+/// pass, not of the other one reaching further.
 #[test]
-fn rv_a_stranded_appearance_key_is_not_in_the_report() {
+fn rv_a_stranded_appearance_key_is_in_the_report() {
     use editor_core::{Attr, Rgba8};
 
     let doc = ProfileDoc::empty_derived("rv_appearance", Tol::witness());
@@ -241,13 +244,15 @@ fn rv_a_stranded_appearance_key_is_not_in_the_report() {
     let _ = body;
 
     let applied = delete(&doc, victim);
-    assert!(
-        applied.doc.appearance().contains_key(&painted),
-        "the delete leaves the attachment behind"
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::StrandedAppearance {
+            name: painted.clone()
+        }],
+        "the door names the key the delete stranded"
     );
     assert!(
-        applied.maintenance.is_empty(),
-        "and says nothing about it: {:?}",
-        applied.maintenance
+        applied.doc.appearance().contains_key(&painted),
+        "and leaves the attachment where it is: DM7 reports, never repairs"
     );
 }
