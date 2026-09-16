@@ -336,3 +336,81 @@ fn the_verdict_sequence_up_to_a_refusal_is_slab_local() {
     );
     assert_eq!(a, b, "the last section cannot reach slab 1's verdict");
 }
+
+/// **Is the WIDENED accept side sound?** The stacking gate exists to
+/// make the caps' and the walls' orientation honest, and this unit
+/// lets through a family it used to refuse. The unit's own rows ask
+/// only `is_ok()` of that family, so this row asks the question the
+/// gate is for: on a spine curled past π, every wall's chart normal
+/// must point out of the material and both caps must too.
+///
+/// The oracle has to be the TURNING one. `loft_contains`'s fixed
+/// reference chord refuses a stack this curled outright (measured:
+/// `cos = 0.070` at v-fraction 0.031 against its `0.1` guard), so the
+/// family this unit newly admits is out of reach of the index most of
+/// the loft corpus probes with, and only [`common::orient::LevelIndex`]
+/// — the one the long-turn sweep suite uses — can answer here.
+#[test]
+fn a_spine_curled_past_pi_still_faces_out_everywhere() {
+    for curl in [3.5, 6.0] {
+        let sections = vec![sq(); 17];
+        let lofted = loft_body::<f64>(&sections, &arc_spine_places(curl, 17), 3, Tol::witness())
+            .unwrap_or_else(|e| panic!("curl {curl} rad over 17 stations lofts: {e:?}"));
+        assert_eq!(topo::validate(&lofted.body), Ok(()), "curl {curl}: tier 1");
+        assert_eq!(
+            topo::validate_closed(&lofted.body),
+            Ok(()),
+            "curl {curl}: tier 2"
+        );
+        let index = common::orient::LevelIndex::build(&lofted);
+        assert!(
+            index.total_turn() > 0.9 * curl,
+            "curl {curl}: the level planes must really turn, got {}",
+            index.total_turn()
+        );
+        let oracle = |q| index.contains(q);
+        common::orient::assert_walls_face_out(
+            &lofted,
+            &oracle,
+            &common::orient::along_v(),
+            0.01,
+            4,
+        );
+        common::orient::assert_caps_face_out(&lofted, &oracle, 0.01);
+    }
+}
+
+/// **Past a full turn the spine revisits itself.** The PR's table
+/// celebrates 9.0 and 13.0 rad building "past two full turns"; on a
+/// unit-radius arc spine those bodies WRAP ONTO THEMSELVES, and no
+/// row anywhere says so. Measured two ways: the placements alone show
+/// two stations closer together than the section is wide, and
+/// `LevelIndex::contains` refuses the body — "2 level rings claim
+/// Point3 { x: 0.4529…, y: -0.025, z: 0.0625… }" — rather than
+/// answering. The loft is right to build it (the kernel has no
+/// self-intersection gate and never claimed one), but "builds" is not
+/// a statement that the solid means anything, and the accept side the
+/// fold widened now reaches this far.
+#[test]
+fn a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself() {
+    let places = arc_spine_places(9.0, 17);
+    let lofted = loft_body::<f64>(&vec![sq(); 17], &places, 3, Tol::witness())
+        .expect("curl 9.0 over 17 stations builds");
+    assert_eq!(
+        topo::validate_closed(&lofted.body),
+        Ok(()),
+        "and is tier-2 valid"
+    );
+    let mut closest = f64::INFINITY;
+    for i in 0..places.len() {
+        for j in i + 3..places.len() {
+            let d: Vec3<f64> = places[j].translation - places[i].translation;
+            closest = closest.min(d.norm());
+        }
+    }
+    assert!(
+        closest < 0.1,
+        "stations 3 or more apart come within {closest} — the section is 0.1 wide, \
+         so a spine curled to 9.0 rad at unit radius passes through its own body"
+    );
+}
