@@ -52,7 +52,8 @@ posture under §Process.
    **dispatched** together as round three, middle tier
    (`load-door-checks-slot-dimensions-for-profile-nodes-only` carries
    the spec). `recorded-program-arguments-carry-no-notation` is
-   **dispatched**, middle tier, ruled by D7 and the doc-param precedent
+   **dispatched**, middle tier, ruled by DESIGN.md D6 ¶2 and the
+   doc-param precedent
    (LIB's Python half parked on it).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).

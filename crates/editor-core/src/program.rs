@@ -40,7 +40,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
 use crate::eval::ProfileNaming;
-use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
+use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
 use crate::names::ProfileEdgeRef;
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
@@ -1015,8 +1015,15 @@ impl LoopProgram {
         }
     }
 
-    /// This loop's argument roles per step, deterministic order.
-    fn step_args(&self) -> Vec<(u32, StepArg)> {
+    /// This loop's argument roles per step, deterministic order — every
+    /// address this program holds an expression at, and nothing else.
+    ///
+    /// The enumerator the slot walk already ran on, made public so a
+    /// caller asking "which arguments does this program have?" — a
+    /// notation being checked, a suite covering every role — asks the
+    /// program rather than re-deriving the answer from the verb table.
+    #[must_use]
+    pub fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();
         match self {
             LoopProgram::Chain(steps) => {
@@ -1889,9 +1896,16 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// exhaustive on [`profile::Step`], and a verb the table gains breaks
 /// this file at compile rather than reaching a typed refusal.
 ///
-/// Two of the three arms are unreachable through the authoring
+/// Two of the four arms are unreachable through the authoring
 /// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build.
+/// a caller can also hand-build. The fourth is reachable from any
+/// caller, because a notation is written against a recording the door
+/// does not make the caller hand over at the same time.
+///
+/// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
+/// tag map is an exhaustive match over this enum, and the tag inventory
+/// beside it: the binding names every refusal a caller can catch, so a
+/// new arm is a compile break there and a new word there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedProgramError {
     /// A literal argument the expression layer refused.
@@ -1904,6 +1918,20 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
+    /// A [`RecordedNotation`] entry addresses an argument this
+    /// recording has no expression at — a step past the program's end,
+    /// or a role this verb does not carry.
+    ///
+    /// The notation is a caller's SECOND description of a recording, so
+    /// it can disagree with the first. It refuses rather than being
+    /// dropped: a unit silently discarded is the very erasure this door
+    /// exists to stop, arriving one layer up.
+    NotationOffProgram {
+        /// The authored step index the entry named.
+        step: u32,
+        /// The argument role it named.
+        arg: StepArg,
+    },
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1922,11 +1950,141 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
+            Self::NotationOffProgram { step, arg } => write!(
+                f,
+                "the notation names the {} of step {step}, which this recording has no argument at",
+                arg.label()
+            ),
         }
     }
 }
 
 impl core::error::Error for RecordedProgramError {}
+
+/// **The notation a recorded PATHS program was authored in** — one
+/// display unit per argument whose author wrote one, travelling beside
+/// the recording to the door that lifts it.
+///
+/// # Why it travels beside the recording and not inside it
+///
+/// **A recorded value cannot carry its own unit, and the reason is a
+/// type bound rather than a layering preference.** [`profile::Step`] is
+/// `Step<T: Real>`, and `Real` is an ARITHMETIC bound — `Add + Sub +
+/// Mul + Div + Neg`, `sqrt`, `pi` — because the same recording is
+/// replayed at interval and derivative scalars, not only at `f64`. A
+/// `(f64, UnitSym)` pair does not implement it, so pairing the unit
+/// with the number inside a step does not compile; and widening the
+/// step's own fields instead would put [`UnitSym`] inside `profile`,
+/// which is what D6's first paragraph and G1 layering forbid. Either
+/// way the recording holds bare numbers.
+///
+/// But a value crossing INTO a document carries the unit it was
+/// written in, never a bare number (DESIGN.md D6 ¶2). The crossing is
+/// [`LoopProgram::from_recorded_with_notation`], and this is what an
+/// author hands it there.
+///
+/// # A whole notation, at the one crossing
+///
+/// The notation is handed over as a BATCH at the lift rather than
+/// written argument by argument onto a lifted program, because an
+/// entry can only be checked against the program it describes: a
+/// per-argument door would have to be a second public mutation door
+/// onto [`LoopProgram`]'s expressions, and would raise
+/// [`RecordedProgramError::NotationOffProgram`] after the program a
+/// caller already holds is minted rather than instead of minting it.
+///
+/// # The key is the document's own address
+///
+/// A unit is filed under (step, [`StepArg`]) — the pair
+/// [`crate::SlotId::Profile`] addresses an expression by. So the
+/// notation names an argument by its ROLE in the verb's own vocabulary,
+/// never by a position in an argument list, and the lift applies it
+/// through the same addressing the slot doors read; there is no second
+/// table of which argument is which for the two to disagree about. A
+/// recorded step keeps its index through the lift (a carrier form
+/// authors one step, numbered 0), so the step a caller counted as it
+/// recorded is the step it addresses here.
+///
+/// # A unit measures what its role holds
+///
+/// [`Self::set`] refuses a unit whose quantity is not the dimension
+/// [`StepArg::dimension`] requires, at the door where the caller writes
+/// it, so a lift can never meet a mismatched pairing. A Scalar role — a
+/// bulge, a director component — therefore admits only the
+/// dimensionless row `quantity::ONE`, which is the notation every
+/// Scalar literal carries already: a ratio names no unit, and this is
+/// where that stops being a convention and becomes a refusal.
+///
+/// # It is not persisted
+///
+/// Nothing stores a `RecordedNotation`. It is consumed at the lift, and
+/// what survives is the display unit on each literal, which round-trips
+/// through save and load exactly as every literal's does. Two recordings
+/// of one leg written in different units lift to [`Expr::bit_eq`]
+/// programs and evaluate to one geometry — the unit is presentation
+/// metadata (DESIGN.md D6), outside expression identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RecordedNotation {
+    /// Ordered because the LIFT'S REFUSAL is order-dependent. The
+    /// writes themselves commute — each entry has its own
+    /// `(step, StepArg)` address and writes one argument — but a
+    /// notation with two entries off the program stops at the first
+    /// one, so an unordered map would name a different
+    /// [`RecordedProgramError::NotationOffProgram`] run to run. Key
+    /// order makes the sentence a caller reads a function of what they
+    /// wrote.
+    units: std::collections::BTreeMap<(u32, StepArg), UnitSym>,
+}
+
+impl RecordedNotation {
+    /// No argument was written with a notation — the recording as the
+    /// path algebra makes it, and what [`LoopProgram::from_recorded`]
+    /// lifts.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Records that the argument at (`step`, `arg`) was written in
+    /// `unit`, replacing any notation already there.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
+    /// is not the dimension the role holds (a `mm` on a bulge).
+    pub fn set(
+        &mut self,
+        step: u32,
+        arg: StepArg,
+        unit: quantity::UnitDef,
+    ) -> Result<(), DimensionError> {
+        // The same predicate `Expr::literal_with_unit` asks, asked here
+        // because this door writes a notation down BEFORE any literal
+        // exists to refuse it.
+        let sym = UnitSym::checked_for(arg.dimension(), unit)?;
+        self.units.insert((step, arg), sym);
+        Ok(())
+    }
+
+    /// The notation recorded for one argument, if its author wrote one.
+    #[must_use]
+    pub fn get(&self, step: u32, arg: StepArg) -> Option<quantity::UnitDef> {
+        self.units.get(&(step, arg)).map(|sym| sym.def())
+    }
+
+    /// Whether no argument was written with a notation — the state
+    /// [`LoopProgram::from_recorded`] lifts under.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.units.is_empty()
+    }
+
+    /// How many arguments were written with a notation.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.units.len()
+    }
+}
 
 /// A recorded arc spec at literal arguments.
 fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProgramError> {
@@ -2020,6 +2178,12 @@ impl LoopProgram {
     /// authors still write the steps with their own `Expr`s — a
     /// recorded program is literal by construction.
     ///
+    /// **Every literal here is written in the canonical unit**, because
+    /// that is all a recording says: a `Step<f64>` is metres and
+    /// radians. Where the author wrote a notation down,
+    /// [`LoopProgram::from_recorded_with_notation`] is the door that
+    /// carries it across, and this one is that door at no notation.
+    ///
     /// The chain-vs-carrier distinction is the enum, so the one-step
     /// complete-loop forms land in their own arms.
     ///
@@ -2095,6 +2259,56 @@ impl LoopProgram {
             });
         }
         Ok(Self::Chain(out))
+    }
+
+    /// [`LoopProgram::from_recorded`] for a recording whose author
+    /// wrote the notation down.
+    ///
+    /// This is the crossing D6 names: a value entering a document
+    /// carries the unit it was written in. The recorded `f64`s are
+    /// canonical metres and radians and stay so — the notation is
+    /// presentation metadata, so the two programs a caller gets from
+    /// `25 mm` and `0.025 m` hold the same bits and differ only in what
+    /// they say they were written in.
+    ///
+    /// Each entry is applied through this type's own `expr_mut`, the
+    /// addressing `SlotId::Profile` reads, so an argument whose author
+    /// wrote a unit is minted with it and every other argument is the
+    /// literal [`LoopProgram::from_recorded`] mints. An EMPTY notation
+    /// therefore returns that door's answer unchanged, argument for
+    /// argument and bit for bit, which is what lets the two doors be
+    /// one door with a default.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`LoopProgram::from_recorded`] refuses, plus
+    /// [`RecordedProgramError::NotationOffProgram`] for an entry
+    /// addressing an argument this recording has none of.
+    pub fn from_recorded_with_notation(
+        steps: &[Step<f64>],
+        notation: &RecordedNotation,
+    ) -> Result<Self, RecordedProgramError> {
+        let mut program = Self::from_recorded(steps)?;
+        for (&(step, arg), sym) in &notation.units {
+            let Some(slot) = program.expr_mut(step, arg) else {
+                return Err(RecordedProgramError::NotationOffProgram { step, arg });
+            };
+            // D2 addendum row 4. A recorded program is literal by
+            // construction: every argument of the program this line
+            // reads was minted by `from_recorded` through
+            // `Expr::literal`. So a non-literal here is a kernel bug
+            // rather than a caller's input, and a typed refusal would
+            // be a guard for a state the construction excludes.
+            let Some(value) = slot.literal_value() else {
+                unreachable!(
+                    "the {} of step {step} is not a literal, yet `from_recorded` minted every \
+                     argument of this program through `Expr::literal`",
+                    arg.label()
+                )
+            };
+            *slot = Expr::literal_with_unit(value, arg.dimension(), sym.def())?;
+        }
+        Ok(program)
     }
 
     /// A literal circle loop.
