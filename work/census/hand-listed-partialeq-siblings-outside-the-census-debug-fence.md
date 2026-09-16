@@ -1,9 +1,10 @@
 ---
 id: hand-listed-partialeq-siblings-outside-the-census-debug-fence
-kind: issue
+kind: unit
 title: six hand-listed PartialEq and Debug walks outside CENSUS-DEBUG's fence, four held by the arrival census's suppression list and two invisible to it
-status: open
+status: spec
 opened: 2026-09-15
+branch: census/hand-listed-siblings
 ---
 
 
@@ -36,7 +37,7 @@ five.)
 | `crates/editor-core/src/mate/coset.rs` (`:147`) | `PartialEq for Coset` | `subgroup`, `representative` | both | complete today; nothing holds it complete. |
 | `crates/editor-core/src/program.rs` (`:1276`) | `PartialEq for ProfileProgram` | `plane`, `loops` | both | complete today; nothing holds it complete. `loop_bit_eq` below it is a second, deeper hand-list. |
 | `crates/topo/src/props.rs` (`:491`) | `Debug for SignCertificate` | `body`, `band`, `tol`, `runs`, `refused` | `runs`, plus two method calls | **renders in braced struct shape** — `SignCertificate { volume in […], surface_area …, open_at …, target_refusal … }` — so it makes the same completeness claim `finish()` makes, by hand, and none of the four things it prints is a field. |
-| `crates/profile/src/lib.rs` (`:704`) | `SketchPlane::bit_eq`, which `PartialEq` delegates to | placement, origin | twelve coordinates, read through `origin()` and `placement.linear` | **invisible to the census**: a field read through a METHOD is a call, and no text reader can tell a getter from any other call. The delegation is fine; the hand-list one level down is the finding. |
+| `crates/profile/src/lib.rs` (`:733`) | `SketchPlane::bit_eq`, which `PartialEq` delegates to | placement, origin | twelve coordinates, read through `origin()` and `placement.linear` | **invisible to the census**: a field read through a METHOD is a call, and no text reader can tell a getter from any other call. The delegation is fine; the hand-list one level down is the finding. |
 | `crates/editor-core/src/names/role.rs` (`:197`) | `PartialEq for NameRef`, and `Hash`, `Ord` and `Debug` beside it | `Held`'s `name` and `stamp` | `self.0.name` only | **invisible to the census** for the sibling reason one row up: `self.0` is a tuple index the reader answers, and `.name` is a field of the INNER type, whose declaration no text walk reaches. Omitting `stamp` is right and documented — it is a cache, never a decision (D9) — but a third field on `Held` lands outside all four walks with no E0027 anywhere. Found 2026-09-15 by the style review of the census's own blind-spot list. |
 
 ## The premise this corrects
@@ -53,6 +54,11 @@ fix it was followed; the criterion is corrected here.
 one level further out: neither the item nor the spec reached a hand-list
 hidden behind a delegation, and the census cannot reach it either. It is
 listed here because the row is the only thing that can.
+
+**Citation corrected 2026-09-16**: this row was filed with `:704`,
+which is `SketchPlane::u`. `bit_eq` is at `:733`. Line citations rot on
+every edit above them, which is why the census beside this row keys on
+`(path, trait, self type)` and says so at `KNOWN_HAND_LISTED`.
 
 ## Owners
 
