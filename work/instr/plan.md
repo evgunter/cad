@@ -160,8 +160,18 @@ point at it or at figures it used to own.
    The `CHART_TAGS` precedent METER used for the cut prefix applies.
 12. `k-lint-last-round-is-eps-coupled-but-unrostered` — `props_quad_last_round`
    is eps-coupled by the criterion the roster pin already applies and is
-   not on the roster. One name; it is the cheapest evidence that the
-   roster's ADDED direction is unpinned.
+   not on the roster. **Not the one-liner this entry used to call it.**
+   METER's roster-pin unit already made the omission loud:
+   `tools/k-lint/tests/predicate_roster.rs`'s `NOT_ROSTERED` excuses the
+   predicate explicitly and `every_target_len_mint_is_rostered_or_excused`
+   reds if anyone changes that, so no silent omission survives to fix.
+   What remains is a decision with two branches, and the first has no
+   corpus: `props_quad_last_round` emits **zero rows in all nine
+   committed baselines** under `docs/k-report-data/`, against
+   `props_quad_converged`'s 8/32/56 at m5 and 12/36/60 at m7, measured
+   2026-09-16. So the live branch is the ruling — and its interesting
+   half is Q6, not the sentence: a ruling resting on "it has no
+   distribution" owes whatever reds the day that stops being true.
 13. `k-lint-gate-described-as-diffing-the-committed-baselines` +
    `k-report-bit-identity-claim-has-no-citation` — one document lane
    against `docs/K-REPORT.md`: two sites say the gate diffs the fresh
