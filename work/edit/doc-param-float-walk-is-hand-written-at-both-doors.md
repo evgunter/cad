@@ -3,7 +3,7 @@ id: doc-param-float-walk-is-hand-written-at-both-doors
 kind: issue
 title: A doc param's finiteness is spelled twice: param_site at the load door, SetDocParam at the edit door
 status: review
-pr: PRNUM
+pr: 2780
 branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]

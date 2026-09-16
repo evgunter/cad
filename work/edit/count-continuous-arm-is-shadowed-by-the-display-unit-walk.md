@@ -3,7 +3,7 @@ id: count-continuous-arm-is-shadowed-by-the-display-unit-walk
 kind: issue
 title: SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first
 status: review
-pr: PRNUM
+pr: 2780
 branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]

@@ -3,7 +3,7 @@ id: load-door-checks-slot-dimensions-for-profile-nodes-only
 kind: issue
 title: The load door re-spells the slot-dimension predicate and asks it of profile nodes only
 status: review
-pr: PRNUM
+pr: 2780
 branch: edit/one-predicate-round-three
 opened: 2026-09-16
 ---
