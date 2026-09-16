@@ -3,6 +3,7 @@ id: recorded-program-arguments-carry-no-notation
 kind: issue
 title: a recorded path program holds bare f64 arguments, so a leg's written unit is gone before any Expr exists
 status: review
+pr: 2779
 branch: edit/recorded-argument-notation
 opened: 2026-09-09
 ---
