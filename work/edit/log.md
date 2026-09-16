@@ -357,3 +357,28 @@ count/continuous arm deleted, one float predicate for a document
 parameter); the recorded program's argument notation, ruled by D7 and
 the doc-param precedent. The appearance-key unit and the pick-`t`
 kernel unit (block EDIT-B1 slot 2) follow once #2764 merges.
+
+## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
+
+With EDIT-PICK2 (#2746) and DM7 (#2753) on main, the two questions
+they left for Ev go up together on one `[ev]` PR:
+`what-t-the-pick-door-answers-and-with-what-width` (kind: ruling; the
+interval, the width-then-order tie-break, the clamped hit point, the
+box only as the early-out's bound; closed-vs-MEET left to the unit's
+measurement) and `stranded-appearance-keys-are-not-reported-by-dm7`
+(widen DM7 with a second `Maintenance` arm). The DM8 wording row the
+step-segment-map lane filed
+(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`)
+joins the same PR once that unit's review confirms its premise; until
+then it rides the unit's branch. Recommendations on the rows; the
+decision document is the PR body.
+
+## 2026-09-16 — the third `[ev]` PR merged; wave 5 spec'd behind wave 4
+
+`[ev]` #2764 merged with all three rulings recorded beside the code:
+DM7 covers appearance keys, DM8 says the permutation is checked and a
+disagreement asserts, and the pick door's `t` is an interval. Three
+units are spec'd to dispatch as wave-4 slots free: EDIT-PICK3
+(`docs/EDIT-PICK3-SPEC.md`; kernel unit, v6 dual, block EDIT-B1 slot
+2), the appearance-strand arm (middle tier), and DM8's E-class
+follow-through (the assertion, the two docs, one tag retired).

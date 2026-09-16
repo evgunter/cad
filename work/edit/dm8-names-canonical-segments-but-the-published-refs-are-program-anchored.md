@@ -2,7 +2,7 @@
 id: dm8-names-canonical-segments-but-the-published-refs-are-program-anchored
 kind: issue
 title: DM8 says 'canonical segments' but a program loop's published ProfileEdgeRef is program-anchored
-status: open
+status: spec
 opened: 2026-09-16
 refs: [authored-step-to-canonical-segment-map-has-no-home]
 ---
@@ -105,3 +105,44 @@ anchor's permutation rather than a factor of the answer; and
 carries and when. **Alternative:** rule that the door answers
 canonically and consumers remap — contradicted by the acceptance rows
 and would hand VIEW's focus marking a ref the faces do not carry.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): re-word DM8; the disagreement asserts
+
+DM8's clause now says the door READS the two records — the span gives
+the answer in the program's own step order, the numbering the published
+names carry; canonicalization's `reversed`/`start` are checked against
+the naming anchor's record of the same permutation, never applied — and
+that a disagreement between them is the evaluation contradicting itself
+and asserts (Ev: kernel bugs panic; the one cost, a caller's mispairing
+of two records from different evaluations panicking rather than
+refusing typed, is a caller bug with no façade caller today and
+disappears by construction once the structure record rides on the
+evaluation's own value). What remains is E-class code follow-through
+on this row: `ProfileEdgeRef`'s doc in `names/role.rs` gains the same
+one-clause fix; `StepSegmentsError::RecordsDisagree` becomes an
+assertion with a message naming the invariant, its tag retired (LIB's
+file, mechanical); the door's doc cites this clause.
+
+## Spec (2026-09-16, EDIT orchestrator) — E-class: green CI and the orchestrator's read, no review lane
+
+Branch `edit/dm8-follow-through`. Three edits the ruling above names,
+each with its shape written here:
+
+1. `ProfileEdgeRef`'s doc in `crates/editor-core/src/names/role.rs`:
+   "by canonical combinatorial identity" becomes the one-clause truth
+   — canonical for a hand-built profile, the program's own step order
+   for a program loop after `eval/anchor.rs`'s rewrite — citing DM8.
+2. `StepSegmentsError::RecordsDisagree` becomes an assertion at the
+   door with a message naming the invariant (the evaluation's two
+   records of one permutation agree) and both records' values; the
+   variant is deleted, its F6 census case with it, and its tag retired
+   in `crates/pncad-py` (LIB's, mechanical; the binding census follows).
+   The row `two_records_describing_different_loops_refuse` becomes a
+   `#[should_panic(expected = …)]` row on the message.
+3. `ProfileProgram::profile_edges_of`'s doc cites DM8's amended
+   sentence and says why the disagreement asserts (a kernel
+   contradiction; the two-argument shape's mispairing case disappears
+   once the structure record rides on the evaluation's value — cite
+   WIRE's `section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`).
+
+No other behaviour changes; corpus goldens unmoved.
