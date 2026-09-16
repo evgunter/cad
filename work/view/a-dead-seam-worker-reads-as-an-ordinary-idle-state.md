@@ -7,6 +7,7 @@ opened: 2026-09-15
 refs: [2637]
 closed: 2026-09-16
 branch: view/dead-seam-badge
+pr: 2762
 ---
 
 
