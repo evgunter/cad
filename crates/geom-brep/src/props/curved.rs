@@ -300,12 +300,14 @@ pub fn boundary_material_sign<T: Decide>(
 /// **A rimless sphere band is a chart rectangle and PASSES.** A lune
 /// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
 /// `u1 − u0` is; the predicate is vacuous on it (no rim to place) and
-/// this door says so. [`curved_face`] refuses the same face unless its
-/// meridians are coplanar (`props_band_coplanar`) — that is the closed
-/// form's own premise, `Δu = π`, which the flux arm needs in order to
-/// integrate and which says nothing about the shape. Two questions,
-/// two homes: a consumer of this door meshes a partial sphere wedge,
-/// the flux lane finds its volume uncomputable, and both are right.
+/// this door says so. [`curved_face`] measures the same face by its
+/// own premise — `Δu = π` when the meridians are coplanar
+/// (`props_band_coplanar`), the azimuth between the two half-planes
+/// otherwise (`props_wedge_azimuth`, [`sphere_wedge_azimuth`]) — and
+/// refuses a rimless boundary that states no lune (three meridians on
+/// two great circles). Two questions, two homes: the flux lane's
+/// premise moved when the wedge arm landed (issue 542) and this door's
+/// answer for the wedge did not.
 ///
 /// **A zero-extent face PASSES too.** Two rims at one level joined by
 /// zero-length meridians have every rim at an extreme (`lo == hi`);
@@ -1541,22 +1543,33 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 /// `Area = R²·Δu·(sin v_hi − sin v_lo)`,
 /// `(p − c)·n_chart = R` ⇒ flux `= s_f·R·Area + c·A⃗`.
 ///
-/// A face with **no rims** is the two-band construction (M2 PR 5's
-/// axis-touching full revolve). What the arm below establishes, and
-/// what it does not, stated exactly — it is the ONE domain the
-/// iso-rectangle predicate is exempt from, and an exemption is a claim
-/// about the arm, not a fact the arm checks:
+/// A face with **no rims** is bounded by meridian great-circle arcs
+/// alone, and there are two such faces in the inventory. What the
+/// rimless branch below establishes, and what it does not, stated
+/// exactly — it is the ONE domain the iso-rectangle predicate is
+/// exempt from, and an exemption is a claim about the arm, not a fact
+/// the arm checks:
 ///
 /// * **Established.** Every boundary edge classified `Zero` by
 ///   `props_circle_axis_class` is a meridian great circle centred on
-///   the sphere centre at the sphere's radius (`props_meridian_great`),
-///   and all of their carrier axes are parallel
-///   (`props_band_coplanar`) — so every meridian of the boundary lies
-///   on ONE great circle, which cuts the sphere into two halves of
-///   azimuthal width π. That is where `Δu = π` comes from, and it is
-///   load-bearing: a lune bounded by meridians on two DIFFERENT great
-///   circles would take `Δu = π` for a domain of another width and
-///   measure by that factor (a quarter lune, twice over).
+///   the sphere centre at the sphere's radius (`props_meridian_great`).
+///   Then EITHER all of their carrier axes are parallel
+///   (`props_band_coplanar`, decided `Zero` for every axis against the
+///   first) — the **two-band face** (M2 PR 5's axis-touching full
+///   revolve): every meridian lies on ONE great circle, which cuts the
+///   sphere into two halves of azimuthal width π, so `Δu = π` — OR some
+///   axis is definitely not parallel to the first, and the face is the
+///   **wedge** (the partial revolve of an all-on-axis meridian, the
+///   natural ball's wedge, issue 542): exactly two arcs on two great
+///   circles, meeting at the poles, and `Δu` is the azimuth between
+///   their half-planes on the side the face covers, read structurally
+///   by [`sphere_wedge_azimuth`] under `props_wedge_azimuth`. The
+///   branch is decided by the SAME `props_band_coplanar` margins in the
+///   same order as before the wedge arm existed; only the disposition
+///   of a definite nonzero changed, from a refusal to the second arm.
+///   Two arcs on the same half-plane (Δu → 0 or 2π) are coplanar and
+///   take the first arm — it cannot tell them from opposite half-planes,
+///   which is a recorded blind spot, not this arm's.
 /// * **Established separately: the `v`-extent.** `(lo, hi)` is
 ///   `min_max` over the meridians' endpoint latitudes AND each arc's
 ///   span-derived pole extremes ([`sphere_meridian_span_levels`]), so
@@ -1564,22 +1577,26 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   the same hemisphere split at two ordinary points instead of at
 ///   its poles still folds to `[−1, 1]`. The extent derivation is a
 ///   fact about the levels, not about this exemption — do not read
-///   the exemption as "the domain is verified a rectangle".
+///   the exemption as "the domain is verified a rectangle". A wedge's
+///   two arcs DO meet at the poles — two distinct meridian planes meet
+///   only on the axis — so its extent is `[−1, 1]` by the same fold.
 ///
-/// **The flux side is the one thing the two branches below do not
-/// share.** The rimless band's is the **face's sense bit** — the only
-/// flux sign in this module that the boundary does not encode, since
-/// with no rim there is no traversal to read it off and a rimless
-/// band's two meridians are traversed the same way whichever side is
-/// material. Before M5 S10 it was hardcoded `+1`, justified by "M2
-/// sweeps emit single outward shells only, so a rimless band with
-/// inward orientation is unrepresentable at rest"; S10 makes that
-/// representable — `Face::sense` is exactly the missing bit. The
-/// rim-bearing branch's is [`linear_rim_side`]'s DECIDED side, a
-/// discrete [`Sign`] definite by that function's construction. The two
-/// are different claims about different evidence and are kept as
-/// different types ([`SphereFluxSide`]) up to the single term that
-/// consumes either.
+/// **The flux side is the one thing the rimless and rimmed branches
+/// below do not share.** The rimless face's — two-band or wedge — is
+/// the **face's sense bit**, the only flux sign in this module that the
+/// boundary does not encode, since with no rim there is no traversal
+/// to read it off and a rimless face's two meridians are traversed the
+/// same way whichever side is material. Before M5 S10 it was hardcoded
+/// `+1`, justified by "M2 sweeps emit single outward shells only, so a
+/// rimless band with inward orientation is unrepresentable at rest";
+/// S10 makes that representable — `Face::sense` is exactly the missing
+/// bit. (The wedge arm reads the sense bit a second time, for WHICH
+/// azimuthal arc the face covers — the same bit, the same claim, not a
+/// cross-check of it.) The rim-bearing branch's is [`linear_rim_side`]'s
+/// DECIDED side, a discrete [`Sign`] definite by that function's
+/// construction. The two are different claims about different evidence
+/// and are kept as different types ([`SphereFluxSide`]) up to the
+/// single term that consumes either.
 fn sphere<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -1593,20 +1610,32 @@ fn sphere<T: Decide>(
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(Margin::levered(hi - lo, radius), band)?;
     if b.rims.is_empty() {
-        // Two-band face (module docs above): meridians coplanar, Δu = π.
+        // Meridians only (the fn docs): the two-band face when every
+        // carrier axis is coplanar with the first, Δu = π; the wedge
+        // when one is definitely not. The coplanar decides run exactly
+        // as they did when a definite nonzero was a refusal.
         let Some((&first, rest)) = meridian_axes.split_first() else {
             return Err(PropsError::NotIsoRectangle {
                 what: "sphere face with an empty boundary",
             });
         };
+        let mut coplanar = true;
         for &n in rest {
-            require_zero(
+            if classify(
                 "props_band_coplanar",
                 Margin::levered(n.cross(first).norm(), radius),
                 band,
-            )?;
+            )? != Sign::Zero
+            {
+                coplanar = false;
+                break;
+            }
         }
-        du = T::pi();
+        du = if coplanar {
+            T::pi()
+        } else {
+            sphere_wedge_azimuth(edges, &meridian_axes, center, radius, sense, band)?
+        };
         // The one orientation fact no rim encodes (see the fn docs):
         // the face's sense IS the flux side here, not a cross-check of
         // it.
@@ -1637,8 +1666,8 @@ fn sphere<T: Decide>(
 /// carries the bit rather than declining to answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SphereFluxSide {
-    /// The rimless two-band face: no rim encodes the side, so the
-    /// face's `Face::sense` BIT is it ([`sphere`]'s docs). A bit, not
+    /// The rimless face, two-band or wedge: no rim encodes the side, so
+    /// the face's `Face::sense` BIT is it ([`sphere`]'s docs). A bit, not
     /// a `T` ±1, for the reason
     /// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
     Sense(bool),
@@ -1661,6 +1690,121 @@ impl SphereFluxSide {
             Self::Sense(false) => -radial,
             Self::Rim(s) => t_sign::<T>(s) * radial,
         }
+    }
+}
+
+/// **The wedge's azimuthal width, read from the loop's structure** —
+/// the rimless arm's second branch ([`sphere`]'s docs), reached only
+/// when `props_band_coplanar` has decided some meridian axis definitely
+/// not parallel to the first.
+///
+/// **What the boundary states.** In a rimless parse every edge is a
+/// meridian, so `meridian_axes[i]` is `edges[i]`'s carrier axis `n_i`
+/// (the parse pushes one axis per meridian edge, in edge order). A
+/// pole-to-pole meridian arc lies in ONE half-plane of its great
+/// circle, and that half-plane's direction is the stored
+/// parameterisation's departure direction at its `t0` pole:
+/// `d_i = n_i × (P(t0) − c) / R` — `dP/dt = n × (P − c)` on the stored
+/// circle, unit because the arc is centred on the sphere at its radius
+/// (`props_meridian_great`) and horizontal because `P(t0) − c` is
+/// along the axis at a pole. Two arcs on two distinct meridian planes
+/// can only meet on the axis, so a loop of two non-coplanar meridians
+/// meets at the poles by closure; nothing here re-reads the levels.
+///
+/// **Which of the two azimuthal arcs the face covers is a structural
+/// read of the loop, never a shorter-arc assumption and never a value
+/// coincidence.** Interior-left about the outward normal
+/// `N = ν·(P − c)/R` (`ν = ±1` the face's sense bit) puts the face's
+/// interior at any point of arc `A` along `N × T`, with `T` the
+/// traversal tangent `f_A · n_A × (P − c)` (`f_A = ±1` the forward
+/// bit); the triple `w × (n × w) = R²·n` for `w ⟂ n` collapses that to
+///
+/// ```text
+/// I_A = ν · f_A · n_A
+/// ```
+///
+/// — the carrier axis itself, signed by the sense bit and the forward
+/// bit, and nothing else. The face covers the azimuthal arc that
+/// leaves `d_A` in the direction `I_A` and ends at `d_B`, so with
+/// `(d_A, I_A)` an orthonormal frame of the equatorial plane its width
+/// is the polar angle of `d_B` in that frame,
+/// `φ = atan2(d_B · I_A, d_B · d_A) ∈ (−π, π)`, and `Δu = φ` when
+/// `φ > 0` (the short arc between the planes) or `φ + 2π` when `φ < 0`
+/// (the long one). Reversing the loop flips both forward bits, flipping
+/// `I_A`, so the same two arcs traversed the other way hand the face the
+/// complementary lune `2π − Δu`; flipping the sense bit does the same.
+/// Loop closure (tier 1: `B` departs the pole `A` arrives at) makes the
+/// read at `B` the negation of the read at `A`, so one arc's read is
+/// the loop's and no second decide is needed.
+///
+/// **`props_wedge_azimuth`** decides `Margin::levered(φ, R)` — metres:
+/// the equatorial arc from meridian `A` into the face's interior to
+/// meridian `B`, signed by whether that arc is the short one, at the
+/// sphere radius as its lever, against the run's linear band.
+/// `Positive` ⇒ `Δu = φ`; `Negative` ⇒ `Δu = φ + 2π`; `Zero` ⇒ the two
+/// meridians coincide (Δu → 0 or 2π) and the face refuses
+/// `DegenerateFace`, the extent refusal's own disposition; the
+/// ambiguity band escalates typed. **The `Zero` and indeterminate
+/// outcomes are this arm's D2 floor, not a reachable door**: the arm is
+/// entered on `R·|sin φ| ≥ escalate` (`props_band_coplanar`'s margin,
+/// same band, same lever) and `|φ| ≥ |sin φ|`, so `R·|φ|` is definite
+/// on the same side — up to the rounding between `atan2` and a cross
+/// norm at the threshold, which is why the floor is a typed refusal
+/// and not an `unreachable!`. Coincident meridians themselves land in
+/// the coplanar arm, whose blind spot [`sphere`]'s docs record.
+///
+/// **`atan2` here is safe where the module forbids it elsewhere.** The
+/// pole helper refuses `atan2` because an arc anchored at a pole puts
+/// an interval enclosure exactly on its branch cut; this angle's cut
+/// is `d_B = −d_A` — the coplanar, opposite-half-plane pair — which
+/// `props_band_coplanar` has just decided definitely NOT the case, so
+/// every enclosure that reaches this call is bounded away from it by
+/// at least the escalate width at the radius.
+///
+/// # Errors
+///
+/// [`PropsError::NotIsoRectangle`] naming the count refusal when the
+/// non-coplanar meridians are not exactly one pair (three meridians on
+/// two great circles: neither the two-band face nor a wedge — the D2
+/// typed refusal for a loop the closed form has no lune for);
+/// [`PropsError::DegenerateFace`] and [`PropsError::Escalated`] as
+/// above.
+fn sphere_wedge_azimuth<T: Decide>(
+    edges: &[LoopEdge<T>],
+    meridian_axes: &[Vec3<T>],
+    center: Point3<T>,
+    radius: T,
+    sense: bool,
+    band: Band,
+) -> Result<T, PropsError> {
+    // The parse's own invariant: one axis per edge once no edge is a
+    // rim. A mismatch is a kernel bug in the parse, never an input.
+    if edges.len() != meridian_axes.len() {
+        unreachable!("a rimless sphere parse states one meridian axis per boundary edge");
+    }
+    let ([a, b], [n_a, n_b]) = (edges, meridian_axes) else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "rimless sphere face whose non-coplanar meridians are not one pair (neither \
+                   the two-band face nor a wedge)",
+        });
+    };
+    // Half-plane directions: the stored parameterisation's departure
+    // direction at each arc's `t0` pole (fn docs).
+    let d_a = n_a.cross(a.p0() - center) * (T::one() / radius);
+    let d_b = n_b.cross(b.p0() - center) * (T::one() / radius);
+    // The interior direction at arc A — the carrier axis, signed by
+    // the sense bit and the forward bit (fn docs).
+    let i_a = *n_a
+        * if sense == a.forward {
+            T::one()
+        } else {
+            -T::one()
+        };
+    let phi = d_b.dot(i_a).atan2(d_b.dot(d_a));
+    match classify("props_wedge_azimuth", Margin::levered(phi, radius), band)? {
+        Sign::Positive => Ok(phi),
+        Sign::Negative => Ok(phi + T::tau()),
+        Sign::Zero => Err(PropsError::DegenerateFace),
     }
 }
 
@@ -2562,6 +2706,57 @@ mod rim_level_review_probe {
             )
             .expect("decides"),
             "a pair inside the band by its chord is one level"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod wedge_floor {
+    use super::*;
+    use geom_core::Tol;
+
+    /// A pole-to-pole great-circle arc departing pole `from_north`
+    /// toward `+x` — the same half-plane whichever pole it starts at.
+    fn same_half_plane_arc(from_north: bool, forward: bool, start: u32, end: u32) -> LoopEdge<f64> {
+        let (axis, u_ref) = if from_north {
+            (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
+        } else {
+            (Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0))
+        };
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: Point3::origin(),
+                axis,
+                radius: 1.0,
+                u_ref,
+            },
+            0.0,
+            core::f64::consts::PI,
+            forward,
+            start,
+            end,
+        )
+    }
+
+    /// **The D2 floor of the wedge arm, asked directly**: two meridians
+    /// in the SAME half-plane (Δu → 0) refuse `DegenerateFace` under
+    /// `props_wedge_azimuth`. `sphere()` itself never hands the arm this
+    /// pair — coincident half-planes are coplanar and take the two-band
+    /// branch — so the floor is pinned at the helper, the one door that
+    /// can be asked.
+    #[test]
+    fn coincident_meridians_refuse_degenerate_at_the_wedge_arm() {
+        let band = Band::linear(Tol::witness()).expect("band");
+        let edges = [
+            same_half_plane_arc(false, true, 0, 1),
+            same_half_plane_arc(true, true, 1, 0),
+        ];
+        let axes = [Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
+        let got = sphere_wedge_azimuth(&edges, &axes, Point3::origin(), 1.0, true, band);
+        assert!(
+            matches!(got, Err(PropsError::DegenerateFace)),
+            "coincident meridians must refuse degenerate, got {got:?}"
         );
     }
 }

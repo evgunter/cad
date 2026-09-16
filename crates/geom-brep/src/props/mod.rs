@@ -147,10 +147,14 @@
 //!   the per-kind boundary classification and `props_rim_level`, and
 //!   nothing integrated on top — for a consumer whose lane rests on
 //!   the premise without wanting a volume (`mesh`'s swept-rectangle
-//!   walk cites it before walking a face). It ADMITS the rimless
-//!   sphere band the flux lane refuses on `props_band_coplanar`:
-//!   `Δu = π` is the closed form's premise, not the shape's, and the
-//!   door says so at its definition.
+//!   walk cites it before walking a face). It ADMITS every rimless
+//!   sphere band, and the flux lane measures the two it has a lune
+//!   for — the coplanar two-band face (`props_band_coplanar`,
+//!   `Δu = π`) and the wedge (`props_wedge_azimuth`, the azimuth
+//!   between the two meridian half-planes on the face's side) — while
+//!   refusing a rimless boundary that states neither; the premises
+//!   are the closed form's, not the shape's, and the door says so at
+//!   its definition.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
