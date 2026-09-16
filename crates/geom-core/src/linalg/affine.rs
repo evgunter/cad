@@ -687,7 +687,7 @@ mod tests {
     /// component belongs — a transposition inside the walk
     /// disagrees with it, which is the whole reason the walk rows
     /// compare against this and not against another call to the walk.
-    fn components(a: Affine3<f64>) -> [f64; 12] {
+    fn components<T: Real>(a: Affine3<T>) -> [T; 12] {
         let (l, t) = (a.linear, a.translation);
         [
             l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
@@ -738,20 +738,23 @@ mod tests {
 
     /// The same, across scalars: lifting to `Dual64` carries each
     /// component's bits into the value channel and a zero derivative
-    /// beside it, in both directions and in the same places. A walk
-    /// that dropped the translation or crossed two columns would
-    /// disagree with `components` on the value channel.
+    /// beside it, in both directions and in the same places.
+    ///
+    /// The channels are read off `components` and NOT through `map`. A
+    /// readout that is itself the walk would apply the walk's own
+    /// transposition a second time and cancel it — measured: with
+    /// `Mat3::try_map` mutated to swap `c0` and `c1`, this row passed
+    /// while it read through `map` and reds now.
     #[test]
     fn both_walks_lift_to_another_scalar_in_the_same_places() {
         let a = distinct();
         let want = bits(a);
-        let lifted = |d: Affine3<Dual64>| {
-            let value = d.map(|x: Dual64| x.value);
-            let deriv = d.map(|x: Dual64| x.deriv);
-            (bits(value), bits(deriv))
+        let channels = |d: Affine3<Dual64>| {
+            let c = components(d);
+            (c.map(|x| x.value.to_bits()), c.map(|x| x.deriv.to_bits()))
         };
-        let door = lifted(a.map(Dual64::from_f64));
-        let walk = lifted(
+        let door = channels(a.map(Dual64::from_f64));
+        let walk = channels(
             a.try_map(|x: f64| Ok::<Dual64, Infallible>(Dual64::from_f64(x)))
                 .unwrap_or_else(|never| match never {}),
         );
