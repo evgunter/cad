@@ -97,3 +97,32 @@ four pairs of its laterals are indistinguishable by every
 sentence in `program.md` and `plan.md` saying it *"waits on a corpus
 change no lane here makes"* was false on the tree and is rewritten in
 this commit. It is lane D, with the full review.
+
+## The PROPS pair splits, and one half leaves the slate (2026-09-16)
+
+Ev's handover ruling gave two options for the pair INSTR had held since
+opening — a message carried to PROPS, or a move — and the two rows
+turned out to want different ones.
+
+`k-lint-roster-wants-a-kernel-side-vocabulary` **moved to
+`work/props/`**. Its whole content is a kernel-side ask: a `#[test]`
+inside `geom-brep` over its own minted names, or the better shape, a
+`const` slice exported from `geom_core::k_stats`. Both are edits under
+`crates/`, both on PROPS' seam, and neither is INSTR's to make. The row
+was here because METER's fence chose the instrument — which is the
+finding the row exists to record, not a reason for it to live here. A
+message would have described the ask from a slate that cannot act on
+it; the move puts it where it is dispatchable, and reaches PROPS'
+board through `STATUS.md` rather than through anyone's inbox.
+
+`k-lint-eps-coupled-criterion-unwritten` **stays, now `parked` on it.**
+Its title is already the instrument's half — *"so k-lint's roster cannot
+be pinned against the kernel in the ADDED direction"* — and the pin is
+`tools/k-lint`'s, this program's ground. So the pair did not need a
+third row for the follow-up: this row IS the follow-up, and it was
+mis-shelved as `open` rather than parked while its trigger sat on the
+wrong slate.
+
+Net: unit 17 stops being two rows describing one PROPS unit, and
+becomes one row waiting on one. The plan's unit 17 is rewritten to say
+so.
