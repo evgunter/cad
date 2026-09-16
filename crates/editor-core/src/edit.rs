@@ -59,7 +59,9 @@ pub enum DocEdit<P> {
     ///
     /// A payload NAME of the node is not an input and does not refuse
     /// (DM7, the §0 carve-out): the edit is accepted and every name it
-    /// stranded rides the record as a [`Maintenance::Strand`].
+    /// stranded rides the record as a [`Maintenance::Strand`]. An
+    /// appearance key is the same carve-out at the store instead of a
+    /// payload, and rides it as a [`Maintenance::StrandedAppearance`].
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
@@ -271,7 +273,8 @@ pub enum DocEdit<P> {
     /// happens at evaluation, where a non-resolving name surfaces as
     /// a typed [`crate::appearance::AppearanceLoss`] — never a silent
     /// drop. A later `DeleteNode` MAY strand the attachment (N5
-    /// dangling semantics, same as Declare).
+    /// dangling semantics, same as Declare), and reports it where it
+    /// happens as a [`Maintenance::StrandedAppearance`] (DM7).
     SetAppearance {
         /// The face or body name attributed.
         name: StableName,
@@ -1579,6 +1582,28 @@ pub enum Maintenance {
         /// deleted.
         name: StableName,
     },
+    /// **An appearance attachment this edit stranded** (DM7): the
+    /// document's appearance store holds an attribute under `name`,
+    /// whose minting node the edit deleted.
+    ///
+    /// The second carrier, and it carries no node: an attachment is
+    /// keyed by a [`StableName`] in the store rather than held in a
+    /// node's payload, so there is no surviving carrier to name and
+    /// this is an arm of its own rather than a [`Self::Strand`] with
+    /// a sentinel. Everything else is the payload strand's:
+    /// [`DocEdit::SetAppearance`] gives the key Declare's N5
+    /// semantics, evaluation answers
+    /// [`crate::appearance::AppearanceLoss`], and [`DocEdit::Rebind`]
+    /// is the repair — [`DocEdit::ClearAppearance`] is the other one,
+    /// and deliberately does not require a live node.
+    ///
+    /// The attachment itself is untouched: DM7 reports, it never
+    /// repairs.
+    StrandedAppearance {
+        /// The key the store holds the attachment under. Its `node`
+        /// is the id this edit deleted.
+        name: StableName,
+    },
 }
 
 impl core::fmt::Display for Maintenance {
@@ -1597,6 +1622,18 @@ impl core::fmt::Display for Maintenance {
                 "node {} carries a {}; this edit deleted node {}, so the name resolves to \
                  nothing until it is rebound",
                 node.0, name, name.node.0
+            ),
+            // The same sentence with the store where the carrying
+            // node was: what a reader has to know is that the paint
+            // is still there and which node's departure orphaned it.
+            // A store holds a thing UNDER a key, and `StableName`'s own
+            // Display supplies the noun ("face name minted by node 7"),
+            // so the article is this sentence's to provide.
+            Self::StrandedAppearance { name } => write!(
+                f,
+                "the appearance store holds an attachment under a {}; this edit deleted node {}, \
+                 so the name resolves to nothing until it is rebound or cleared",
+                name, name.node.0
             ),
         }
     }
@@ -1646,6 +1683,36 @@ fn stranded_names<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
     out
 }
 
+/// **DM7's report, second carrier**: every appearance key a
+/// `DeleteNode` just stranded — one row per key in the document's
+/// appearance store whose minting node is `deleted`.
+///
+/// The store is the other thing the document holds a `StableName` in
+/// (`DocEdit::SetAppearance`, which gives the key Declare's N5
+/// semantics), so a delete that orphans one owes the same report a
+/// payload name gets. There is no carrier node in the row because
+/// there is no carrier node: the store holds the attachment.
+///
+/// `doc` is the document AFTER the removal, the same value
+/// [`stranded_names`] walks, so the two passes read ONE document and
+/// cannot disagree about which nodes are gone.
+///
+/// Rows come in the store's own key order, which is
+/// [`StableName`]'s: an appearance map is a `BTreeMap`, so the report
+/// is deterministic without sorting anything here.
+///
+/// **Cost.** One pass over the appearance store per accepted delete,
+/// beside [`stranded_names`]' pass over the payload names, so a
+/// cascade of `n` nodes pays `n` of each. Same trade as the payload
+/// walk's: the rows are TRUE of the document each step produced.
+fn stranded_appearance_keys<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
+    doc.appearance()
+        .keys()
+        .filter(|name| name.node == deleted)
+        .map(|name| Maintenance::StrandedAppearance { name: name.clone() })
+        .collect()
+}
+
 /// An accepted edit: the NEW document (the input untouched, spec D2)
 /// plus the [`EditRecord`].
 #[derive(Debug, Clone, PartialEq)]
@@ -1655,19 +1722,30 @@ pub struct Applied<P> {
     /// What the edit did.
     pub record: EditRecord,
     /// **What the edit did that the caller did not ask for**: the A11
-    /// cluster-record maintenance it forced, and the payload names it
-    /// stranded (DM7). See [`Maintenance`].
+    /// cluster-record maintenance it forced, and the references it
+    /// stranded (DM7) — the payload names, then the appearance keys.
+    /// See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation**: the strands come first — read at the door,
-    /// out of the document the edit had just produced — and the
-    /// cluster acts follow, reconciling the registry against it
-    /// afterwards. A consumer may rely on that; it is pinned by
-    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`,
-    /// the one edit that produces both kinds at once. What a consumer
-    /// may NOT do is read position 0 as a kind: a delete that strands
-    /// nothing puts a cluster act there, so an arm is found by
-    /// matching, never by index.
+    /// out of the document the edit had just produced, payload
+    /// carriers before the appearance store, the two carriers in the
+    /// order DM7 names them — and the cluster acts follow,
+    /// reconciling the registry against it afterwards. A consumer may
+    /// rely on that, and each boundary is held by the row whose
+    /// fixture actually produces the pair of kinds it separates:
+    /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
+    /// for payload strand before appearance strand,
+    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`
+    /// for payload strand before cluster act, and
+    /// `dm7_delete_strands::an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+    /// for appearance strand before cluster act — the last one paints,
+    /// which the mate row does not, so it is the only row a walk that
+    /// appended the store's rows after `reconcile` goes red on.
+    /// What a consumer may NOT do is read position 0 as a kind: a
+    /// delete that strands no payload name puts an appearance strand
+    /// or a cluster act there, so an arm is found by matching, never
+    /// by index.
     pub maintenance: Vec<Maintenance>,
 }
 
@@ -2167,6 +2245,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // minting node just left, read out of the document as it
             // now stands.
             strands = stranded_names(&new, *id);
+            // The store is DM7's second carrier: an appearance key is
+            // a `StableName` under N5 semantics too, and the delete
+            // leaves the attachment behind. Appended after the
+            // payload strands, which is the order `Applied::
+            // maintenance` contracts for.
+            strands.extend(stranded_appearance_keys(&new, *id));
             crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
