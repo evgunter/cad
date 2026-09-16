@@ -27,21 +27,13 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
 };
-
-fn brick<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
-    x: (f64, f64),
-    y: (f64, f64),
-    z: (f64, f64),
-) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn glue<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
     a: &Body<T>,

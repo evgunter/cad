@@ -23,7 +23,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
@@ -33,7 +33,7 @@ const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
 
 fn top<T: Decide>() -> topo::Body<T> {
-    prism_z::<T>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)], 1.0, 1.25).body
+    brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25))
 }
 
 fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
@@ -47,7 +47,7 @@ fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
     } else {
         (cy - 0.5, cy)
     };
-    prism_z::<T>(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)], 0.0, 1.125).body
+    brick::<T>((x0, x1), (y0, y1), (0.0, 1.125))
 }
 
 /// Capability pin: one corner-aligned leg unions tier-2-exactly WITH
