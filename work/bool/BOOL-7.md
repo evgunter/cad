@@ -2,10 +2,11 @@
 id: BOOL-7
 kind: unit
 title: issue 134 — the vdiff shadow-exec rung
-status: dispatched
+status: review
 opened: 2026-09-01
 refs: [134]
 branch: bool/7-vdiff-shadow-exec
+pr: 2755
 ---
 
 Under the Q3 ruling (S-BOOL takes it; M10 is dormant): when the vdiff engine

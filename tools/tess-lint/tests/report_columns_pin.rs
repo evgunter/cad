@@ -37,11 +37,12 @@
 //!   the same one.
 //!
 //! **This is not the sizing census and does not overlap it.**
-//! `baseline_sizing_census.rs` asserts what the COMMITTED baseline's
-//! four cell sums are, and moves when a re-cut moves them. This file
-//! asserts how the report RENDERS whatever sums it was handed, over a
-//! synthetic fixture that no re-cut touches. Deleting either leaves
-//! the other's question unasked.
+//! `baseline_census.rs`'s `the_committed_baseline_sizes_this_much`
+//! asserts what the COMMITTED baseline's four cell sums are, and moves
+//! when a re-cut moves them. This file asserts how the report RENDERS
+//! whatever sums it was handed, over a synthetic fixture that no
+//! re-cut touches. Deleting either leaves the other's question
+//! unasked.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

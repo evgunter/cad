@@ -3326,6 +3326,48 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-7 (PR #2755) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1111** (S-BOOL band 1100–1199). v6 dual: parity byte **131**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `4c23a978f`
+(run 35077622754 verified at dispatch: head SHA matches, 39 checks —
+33 success + 6 skipped, 0 neutral; not narrowed: 12 `test (…)` rows and
+5 `k-lint (gate, …)` rows), R2 isolated from R1, briefs symmetric (HARD
+RULES written fresh for this unit), no relaxations granted. Implementer
+difficulty M (pre-logged at the spec, pre-draw); implementer arm OPUS
+(block BOOL-B4 slot 2, byte 189 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Filed at dispatch from the unit's
+forward list (the names lane is WIRE's territory per `work.py
+territory`):
+`work/wire/order-along-qualifier-records-no-partner-so-its-pruned-pair-vanish-cannot-be-recovered.md`.
+
+BOOL-6 (PR #2752) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1110** (S-BOOL band 1100–1199). v6 dual: parity byte **190**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `9f7ae4954`
+(run 35072398484 verified at dispatch: head SHA matches, 39 checks —
+36 success + 3 skipped, 0 neutral; not narrowed), R2 isolated from R1,
+briefs symmetric (HARD RULES written fresh for this unit), no
+relaxations granted. Implementer difficulty M (pre-logged at the spec,
+pre-draw); implementer arm OPUS (block BOOL-B4 slot 1, byte 189 —
+quoted from the private draw file before the arm was named). Sample
+number at merge; the row rides the unit branch as its last commit.
+Filed at dispatch from the unit's forward list:
+`work/blend/skin-coincident-section-check-is-an-unbanded-f64-compare.md`,
+`work/issues/klein-scene-should-adopt-the-one-body-loop-sweep.md`.
+
+BOOL-5 (PR #2748) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1109** (S-BOOL band 1100–1199). v6 dual: parity byte **111**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fbec9f0a`
+(run 35066381956 verified at dispatch: head SHA matches, 39 checks —
+36 success + 3 skipped; not narrowed), R2 isolated from R1, briefs
+symmetric (HARD RULES written fresh for this unit), no relaxations
+granted. Implementer difficulty M (pre-logged at the spec, pre-draw);
+implementer arm FABLE (block BOOL-B4 slot 0, byte 189 — quoted from
+the private draw file before the arm was named). Sample number at
+merge; the row rides the unit branch as its last commit. Filed at
+dispatch from the unit's forward list:
+`work/props/coplanar-sphere-arm-cannot-tell-opposite-from-coincident-meridians.md`.
+
 BOOL-10 (PR #2135) ordinal FIXED AT DISPATCH (2026-09-08):
 **ordinal 1108** (S-BOOL band 1100–1199). v6 dual: parity byte **24**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `3f8163dd8`
@@ -3978,6 +4020,8 @@ beside the lily lane on one 4-core cloud box, `CARGO_INCREMENTAL=0`,
 debug, one crate at a time, with the disk guard. Sample number at merge.
 
 Span sweep RECORDED AT MERGE (2026-09-05, PR #1952 merged at `46020d6b9`, sample #140 — prior highest #139 on main at merge; block PROPS-B1 slot 1 concluded; the block record stays on `props/b1-block` until the block concludes). Disclosed: the claim paragraph above was committed at dispatch (06:45Z, `1c1c561ff`) on the block branch by the orchestrator's mistake rather than on the orchestrator branch, so it did not reach main with #1961 as that PR's body said; it is carried to main with the row here. The ordinal was nevertheless fixed at dispatch — the log entry, the block record and the stored briefs all name 2401 — and no other row claimed it. One v6 tally candidate (R1/OPUS, the executed panic), recorded in the row.
+
+sphere-pole-side review ordinal fixed at dispatch (2026-09-16, PR #2741 open — frozen head `53a9bee9e`, run 35068825589 GREEN on the full matrix, 36 checks): **ordinal 2406** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-SPHERE-POLE-SIDE-SPEC.md`): difficulty **H**, task-class **NUMERIC** (a rim's traversal names which side of it the face's interior lies on: the rim-only polar cap measures where it refused `DegenerateFace`, and the half-cap's L-shaped complement refuses typed where it cancelled a closed sphere to volume `0.0`); implementer arm per block PROPS-B3 slot 0 (record branch-side on `props/b2-block`, drawn 2026-09-08, byte 32 ⇒ fable at slot 2). Protocol v6 dual: draw = `/dev/urandom` byte **86**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs: CONCURRENT same-head on frozen `53a9bee9e`, both briefs generated from one template with the lane name substituted and STORED with sha256 on `props/b2-block` before either dispatches (`work/props/logs/sphere-review-brief-{r1,r2}.md`, `0cabc666…` r1 / `feb75db7…` r2), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE target and scratch directories per reviewer. Method note applying to BOTH arms equally: the pair runs on an 8-core 9 GB local box whose machine-wide build mutex is heavily contended by other programs' lanes — the implementer saw an exclusive battery starve and ~13 consecutive refusals — so both briefs tell their lane to expect to lose the slot, to prefer narrow runs, and to let hosted CI be the record for the matrix; this is a throughput constraint on both arms, not a relaxation of either. Orchestrator's ruling, so the reviewers read it as settled: the construction and the spec's two arms are the orchestrator's; what is NOT settled and is theirs to adjudicate is the unit's own deviation — that `boundary_material_sign` cannot take the predicate because check 6 would become a tautology. Sample number at merge.
 
 sign-hull review ordinal fixed at dispatch (2026-09-12, PR #2468 open — frozen head `c6f5d7aea`, run 34719540390 GREEN on the full matrix): **ordinal 2405** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-SIGN-HULL-SPEC.md`): difficulty **M**, task-class **NUMERIC** (`Vec3::orthonormal_basis` crosses the normal with a world axis chosen by a comparison on its components, no sign transfer — Ev's option-1 ruling on #1944; a new `Real` door on every impl; every stored `u_ref` re-blessed; M10-5's re-chart retired); implementer arm per block PROPS-B2 slot 1 (record branch-side on `props/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **34**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs: CONCURRENT same-head on frozen `c6f5d7aea`, both briefs authored and STORED with sha256 on `props/b2-block` before either dispatches (`work/props/logs/signhull-review-brief-{r1,r2}.md`, generated from one template with the lane name substituted, so identical modulo lane name by construction), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and a private scratch directory per reviewer. Method note applying to BOTH arms equally: the pair runs on one 4-core cloud box beside the mignitude-floor dual (ordinal 2404), four review lanes at once, `CARGO_INCREMENTAL=0`, debug, one crate at a time, with the disk guard. Orchestrator's ruling, so the reviewers read it as settled: option 1 (a decided world axis, no sign transfer) is Ev's and settled; the unit's DEVIATION from the spec's comparison (`|n.z| ≤ max(|n.x|, |n.y|)` shipped in place of the smallest-magnitude order, on a 20-vs-778 corpus measurement) is NOT settled — it is the first claim the reviewers falsify, and the orchestrator adjudicates it with Ev in view. Sample number at merge. **Concluded 2026-09-12**: both arms uninterrupted and concurrent on the frozen head; R1 (opus) NOT-MERGEABLE-AS-IS 2/10/6, rubric 4/3/3; R2 (fable) NOT-MERGEABLE-AS-IS 2/5/5, rubric 4/3/2; the seam regression BILATERAL by execution on both arms, R2's DL6 breach UNILATERAL (R1 tested the same claim and reported it upheld) — **v6 tally +1 to R2 (fable)**. The fix pass runs on the same implementer arm (opus) but as a FRESH agent, the original lane's session having ended with the move to a local machine; the reviewers' probe files were never pushed and are gone, so the fix pass re-derives every adopted row from the reports' quoted measurements — recorded here because "implementer-inherited" would otherwise be read off this row.
 
@@ -7097,3 +7141,28 @@ implementer's unit log entry is not written until the dual concludes.
 EDIT-PICK RECORDED AT MERGE (2026-09-16, PR #2721, sample #213 — prior highest #212 on main at merge; block EDIT-B1 slot 0 concluded, the block record staying on `edit/b1-block` until the block concludes):
 
 | EDIT-PICK | 2026-09-16 | EDIT-PICK (PR #2721; spec docs/EDIT-PICK-SPEC.md, amended once at the fix pass, deleted at merge; closes `pick-grazing-ray-answer-depends-on-candidate-order`): a grazing ray's pick answer is a function of the per-triangle tests alone — `ray_triangle` is the ONE exact test (public at `editor_core::resolve`, the viewer's reference loop calls it rather than restating it), refusing a candidate whose Möller–Trumbore determinant is not certifiably non-zero (`certified_determinant`: the computed magnitude against a forward rounding-error bound DERIVED from the operation count, `DETERMINANT_ERROR_UNITS`, never tuned) and taking `t` from the hit point `a + u·e1 + v·e2` projected onto the ray rather than the quotient `e2·q/det`, which cancels catastrophically on a small certified determinant (the ring case: `u = v = 0` exactly, the quotient off the corner by parts per thousand); `pick_face`'s early-out kept and made redundant, its soundness re-derived in its doc; the reference loop drops its early-out and the row is `Pruned == Every` on every ray of every landing of the corpus and the ring; the ring red probe pinned to the bit; the exact test's closed boundaries pinned one ULP each way; the bvh entry bound's premise pinned by a 792-case static witness product plus a seedless floor sweep; two rows filed on the closed-boundary residue and one on the mechanism's own class (a crossing within rounding of a plane refused); no stop clause fired. **The spec's recommended mechanism — refuse `t < t_enter` — was withdrawn at the fix pass as unsound in f64** (below) | M / NUMERIC-GUARD (pre-draw, at the block record) | FABLE (block EDIT-B1 slot 0; byte 69 → fable at slot 0) | **DUAL (ordinal 4800, v6 byte 242 parity 0: R1 opus, R2 fable, concurrent same-head on frozen 428431ab)**: R1 1/4/4 NOT-MERGEABLE-AS-IS, rubric 3/2/3 — MAJOR: the box-entry guard refuses genuine well-conditioned INTERIOR hits on any axis-planar triangle (a fan-triangulated cap loses 7.2% of interior hits, best conditioning 3.1e-3, clean negative controls); MINOR: the reference's private test copy removed with no replacement pin (u/v-acceptance mutants survive every pick row), the spec's named trap unpinned (`t > t_enter` mutant survives), the nine ★ refusals disclosed and unscheduled, the bvh receipt narrow; NOTE: `Walk::Reversed` cannot go red (a fold of a commutative min), claims 1–3 verified positively, the noise residual abundant not absent (72 517 accepted vs 10 290 refused). R2 1/3/5 NOT-MERGEABLE-AS-IS, rubric 3/2/2 — MAJOR: the guard loses a genuine graze on a CORPUS document (`cut_cylinder`, +z through bottom-rim vertices: the SERVICE answers the wall 0.3 above the rim instead of the cap; 4 lost of 3 204 refused over 441 126 rays); MINOR: a noise `t` above its entry passes the guard and the order row is blind to it by construction, the exact test's acceptance unpinned, the PR misreports bvh's suite (`ray_r2.rs` already asserts `t_enter ≤ exact + slack`) and the sweep (a third copy in `gui1_pick_r2`); NOTE: claims 2/3/4 receipts hold, the ring premise row vacuous under retessellation. Convergent: the guard's loss class, the unpinned acceptance, the unfalsifiable reversed walk, the disclosed-unscheduled residue, the four-paragraph doc on a one-line predicate, the corpus numbers with no instrument. Adjudicated: **1 bilateral MAJOR + 0 unilateral — v6 tally after this pair: +0 candidates.** Rulings: guard withdrawn; certified determinant with a derived bound; the acceptance pinned one ULP each way; `Reversed` deleted, the row `Pruned == Every`; residues as files; PR body corrected. Pair FAIR (no glimpse; both complete; private target dirs, both cold). Spec flaw disclosed by both and owned by the orchestrator: verification 2's "removes only answers already proven wrong" held in exact arithmetic and not in f64. | 2 reported (the ★ rounding class, the determinant bound not added) / 2 silent by both counts (the trap unpinned, 2(c) unfalsifiable) | R1 3 / R2 3 | R1 2 / R2 2 | R1 3 / R2 2 | substantial, IMPLEMENTER-INHERITED: the ruled certified determinant alone did NOT close the item's case (the ring candidate is certified 31× above its bound with `u = v = 0` exactly and a cancelled quotient) — the lane added the projection for `t` as a disclosed, revertable deviation and measured it (`Pruned == Every` green everywhere, R2's in-plane probe 20 000/20 000 refused, R1's interior rows green, the tie floor unchanged); both reviewer branches merged `--no-ff` authorship-preserving; every finding above built or argued in the PR; the residual the projection does not close (certified-but-small determinant with barycentric error ≥ 1: 203 winners of 441 126 on the wide aim, main answering the same class with its own noise) filed as `pick-accepts-uncertified-barycentrics-on-a-certified-determinant` with three shapes costed for a ruling | impl CI green (run 35049846437, full matrix; a first head red on the façade root-export guard, fixed); fix CI green (run 35056032189, full matrix; one intermediate head red on clippy, superseded) | impl ~280k (harness) / fix ~456k (harness) / R1 ~182k + R2 ~246k (harness) | impl ~80 min (harness) / fix ~65 min (harness) / R1 ~27 min + R2 ~29 min concurrent (harness) |
+
+## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
+
+EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
+PR #2746 open — frozen head `55c2da48a`): **ordinal 4801** (EDIT band;
+after 4800). Pre-draw fields at the block record (branch-side,
+`edit/b1-block`): difficulty **M**, task-class **NUMERIC-GUARD**, logged
+after block EDIT-B1's byte was drawn (disclosed there; the covariate is
+contaminated for this row as for every non-first slot); implementer arm
+per block EDIT-B1 slot 1 (record branch-side). Protocol v6 dual: draw =
+`/dev/urandom` byte **232**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `55c2da48a`, both briefs authored and STORED with sha256 before
+either dispatches (sha256 `430c455ea9568325…` r1 / `60ea3df84e22eda7…`
+r2 — identical text modulo lane names and lane paths, verified by
+diff), neither reviewer sees the other's report, v6 item 5 isolation in
+both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer (both EMPTY — cold
+and symmetric), both lanes on one 4-core remote box beside two other
+lanes (a method note applying to both arms equally). Disclosed for the
+dual to adjudicate, and in the briefs: the spec's ruling (MEET ∧ INFORM)
+was measured false by the implementer and RE-RULED by the orchestrator
+to closed ∧ INFORM before any review ran — the second spec on this door
+with a false central premise, both recorded in the spec's amendment
+section; three residue rows wait on one further ruling. The
+implementer's unit log entry is not written until the dual concludes.

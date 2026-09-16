@@ -164,12 +164,13 @@
 //! is mostly constant — `chart` is `nurbs` on every one of them and
 //! the trim box is the whole unit square on every one, so **five of
 //! the seven entries discriminate nothing there and the live pair is
-//! `nu`/`nv` alone**. Five plus that pair is the whole list of seven.
-//! Corpus-wide `chart` does discriminate — it is the one entry that
-//! separates a sized row from an unsized one, since [`parse`] admits
-//! the sizing block only under the charts that owe it — but a reader
-//! sizing up the hole should size up `(nu, nv)`. The same test
-//! pins those statements, deriving the split column by column from
+//! `nu`/`nv` alone**. Corpus-wide every entry separates a sized row
+//! from an unsized one — `identity` reads the six numeric columns as
+//! `Reading::Absent` off the sized lane — and `chart` is where that
+//! separation is ANNOUNCED, being entry zero, which is the argument
+//! [`IDENTITY_COLUMNS`]' own doc makes. A reader sizing up the hole
+//! should still size up `(nu, nv)`. The same test names both lists in
+//! full, deriving the split column by column from
 //! [`identity_readings`] rather than spot-checking members of it.
 //! Closing it needs a face identity in a column of the sweep's own,
 //! which is `tess_meter`'s half of the contract.

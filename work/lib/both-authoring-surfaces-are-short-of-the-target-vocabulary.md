@@ -80,3 +80,34 @@ all three lists drifted unobserved.
 and bindings"*), `crates/viewer/src/sketch.rs` is VIEW's or CHROME's.
 The row is filed whole rather than split so the ruling is asked once;
 whoever takes it should expect to hand the other half across.
+
+## The table is five spellings, not six (2026-09-16, EDIT's PR #2738)
+
+`WireTarget` no longer exists. EDIT's `C6` `WireStep` unit collapsed
+`editor-core`'s persisted step vocabulary into its document one:
+`WireStep`, `WireTarget`, `WireArcData` and `WireLoopProgram` are
+deleted, `from_target`/`into_target` with them, and
+`ProgramTarget` now derives serde on its own declaration — so the row's
+third line is gone and the `forced?` column's answer for it was always
+"by two matches that no longer exist".
+
+**Nothing about this row's subject moved.** The deleted spelling was
+one of the three that carried all three forms, so the count of SHORT
+spellings is unchanged at three (`PathTarget`, `PyTarget`, `Tgt`),
+and neither the GUI nor Python can author the declared tangent arrival
+today any more than before. What changed is the denominator: the
+vocabulary is now spelled five times, three of them short.
+
+The census anchor the row asks for is in place on the `editor-core`
+side and unaffected: `ProgramTarget::ALL_NAMES` and
+`profile::TargetKind::ALL` both still project from their declarations,
+and `editor-core/tests/switch_program_vocabulary.rs` keys
+`every_target_form_is_a_document_program` on the latter. The analogue
+this row wants written for `viewer` and `pncad-py` is still unwritten.
+
+`viewer`'s half has since been filed as its own row on CHROME's slate
+(`viewer-sketch-claims-a-compile-break-a-probe-verb-does-not-cause`),
+which names the same `Tgt::of`/`program_target` shape from a different
+angle — a false claim in `sketch.rs`'s prose that the lowering breaks
+when the document vocabulary grows. That row is the instance; this one
+is still the class and the ruling.

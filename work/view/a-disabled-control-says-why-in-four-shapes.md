@@ -38,7 +38,7 @@ sites), then each read for what it hands the reader.
    `pane/properties.rs:213`, `pane/properties.rs:735`,
    `pane/create.rs:590-593`.
 3. **A `&'static str` composed AWAY from the value that knows** —
-   `frame::NO_CHOOSER_BACKEND` at `app.rs:1197` and `:1227`. Already
+   `platform::NO_CHOOSER_BACKEND` at `app.rs:1197` and `:1227`. Already
    filed, one facility over, as
    `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`.
 4. **A prose sentence built from a typed state** —
