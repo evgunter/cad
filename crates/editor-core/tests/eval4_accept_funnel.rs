@@ -18,8 +18,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, clusters, inline, split,
+    EntityKind, Frame, Maintenance, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, StableName, clusters, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
@@ -146,11 +146,11 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
     );
     assert_eq!(
         out.remainder_maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: kept,
             absorbed: out.instance,
             absorbed_frame: None,
-        }],
+        })],
         "the join the rebind performed rides the outcome"
     );
     assert!(
@@ -198,11 +198,11 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     );
     assert_eq!(
         out.part_maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: pa,
             absorbed: pb,
             absorbed_frame: None,
-        }],
+        })],
         "the part's mate insert joined the two spliced members"
     );
     // The remainder deletes the mate first (reverse document order),
@@ -212,7 +212,7 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     assert!(
         matches!(
             out.remainder_maintenance[..],
-            [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b
+            [Maintenance::Cluster(ClusterMaintenance::Split { from, to, frame: Some(_) })] if from == a && to == b
         ),
         "the remainder's mate delete split the cluster: {:?}",
         out.remainder_maintenance
@@ -245,7 +245,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
     assert!(
         matches!(
             back.maintenance.first(),
-            Some(ClusterMaintenance::Split { from, to, .. }) if *from == kept && *to == out.instance
+            Some(Maintenance::Cluster(ClusterMaintenance::Split { from, to, .. })) if *from == kept && *to == out.instance
         ),
         "the re-anchoring rebind split the instance off the kept cluster: {:?}",
         back.maintenance
@@ -254,7 +254,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
         !back
             .maintenance
             .iter()
-            .any(|act| matches!(act, ClusterMaintenance::Join { .. })),
+            .any(|act| matches!(act, Maintenance::Cluster(ClusterMaintenance::Join { .. }))),
         "nothing the splice did joined a cluster: {:?}",
         back.maintenance
     );

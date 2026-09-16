@@ -731,7 +731,7 @@ pub(crate) struct Doc {
     /// is held here for the same span the document it describes is —
     /// an invariant [`Doc::accept`] holds by being the only place
     /// either of the two is written.
-    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+    pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
 /// The wrapper's own plumbing: the ONE place an accepted edit is taken
@@ -917,11 +917,11 @@ impl Doc {
     /// absorbed cluster's frame is consumed here, where a caller can
     /// read what was consumed.
     #[getter]
-    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+    fn last_maintenance(&self) -> Vec<super::mate::Maintenance> {
         self.maintenance
             .iter()
             .cloned()
-            .map(super::mate::ClusterMaintenance)
+            .map(super::mate::Maintenance)
             .collect()
     }
 

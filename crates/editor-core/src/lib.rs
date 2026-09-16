@@ -123,7 +123,7 @@ pub use drive::{
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
+pub use edit::{Applied, DocEdit, EditError, EditRecord, Maintenance, apply, cascade_delete_order};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
     EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,

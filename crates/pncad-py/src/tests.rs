@@ -4020,8 +4020,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "cluster_maintenance_tag",
-        values: &["drop", "gauge_rewrite", "join", "split"],
+        function: "maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split", "strand"],
         delegates: &[],
     },
     TagEntry {
