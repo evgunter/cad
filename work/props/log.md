@@ -1397,3 +1397,15 @@ the boundary's encoding against the sense bit and σ reads that bit, so
 the comparison would become a tautology. That argument is the first
 thing both reviewers are told to adjudicate, and it is the one place
 the spec is not treated as settled.
+
+**Band-doors MERGED (2026-09-16).** PR #2729, an E rider. Both items
+closed, spec into the ledger. The unit's shape is worth keeping: a lane
+that re-derived a filed measurement instead of quoting it and found the
+filing off by one tie case; a lane that refuted the orchestrator's
+ruling with evidence; a review that confirmed the refutation and found
+a second reason for it the lane had missed; and a fix pass that took
+the review's harder reading — the derivation gets ONE home with links
+from four citing sites, the private helper the door had made
+byte-identical is retired, and the pathological pairs go through the
+real validator in their own processes rather than through a local copy
+of its conditions.
