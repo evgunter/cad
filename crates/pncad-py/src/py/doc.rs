@@ -3339,6 +3339,49 @@ impl DocEdit {
         }
     }
 
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and the notation it was authored in.
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration, and preferable over `set_doc_param` for its
+    /// siblings' reason: the authoring spelling for an annotated
+    /// parameter writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres, with no refusal and no diagnostic.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door: the
+    /// field is optional and "no annotation" is a value of the
+    /// declaration, not a row removed from a map.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_distribution` — a count is structural,
+    /// fixed under any error analysis) and on a distribution that
+    /// breaks an E2 invariant (`non_finite_doc_param`,
+    /// `invalid_distribution`).
+    ///
+    /// The `Distribution`'s own dimension is NOT checked against the
+    /// parameter's here, because an edit is a payload built without
+    /// the document it will be applied to. That is
+    /// `set_doc_param_value`'s position too — it takes a typed
+    /// quantity and carries only the number — and the difference from
+    /// the `DocParam` constructors, which hold the declaration and its
+    /// annotation at once and do check.
+    #[staticmethod]
+    #[pyo3(signature = (name, distribution))]
+    fn set_doc_param_distribution(
+        name: &ParamName,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamDistribution {
+                name: name.0.clone(),
+                distribution: distribution.map(|d| d.inner),
+            },
+        }
+    }
+
     /// Bind `node`'s STRUCTURAL count slot to the document parameter
     /// `name` — the edit that makes a pattern's or a group's
     /// replication count a named, editable number.

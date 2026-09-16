@@ -2936,6 +2936,31 @@ class DocEdit:
         (`doc_param_count_has_no_unit`) and on a unit that does not
         measure the declared dimension (`doc_param_unit_mismatch`)."""
     @staticmethod
+    def set_doc_param_distribution(
+        name: ParamName, distribution: Distribution | None
+    ) -> DocEdit:
+        """Write an E1/E2 ANNOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and notation
+        alike.
+
+        The third of the carry-forward doors, one per field of the
+        declaration, and preferable over `set_doc_param` for its
+        siblings' reason: the annotated authoring spelling writes the
+        CANONICAL notation, so annotating through create-or-replace
+        re-spells a parameter authored in millimetres.
+
+        `None` CLEARS the annotation, through this same door: the field
+        is optional and "no annotation" is a value of the declaration,
+        not a row removed from a map.
+
+        The distribution's own dimension is not checked here — an edit
+        is built without the document it applies to, as
+        `set_doc_param_value` is. Refuses typed on an undeclared name
+        (`doc_param_not_declared`), on a `Count`
+        (`doc_param_count_has_no_distribution` — a count is structural,
+        fixed under any error analysis) and on a broken E2 invariant
+        (`invalid_distribution`, `non_finite_doc_param`)."""
+    @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
 

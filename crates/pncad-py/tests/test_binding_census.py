@@ -1996,6 +1996,13 @@ NOT_BOUND = {
     # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
+    # `DocParam::with_distribution`'s `Err`, flattened for
+    # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
+    # binding's annotation edit goes through `Doc.apply`, where the
+    # kernel has already mapped these to
+    # `doc_param_count_has_no_distribution` and to the distribution
+    # fault's own tags, and those are the words a caller branches on.
+    "DistributionRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -2970,6 +2977,7 @@ MEMBERS_BOUND_AS = {
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
     "EditError::DocParamCountHasNoUnit": "EditError.variant",
+    "EditError::DocParamCountHasNoDistribution": "EditError.variant",
     "EditError::DocParamUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",

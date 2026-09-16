@@ -2,8 +2,9 @@
 id: doc-param-distribution-edit-has-no-door
 kind: issue
 title: No DocEdit annotates a standing document parameter — SetDocParam would drop the notation
-status: dispatched
+status: review
 opened: 2026-09-16
+branch: edit/doc-param-distribution
 ---
 
 
@@ -103,3 +104,35 @@ over the third field.
 5. The `pncad-py` follow-through (the `DocEdit` payload, `.pyi`, tags,
    binding census) is LIB's, mechanical, taken here as the unit door
    took it; say so in the PR body.
+
+## Built (2026-09-16)
+
+Branch `edit/doc-param-distribution`.
+
+- `DocParam::with_distribution(&self, Option<Distribution>) ->
+  Result<Self, DistributionRefusal>` in `doc.rs`, exhaustive on both
+  arms, carrying `dim`, `value` and `display_unit` forward. Its two
+  refusals are `DistributionRefusal::CountHasNoAnnotation` and
+  `::Invalid { fault }` from the same `Distribution::check` the
+  persistence doors run.
+- `DocEdit::SetDocParamDistribution { name, distribution }` in
+  `edit.rs`, routing through it, with `CarryForwardDoor::Annotation`
+  ("an annotation edit") and a new
+  `EditError::DocParamCountHasNoDistribution`. The E2 fault maps
+  through `distribution_fault_error`, extracted from `write_doc_param`
+  so both doors report one answer.
+- The clearing question is ruled as the spec ruled it: ONE door,
+  `None` clears, and the reason is written once in
+  `with_distribution`'s rustdoc. Nothing in the tree contradicted it.
+- `persist::check`'s `edit_non_finite` learned the new arm — it is a
+  real float carrier, unlike the notation door — reporting the
+  offending field through the existing `NonFiniteSite::DocParam`.
+- Nine rows in `crates/editor-core/tests/edit_doc_param_distribution.rs`;
+  the F6 row for the new refusal also sits in `display_contract.rs`.
+  The corpus sink exercises the new kind (`EDIT_KINDS` is 17).
+- The `pncad-py` follow-through is LIB's, taken here mechanically:
+  the façade re-export, `DocEdit.set_doc_param_distribution`, the
+  `.pyi` stub, the tag `doc_param_count_has_no_distribution`, the
+  payload arm and the two census rows.
+- Filed on LIB's slate:
+  `work/lib/doc-param-edit-doors-drop-the-python-dimension.md`.
