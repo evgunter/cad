@@ -731,7 +731,7 @@ pub(crate) struct Doc {
     /// is held here for the same span the document it describes is —
     /// an invariant [`Doc::accept`] holds by being the only place
     /// either of the two is written.
-    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+    pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
 /// The wrapper's own plumbing: the ONE place an accepted edit is taken
@@ -795,7 +795,8 @@ impl Doc {
     /// The declare doors' shared body: the kernel's own declare sugar
     /// (`pncad::select::declare_all`), whose acceptance — the new
     /// document, its record and the maintenance the insert performed
-    /// — is taken up whole through the swap point. The id comes back
+    /// (an insert strands nothing, so that is cluster acts alone) — is
+    /// taken up whole through the swap point. The id comes back
     /// beside it already checked, so the `NoMintedId` arm is the
     /// sugar's to raise; every `DeclareError` arm reaches Python
     /// through the same `declare_err`.
@@ -875,24 +876,28 @@ impl Doc {
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
     ///
-    /// An accepted edit may also have performed **cluster-record
-    /// maintenance** — joins, splits, gauge rewrites and drops the
-    /// mate graph's motion forced on the placement registry. That
-    /// rides the edit rather than being a second edit, so it is read
-    /// off `last_maintenance` instead of returned here: the common
-    /// case is an empty list, and widening every caller's return type
-    /// for it would be paying for mates in documents that have none.
+    /// An accepted edit may also have performed **maintenance** — the
+    /// joins, splits, gauge rewrites and drops the mate graph's motion
+    /// forced on the placement registry, and the payload names a
+    /// delete stranded. That rides the edit rather than being a second
+    /// edit, so it is read off `last_maintenance` instead of returned
+    /// here: the common case is an empty list, and widening every
+    /// caller's return type for it would be paying for mates and
+    /// strands in documents that have neither.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// The cluster-record maintenance the LAST accepted edit
-    /// performed, in the order it was performed.
+    /// The maintenance the LAST accepted edit performed, in the order
+    /// it was performed: its cluster-record acts, and the payload
+    /// names its delete stranded. The strands lead and the cluster
+    /// acts follow, which is the kernel's contract on the column — so
+    /// a caller reads an entry's `variant`, never its position.
     ///
-    /// Empty after any edit that moved no mate graph, and empty on a
-    /// fresh document — a document that has never applied an edit has
+    /// Empty after any edit that moved no mate graph and stranded no
+    /// name, and empty on a fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
     ///
@@ -917,11 +922,11 @@ impl Doc {
     /// absorbed cluster's frame is consumed here, where a caller can
     /// read what was consumed.
     #[getter]
-    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+    fn last_maintenance(&self) -> Vec<super::mate::Maintenance> {
         self.maintenance
             .iter()
             .cloned()
-            .map(super::mate::ClusterMaintenance)
+            .map(super::mate::Maintenance)
             .collect()
     }
 
@@ -2857,8 +2862,10 @@ impl DocParam {
     /// No `distribution`: the kernel's own notation doors carry none
     /// (`DocParam::written_length` writes `distribution: None`), and
     /// this binding does not reach past them to build the payload by
-    /// hand. A parameter that wants both is authored through
-    /// [`Self::length`] today.
+    /// hand. A parameter that wants both is declared here and then
+    /// annotated through `DocEdit.set_doc_param_distribution`,
+    /// which carries the notation forward; [`Self::length`] takes
+    /// both at once and records the canonical metre row.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
         Self(d::DocParam::written_length(value.0))
@@ -3110,6 +3117,36 @@ pub(crate) struct DocEdit {
     pub(crate) inner: d::DocEdit<d::ProfileProgram>,
 }
 
+/// The notations `DocEdit.set_doc_param_unit` accepts: the two typed
+/// unit objects a caller already writes quantities with.
+///
+/// A typed unit rather than a symbol STRING, for
+/// `DocParam.written_length`'s reason: a `LengthUnit` is an index into
+/// a Length row of the table, so an off-table notation cannot be spelled
+/// at all and the boundary extraction is the check. What remains for
+/// the kernel to refuse is the pairing — `mm` on an angle — which is a
+/// fact about the parameter rather than about the argument.
+///
+/// No `Scalar` arm: the dimensionless row is the only notation a
+/// scalar parameter has, so a door to write it would be a door to
+/// write what is already there.
+#[derive(FromPyObject, Clone, Copy)]
+enum DisplayUnitSpec {
+    Length(super::quantity::LengthUnit),
+    Angle(super::quantity::AngleUnit),
+}
+
+impl DisplayUnitSpec {
+    /// The table code the kernel edit carries. Total both ways: every
+    /// arm holds a table row (`UnitSym::from_def`).
+    fn sym(self) -> d::UnitSym {
+        match self {
+            Self::Length(u) => d::UnitSym::from_def(&u.0.def()),
+            Self::Angle(u) => d::UnitSym::from_def(&u.0.def()),
+        }
+    }
+}
+
 #[pymethods]
 impl DocEdit {
     /// Insert a node.
@@ -3266,6 +3303,86 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParamValue {
                 name: name.0.clone(),
                 value: value.0,
+            },
+        }
+    }
+
+    /// Write a new NOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and, if it has one, its distribution.
+    ///
+    /// `set_doc_param_value`'s mirror over the other field of the same
+    /// declaration, and preferable over `set_doc_param` for the same
+    /// reason: create-or-replace makes the caller restate the whole
+    /// declaration to re-spell one unit, and whatever they leave out
+    /// — the annotation, every time — is deleted with no refusal.
+    ///
+    /// A notation change is NOT a redeclaration — `DocParam.bit_eq`
+    /// already excludes the display unit as presentation metadata.
+    ///
+    /// The unit is a `LengthUnit` or an `AngleUnit` — the same objects
+    /// `25 * mm` is written with — so an off-table notation is a
+    /// `TypeError` at the boundary rather than a refusal from the
+    /// kernel. `Scalar` parameters take no argument here: the
+    /// dimensionless row is the only notation they have.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_unit` — a count is an integer, not a
+    /// quantity) and on a unit that does not measure the declared
+    /// dimension (`doc_param_unit_mismatch`).
+    #[staticmethod]
+    fn set_doc_param_unit(name: &ParamName, unit: DisplayUnitSpec) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamUnit {
+                name: name.0.clone(),
+                unit: unit.sym(),
+            },
+        }
+    }
+
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and the notation it was authored in.
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration, and preferable over `set_doc_param` for its
+    /// siblings' reason: the authoring spelling for an annotated
+    /// parameter writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres, with no refusal and no diagnostic.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door: the
+    /// field is optional and "no annotation" is a value of the
+    /// declaration, not a row removed from a map.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_distribution` — a count takes no
+    /// annotation, for the reason `DocParam.count` gives) and on a
+    /// distribution that breaks an E2 invariant
+    /// (`non_finite_doc_param`, `invalid_distribution`).
+    ///
+    /// The `Distribution`'s own dimension is NOT checked against the
+    /// parameter's here: a kernel `Distribution` is dimension-free
+    /// offsets, so this wrapper's `dim` is dropped building the
+    /// payload and nothing survives for `apply` to compare. That is
+    /// `set_doc_param_value`'s position too — it takes a typed
+    /// quantity and carries only the number — and the difference from
+    /// the `DocParam` constructors, which hold the declaration and its
+    /// annotation at once and do check. Whether the binding should
+    /// instead carry the dropped dimension and refuse at `apply` is
+    /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
+    #[staticmethod]
+    #[pyo3(signature = (name, distribution))]
+    fn set_doc_param_distribution(
+        name: &ParamName,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamDistribution {
+                name: name.0.clone(),
+                distribution: distribution.map(|d| d.inner),
             },
         }
     }

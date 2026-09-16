@@ -127,7 +127,7 @@ pub mod hexbytes;
 pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
-mod wire;
+pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
@@ -152,6 +152,15 @@ struct FileBody {
 /// A loaded document: the parsed snapshot, the parsed edit log, and
 /// the REPLAYED result (snapshot + edits through [`apply`]'s doors —
 /// the document's current state).
+///
+/// There is no column for the maintenance the replayed edits
+/// performed, by the load boundary: the loaded document IS the state,
+/// and each edit's [`crate::Applied::maintenance`] was that edit's
+/// report to the caller who applied it, its effect already in the
+/// document (a rewritten registry; a stranded name the next evaluation
+/// reports typed). [`Doc::replay`](crate::Doc::replay) draws the same
+/// line, and DM7's round-trip row is the evidence the discard loses
+/// nothing.
 #[derive(Debug)]
 pub struct Loaded {
     /// The snapshot as saved.

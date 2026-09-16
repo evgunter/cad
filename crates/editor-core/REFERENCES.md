@@ -287,6 +287,16 @@ the same payload walk the insert door checks with. The strand is loud
 where it happens rather than at the next evaluation; `NodeGone` and
 `Rebind` remain the diagnosis and the repair.
 
+The report covers every reference the document holds under N5
+semantics, not only the node payloads: an appearance attachment is
+keyed by a `StableName` in the document's appearance store
+(`DocEdit::SetAppearance` gives it Declare's semantics, `Rebind`
+repairs it, evaluation reports its loss as `AppearanceLoss`), so a
+delete that strands one reports it too, as its own `Maintenance` arm
+(`StrandedAppearance { name }`) rather than a `Strand` with no
+carrying node. `Node::payload_names` stays the one list of NODE
+carriers; the store is the other carrier.
+
 - **Why not an edge.** A full edge over payload names reverses the
   carve-out and deadlocks the declared union: the union's input is the
   `Declare`, the `Declare`'s pairs name the union, so neither could be
@@ -301,19 +311,30 @@ where it happens rather than at the next evaluation; `NodeGone` and
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`deletenode-strands-a-declare-payload-name`); built by the unit that
-row names.*
+row names. The appearance-key widening was ruled by Ev on EDIT's third
+`[ev]` PR of 2026-09-16
+(`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
+it.*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
 
 The map from an authored profile step (`SlotId::Profile { loop_, step,
-arg }`) to the canonical segments it became (`ProfileEdgeRef {
-loop_index, segment }`) is a function in `program.rs` composing two
+arg }`) to the profile edges it became (`ProfileEdgeRef {
+loop_index, segment }`) is a function in `program.rs` reading two
 records the evaluation already produces: the replay's per-step segment
 span (a field of `crates/profile`'s `ReplayStructure`, beside its
-fillet decisions) and canonicalization's `reversed` and `start` on
-`LoopCanonical`. It refuses where a record is absent rather than
-guessing. It is derived from the structure record the geometry came
-from, so it cannot disagree with the geometry, and it is not persisted.
+fillet decisions) gives the answer, in the program's own step order —
+the numbering the published names carry, since `eval/anchor.rs`
+renumbers every emitted ref canonical → program before the name table
+is published — and canonicalization's `reversed` and `start` on
+`LoopCanonical` are checked against the naming anchor's record of the
+same permutation, never applied. A disagreement between those two
+records is the evaluation contradicting itself and asserts. The door
+refuses typed where a record is absent or of the wrong shape rather
+than guessing. It is derived from the structure record the geometry
+came from, so it cannot disagree with the geometry, and it is not
+persisted. For a loft the published anchoring is section 0's
+(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -325,7 +346,13 @@ from, so it cannot disagree with the geometry, and it is not persisted.
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`authored-step-to-canonical-segment-map-has-no-home`); the
-`ReplayStructure` field is S-BOOL's ground by announcement.*
+`ReplayStructure` field is S-BOOL's ground by announcement. The
+wording — the answer in the program's numbering, the permutation
+checked rather than applied, a disagreement asserting — was ruled by
+Ev on EDIT's third `[ev]` PR of 2026-09-16
+(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`),
+after the unit that built the door measured the original clause's
+composition wrong.*
 
 ## What this doc does not touch
 

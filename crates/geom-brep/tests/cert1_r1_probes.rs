@@ -280,20 +280,28 @@ fn probe_lever_is_latitude_uniform() {
 // ------------------------------------------------------------------
 
 /// A polar CAP — one full rim at latitude `b`, no meridians: the pole
-/// is in the face INTERIOR and no edge's span can fold it. Recording
-/// the disposition: the extent fix cannot see this face (its only
-/// level list is `{sin b}`), so it must refuse `DegenerateFace` — the
-/// same lo == hi artifact the no-split twin just retired, one arm
-/// over. Executed to pin what is true at this head.
+/// is in the face INTERIOR and no edge's span can fold it. This probe
+/// recorded the refusal that became issue 1250; the disposition it
+/// records now is the served one. No edge's SPAN folds the pole
+/// still — what names it is the rim's TRAVERSAL, `+u` here, whose
+/// interior side is `+v`, so the extent is `[sin b, +1]` and the face
+/// measures the spherical cap `2πR²(1 − sin b)`. Traversed the other
+/// way the same rim bounds the ball minus that cap. The rows that own
+/// the mechanism are `props_sphere_pole_side.rs`; this one keeps the
+/// probe's own before/after.
 #[test]
 fn probe_full_polar_cap_disposition() {
-    let b = 0.5;
-    let edges = vec![rim(b, 0.0, 2.0 * PI, 0, 0)];
-    let got = curved_face(&sphere::<f64>(), &edges, true, band());
-    assert!(
-        matches!(got, Err(PropsError::DegenerateFace)),
-        "recording the cap disposition changed: {got:?}"
-    );
+    let b: f64 = 0.5;
+    for (u0, u1, exact) in [
+        (0.0, 2.0 * PI, 2.0 * PI * RS * RS * (1.0 - b.sin())),
+        (2.0 * PI, 0.0, 2.0 * PI * RS * RS * (1.0 + b.sin())),
+    ] {
+        let edges = vec![rim(b, u0, u1, 0, 0)];
+        let got = curved_face(&sphere::<f64>(), &edges, true, band())
+            .unwrap_or_else(|e| panic!("the cap disposition changed: {e:?}"));
+        let rel = (got.area - exact).abs() / exact;
+        assert!(rel < 1e-12, "cap {u0}->{u1}: area {} vs {exact}", got.area);
+    }
 }
 
 /// A GENUINE near-polar rectangular band (both rims at the extremes,

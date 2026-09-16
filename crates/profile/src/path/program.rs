@@ -98,7 +98,7 @@ use super::{
     PathError, Plain, Start, Via, WithIncoming,
 };
 use crate::ProfileLoop;
-use crate::structure::{Guide, ReplayStructure, StructureRefusal};
+use crate::structure::{Decision, DecisionValue, Guide, ReplayStructure, StructureRefusal};
 use crate::sugar::ArcSweep;
 use geom_core::Tol;
 
@@ -586,9 +586,7 @@ transition_table! {
             /// the seam).
             on [] Open;
             fn at [<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng>] {
-                let mut path = self.at_kernel(p);
-                path.core.record(Step::At(p));
-                path
+                self.at_kernel(Step::At(p), p)
             }
             arms {
                 DynTip::Entry => {
@@ -650,9 +648,7 @@ transition_table! {
             /// the sketch plane; position pending).
             on [] Open;
             fn angle [<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng>] {
-                let mut path = self.director(super::Dir::from_angle(theta));
-                path.core.record(Step::Angle(theta));
-                path
+                self.director(Step::Angle(theta), super::Dir::from_angle(theta))
             }
             arms {
                 DynTip::Entry => {
@@ -756,9 +752,8 @@ transition_table! {
                 dy: T,
                 tol: Tol,
             ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>>] {
-                let mut path = self.director(super::unit_from_components(dx, dy, tol)?);
-                path.core.record(Step::Toward { dx, dy });
-                Ok(path)
+                let dir = super::unit_from_components(dx, dy, tol)?;
+                Ok(self.director(Step::Toward { dx, dy }, dir))
             }
             arms {
                 DynTip::Entry => {
@@ -1692,15 +1687,17 @@ transition_table! {
                 radius: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let loop_ = super::circle_kernel(center, radius, tol)?;
                 Ok(ClosedLoop {
-                    loop_: super::circle_kernel(center, radius, tol)?,
+                    // A closed carrier resolves no fillet: no gate, no
+                    // ladder, nothing discrete to record but the one
+                    // step's reach, which is the whole loop.
+                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    loop_,
                     program: vec![Step::Circle {
                         centre: center,
                         radius,
                     }],
-                    // A closed carrier resolves no fillet: no gate, no
-                    // ladder, nothing discrete to record.
-                    structure: ReplayStructure::default(),
                 })
             }
             arms {
@@ -1750,17 +1747,19 @@ transition_table! {
                 phase: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let loop_ = super::circle_split_kernel(center, radius, n, phase, tol)?;
                 Ok(ClosedLoop {
-                    loop_: super::circle_split_kernel(center, radius, n, phase, tol)?,
+                    // Structural subdivisions of one carrier: still no
+                    // fillet resolution anywhere in the form, and the
+                    // one step reaches every subdivision.
+                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    loop_,
                     program: vec![Step::CircleSplit {
                         centre: center,
                         radius,
                         n,
                         phase,
                     }],
-                    // Structural subdivisions of one carrier: still no
-                    // fillet resolution anywhere in the form.
-                    structure: ReplayStructure::default(),
                 })
             }
             arms {
@@ -2496,7 +2495,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`ReplayError`] — the elaboration's own refusals as ever, plus
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
-/// than the program reaches is refused the same way.
+/// than the program reaches is refused the same way, and so is one
+/// whose per-step segment spans this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2508,14 +2508,41 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     // per-decision disagreement — no single predicate moved — so it is
     // reported at the record's own shape.
     let got = closed.structure.fillets.len();
-    if got == want {
-        Ok(closed.loop_)
-    } else {
-        Err(ReplayError {
-            step: steps.len(),
-            kind: ReplayErrorKind::Path(PathError::Structure(StructureRefusal::shape(want, got))),
-        })
+    let refuse = |r: StructureRefusal| ReplayError {
+        step: steps.len(),
+        kind: ReplayErrorKind::Path(PathError::Structure(r)),
+    };
+    if got != want {
+        return Err(refuse(StructureRefusal::shape(want, got)));
     }
+    // The spans are checked HERE rather than inside the guide because
+    // the complete-loop carrier forms never take a guide at all: a
+    // record and an elaboration that disagree about `circle_split`'s
+    // subdivision count would otherwise pass unread. What a lane can
+    // move is which ARM ran — a fit gate that suppresses a zero-length
+    // straight piece emits one segment where the record says two — and
+    // that is the disagreement this reports.
+    if structure.steps.len() != closed.structure.steps.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.steps.len(),
+            closed.structure.steps.len(),
+        )));
+    }
+    for (step, (recorded, found)) in structure
+        .steps
+        .iter()
+        .zip(&closed.structure.steps)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::StepSpan { step },
+                DecisionValue::Span(*recorded),
+                DecisionValue::Span(*found),
+            )));
+        }
+    }
+    Ok(closed.loop_)
 }
 
 /// The driver proper: one walk over the steps, one guide, one chain.

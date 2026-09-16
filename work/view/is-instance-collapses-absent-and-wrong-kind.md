@@ -60,7 +60,7 @@ answer plausibly and wrongly.
 
 The pattern is *a `bool`-returning door over a question with more than
 two answers*, and the reviewer named three more of the shape without
-adjudicating them: `frame::folded_moved`, `frame::ChooserBackend::usable`,
+adjudicating them: `frame::folded_moved`, `platform::ChooserBackend::usable`,
 `frame::acts`, and `tools::commits_open_tool`. Whoever takes this
 sweeps those rather than fixing one.
 

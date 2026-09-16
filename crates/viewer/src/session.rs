@@ -216,6 +216,42 @@ fn gesture_words() -> g1::Refusals<Refusal> {
     }
 }
 
+/// The slot's driver and current value, or the refusal that says the
+/// slot is not there.
+///
+/// Over a document rather than over the session, so a begin's target
+/// check can run inside [`g1::Slot::begin`]'s closure, where the
+/// session's gesture field is already borrowed.
+fn driver_of(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
+    let row = props::slot_rows(doc, node)
+        .into_iter()
+        .find(|row| row.slot == slot)
+        .ok_or(Refusal::NoSuchSlot { node, slot })?;
+    Ok((row.driver, row.value.ok()))
+}
+
+/// Refuse a numeric edit to a driven slot, with the affordance.
+fn guard_driven(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Result<(), Refusal> {
+    let (driver, current) = driver_of(doc, node, slot)?;
+    match driver {
+        SlotDriver::Literal => Ok(()),
+        SlotDriver::Expression { params } => Err(Refusal::DrivenByExpression {
+            node,
+            slot,
+            params,
+            current,
+        }),
+    }
+}
+
 /// The whole of what the document panels operate on.
 pub struct DocSession {
     history: History,
@@ -1095,13 +1131,18 @@ impl DocSession {
     /// names the drag whose preview the operation would have landed
     /// against, which is the nearer of the two answers.
     ///
-    /// One arm still guards from its own state rather than from a
-    /// table: the `*FreeMove` quartet delegates to [`DisplayState`],
-    /// which refuses
-    /// [`crate::display::DisplayFault::FreeMoveInFlight`] when a
-    /// second begin arrives under an open drag. That is the same
-    /// refusal the second table raises, one layer down, and the table
-    /// leaves the row to it rather than spelling one answer twice.
+    /// **Rule 1 is the one answer neither table spells**, for either
+    /// drag. A begin that arrives under an open gesture is refused by
+    /// the gesture's own door — [`g1::Slot::begin`], reached through
+    /// [`DocSession::start`] for the value drag and through
+    /// [`DisplayState::begin_free_move`] for the probe — with the same
+    /// refusal a row here would raise, off the same state. So each
+    /// begin is `true` in the table that would otherwise pre-empt it —
+    /// [`SessionOp::BeginGesture`] and [`SessionOp::BeginParamGesture`]
+    /// in the value table, [`SessionOp::BeginFreeMove`] in the
+    /// free-move one — and the set of operations a drag refuses is its
+    /// table plus that one rule, held once for both drags rather than
+    /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
@@ -1401,36 +1442,8 @@ impl DocSession {
         })
     }
 
-    /// The slot's driver and current value, or the refusal that says
-    /// the slot is not there.
-    fn driver_of(
-        &self,
-        node: RecipeNodeId,
-        slot: SlotId,
-    ) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
-        let row = props::slot_rows(self.committed_doc(), node)
-            .into_iter()
-            .find(|row| row.slot == slot)
-            .ok_or(Refusal::NoSuchSlot { node, slot })?;
-        Ok((row.driver, row.value.ok()))
-    }
-
-    /// Refuse a numeric edit to a driven slot, with the affordance.
-    fn guard_driven(&self, node: RecipeNodeId, slot: SlotId) -> Result<(), Refusal> {
-        let (driver, current) = self.driver_of(node, slot)?;
-        match driver {
-            SlotDriver::Literal => Ok(()),
-            SlotDriver::Expression { params } => Err(Refusal::DrivenByExpression {
-                node,
-                slot,
-                params,
-                current,
-            }),
-        }
-    }
-
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = self.guard_driven(node, slot) {
+        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot) {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
@@ -1454,7 +1467,7 @@ impl DocSession {
         // parameters to probe instead. A parameter has no driver and
         // reaches this door unguarded.
         if let BoundsTarget::Slot { node, slot } = target
-            && let Err(refusal) = self.guard_driven(node, slot)
+            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot)
         {
             return OpOutcome::refused(refusal);
         }
@@ -1545,41 +1558,66 @@ impl DocSession {
         self.commit(DocEdit::SetDocParam { name, value })
     }
 
+    /// The slot door: a drag over a literal slot's number.
+    ///
+    /// The driven-slot guard is the TARGET check and runs inside
+    /// [`Self::start`]'s closure, so it answers only for a gesture
+    /// that is actually being opened.
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
-        if let Err(refusal) = self.guard_driven(node, slot) {
-            return OpOutcome::refused(refusal);
-        }
-        let unit = props::slot_unit(self.committed_doc(), node, slot);
-        self.start(GestureTarget::Slot { node, slot, unit })
-    }
-
-    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
-        let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
-            return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
-        };
-        self.start(GestureTarget::Param {
-            name: name.clone(),
-            dimension,
+        self.start(move |doc| {
+            guard_driven(doc, node, slot)?;
+            Ok(GestureTarget::Slot {
+                node,
+                slot,
+                unit: props::slot_unit(doc, node, slot),
+            })
         })
     }
 
-    /// Open a gesture on an already-validated target.
+    /// The parameter door: a drag over a declared parameter's value.
+    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
+        let name = name.clone();
+        self.start(move |doc| {
+            let dimension = doc
+                .params()
+                .get(&name)
+                .map(|param| param.dim())
+                .ok_or_else(|| Refusal::NoSuchParam(name.clone()))?;
+            Ok(GestureTarget::Param { name, dimension })
+        })
+    }
+
+    /// Open a gesture, refusing one that is already open and
+    /// validating `target` only once the slot is known free.
     ///
-    /// The in-flight refusal is [`g1::Slot::begin`]'s and is the same
-    /// rule the probe's door obeys. For this drag it is a floor rather
-    /// than the door a user meets: `BeginGesture` and
-    /// `BeginParamGesture` are `false` in
-    /// [`SessionOp::permitted_during_value_gesture`], so
-    /// [`DocSession::perform`] has already refused
-    /// [`Refusal::GestureInFlight`] before this runs.
-    /// `work/view/the-value-drags-in-flight-refusal-has-two-spellings.md`
-    /// holds the question of which of the two should keep it.
-    fn start(&mut self, target: GestureTarget) -> OpOutcome {
-        let base = self.history.doc().clone();
-        match self
-            .gesture
-            .begin(gesture_words(), || Ok(Gesture { target, base }))
-        {
+    /// **Rule 1 is [`g1::Slot::begin`]'s and is spelled nowhere else**
+    /// — the same door the probe's begin goes through, with this
+    /// gesture's words. `BeginGesture` and `BeginParamGesture` are
+    /// therefore `true` in
+    /// [`SessionOp::permitted_during_value_gesture`]: a row there
+    /// would refuse the same state with the same
+    /// [`Refusal::GestureInFlight`] one layer up, and the door's own
+    /// arm would never run.
+    ///
+    /// `target` is the caller's check — a driven slot, a parameter the
+    /// document does not declare — and runs inside the slot's closure
+    /// rather than ahead of it, so a begin arriving under an open drag
+    /// is answered *finish the drag first* rather than told about a
+    /// field it was never going to open.
+    fn start(
+        &mut self,
+        target: impl FnOnce(&Doc<ProfileProgram>) -> Result<GestureTarget, Refusal>,
+    ) -> OpOutcome {
+        // The committed document is borrowed beside the slot rather
+        // than through `self`: the target's check reads it while the
+        // gesture field is being written.
+        let history = &self.history;
+        match self.gesture.begin(gesture_words(), || {
+            Ok(Gesture {
+                target: target(history.doc())?,
+                base: history.doc().clone(),
+            })
+        }) {
             Ok(()) => OpOutcome::default(),
             Err(refusal) => OpOutcome::refused(refusal),
         }

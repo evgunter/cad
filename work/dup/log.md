@@ -165,3 +165,118 @@ overshoot — a genuinely wrong bound — so **fixing that bound will not
 stop this row reddening other programs' PRs**. Evidence added to
 `work/mesh/nurbs-face-bound-unsound-on-a-random-rational.md` rather
 than a second file. Flagged to Ev; S-MESH's to fix.
+
+### The measurement unit B owed, and why B is now three units (2026-09-16)
+
+**Answer: one fixture, not two.** `topo`'s Euler-built box and
+`sweep`'s extrude-built box are the same solid — same counts, same
+keys, same arena order in every topological arena, same face surfaces
+and senses, same `mass_properties` bits. Two axes differ and neither is
+geometry: the curve arena holds the same key set permuted, and four of
+twelve edges carry `Intersection`'s `(s1, s2)` swapped. Nothing in the
+tree reads either; `validate.rs` and `boolean/ops.rs` both accept
+either arrangement. So the row's "equal" branch applies and the remedy
+is the move down.
+
+**The measurement was worth more than its answer**, which is the
+argument for the row's own rule that a measurement comes before a fix.
+Three things it found that no amount of reading the row would have:
+
+- **A kernel finding.** `describe_as_intersections`' rule
+  (`s1 = surface(face(he_plus))`) holds on 12/12 edges of the Euler
+  body and **8/12** of the extruded one, with `he_plus`/`he_minus`
+  identical between them — so extrude names the pair by something other
+  than the edge's own direction on the cap it closes, and the pair has
+  no ratified order to violate. Filed on BLEND's ground as
+  `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
+  It is an unordered pair carried in two ordered fields, with three
+  consumers that each check both ways — Q7's shape exactly.
+- **Two gates in front of the move, both MEASURED.**
+  `scripts/gates/witness-not-ambient.sh` puts
+  `test_support_impl.rs` in its production set (the `any(...)` mount is
+  explicitly excluded from `GATE_CFG_TEST_NOT_RE`'s test-only
+  narrowing), and the family calls `Tol::witness()` 24 times. The lane
+  established this by **planting a violation and watching the gate
+  fire**, then reverting — method item 4, on a gate rather than a
+  constant. Plus the `#![allow(unwrap_used, expect_used, panic)]` that
+  is unremarkable in `tests/` and is not in `src/`.
+- **The honest set is the whole file**, including three members the row
+  had not listed (`straddle_seat`, `flush_declarations`,
+  `assert_every_chord_named_by_both_rules`).
+
+**So B decomposes into three, and B is the last of them**: reconcile
+`geometric_cube`/`cube_into`; thread `tol: Tol` through the family;
+then move and unify. Each link is worth doing on its own merits whether
+or not the next happens — which is the test that a decomposition is
+real rather than a large unit made to look small. Threading the
+tolerance also lands `prism_z`'s signature on
+`sweep::test_support::brick`'s, convergent evidence that the two are
+one door.
+
+Ev ratified "A now, B next unit" before the measurement existed. Taken
+as a sequencing decision with a recommendation rather than put back to
+him (`memories/orchestration-model.md`), and reported in the same
+sitting. The alternative was dispatching B as specced, which would have
+moved a duplication into a new home and met the first gate at the
+24th `Tol::witness()`.
+
+**Next unit dispatched**: `topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice`,
+claimed onto this slate, full review tier.
+
+### Link 1 ran (2026-09-16, PR #2727) — and X4 was done right this time
+
+`geometric_cube` and `cube_into` now share one private `cube_ops`;
+`geometric_cube` calls it without `describe_as_intersections` and
+`cube_into` with it. **The lane's factoring beat the orchestrator's
+suggestion and the argument is worth keeping**: a `describe: bool`
+parameter would make the difference between the two doors *a literal at
+a call site* rather than a line, and the whole risk in this unit was a
+reader not noticing that step. A brief's suggested shape is a
+hypothesis; the lane is closer to the code.
+
+**The full-tier concern was discharged by measurement, not assertion.**
+Thirteen bodies dumped as `format!("{body:#?}")` and compared by
+SHA-256 before and after: all thirteen byte-identical.
+`geometric_cube` still carries 12/12 `Scaffold(ExtrudedPoint …)`/
+`Declared` and everything else 12/12 `Intersection`/`Derived`. That is
+the axis the unit could have silently destroyed while staying green.
+
+**X4, done the way the previous unit's failure taught.** Not "check the
+neighbour I was thinking about" but *enumerate every sibling door and
+group them by hash*. Result: **six doors, one body** — `brick`,
+`prism`, `prism_z`, `mapped_cube`, `cube_into` into a fresh body, and
+`review_m2_pr7`'s private copy. Checked away from the unit ranges
+(`brick((1,3),(0,3),(-0.5,0.5))` against an affine `mapped_cube`) so
+the agreement is a fact about the domain rather than an artifact of one
+fixture. `review_m2_pr7`'s copy folded in and was deleted.
+
+**A finding that changes link 3's value.** `crates/topo/src/cert_m3r1_probes.rs`
+holds a verbatim in-src copy of `GeoCube`, `line`, `plane`,
+`geometric_cube` and `describe_as_intersections`, and says so in its own
+doc twice. It cannot be reached from `tests/`, and it **unblocks with
+link 3 exactly** — so the move down is now worth more than one brick:
+it closes an in-`src` copy that no test-side unit can touch. Recorded
+against the brick-homes row's move set, which had not listed it.
+
+**Adjudications on the lane's open questions**, recorded because two of
+them are general:
+
+- **Closing a row your own diff resolved is right**, even on another
+  program's slate, when your program filed it there. An `open` finding
+  that is fixed is a lie on the board, and the board is the only record
+  of what is left. The row moves to the closing program's slate so the
+  board also says who closed it.
+- **A claim widened past its measurement owes a guard, not a
+  narrowing.** The lane widened `brick`'s doc from "at the unit ranges"
+  to "wherever their domains meet" and flagged it as stronger than what
+  it measured. The remedy is not to weaken the sentence but to make it
+  falsifiable: a row pinning the six-door identity at several boxes,
+  **with `geometric_cube` as the negative row in the same test** — a
+  test that only pins agreement goes green if someone makes all six
+  doors identical by deleting the distinction, which is this unit's
+  nearest failure mode. Sent back as a fix pass.
+- **A row that asserts an equality it established by shape rather than
+  by execution carries the defect this program exists to remove.** The
+  lane's own new prism row does; it is now required to say so and to
+  name the instrument it owes. The next lane must not inherit a
+  confidence nobody earned.

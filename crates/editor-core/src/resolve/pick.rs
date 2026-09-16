@@ -5,7 +5,11 @@
 //! The chain: [`bvh::Bvh::ray`] over the patches' boxes, then over
 //! the candidate patches' per-triangle boxes, merged into one
 //! candidate sequence ([`MeshPick`]) → exact ray/triangle tests in
-//! plain `f64` → nearest hit by `t` with a total, documented tie-break
+//! plain `f64`, each on a determinant certified non-zero AND on
+//! barycentrics certified to say something — a candidate whose
+//! rounding interval covers the whole admissible range is refused
+//! rather than answered from ([`ray_triangle`], [`crossing`]) →
+//! nearest hit by `t` with a total, documented tie-break
 //! → the winning patch's [`mesh::FacePatch::face`] back-reference →
 //! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
@@ -77,12 +81,8 @@ use crate::product::sources_of;
 /// ([`PickPatch::face`]).
 #[derive(Clone, Copy, Debug)]
 struct PickTri {
-    /// First corner.
-    a: Point3<f64>,
-    /// Second corner.
-    b: Point3<f64>,
-    /// Third corner.
-    c: Point3<f64>,
+    /// The corners, in the mesh's winding — the exact test's operand.
+    corners: [Point3<f64>; 3],
 }
 
 /// One patch's pick table: its triangles' corners copied out of the
@@ -158,13 +158,12 @@ impl PickTable {
                     },
                 )?;
             }
-            let [a, b, c] = corners;
             // `from_points` is `None` only for an empty iterator;
             // three points always yield a box. The unreachable arm
             // degrades to poison — never pruned — rather than a
             // panic (fail-safe direction).
-            boxes.push(Aabb::from_points([a, b, c]).unwrap_or_else(Aabb::poison));
-            tris.push(PickTri { a, b, c });
+            boxes.push(Aabb::from_points(corners).unwrap_or_else(Aabb::poison));
+            tris.push(PickTri { corners });
         }
         let hull = boxes
             .iter()
@@ -235,13 +234,14 @@ impl core::error::Error for MeshPickError {}
 /// # Why the two-level query answers exactly as one tree over every
 /// triangle would
 ///
-/// A pick is a function of the candidate SEQUENCE the tree hands the
-/// exact test — not only of the set: the loop early-outs on the
-/// conservative entry parameter, and the exact test can answer a `t`
-/// outside a grazed triangle's own box (a ray in the triangle's
-/// plane), so which such answers the loop reaches is decided by the
-/// order. [`MeshPick::candidates`] therefore reproduces the single-
-/// tree sequence verbatim:
+/// A pick is a function of the candidate SET: each candidate's exact
+/// test ([`ray_triangle`]) reads the ray and the triangle and nothing
+/// else, and the loop's early-out on the box entry prunes only
+/// candidates that could not win, up to the rounding of a near-tie
+/// ([`pick_face`]). What the order otherwise decides is the WORK —
+/// which candidates are tested before the early-out fires — so
+/// [`MeshPick::candidates`] reproduces the single-tree sequence
+/// verbatim, and the two-level index costs what one tree would:
 ///
 /// - **Same set.** `bvh`'s contract: a query's candidates are a
 ///   function of the item boxes alone, independent of tree shape, and
@@ -265,7 +265,8 @@ impl core::error::Error for MeshPickError {}
 /// So the loop in [`pick_face`] sees the sequence one tree over all
 /// the triangles would give it, and answers bit-identically — the
 /// invariant `viewer`'s `index_memo` differential pins against a
-/// single-level reference, tie-break row included.
+/// single-level reference that tests every candidate, tie-break row
+/// included.
 ///
 /// # The two doors, and why they answer the same index
 ///
@@ -417,30 +418,104 @@ impl MeshPick {
     }
 }
 
-/// One displayed mesh offered to a pick: which node/body the mesh
-/// renders, and its prebuilt index.
+/// One displayed mesh offered to a pick: which document and which
+/// node/body the mesh renders, and its prebuilt index.
 ///
-/// # The provenance contract (loud, unenforceable here)
+/// # The document half is CHECKED AT THE DOOR (DI3, A2a)
 ///
-/// **`(node, body)` MUST be the pair `pick`'s mesh was tessellated
-/// from.** This module cannot verify it: arena keys collide
-/// numerically across sibling nodes, so a mismatched pairing does not
-/// error — [`pick_face`] resolves the hit triangle's face key against
-/// the wrong node's table and answers a **plausible, confidently
-/// wrong name** (the failure a selection consumer cannot detect;
-/// same convention family as [`super::MeshPatchKey`]). Assemble raw
-/// targets only from state that carries the pairing — e.g. a cache
-/// keyed by ([`Evaluation::epoch`], node, body) holding the mesh and
-/// its index together — or use [`NodePick`], which establishes the
-/// pairing by construction and cannot be mis-assembled.
-#[derive(Clone, Copy)]
+/// The document is the one the evaluation passed to [`PickTarget::new`]
+/// (or held by the [`NodePick`] that minted this) was of, and
+/// [`pick_face`] refuses an evaluation of any OTHER document before it
+/// reads a triangle — the one predicate every pairing door shares. It
+/// is stamped rather than inferred because node ids are minted per
+/// document: a twin recipe's evaluation satisfies every standing check
+/// and answers every name lookup, about other geometry.
+///
+/// # Every half is a contract on the RAW path (loud, unenforceable here)
+///
+/// The fields are private and there are exactly two mints:
+/// [`NodePick::target`], where all three of `(document, node, body)`
+/// and the mesh come from one tessellation and the pairing is true by
+/// construction; and [`PickTarget::new`], where the caller declares
+/// them. **A minted target cannot be taken apart and re-stamped** —
+/// neither [`NodePick`] nor this type hands its `MeshPick` out — so a
+/// forged document half needs a mesh the forger tessellated, which is
+/// the raw path and its contract, below.
+///
+/// On the raw path, **`(document, node, body)` MUST be what `pick`'s
+/// mesh was tessellated from**, and this module can verify none of it.
+/// The node half cannot be checked even in principle: arena keys
+/// collide numerically across sibling nodes OF ONE DOCUMENT, so a
+/// mismatched pairing inside the handed document does not error —
+/// [`pick_face`] resolves the hit triangle's face key against the wrong
+/// node's table and answers a **plausible, confidently wrong name**
+/// (the failure a selection consumer cannot detect; same convention
+/// family as [`super::MeshPatchKey`]). The document half is checked
+/// against the evaluation at the door, which catches every target that
+/// declared it honestly and is handed the wrong evaluation — the class
+/// that reaches a live consumer — and not a caller who declares a mesh
+/// of one document to be of another. Assemble raw targets only from
+/// state that carries the pairing — e.g. a cache keyed by
+/// ([`Evaluation::epoch`], node, body) holding the mesh and its index
+/// together — or use [`NodePick`], which establishes every half by
+/// construction and cannot be mis-assembled.
+///
+/// Re-stamping a minted target is a compile error, which is what makes
+/// the paragraph above a statement about the type rather than about
+/// its callers:
+///
+/// ```compile_fail,E0451
+/// use editor_core::{DocumentId, PickTarget};
+/// fn forge<'a>(honest: PickTarget<'a>, other: DocumentId) -> PickTarget<'a> {
+///     PickTarget { document: other, ..honest }
+/// }
+/// ```
+///
+/// `Debug` dumps the whole target, the mesh index included, which is
+/// how a row compares two indexes table for table without a door that
+/// hands the index itself out (one that did would re-open the mint
+/// above).
+#[derive(Clone, Copy, Debug)]
 pub struct PickTarget<'a> {
+    /// The document whose evaluation produced the displayed body —
+    /// the half [`pick_face`] checks against the handed evaluation.
+    document: DocumentId,
     /// The node whose evaluation produced the displayed body.
-    pub node: RecipeNodeId,
+    node: RecipeNodeId,
     /// The output body index within that node's value.
-    pub body: u32,
+    body: u32,
     /// The body's mesh index ([`MeshPick::build`]).
-    pub pick: &'a MeshPick,
+    pick: &'a MeshPick,
+}
+
+impl<'a> PickTarget<'a> {
+    /// A target assembled BY HAND from a mesh index the caller built:
+    /// the raw path, whose contract is this type's docs.
+    ///
+    /// The document half is not an argument — it is read off `eval`,
+    /// the evaluation `pick`'s mesh is claimed to have been
+    /// tessellated from — so no caller can name a document it has no
+    /// evaluation of, and a target minted by [`NodePick::target`]
+    /// cannot be re-stamped with another (its mesh index never leaves
+    /// the index).
+    ///
+    /// Prefer [`NodePick`]: it is the door that establishes every half
+    /// by construction. This exists for a caller that already holds a
+    /// [`MeshPick`] over a mesh of its own — a display cache, or a row
+    /// measuring [`pick_face`] over a mesh no tessellation produces.
+    pub fn new<T: Decide>(
+        eval: &Evaluation<T>,
+        node: RecipeNodeId,
+        body: u32,
+        pick: &'a MeshPick,
+    ) -> Self {
+        Self {
+            document: eval.document,
+            node,
+            body,
+            pick,
+        }
+    }
 }
 
 /// Typed failure of [`NodePick::build`] (closed; no silent lanes).
@@ -543,8 +618,31 @@ fn standing_value<T: Decide>(
 /// source of truth. The mesh and the index are shared, so a clone is
 /// a handle: [`PickMemo`] keeps one per displayed (node, body) across
 /// pictures, and the index the viewer holds is another.
+///
+/// **The building evaluation's document is stamped too**, because the
+/// pairing a constructor establishes has to survive the constructor:
+/// the doors that take a SECOND evaluation —
+/// [`NodePick::patch_names`], [`NodePick::boundary_names`], and
+/// [`pick_face`] through [`NodePick::target`] — read THAT
+/// evaluation's tables, and node ids are minted per document, so an
+/// evaluation of a twin recipe answers every one of those lookups out
+/// of its own tables, in patch order, with no refusal. Each door runs
+/// `ident::mispaired` against this stamp before reading anything of
+/// the evaluation (DI3, A2a). The version half is deliberately not
+/// stamped — a later evaluation of the SAME document is admitted, and
+/// what may be reused across it is the content keys' business.
+///
+/// **What admission costs a caller that went through [`PickMemo`]:
+/// nothing.** An index is served back only under the evaluation memo's
+/// own reuse condition, so a later run in which this node's value
+/// MOVED misses the memo and rebuilds; the admitted case is reachable
+/// only by holding an index across pictures by hand. The rows are
+/// `edit_pair_apply_names::a_later_evaluation_of_the_same_document_is_admitted`
+/// (what the doors answer) and `::what_the_admitted_later_evaluation_answers`
+/// (what it costs, and the memo's miss).
 #[derive(Debug, Clone)]
 pub struct NodePick {
+    document: DocumentId,
     node: RecipeNodeId,
     body: u32,
     mesh: Arc<Mesh>,
@@ -552,8 +650,12 @@ pub struct NodePick {
 }
 
 /// One memoised (node, body): what it was built for, and the pick.
+///
+/// The document half of the key is not a field here: it is the stamp
+/// the memoised [`NodePick`] already carries, so the two cannot drift
+/// into an entry whose pick is of one document and whose key says
+/// another.
 struct PickEntry {
-    document: DocumentId,
     content_key: ContentKey,
     naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
@@ -577,6 +679,17 @@ struct PickEntry {
 /// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
 /// picture's, BVH included, because a `NodePick` is a pure function of
 /// what the key names.
+///
+/// **The document comparison is this memo's DI3 refusal**, and it is
+/// the only half of the key that CAN refuse a prior of another
+/// document: node ids are minted per document, so two documents of one
+/// recipe carry the same ids AND the same content and naming keys for
+/// the same node, and every other half of the key matches. The row is
+/// `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`
+/// — the seam owns one memo across builds
+/// (`viewer::evalseam::build_index`), so a second document's build
+/// reaching the first document's entry is a live shape and not a
+/// hypothetical one.
 ///
 /// **Face level.** A node that was recomputed is tessellated through
 /// [`mesh::tessellate_with`] over the patch memo, which answers every
@@ -830,6 +943,18 @@ impl PickMemo {
     }
 }
 
+/// The pairing for the three doors that take a second evaluation:
+/// `None` when `eval` is of `expected`, else the typed refusal, which
+/// is `HitTestError`'s `From<Mispaired>` and no second spelling of
+/// which field goes where.
+///
+/// The comparison is `ident::mispaired`, the one predicate the pairing
+/// doors share (A2a) — identity only, never a version, so a LATER
+/// evaluation of the same document still pairs.
+fn mispairing<T: Decide>(expected: DocumentId, eval: &Evaluation<T>) -> Option<HitTestError> {
+    crate::ident::mispaired(expected, eval.document).map(HitTestError::from)
+}
+
 fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
     let ambient = tol.get();
     [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
@@ -867,6 +992,7 @@ impl NodePick {
         let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
+            document: eval.document,
             node,
             body,
             mesh: Arc::new(mesh),
@@ -903,7 +1029,7 @@ impl NodePick {
         let tolerances = tolerance_bits(delta, tol);
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
-            && entry.document == eval.document
+            && entry.pick.document == eval.document
             && entry.content_key == value.content_key
             && entry.naming_key == value.naming_key
             && entry.tolerances == tolerances
@@ -922,6 +1048,7 @@ impl NodePick {
         let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
             .map_err(NodePickError::Index)?;
         let pick = Self {
+            document: eval.document,
             node,
             body,
             mesh: Arc::new(tessellation.mesh),
@@ -930,7 +1057,6 @@ impl NodePick {
         memo.nodes.insert(
             (node, body),
             PickEntry {
-                document: eval.document,
                 content_key: value.content_key,
                 naming_key: value.naming_key,
                 tolerances,
@@ -942,10 +1068,11 @@ impl NodePick {
         Ok(pick)
     }
 
-    /// The pick target this index answers for — pre-paired, ready for
-    /// [`pick_face`].
+    /// The pick target this index answers for — pre-paired in both
+    /// halves ([`PickTarget`]), ready for [`pick_face`].
     pub fn target(&self) -> PickTarget<'_> {
         PickTarget {
+            document: self.document,
             node: self.node,
             body: self.body,
             pick: &self.pick,
@@ -1050,8 +1177,41 @@ impl NodePick {
     /// OWN slot rather than a refusal of the whole call, because one
     /// naming-emission bug should not cost a consumer the names of
     /// every other patch it is drawing.
-    pub fn patch_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
-        self.mesh
+    ///
+    /// **`eval` must be an evaluation OF the document this index was
+    /// built from** (DI3, A2a). The index is built from one evaluation
+    /// and handed another here, and node ids and output-body indices
+    /// are minted per document, so a twin recipe's evaluation answers
+    /// these lookups out of ITS tables: other geometry's names, in
+    /// patch order, with no `Unnamed` and no refusal. The pairing is
+    /// checked against the building evaluation's stamp before any
+    /// table is read.
+    ///
+    /// The refusal is of the CALL and sits OUTSIDE the vector, which
+    /// is the shape of the fact: a mispairing is one thing that is
+    /// wrong with the arguments, not one thing wrong with each patch,
+    /// and a per-slot `Err` repeating it once per patch would read as
+    /// `n` unnamed faces. The per-patch lane keeps its own meaning.
+    ///
+    /// A LATER evaluation of the SAME document is admitted, even one
+    /// that re-tessellated this node: identity is what a pairing is
+    /// about (DI3), and whether the patches still line up is the
+    /// content keys' business, which is what [`PickMemo`] reads them
+    /// for.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
+    /// the call as a whole refuses.
+    pub fn patch_names(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+        if let Some(refusal) = mispairing(self.document, eval) {
+            return Err(refusal);
+        }
+        Ok(self
+            .mesh
             .patches
             .iter()
             .map(|patch| {
@@ -1065,7 +1225,7 @@ impl NodePick {
                 )
                 .cloned()
             })
-            .collect()
+            .collect())
     }
 
     /// The stable name of every boundary polyline of
@@ -1084,8 +1244,26 @@ impl NodePick {
     /// evaluated-but-unnamed edge is [`HitTestError::Unnamed`] for
     /// that polyline alone, because one naming-emission bug should not
     /// cost a consumer the names of every other edge it is drawing.
-    pub fn boundary_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
-        self.mesh
+    ///
+    /// The pairing is [`NodePick::patch_names`]', for the same reason
+    /// and with the same boundary: `eval` must be an evaluation of the
+    /// document this index was built from, a later evaluation of that
+    /// document is admitted, and the refusal is of the call rather
+    /// than of each polyline.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
+    /// the call as a whole refuses.
+    pub fn boundary_names(
+        &self,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
+        if let Some(refusal) = mispairing(self.document, eval) {
+            return Err(refusal);
+        }
+        Ok(self
+            .mesh
             .boundaries
             .iter()
             .map(|boundary| {
@@ -1099,7 +1277,7 @@ impl NodePick {
                 )
                 .cloned()
             })
-            .collect()
+            .collect())
     }
 
     /// The node this index answers for.
@@ -1137,6 +1315,13 @@ pub struct PickHit {
 /// miss** — the ray hits no offered triangle. Errors are never
 /// flattened into a miss:
 ///
+/// - every target must be OF the document `eval` is of — a target
+///   stamped with another document answers
+///   [`HitTestError::EvaluationOfAnotherDocument`] up front (first
+///   offending target in slice order), before any standing is read,
+///   because node ids are minted per document and a twin's evaluation
+///   would answer every standing check and then name the hit out of
+///   its own tables (DI3, A2a);
 /// - every target's node must have an `Ok` value in `eval` — a target
 ///   whose node has no result / failed / was poisoned answers the
 ///   corresponding [`HitTestError`] up front (first offending target
@@ -1156,24 +1341,46 @@ pub struct PickHit {
 /// edge/vertex graze is a hit for every incident triangle and the
 /// tie-break, not chance, picks the answer.
 ///
-/// The traversal early-outs on [`bvh::RayCandidate::t_enter`] (a
-/// conservative lower bound on any hit in that box): candidates are
-/// visited in ascending `t_enter` ([`MeshPick::candidates`], the
-/// single-tree sequence), and once the confirmed best `t` is strictly
-/// below a candidate's `t_enter` the rest of that target's list cannot
-/// improve on it. A poisoned/NaN ray is legal input: the
-/// tree returns everything, every exact test misses, and the answer
-/// is the typed miss.
+/// **The answer is the lexicographic minimum over every candidate's
+/// exact test.** Each test reads the ray and the triangle alone, and
+/// a ray in a triangle's plane refuses at the determinant
+/// ([`ray_triangle`]) rather than answering a noise `t`, so no
+/// candidate's answer depends on which candidates were visited
+/// before it. The traversal early-outs on
+/// [`bvh::RayCandidate::t_enter`] for cost: candidates are visited in
+/// ascending `t_enter` ([`MeshPick::candidates`], the single-tree
+/// sequence), and a true hit's parameter is never below its own box's
+/// entry, so once the confirmed best `t` is strictly below a
+/// candidate's `t_enter` nothing further can beat it in exact
+/// arithmetic. In `f64` the accepted `t` is rounded and can sit a few
+/// ULP below its own entry (an axis-planar triangle's box has zero
+/// extent along one axis, so the entry IS the hit's parameter
+/// everywhere on it), so the early-out can break before a candidate
+/// whose rounded `t` would have tied or beaten `best.t` by ULPs: the
+/// tie-rounding class of the closed acceptance
+/// (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding.md`),
+/// which decides among triangles sharing a point, never between a
+/// hit and a miss. A poisoned/NaN ray is legal input: the tree
+/// returns everything, every exact test misses, and the answer is
+/// the typed miss.
 ///
 /// # Errors
 ///
-/// [`HitTestError`] as above — target standing first, then the
-/// winning face's inversion.
+/// [`HitTestError`] as above — the targets' pairing first, then their
+/// standing, then the winning face's inversion.
 pub fn pick_face<T: Decide>(
     eval: &Evaluation<T>,
     targets: &[PickTarget<'_>],
     ray: &Ray,
 ) -> Result<Option<PickHit>, HitTestError> {
+    // The pairing, before any standing is read: a foreign
+    // evaluation has an `Ok` value for these node ids too (docs).
+    for target in targets {
+        if let Some(refusal) = mispairing(target.document, eval) {
+            return Err(refusal);
+        }
+    }
+
     // Target standing, up front (docs: an error, never a silent miss).
     for target in targets {
         match eval.nodes.get(&target.node) {
@@ -1212,7 +1419,8 @@ pub fn pick_face<T: Decide>(
                 && b.t < cand.t_enter
             {
                 // Candidates ascend in t_enter, a lower bound on any
-                // hit in their box: nothing further can improve.
+                // true hit in their box: nothing further can improve
+                // beyond the rounding of a near-tie (docs).
                 break;
             }
             let Some((tri, face)) = target.pick.triangle(&cand) else {
@@ -1220,7 +1428,7 @@ pub fn pick_face<T: Decide>(
                 // patches' triangles.
                 continue;
             };
-            if let Some(t) = ray_triangle(ray, tri) {
+            if let Some(t) = ray_triangle(ray, &tri.corners) {
                 let better = match &best {
                     None => true,
                     // Plain f64 compare is total here: `t` is never
@@ -1264,46 +1472,255 @@ pub fn pick_face<T: Decide>(
 }
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
-/// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`.
+/// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`
+/// on a determinant certified non-zero ([`crossing`]),
+/// with `t` the parameter of the hit point `a + u·e1 + v·e2` along
+/// the ray rather than Möller–Trumbore's quotient `e2·q / det` — the
+/// two agree to rounding on a well-conditioned crossing, and only
+/// the projection survives a small determinant (a ray through a
+/// corner of a triangle whose plane it all but contains: `u = v = 0`
+/// exactly, the quotient off the corner by parts per thousand).
 ///
-/// Boundary semantics, stated: `u ∈ [0, 1]`, `v ≥ 0`, `u + v ≤ 1`,
+/// Boundary semantics: `u ∈ [0, 1]`, `v ∈ [0, 1]`, `u + v ∈ [0, 1]`,
 /// `t ≥ 0` — all closed, so a hit exactly on a shared edge or vertex
 /// is a hit for EVERY incident triangle (the caller's tie-break
-/// disambiguates; watertight meshes therefore never lose a graze to
-/// an open boundary). A zero determinant (ray parallel to the plane,
-/// or a degenerate triangle) is a miss, as is any NaN anywhere: every
-/// acceptance condition is an affirmative comparison, which NaN
-/// fails — poisoned geometry is un-hittable, never mis-hit. A
-/// NON-FINITE `t` (the `e2·q × inv` product overflowing on a
-/// near-degenerate determinant) is refused by the final guard: a hit
-/// the service cannot place at a finite point is a miss, never a
-/// `PickHit` whose `point` would be `0 · ∞ = NaN`.
-fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
-    let e1: Vec3<f64> = tri.b - tri.a;
-    let e2: Vec3<f64> = tri.c - tri.a;
-    let p = ray.dir.cross(e2);
-    let det = e1.dot(p);
-    if det == 0.0 {
-        // Parallel or degenerate. (A NaN det passes THIS check and is
-        // refused two comparisons down, at `u_inside`.)
+/// disambiguates; watertight meshes never lose a graze to an open
+/// boundary) and the hit point `a + u·e1 + v·e2` is a point OF the
+/// closed triangle, which is what lets a caller stop its walk at a
+/// candidate box the nearest hit already precedes.
+///
+/// A value inside those bounds is not enough. Each barycentric also
+/// carries the forward bound on its own rounding ([`crossing`], where
+/// the derivation lives), and a candidate is refused when that
+/// interval COVERS the whole of `[0, 1]`: a quotient by a
+/// certified-but-small determinant can land in range by chance while
+/// its interval says nothing about where — or whether — the ray met
+/// the triangle. Refusing it is the determinant's own posture one
+/// level down, and **it is not free**. The bound is a function of
+/// `|s|`, `|d|` and the edges, not of the numerator's value, so it
+/// does not vanish where the barycentric does: a genuine graze
+/// through a corner of a candidate at the certification's floor is
+/// refused too, unless the ray's components happen to zero the
+/// triple bound. Such a graze is answered by the candidate's
+/// better-conditioned neighbours or not at all — the same trade the
+/// certification already makes one level down, stated here because
+/// the corpus pays it (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding`,
+/// and the labelling asymmetry it exposes,
+/// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`).
+/// A determinant that is
+/// not certifiably non-zero — the ray parallel or near-parallel to
+/// the plane, a degenerate triangle, any NaN — is a miss, and so is a
+/// NON-FINITE `t`: a hit the service cannot place at a finite point is
+/// never a `PickHit` whose `point` would be `0 · ∞ = NaN`. Every
+/// acceptance is an affirmative comparison on the rounded value, which
+/// a NaN fails.
+///
+/// This is the one exact test; the reference loop that pins the pick
+/// (`viewer`'s `index_memo`) calls it rather than restating it, which
+/// is why it is public at this module and nowhere else.
+pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
+    let Crossing { barycentrics, .. } = crossing(ray, tri)?;
+    if !barycentrics.iter().all(|&(x, err)| admits(x, err)) {
         return None;
     }
-    let inv = 1.0 / det;
-    let s = ray.origin - tri.a;
-    let u = s.dot(p) * inv;
-    let u_inside = (0.0..=1.0).contains(&u);
-    if !u_inside {
-        return None;
-    }
-    let q = s.cross(e1);
-    let v = ray.dir.dot(q) * inv;
-    let v_inside = v >= 0.0 && u + v <= 1.0;
-    if !v_inside {
-        return None;
-    }
-    let t = e2.dot(q) * inv;
+    let [(u, _), (v, _), _] = barycentrics;
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    // The parameter of the hit POINT `a + u·e1 + v·e2` along the ray,
+    // not Möller–Trumbore's `e2·q / det`: the quotient cancels
+    // catastrophically when the determinant is small (a ray grazing
+    // a triangle whose plane it nearly contains), while the point's
+    // projection onto the ray is conditioned by `u` and `v` alone.
+    let hit = tri[0] + e1 * u + e2 * v;
+    let t = (hit - ray.origin).dot(ray.dir) / ray.dir.dot(ray.dir);
     let forward_and_finite = t >= 0.0 && t.is_finite();
     forward_and_finite.then_some(t)
+}
+
+/// Everything the arithmetic can certify about one ray/triangle
+/// crossing, from one evaluation of it: the answer [`crossing`] gives
+/// and the only door the exact test and the corpus rows read.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Crossing {
+    /// Möller–Trumbore's determinant `e1 · (d × e2)`, computed. Its
+    /// magnitude exceeds [`Crossing::bound_det`] — that is what makes
+    /// it a `Crossing` at all — so its SIGN, and the fact that the ray
+    /// crosses the plane, are certified.
+    pub det: f64,
+    /// The forward rounding bound on that evaluation of the
+    /// determinant.
+    pub bound_det: f64,
+    /// `[(u, err_u), (v, err_v), (u + v, err_sum)]` — each barycentric
+    /// as computed, with the forward bound on ITS OWN rounding.
+    pub barycentrics: [(f64, f64); 3],
+}
+
+impl Crossing {
+    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
+    /// angle between the ray and the plane, and so the conditioning of
+    /// the whole test on this pair. A method rather than a second
+    /// door: it needs the operands' magnitudes, which the struct does
+    /// not carry, but it must read THIS crossing's determinant and
+    /// not recompute one.
+    pub fn conditioning(&self, ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        self.det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
+    }
+}
+
+/// **The one door onto the crossing**: `None` when the determinant is
+/// not certifiably non-zero — the ray parallel or within rounding of
+/// the triangle's plane, a degenerate triangle, any NaN — where the
+/// barycentrics and `t` would be quotients of rounding noise by
+/// rounding noise, which is the answer [`ray_triangle`] refuses to
+/// give. Otherwise the determinant, its bound, and the three
+/// barycentrics with theirs, computed ONCE. [`ray_triangle`] reads
+/// it, and so do the corpus rows that measure what the acceptance
+/// refuses: one evaluation, one set of numbers, no second spelling to
+/// drift.
+///
+/// # What the bounds bound
+///
+/// `err` bounds `|computed − true|` for that barycentric **given the
+/// operands `e1`, `e2`, `d`, `s` as exact**. It is a bound on this
+/// evaluation's rounding, not on the mesh's own coordinates: a
+/// triangle whose corners are themselves approximations is a question
+/// for whoever tessellated it, and nothing here can see it.
+///
+/// # The derivation (the one site; [`ray_triangle`] cites it)
+///
+/// `u = fl(fl(s·p) · fl(1/det))` with `p = d × e2`, so its error is
+/// the numerator's forward bound, plus the determinant's scaled by
+/// `|u|`, plus the two roundings of the quotient, all over the
+/// smallest magnitude the true determinant can have. Writing `ũ`,
+/// `Ñ`, `D̃` for the computed values and `u = N/D` for the true
+/// quotient,
+/// `ũ − N/D = (ũ − Ñ/D̃) + [(Ñ − N) − u·(D̃ − D)]/D̃`, and
+/// `|u| ≤ |ũ| + |ũ − u|` closes the recursion into
+/// `err = (γ₂|Ñ| + bound_N + |ũ|·bound_D) / (|D̃| − bound_D)`, whose
+/// denominator is positive exactly because the determinant is
+/// certified. `v`'s numerator `d·(s × e1)` is the same triple product
+/// with different operands and takes the same bound
+/// ([`DETERMINANT_ERROR_UNITS`]).
+///
+/// The sum carries both, plus one more term for the rounding of the
+/// ADDITION `fl(u + v)` itself: that rounding is bounded by
+/// `u_r·|fl(u + v)|` — relative to the computed sum, which is the
+/// value in hand — hence [`SUM_ERROR_UNITS`] over `sum.abs()` and not
+/// over the true sum.
+pub fn crossing(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<Crossing> {
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    let p = ray.dir.cross(e2);
+    let (det, bound_det) = certify(e1, e2, ray.dir, p)?;
+    let inv = 1.0 / det;
+    let s = ray.origin - tri[0];
+    let (u, err_u) = quotient(s.dot(p), triple_bound(s, ray.dir, e2), inv, det, bound_det);
+    let q = s.cross(e1);
+    let (v, err_v) = quotient(
+        ray.dir.dot(q),
+        triple_bound(ray.dir, s, e1),
+        inv,
+        det,
+        bound_det,
+    );
+    let sum = u + v;
+    let err_sum = err_u + err_v + SUM_ERROR_UNITS * f64::EPSILON * sum.abs();
+    Some(Crossing {
+        det,
+        bound_det,
+        barycentrics: [(u, err_u), (v, err_v), (sum, err_sum)],
+    })
+}
+
+/// One barycentric from its numerator and the certified determinant,
+/// with the bound [`crossing`] derives.
+///
+/// The bound is itself computed in `f64`, so it carries its own
+/// roundings — at most four over the numerator's terms and one on the
+/// division, `γ₅ < 11·u` relative. They are covered by the slack in
+/// [`DETERMINANT_ERROR_UNITS`] and [`QUOTIENT_ERROR_UNITS`], which
+/// round `5.01·u` up to `6·u` and `γ₂ < 2.0000000000000004·u` up to
+/// `4·u`: a `1.2×` and a `2×` margin on terms that are already the
+/// whole of `err`, against a `1 + 11·u` shortfall.
+fn quotient(num: f64, bound_num: f64, inv: f64, det: f64, bound_det: f64) -> (f64, f64) {
+    let x = num * inv;
+    let err = (QUOTIENT_ERROR_UNITS * f64::EPSILON * num.abs() + bound_num + x.abs() * bound_det)
+        / (det.abs() - bound_det);
+    (x, err)
+}
+
+/// The ruling on one barycentric: admitted iff the computed value is
+/// in the closed range `[0, 1]` AND its interval does not COVER that
+/// range. The closed comparison is the boundary semantics
+/// [`ray_triangle`] documents — a hit exactly on a shared edge or
+/// vertex is a hit for every incident triangle. Not covering is the
+/// demand that the number carry information: an interval spanning the
+/// whole range is consistent with every point of the triangle and
+/// with every point outside it, and so answers nothing. The two
+/// compose: a value inside the range whose bound is `1` or more
+/// necessarily covers it, so no admitted barycentric carries a bound
+/// that wide. Both halves are affirmative comparisons, so a NaN is
+/// refused.
+fn admits(x: f64, err: f64) -> bool {
+    let inside = (0.0..=1.0).contains(&x);
+    let informs = x - err > 0.0 || x + err < 1.0;
+    inside && informs
+}
+
+/// The triple product's constant, in units of `f64::EPSILON`, derived
+/// from the operation count (`u = EPSILON / 2` is the unit roundoff,
+/// `γ_n = n·u / (1 − n·u)` the standard bound on `n` roundings). It
+/// bounds every `a · (b × c)` the test evaluates — the determinant at
+/// `a = e1, b = d, c = e2`, `u`'s numerator at `a = s`, `v`'s at
+/// `a = d, b = s, c = e1`:
+///
+/// - each component `w_i = fl(fl(b_j·c_k) − fl(b_k·c_j))` of the
+///   cross product carries ≤ `γ_2 · S_i`, with
+///   `S_i = |b_j·c_k| + |b_k·c_j|`;
+/// - the dot `fl(Σ a_i·w_i)` (three products, two sums) carries
+///   ≤ `γ_3 · Σ|a_i·w_i|` of its own, and `|w_i| ≤ (1 + γ_2)·S_i`;
+/// - the propagated cross-product error is ≤ `γ_2 · Σ|a_i|·S_i`.
+///
+/// So `|fl − exact| ≤ (γ_2 + γ_3 + γ_2·γ_3) · M < 5.01·u · M` with
+/// `M = Σ_i |a_i|·S_i` exact. `M` is itself computed with ≤ 6
+/// roundings per term and the bound with one more, so the computed
+/// bound is at least `(1 − γ_7)` of its exact value; `3 · EPSILON =
+/// 6·u` clears `5.01·u / (1 − γ_7)` with margin. Not a tuned number:
+/// change the arithmetic and re-count.
+const DETERMINANT_ERROR_UNITS: f64 = 3.0;
+
+/// The sum's constant, same units and same style: `fl(u + v)` is ONE
+/// rounding, bounded by `u_r·|fl(u + v)|` with `u_r = EPSILON / 2`.
+/// Not a tuned number: add the two differently and re-count.
+const SUM_ERROR_UNITS: f64 = 0.5;
+
+/// The quotient's constant, same units and same style: `fl(1/D̃)` and
+/// then one multiply is two roundings, so the quotient's own
+/// contribution is `≤ γ_2·|Ñ/D̃|` with
+/// `γ_2 = 2u / (1 − 2u) < 4u = 2 · EPSILON`. Not a tuned number:
+/// spell the division differently and re-count.
+const QUOTIENT_ERROR_UNITS: f64 = 2.0;
+
+/// The forward bound on the computed `a · (b × c)`:
+/// `3 · EPSILON · Σ_i |a_i|·S_i`, per [`DETERMINANT_ERROR_UNITS`].
+fn triple_bound(a: Vec3<f64>, b: Vec3<f64>, c: Vec3<f64>) -> f64 {
+    let m = a.x.abs() * (b.y.abs() * c.z.abs() + b.z.abs() * c.y.abs())
+        + a.y.abs() * (b.z.abs() * c.x.abs() + b.x.abs() * c.z.abs())
+        + a.z.abs() * (b.x.abs() * c.y.abs() + b.y.abs() * c.x.abs());
+    DETERMINANT_ERROR_UNITS * f64::EPSILON * m
+}
+
+/// The certification itself, over the operands [`ray_triangle`] has
+/// in hand (`p = d × e2` computed once, shared with the barycentrics),
+/// answering the determinant WITH its bound: the barycentrics divide
+/// by the one and widen by the other.
+fn certify(e1: Vec3<f64>, e2: Vec3<f64>, d: Vec3<f64>, p: Vec3<f64>) -> Option<(f64, f64)> {
+    let det = e1.dot(p);
+    let bound = triple_bound(e1, d, e2);
+    // A NaN anywhere fails the comparison: poison is un-hittable.
+    (det.abs() > bound).then_some((det, bound))
 }
 
 #[cfg(test)]
@@ -1315,13 +1732,15 @@ mod tests {
     //! differential, which only ever drives the arms a successful
     //! build takes.
 
-    use geom_core::{Point2, Tol};
+    use bvh::Ray;
+    use geom_core::{Point2, Point3, Tol, Vec3};
     use mesh::tessellate_with;
     use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
     use sweep::{Extrusion, extrude};
+    use test_utils::fuzz;
     use topo::Body;
 
-    use super::{MeshPickError, PickMemo, PickTable};
+    use super::{MeshPick, MeshPickError, PickMemo, PickTable, crossing, ray_triangle};
 
     fn unit_prism() -> Body<f64> {
         let square = ProfileLoop::polygon([
@@ -1405,5 +1824,670 @@ mod tests {
         let _ = memo.table(Some(id), count + 1, || {
             panic!("the guard fires before the build")
         });
+    }
+
+    // ---------------- the exact test's own rows ----------------
+    //
+    // The rows below came in as review probes (branches
+    // `review/pick-r1`, `review/pick-r2`); each now asserts the fixed
+    // behaviour.
+
+    /// A ray through `target` at parameter `reach`, so the expected
+    /// hit is `t = reach` at `target`.
+    fn ray_through(target: Point3<f64>, dir: Vec3<f64>, reach: f64) -> Ray {
+        Ray {
+            origin: target - dir * reach,
+            dir,
+        }
+    }
+
+    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
+    /// angle between the ray and the plane: the conditioning of the
+    /// exact test on this pair.
+    fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        let det = e1.dot(ray.dir.cross(e2));
+        det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
+    }
+
+    /// The hit a well-conditioned interior crossing owes: accepted,
+    /// at `reach` to the test's own accuracy (`~u / conditioning`
+    /// relative), which for conditioning ≥ 1e-7 is under 1e-8 —
+    /// asserted at 1e-6 so the row reads the class, not the ULP.
+    fn assert_interior_hit(ray: &Ray, tri: &[Point3<f64>; 3], reach: f64, what: &str) {
+        let t = ray_triangle(ray, tri).unwrap_or_else(|| {
+            panic!(
+                "{what}: a well-conditioned interior hit refused; {ray:?} {tri:?}; {}",
+                fuzz::replay()
+            )
+        });
+        assert!(
+            ((t - reach) / reach).abs() < 1e-6,
+            "{what}: t = {t} for a hit at {reach}; {ray:?} {tri:?}; {}",
+            fuzz::replay()
+        );
+    }
+
+    /// The doors the rows below separate: the exact test's acceptance
+    /// and the four wrong ones a fixture here catches. **Each is the
+    /// REAL [`admits`] over a mis-read bound**, never a second
+    /// spelling of the predicate — a door that ignores the interval
+    /// reads every bound as `0`, a door that mis-derives it reads
+    /// `err/2` or `2·err`, a door that applies INFORM to `u` and `v`
+    /// but not to their sum reads the sum's as `0`. So the mutants
+    /// cannot drift from the acceptance they mutate: the tie is by
+    /// construction, not by an assertion.
+    ///
+    /// The fifth wrong door, MEET — accept when the interval REACHES
+    /// `[0, 1]` rather than when the value is in it — is not a bound
+    /// mis-read and has no arm here. It is killed by
+    /// [`the_closed_boundaries_are_pinned_one_ulp_each_way`]'s misses:
+    /// `u` one ULP above `1` carries a bound of eight ULP, so MEET
+    /// admits it and the door does not.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Door {
+        Exact,
+        /// Take any value inside the range, however wide its interval.
+        NoInform,
+        /// The bound derived at half its size.
+        HalfBound,
+        /// The bound derived at twice its size.
+        DoubleBound,
+        /// INFORM on `u` and `v`, and not on their sum.
+        NoSumInform,
+    }
+
+    impl Door {
+        /// What this door reads the `i`th derived bound as.
+        fn bound(self, i: usize, err: f64) -> f64 {
+            match self {
+                Door::Exact => err,
+                Door::NoInform => 0.0,
+                Door::HalfBound => err * 0.5,
+                Door::DoubleBound => err * 2.0,
+                Door::NoSumInform => {
+                    if i == 2 {
+                        0.0
+                    } else {
+                        err
+                    }
+                }
+            }
+        }
+    }
+
+    /// Whether `door` admits the crossing's three barycentrics.
+    fn admits_under(door: Door, ray: &Ray, tri: &[Point3<f64>; 3]) -> bool {
+        let Some(c) = crossing(ray, tri) else {
+            return false;
+        };
+        c.barycentrics
+            .into_iter()
+            .enumerate()
+            .all(|(i, (x, err))| super::admits(x, door.bound(i, err)))
+    }
+
+    /// **The closed boundaries, pinned one ULP each way.** An
+    /// axis-aligned fixture whose Möller–Trumbore arithmetic is exact:
+    /// `a = (1, 1, 1)`, `e1 = (4, 0, 0)`, `e2 = (0, 4, 0)`, `d = (0, 0,
+    /// −1)`, so `p = (4, 0, 0)`, `det = 16`, and with `s = origin − a`
+    /// the test computes `u = s_x / 4`, `v = s_y / 4`, `t = s_z`
+    /// without a rounding. Every acceptance bound is then a hit AT the
+    /// bound and a miss one ULP past it — the pin a mutant that opens
+    /// `u ≥ 0`, `v ≥ 0`, `u + v ≤ 1` or `t ≥ 0` cannot survive. Nothing
+    /// on an exact fixture is uninformative (the widest bound here is
+    /// eight ULP of `1`, at `u = 1`), so INFORM admits every case in
+    /// this row and the fixtures that catch it are the two below.
+    ///
+    /// A static witness (memories/test-suite-cost: shape 2), not a
+    /// search.
+    #[test]
+    fn the_closed_boundaries_are_pinned_one_ulp_each_way() {
+        let tri = [
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(5.0, 1.0, 1.0),
+            Point3::new(1.0, 5.0, 1.0),
+        ];
+        let dir = Vec3::new(0.0, 0.0, -1.0);
+        let at = |u: f64, v: f64, t: f64| Ray {
+            origin: Point3::new(1.0 + 4.0 * u, 1.0 + 4.0 * v, 1.0 + t),
+            dir,
+        };
+        let hits = [
+            ("u = 0", at(0.0, 0.5, 2.0)),
+            ("u = 1", at(1.0, 0.0, 2.0)),
+            ("v = 0", at(0.5, 0.0, 2.0)),
+            ("u + v = 1", at(0.5, 0.5, 2.0)),
+            ("t = 0", at(0.25, 0.25, 0.0)),
+            ("the interior", at(0.25, 0.25, 2.0)),
+        ];
+        for (name, ray) in hits {
+            let t = ray_triangle(&ray, &tri).unwrap_or_else(|| panic!("{name} is a hit"));
+            assert_eq!(
+                t.to_bits(),
+                (ray.origin.z - 1.0).to_bits(),
+                "{name}: t is exact"
+            );
+            assert!(
+                admits_under(Door::Exact, &ray, &tri),
+                "{name}: the row's spelling of the acceptance is the door's"
+            );
+        }
+        // One ULP past each bound, spelled on the ORIGIN so the
+        // subtraction `s = origin − a` stays exact (Sterbenz): an
+        // origin coordinate one ULP off `1` or `5` puts `u`, `v` or
+        // `t` one ULP (two for `u + v`, where a half-ULP would round
+        // back to `1`) past its bound.
+        let from = |x: f64, y: f64, z: f64| Ray {
+            origin: Point3::new(x, y, z),
+            dir,
+        };
+        let misses = [
+            ("u one ULP below 0", from(1.0f64.next_down(), 3.0, 3.0)),
+            ("u one ULP above 1", from(5.0f64.next_up(), 1.0, 3.0)),
+            ("v one ULP below 0", from(3.0, 1.0f64.next_down(), 3.0)),
+            (
+                "u + v two ULP above 1",
+                from(3.0, 3.0f64.next_up().next_up(), 3.0),
+            ),
+            ("t one ULP below 0", from(2.0, 2.0, 1.0f64.next_down())),
+        ];
+        for (name, ray) in misses {
+            assert_eq!(ray_triangle(&ray, &tri), None, "{name} is a miss");
+        }
+        // `t`'s bound is the one the barycentrics do not carry: its
+        // pin is a miss the acceptance above admits.
+        assert!(
+            admits_under(Door::Exact, &from(2.0, 2.0, 1.0f64.next_down()), &tri),
+            "t one ULP below 0: the barycentrics themselves are admitted"
+        );
+        let in_plane = Ray {
+            origin: Point3::new(0.0, 2.0, 1.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            crossing(&in_plane, &tri),
+            None,
+            "a ray in the plane has no certified determinant, so no crossing"
+        );
+        assert_eq!(ray_triangle(&in_plane, &tri), None);
+    }
+
+    /// A near-tangent crossing whose determinant is certified at
+    /// `k / 6` of its own bound, over a triangle of area `0.5` that
+    /// is not degenerate: `ζ = 2⁻²⁰` and `ξ = k` ULP of it,
+    /// `e1 = (1, 0, ζ + ξ)`, `e2 = (0, 1, 0)`, `d = (1, 1, ζ)`, so
+    /// `p = (−ζ, 0, 1)` and `det = ξ` exactly. The origin is placed a
+    /// unit away and one unit off-axis, which makes `u = v = 0.5` and
+    /// `u + v = 1` exactly at every `k` — all three INSIDE the closed
+    /// range, so what happens to the candidate is INFORM's doing
+    /// alone. The bounds are `9/(k − 6)`, `15/(k − 6)` and their sum,
+    /// so `k` is the dial that moves the intervals without moving the
+    /// values.
+    fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
+        let zeta = 2f64.powi(-20);
+        let xi = k * zeta * f64::EPSILON;
+        let tri = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, zeta + xi),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let ray = Ray {
+            origin: Point3::new(-1.0, -1.0, 0.5 * xi - zeta),
+            dir: Vec3::new(1.0, 1.0, zeta),
+        };
+        (ray, tri)
+    }
+
+    /// **A candidate whose barycentrics carry no information is
+    /// refused, though every one of them is inside the closed range.**
+    /// At `k = 8` the [`near_tangent`] fixture computes
+    /// `u = v = 0.5` with intervals `±4.5` and `±7.5` and
+    /// `u + v = 1 ± 12`: each covers the admissible range several
+    /// times over. The ray misses the triangle's plane by `2e-21`
+    /// while its origin sits a unit away, so the values are the
+    /// quotient of that cancellation and nothing else. The closed
+    /// comparison admits all three, so
+    /// **this is the pin a door that dropped INFORM cannot survive**:
+    /// that door takes the candidate and answers a `t` near `1.5`
+    /// from numbers that say nothing.
+    #[test]
+    fn a_candidate_whose_barycentrics_carry_no_information_is_refused() {
+        let (ray, tri) = near_tangent(8.0);
+        let xi = 8.0 * 2f64.powi(-20) * f64::EPSILON;
+        let c = crossing(&ray, &tri).expect("a certified determinant");
+        assert_eq!(
+            c.det, xi,
+            "the determinant is certified, and is the fixture's ξ exactly"
+        );
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = c.barycentrics;
+        assert_eq!((u, v, sum), (0.5, 0.5, 1.0), "the fixture's barycentrics");
+        for (what, x, err) in [("u", u, err_u), ("v", v, err_v), ("u + v", sum, err_sum)] {
+            assert!(
+                (0.0..=1.0).contains(&x),
+                "{what} = {x} is inside the closed range, so the closed comparison admits it"
+            );
+            assert!(
+                x - err <= 0.0 && x + err >= 1.0,
+                "{what}: the interval {x} ± {err} covers the whole admissible range"
+            );
+        }
+        assert_eq!(ray_triangle(&ray, &tri), None, "the candidate is refused");
+        assert!(
+            !admits_under(Door::Exact, &ray, &tri),
+            "the row's spelling of the acceptance is the door's"
+        );
+        assert!(
+            admits_under(Door::NoInform, &ray, &tri),
+            "a door that dropped INFORM admits it — so INFORM is what refuses it"
+        );
+    }
+
+    /// **The bound INFORM reads is the derived one, not half of it.**
+    /// At `k = 32` the [`near_tangent`] fixture's `v` is `0.5` with an
+    /// interval of `±15/26`, which covers `[0, 1]` by `0.077` at each
+    /// end — so the candidate is refused — while half that interval,
+    /// `±0.288`, covers nothing and the same candidate is taken. A
+    /// bound quietly tightened is a door that answers from a number it
+    /// cannot vouch for, and this is the pin that catches it. The
+    /// other two barycentrics are informative at the full bound
+    /// already (`u` by `0.154`, `u + v` by `0.077`), which is why the
+    /// row names `v`.
+    #[test]
+    fn halving_the_derived_bound_admits_a_candidate_the_door_refuses() {
+        let (ray, tri) = near_tangent(32.0);
+        let [_, (v, err_v), _] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
+        assert_eq!(v, 0.5, "the fixture's v");
+        assert!(
+            v - err_v <= 0.0 && v + err_v >= 1.0,
+            "v's interval {v} ± {err_v} covers the admissible range"
+        );
+        assert!(
+            v - 0.5 * err_v > 0.0,
+            "half of it, {} ± {}, does not",
+            v,
+            0.5 * err_v
+        );
+        assert_eq!(ray_triangle(&ray, &tri), None, "the candidate is refused");
+        assert!(
+            !admits_under(Door::Exact, &ray, &tri),
+            "the row's spelling of the acceptance is the door's"
+        );
+        assert!(
+            admits_under(Door::HalfBound, &ray, &tri),
+            "a door reading half the derived bound admits it"
+        );
+    }
+
+    /// **The bound INFORM reads is the derived one, not twice it.**
+    /// The bound is pinned from the loose side by the row above; this
+    /// is the tight side. At `k = 64` the [`near_tangent`] fixture's
+    /// intervals are `u = 0.5 ± 9/58`, `v = 0.5 ± 15/58` and
+    /// `u + v = 1 ± 24/58`: every one informs, so the door takes the
+    /// candidate — while at TWICE the derived bound `v`'s interval
+    /// reaches `0.5 ± 15/29`, which covers `[0, 1]`, and a door
+    /// reading the bound that loosely refuses a crossing the
+    /// arithmetic can vouch for. A bound quietly inflated throws away
+    /// answers, which is the same defect as one quietly tightened and
+    /// was invisible to the rows until this one.
+    #[test]
+    fn doubling_the_derived_bound_refuses_a_candidate_the_door_admits() {
+        let (ray, tri) = near_tangent(64.0);
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
+        assert_eq!((u, v, sum), (0.5, 0.5, 1.0), "the fixture's barycentrics");
+        for (what, x, err) in [("u", u, err_u), ("v", v, err_v), ("u + v", sum, err_sum)] {
+            assert!(
+                x - err > 0.0 || x + err < 1.0,
+                "{what}: the interval {x} ± {err} informs at the derived bound"
+            );
+        }
+        assert!(
+            v - 2.0 * err_v <= 0.0 && v + 2.0 * err_v >= 1.0,
+            "at twice the bound, v's interval {v} ± {} covers the range",
+            2.0 * err_v
+        );
+        assert_eq!(
+            ray_triangle(&ray, &tri),
+            Some(1.5),
+            "the candidate is admitted, at the hit point's own parameter"
+        );
+        assert!(
+            admits_under(Door::Exact, &ray, &tri),
+            "the row's spelling of the acceptance is the door's"
+        );
+        assert!(
+            !admits_under(Door::DoubleBound, &ray, &tri),
+            "a door reading twice the derived bound refuses it"
+        );
+    }
+
+    /// **INFORM on `u + v` is not implied by INFORM on `u` and `v`.**
+    /// Adopted from review lane pick2-r2. The [`near_tangent`] shape
+    /// at `k = 18` with the origin moved so the exact hit is near
+    /// `(0.25, 0.125)`: `u` and `v` each inform — their intervals
+    /// reach below `1` — while the sum is inside `[0, 1]` and its
+    /// interval, which carries BOTH their bounds, covers it. So the
+    /// sum is the deciding arm here, which `near_tangent`'s own
+    /// `u = v = 0.5` fixtures cannot show: there the sum is the widest
+    /// interval but never the only covering one. A door that applied
+    /// INFORM to the two barycentrics and not to their sum takes this
+    /// candidate.
+    #[test]
+    fn inform_on_the_sum_alone_refuses_a_candidate_whose_parts_inform() {
+        let zeta = 2f64.powi(-20);
+        let xi = 18.0 * zeta * f64::EPSILON;
+        let tri = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, zeta + xi),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let dir = Vec3::new(1.0, 1.0, zeta);
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        let target = tri[0] + e1 * 0.25 + e2 * 0.125;
+        let ray = Ray {
+            origin: target - dir,
+            dir,
+        };
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
+        assert!(
+            super::admits(u, err_u),
+            "u = {u} ± {err_u} is admitted on its own"
+        );
+        assert!(
+            super::admits(v, err_v),
+            "v = {v} ± {err_v} is admitted on its own"
+        );
+        assert!(
+            (0.0..=1.0).contains(&sum),
+            "u + v = {sum} is inside the closed range"
+        );
+        assert!(
+            sum - err_sum <= 0.0 && sum + err_sum >= 1.0,
+            "u + v = {sum} ± {err_sum} covers the admissible range"
+        );
+        assert_eq!(
+            ray_triangle(&ray, &tri),
+            None,
+            "the door refuses on the sum's interval alone"
+        );
+        assert!(
+            admits_under(Door::NoSumInform, &ray, &tri),
+            "a door that applied INFORM to u and v but not to their sum admits it"
+        );
+    }
+
+    /// **The acceptance's bits at the ends.** Adopted from review lane
+    /// pick2-r2. `admits` is read by the door on every candidate, so
+    /// its edges are worth a static row of their own: a bound of
+    /// exactly `1` covers `[0, 1]` from anywhere inside it and
+    /// refuses; one ULP below `1` does not cover from either endpoint
+    /// and admits; and a NaN or an infinite bound refuses, because
+    /// both halves are affirmative comparisons.
+    #[test]
+    fn the_acceptance_at_its_ends() {
+        assert!(!super::admits(0.0, 1.0));
+        assert!(!super::admits(1.0, 1.0));
+        assert!(!super::admits(0.5, 1.0));
+        assert!(super::admits(0.0, 1.0f64.next_down()));
+        assert!(super::admits(1.0, 1.0f64.next_down()));
+        assert!(!super::admits(0.5, f64::NAN));
+        assert!(!super::admits(f64::NAN, 0.0));
+        assert!(!super::admits(0.5, f64::INFINITY));
+    }
+
+    /// **A corner graze's verdict depends on which corner the
+    /// tessellator labelled `tri[0]`.** Adopted from review lane
+    /// pick2-r2, and the measurement row for
+    /// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`.
+    ///
+    /// INFORM refuses a candidate whose interval covers the range, and
+    /// the interval's width is `triple_bound(s, d, e2)`-driven — a
+    /// function of `|s|`, `|d|` and the edges, NOT of the numerator.
+    /// So it does not shrink to nothing where the barycentric does,
+    /// and whether a genuine graze survives depends on which of `s`'s
+    /// components the labelling happens to zero. On the
+    /// [`near_tangent`] triangle at `k = 32` a ray through corner `b`
+    /// is admitted labelled `(a, b, c)` and refused labelled
+    /// `(b, c, a)`: one geometry, one determinant to the bit, two
+    /// verdicts. At `k = 8` no labelling admits a corner graze at all.
+    ///
+    /// This row asserts the asymmetry rather than a fix, because the
+    /// fix is a ruling (the filed row above). The runtime value that
+    /// reds it is the asymmetry going away — which is the outcome the
+    /// row wants.
+    #[test]
+    fn a_corner_graze_is_admitted_or_refused_by_its_label() {
+        let zeta = 2f64.powi(-20);
+        let xi = 32.0 * zeta * f64::EPSILON;
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, zeta + xi);
+        let c = Point3::new(0.0, 1.0, 0.0);
+        let dir = Vec3::new(1.0, 1.0, zeta);
+        let ray = Ray {
+            origin: b - dir,
+            dir,
+        };
+        let abc = [a, b, c];
+        let bca = [b, c, a];
+        let det_abc = crossing(&ray, &abc).expect("certified").det;
+        let det_bca = crossing(&ray, &bca).expect("certified").det;
+        assert_eq!(
+            det_abc.to_bits(),
+            det_bca.to_bits(),
+            "one determinant, two labellings"
+        );
+        let [(u, _), (v, _), _] = crossing(&ray, &abc).expect("certified").barycentrics;
+        assert_eq!(
+            (u, v),
+            (1.0, 0.0),
+            "the graze is corner b: u = 1, v = 0 exactly"
+        );
+        let [(u2, _), (v2, _), _] = crossing(&ray, &bca).expect("certified").barycentrics;
+        assert_eq!(
+            (u2, v2),
+            (0.0, 0.0),
+            "relabelled, the graze is corner a: u = v = 0 exactly"
+        );
+        assert_eq!(
+            ray_triangle(&ray, &abc),
+            Some(1.0),
+            "labelled (a, b, c), the graze is admitted at t = 1"
+        );
+        assert_eq!(
+            ray_triangle(&ray, &bca),
+            None,
+            "labelled (b, c, a), the same graze is refused at INFORM"
+        );
+        // And at k = 8 no labelling admits a graze at any corner.
+        let xi = 8.0 * zeta * f64::EPSILON;
+        let b8 = Point3::new(1.0, 0.0, zeta + xi);
+        for (label, tri, corner) in [
+            ("a", [a, b8, c], a),
+            ("b", [a, b8, c], b8),
+            ("c", [a, b8, c], c),
+        ] {
+            let ray = Ray {
+                origin: corner - dir,
+                dir,
+            };
+            assert!(crossing(&ray, &tri).is_some());
+            assert_eq!(
+                ray_triangle(&ray, &tri),
+                None,
+                "k = 8: the graze at corner {label} is refused"
+            );
+        }
+    }
+
+    /// **A well-conditioned interior hit is accepted, general
+    /// position.** Random triangles; a ray aimed at an interior
+    /// point (`u, v ∈ [0.15, 0.6]`, `u + v ≤ 0.85`) with an
+    /// out-of-plane component from `1e-6` to `1e-2` of the normal, so
+    /// the conditioning spans the near-tangent crossings a pick makes
+    /// looking along a face. Every draw with conditioning ≥ 1e-7 is a
+    /// hit at `reach`. Shape: counterexample search (varying seed,
+    /// effort dial); the static witness is the fixture row above.
+    #[test]
+    fn a_well_conditioned_interior_hit_is_accepted() {
+        let mut rng = fuzz::start("pick: interior hits in general position");
+        for _ in 0..fuzz::scaled(20_000) {
+            let pt = |r: &mut fuzz::Rng| {
+                Point3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0))
+            };
+            let tri = [pt(&mut rng), pt(&mut rng), pt(&mut rng)];
+            let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
+            if bu + bv > 0.85 {
+                continue;
+            }
+            let (e1, e2) = (tri[1] - tri[0], tri[2] - tri[0]);
+            let target = tri[0] + e1 * bu + e2 * bv;
+            let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
+            let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-6.0, -2.0));
+            let reach = rng.range(0.5, 4.0);
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
+                continue;
+            }
+            assert_interior_hit(&ray, &tri, reach, "general position");
+        }
+    }
+
+    /// **A well-conditioned interior hit is accepted on an axis-planar
+    /// triangle** — a flat cap, an extruded planar face, any
+    /// sketch-plane geometry — whose own box has zero (or 1e-14 to
+    /// 1e-6) extent along one axis. This is the geometry on which a
+    /// guard comparing the rounded `t` against the box's entry refused
+    /// 7% of interior hits; the certified determinant reads no box.
+    #[test]
+    fn a_flat_triangles_interior_hits_are_accepted() {
+        let mut rng = fuzz::start("pick: interior hits on axis-planar triangles");
+        for _ in 0..fuzz::scaled(20_000) {
+            let zc = rng.range(-1.0, 1.0);
+            let thick = if rng.below(2) == 0 {
+                0.0
+            } else {
+                10f64.powf(rng.range(-14.0, -6.0))
+            };
+            let a = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zc);
+            let zb = zc + thick * rng.unit();
+            let b = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zb);
+            let zcc = zc + thick * rng.unit();
+            let c = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zcc);
+            let tri = [a, b, c];
+            let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
+            if bu + bv > 0.85 {
+                continue;
+            }
+            let (e1, e2) = (b - a, c - a);
+            let target = a + e1 * bu + e2 * bv;
+            let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
+            let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-8.0, -2.0));
+            let reach = rng.range(0.5, 4.0);
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
+                continue;
+            }
+            assert_interior_hit(&ray, &tri, reach, "axis-planar");
+        }
+    }
+
+    /// **A fan-triangulated cap accepts every interior hit**: the
+    /// shape a tessellator emits for a round planar face — 64 thin
+    /// axis-planar wedges at a non-dyadic height — picked nearly
+    /// edge-on. A point in a wedge's OPEN interior is shared by no
+    /// sibling, so a refusal there is a lost pick, not a moved one.
+    #[test]
+    fn a_fan_triangulated_cap_accepts_its_interior_hits() {
+        let z = 0.5772156649015329;
+        let n = 64usize;
+        let centre = Point3::new(0.0, 0.0, z);
+        let rim: Vec<Point3<f64>> = (0..n)
+            .map(|i| {
+                let a = (i as f64) * std::f64::consts::TAU / (n as f64);
+                Point3::new(a.cos(), a.sin(), z)
+            })
+            .collect();
+        let tris: Vec<[Point3<f64>; 3]> =
+            (0..n).map(|i| [centre, rim[i], rim[(i + 1) % n]]).collect();
+        let mut rng = fuzz::start("pick: interior hits on a fan-triangulated cap");
+        for _ in 0..fuzz::scaled(20_000) {
+            let tri = tris[rng.below(n)];
+            let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
+            if bu + bv > 0.85 {
+                continue;
+            }
+            let target = tri[0] + (tri[1] - tri[0]) * bu + (tri[2] - tri[0]) * bv;
+            let slope = 10f64.powf(rng.range(-6.0, -1.5));
+            let theta = rng.range(0.0, std::f64::consts::TAU);
+            let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
+            let reach = rng.range(0.5, 3.0);
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
+                continue;
+            }
+            assert_interior_hit(&ray, &tri, reach, "fan cap");
+        }
+    }
+
+    /// **The prism's cap answers an edge-on pick**, through the
+    /// service's own candidate loop over [`MeshPick`]: the unit prism
+    /// tessellated at δ = 0.01 and moved to a non-dyadic place, a
+    /// target in the interior of its top cap, a ray descending onto it
+    /// at a slope from 1e-5 to 1e-1.5 — above the cap until it lands,
+    /// so the cap is the first and only face on the way. The nearest
+    /// accepted candidate is the cap at `reach`.
+    #[test]
+    fn the_prism_cap_answers_an_edge_on_pick() {
+        let body = unit_prism();
+        let mut pmemo = mesh::PatchMemo::new();
+        let mut mesh = tessellate_with(&body, 0.01, Tol::witness(), &mut pmemo)
+            .expect("the prism tessellates")
+            .mesh;
+        let off = Vec3::new(0.3141592653589793, 0.2718281828459045, 0.5772156649015329);
+        for p in &mut mesh.positions {
+            *p = *p + off;
+        }
+        let index = MeshPick::build(&mesh).expect("the prism indexes");
+        let mut rng = fuzz::start("pick: the prism cap edge-on");
+        for _ in 0..fuzz::scaled(5_000) {
+            let target = Point3::new(
+                rng.range(0.15, 0.85) + off.x,
+                rng.range(0.15, 0.85) + off.y,
+                1.0 + off.z,
+            );
+            let slope = 10f64.powf(rng.range(-5.0, -1.5));
+            let theta = rng.range(0.0, std::f64::consts::TAU);
+            let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
+            let reach = rng.range(0.5, 3.0);
+            let ray = ray_through(target, dir, reach);
+            let mut best: Option<f64> = None;
+            for cand in index.candidates(&ray) {
+                let (tri, _) = index.triangle(&cand).expect("a built candidate");
+                if let Some(t) = ray_triangle(&ray, &tri.corners)
+                    && best.is_none_or(|b| t < b)
+                {
+                    best = Some(t);
+                }
+            }
+            let t = best.unwrap_or_else(|| {
+                panic!(
+                    "the cap is missed at {target:?} along {dir:?}; {}",
+                    fuzz::replay()
+                )
+            });
+            assert!(
+                ((t - reach) / reach).abs() < 1e-6,
+                "the nearest candidate is not the cap at {reach}: t = {t}; {}",
+                fuzz::replay()
+            );
+        }
     }
 }

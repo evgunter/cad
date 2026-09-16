@@ -729,11 +729,17 @@ impl SessionOp {
     /// from the dispatch, and so that a new operation cannot join the
     /// enum without an answer: [`super::DocSession::perform`] consults this
     /// once, before dispatch, and no arm re-guards against the VALUE
-    /// gesture. Four arms do guard against the OTHER one: the
-    /// `*FreeMove` quartet delegates to [`crate::display::DisplayState`], which refuses
-    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own state.
+    /// gesture with a table of its own. Six arms guard from a
+    /// GESTURE's state: the `*FreeMove` quartet delegates to
+    /// [`crate::display::DisplayState`], which refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
+    /// state, and the two value-gesture begins delegate to
+    /// [`crate::g1::Slot::begin`], which refuses
+    /// [`Refusal::GestureInFlight`] off this one. That rule is rule 1
+    /// and is held once for both drags, which is why no row here
+    /// spells it.
     ///
-    /// Three shapes of `true` sit in the table:
+    /// Four shapes of `true` sit in the table:
     ///
     /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
     ///   [`SessionOp::CommitGesture`],
@@ -767,8 +773,25 @@ impl SessionOp {
     ///   under an open drag should be permitted at all is a question
     ///   this table only records the current answer to.
     ///
-    /// Everything else moves the document, the history or the file the
-    /// drag is previewing against, and is refused.
+    /// - the two doors that OPEN a value gesture
+    ///   ([`SessionOp::BeginGesture`],
+    ///   [`SessionOp::BeginParamGesture`]). They are permitted here
+    ///   and refused anyway, one layer down: `DocSession::start`
+    ///   hands them to [`crate::g1::Slot::begin`], whose first rule refuses
+    ///   [`Refusal::GestureInFlight`] off the very state this check
+    ///   reads. A `false` row would be a second spelling of one
+    ///   answer and would make the door's own arm unreachable — the
+    ///   argument `permitted_during_free_move` makes for
+    ///   [`SessionOp::BeginFreeMove`], which is the same rule about
+    ///   the other drag.
+    ///
+    /// Everything else is refused, and 23 of the 24 rows move the
+    /// document, the history or the file the drag is previewing
+    /// against. [`SessionOp::ProbeBounds`] is the twenty-fourth and
+    /// moves none of them: it READS the shown document, which
+    /// mid-drag is the scratch, so a range taken there would be a
+    /// statement about a picture the drag is about to replace and
+    /// would outlive it by one keystroke.
     #[must_use]
     pub fn permitted_during_value_gesture(&self) -> bool {
         match self {
@@ -783,6 +806,8 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SetInstanceHidden { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -794,8 +819,6 @@ impl SessionOp {
             | Self::SetSlotExpression { .. }
             | Self::SetParam { .. }
             | Self::CreateParam { .. }
-            | Self::BeginGesture { .. }
-            | Self::BeginParamGesture { .. }
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
@@ -865,7 +888,9 @@ impl SessionOp {
     /// [`crate::display::DisplayState::begin_free_move`] refuses
     /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
     /// state, with the same refusal this check raises. A second `false`
-    /// row would be a second spelling of one answer.
+    /// row would be a second spelling of one answer. The value table
+    /// says the same of its own two begins, so the argument is one
+    /// rule about rule 1 rather than one table's exception.
     ///
     /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
     /// are `true` here and still refused
@@ -999,14 +1024,14 @@ impl OpOutcome {
 /// absence is what made the refusal dishonest.
 ///
 /// **A door that cannot act says so rather than vanishing**, which is
-/// the posture `frame::ChooserBackend`'s two dialog controls take: the
+/// the posture `platform::ChooserBackend`'s two dialog controls take: the
 /// door is drawn whatever the selection, the standing and the
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
 /// **How it says so is the OTHER precedent**, and the two part company
 /// exactly here: the dialog controls hand
-/// `frame::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
+/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
 /// button — to `on_disabled_hover_text`, which is the shape
 /// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
 /// reason-elsewhere.md` is open about. The one this follows is

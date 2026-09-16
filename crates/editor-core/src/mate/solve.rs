@@ -139,10 +139,7 @@ impl SolvedPoses {
         instance: RecipeNodeId,
     ) -> Result<Frame, Box<MateFault>> {
         if let Some(m) = crate::ident::mispaired(doc.id(), self.document) {
-            return Err(Box::new(MateFault::PosesOfAnotherDocument {
-                expected: m.expected,
-                found: m.found,
-            }));
+            return Err(Box::new(m.into()));
         }
         if let Some(fault) = self.faults.get(&instance) {
             return Err(Box::new(fault.clone()));
@@ -973,6 +970,41 @@ pub enum ClusterMaintenance {
         /// The frame that was recorded, `None` when the row was absent.
         frame: Option<Frame>,
     },
+}
+
+impl core::fmt::Display for ClusterMaintenance {
+    /// Each act in prose, F6-shaped. It lives beside the enum because
+    /// the sentence is about the mate graph's motion, which is what
+    /// this module knows; [`crate::Maintenance`] delegates here for
+    /// its cluster arm rather than keeping a second copy of these
+    /// four sentences in the edit vocabulary.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Join {
+                survived, absorbed, ..
+            } => write!(
+                f,
+                "the cluster gauged by node {} was absorbed into the one gauged by node {}",
+                absorbed.0, survived.0
+            ),
+            Self::Split { from, to, .. } => write!(
+                f,
+                "a cluster separated from the one gauged by node {} and is now gauged by node {}",
+                from.0, to.0
+            ),
+            Self::GaugeRewrite { from, to, .. } => write!(
+                f,
+                "the cluster gauged by node {} lost that instance and is now gauged by node {}",
+                from.0, to.0
+            ),
+            Self::Drop { gauge, .. } => write!(
+                f,
+                "the cluster gauged by node {} lost its last instance, and its placement record \
+                 went with it",
+                gauge.0
+            ),
+        }
+    }
 }
 
 /// **The keying maintenance** (D-3): re-key `after`'s placement

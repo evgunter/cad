@@ -496,6 +496,23 @@ impl SlotId {
         }
     }
 
+    /// **Spec D6's slot rule over ONE address and one candidate
+    /// expression**: the comparison itself, with nowhere else to write
+    /// it down.
+    ///
+    /// Every door that decides whether an expression may sit in a slot
+    /// asks this — [`Node::slot_dimension_fault`] per slot of a node
+    /// the document already holds, and `edit`'s `set_slot` of an
+    /// expression the node does not hold YET, which is why the subject
+    /// is a `(slot, expr)` pair rather than a node.
+    pub(crate) fn dimension_fault(self, expr: &Expr) -> Option<SlotDimensionFault> {
+        (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
+            slot: self,
+            expected: self.dimension(),
+            found: expr.dim(),
+        })
+    }
+
     /// Whether this slot is a STRUCTURAL parameter (spec D3: the
     /// structural/continuous distinction is typed, not emergent —
     /// structural slots are exactly the Count-dimensioned ones).
@@ -1038,10 +1055,22 @@ impl SitedRef {
     }
 }
 
-/// **What makes a node's INPUT LIST invalid** ([`Node::input_fault`];
-/// DM5) — one vocabulary for the two edit doors and the load door's
-/// re-check, so the rule has one definition and three callers rather
-/// than three copies.
+/// **What makes a node's structural content invalid**
+/// ([`Node::input_fault`]; DM5) — one vocabulary for the two edit doors
+/// and the load door's re-check, so each rule has one definition and
+/// three callers rather than three copies.
+///
+/// It covers the input list (DM5's own subject) and the NAME
+/// DESIGNATIONS beside it, because the two are one kind of rule: a
+/// structural form that a construction door establishes, and that only
+/// a hand-built variant or a corrupt file can arrive without. Which
+/// form is the payload's own — ORDERED for a shell's `open`, SORTED for
+/// a blend's `selection` — and either way a node that does not hold it
+/// is refused at every door that ADMITS a node rather than repaired at
+/// one. [`crate::DocEdit::Rebind`] repairs, and that is not an
+/// exception: it rewrites through the same canonicalizer the
+/// construction doors use, so what it writes is a node these doors
+/// accept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
     /// One node is reached twice through this node's edges. It covers
@@ -1073,6 +1102,28 @@ pub enum InputFault {
         /// The position at which it is named again.
         again: u32,
     },
+    /// A SORTED designation is not in canonical form. A blend's
+    /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
+    /// that has one: its order carries no meaning, so it is stored
+    /// sorted and deduplicated and two recipes picking the same edges
+    /// are bit-identical. That is ONE predicate — the entries strictly
+    /// increase — which a repeat and a swap both break, at the position
+    /// named here. [`Node::fillet`]/[`Node::chamfer`] are the
+    /// construction doors that establish the form; a selection that
+    /// reaches a door without it came from a hand-built variant or a
+    /// corrupt file and is refused rather than re-sorted, because a
+    /// repair would move the node's content key behind the caller's
+    /// back.
+    SelectionNotCanonical {
+        /// The position of the entry that does not sort strictly
+        /// before the one after it. ONE index is the whole content:
+        /// the break is between this entry and its successor, so the
+        /// successor's position is this one plus one. The rendered
+        /// sentence spells both out because a reader comparing two
+        /// entries wants both numbers in front of them; the payload
+        /// carries the one that is data.
+        at: u32,
+    },
 }
 
 // The ONE prose vocabulary for this fault, forwarded by every door
@@ -1094,6 +1145,13 @@ impl core::fmt::Display for InputFault {
                 "the open-face designation names one face twice (entries {first} and {again}) — \
                  an ordered designation names each face once, the first occurrence carrying the \
                  rim"
+            ),
+            Self::SelectionNotCanonical { at } => write!(
+                f,
+                "the blend selection is not canonical (entry {at} does not sort strictly before \
+                 entry {}) — a selection is stored sorted and deduplicated, so the same edges \
+                 always make the same recipe",
+                at + 1
             ),
         }
     }
@@ -1133,6 +1191,111 @@ impl core::fmt::Display for MeasureNodeFault {
 }
 
 impl core::error::Error for MeasureNodeFault {}
+
+/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
+/// spec D6) — one vocabulary for the edit doors and the load door, so
+/// the rule "a slot's expression carries the dimension the slot
+/// address fixes" has one definition rather than one per door.
+///
+/// The domain is [`Node::slots`], which is EVERY node kind: a profile
+/// program's step arguments, an extrude's distance, a datum's
+/// coordinates and a pattern's count are the same question asked of
+/// different addresses, and a door that asks it of one kind admits
+/// files the other doors could not have produced.
+/// ONE fact, so a struct: the dimensions disagree. A slot
+/// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
+/// property of the document at all — it is a disagreement between two
+/// matches in this module, which [`Node::slot_dimension_fault`]
+/// asserts against at the site rather than routing to a door as a
+/// refusal.
+///
+/// Its [`Display`](core::fmt::Display) is the refusal's one CLAUSE,
+/// which each door forwards into its own subject — the shape
+/// [`crate::placement::Frame::admission_fault`] carries for the frame
+/// rule. The sentence is written here and reaches a reader as
+/// "node 7: slot radius needs …" from the load door and as
+/// "slot radius needs …" from the edit door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SlotDimensionFault {
+    /// The offending slot.
+    pub slot: SlotId,
+    /// The dimension the address fixes.
+    pub expected: Dimension,
+    /// The expression's dimension.
+    pub found: Dimension,
+}
+
+impl core::fmt::Display for SlotDimensionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            slot,
+            expected,
+            found,
+        } = self;
+        write!(
+            f,
+            "slot {} needs {} {expected} expression, got {} {found}",
+            slot.label(),
+            expected.article(),
+            found.article()
+        )
+    }
+}
+
+/// What makes a [`Node::Assertion`]'s bound unusable
+/// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
+/// door and the load door's re-check.
+///
+/// Two arms rather than one dimension-or-nothing answer: "the
+/// reference is not a measure" and "it is, and it measures something
+/// else" are different mistakes with different repairs, and a reader
+/// should not have to decode an absent dimension to tell them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AssertionBoundFault {
+    /// The reference names no live measure node — there is no measured
+    /// dimension for the bound to agree with.
+    TargetNotMeasure {
+        /// What the assertion references.
+        measure: RecipeNodeId,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+    /// The reference is a measure, and its dimension is not the
+    /// bound's: the assertion compares two different quantities.
+    DimensionMismatch {
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// What that measure yields.
+        measured: Dimension,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+}
+
+impl AssertionBoundFault {
+    /// **E10's agreement itself, stated once**: an assertion compares
+    /// one quantity, so the bound's declared dimension is the one the
+    /// measure yields.
+    ///
+    /// The entry point for a caller that already HAS the measured
+    /// dimension and cannot reach the measure node —
+    /// `eval::wire`'s assertion backstop, which reads it off
+    /// the evaluated payload, the dimension the measure node's own
+    /// expression put there. [`Node::assertion_bound_fault`] is the
+    /// entry point for a caller holding the document, and reaches this
+    /// one once it has resolved the reference.
+    pub(crate) fn against(
+        measure: RecipeNodeId,
+        measured: Dimension,
+        bound: Dimension,
+    ) -> Option<Self> {
+        (measured != bound).then_some(Self::DimensionMismatch {
+            measure,
+            measured,
+            bound,
+        })
+    }
+}
 
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
@@ -1178,12 +1341,23 @@ impl core::fmt::Display for PlacementRuleFault {
                 "the placement list is empty — a group needs at least one placement, exactly \
                  as a stepped rule needs a count of at least 1",
             ),
+            // The frame clause is the frame rule's own
+            // ([`crate::placement::FrameFault`]); this arm supplies
+            // only the subject, so the sentence a reader sees about a
+            // frame is the same one wherever the frame was refused.
             Self::NonFiniteFrame { index } => {
-                write!(f, "placement {index} has a non-finite coordinate")
+                write!(
+                    f,
+                    "placement {index} {}",
+                    crate::placement::FrameFault::NonFinite
+                )
             }
             Self::ImproperFrame { index, determinant } => write!(
                 f,
-                "placement {index} is improper (mirroring): determinant {determinant}"
+                "placement {index} {}",
+                crate::placement::FrameFault::Improper {
+                    determinant: *determinant
+                }
             ),
         }
     }
@@ -1430,10 +1604,13 @@ pub enum Node<P> {
     ///
     /// The set is stored sorted and deduplicated, so two recipes that
     /// select the same edges are bit-identical (the content key reads
-    /// the vector in order). [`Node::fillet`] canonicalizes; a loaded
-    /// snapshot is ASSERTED canonical rather than repaired
-    /// ([`crate::persist`]'s strict door — a non-canonical file is a
-    /// corrupt file).
+    /// the vector in order). [`Node::fillet`] canonicalizes; every door
+    /// that ADMITS a node ASSERTS the form rather than repairing it,
+    /// through the one predicate [`Node::input_fault`] states
+    /// ([`InputFault::SelectionNotCanonical`]) — so a hand-built
+    /// variant at the insert door and a non-canonical file at the load
+    /// door are refused alike, and a repair at either would move the
+    /// node's content key behind the caller's back.
     Fillet {
         /// The body whose edges are blended.
         target: RecipeNodeId,
@@ -1461,8 +1638,8 @@ pub enum Node<P> {
     /// Both exactly as [`Node::Fillet`] states them: a set of stable
     /// names and nothing else, no "every edge" variant,
     /// [`crate::DocEdit::Rebind`] the one repair, stored sorted and
-    /// deduplicated by [`Node::chamfer`], and a non-canonical set on
-    /// the wire is a corrupt file. The freeze argument does not depend
+    /// deduplicated by [`Node::chamfer`], and a non-canonical set at
+    /// any door refused rather than repaired. The freeze argument does not depend
     /// on which blend the surgery performs, so it is not restated
     /// here — read it there.
     ///
@@ -1619,7 +1796,7 @@ pub enum Node<P> {
     /// or inside a merged row that was later fragmented — is not
     /// looked through, and a pair naming it resolves only in the
     /// orders that reach it while it is still a row
-    /// (`work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// (`work/wire/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -1992,6 +2169,31 @@ fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
 /// `Explicit` answers `None` for EVERY slot including `Count`: its
 /// placements are the count and carry no expressions, which is exactly
 /// what [`Node::slots`] reports for it.
+/// A placement-rule node's slot LIST, the domain of [`rule_expr`]
+/// above the same two nodes — `has_count` says whether the node holds
+/// a count expression at all, which only [`Node::PlacedUnion`] can
+/// answer `false` to.
+///
+/// The two are one mapping read two ways, so a slot listed here is a
+/// slot `rule_expr` answers for: `Explicit` carries listed placements
+/// rather than a rule, so it has no count slot (the list's length IS
+/// the count) and no expressions (the frames are structural data, D8);
+/// and a parametric rule with no count is a node
+/// [`Node::placement_rule_fault`] refuses, not a node with a count
+/// slot nothing can read.
+fn rule_slots(has_count: bool, kind: &PatternKind) -> Vec<SlotId> {
+    let count = has_count.then_some(SlotId::Count);
+    match kind {
+        PatternKind::Linear { .. } => count
+            .into_iter()
+            .chain(Axis3::ALL.map(SlotId::Direction))
+            .chain([SlotId::Spacing])
+            .collect(),
+        PatternKind::Circular { .. } => count.into_iter().chain([SlotId::Step]).collect(),
+        PatternKind::Explicit(_) => Vec::new(),
+    }
+}
+
 fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
     match (kind, slot) {
         (PatternKind::Explicit(_), _) => None,
@@ -2217,11 +2419,58 @@ impl<P> Node<P> {
             .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
     }
 
-    /// **DM5, stated once**: what is wrong with this node's inputs, if
-    /// anything — one node reached twice, or a list left under two.
+    /// **E10, stated once**: what is wrong with this assertion's bound
+    /// against the node it constrains, if anything — the dimension the
+    /// measure yields, or the absence of a measure at that reference.
+    /// `None` for every node that is not a [`Node::Assertion`].
     ///
-    /// One structural rule over [`Node::inputs`] rather than a rule per
-    /// node kind, and ONE definition with three callers: `InsertNode`,
+    /// The predicate takes the DOCUMENT because the measured dimension
+    /// is another node's property; that is the shape
+    /// [`Node::bad_declare_input`] has, for the same reason, and it is
+    /// what lets both doors ask ONE question. The edit door renders the
+    /// answer as [`crate::EditError::AssertionTarget`] /
+    /// [`crate::EditError::AssertionDimension`] and the load door as
+    /// `SnapshotError::AssertionTarget` / `SnapshotError::AssertionBound`:
+    /// a refusal names the door it came from, and the rule is asked in
+    /// one place so the two cannot drift.
+    ///
+    /// The target's LIVENESS is not asked separately: a reference that
+    /// names no live node is not a measure, and reports as such.
+    pub(crate) fn assertion_bound_fault(
+        &self,
+        doc: &crate::doc::Doc<P>,
+    ) -> Option<AssertionBoundFault> {
+        let Node::Assertion { measure, bound, .. } = self else {
+            return None;
+        };
+        let (measure, bound) = (*measure, bound.dim());
+        match doc.nodes.get(&measure) {
+            Some(Node::Measure { expr, .. }) => {
+                AssertionBoundFault::against(measure, expr.dim(), bound)
+            }
+            _ => Some(AssertionBoundFault::TargetNotMeasure { measure, bound }),
+        }
+    }
+
+    /// Whether this node is a mate whose alignment datum carries a
+    /// coordinate no predicate can decide on (ASM-R2a D-1).
+    ///
+    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
+    /// one place a NODE is asked it, so the edit door and the load
+    /// door's walk share the destructuring as well as the test.
+    /// `false` for every node that is not a [`Node::Mate`].
+    pub(crate) fn has_non_finite_alignment(&self) -> bool {
+        matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
+    }
+
+    /// **DM5, stated once**: what is wrong with this node's structural
+    /// content, if anything — one node reached twice, a list left under
+    /// two, or a name designation outside the canonical form its
+    /// construction door establishes.
+    ///
+    /// Structural rules over the node's own content rather than a rule
+    /// per node kind, and ONE definition with three callers:
+    /// `InsertNode`,
     /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
     /// load door's `validate_document`. The two edit doors render it in
     /// [`crate::EditError`]'s vocabulary and the load door in
@@ -2237,9 +2486,9 @@ impl<P> Node<P> {
     ///
     /// # What the rule covers, and why that is sound
     ///
-    /// Both clauses read [`Node::inputs`], so they apply to EVERY node
-    /// kind — not only the union, the list-input kinds and the boolean.
-    /// That is wider than DM5's text, and deliberately:
+    /// The two INPUT clauses read [`Node::inputs`], so they apply to
+    /// EVERY node kind — not only the union, the list-input kinds and
+    /// the boolean. That is wider than DM5's text, and deliberately:
     ///
     /// - The duplicate clause is sound everywhere because no node kind
     ///   in this crate has a meaning for the same input twice. A
@@ -2261,6 +2510,12 @@ impl<P> Node<P> {
     ///   instead of at evaluation naming the sweep.
     ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
     ///   load-door twin pin both.)
+    /// - The two DESIGNATION clauses read one payload each — a shell's
+    ///   `open`, a blend's `selection` — and are silent about every
+    ///   other node kind, because a canonical form is the payload's own
+    ///   and there is nothing to generalize. What is general is that
+    ///   each is asked HERE, so the form a construction door
+    ///   establishes is the form every door admits.
     pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
@@ -2274,10 +2529,18 @@ impl<P> Node<P> {
         if let Some(input) = self.inputs().into_iter().find(|input| !seen.insert(*input)) {
             return Some(InputFault::Duplicate { input });
         }
-        // The one ORDERED name payload carries the one rule the
-        // canonical (sorted) payloads state by their order: no entry
-        // twice. Asked here, once, so the insert door, the load door
-        // and the evaluation backstop refuse alike.
+        // The name designations, each against the canonical form its
+        // own construction door establishes. Asked here, once, so every
+        // door that admits a node refuses the same shapes, and neither
+        // form is repaired at any of them. `SetMembers` is a caller but
+        // reaches neither clause: it refuses `SetMembersOnNonList`
+        // first, since no designation-carrying kind has a list input.
+        // The doors a designation fault is REACHABLE at are the insert
+        // door and the load door.
+        //
+        // The ORDERED payload — a shell's `open` — carries only the
+        // rule the sorted payloads state by their order: no entry
+        // twice.
         if let Node::Shell { open, .. } = self {
             for (again, name) in open.iter().enumerate() {
                 if let Some(first) = open[..again].iter().position(|n| n == name) {
@@ -2287,6 +2550,16 @@ impl<P> Node<P> {
                     });
                 }
             }
+        }
+        // The SORTED payload — a blend's selection — states both rules
+        // in one: strictly increasing IS "sorted and deduplicated", so
+        // a swap and a repeat are one fault at one position. An empty
+        // selection holds it vacuously and is evaluation's refusal to
+        // name (`BlendSelectionEmpty`), not this door's.
+        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
+            && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
+        {
+            return Some(InputFault::SelectionNotCanonical { at: at as u32 });
         }
         None
     }
@@ -2424,19 +2697,14 @@ impl<P> Node<P> {
                 s.push(SlotId::RotationAngle);
                 s
             }
-            Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => match kind {
-                PatternKind::Linear { .. } => {
-                    let mut s = vec![SlotId::Count];
-                    s.extend(vec3(SlotId::Direction));
-                    s.push(SlotId::Spacing);
-                    s
-                }
-                PatternKind::Circular { .. } => vec![SlotId::Count, SlotId::Step],
-                // The listed placements ARE the rule: no count slot
-                // (the list's length is the count) and no expressions
-                // (the frames are structural data, D8).
-                PatternKind::Explicit(_) => Vec::new(),
-            },
+            // A pattern's count is a field, so it is always there; a
+            // placed union's is an `Option`, and a rule missing the
+            // count it needs carries no count SLOT either — the
+            // mismatch is `PlacementRuleFault::CountSpelling`, refused
+            // at both doors, and not a slot address that answers
+            // nothing.
+            Node::Pattern { kind, .. } => rule_slots(true, kind),
+            Node::PlacedUnion { count, kind, .. } => rule_slots(count.is_some(), kind),
             // A half is recipe payload, not a number anyone sets; an
             // index is the one structural slot the projection carries.
             Node::Part { select, .. } => match select {
@@ -2698,13 +2966,17 @@ impl<P> Node<P> {
                     hits += rewrite(name, from, to);
                 }
             }
+            // A SORTED payload re-canonicalizes through the same door
+            // that established the form: the repair re-establishes it,
+            // so what a rebind writes is what `Node::input_fault`
+            // accepts and there is no shape a repair can leave behind
+            // that an edit door would refuse.
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 for name in selection.iter_mut() {
                     hits += rewrite(name, from, to);
                 }
                 if hits > 0 {
-                    selection.sort();
-                    selection.dedup();
+                    canonicalize_selection(selection);
                 }
             }
             // An ORDERED payload re-canonicalizes to its own form: the
@@ -2885,21 +3157,23 @@ impl<P> Node<P> {
             return Some(PlacementRuleFault::NoPlacements);
         }
         // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to — finite, and proper
-        // (det > 0; admitting mirrors is gated on R4's equivariance
-        // audit). Checked HERE so the refusal lands at the edit door
+        // `SetPlacement` holds a cluster frame to, because it is held
+        // to it by the same predicate — `Frame::admission_fault`, whose
+        // home is the frame. This arm says only WHICH frame in the list
+        // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity
         // re-check downstream.
-        for (index, frame) in frames.iter().enumerate() {
-            if !frame.is_finite() {
-                return Some(PlacementRuleFault::NonFiniteFrame { index });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
-            }
-        }
-        None
+        frames
+            .iter()
+            .enumerate()
+            .find_map(|(index, frame)| match frame.admission_fault()? {
+                crate::placement::FrameFault::NonFinite => {
+                    Some(PlacementRuleFault::NonFiniteFrame { index })
+                }
+                crate::placement::FrameFault::Improper { determinant } => {
+                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
+                }
+            })
     }
 
     /// A `Declare` node whose every pair asserts the CONFORMAL class
@@ -2933,6 +3207,39 @@ impl<P> Node<P> {
         }
     }
 
+    /// **The slot-dimension rule, asked of this node** (spec D6):
+    /// every slot [`Node::slots`] names answers an expression, and
+    /// that expression carries the dimension [`SlotId::dimension`]
+    /// fixes for the address. `None` when the node carries no slot at
+    /// all, which is most of the assembly vocabulary.
+    ///
+    /// One home for the question, read by the edit doors
+    /// (`check_node_slots`) and by the load door's walk, each naming
+    /// the answer in its own vocabulary. The `pub` payloads are what
+    /// make a violation reachable: a hand-built node and a corrupt
+    /// file can both state one, and neither may reach a document the
+    /// edit doors could not have produced.
+    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slots().into_iter().find_map(|slot| {
+            // `slots()` IS `expr()`'s domain — the two matches answer
+            // for the same payload — so a slot with no expression is a
+            // bug in this module, not a document a door may refuse.
+            // Pinned for every node kind by
+            // `switch_slots::every_node_kinds_slots_are_all_readable`.
+            let Some(expr) = self.expr(slot) else {
+                unreachable!(
+                    "slot {}: `Node::slots` names it and `Node::expr` does not answer for it — \
+                     the two matches in this module disagree",
+                    slot.label()
+                )
+            };
+            slot.dimension_fault(expr)
+        })
+    }
+
     /// What is wrong with this node's measured expression, if anything
     /// — the one answer the construction door and the persistence
     /// re-check both read, so the two can never disagree about which
@@ -2960,11 +3267,12 @@ impl<P> Node<P> {
 
     /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
     /// deduplicated) — the one construction door, so a recipe's bits
-    /// do not depend on the order a user clicked in.
+    /// do not depend on the order a user clicked in. The form comes
+    /// from [`canonicalize_selection`], which every site that
+    /// establishes it shares.
     pub fn fillet(target: RecipeNodeId, radius: Expr, selection: Vec<StableName>) -> Self {
         let mut selection = selection;
-        selection.sort();
-        selection.dedup();
+        canonicalize_selection(&mut selection);
         Node::Fillet {
             target,
             radius,
@@ -2978,8 +3286,7 @@ impl<P> Node<P> {
     /// order a user clicked in.
     pub fn chamfer(target: RecipeNodeId, distance: Expr, selection: Vec<StableName>) -> Self {
         let mut selection = selection;
-        selection.sort();
-        selection.dedup();
+        canonicalize_selection(&mut selection);
         Node::Chamfer {
             target,
             distance,
@@ -3003,6 +3310,21 @@ impl<P> Node<P> {
             open,
         }
     }
+}
+
+/// Sorts a name designation and drops its repeats — the canonical form
+/// of a SORTED designation ([`InputFault::SelectionNotCanonical`]),
+/// shared by the two construction doors and the rebind rewrite so the
+/// three cannot disagree about it, exactly as
+/// [`dedup_keeping_first`] is shared for the ordered twin.
+///
+/// It is the establisher of the form [`Node::input_fault`] checks:
+/// what comes back from here always answers `None` there, which is
+/// what makes `Rebind` a repair rather than a second authoring of a
+/// shape the doors would refuse.
+fn canonicalize_selection(names: &mut Vec<StableName>) {
+    names.sort();
+    names.dedup();
 }
 
 /// Drops every repeat of a name, keeping the FIRST occurrence and the

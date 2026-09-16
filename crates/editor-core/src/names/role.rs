@@ -19,17 +19,24 @@
 //!
 //! # Locators (spec D2, cited)
 //!
-//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry the profile's OWN
-//! canonical combinatorial identity — `profile::ValidatedProfile`'s
-//! loop order (outer first, then holes in the DESCRIPTION's order —
-//! recipe data) and each loop's canonical chain indices, whose
-//! canonical start is selected through the exact-order band
-//! (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
+//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry a profile's OWN
+//! combinatorial identity, never a bare enumeration index. As an
+//! emitter mints them that identity is `profile::ValidatedProfile`'s
+//! canonical form — its loop order (outer first, then holes in the
+//! DESCRIPTION's order — recipe data) and each loop's canonical chain
+//! indices, whose canonical start is selected through the exact-order
+//! band (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
 //! total, rotation-invariant, and a function of recipe structure plus
-//! recorded verdicts — NOT bare enumeration indices. The sweep
-//! emitters (`Extruded`, `Revolved`) index their output maps by
-//! exactly these identities, which is what makes sweep naming a
-//! mechanical zip.
+//! recorded verdicts. The sweep emitters (`Extruded`, `Revolved`)
+//! index their output maps by exactly these identities, which is what
+//! makes sweep naming a mechanical zip.
+//!
+//! What the NAME TABLE publishes is that identity only for a
+//! hand-built profile. For a program loop `eval::anchor` rewrites
+//! every emitted ref canonical → program before the table is
+//! published, so the ref a consumer holds is the one the program's
+//! own step order authored — see the two types' docs and DM8
+//! (`crates/editor-core/REFERENCES.md`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -406,30 +413,44 @@ pub enum CapEnd {
     Start,
 }
 
-/// A profile edge (segment) by canonical combinatorial identity
-/// (module docs: the profile crate's canonical form, cited — not a
-/// bare index).
+/// A profile edge (segment) by combinatorial identity, never a bare
+/// index — and WHICH identity depends on where the ref came from: the
+/// profile crate's canonical form (module docs, cited) for a
+/// hand-built profile, the program's own step order for a program
+/// loop, whose refs `eval::anchor` rewrites canonical → program
+/// before the name table is published, so that a parameter edit
+/// cannot renumber a frozen selection. DM8
+/// (`crates/editor-core/REFERENCES.md`) rules on the published
+/// anchoring and names the one exception: a loft's sections are all
+/// anchored by section 0's map.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileEdgeRef {
-    /// Canonical loop: 0 = outer, then holes in description order.
+    /// The loop: canonical loop order (0 = outer, then holes in
+    /// description order) as minted, the program's own loop index
+    /// once published for a program loop.
     pub loop_index: u32,
-    /// Canonical segment index within the loop's chain.
+    /// The edge's index along that loop's chain, in the same
+    /// anchoring the loop index carries.
     pub segment: u32,
 }
 
-/// A profile vertex by canonical combinatorial identity: vertex `v`
-/// starts segment `v` of its loop's canonical chain.
+/// A profile vertex by combinatorial identity, under the same two
+/// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
+/// `v` starts segment `v` of its loop's chain, canonical as minted
+/// and program-order once published for a program loop (DM8).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileVertexRef {
-    /// Canonical loop index.
+    /// The loop, in the anchoring [`ProfileEdgeRef::loop_index`]
+    /// describes.
     pub loop_index: u32,
-    /// Canonical vertex index (the start vertex of segment `vertex`).
+    /// The vertex's index along that loop's chain (the start vertex
+    /// of segment `vertex`), in the same anchoring.
     pub vertex: u32,
 }
 
@@ -690,7 +711,7 @@ pub enum RoleSeg {
     /// `Fragment(OrderAlong)` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
-    /// (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
+    /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
     /// so it is the verb's asymmetry showing through a fold rather
     /// than anything the fold or this segment adds.
     ///
@@ -957,9 +978,11 @@ pub enum RoleSeg {
 /// hand-spelled name gets wrong silently until emission refuses it.
 ///
 /// The loop index is [`ProfileEdgeRef::loop_index`] and spells what
-/// that field spells: 0 = outer, then holes in description order. No
-/// loop is privileged by these builders — a hole's band is `band` at
-/// its own loop, and `seg` indexes THAT loop's canonical chain.
+/// that field spells, `seg` what [`ProfileEdgeRef::segment`] spells:
+/// the anchoring the published table carries, canonical for a
+/// hand-built profile and the program's own step order for a program
+/// loop (DM8). No loop is privileged by these builders — a hole's
+/// band is `band` at its own loop.
 #[must_use]
 pub fn band(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
     StableName {

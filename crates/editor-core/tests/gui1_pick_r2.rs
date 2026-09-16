@@ -188,16 +188,8 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
         MeshPick::build(&mb).expect("mesh b indexes"),
     );
     let targets = [
-        PickTarget {
-            node: a,
-            body: 0,
-            pick: &pa,
-        },
-        PickTarget {
-            node: b,
-            body: 0,
-            pick: &pb,
-        },
+        PickTarget::new(&ev, a, 0, &pa),
+        PickTarget::new(&ev, b, 0, &pb),
     ];
     let meshes = [&ma, &mb];
 
@@ -345,11 +337,7 @@ fn a_ray_through_a_shared_corner_hits_and_is_repeatable() {
     let ev = run(&doc);
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
-    let targets = [PickTarget {
-        node: n,
-        body: 0,
-        pick: &p,
-    }];
+    let targets = [PickTarget::new(&ev, n, 0, &p)];
     // Straight at the (1,1,1) corner along the body diagonal.
     let r = ray([3.0, 3.0, 3.0], [-1.0, -1.0, -1.0]);
     let hit = pick_face(&ev, &targets, &r)
@@ -384,11 +372,7 @@ fn a_ray_in_a_face_plane_answers_from_the_transverse_faces() {
     let ev = run(&doc);
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
-    let targets = [PickTarget {
-        node: n,
-        body: 0,
-        pick: &p,
-    }];
+    let targets = [PickTarget::new(&ev, n, 0, &p)];
     // In the z = 1 (top) plane, travelling +x through the middle.
     let r = ray([-2.0, 0.5, 1.0], [1.0, 0.0, 0.0]);
     let hit = pick_face(&ev, &targets, &r)
@@ -421,11 +405,7 @@ fn three_body_occlusion_peels_in_t_order() {
         .iter()
         .map(|m| MeshPick::build(m).expect("mesh indexes"))
         .collect();
-    let mk = |i: usize, node| PickTarget {
-        node,
-        body: 0,
-        pick: &ps[i],
-    };
+    let mk = |i: usize, node| PickTarget::new(&ev, node, 0, &ps[i]);
     let nodes = [n0, n1, n2];
     let r = ray([-1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
     let expect_t = [1.0, 3.0, 5.0];
@@ -466,11 +446,7 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
     m.patches[0].triangles.push([base, base + 1, base + 2]);
 
     let p = MeshPick::build(&m).expect("degenerate geometry still indexes");
-    let targets = [PickTarget {
-        node: n,
-        body: 0,
-        pick: &p,
-    }];
+    let targets = [PickTarget::new(&ev, n, 0, &p)];
     // A ray straight through the collinear sliver: never a hit.
     let along = ray([-6.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
     let hit = pick_face(&ev, &targets, &along)
@@ -525,16 +501,8 @@ fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {
     let pa = MeshPick::build(&ma).expect("mesh a indexes");
     // Body A's index, presented as node B's target — the mistake a
     // consumer holding a cache keyed by the wrong node id makes.
-    let wrong = [PickTarget {
-        node: b,
-        body: 0,
-        pick: &pa,
-    }];
-    let right = [PickTarget {
-        node: a,
-        body: 0,
-        pick: &pa,
-    }];
+    let wrong = [PickTarget::new(&ev, b, 0, &pa)];
+    let right = [PickTarget::new(&ev, a, 0, &pa)];
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
     let truth = pick_face(&ev, &right, &r)
         .expect("no error")
@@ -562,11 +530,7 @@ fn degenerate_rays_are_typed_misses() {
     let ev = run(&doc);
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
-    let targets = [PickTarget {
-        node: n,
-        body: 0,
-        pick: &p,
-    }];
+    let targets = [PickTarget::new(&ev, n, 0, &p)];
     for r in [
         ray([0.5, 0.5, -2.0], [0.0, 0.0, 0.0]),
         ray([0.5, 0.5, -2.0], [0.0, 0.0, f64::INFINITY]),
