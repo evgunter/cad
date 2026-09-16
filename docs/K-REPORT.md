@@ -709,79 +709,109 @@ direction turned up (`tools/k-lint/tests/predicate_roster.rs`'s
 The ruling is recorded in `k_lint::EPS_COUPLED_UNRULED` — a name, a
 reason, and a list the CLI reads — rather than as a roster omission.
 
-*Rule (4)'s floor is a measurement, and the criterion only selects the
-class.* `EPS_COUPLED_FLOOR_RATIO` is the P0 of 108 draws of
-`props_quad_converged`'s `|m|/ε`, with 8.9% of headroom and no
-structural lower bound. Rostering a name that contributed no draw puts
-it under a floor cut from a different family's lower tail — a
-distribution ruling made with no distribution.
+**The ground is that there are no draws, and it is measured.** Rule
+(4)'s floor is the P0 of 108 draws of `props_quad_converged`'s
+`|m|/ε`, with 8.9% of headroom and no structural lower bound
+(`EPS_COUPLED_FLOOR_RATIO`). Putting a name under it that contributed
+none of those draws is a distribution ruling made with no
+distribution. That is the whole argument; the two paragraphs below say
+what the measurement is and what it is not.
 
-*And "no draw" is not "swept and found empty", which is the thing an
-earlier reading of this had wrong.* Every committed era predates the
-mint: the newest, `m7-eps-*`, was swept 2026-08-07, and the kernel first
-minted `props_quad_last_round` on 2026-09-03. No committed row could
-name it. The readings that were taken with the name live are the M11
-addendum's sweep at `c39a904e` (2026-09-08), clean at all three ε rows,
-and a sweep at this ruling's head (`89c8766`, 2026-09-16, the same
-`scripts/k_probe_sweep.sh <outdir>` at the dev profile with `--features
-probe`): **zero rows at every ε row**, over 1 263 818 / 1 263 826 /
-1 263 838 samples and 277 names, while `props_quad_converged` recorded
-92 / 104 / 116. The name is minted once per face
-and only when round 0 does not certify, and no shape in the Band 4
-corpus or the demo scenes gets there.
+*"No draw" is not "swept and found empty", which is what an earlier
+reading of this had wrong.* Every committed era predates the mint: the
+newest, `m7-eps-*`, was swept 2026-08-07, and the kernel first minted
+`props_quad_last_round` on 2026-09-03. No committed row could have
+named it, so the absence in those files is not evidence of anything.
 
-*The two statistics are not the same one, so a second floor is owed
-before the family could sit under rule (4) at all.*
-`props_quad_converged` records the headroom of the round that STOPPED,
-once per round, and it is bounded above by the target. Its unruled
-sibling records the headroom of a LOWER BOUND on a round that never
-runs, once per face, and only a definite negative reading refuses — so
-its population has two sides: a positive side in `(0, 1024·ε]` and a
-refusal side that nothing bounds below. Rule (4) is one lower-tail
-threshold on a bounded statistic; over this family it would rule on the
-positive side and say nothing about the side the predicate exists to
-decide. That is a second floor, and cutting one needs draws.
+*The structural reason, which is what the measurement actually rests
+on.* The mint is reached only from the two patch lanes, and only after
+round 0 fails to certify — `cylinder_cut_face_rounds` has no budget
+exit at all, and in the committed era the shapes that fail to certify
+at round 0 are in the lane WITHOUT the mint. So the zero is a property
+of which lanes this corpus exercises, not a sample size. The counts
+below are the run's scale, not its coverage: the informative numbers
+would be faces entering a patch lane and faces failing round 0, and
+the sweep reports neither.
 
-*What keeps the ruling honest — three rows, and one residue stated.*
+With that said, the reading: `scripts/k_probe_sweep.sh` at `89c8766`
+(2026-09-16, dev profile, the script's own `feats_for` — the
+configuration the M11 addendum names) records **zero
+`props_quad_last_round` rows in all three of its legs**, the gated
+corpus+demo files (1 263 818 / 1 263 826 / 1 263 838 samples, 277
+names), the M2 dump and the E6 driver dump, at every ε row.
+`props_quad_converged` recorded 92 / 104 / 116 over the same run.
+
+*What the asymmetry between the two families IS, and what it is not.*
+It is **not** that one is bounded and the other is not. Rule (4)'s own
+committed population is two-sided: `props_quad_converged` carries 24
+negative draws at the 1e-9 row and 48 at 1e-12, reaching
+`|m| = 1.83e-4` — about `1.8e8·ε` — and the P0 the floor is cut from
+(164.674 at demo/tiltedcut, 1e-9) is itself a negative row. Both
+families record a signed headroom with an unbounded refusal side, and
+rule (4) is already a lower-tail threshold on `|m|` over one. What
+differs is the SAMPLE: `props_quad_converged` is asked once per round
+and records the round that stopped, while `props_quad_last_round` is
+asked once per FACE and records a lower bound on a round that never
+ran. Whether those two lower tails are the same shape is exactly the
+question no draw has been taken on.
+
+*What keeps the ruling honest — two rows, and one of them is the gate.*
 The claim is "this family has no distribution", so something must red
 the day it has one:
 
-1. **The committed era.** `tools/k-lint`'s
+1. **The name, in the gate itself.** A row recorded for an
+   `EPS_COUPLED_UNRULED` name is a FINDING in `tools/k-lint`, counted
+   per file, printed ahead of the flags and failing the run in its own
+   voice — one that names this ruling and says explicitly that
+   re-deriving `BASELINE_FLOOR_MARGIN` is not the recourse. It rides
+   with rules (2) and (3) on the demotable side, so the E6 driver
+   row's recorded demotion covers it, and it prints there rather than
+   going quiet. **This is the guard that does not depend on a row's
+   sign or size**, and the reason it has to exist is below.
+2. **The committed era.**
    `the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
-   reds if the era `EPS_COUPLED_FLOOR_RATIO` is cut from ever carries a
-   row of an unruled name. Vacuous today, and sited so that the commit
-   which supersedes M7 — the same commit that re-cuts the floor — has to
-   answer the question rather than re-cut over a population that now
-   contains the excused family.
-2. **The live sweep.** An ε-coupled headroom's positive side lies in
-   `(0, QUAD_TARGET_LEN_FACTOR·ε]`, and at both tight ε rows that whole
-   interval is below `BASELINE_FLOOR_MARGIN` — so the first such row a
-   fresh sweep records flags under rule (3), and every code-tier run
-   sweeps and lints all three rows.
-   `an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`
-   derives that from the kernel's own factor instead of promising it,
-   and asserts the 1e-6 row where it does NOT hold.
-3. **The voice.** (2) reds in the wrong words: the metre rules' recourse
-   sends the reader to re-derive `BASELINE_FLOOR_MARGIN`, which did not
-   move. `Scan::unruled` counts an unruled name's rows in every scanned
-   file and the CLI prints them ahead of the flags, naming the open
-   ruling — the same "never a silent exemption" posture rule (2)'s cap
-   already has.
+   reds if the era `EPS_COUPLED_FLOOR_RATIO` is cut from ever carries
+   a row of an unruled name. Vacuous today for the dating reason
+   above; its point is that the era moves in the same file that
+   re-cuts the floor, so that commit has to answer rather than re-cut
+   over a population that quietly acquired the excused family.
 
-**The residue.** A population made only of REFUSALS — large negative
-`|m|` — passes both metre rules clean and would arrive without any of
-the three reding. It is left stated rather than guarded because it
-cannot arrive quietly anywhere else: a definite negative reading is the
-exit that refuses the face, so a corpus emitting only those has started
-failing to compute face properties, which is a red suite long before it
-is a lint row.
+   Beside them, not as a guard but as a statement of how loud the
+   metre rules additionally are:
+   `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`
+   derives from the kernel's own `QUAD_TARGET_LEN_FACTOR` that a
+   POSITIVE row's whole range lies below `BASELINE_FLOOR_MARGIN` at
+   1e-9 and 1e-12, so every one of those flags under rule (3) there.
 
-**What would change this ruling** is a corpus whose faces do not certify
-at round 0. Building one is not a sweep away: it means authoring
-geometry whose round-0 flux width exceeds `1024·ε` into the Band 4
-corpus, which moves the gate's subject matter — a geometry conversation,
-of the same kind `scripts/k_probe_sweep.sh` declines when it keeps the
-M2 corpus beside the linted CSV rather than inside it.
+**Why (1) is needed and a printed note would not have been.** The
+metre rules see nothing on the refusal side: a large negative margin
+is decisive and passes both. And a refusal does not surface elsewhere
+either — `crates/topo/src/props.rs`'s `sign_certified` says *"A face
+that refuses on BUDGET is different — it has an enclosure, and the sum
+keeps it — so the refusal rides on the certificate, and whether it is
+REPORTED is the caller's decision, taken by `last_word`"*, and
+`last_word` is asked exactly when `settle` never accepted. When
+`settle` accepts the sign off the enclosure the budget refusal is
+never reported and the run is a success, so definite-negative
+`props_quad_last_round` readings can accumulate on a wholly green
+suite. A note in a green log does not catch that; a gate does.
+
+**What a green `k-lint` row does and does not say about this.** `ci.yml`
+lints exactly `target/k-fresh/k-eps-{1e-6,1e-9,1e-12}.csv` with every
+rule gating, so a green there is a claim about the GATED FILES: no
+unruled row of any kind, and no positive one that rule (3) would have
+caught. It is not a claim about the sweep's other two dumps — the M2
+corpus dump is read by nothing, and the E6 driver dump is linted under
+`--gate-rule-1-only`, where both a rule-3 flag and an unruled row
+print and stay green.
+
+**What would change this ruling** is a corpus whose faces reach a patch
+lane and fail to certify at round 0. Building one is not a sweep away:
+it means authoring geometry whose round-0 flux width exceeds `1024·ε`
+into the Band 4 corpus, which moves the gate's subject matter — a
+geometry conversation, of the same kind `scripts/k_probe_sweep.sh`
+declines when it keeps the M2 corpus beside the linted CSV rather than
+inside it.
 
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a

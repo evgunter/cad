@@ -101,31 +101,55 @@ found an absence it could not distinguish from the predicate not
 existing.
 
 **So the sweep was run.** `scripts/k_probe_sweep.sh` at `89c8766`:
-**zero rows at all three ε rows**, over 1 263 818 / 1 263 826 /
-1 263 838 samples and 277 names, against `props_quad_converged`'s
-92 / 104 / 116. The name is minted once per face and only when round 0
-fails to certify, and nothing in the Band 4 corpus or the demo scenes
-gets there. The Confidence line's open half — *"unsure whether a corpus
-that reaches the budget exit exists in the wild set at all"* — is now
-closed: it does not.
+**zero `props_quad_last_round` rows in all three legs** — the gated
+corpus+demo files (1 263 818 / 1 263 826 / 1 263 838 samples, 277
+names), the M2 dump and the E6 driver dump — at every ε row, against
+`props_quad_converged`'s 92 / 104 / 116.
 
-**And rule (4) would need a second floor even with draws**, which this
-file raises and does not settle. `props_quad_converged` meters the
-round that STOPPED, bounded above by the target; this one meters a
-LOWER BOUND on a round that never runs, and only a definite negative
-reading refuses — so its population has a refusal side nothing bounds
-below, where rule (4)'s single lower-tail threshold says nothing.
+**Read that as structure, not as coverage.** The mint is reached only
+from the two patch lanes and only after round 0 fails to certify;
+`cylinder_cut_face_rounds` has no budget exit, and in the committed
+era the shapes failing round 0 sit in the lane WITHOUT the mint. So
+the zero is determined by which lanes this corpus exercises, and the
+sample counts are the run's scale rather than evidence of reach. The
+informative numbers — faces entering a patch lane, faces failing round
+0 — are not reported by the sweep. The Confidence line's open half
+— *"unsure whether a corpus that reaches the budget exit exists in the
+wild set at all"* — is closed in the direction it asked: none does.
 
-**What keeps the ruling honest** is three rows and one stated residue,
-written out in the K-REPORT ruling: the committed-era guard
-(`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`),
-the derivation that rule (3) reds on the first positive row at either
-tight ε row
-(`an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`,
-reading `QUAD_TARGET_LEN_FACTOR` out of the kernel rather than writing
-1024 down), and the CLI note `Scan::unruled` drives so that red is not
-spoken in the metre rules' recourse. The residue is a purely-negative
-population.
+**A second-floor argument this unit first shipped was FALSE, and the
+correction is worth keeping** because the file's own "What a unit here
+does" raises it. The first version said the two families differ in
+that `props_quad_last_round`'s refusal side is unbounded below where
+the rostered family's headroom is bounded by the target. It is not:
+`props_quad_converged` carries 24 negative draws at the 1e-9 row of
+the committed era and 48 at 1e-12, reaching `|m| = 1.83e-4` ≈
+`1.8e8·ε`, and the P0 rule (4)'s floor is cut from is itself a
+negative row. Both families record a signed headroom with an unbounded
+refusal side. What actually differs is the SAMPLE — once per round,
+recording the round that stopped, versus once per FACE, recording a
+lower bound on a round that never ran — and whether those two lower
+tails are the same shape is precisely what no draw has been taken on.
+The ruling rests on the absence of draws, which is measured and
+sufficient.
+
+**What keeps the ruling honest** is two rows, written out in the
+K-REPORT ruling. A row of an `EPS_COUPLED_UNRULED` name is a FINDING
+in `tools/k-lint` — it fails the run in a voice that names this ruling
+and says the baseline re-derivation is not the recourse, on rules
+(2)/(3)'s demotable side — and
+`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
+reds if the era the floor is cut from ever carries one.
+
+**The gate is on the NAME, not on a margin, and that is the point.**
+The metre rules see nothing on the refusal side, and a budget refusal
+does not surface elsewhere either: `crates/topo/src/props.rs`'s
+`sign_certified` keeps the enclosure and reports the refusal only
+through `last_word`, which is asked exactly when `settle` never
+accepted — so when `settle` accepts the sign off the enclosure, these
+readings accumulate on a wholly green suite. An earlier version of
+this section claimed such a corpus would already be a red suite; it
+would not.
 
 **Consistent with `k-lint-eps-coupled-criterion-unwritten`, which stays
 parked.** That row's account of the cost — the family judged by the

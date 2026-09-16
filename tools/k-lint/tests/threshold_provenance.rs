@@ -324,11 +324,13 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
 /// from a population that now has the excused family in it and leaving
 /// the excuse standing over a premise that expired.
 ///
-/// It says nothing about a FRESH sweep, which no committed file can;
-/// the live half of the guard is `tests/predicate_roster.rs`'s
-/// `an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`
-/// and the note `k-lint`'s CLI prints from [`k_lint::Scan`]'s
-/// `unruled` column.
+/// It says nothing about a FRESH sweep, which no committed file can.
+/// The live half is [`k_lint::Scan`]'s `unruled` column, which makes a
+/// row of an entry a finding in its own right and is pinned in
+/// `tests/cli_contract.rs`; `tests/predicate_roster.rs`'s
+/// `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`
+/// says how loud the metre rules additionally are about the positive
+/// side of one.
 #[test]
 fn the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from() {
     assert!(

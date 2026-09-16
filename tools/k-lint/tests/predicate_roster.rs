@@ -45,12 +45,14 @@
 //!   reds rather than dropping quietly out of the population every pin
 //!   above quantifies over.
 //!
-//! One further row here is not a source pin at all: an
-//! [`EPS_COUPLED_UNRULED`] name is ruled off rule (4) on the grounds
-//! that it has no distribution, and
-//! [`an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows`]
-//! derives from the kernel's own factor that rule (3) reds the day it
-//! has one. It sits here because that factor is read here.
+//! One further row here is not a source pin at all:
+//! [`an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`]
+//! derives from the kernel's own `QUAD_TARGET_LEN_FACTOR` how loud the
+//! metre rules are about an [`EPS_COUPLED_UNRULED`] name's POSITIVE
+//! rows. It sits here because that factor is read here, and it is not
+//! what guards the ruling — that is the name gate in
+//! `k_lint::Scan`'s `unruled` column, pinned in
+//! `tests/cli_contract.rs`, which does not depend on a row's sign.
 //!
 //! They cannot see:
 //!
@@ -480,74 +482,86 @@ fn every_target_len_mint_is_rostered_or_excused() {
     }
 }
 
-/// **What reds when an excused name stops having no distribution** —
-/// the guard the [`EPS_COUPLED_UNRULED`] ruling owes, derived rather
-/// than promised.
+/// **How loud the metre rules are about an unruled name, derived from
+/// the kernel rather than promised** — one half of what keeps the
+/// [`EPS_COUPLED_UNRULED`] ruling honest, and it is worth being exact
+/// about which half.
 ///
-/// The ruling keeps `props_quad_last_round` off rule (4) because rule
-/// (4)'s floor is the lower tail of a population it has no draw in. A
-/// ruling that rests on "there is no distribution" is only honest
-/// while something reds the day there is one, and the thing that does
-/// is rule (3) — not by policy but by arithmetic, which is why this
-/// reads the factor out of the kernel instead of writing 1024 down.
+/// A recorded ε-coupled margin is `QUAD_TARGET_LEN_FACTOR·ε` minus a
+/// length, so its POSITIVE side lies in `(0, QUAD_TARGET_LEN_FACTOR·ε]`
+/// and at both tight ε rows that whole interval is below
+/// [`BASELINE_FLOOR_MARGIN`]: every positive row an unruled family can
+/// record flags under rule (3) there. That is arithmetic over two
+/// constants, which is why the factor is read out of the kernel here
+/// instead of written down.
 ///
-/// An ε-coupled margin's POSITIVE side is a headroom against
-/// `QUAD_TARGET_LEN_FACTOR·ε`, so it lies in
-/// `(0, QUAD_TARGET_LEN_FACTOR·ε]`. At both tight ε rows that whole
-/// interval sits below [`BASELINE_FLOOR_MARGIN`], so the FIRST such
-/// row a fresh sweep records flags — and every code-tier run sweeps
-/// and lints all three rows. At 1e-6 it does not, which is the same
-/// asymmetry the lint's module docs state and
-/// `tests/review_probes.rs` measures; that row is asserted here too,
-/// so the guard's shape is stated where it holds and where it does
-/// not.
+/// **It does NOT cover the refusal side, and that is not a small
+/// residue.** Rule (4)'s own committed population is two-sided — 24
+/// and 48 negative draws at the 1e-9 and 1e-12 rows, its P0 among them
+/// — so an ε-coupled margin going far negative is ordinary, and a
+/// large `|m|` passes both metre rules clean. What covers it is
+/// [`EPS_COUPLED_UNRULED`]'s own gate, which fires on the NAME
+/// appearing and so does not depend on a row's sign or size;
+/// `crates/topo/src/props.rs` (`sign_certified`'s doc) is why that
+/// gate is needed rather than nice, since a budget refusal rides on
+/// the certificate and is reported only when `settle` never accepted.
 ///
-/// **What it does not cover, and the reason it is left stated.** The
-/// NEGATIVE side is the budget refusal, `last_round_len` over the
-/// target by an amount nothing bounds, so a large `|m|` passes both
-/// metre rules clean. A population made only of those would arrive
-/// silently here. It is not guarded because it cannot arrive quietly
-/// anywhere else either: a definite negative reading is the exit that
-/// refuses the face, so a corpus emitting only those has started
-/// failing to compute face properties, which is a red test long
-/// before it is a lint row.
+/// **One premise this cannot see.** That the positive side is bounded
+/// by the target rests on the subtracted length being non-negative,
+/// which no test states — a kernel that recorded a margin ABOVE the
+/// target would leave this green and rule (3) quiet. The ruling does
+/// not rest on it (the name gate above does not care), but this row's
+/// claim does; a kernel-side assertion is filed on PROPS' slate.
+///
+/// The 1e-6 row is where the derivation fails, asserted here as the
+/// derivation only; `tests/review_probes.rs`'s
+/// `new_eps_coupled_predicate_is_silent_at_1e6_loud_at_tight_rows`
+/// is where the lint consequence of that silence is measured, and is
+/// not respelled here.
 #[test]
-fn an_unruled_eps_coupled_margin_is_loud_under_rule_3_at_the_tight_rows() {
+fn an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows() {
     let (path, code, _) = kernel_views()[0];
     let factor: f64 = code[source::sole_initializer(code, path, FACTOR_DECL)]
         .trim()
         .parse()
         .expect("QUAD_TARGET_LEN_FACTOR is a float literal");
-    let unruled = EPS_COUPLED_UNRULED[0].0;
     assert!(
-        !EPS_COUPLED_PREDICATES.contains(&unruled),
-        "this test is about a name the roster does NOT carry"
+        !EPS_COUPLED_UNRULED.is_empty(),
+        "no name is ruled off rule (4), so this test asserts nothing"
     );
-    for eps in [1e-9_f64, 1e-12] {
-        let top = factor * eps;
+    for (unruled, _) in EPS_COUPLED_UNRULED {
         assert!(
-            top < BASELINE_FLOOR_MARGIN,
-            "an ε-coupled headroom at ε={eps:e} tops out at {top:e}, which is not below \
-             the baseline floor {BASELINE_FLOOR_MARGIN:e} — rule (3) no longer reds on the \
-             first row an unruled family records, and {unruled:?}'s excuse has lost its guard"
+            !EPS_COUPLED_PREDICATES.contains(&unruled),
+            "{unruled:?} is both rostered and ruled off the roster"
         );
-        // The consequence in the lint's own voice, at the range's
-        // loudest-to-miss point: the largest headroom the family can
-        // record still flags.
+        for eps in [1e-9_f64, 1e-12] {
+            let top = factor * eps;
+            assert!(
+                top < BASELINE_FLOOR_MARGIN,
+                "an ε-coupled headroom at ε={eps:e} tops out at {top:e}, which is not \
+                 below the baseline floor {BASELINE_FLOOR_MARGIN:e} — rule (3) no longer \
+                 reds on a positive row of {unruled:?}"
+            );
+            // The consequence in the lint's own voice, at the point
+            // hardest to catch: the widest headroom the family can
+            // record still flags.
+            assert!(
+                lint_sample(unruled, top, eps, eps * 10.0, "positive")
+                    .contains(&Reason::BelowBaselineFloor),
+                "{unruled:?} at its widest possible headroom {top:e} passes rule (3) clean \
+                 at ε={eps:e}"
+            );
+        }
+        // The refusal side, measured rather than assumed: a margin the
+        // size of the rostered family's own committed maximum passes
+        // BOTH metre rules, which is what the name gate is for.
         assert!(
-            lint_sample(unruled, top, eps, eps * 10.0, "positive")
-                .contains(&Reason::BelowBaselineFloor),
-            "{unruled:?} at its widest possible headroom {top:e} passes rule (3) clean at ε={eps:e}"
+            lint_sample(unruled, -1.83e-4, 1e-12, 1e-11, "negative").is_empty(),
+            "a large negative {unruled:?} margin is expected silent under the metre rules"
         );
     }
-    // The 1e-6 row is the one where it does NOT hold, stated rather
-    // than left for a reader to assume symmetry.
-    let top = factor * 1e-6;
-    assert!(top > BASELINE_FLOOR_MARGIN);
-    assert!(
-        lint_sample(unruled, top / 2.0, 1e-6, 1e-5, "positive").is_empty(),
-        "a mid-range headroom at ε=1e-6 is expected SILENT — the guard is the tight rows'"
-    );
+    // The 1e-6 row is where the derivation above fails.
+    assert!(factor * 1e-6 > BASELINE_FLOOR_MARGIN);
 }
 
 /// The locator reads a mint and not prose about it, the coverage

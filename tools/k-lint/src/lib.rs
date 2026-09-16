@@ -187,13 +187,17 @@
 //! ONE family's measured `|m|/ε`, so a name that has contributed no
 //! draw to it cannot be put under it: that would be a distribution
 //! ruling with no distribution. Such a name stays under rules (2) and
-//! (3) — where the paragraph above says it is loud at the tight rows
-//! — and the ruling's cost is the same misdirected diagnosis a plain
-//! omission has. That is what [`Scan::unruled`] removes: the CLI
-//! counts an unruled name's rows in every file it scans and prints
-//! them, so when the family finally has a distribution the gate's
-//! recourse names the open ruling instead of a baseline re-derivation
-//! that will not move.
+//! (3), where the paragraph above says it is loud at the tight rows
+//! — **and only there, and only on the positive side.** Rule (4)'s
+//! own population is two-sided (24 and 48 NEGATIVE draws at the 1e-9
+//! and 1e-12 rows of the committed era, its P0 among them), so a
+//! recorded ε-coupled margin is a signed headroom whose refusal side
+//! nothing bounds, and a large negative one passes both metre rules
+//! clean. An unruled name's rows are therefore a FINDING in their own
+//! right ([`Scan::unruled`]): the CLI counts them per file, prints
+//! them ahead of the flags, and fails the run naming the open ruling
+//! rather than a baseline re-derivation that will not move. Gating on
+//! the NAME is what makes the guard independent of a row's sign.
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -341,27 +345,36 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// `docs/K-REPORT.md`, "Maintenance: this roster is a RECORD", carries
 /// the reasoning; this is its machine-readable half.
 ///
-/// **Not a mute.** An entry stays under rules (2) and (3), so its rows
-/// are judged exactly as before. What this list changes is the VOICE:
-/// [`Scan::unruled`] counts the rows a scanned file carries for each
-/// entry and the CLI prints them, so the gate's recourse names the
-/// open ruling instead of sending the reader to re-derive a baseline
-/// that did not move. Three rows carry the guard together —
-/// `tests/predicate_roster.rs` reds if an entry stops being a mint
-/// with an ε-scaled margin or if a new one appears unruled,
-/// `tests/threshold_provenance.rs` reds if the era rule (4)'s floor is
-/// cut from ever carries an entry's row, and rule (3) itself reds on
-/// the first positive row a fresh sweep records at either tight ε row.
+/// **Not a mute, and not the same claim as ROSTERING would be.** An
+/// entry's rows stay under rules (2) and (3) and are judged exactly as
+/// any unrostered name's. What the entry adds is that a row of it is
+/// itself a FINDING ([`Scan::unruled`]): the entry is here because the
+/// family has no distribution, so the first row is that premise
+/// expiring, and the CLI fails the run naming the open ruling instead
+/// of the baseline floor's recourse, which did not move. It is a
+/// finding of rules (2)/(3)'s kind rather than rule (1)'s, so
+/// `--gate-rule-1-only` demotes it with them — the E6 driver row's
+/// recorded demotion covers it for the same reason it covers those.
+///
+/// **Why the appearance gates rather than merely printing.** The
+/// metre rules catch a POSITIVE row loudly at the tight ε rows
+/// (`tests/predicate_roster.rs`), and catch nothing on the refusal
+/// side: a large negative margin is decisive, passes both rules clean,
+/// and `crates/topo/src/props.rs` (`sign_certified`'s doc, "A face
+/// that refuses on BUDGET is different") says such a refusal rides on
+/// the certificate and is reported only when `settle` never accepted
+/// — so refusals can accumulate on a wholly green suite. Gating on
+/// the NAME is the one statement that does not depend on a row's sign
+/// or size.
+///
+/// `tests/threshold_provenance.rs` carries the other half, over the
+/// committed era rule (4)'s floor is cut from.
 pub const EPS_COUPLED_UNRULED: [(&str, &str); 1] = [(
     "props_quad_last_round",
     concat!(
-        "the budget exit's once-per-face bound, minted only when round 0 does not certify. ",
-        "No committed era carries a row of it (the era rule (4)'s floor is cut from was swept ",
-        "a month before the kernel minted the name), and its statistic is not the rostered ",
-        "family's: it meters a LOWER bound on a round that never ran, and its refusal side is ",
-        "unbounded below where the rostered family's headroom is bounded by the target. ",
-        "Ruled in docs/K-REPORT.md; the row is ",
-        "work/instr/k-lint-last-round-is-eps-coupled-but-unrostered",
+        "the budget exit's once-per-FACE bound on a round that never runs, minted only when ",
+        "round 0 does not certify. No committed era carries a row of it and a fresh sweep ",
+        "records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md",
     ),
 )];
 
@@ -555,13 +568,20 @@ pub struct Scan {
     /// [`EPS_COUPLED_UNRULED`] name that appears in it, in roster
     /// order, entries with no row omitted.
     ///
-    /// **The excuse's premise, re-read on every scan.** Each entry is
-    /// off the roster because it has no distribution to cut a floor
-    /// from; a non-empty count here says that is no longer true of
-    /// this file, and the CLI prints it for the same reason it prints
-    /// [`Scan::proximity_capped`] — the ruling is never silent about
-    /// its own expiry. It does not change the verdict: the rows
-    /// themselves are judged by rules (2) and (3) exactly as they were.
+    /// **The ruling's premise, re-read on every scan, and a finding
+    /// when it fails.** Each entry is off rule (4) because it has no
+    /// distribution to cut a floor from; a non-empty count here says
+    /// that is no longer true of this file. The CLI prints it ahead of
+    /// the flags — the ruling is never silent about its own expiry,
+    /// the posture [`Scan::proximity_capped`] already has — and
+    /// FAILS the run on it, on rules (2)/(3)'s demotable side.
+    ///
+    /// Counted for every outcome, because the question is whether the
+    /// family has a distribution at all: a `zero` or in-band row is as
+    /// much of one as a definite row, and neither metre rule would say
+    /// so. The rows are ALSO judged by rules (2) and (3) exactly as
+    /// before; this column is a second, independent statement about
+    /// the same file.
     pub unruled: Vec<(&'static str, usize)>,
 }
 
