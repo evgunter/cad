@@ -23,7 +23,7 @@
 use crate::revolve_common;
 
 use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 
@@ -78,16 +78,28 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
     );
 }
 
-/// **The window, executed.** `r_max = 100` and `R = 0.01`, so
-/// `theta = 5e-8` is definite at `revolve`'s lever
-/// (`5e-6 ≫ 10·zero`) and coincident at the sphere's
-/// (`5e-10 ≤ zero`). Tier 3 passes and the body reports a volume that
-/// is wrong by the dimple's whole hemisphere — the wall is measured
-/// at `Δu = π` instead of `Δu = 5e-8`. Nothing refuses.
+/// **The window, executed, and what actually stands in it.**
+/// `r_max = 100` and `R = 0.01`, so the angle is definite at
+/// `revolve`'s lever (`θ·r_max ≫ 10·zero`) and coincident at the
+/// sphere's (`R·sin θ ≤ zero`): `revolve` builds the body and
+/// `mass_properties` — the public props door — ANSWERS, with the
+/// dimple's wall measured at `Δu = π` instead of `Δu = θ`, a volume
+/// short by `(2/3)R³(π − θ)`. So the recorded blind spot is reachable
+/// from a certified door and costs a silent number there.
 ///
-/// Stated against the run's own ε: the row is meaningful only where
-/// `zero` is the default `1e-9`, so it asserts the window it uses is
-/// the window it computed rather than a literal.
+/// What saves the FULL tier-3 walk is a different gate entirely: at
+/// this angle the two end caps are a knife edge and
+/// `validate_geometric` refuses `LaminaWedge`, which is not the props
+/// lane's answer and not a check `mass_properties` runs. The row pins
+/// both halves, because the half that matters depends on which door a
+/// consumer asks (`point_in_solid`'s at-infinity arm asks
+/// `mass_properties`).
+///
+/// Nothing here is this unit's doing: the coplanar arm answered `π`
+/// for this face at the merge base too.
+///
+/// Stated against the run's own ε rather than a literal: the row
+/// asserts the window it uses is the window it computed.
 #[test]
 fn a_hairline_revolve_of_a_dimpled_ring_reports_a_silently_wrong_volume() {
     let zero = eps();
@@ -103,9 +115,16 @@ fn a_hairline_revolve_of_a_dimpled_ring_reports_a_silently_wrong_volume() {
     );
     let vp = validated(vec![dimpled_ring(l)]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
-    assert_all_tiers(&t.body);
+    // The full tier-3 walk refuses — on the knife-edge caps, not on
+    // the props lane, and after `mass_properties` has already
+    // answered.
+    let tier3 = format!("{:?}", topo::validate_geometric(&t.body, Tol::witness()));
+    assert!(
+        tier3.contains("LaminaWedge") && !tier3.contains("Volume"),
+        "tier 3 stops on the caps, not on the volume: {tier3}"
+    );
     let v = topo::mass_properties(&t.body, Tol::witness())
-        .unwrap()
+        .expect("the props door answers")
         .volume;
     let want = exact_volume(l, theta);
     // The dimple's wall contributes its hemisphere's worth instead of
