@@ -197,7 +197,8 @@ impl Disagreement {
     /// This disagreement as a message for the status line.
     ///
     /// [`Subject::Cursor`]: it is a claim about what lies under THIS
-    /// cursor over THIS picture, and [`cursor_status`] retires it on
+    /// cursor over THIS picture, and [`crate::frame::cursor_status`]
+    /// retires it on
     /// the id log's own judgement that the question has moved on.
     pub fn notice(&self) -> Message {
         Message::new(Subject::Cursor, self.to_string())

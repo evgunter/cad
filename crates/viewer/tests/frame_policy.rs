@@ -1392,7 +1392,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::disagreement(&index, answer(6, id), Some(7), None),
         None
     );
-    assert_eq!(idpass::disagreement(&index, answer(7, id), None, None), None);
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), None, None),
+        None
+    );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
         idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),

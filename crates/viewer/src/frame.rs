@@ -247,7 +247,7 @@ pub enum Subject {
     /// Issued by [`cursor_status`], off the id pass's own bookkeeping:
     /// a message about what was under the cursor is stale exactly when
     /// the outstanding pick question is, which is a judgement
-    /// [`IdQueryLog`] already makes.
+    /// [`crate::idpass::IdQueryLog`] already makes.
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
     /// by the next act the document ACCEPTS.
@@ -1091,7 +1091,8 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 /// **The status line after this frame's cursor step.**
 ///
 /// A message about what lies under the cursor is stale exactly when
-/// the outstanding pick question is, and [`IdQueryLog::step`] already
+/// the outstanding pick question is, and
+/// [`crate::idpass::IdQueryLog::step`] already
 /// makes that judgement for the id pass: it asks again when the cursor
 /// moved OR when the picture changed under a still cursor, and voids
 /// the outstanding question when the pointer leaves the pane. Both are
