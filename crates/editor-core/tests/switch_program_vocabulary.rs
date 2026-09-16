@@ -1213,6 +1213,15 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// It covers what the corpus reaches, which is every member of all
 /// four document vocabularies (the censuses above are what make that
 /// true) plus the `Expr` records they carry.
+///
+/// **It is a SET, and that is its blind spot.** A swapped `Ccw`/`Cw`, a
+/// `spec`/`spec2` exchanged between two fused verbs, a reordered
+/// `Literal` record: each leaves this set identical while changing
+/// where every word goes. `tests/wire_rv_bytes.rs` pins the
+/// ARRANGEMENT byte for byte and is what kills those; this row is the
+/// one that localises a rename to the word. Neither subsumes the
+/// other, and a reader chasing a red uses which of the two fired to
+/// tell a rename from a rearrangement.
 const PERSISTED_SPELLING: &[&str] = &[
     // The `Expr` record and its closed tables: the dimensionless
     // literal's display symbol is the empty string.
@@ -1299,7 +1308,9 @@ fn the_persisted_spelling_of_the_program_is_pinned() {
         added.is_empty() && gone.is_empty(),
         "the persisted spelling of the profile program moved. New on the wire: \
          {added:?}. Gone from the wire: {gone:?}. A document the previous build saved \
-         no longer reads the same — decide whether the new spelling is right, \
-         regenerate the checked-in corpus, and re-pin."
+         no longer reads the same — decide whether the new spelling is right, then \
+         regenerate the checked-in corpus (`PNCAD_BLESS=1 cargo test -p editor-core \
+         --test all lib_dietool_crossing`, the same for `wire_rv_bytes`, and \
+         `corpus/die_composed_tour.rs`'s own line for the tour) and re-pin here."
     );
 }
