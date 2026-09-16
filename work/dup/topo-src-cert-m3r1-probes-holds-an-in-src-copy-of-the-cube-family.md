@@ -1,5 +1,5 @@
 ---
-id: topo-src-cert-m3r1-probes-holds-a-fifth-copy-of-the-cube-family
+id: topo-src-cert-m3r1-probes-holds-an-in-src-copy-of-the-cube-family
 kind: issue
 title: cert_m3r1_probes.rs carries a verbatim in-src copy of the whole geometric-cube fixture family
 status: open
@@ -23,6 +23,17 @@ Two doc comments in `cert_m3r1_probes.rs` state it outright:
 *"`topo/tests/common::geometric_cube`, copied verbatim (in-crate)"* and
 *"`topo/tests/common::describe_as_intersections`, copied verbatim"*.
 `GeoCube`, `line` and `plane` come with them unlabelled.
+
+**Both of those sentences went stale on 2026-09-16, in PR #2727.** That
+PR reconciled `geometric_cube` and `cube_into` onto a shared `cube_ops`,
+so `tests/common::geometric_cube` is now a seven-line wrapper and the
+in-`src` copy is a verbatim copy of a shape the tree no longer has.
+Nothing broke and no behaviour moved — the copy still builds the body it
+always did, and that PR's measurement confirmed it — but the copy and
+its original have now diverged in FORM as well as in address, and the
+copy's own self-description is the thing that is wrong about it. Worth
+recording when it happened, because the next reader will otherwise date
+the divergence from whenever they notice it.
 
 The copy's Euler-op call-site counts are identical to the shared
 sequence's — `{mvfs: 1, mev: 2, mef: 5, MefSite::Chords: 5,

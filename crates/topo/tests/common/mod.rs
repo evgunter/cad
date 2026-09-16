@@ -98,26 +98,33 @@ pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
     newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
-/// **The Euler sequence both of this file's cube doors run**, into
-/// `body` and through `map`: the §9.4.2-minimal sequence with real
-/// geometry at every step — every `mef` supplies its face's Newell
-/// plane, every edge a certified chord-line carrier; the seed face
-/// (which survives as the top cap) gets its plane via
-/// `set_face_surface` at the end (the documented seed-face path).
-/// Returns the seed, the seven `mev`s and the five `mef`s in
-/// construction order.
+/// The unit cube's Euler sequence, into `body` and through `map`: the
+/// §9.4.2-minimal sequence with real geometry at every step — every
+/// `mef` supplies its face's Newell plane, every edge a certified
+/// chord-line carrier; the seed face (which survives as the top cap)
+/// gets its plane via `set_face_surface` at the end (the documented
+/// seed-face path). Returns the seed, the seven `mev`s and the five
+/// `mef`s in construction order.
 ///
 /// **It stops there, and the construction-final
 /// [`describe_as_intersections`] is the CALLER's.** That one call is
-/// the whole of the difference between the two doors: run it and every
-/// transverse edge trades its conventional chord for the
-/// `Intersection` its two faces determine; skip it and all twelve stay
-/// `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
-/// [`assert_every_chord_named_by_both_rules`] is about. So the choice
-/// belongs where a reader can see it, not inside a shared body.
+/// the whole of the difference between [`geometric_cube`] and
+/// [`cube_into`]: run it and every transverse edge trades its
+/// conventional chord for the `Intersection` its two faces determine;
+/// skip it and all twelve stay `Scaffold(ExtrudedPoint …)`/`Declared`,
+/// which is the state [`assert_every_chord_named_by_both_rules`] is
+/// about. So the choice belongs where a reader can see it, not inside
+/// a shared body.
 ///
 /// A second call on the same `body` seeds a second solid, so the
 /// caller also chooses whether the body is fresh.
+///
+/// **This is not the only spelling of the sequence in this file.**
+/// [`prism_z`] runs the same operators at the same sites for a profile
+/// of N corners, and says so in its own doc; at N = 4 the two build
+/// equal bodies, which `tests/cube_doors_agree.rs` asserts rather than
+/// asserting here in prose. Folding the two into one builder is a unit
+/// of its own (`work/tint/`), not something this door has done.
 fn cube_ops<T: geom_core::Decide>(
     body: &mut Body<T>,
     map: impl Fn(f64, f64, f64) -> Point3<T>,
@@ -460,12 +467,20 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// rectangular case of [`prism_z`], body only; a caller that needs the
 /// keys calls `prism_z` and keeps its [`Prism`].
 ///
-/// Of this file's three cube doors only [`geometric_cube`] builds a
-/// different body: it stops before [`describe_as_intersections`] and so
-/// keeps the conventional chords its rows assert on. `brick` and
-/// [`mapped_cube`] agree arena for arena wherever their domains meet —
-/// an axis-aligned box — and differ only in reach: any extent at any
-/// `Decide` scalar against `f64` under any point map, tilts included.
+/// [`geometric_cube`] is the one box-or-cube door in this file that
+/// builds a different body: it stops before
+/// [`describe_as_intersections`] and so keeps the conventional chords
+/// its rows assert on. Every other one — `brick`, [`prism`],
+/// [`prism_z`], [`mapped_cube`], [`cube_into`] — agrees arena for arena
+/// wherever their domains meet, an axis-aligned box, and they differ
+/// only in reach: any extent at any `Decide` scalar against `f64` under
+/// any point map, tilts included.
+///
+/// **Both halves of that are pinned by `tests/cube_doors_agree.rs`**,
+/// which is where to look before trusting either. What it samples is
+/// narrower than what the sentence says: four axis-aligned boxes at
+/// `f64`, four corners, no reflex profile and no map that is not
+/// diagonal. A divergence outside that sample passes it.
 pub fn brick<T: geom_core::Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }

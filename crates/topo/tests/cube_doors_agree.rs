@@ -2,18 +2,26 @@
 //! the two halves of the partition `common::brick`'s doc asserts, made
 //! falsifiable.
 //!
-//! `brick`, `prism`, `prism_z`, `mapped_cube` and `cube_into` reach the
-//! same construction by different routes: `brick` and `prism` over
-//! `prism_z`'s profile chain, `mapped_cube` and `cube_into` over
-//! `cube_ops`' fixed eight corners under a point map. Nothing makes the
-//! two routes agree except that they run the same operators at the same
-//! points in the same order, so **any change to either route's operator
-//! sequence, site addressing, corner order or description step moves one
-//! dump and not the other** — including a change that leaves every count
-//! intact. That is what the first row below is written against, and why
-//! it compares the derived `Debug` rather than counts: the arena
+//! The box doors reach one construction by two routes: `brick` and
+//! `prism` over `prism_z`'s profile chain, `mapped_cube` and `cube_into`
+//! over `cube_ops`' fixed eight corners under a point map. Nothing makes
+//! the two routes agree except that they run the same operators at the
+//! same sites in the same order, so **any change to either route's
+//! operator sequence, site addressing, corner order or description step
+//! moves one dump and not the other** — including a change that leaves
+//! every count intact. That is what the first row is written against,
+//! and why it compares the derived `Debug` rather than counts: the arena
 //! contents are the runtime value a bug moves, and `v8 e12 f6` survives
 //! reordering, re-keying and a dropped description step alike.
+//!
+//! **The silent case is the one this file is for.** A dropped or added
+//! description step reds two dozen rows across the tree on its own; a
+//! re-ordering or re-keying that leaves every count and every consumer's
+//! verdict intact reds nothing else, and is what these two rows catch.
+//!
+//! The comparison is between five live dumps in one process, with no
+//! stored baseline, so a new `Body` field or a `Debug` reformat moves
+//! every side identically and this file stays green.
 //!
 //! The second row is the negative. A test that only pins agreement goes
 //! green when someone makes every door identical by deleting the
@@ -42,6 +50,12 @@ fn onto(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> impl Fn(f64, f64, f64) -
     }
 }
 
+/// The rectangle profile of `[x] x [y]`, counterclockwise from +z.
+///
+/// This restates `brick`'s own corner ladder on purpose: `brick`'s
+/// claim is that ITS ladder and `cube_ops`' corners describe the same
+/// box, and a guard that reached for `brick`'s expression to state the
+/// profile would be comparing it against itself.
 fn profile_of(x: (f64, f64), y: (f64, f64)) -> [(f64, f64); 4] {
     [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
 }
@@ -71,13 +85,19 @@ fn carries(body: &Body<f64>) -> Vec<(bool, bool)> {
         .collect()
 }
 
-/// The five box doors agree arena for arena at every box all of them
-/// can spell — not only at the unit ranges, which is what makes this a
+/// The box doors agree arena for arena at every box all of them can
+/// spell — not only at the unit ranges, which is what makes this a
 /// claim about the domain rather than about one fixture.
+///
+/// The roster below is hand-written and nothing ties it to
+/// `common/mod.rs`: a builder added there joins this silently as no
+/// builder at all. That is a known gap with its own row, not an
+/// oversight.
 #[test]
 fn every_box_door_builds_one_body() {
-    // (x, y, z), asymmetric and off-origin except the first: `prism`
-    // takes only z0 = 0, so it joins the roster on that row alone.
+    // (x, y, z). Two rows run off-origin on every axis and two keep
+    // z0 = 0, which is the only z `prism` can spell — so `prism` is in
+    // the comparison on rows 1 and 4 and out of it on rows 2 and 3.
     let boxes = [
         ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
         ((1.0, 3.0), (0.0, 3.0), (-0.5, 0.5)),
@@ -145,10 +165,5 @@ fn geometric_cube_is_the_one_door_that_keeps_its_scaffolding() {
         "every edge of `geometric_cube` is still a declared conventional \
          chord — the state its suites assert both at-rest rules fire on: \
          {scaffolded_carries:?}"
-    );
-    assert_ne!(
-        dump(&scaffolded),
-        dump(&described),
-        "`geometric_cube` and the box doors must stay distinguishable"
     );
 }

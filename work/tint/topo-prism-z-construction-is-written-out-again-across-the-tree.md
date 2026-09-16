@@ -1,7 +1,7 @@
 ---
-id: topo-prism-z-is-hand-written-again-in-four-places
+id: topo-prism-z-construction-is-written-out-again-across-the-tree
 kind: issue
-title: prism_z is hand-written again in four places, two of which say so in their own docs
+title: prism_z's construction is written out again elsewhere in the tree, including once inside its own file
 status: open
 opened: 2026-09-16
 ---
@@ -9,7 +9,8 @@ opened: 2026-09-16
 
 ## Finding
 
-- **Where**: `crates/topo/src/splitting/reassembly.rs` (`quad_prism`,
+- **Where**: `crates/topo/tests/common/mod.rs`'s own `cube_ops`
+  (~`:121`), `crates/topo/src/splitting/reassembly.rs` (`quad_prism`,
   ~`:44`), `crates/topo/tests/review_m3_pr3_consumer.rs`
   (`add_quad_prism`, ~`:287`), `crates/topo/tests/review_m3_pr55.rs`
   (`tprism`, ~`:35`), `crates/topo/tests/review_m2_pr3.rs`
@@ -20,16 +21,28 @@ opened: 2026-09-16
   by execution**; **unmeasured** whether any two produce equal bodies
 - **Raised by**: the `dup-cube-seq` lane (S-DUP), 2026-09-16
 
-All four are `prism_z`'s construction: profile corners lifted to two
+All of them are `prism_z`'s construction: profile corners lifted to two
 z-levels, a bottom rim chain of `mev`s, the bottom `mef` over the
 reversed corner list, one strut per corner, one side `mef` per profile
 segment closing against the first side face's top edge, the seed face
 capped by `set_face_surface`, and `describe_as_intersections` last.
-Three of the four match `prism_z`'s call-site counts exactly —
+Three of them match `prism_z`'s call-site counts exactly —
 `{mvfs: 1, mev: 3, mef: 2, MefSite::Chords: 2, MevSite::Fan: 2,
 set_face_surface: 1}`.
 
-**Two of them say it themselves.** `quad_prism`'s doc: *"the
+**`cube_ops` is a member of this class, and it is the one member whose
+equality is already PROVED.** It is the cube half of
+`crates/topo/tests/common/mod.rs`, sitting in the same file as
+`prism_z`, and `prism_z`'s own doc has named the relationship since
+`0765b4617`: *"the geometric_cube construction generalized to N
+corners"*. At N = 4 they build equal bodies — group A of PR #2727's
+measurement, and now a standing row in
+`crates/topo/tests/cube_doors_agree.rs`. That unification is its own
+unit (`topo-one-builder-subsumes-the-cube-and-prism-sequences`); it is
+listed here so that this row is a census of the class rather than of
+the class minus its nearest instance.
+
+**Two of the others say it themselves.** `quad_prism`'s doc: *"the
 tests/common builder's minimal in-crate copy"*. `tprism`'s: *"the
 prism_z construction generalized to mapped corner points"* — which is
 to `prism_z` exactly what `mapped_cube` is to `geometric_cube`, and
@@ -71,8 +84,9 @@ z-range: two builders can agree at a square at the origin and disagree
 on a reflex corner or an off-origin range, and `triangle_prism` is not
 even in the other three's domain.
 
-So the honest shape, **if the measurement comes back equal**, is
-probably `prism_z`'s own `cube_ops` treatment:
+So the honest shape, **if the measurement comes back equal**, is the
+treatment `cube_ops` got — which is not a model this row can point at
+from outside, because `cube_ops` is in the class:
 one sequence taking a body, a corner map and a z-range, with the
 describe step and the key bundle at the caller. That is the same
 factoring the `dup/cube-sequence-reconcile` unit landed for the cube
