@@ -3555,3 +3555,24 @@ MERGED entry in `work/props/log.md`. An E rider: single style review,
 no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
+
+## Per-merge deletion — EDIT-PICK2's spec (2026-09-16)
+
+Recoverable at `git show 121608392:docs/EDIT-PICK2-SPEC.md` (PR
+#2746's fix-pass head, carrying both amendment sections). EDIT's second
+kernel unit on the pick door, and the second whose central premise
+fell: the spec ruled the conjunction of the item's second and third
+shapes (MEET ∧ INFORM) and rejected the third alone; the implementer
+measured, before building on it, that MEET admits an out-of-range
+barycentric, the hit point then leaves the closed triangle, and the
+early-out's premise breaks — order independence traded, the one thing
+the spec said would not be. The orchestrator re-ruled to the closed
+comparison ∧ INFORM, which the amendment records with the three-rule
+table that forced it. The spec's example ray was also mis-stated
+(informative, not uninformative, under the unit's own bound) and its
+residue-row figure was wrong by five orders (2.7e-11 for 7.19e-16),
+found by both reviewers. What survived: the demand that the bound be
+derived and never tuned, and that every corpus claim be a row — both
+of which are what caught the spec. The residue is one ruling row,
+`what-t-the-pick-door-answers-and-with-what-width`, which the
+orchestrator has now been wrong about twice and so puts to Ev.
