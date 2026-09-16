@@ -232,3 +232,15 @@ corpus row.
 doc is re-worded to present tense — the map is built and named — and the
 door is NOT widened to chains: that doc states the content-key attach
 obligation as the reason, and it is a separate row.
+
+**Follow-throughs outside this fence, each named in the PR.**
+`crates/pncad` carries `StepSegmentsError` beside `RecordedProgramError`
+(the document-layer completeness guard requires it), and
+`crates/pncad-py`'s binding census dispositions it as
+`gap: B-STEP-SEGMENTS` with that family's charter — both LIB's ground,
+both mechanical, and the binding itself is filed as
+`work/lib/python-has-no-step-to-profile-edge-door`.
+
+**CI.** Run 35086077388 green on head `39024d0b`: twelve `test (…)`
+jobs (six default, six interval) and five `k-lint (gate, …)` jobs, every
+step green.
