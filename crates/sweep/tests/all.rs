@@ -206,6 +206,8 @@ mod m5_pr9_boss_union;
 mod m5_pr9_cosurface_merge;
 #[path = "m5_pr9_sector2.rs"]
 mod m5_pr9_sector2;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "m5_pr9c_sphere_doors.rs"]
 mod m5_pr9c_sphere_doors;
 #[path = "m5_pr9c_sphere_doors_interval.rs"]
