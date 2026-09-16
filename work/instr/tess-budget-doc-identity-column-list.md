@@ -57,38 +57,13 @@ a clause pointing at the parse refusal for the case they used to cover.
 `docs/TESS-BUDGET.md`'s own standing rule applies to the fix — the
 document is not the census's home, so name the list, not a count.
 
-## A second quantity in the same class, in `work/instr/C15.md` (INSTR unit 4, 2026-09-16)
+## A sibling row, on a different quantity (INSTR unit 4, 2026-09-16)
 
-Added as evidence rather than as a second row: same class — a prose
-copy of the identity-column list that nothing can check — same tracker
-file this row already names as a site that restated the list.
-
-The quantity is different. This row is about the list's MEMBERSHIP
-(the eighth, sizing-block entry). The copy below is of the SPLIT among
-the sized rows, a reading of the committed baseline whose one home is
-`tools/tess-lint/tests/baseline_census.rs`:
-
-- `work/instr/C15.md`, in the **Finding** paragraph — *"among the
-  sized rows five of the seven identity columns are constant — `chart`
-  and the four trim-box edges — and only `nu`/`nv` separate them"*.
-  Present tense, with the very next sentence saying the count *"lives
-  in one home … rather than in this row"*.
-- the same file, under `S73` — *"**five of the seven identity entries
-  discriminate nothing there and the pair actually separating them is
-  `nu`/`nv`** — five plus that pair being the whole list"*.
-
-**The second half of that sentence is the one that matters.** *"Five
-plus that pair being the whole list"* is arithmetic no code computes:
-`baseline_census.rs` pins the constant list and the discriminating
-list against their literals and nothing sums them. The identical
-sentence in `tools/tess-lint/src/lib.rs`'s module docs — *"Five plus
-that pair is the whole list of seven"* — was removed by INSTR unit 4
-for exactly this reason, in the diff that deleted the assertion that
-had appeared to pin it. `C15.md` is the surviving copy.
-
-The fix is this row's own standing rule, already stated above: name
-the list, not a count. Should the owner judge this a different subject
-after all, it wants splitting off rather than dropping.
+`work/instr/c15-transcribes-the-sized-row-identity-split.md` covers the
+other prose copy of an identity-column fact this unit's sweep turned
+up — the five-plus-two SPLIT among the sized rows, in `work/instr/C15.md`.
+Different quantity, different file, different closer; named here only so
+this row's lane knows the sibling exists.
 
 ## Moved to INSTR (2026-09-08)
 
