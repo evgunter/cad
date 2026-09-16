@@ -116,7 +116,21 @@ vertices. No golden moved. `from_recorded` is unchanged and an empty
 notation returns its answer bit for bit.
 
 Not built: the Python half (`work/lib/path-legs-erase-the-authored-notation-one-layer-down`,
-parked on this row, unparks at merge). `crates/pncad/src/document.rs`
-carries the new type and `crates/pncad-py/tests/test_binding_census.py`
-dispositions it as `gap: B-PATH-NOTATION`, both mechanically, both LIB's
-ground.
+parked on this row, unparks at merge).
+
+Mechanical follow-throughs on LIB's ground, each forced by one of the
+two new names: `crates/pncad/src/document.rs` carries the type (the
+facade completeness guard refuses an uncarried root export);
+`crates/pncad-py/tests/test_binding_census.py` dispositions it as
+`gap: B-PATH-NOTATION`, on the `B-EDGE-KIND` precedent — a kernel door
+reaching the facade while the binding stays where it is; and
+`crates/pncad-py/src/tags.rs` plus its inventory in
+`crates/pncad-py/src/tests.rs` gain the `notation_off_program` arm,
+because the binding's tag map is an exhaustive match over
+`RecordedProgramError`.
+
+CI: run `35133793584` on `388213ed5`, SUCCESS — 38 jobs, twelve
+`test (...)`, five `k-lint (gate, ...)`, the python suite's own steps
+read. One red round before it (`35132552404`), from the two
+follow-throughs above being invisible to a `-p editor-core` check; the
+PR body carries that record.
