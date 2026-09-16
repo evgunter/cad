@@ -761,6 +761,11 @@ BOUND_AS = {
     # re-exports), so this file never accounted for them and does not
     # start now.
     "BandError": "EvaluationError.inner_kind",
+    # `NamingError::SharedRim`'s typed discriminant, which crosses the
+    # way `BandError` does: `naming_error_tag` delegates to
+    # `rim_share_tag`, so the two ways a rim fails to be unique are two
+    # `inner_kind` words and not one sentence a caller has to parse.
+    "RimShare": "EvaluationError.inner_kind",
     "BlendError": "EvaluationError.inner_kind",
     "BooleanError": "EvaluationError.inner_kind",
     "ExtrudeError": "EvaluationError.inner_kind",
