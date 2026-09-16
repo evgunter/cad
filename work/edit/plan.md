@@ -15,7 +15,7 @@ Own what DOCM owned — the persisted recipe vocabulary, the `DocEdit`
 set, node and resolver doors, document identity at the doors — and
 work the rows DOCM disclosed but did not build. DOCM's rulings stand
 as ratified design beside the code (`crates/editor-core/REFERENCES.md`
-DM1–DM6, `crates/editor-core/IDENTITY.md` DI1–DI5,
+DM1–DM8, `crates/editor-core/IDENTITY.md` DI1–DI5,
 `crates/editor-core/ASSEMBLY.md`); a change to what a clause decides
 is an `[ev]` PR, never a unit.
 

@@ -1,9 +1,10 @@
 ---
 id: pick-grazing-ray-answer-depends-on-candidate-order
-kind: issue
+kind: unit
 title: a grazing ray's pick answer is decided by the candidate order, not the geometry
-status: open
+status: spec
 opened: 2026-09-12
+branch: edit/pick-grazing
 ---
 
 
