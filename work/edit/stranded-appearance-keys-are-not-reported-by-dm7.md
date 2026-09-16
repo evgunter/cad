@@ -2,9 +2,10 @@
 id: stranded-appearance-keys-are-not-reported-by-dm7
 kind: issue
 title: A stranded appearance key is not in DM7's report: the walk is Node::payload_names and the appearance store is not a carrier
-status: spec
+status: review
 opened: 2026-09-16
 refs: [2753]
+branch: edit/appearance-strands
 ---
 
 (Found by the style review of PR 2753, DM7's build; measured by
@@ -123,3 +124,63 @@ second carrier.
    count over payload names; it gains appearance keys by the same
    definition — append one paragraph to that row from this PR
    (outside the fence, disclosed in the body), do not build the chrome.
+
+## Built (2026-09-16)
+
+DM7's second carrier is at the door. `Maintenance::StrandedAppearance
+{ name }` is the arm: no carrying node, because the appearance store
+carries the attachment and no node does. It renders its own prose
+sentence, naming the store where `Strand`'s names a node and offering
+both repairs (`Rebind` moves the key, `ClearAppearance` retires it —
+only the second works without a live node to move to). The F6 census
+in `display_contract.rs` gains the case.
+
+`apply`'s `DeleteNode` arm calls `stranded_appearance_keys` after
+`stranded_names` and extends the same vector, so the order contract on
+`Applied::maintenance` reads: payload strands, then appearance
+strands, then the cluster acts. The contract is stated on the field
+and names its two pinning rows —
+`an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
+for the first boundary and
+`a_mates_head_strands_and_its_read_site_does_not` for the second. The
+walk is one pass over `doc.appearance()`'s keys, filtered on
+`name.node`; its cost is stated at the site beside `stranded_names`'.
+Rows come in the store's own `BTreeMap` order, which is `StableName`'s,
+so nothing is sorted.
+
+Rows, in `dm7_delete_strands.rs`: a delete reports the keys it
+stranded and leaves every attachment where it is; a key minted by a
+live node is never reported; the order row above; a cascade reports
+each key at the step that removed its minting node, and the store
+outlives the whole cascade; a reported key is still `ClearAppearance`-
+able; the round-tripped document reports the same keys. The review
+probe `rv_a_stranded_appearance_key_is_not_in_the_report` is rewritten
+as `rv_a_stranded_appearance_key_is_in_the_report` — the gap it
+measured is closed, and it now asserts the report and the untouched
+store.
+
+**Spec correction, measured not argued.** The spec's second mutant —
+walk the document BEFORE the removal, expecting the self-referential
+case to red — is INERT for this carrier, and the reason is a premise
+worth stating: `DeleteNode` does not prune the appearance store (that
+is what makes a key stranded rather than gone), so the store is
+bit-identical before and after the removal and both walks give the
+same rows. Measured: `stranded_appearance_keys(doc, *id)` in place of
+`(&new, *id)` leaves all seventeen DM7 rows green. The walk still
+takes `&new`, so the two passes read ONE document and cannot disagree
+about which nodes are gone, and the function's doc says exactly that
+rather than claiming an assertion guards it. The first mutant behaves
+as specified: dropping the walk reds six rows.
+
+`pncad-py` follows mechanically (LIB's ground, touched here):
+`maintenance_tag` gains `"stranded_appearance"`, the `TAG_INVENTORY`
+word, the `name` getter (the `node` getter answers `None`), the stub
+and the binding census's variant map. `crates/pncad`'s re-export
+comment gains the second carrier. Nothing persisted changed —
+maintenance is derived.
+
+CHROME's `cascade-delete-shows-the-strand-count` gained one paragraph
+from this PR (outside EDIT's fence, disclosed in the body): its
+end-state count gains the store's keys by the same definition, and for
+this carrier the pre-click and post-click numbers coincide, because no
+cascade deletes the store.

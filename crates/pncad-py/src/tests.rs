@@ -4344,7 +4344,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "maintenance_tag",
-        values: &["drop", "gauge_rewrite", "join", "split", "strand"],
+        values: &[
+            "drop",
+            "gauge_rewrite",
+            "join",
+            "split",
+            "strand",
+            "stranded_appearance",
+        ],
         delegates: &[],
     },
     TagEntry {

@@ -2842,14 +2842,15 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 
 /// The stable tag for one act of maintenance an accepted edit
 /// performed — what the mate graph's motion forced on the placement
-/// registry, or a payload name the edit stranded.
+/// registry, or a reference the edit stranded.
 ///
 /// The word decides which payload attributes carry: a `join` names
 /// the gauge that survived and the one absorbed, a `split` the two
 /// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
-/// moved, a `drop` the registry row that went away, and a `strand`
-/// the surviving node and the name whose minting node the edit
-/// deleted.
+/// moved, a `drop` the registry row that went away, a `strand` the
+/// surviving node and the name whose minting node the edit deleted,
+/// and a `stranded_appearance` that same name with no carrying node,
+/// because the appearance store is what carries it.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
@@ -2857,6 +2858,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Cluster(ClusterMaintenance::GaugeRewrite { .. }) => "gauge_rewrite",
         Maintenance::Cluster(ClusterMaintenance::Drop { .. }) => "drop",
         Maintenance::Strand { .. } => "strand",
+        Maintenance::StrandedAppearance { .. } => "stranded_appearance",
     }
 }
 

@@ -68,7 +68,7 @@
 // the whole of what that arm says beyond the parameter.
 // `Maintenance` rides with `Applied` by the same rule: it is what
 // `Applied::maintenance` answers in — the A11 cluster-record acts an
-// edit forced and the payload names a delete stranded (DM7) — and a
+// edit forced and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries.
 pub use editor_core::{

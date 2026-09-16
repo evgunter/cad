@@ -69,3 +69,27 @@ The trigger fired: EDIT's unit
 header was edited from outside CHROME's fence only to keep the tracker
 true — the parked-on-closed lint error — and asks nothing of CHROME
 beyond what the body already says.
+
+## The second carrier, by the same definition (2026-09-16, EDIT's appearance-strand unit)
+
+DM7 was widened on EDIT's third `[ev]` PR of 2026-09-16 to cover every
+reference the document holds under N5 semantics, so the report now has
+a second arm — `Maintenance::StrandedAppearance { name }`, an
+attachment the document's appearance store still holds under a name
+whose minting node the delete removed — and this row's end-state
+definition gains it without changing shape: the pre-click count is the
+names carried by nodes outside `doomed` whose `name.node` is inside it,
+PLUS the keys of `doc.appearance()` whose `name.node` is inside it. The
+store is not a node and no cascade deletes it, so an appearance key
+counted before the click is still stranded after it — the transient
+case that made the payload numbers differ has no analogue here, and the
+two counts coincide for this half. The post-click panel lists the new
+arm beside `Strand`; it renders its own prose sentence like every
+other, and it carries no node, because the store carries the
+attachment rather than any node. `Rebind` repairs it, and
+`ClearAppearance` — which deliberately does not require a live node —
+retires it, so the panel has two actions to offer for such a row and
+one for a payload strand. Nothing here asks CHROME for more than the
+count and the list it already owed. Appended from outside CHROME's
+fence, as the earlier sections were, only to keep the definition true
+of the kernel the affordance reads.

@@ -1015,7 +1015,7 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 
 /// One act of automatic maintenance an accepted edit performed: what
 /// an ordinary edit's motion of the mate graph forced on the placement
-/// registry, or a payload name its delete stranded.
+/// registry, or a reference its delete stranded.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
 /// automatic maintenance is the invariant's own bookkeeping,
@@ -1028,8 +1028,10 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// Payload attributes are present on every arm, `None` where
 /// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
 /// `target`, `frame`, `gauge` for the four cluster acts; `node` and
-/// `name` for a strand. (`source`/`target` rather than `from`/`to`:
-/// `from` is a Python keyword.)
+/// `name` for a strand, `name` alone for a `stranded_appearance`,
+/// whose carrier is the appearance store and not a node.
+/// (`source`/`target` rather than `from`/`to`: `from` is a Python
+/// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
@@ -1041,16 +1043,17 @@ impl Maintenance {
     fn cluster(&self) -> Option<&d::ClusterMaintenance> {
         match &self.0 {
             d::Maintenance::Cluster(act) => Some(act),
-            d::Maintenance::Strand { .. } => None,
+            d::Maintenance::Strand { .. } | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
 }
 
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop` or
-    /// `strand`, the five the stub lists for this attribute. The word
-    /// decides which of the payload attributes below carry.
+    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
+    /// `strand` or `stranded_appearance`, the six the stub lists for
+    /// this attribute. The word decides which of the payload
+    /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1058,22 +1061,29 @@ impl Maintenance {
         maintenance_tag(&self.0)
     }
 
-    /// The surviving node whose payload carries a stranded name.
+    /// The surviving node whose payload carries a stranded name —
+    /// `None` for a `stranded_appearance`, which has no carrying node
+    /// to name.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
             d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
-            d::Maintenance::Cluster(_) => None,
+            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
 
     /// The stranded name itself, in the opaque text every name door
-    /// on this surface speaks. Its minting node is the one the edit
-    /// deleted; `Doc.rebind` is the repair.
+    /// on this surface speaks — the payload name for a `strand`, the
+    /// appearance store's key for a `stranded_appearance`. Its
+    /// minting node is the one the edit deleted; `Doc.rebind` is the
+    /// repair this surface carries for either one.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. } => super::doc::name_text(py, name).map(Some),
+            d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedAppearance { name } => {
+                super::doc::name_text(py, name).map(Some)
+            }
             d::Maintenance::Cluster(_) => Ok(None),
         }
     }

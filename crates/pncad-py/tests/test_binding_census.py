@@ -2925,9 +2925,11 @@ MEMBERS_BOUND_AS = {
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
     # What an accepted edit did that the caller did not ask for, read
     # off `Doc.last_maintenance`: the four cluster-record acts, and the
-    # payload names a delete stranded.
+    # references a delete stranded — a payload name on its carrying
+    # node, an appearance key on the store.
     "Maintenance::Cluster": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
+    "Maintenance::StrandedAppearance": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
