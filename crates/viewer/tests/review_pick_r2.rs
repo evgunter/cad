@@ -147,11 +147,15 @@ struct Tally {
     refused_candidates: usize,
     rays_with_a_refusal: usize,
     genuine_refused: Vec<String>,
+    /// The best-conditioned candidate refused at the determinant —
+    /// the class the mechanism refuses, at its edge (reported, not
+    /// pinned).
+    worst_refused_conditioning: f64,
 }
 
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
-const PINNED: (usize, usize, usize, usize) = (441_126, 140_526, 20_016, 10_536);
+const PINNED: (usize, usize, usize, usize) = (441_126, 141_094, 20_016, 10_536);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let parts = flatten(index);
@@ -191,6 +195,8 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                                 let (det, cond) = det_and_conditioning(&ray, tri);
                                 if det != 0.0 {
                                     refused_here += 1;
+                                    tally.worst_refused_conditioning =
+                                        tally.worst_refused_conditioning.max(cond);
                                 }
                                 if cond >= 1e-12 {
                                     tally.genuine_refused.push(format!(
@@ -268,7 +274,8 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
     );
     println!(
         "# review_pick_r2 tally (rays, answered at the aimed vertex, candidates refused at the \
-         determinant, rays with a refusal): {counts:?}"
+         determinant, rays with a refusal): {counts:?}; best conditioning refused {:e}",
+        tally.worst_refused_conditioning
     );
     assert!(
         tally.genuine_refused.is_empty(),

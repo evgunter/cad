@@ -150,3 +150,42 @@ what proves you did not move a tie.
 
 Each: push what you have, say which fired and what you measured, and
 end.
+
+## Amended at the fix pass (2026-09-16)
+
+**The box-entry guard is withdrawn as unsound in `f64`.** It compared
+a rounded `t` against a bound widened for the box's rounding and not
+the test's, and on any axis-planar triangle — whose box has zero
+extent along one axis, so the entry IS the hit's parameter everywhere
+on it — it refused genuine well-conditioned hits: `pick.rs`'s
+`a_fan_triangulated_cap_accepts_its_interior_hits` (7% of interior
+hits lost on a fan cap, R1) and `review_pick_r2`'s corpus sweep (the
+service answering `cut_cylinder`'s wall 0.3 beyond a rim vertex, R2)
+are the two probes, now rows.
+
+**The mechanism is the certified determinant, and the hit's `t` from
+its point.** A candidate whose Möller–Trumbore determinant does not
+exceed the forward rounding-error bound of its own evaluation
+(`3 · EPSILON · Σ|e1_i|·S_i`, derived from the operation count at the
+site, never tuned) is refused: its barycentrics would be noise over
+noise. That alone does not close the item's case — the ring's
+candidate has a determinant 31 times its bound, `u = v = 0` exactly,
+and a quotient `e2·q / det` that cancels to `1.476` for a true `t` of
+`1.480` — so `t` is taken as the parameter of the hit point
+`a + u·e1 + v·e2` along the ray, which is conditioned by `u` and `v`
+and not by the determinant.
+
+**Acceptance 2(c) reads `Pruned == Every`.** A fold of a commutative
+minimum under a total key agrees with every permutation by
+construction, so the reversed walk could not go red and is gone; the
+row's content is that the early-out does not change the answer, and
+what it could change in principle is a near-tie the rounding of `t`
+decides (`pick_face`'s docs, the filed tie-rounding row).
+
+**Acceptance 4's table rides a pinned-count row.** The counts a row
+can carry without `main`'s predicate in the tree are pinned in
+`review_pick_r2` (rays, rays answered at the aimed vertex, candidates
+refused at the determinant, rays carrying one) with the command that
+re-derives them; the moved-answer table against `main`'s kernel is a
+one-shot measurement in the PR, and the row says why it is not
+pinned.

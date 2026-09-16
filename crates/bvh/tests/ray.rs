@@ -367,12 +367,12 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
     );
 }
 
-/// A dyadic rational `m · 2^e`, exact over the magnitudes
-/// [`entry_bound_never_exceeds_a_true_hits_t`] draws: values in
-/// `[2⁻⁶, 8)` carry 53-bit mantissas, so a product is ≤ 106 bits and
-/// an alignment shifts by ≤ ~62, inside `i128`. Every shift and
-/// product is checked, so a draw outside that envelope is a loud test
-/// bug, never a wrong verdict.
+/// A dyadic rational `m · 2^e`, exact over the magnitudes the
+/// entry-bound rows draw (`1e-6` to `1e6` on the operands, `t` up to
+/// `1e6`, so `|o| ≤ ~1e7`): 53-bit mantissas make a product ≤ 106
+/// bits and an alignment of the origin against `t·d` shifts by ≤ ~60,
+/// inside `i128`. Every shift and product is checked, so a draw
+/// outside that envelope is a loud test bug, never a wrong verdict.
 #[derive(Clone, Copy, Debug)]
 struct Dyadic {
     m: i128,
@@ -455,137 +455,193 @@ fn ceil_f64(p: Dyadic, approx: f64) -> f64 {
     x
 }
 
-/// **`t_enter` never exceeds the parameter of a true point of the ray
-/// inside the box** — the premise every consumer early-out rests on,
-/// and the premise of `editor-core`'s box-entry guard on its exact
-/// ray/triangle test (a hit below its own box's entry is refused as
-/// proven wrong, so this bound had better be one).
-///
-/// Shape: counterexample search (varying seed, counts on the effort
-/// dial, per `memories/test-suite-cost.md`). Per draw an origin `O`, a
-/// direction `d` (each component zero with probability 1/4 — the
-/// exact `d = 0` arm) and a parameter `t ≥ 0` (zero with probability
-/// 1/8) are `f64`s, and the point `P = O + t·d` is formed EXACTLY as
-/// a dyadic rational — a true point of the ray at exactly `t`, whether
-/// or not any `f64` is. A box is drawn around `P` with each bound an
-/// `f64` on the correct side of `P`'s exact coordinate: TIGHT (the
-/// nearest `f64` on that side, where the slab endpoint's own rounding
-/// is what the widening has to cover — in exact arithmetic an
-/// unwidened endpoint lands above `t` on ~1% of such draws) with
-/// probability 1/2 per axis, loose otherwise; and with probability 1/4
-/// the box is widened to hold the origin too, where the bound must be
-/// exactly `0`. The box therefore truly contains a point of the ray at
-/// `t`, so it is a candidate and its entry bound is at most `t`. The
-/// runtime value that reds the row: a draw whose `t_enter` is above
-/// `t`, or an origin-holding box whose `t_enter` is not `0`.
-#[test]
-fn entry_bound_never_exceeds_a_true_hits_t() {
-    let mut rng = fuzz::start("bvh::ray entry bound against exact true hits");
-    let mut exposure = test_utils::vacuity::Exposure::new("bvh::ray entry bound");
-    fn signed(rng: &mut fuzz::Rng) -> f64 {
-        let v = rng.range(0.5, 8.0);
-        if rng.below(2) == 0 { v } else { -v }
-    }
-    for case in 0..fuzz::scaled(500) {
-        let o = [signed(&mut rng), signed(&mut rng), signed(&mut rng)];
-        let mut d = [signed(&mut rng), signed(&mut rng), signed(&mut rng)];
-        for v in &mut d {
-            if rng.below(4) == 0 {
-                *v = 0.0;
-            }
-        }
-        let t = if rng.below(8) == 0 {
-            0.0
-        } else {
-            rng.range(1.0 / 64.0, 8.0)
-        };
-        let holds_origin = rng.below(4) == 0;
+/// One draw of the entry-bound row: a ray `(o, d)`, a parameter `t`,
+/// and a box built around the EXACT point `o + t·d` (a dyadic
+/// rational — a true point of the ray at exactly `t`, whether or not
+/// any `f64` is), each bound an `f64` on the correct side of the
+/// point's exact coordinate: TIGHT (the nearest `f64` on that side,
+/// where the slab endpoint's own rounding is what the widening has to
+/// cover — in exact arithmetic an unwidened endpoint lands above `t`
+/// on ~1% of such draws) or loose by `slack`; `holds_origin` widens
+/// the box to hold the origin too, where the entry must be exactly
+/// `0`. The box therefore truly contains a point of the ray at `t`,
+/// so it is a candidate and its entry is at most `t`.
+struct EntryCase {
+    o: [f64; 3],
+    d: [f64; 3],
+    t: f64,
+    tight: [(bool, bool); 3],
+    slack: [(f64, f64); 3],
+    holds_origin: bool,
+}
+
+impl EntryCase {
+    fn check(&self, what: &str) {
         let mut lo = [0.0; 3];
         let mut hi = [0.0; 3];
         for a in 0..3 {
-            let p = Dyadic::of(o[a]).add(Dyadic::of(t).mul(Dyadic::of(d[a])));
-            let approx = t.mul_add(d[a], o[a]);
+            let p = Dyadic::of(self.o[a]).add(Dyadic::of(self.t).mul(Dyadic::of(self.d[a])));
+            let approx = self.t.mul_add(self.d[a], self.o[a]);
             let (floor, ceil) = (floor_f64(p, approx), ceil_f64(p, approx));
-            // Tight: the nearest f64 on the correct side; loose: a
-            // step of random size beyond it.
-            let tight_lo = rng.below(2) == 0;
-            let tight_hi = rng.below(2) == 0;
-            lo[a] = if tight_lo {
-                floor
-            } else {
-                floor - rng.range(0.0, 4.0)
-            };
-            hi[a] = if tight_hi {
-                ceil
-            } else {
-                ceil + rng.range(0.0, 4.0)
-            };
-            if holds_origin {
-                lo[a] = lo[a].min(o[a]);
-                hi[a] = hi[a].max(o[a]);
-            }
-            if tight_lo || tight_hi {
-                exposure.note("tight bound");
-            }
-            if floor == ceil {
-                exposure.note("representable coordinate");
-            } else {
-                exposure.note("unrepresentable coordinate");
+            let (tight_lo, tight_hi) = self.tight[a];
+            let (slack_lo, slack_hi) = self.slack[a];
+            lo[a] = if tight_lo { floor } else { floor - slack_lo };
+            hi[a] = if tight_hi { ceil } else { ceil + slack_hi };
+            if self.holds_origin {
+                lo[a] = lo[a].min(self.o[a]);
+                hi[a] = hi[a].max(self.o[a]);
             }
         }
         let b = boxed(lo, hi);
-        let r = ray(o, d);
-        if d.contains(&0.0) {
-            exposure.note("axis-parallel ray");
-        }
-        if t == 0.0 {
-            exposure.note("t = 0");
-        }
+        let r = ray(self.o, self.d);
+        let t = self.t;
         let t_enter = r.slab_enter(&b).unwrap_or_else(|| {
             panic!(
-                "case {case}: the box holds a true point of the ray at t = {t} and was refused \
+                "{what}: the box holds a true point of the ray at t = {t} and was refused \
                  ({r:?}, {b:?}); {}",
                 fuzz::replay()
             )
         });
         assert!(
             t_enter <= t,
-            "case {case}: t_enter = {t_enter:e} exceeds the true hit's t = {t:e} ({r:?}, {b:?}); {}",
+            "{what}: t_enter = {t_enter:e} exceeds the true hit's t = {t:e} ({r:?}, {b:?}); {}",
             fuzz::replay()
         );
-        if holds_origin {
-            exposure.note("origin inside the box");
+        if self.holds_origin {
             assert_eq!(
                 t_enter,
                 0.0,
-                "case {case}: a box holding the origin enters at exactly 0 ({r:?}, {b:?}); {}",
+                "{what}: a box holding the origin enters at exactly 0 ({r:?}, {b:?}); {}",
                 fuzz::replay()
             );
         }
     }
-    exposure.report();
-    // Anti-vacuity floors against the effort-1 draw (500 cases): each
-    // arm's expected count is in the hundreds, so a run below these
-    // did not exercise the arm rather than got unlucky.
-    exposure.require(
-        "tight bound",
-        200,
-        "the widening is only tested by a bound the rounding can cross",
-    );
-    exposure.require(
-        "unrepresentable coordinate",
-        200,
-        "a true hit no f64 can name is where the bound and the hit's rounding disagree",
-    );
-    exposure.require(
-        "axis-parallel ray",
-        50,
-        "the exact d = 0 arm has to be reached",
-    );
-    exposure.require(
-        "origin inside the box",
-        50,
-        "the entry-at-zero claim needs origin-holding boxes",
-    );
-    exposure.require("t = 0", 20, "the t = 0 corner has to be reached");
+}
+
+/// **`t_enter` never exceeds the parameter of a true point of the ray
+/// inside the box** — the premise every consumer early-out rests on
+/// (`editor-core`'s pick breaks its candidate walk on it). The
+/// witnesses, enumerated: every corner class the bound's arithmetic
+/// has — an origin inside the box, a direction with zero components
+/// (the exact `d = 0` arm, one axis and all three), `t = 0`, a tight
+/// bound on each side of each axis, magnitudes of `1e-6` and `1e6`
+/// on the ray and an origin a million lengths from the box
+/// (cancellation in `bound − o`) — as a static product over fixed
+/// operands with non-terminating binary expansions, so each arm is
+/// reached on every run (memories/test-suite-cost: a witness you can
+/// write down is a fixture, not a search).
+#[test]
+fn entry_bound_never_exceeds_a_true_hits_t_at_the_witnesses() {
+    let origins = [[0.1, -0.7, 2.3], [-3.3, 5.9, -0.01]];
+    let dirs = [
+        [1.7, -0.3, 0.9],
+        [0.0, 1.3, -2.1],
+        [0.0, 0.0, 0.0],
+        [-0.6, 0.0, 0.0],
+    ];
+    let ts = [0.0, 0.3, 1.0 / 3.0, 5.7];
+    let scales = [1e-6, 1.0, 1e6];
+    let tights = [(true, true), (true, false), (false, true), (false, false)];
+    let mut cases = 0usize;
+    for o in origins {
+        for d in dirs {
+            for t in ts {
+                for scale in scales {
+                    for tight in tights {
+                        for holds_origin in [false, true] {
+                            let case = EntryCase {
+                                o: o.map(|v| v * scale),
+                                d: d.map(|v| v * scale),
+                                t,
+                                tight: [tight; 3],
+                                slack: [(0.7 * scale, 1.9 * scale); 3],
+                                holds_origin,
+                            };
+                            case.check("witness");
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // The far origin: the true point near the coordinate origin, the
+    // ray's origin a million lengths away along `−d`.
+    for d in [[1.7, -0.3, 0.9], [-0.6, 0.0, 0.0]] {
+        for t in [1.0e3, 3.3e5, 9.9e5] {
+            let o = [0.1 - t * d[0], -0.7 - t * d[1], 2.3 - t * d[2]];
+            for tight in tights {
+                EntryCase {
+                    o,
+                    d,
+                    t,
+                    tight: [tight; 3],
+                    slack: [(0.7, 1.9); 3],
+                    holds_origin: false,
+                }
+                .check("far origin");
+                cases += 1;
+            }
+        }
+    }
+    println!("# entry-bound witnesses: {cases} cases");
+}
+
+/// The same property searched: random operands over the same
+/// classes — magnitudes `1e-6`, `1` and `1e6`, zero direction
+/// components with probability 1/4 each, `t = 0` with probability
+/// 1/8, an origin-holding box with probability 1/4, each bound tight
+/// with probability 1/2, and the far origin with probability 1/8.
+/// Shape: counterexample search (varying seed, counts on the effort
+/// dial); no floor — the witnesses above are the fixture.
+#[test]
+fn entry_bound_never_exceeds_a_true_hits_t() {
+    let mut rng = fuzz::start("bvh::ray entry bound against exact true hits");
+    fn signed(rng: &mut fuzz::Rng) -> f64 {
+        let v = rng.range(0.5, 8.0);
+        if rng.below(2) == 0 { v } else { -v }
+    }
+    for _ in 0..fuzz::scaled(500) {
+        let scale = [1e-6, 1.0, 1e6][rng.below(3)];
+        let mut d = [signed(&mut rng), signed(&mut rng), signed(&mut rng)].map(|v| v * scale);
+        for v in &mut d {
+            if rng.below(4) == 0 {
+                *v = 0.0;
+            }
+        }
+        let far = rng.below(8) == 0;
+        let t = if far {
+            rng.range(1.0e3, 1.0e6)
+        } else if rng.below(8) == 0 {
+            0.0
+        } else {
+            rng.range(1.0 / 64.0, 8.0)
+        };
+        let o = if far {
+            // The true point near the coordinate origin, the ray's
+            // origin `t` lengths back along `d`.
+            [
+                signed(&mut rng) - t * d[0],
+                signed(&mut rng) - t * d[1],
+                signed(&mut rng) - t * d[2],
+            ]
+        } else {
+            [signed(&mut rng), signed(&mut rng), signed(&mut rng)].map(|v| v * scale)
+        };
+        let mut tight = [(false, false); 3];
+        let mut slack = [(0.0, 0.0); 3];
+        for a in 0..3 {
+            tight[a] = (rng.below(2) == 0, rng.below(2) == 0);
+            slack[a] = (rng.range(0.0, 4.0) * scale, rng.range(0.0, 4.0) * scale);
+        }
+        EntryCase {
+            o,
+            d,
+            t,
+            tight,
+            slack,
+            holds_origin: !far && rng.below(4) == 0,
+        }
+        .check("sweep");
+    }
 }

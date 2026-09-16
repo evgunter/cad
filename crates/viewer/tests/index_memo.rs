@@ -1088,19 +1088,21 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
 /// +y at a chord point of the tube. The ray lies in the plane of a
 /// triangle of the face it does NOT cross there: Möller–Trumbore's
 /// determinant for that triangle is rounding noise (~2e-19), and its
-/// `u`, `v`, `t` are noise that passed the closed acceptance with a
-/// `t` 0.004 BELOW the corner. That candidate now refuses at the
-/// determinant, and the answer is the corner — `t = 1.480` less
-/// seven ULP, the chord point's distance along the ray as the
-/// neighbouring triangle's exact test rounds it — pinned to the bit,
-/// from the reference and the service alike. Two premise rows keep
-/// the probe honest against a retessellation: the chord point is
-/// still a mesh vertex (so the ray is still a graze), and the
-/// candidate set still holds a triangle whose determinant is
-/// non-zero and not certifiable (so the noise class is still there
-/// to refuse). Parked here rather than beside `pick.rs`'s own rows
-/// because it needs the gallery ring, which only the viewer's test
-/// corpus loads.
+/// its quotient `t = e2·q / det` cancels to `1.476`, 0.004 BELOW the
+/// corner, while its `u` and `v` are exactly `0`: in exact arithmetic
+/// over the mesh's rounded corners the ray passes through that
+/// triangle's own corner `a` — the chord point — and its true `t` is
+/// `1.480`. The exact test now takes `t` from the hit point `a + u·e1
+/// + v·e2` projected onto the ray, so the answer is the corner,
+/// `t = 1.480` to the bit, from the reference and the service alike.
+/// Two premise rows keep the probe honest against a retessellation:
+/// the chord point is still a mesh vertex (so the ray is still a
+/// graze), and the candidate set still holds a triangle with the
+/// chord point as a corner whose Möller–Trumbore quotient is off the
+/// corner by more than 1e-6 (so the class the projection exists for
+/// is still there). Parked here rather than beside `pick.rs`'s own
+/// rows because it needs the gallery ring, which only the viewer's
+/// test corpus loads.
 #[test]
 fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let tol = Tol::witness();
@@ -1142,23 +1144,32 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
          through it is a graze"
     );
     let reference = FlatReference::of(&index);
-    let uncertified_candidates = reference
+    // Möller–Trumbore's own `t` quotient for each candidate that has
+    // the chord point as its first corner (so `s = origin − a` is
+    // exactly `−reach · dir` and `u = v = 0` exactly): the quotient
+    // the old exact test answered, and the number the projection
+    // replaces.
+    let quotients: Vec<f64> = reference
         .parts
         .iter()
         .flat_map(|flat| {
-            flat.tree.ray(&ray).into_iter().map(move |cand| {
+            flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
                 let tri = &flat.corners[cand.item];
+                if !same(&tri[0], &corner) {
+                    return None;
+                }
+                let det = certified_determinant(&ray, tri)?;
                 let e1: Vec3<f64> = tri[1] - tri[0];
                 let e2: Vec3<f64> = tri[2] - tri[0];
-                (e1.dot(ray.dir.cross(e2)), certified_determinant(&ray, tri))
+                let q = (ray.origin - tri[0]).cross(e1);
+                Some(e2.dot(q) / det)
             })
         })
-        .filter(|(det, certified)| *det != 0.0 && certified.is_none())
-        .count();
+        .collect();
     assert!(
-        uncertified_candidates > 0,
-        "the probe's premise: a candidate whose determinant is non-zero rounding noise is in \
-         the ray's candidate set"
+        quotients.iter().any(|t| (t - reach).abs() > 1e-6),
+        "the probe's premise: a candidate with the chord point as its corner whose \
+         Möller–Trumbore quotient is off the corner is in the ray's candidate set: {quotients:?}"
     );
     let (hit, _) = reference.pick(&ray);
     let hit = hit.expect("the ray meets the ring");
@@ -1188,9 +1199,9 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 }
 
 /// The ring probe's answer: the chord point's parameter as the
-/// grazed triangle's exact test rounds it. Re-derive with the probe
-/// under `--nocapture` if the ring's tessellation changes.
-const RING_CORNER_T: f64 = 1.4799999999999986;
+/// winning triangle's exact test rounds it. Re-derive from the
+/// probe's failure message if the ring's tessellation changes.
+const RING_CORNER_T: f64 = 1.48;
 
 /// The last extrude distance or revolve angle in the document, scaled
 /// — the gallery ring's own bump.

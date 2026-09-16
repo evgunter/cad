@@ -1279,7 +1279,13 @@ pub fn pick_face<T: Decide>(
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
 /// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`
-/// on a determinant certified non-zero ([`certified_determinant`]).
+/// on a determinant certified non-zero ([`certified_determinant`]),
+/// with `t` the parameter of the hit point `a + u·e1 + v·e2` along
+/// the ray rather than Möller–Trumbore's quotient `e2·q / det` — the
+/// two agree to rounding on a well-conditioned crossing, and only
+/// the projection survives a small determinant (a ray through a
+/// corner of a triangle whose plane it all but contains: `u = v = 0`
+/// exactly, the quotient off the corner by parts per thousand).
 ///
 /// Boundary semantics: `u ∈ [0, 1]`, `v ≥ 0`, `u + v ≤ 1`, `t ≥ 0` —
 /// all closed, so a hit exactly on a shared edge or vertex is a hit
@@ -1314,7 +1320,13 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
     if !v_inside {
         return None;
     }
-    let t = e2.dot(q) * inv;
+    // The parameter of the hit POINT `a + u·e1 + v·e2` along the ray,
+    // not Möller–Trumbore's `e2·q / det`: the quotient cancels
+    // catastrophically when the determinant is small (a ray grazing
+    // a triangle whose plane it nearly contains), while the point's
+    // projection onto the ray is conditioned by `u` and `v` alone.
+    let hit = tri[0] + e1 * u + e2 * v;
+    let t = (hit - ray.origin).dot(ray.dir) / ray.dir.dot(ray.dir);
     let forward_and_finite = t >= 0.0 && t.is_finite();
     forward_and_finite.then_some(t)
 }
