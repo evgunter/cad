@@ -2,11 +2,12 @@
 id: deletenode-strands-a-declare-payload-name
 kind: unit
 title: DeleteNode leaves a Declare whose payload names a dead node: DeleteWouldDangle reads inputs only
-status: review
+status: closed
 pr: 2753
 opened: 2026-09-06
 refs: [2028, 2028]
 branch: edit/delete-strands
+closed: 2026-09-16
 ---
 
 
@@ -215,3 +216,11 @@ adopted probe, not built here.
 `work/lib/maintenance-crosses-python-as-a-nine-attribute-union-class`
 — the façade's union class, recorded as an instance of a class whose
 every LIB row is closed.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+DM7 built and merged as PR #2753 after one opus style review with a
+correctness arm (APPROVE-WITH-FIXES, three MINORs, all built at the fix
+pass) and the orchestrator's read. Residue in its own files:
+`stranded-appearance-keys-are-not-reported-by-dm7` (a clause-scope
+question for Ev), the CHROME affordance row unparks at this merge.
