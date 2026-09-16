@@ -634,8 +634,9 @@ BOUND_AS = {
     # NOT a narrowing. Rust's `pick_face` takes a slice of them;
     # Python's takes a list of `NodePick`s and makes each target
     # itself — because CUR3 recorded `MeshPick` DECIDED absent from the
-    # façade and `PickTarget::pick` is a `&MeshPick`, so through
-    # `pncad` a raw target has no constructor in EITHER language. The
+    # façade and `PickTarget`'s raw mint (`PickTarget::new`) takes a
+    # `&MeshPick`, so through `pncad` a raw target has no constructor
+    # in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
     # pairing cannot be mis-asserted. The carrier-projection rule reads
     # out the same way it did for `DanglingRef` above: a payload's
@@ -821,10 +822,10 @@ BOUND_AS = {
     # THE MEASUREMENT, because a category is a claim. All three were
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
-    # shape to point at. There is one now. `SnapshotError`'s
-    # nineteen arms and `ProgramFault`'s two mint a word apiece from
-    # an exhaustive match, so a kernel arm added without one stops the
-    # bindings compiling, and the word rides `inner_variant` beside
+    # shape to point at. There is one now. `SnapshotError`'s arms and
+    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # so a kernel arm added without one stops the bindings compiling,
+    # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
     # as a word: it is a RECURSIVE descriptor (an edit's index
     # wrapping the site inside that edit's payload), so it crosses as
@@ -1996,6 +1997,13 @@ NOT_BOUND = {
     # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
     # those are the words a caller branches on.
     "DisplayUnitRefusal": SHAPE,
+    # `DocParam::with_distribution`'s `Err`, flattened for
+    # `DisplayUnitRefusal`'s reason: no Python door answers in it. The
+    # binding's annotation edit goes through `Doc.apply`, where the
+    # kernel has already mapped these to
+    # `doc_param_count_has_no_distribution` and to the distribution
+    # fault's own tags, and those are the words a caller branches on.
+    "DistributionRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -2368,10 +2376,11 @@ NOT_BOUND = {
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
     # handed the wrong document. Nothing in Python hands one out. The
-    # two ERRORING doors project their arm as a tag word
-    # (`evaluation_of_another_document`,
-    # `mate_poses_of_another_document`), which is what a Python caller
-    # branches on; the memo's arm is not an error at all, and the fact
+    # ERRORING doors project their arm as a tag word
+    # (`evaluation_of_another_document` on the gather, the checks, the
+    # name-level edit door and the pick index's three doors;
+    # `mate_poses_of_another_document` on the solve), which is what a
+    # Python caller branches on; the memo's arm is not an error at all, and the fact
     # it records reaches Python where it always did, as
     # `Evaluation.reused` being 0 with every node recomputed. Not a
     # `gap:`: the debt, if there is one, is the `evaluate` door's
@@ -2970,6 +2979,7 @@ MEMBERS_BOUND_AS = {
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
     "EditError::DocParamCountHasNoUnit": "EditError.variant",
+    "EditError::DocParamCountHasNoDistribution": "EditError.variant",
     "EditError::DocParamUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
@@ -3017,6 +3027,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::NodeNotEvaluated": "HitTestError.variant",
     "HitTestError::NodeFailed": "HitTestError.variant",
     "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",

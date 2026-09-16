@@ -531,6 +531,17 @@ fn picking_refusal_tags_are_stable() {
         "node_poisoned"
     );
 
+    // DI3's pairing refusal, under the word the gather, the checks and
+    // the name-level edit door already answer with: one fact, one tag,
+    // whichever door a caller meets it at.
+    assert_eq!(
+        hit_test_error_tag(&H::EvaluationOfAnotherDocument {
+            expected: pncad::document::DocumentId::derive("tag-expected"),
+            found: pncad::document::DocumentId::derive("tag-found"),
+        }),
+        "evaluation_of_another_document"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -4083,6 +4094,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
+            "doc_param_count_has_no_distribution",
             "doc_param_count_has_no_unit",
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
@@ -4264,6 +4276,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
             "node_poisoned",
@@ -4933,6 +4946,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
+            "assertion_target",
             "count_continuous",
             "dangling_input",
             "declare_input",
@@ -4944,10 +4958,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",
-            "placement_frame",
+            "placement_improper",
+            "placement_non_finite",
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
+            "witness_on_missing_node",
             "witness_site",
         ],
         delegates: &["root_fault_tag"],
@@ -5259,6 +5275,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("ambiguous", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
+    ("assertion_target", 2),
     ("band", 16),
     ("cap_plane", 3),
     ("certify", 2),
@@ -5273,7 +5290,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 3),
+    ("evaluation_of_another_document", 4),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),

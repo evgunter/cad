@@ -2862,8 +2862,10 @@ impl DocParam {
     /// No `distribution`: the kernel's own notation doors carry none
     /// (`DocParam::written_length` writes `distribution: None`), and
     /// this binding does not reach past them to build the payload by
-    /// hand. A parameter that wants both is authored through
-    /// [`Self::length`] today.
+    /// hand. A parameter that wants both is declared here and then
+    /// annotated through `DocEdit.set_doc_param_distribution`,
+    /// which carries the notation forward; [`Self::length`] takes
+    /// both at once and records the canonical metre row.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
         Self(d::DocParam::written_length(value.0))
@@ -3335,6 +3337,52 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParamUnit {
                 name: name.0.clone(),
                 unit: unit.sym(),
+            },
+        }
+    }
+
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and the notation it was authored in.
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration, and preferable over `set_doc_param` for its
+    /// siblings' reason: the authoring spelling for an annotated
+    /// parameter writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres, with no refusal and no diagnostic.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door: the
+    /// field is optional and "no annotation" is a value of the
+    /// declaration, not a row removed from a map.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_distribution` — a count takes no
+    /// annotation, for the reason `DocParam.count` gives) and on a
+    /// distribution that breaks an E2 invariant
+    /// (`non_finite_doc_param`, `invalid_distribution`).
+    ///
+    /// The `Distribution`'s own dimension is NOT checked against the
+    /// parameter's here: a kernel `Distribution` is dimension-free
+    /// offsets, so this wrapper's `dim` is dropped building the
+    /// payload and nothing survives for `apply` to compare. That is
+    /// `set_doc_param_value`'s position too — it takes a typed
+    /// quantity and carries only the number — and the difference from
+    /// the `DocParam` constructors, which hold the declaration and its
+    /// annotation at once and do check. Whether the binding should
+    /// instead carry the dropped dimension and refuse at `apply` is
+    /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
+    #[staticmethod]
+    #[pyo3(signature = (name, distribution))]
+    fn set_doc_param_distribution(
+        name: &ParamName,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamDistribution {
+                name: name.0.clone(),
+                distribution: distribution.map(|d| d.inner),
             },
         }
     }

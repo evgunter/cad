@@ -775,6 +775,21 @@ pub enum MateFault {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for MateFault {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::PosesOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 /// The predicate that decides the EMPTY intersection. It is the one
 /// name in the membership vocabulary that reports no measurement — the
 /// empty set holds nothing and no margin decides that — so it is a

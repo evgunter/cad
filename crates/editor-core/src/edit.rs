@@ -5,12 +5,17 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
-use crate::distribution::DistributionFault;
-use crate::doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
+use crate::distribution::{Distribution, DistributionFault};
+use crate::doc::{
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, ParamName,
+    PlacementFault, WitnessSiteFault,
+};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
-use crate::node::{Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName};
+use crate::node::{
+    AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName,
+};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -25,8 +30,9 @@ use geom_core::Tol;
 /// `UpdateReference`). The document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
-/// rest (`SetDocParamValue`, `SetDocParamUnit`; [`CarryForwardDoor`]
-/// names them in a refusal). The explicit repairs and the document's
+/// rest (`SetDocParamValue`, `SetDocParamUnit`,
+/// `SetDocParamDistribution`; [`CarryForwardDoor`] names them in a
+/// refusal). The explicit repairs and the document's
 /// presentation state: `Rebind`, the ONLY name repair — the
 /// automatic-rebinding policy menu is empty by ratified decision
 /// (NAMING-DESIGN N5); `ReWitness`/`ReWitnessBulk`, the recorded
@@ -178,6 +184,41 @@ pub enum DocEdit<P> {
         /// The notation to write, which must MEASURE the declared
         /// dimension.
         unit: crate::expr::UnitSym,
+    },
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration: its dimension, its exact
+    /// value and its authored display unit ride through untouched
+    /// ([`DocParam::with_distribution`]).
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration a narrow edit can move, and it exists for its
+    /// siblings' reason. The only other way to annotate a standing
+    /// parameter is [`Self::SetDocParam`] — create-or-replace — with a
+    /// `DocParam` the caller assembled, and the authoring spelling for
+    /// an annotated parameter ([`DocParam::continuous_with`]) writes
+    /// the CANONICAL notation: a parameter authored in millimetres
+    /// reverts to metres the moment anyone annotates it. There is
+    /// nothing to restate here.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door; the
+    /// argument is [`DocParam::with_distribution`]'s rustdoc.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
+    /// carry forward), on a `Count`
+    /// ([`EditError::DocParamCountHasNoDistribution`] — a count takes
+    /// no annotation, the argument again being
+    /// [`DocParam::with_distribution`]'s rustdoc) and on a
+    /// distribution that breaks an E2 invariant
+    /// ([`EditError::NonFiniteDocParam`],
+    /// [`EditError::InvalidDistribution`] — the invariants the
+    /// save/load validator refuses a document for).
+    SetDocParamDistribution {
+        /// The parameter name — must already be declared, and must not
+        /// be a `Count`.
+        name: ParamName,
+        /// The annotation to write, or `None` to clear it.
+        distribution: Option<Distribution>,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -342,13 +383,69 @@ pub enum DocEdit<P> {
     },
 }
 
-/// Which of the two CARRY-FORWARD doors an edit came through — the
-/// edits that write one field of a standing declaration and carry the
-/// rest untouched.
+impl<P> DocEdit<P> {
+    /// **Whether this edit can move the MATE GRAPH** — the reading
+    /// edges A11's clusters are made of: the instance set, the mate
+    /// set, or a mate's heads.
+    ///
+    /// [`apply`] re-keys the placement registry
+    /// ([`crate::mate::solve::reconcile`]) after exactly the edits that
+    /// answer `true`, and that is what makes a non-gauge placement row
+    /// unrepresentable through the edit doors — the asymmetry
+    /// [`crate::doc::placement_fault`] records, and the one the load
+    /// door's `PlacementNotGauge` exists for.
+    ///
+    /// **Exhaustive, with no wildcard arm**, because that invariant is
+    /// what a new edit arm can silently break: an arm added without an
+    /// answer here stops the crate compiling, rather than defaulting to
+    /// "moves nothing" and making a refusal the load door owns
+    /// reachable from an edit door.
+    pub(crate) fn moves_the_mate_graph(&self) -> bool {
+        match self {
+            // The instance set and the mate set are both node sets, so
+            // the two edits over nodes move the graph.
+            Self::InsertNode { .. } | Self::DeleteNode { .. } => true,
+            // A list input is a reading edge, and a cluster is made of
+            // reading edges.
+            Self::SetMembers { .. } => true,
+            // A rebound mate head moves a reading edge onto another
+            // node, which is the graph's shape changing without its
+            // node set changing.
+            Self::Rebind { .. } => true,
+            // Everything else writes a value, a slot, a payload or a
+            // presentation record, and leaves the reading edges where
+            // they are. `SetPlacement` is the pointed one: it WRITES
+            // the registry the reconciliation re-keys, and the edit
+            // door keys it on the gauge itself, so it has no graph
+            // motion to reconcile.
+            Self::SetPlacement { .. }
+            | Self::SetParam { .. }
+            | Self::SetStructuralParam { .. }
+            | Self::SetExpression { .. }
+            | Self::SetDocParam { .. }
+            | Self::SetDocParamValue { .. }
+            | Self::SetDocParamUnit { .. }
+            | Self::SetDocParamDistribution { .. }
+            | Self::ReWitness { .. }
+            | Self::ReWitnessBulk { .. }
+            | Self::SetAppearance { .. }
+            | Self::ClearAppearance { .. }
+            | Self::SetTolerance { .. }
+            | Self::SetAppearanceMeta { .. }
+            | Self::ClearAppearanceMeta { .. }
+            | Self::SetRoots { .. }
+            | Self::UpdateReference { .. } => false,
+        }
+    }
+}
+
+/// Which CARRY-FORWARD door an edit came through — the edits that
+/// write one field of a standing declaration and carry the rest
+/// untouched.
 ///
-/// It exists so a refusal both doors share can name the one the caller
-/// actually used ([`EditError::DocParamNotDeclared`]). A third door
-/// over a third field adds an arm here and the compile names every
+/// It exists so a refusal every such door shares can name the one the
+/// caller actually used ([`EditError::DocParamNotDeclared`]). A door
+/// over a further field adds an arm here and the compile names every
 /// sentence that has to learn the word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarryForwardDoor {
@@ -356,6 +453,8 @@ pub enum CarryForwardDoor {
     Value,
     /// [`DocEdit::SetDocParamUnit`] — the notation.
     Notation,
+    /// [`DocEdit::SetDocParamDistribution`] — the E1/E2 annotation.
+    Annotation,
 }
 
 // The door as it appears inside a refusal's sentence, in the user's
@@ -365,6 +464,7 @@ impl core::fmt::Display for CarryForwardDoor {
         f.write_str(match self {
             Self::Value => "a value edit",
             Self::Notation => "a notation edit",
+            Self::Annotation => "an annotation edit",
         })
     }
 }
@@ -601,18 +701,19 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
-    /// A carry-forward edit — [`DocEdit::SetDocParamValue`] or
-    /// [`DocEdit::SetDocParamUnit`] — named a parameter this document
-    /// does not declare. Both doors carry an existing declaration
-    /// forward, so there has to be one; declaring a parameter is
-    /// [`DocEdit::SetDocParam`]'s job.
+    /// A carry-forward edit — [`DocEdit::SetDocParamValue`],
+    /// [`DocEdit::SetDocParamUnit`] or
+    /// [`DocEdit::SetDocParamDistribution`] — named a parameter this
+    /// document does not declare. All three carry an existing
+    /// declaration forward, so there has to be one; declaring a
+    /// parameter is [`DocEdit::SetDocParam`]'s job.
     ///
-    /// ONE arm for both doors because the FAULT is one — the missing
+    /// ONE arm for all of them because the FAULT is one — the missing
     /// declaration, which neither door is about — and so is the
     /// recourse. What differs is which edit the user submitted, and
     /// that rides along in `door` so the sentence can say it: a
     /// refusal that read "a carry-forward edit" would make a reader
-    /// work out which of their two edits it was talking about.
+    /// work out which of their edits it was talking about.
     DocParamNotDeclared {
         /// The undeclared parameter.
         name: ParamName,
@@ -628,6 +729,23 @@ pub enum EditError {
     /// Nothing is being redeclared here — there is no notation for a
     /// count under ANY declaration.
     DocParamCountHasNoUnit {
+        /// The count parameter.
+        name: ParamName,
+    },
+    /// An annotation edit ([`DocEdit::SetDocParamDistribution`]) named
+    /// a `Count` parameter, which takes no distribution and carries no
+    /// field to write one into — the argument is
+    /// [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    ///
+    /// [`Self::DocParamCountHasNoUnit`]'s sibling at the third field,
+    /// and separate from it for the same reason the two doors are
+    /// separate — the fault is what the count has no room for, and a
+    /// caller branching on it is told which of their edits to
+    /// withdraw. Raised for a CLEARING edit too: a caller aiming an
+    /// annotation edit at a count has the wrong parameter, and
+    /// answering `Ok` because the field happened to be absent would
+    /// hide that.
+    DocParamCountHasNoDistribution {
         /// The count parameter.
         name: ParamName,
     },
@@ -965,6 +1083,21 @@ pub enum EditError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for EditError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the
@@ -1197,6 +1330,12 @@ impl core::fmt::Display for EditError {
                 f,
                 "parameter {} is a count, and a count is an integer rather than a quantity — \
                  it has no display unit to change",
+                name.0
+            ),
+            Self::DocParamCountHasNoDistribution { name } => write!(
+                f,
+                "parameter {} is a count, and a count is a structural parameter that is fixed \
+                 under any error analysis — it has no distribution to change",
                 name.0
             ),
             Self::DocParamUnitMismatch {
@@ -1549,11 +1688,33 @@ fn check_param_refs<P>(
     Ok(())
 }
 
-/// Validate every slot of a node payload against slot dimensions and
-/// the param table, keyed as `id` for error reporting.
+/// A broken E2 invariant as the edit door reports it, in ONE place.
+///
+/// The split is by CLASS, not by door: a non-finite offset is a
+/// non-finite float on a document parameter and joins the ruled
+/// non-finite policy's own refusal (door 1), the rest are distribution
+/// shape faults. Both the create-or-replace door and the annotation
+/// door reach it, so a caller comparing their refusals reads one
+/// answer rather than two spellings of it.
+fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditError {
+    match fault {
+        DistributionFault::NonFinite { .. } => EditError::NonFiniteDocParam { name: name.clone() },
+        DistributionFault::SigmaNotPositive { .. }
+        | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
+            name: name.clone(),
+            fault,
+        },
+    }
+}
+
 /// Write a fully-formed [`DocParam`] into the document: the shared
-/// tail of both parameter doors, so the create-or-replace door and the
-/// value door cannot come to disagree about what a legal parameter is.
+/// tail of every parameter door, so no two of them can come to
+/// disagree about what a legal parameter is. Four doors reach it —
+/// the create-or-replace door ([`DocEdit::SetDocParam`]) and the three
+/// carry-forward doors, one per movable field of the declaration:
+/// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
+/// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
+/// declaration routes through here too, and adds itself to that list.
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
@@ -1580,22 +1741,12 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     if let Some(d) = value.distribution()
         && let Err(fault) = d.check()
     {
-        return Err(match fault {
-            DistributionFault::NonFinite { .. } => {
-                EditError::NonFiniteDocParam { name: name.clone() }
-            }
-            DistributionFault::SigmaNotPositive { .. }
-            | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
-                name: name.clone(),
-                fault,
-            },
-        });
+        return Err(distribution_fault_error(name, fault));
     }
-    if let DocParam::Continuous {
-        dim: Dimension::Count,
-        ..
-    } = value
-    {
+    // The structural/continuous divide, by the one predicate the
+    // save/load validator also asks of a snapshot
+    // (`DocParam::is_continuous_count`).
+    if value.is_continuous_count() {
         return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
     }
     // The unit/dimension pairing, at EVERY door that writes a
@@ -1635,6 +1786,8 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     })
 }
 
+/// Validate every slot of a node payload against slot dimensions and
+/// the param table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -1686,26 +1839,26 @@ fn check_node_slots<P: crate::ProfilePayload>(
         return Err(EditError::MeasureMalformed { node: id, fault });
     }
     // An assertion's bound against the dimension of the measure it
-    // constrains — the one check that needs the DOCUMENT, which is why
-    // it lands here and not on the node.
-    if let Node::Assertion { measure, bound, .. } = node {
-        let measured = match doc.node(*measure) {
-            Some(Node::Measure { expr, .. }) => expr.dim(),
-            _ => {
-                return Err(EditError::AssertionTarget {
-                    node: id,
-                    measure: *measure,
-                });
+    // constrains (E10): `Node::assertion_bound_fault`, the one home the
+    // load door reads it from too. The predicate takes the document
+    // because the measured dimension is another node's property; this
+    // is the door's name for its answer.
+    if let Some(fault) = node.assertion_bound_fault(doc) {
+        return Err(match fault {
+            AssertionBoundFault::TargetNotMeasure { measure, .. } => {
+                EditError::AssertionTarget { node: id, measure }
             }
-        };
-        if measured != bound.dim() {
-            return Err(EditError::AssertionDimension {
-                node: id,
-                measure: *measure,
+            AssertionBoundFault::DimensionMismatch {
+                measure,
                 measured,
-                bound: bound.dim(),
-            });
-        }
+                bound,
+            } => EditError::AssertionDimension {
+                node: id,
+                measure,
+                measured,
+                bound,
+            },
+        });
     }
     Ok(())
 }
@@ -1857,16 +2010,23 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
-    // A11's cluster records follow the mate graph automatically. The
-    // edits that can move it are exactly those that change the
-    // instance set, the mate set, or a mate's heads.
-    let mut reconcile = false;
+    // A11's cluster records follow the mate graph automatically, after
+    // exactly the edits that can move it — read off the edit itself
+    // ([`DocEdit::moves_the_mate_graph`]), so a new arm answers the
+    // question or does not compile.
+    let reconcile = edit.moves_the_mate_graph();
     // DM7's strands, read at the door that made them. Only
     // `DeleteNode` can strand a name: no other edit removes a node,
     // and `Rebind` moves references onto a live one.
     let mut strands: Vec<Maintenance> = Vec::new();
     let record = match edit {
         DocEdit::InsertNode { node } => {
+            // Liveness, and it stays spelled here rather than moving to
+            // a shared home: the rule IS the node map's own lookup, so
+            // the load door's `DanglingInput` walk and this loop share
+            // `contains_key` already and have no predicate between them
+            // to extract. What differs is the subject — one incoming
+            // reference here, every edge a file claims there.
             for input in node.inputs() {
                 if !new.nodes.contains_key(&input) {
                     return Err(EditError::UnresolvedInput { input });
@@ -1900,9 +2060,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
             check_declare_input(&new, id, node)?;
-            if let Node::Mate { alignment, .. } = node
-                && !alignment.is_finite()
-            {
+            // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
+            // the one place a node is asked whether its alignment datum
+            // is decidable, which the load door's walk asks too.
+            if node.has_non_finite_alignment() {
                 return Err(EditError::NonFiniteAlignment { node: id });
             }
             check_node_slots(&new, id, node)?;
@@ -1923,7 +2084,6 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             new.order.push(id);
             check_acyclic(&new)?;
             crate::roots::on_insert(&mut new, id, &node.inputs());
-            reconcile = true;
             EditRecord {
                 minted: Some(id),
                 structural: true,
@@ -1958,7 +2118,6 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // now stands.
             strands = stranded_names(&new, *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
-            reconcile = true;
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
@@ -2005,7 +2164,6 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // of the edges.
             check_acyclic(&new)?;
             crate::roots::on_set_members(&mut new);
-            reconcile = true;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -2100,6 +2258,28 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             })?;
             write_doc_param(&mut new, name, written)?
         }
+        DocEdit::SetDocParamDistribution { name, distribution } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared {
+                    name: name.clone(),
+                    door: CarryForwardDoor::Annotation,
+                });
+            };
+            // THE carry-forward, over the third field: the declaration
+            // is read off the document and reused whole, so the value
+            // and the NOTATION cannot be dropped by an omission here.
+            // Both reasons it can refuse are the DOOR's — this routes
+            // them, and decides neither.
+            let written = declared
+                .with_distribution(*distribution)
+                .map_err(|why| match why {
+                    DistributionRefusal::CountHasNoAnnotation => {
+                        EditError::DocParamCountHasNoDistribution { name: name.clone() }
+                    }
+                    DistributionRefusal::Invalid { fault } => distribution_fault_error(name, fault),
+                })?;
+            write_doc_param(&mut new, name, written)?
+        }
         DocEdit::Rebind { from, to } => {
             if from == to {
                 return Err(EditError::RebindIdentity { name: from.clone() });
@@ -2175,9 +2355,6 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if declare_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences { name: from.clone() });
             }
-            // A rebound mate head moves a reading edge, and a reading
-            // edge is what a cluster is made of.
-            reconcile = true;
             EditRecord {
                 minted: None,
                 // Declare payloads or blend selections changed:
@@ -2264,7 +2441,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::SetTolerance { eps } => {
-            if !(eps.is_finite() && *eps > 0.0) {
+            // The recorded ε's admission rule, by the one predicate the
+            // save/load validator also asks of a snapshot
+            // (`crate::doc::epsilon_admissible`).
+            if !crate::doc::epsilon_admissible(*eps) {
                 return Err(EditError::InvalidTolerance { value: *eps });
             }
             new.epsilon = *eps;
@@ -2284,6 +2464,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if !new.nodes.contains_key(&name.node) {
                 return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
             }
+            // D7's producer convention, by the one predicate
+            // `MetaValue::require_versioned`, which the save/load
+            // validator also calls. Only the WALK differs between the
+            // two doors, and irreducibly: this door holds the one value
+            // it is about to write, and the validator holds a map that
+            // arrived whole.
             if let Err(error) = value.require_versioned() {
                 return Err(EditError::MetaUnversioned {
                     name: name.clone(),
@@ -2338,22 +2524,29 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::SetPlacement { node, frame } => {
-            if !matches!(new.nodes.get(node), Some(Node::InstantiatePart { .. })) {
-                return Err(EditError::PlacementOnNonInstance { node: *node });
-            }
-            if !frame.is_finite() {
-                return Err(EditError::NonFinitePlacement { node: *node });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Err(EditError::ImproperPlacement {
-                    node: *node,
-                    determinant,
+            // A11's admission rule for a registry row, asked of the one
+            // predicate the load door's walk asks
+            // (`crate::doc::placement_fault`); this is the edit door's
+            // name for its answer.
+            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame) {
+                return Err(match fault {
+                    PlacementFault::NotAnInstance => {
+                        EditError::PlacementOnNonInstance { node: *node }
+                    }
+                    PlacementFault::NonFiniteFrame => EditError::NonFinitePlacement { node: *node },
+                    PlacementFault::ImproperFrame { determinant } => EditError::ImproperPlacement {
+                        node: *node,
+                        determinant,
+                    },
                 });
             }
             // A11: the record keys on the cluster, never the
             // instance. A singleton cluster's gauge IS the instance,
-            // so a mate-less document's registry is unchanged.
+            // so a mate-less document's registry is unchanged. This is
+            // also why no edit door asks the load door's GAUGE rule:
+            // the key is normalised here rather than refused, and the
+            // cluster maintenance re-keys the registry whenever the
+            // mate graph moves.
             let gauge = crate::mate::gauge_of(&new, *node);
             new.placements.insert(gauge, *frame);
             // Structural: a placement decides where the instance's
@@ -2435,14 +2628,15 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     })
 }
 
-/// A witness edit's site check: the node is live and sketch-bearing
-/// (Profile — the v1 sketch node kind; mates extend this at their
-/// milestone).
+/// A witness edit's site check: the store's key rule
+/// ([`crate::doc::witness_site_fault`], the same question the load
+/// door's walk asks of a file's store), rendered in this door's
+/// vocabulary.
 fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError> {
-    match doc.nodes.get(&id) {
-        None => Err(EditError::UnknownNode { id }),
-        Some(Node::Profile(_)) => Ok(()),
-        Some(_) => Err(EditError::WitnessOnNonSketch { node: id }),
+    match crate::doc::witness_site_fault(doc, id) {
+        None => Ok(()),
+        Some(WitnessSiteFault::NoSuchNode) => Err(EditError::UnknownNode { id }),
+        Some(WitnessSiteFault::NotSketchBearing) => Err(EditError::WitnessOnNonSketch { node: id }),
     }
 }
 
@@ -2530,5 +2724,79 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
             doc = apply(&doc, edit, tol)?.doc;
         }
         Ok(doc)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+
+    use super::DocEdit;
+    use crate::program::ProfileProgram;
+
+    /// **The mate-graph question is answered by the edit, not by the
+    /// arm that happens to remember.**
+    ///
+    /// `apply` re-keys the A11 registry after exactly the edits
+    /// [`DocEdit::moves_the_mate_graph`] answers `true` for, and that
+    /// re-keying is what makes `SnapshotError::PlacementNotGauge`
+    /// unreachable through the edit doors. This row names the four
+    /// that move it — the instance set, the mate set, a list input and
+    /// a rebound head — and names `SetPlacement` on the other side,
+    /// because that is the edit whose row the reconciliation re-keys
+    /// and the one a reader is most likely to expect here.
+    ///
+    /// A new arm cannot silently join the `false` side: the match has
+    /// no wildcard, so it stops compiling until it is classified. What
+    /// this row adds is that the four are classified CORRECTLY, which
+    /// the compiler cannot say.
+    #[test]
+    fn exactly_the_graph_moving_edits_ask_for_reconciliation() {
+        let id = crate::node::RecipeNodeId(1);
+        let moves: [DocEdit<ProfileProgram>; 4] = [
+            DocEdit::InsertNode {
+                node: crate::node::Node::Datum(crate::node::Datum::Point {
+                    position: [
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                    ],
+                }),
+            },
+            DocEdit::DeleteNode { id },
+            DocEdit::SetMembers {
+                node: id,
+                members: vec![],
+            },
+            DocEdit::Rebind {
+                from: crate::names::StableName {
+                    kind: crate::names::EntityKind::Face,
+                    node: id,
+                    path: vec![],
+                },
+                to: crate::names::StableName {
+                    kind: crate::names::EntityKind::Face,
+                    node: id,
+                    path: vec![],
+                },
+            },
+        ];
+        for edit in &moves {
+            assert!(
+                edit.moves_the_mate_graph(),
+                "{edit:?} changes the instance set, the mate set or a mate's head"
+            );
+        }
+        let keyed_on_the_gauge: DocEdit<ProfileProgram> = DocEdit::SetPlacement {
+            node: id,
+            frame: crate::placement::Frame::IDENTITY,
+        };
+        assert!(
+            !keyed_on_the_gauge.moves_the_mate_graph(),
+            "SetPlacement writes the registry the reconciliation re-keys; it moves no reading edge"
+        );
     }
 }

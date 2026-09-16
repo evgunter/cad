@@ -158,13 +158,7 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
 /// A mispaired `(doc, evaluation)` as the gather's own refusal — the
 /// one the memo path cannot inherit from a gather it does not reach.
 fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    product_err(
-        py,
-        &d::ProductError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        },
-    )
+    product_err(py, &m.into())
 }
 
 /// The product, with the stable names its entities answer to —
@@ -813,15 +807,9 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    evaluation.paired_with(doc).map_err(|m| {
-        assembly_err(
-            py,
-            &d::AssemblyError::Product(Box::new(d::ProductError::EvaluationOfAnotherDocument {
-                expected: m.expected,
-                found: m.found,
-            })),
-        )
-    })?;
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| assembly_err(py, &d::AssemblyError::Product(Box::new(m.into()))))?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
         .map_err(|err| assembly_err(py, &err))?;
