@@ -3030,8 +3030,6 @@ MEMBERS_BOUND_AS = {
     "PathError::DegenerateArcSpec": "PathError.variant",
     "PathError::CircleSplitCount": "PathError.variant",
     "PathError::PolygonTooFewVertices": "PathError.variant",
-    "PathError::ArcContinueNeedsArcCarrier": "PathError.variant",
-    "PathError::ArcContinueOffCarrier": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",
     "PathError::NonFiniteDirection": "PathError.variant",
     "PathError::UnderflowedDirection": "PathError.variant",
