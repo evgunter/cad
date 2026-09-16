@@ -78,3 +78,44 @@ miss their point on `main` are unchanged and filed as
 order dependence the spec asked to measure (a noise `t` above its
 entry, inside the box) did not occur over the corpus, so the
 determinant bound was not added.
+
+## Built (fix pass, 2026-09-16)
+
+Both reviews demonstrated that the box-entry guard refused genuine
+well-conditioned hits on axis-planar triangles (a fan cap loses 7% of
+interior hits; the service answers `cut_cylinder`'s wall beyond a rim
+vertex), so it is withdrawn. The exact test now (1) refuses a
+determinant that does not exceed the forward rounding-error bound of
+its own evaluation (`certified_determinant`, `3 · EPSILON · Σ|e1_i|·S_i`,
+derived from the operation count) and (2) takes `t` from the hit
+point `a + u·e1 + v·e2` projected onto the ray rather than from the
+quotient `e2·q / det`. (1) alone, the ruled mechanism, does not close
+the item's case: the ring's candidate has a determinant 31 times its
+bound, `u = v = 0` exactly, and a quotient that cancels to `1.476`
+for a true `t` of `1.480` — a genuine vertex graze with a wrong `t`,
+not noise; commit `d38bcbf1f` is that state with its red rows. With
+(2) the ring probe answers `1.48` to the bit, the early-out rows
+(`Pruned == Every`) are green on every landing, and no in-plane ray
+answers a point off its triangle (20 000 draws).
+
+Reviewer probes adopted as rows: `pick.rs`'s interior-hit rows in
+general position, on axis-planar triangles, on a fan cap and through
+the prism's cap; the closed boundaries pinned one ULP each way on an
+exactly-computed fixture; `review_pick_r2_probes` (cylinder vertex
+grazes, in-plane rays); `review_pick_r2` (the wide corpus aim, its
+tally pinned). `Walk::Reversed` deleted. `bvh`'s entry-bound row
+split into an enumerated witness table and a seedless-floor sweep,
+with magnitude and far-origin classes.
+
+Against `main`'s kernel, over the tie-break aim at every landing
+(36 948 rays): 1 681 answers moved to another face (exact ties the
+projection now decides by the documented tie-break, and the noise
+class), 33 moved on the same face by more than 1e-9, none between hit
+and miss, 5 692 by ULPs only; over the wide aim (441 126 rays):
+11 544 / 1 962 / 0 / 278 825. Residues filed:
+`pick-refuses-a-crossing-within-rounding-of-a-plane` (the
+mechanism's class, best conditioning refused 4.8e-16) and
+`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`
+(a certified-but-small determinant with uncertified `u`, `v`: 44
+winners on the tie aim, 203 on the wide aim — a ruling on the
+closed-boundary contract before a unit).
