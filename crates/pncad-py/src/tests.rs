@@ -5149,6 +5149,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_loop_vertex_with_emanating",
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
+            "instance_interference",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",

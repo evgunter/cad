@@ -284,7 +284,8 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &reporting_hook::<T>, tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_impl(body, &faces, band, &reporting_hook::<T>, tol)
 }
 
 /// **The lane-dispatched hook at the REPORTING level, one home**: the
@@ -728,7 +729,24 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_closed_form_of(body, &faces, band, tol)
+}
+
+/// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
+/// those faces bound, summed in the order given. The whole-body door
+/// is this one handed the face arena in arena order, so its answer is
+/// bit-for-bit the same (`face_list_door_tests` pins it); the
+/// point-in-solid door's per-solid entry hands it one solid's faces so
+/// a no-hit ray reads THAT solid's at-infinity side and not the
+/// body's total.
+pub(crate) fn mass_properties_closed_form_of<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -1239,12 +1257,12 @@ mod continuation_refusal_order_tests {
 /// neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
+    faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    let runs = decide_faces(&faces, |&face_key| {
+    let runs = decide_faces(faces, |&face_key| {
         face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
     })?;
     // The refusal arm is not dead, and it is not reachable from
@@ -3008,6 +3026,95 @@ mod recourse_tests {
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod face_list_door_tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// The closed-form corpus this module's pins are taken over: the
+    /// in-crate geometric prisms, alone and grafted into two-solid
+    /// arenas (the census's subject), all planar so the closed form
+    /// answers at every scalar.
+    fn corpus() -> Vec<(&'static str, Body<f64>)> {
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let unit = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
+        let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
+        let mut pair = unit.clone();
+        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        let mut trio = skew.clone();
+        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        vec![
+            ("unit", unit),
+            ("skew", skew),
+            ("tall", tall),
+            ("pair", pair),
+            ("trio", trio),
+        ]
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, recorded
+    /// before the face-list door existed (base `3f2336b21`): the door
+    /// became the face-list door handed the arena, and these are what
+    /// say it changed no number.
+    const PINNED: [(&str, u64, u64); 5] = [
+        ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
+        ("skew", 0x4001_0d4f_df3b_645a, 0x4026_2907_4669_5750),
+        ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
+        ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
+    ];
+
+    #[test]
+    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for ((name, body), (pin_name, volume, area)) in corpus().into_iter().zip(PINNED) {
+            assert_eq!(name, pin_name);
+            let whole = mass_properties_closed_form(&body, band, tol).unwrap();
+            assert_eq!(whole.volume.to_bits(), volume, "{name}: volume moved");
+            assert_eq!(whole.surface_area.to_bits(), area, "{name}: area moved");
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
+            assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
+            assert_eq!(
+                listed.surface_area.to_bits(),
+                whole.surface_area.to_bits(),
+                "{name}"
+            );
+        }
+    }
+
+    /// One solid's faces enclose that solid's volume, whichever other
+    /// solids share the arena: the per-solid read the point-in-solid
+    /// door's at-infinity fold depends on.
+    #[test]
+    fn a_solid_s_faces_enclose_that_solid_s_volume_in_a_shared_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        let (_, pair) = &bodies[3];
+        for (solid, _) in pair.solids() {
+            let faces: Vec<FaceKey> = pair
+                .faces()
+                .filter(|&(k, _)| {
+                    pair.get_face(k)
+                        .and_then(|d| pair.get_shell(d.shell))
+                        .is_some_and(|s| s.solid == solid)
+                })
+                .map(|(k, _)| k)
+                .collect();
+            assert_eq!(faces.len(), 6);
+            let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
+            // Both prisms of the pair are unit cubes.
+            assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
         }
     }
 }
