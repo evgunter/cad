@@ -244,32 +244,28 @@ fn flat_triangle(meshes: &[(usize, &Mesh)], target_pos: usize, flat: usize) -> [
     panic!("no flat triangle {flat} on target {target_pos}")
 }
 
-/// **The documented tie-break, restated over the exactly-tied hits**:
-/// the narrower `t` interval the door answers, then `(target
-/// position, flat triangle position)`. The oracle's exact arithmetic
-/// says WHICH hits tie; how wide each claim is, is the door's own
-/// answer and is read from it.
+/// **The documented tie-break over the exactly-tied hits**, through
+/// [`TSpan::best_of`] rather than a second spelling of it. The
+/// oracle's exact arithmetic says WHICH hits tie — that half stays
+/// deliberately independent of the door, which is the point of this
+/// file; how wide each claim is, and which of them wins, is the
+/// door's own answer and is read from it.
 fn tie_break_winner(
     tied: &[OracleHit],
     meshes: &[(usize, &Mesh)],
     ray: &Ray,
 ) -> (OracleHit, TSpan) {
-    tied.iter()
+    let mut rows: Vec<(OracleHit, TSpan)> = tied
+        .iter()
         .map(|h| {
             let tri = flat_triangle(meshes, h.target_pos, h.flat);
             let span = ray_triangle(ray, &tri).expect("an oracle hit is admitted by the door");
             (*h, span)
         })
-        .reduce(|(bh, bs), (ch, cs)| {
-            if cs.width() < bs.width()
-                || (cs.width() == bs.width() && (ch.target_pos, ch.flat) < (bh.target_pos, bh.flat))
-            {
-                (ch, cs)
-            } else {
-                (bh, bs)
-            }
-        })
-        .expect("at least one tied hit")
+        .collect();
+    rows.sort_by_key(|(h, _)| (h.target_pos, h.flat));
+    let spans: Vec<TSpan> = rows.iter().map(|&(_, s)| s).collect();
+    rows[TSpan::best_of(&spans).expect("at least one tied hit")]
 }
 
 fn oracle_winner(hits: &[OracleHit]) -> Option<OracleHit> {

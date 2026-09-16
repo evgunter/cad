@@ -54,37 +54,17 @@ fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
-/// `pick_face`'s answer over every triangle, restated: the candidates
-/// no other candidate PRECEDES, then the narrowest interval, then
-/// position.
+/// `pick_face`'s answer over every triangle: [`TSpan::best_of`]
+/// called, not restated — the triangles are offered in their own
+/// order, which is the position key the door reads last.
 fn nearest(tris: &[[Point3<f64>; 3]], ray: &Ray) -> Option<(f64, usize)> {
-    let mut lowest_hi = f64::INFINITY;
-    let mut undecided: Vec<(TSpan, usize)> = Vec::new();
-    for (i, tri) in tris.iter().enumerate() {
-        let Some(span) = ray_triangle(ray, tri) else {
-            continue;
-        };
-        if span.t_lo > lowest_hi {
-            continue;
-        }
-        if span.t_hi < lowest_hi {
-            lowest_hi = span.t_hi;
-            undecided.retain(|(s, _)| s.t_lo <= lowest_hi);
-        }
-        undecided.push((span, i));
-    }
-    undecided
-        .into_iter()
-        .reduce(|best, cand| {
-            if cand.0.width() < best.0.width()
-                || (cand.0.width() == best.0.width() && cand.1 < best.1)
-            {
-                cand
-            } else {
-                best
-            }
-        })
-        .map(|(span, i)| (span.t, i))
+    let hits: Vec<(TSpan, usize)> = tris
+        .iter()
+        .enumerate()
+        .filter_map(|(i, tri)| ray_triangle(ray, tri).map(|s| (s, i)))
+        .collect();
+    let spans: Vec<TSpan> = hits.iter().map(|&(s, _)| s).collect();
+    TSpan::best_of(&spans).map(|w| (hits[w].0.t, hits[w].1))
 }
 
 /// **Row 1.** Axis rays through every cap and rim vertex of real

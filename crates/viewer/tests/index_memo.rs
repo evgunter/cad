@@ -418,23 +418,6 @@ impl FlatHit {
     fn t(&self) -> f64 {
         self.span.t
     }
-
-    /// The hit's identity, as comparable bits.
-    fn key(hit: Option<Self>) -> Option<(usize, usize, u64)> {
-        hit.map(|h| (h.part, h.item, h.span.t.to_bits()))
-    }
-}
-
-/// How [`FlatReference::walk`] visits a part's candidates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Walk {
-    /// The tree's order, every candidate tested: the reference proper
-    /// ([`FlatReference::pick`]).
-    Every,
-    /// The tree's order with the service's early-out — the walk
-    /// `pick_face` runs — which may test fewer candidates and must
-    /// answer the same.
-    Pruned,
 }
 
 impl FlatReference {
@@ -468,53 +451,35 @@ impl FlatReference {
     /// The nearest hit and how many candidates the geometry could not
     /// order against it — the size of the certified tie, which is what
     /// says a ray of the tie-break row actually tied.
+    ///
+    /// EVERY candidate box the ray meets is tested: this is the
+    /// reference, and the service's early-out is what it is a
+    /// reference for. The order is not restated — the candidates are
+    /// offered to [`TSpan::best_of`] in `(part, flat position)` order,
+    /// which is the last key `pick_face` documents, and `best_of`
+    /// drops what `precedes` drops and breaks the certified tie.
     fn pick(&self, ray: &Ray) -> (Option<FlatHit>, usize) {
-        self.walk(ray, Walk::Every)
-    }
-
-    /// [`FlatReference::pick`] under a [`Walk`]. The order is
-    /// `pick_face`'s, restated rather than called: a candidate that
-    /// another candidate PRECEDES is out, and the survivors — pairwise
-    /// overlapping, so the geometry does not order them — fall to the
-    /// narrower interval and then to `(part, flat position)`.
-    fn walk(&self, ray: &Ray, walk: Walk) -> (Option<FlatHit>, usize) {
-        let mut lowest_hi = f64::INFINITY;
-        let mut undecided: Vec<FlatHit> = Vec::new();
+        let mut hits: Vec<FlatHit> = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
-            for cand in flat.tree.ray(ray) {
-                if walk == Walk::Pruned && lowest_hi < cand.t_enter {
-                    break;
-                }
-                let Some(span) = ray_triangle(ray, &flat.corners[cand.item]) else {
+            let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
+            items.sort_unstable();
+            for item in items {
+                let Some(span) = ray_triangle(ray, &flat.corners[item]) else {
                     continue;
                 };
-                if span.t_lo > lowest_hi {
-                    continue;
-                }
-                if span.t_hi < lowest_hi {
-                    lowest_hi = span.t_hi;
-                    undecided.retain(|h| h.span.t_lo <= lowest_hi);
-                }
-                let (patch, _) = flat.owner[cand.item];
-                undecided.push(FlatHit {
+                let (patch, _) = flat.owner[item];
+                hits.push(FlatHit {
                     part,
-                    item: cand.item,
+                    item,
                     patch,
                     span,
                 });
             }
         }
-        let tied = undecided.len();
-        let best = undecided.into_iter().reduce(|b, h| {
-            if h.span.width() < b.span.width()
-                || (h.span.width() == b.span.width() && (h.part, h.item) < (b.part, b.item))
-            {
-                h
-            } else {
-                b
-            }
-        });
-        (best, tied)
+        let spans: Vec<TSpan> = hits.iter().map(|h| h.span).collect();
+        let lowest_hi = spans.iter().map(|s| s.t_hi).fold(f64::INFINITY, f64::min);
+        let tied = spans.iter().filter(|s| s.t_lo <= lowest_hi).count();
+        (TSpan::best_of(&spans).map(|i| hits[i]), tied)
     }
 }
 
@@ -574,18 +539,13 @@ fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
     rays
 }
 
-/// The reference's answer to every ray, walked once, and two claims
+/// The reference's answer to every ray, walked once, and one claim
 /// about every answer it gives.
 ///
-/// **The early-out does not change the answer**: the reference walked
-/// with the service's early-out ([`Walk::Pruned`]) names the same
-/// triangle at the same `t` bits as the reference proper. The runtime
-/// value that reds this is a ray on which the pruned walk broke
-/// before a candidate that would have won: a near-tie the rounding of
-/// `t` decides (`pick_face`'s docs), or an acceptance that admits a
-/// barycentric outside `[0, 1]` and so places its hit point off the
-/// triangle, before the parameter at which the ray enters the
-/// triangle's own box.
+/// `Pruned == Every` is NOT here any more: it is a claim about the
+/// service's early-out, and it belongs where the service is called.
+/// `pick3_acceptance` pins it through `PickIndex::pick` against this
+/// same exhaustive walk, over the same landings.
 ///
 /// **No winner's barycentric carries a bound of `1` or more.** A
 /// value inside `[0, 1]` whose interval is that wide covers the range
@@ -605,13 +565,6 @@ fn reference_answers(
         .enumerate()
         .map(|(i, ray)| {
             let (expected, tied) = reference.pick(ray);
-            let (pruned, _) = reference.walk(ray, Walk::Pruned);
-            assert_eq!(
-                FlatHit::key(pruned),
-                FlatHit::key(expected),
-                "{name} after {step}: ray {i} ({ray:?}) answers {pruned:?} with the early-out and \
-                 {expected:?} over every candidate — the early-out changed the answer"
-            );
             if let Some(hit) = expected {
                 let tri = &reference.parts[hit.part].corners[hit.item];
                 let bounds = crossing(ray, tri)
