@@ -2,12 +2,13 @@
 id: debug-in-prose-residue-after-finding-sink
 kind: issue
 title: editor-core - remaining Debug-in-prose debt after the finding sink (D54's successor class)
-status: review
+status: closed
 opened: 2026-08-25
 github: 985
 refs: [984, 981]
 branch: edit/error-prose
 pr: 2719
+closed: 2026-09-16
 ---
 
 ## From GitHub issue 985
@@ -145,3 +146,9 @@ repaired here, so there is nothing to re-open; the instructive part is
 that the census could not have disagreed with that sweep — `Dimension`
 is fieldless, so the site's verdict is `Prose`. Recorded as evidence on
 `work/census/prose-census-cannot-see-a-bypassed-prose-renderer`.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2719 on green CI (run 35047419997, full matrix) and the
+orchestrator's read. Residue is in its own files, named in the Built
+section above.

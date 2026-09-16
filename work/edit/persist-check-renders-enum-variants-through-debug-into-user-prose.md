@@ -2,10 +2,11 @@
 id: persist-check-renders-enum-variants-through-debug-into-user-prose
 kind: issue
 title: persist/check.rs writes {arg:?} and {slot:?} into user-facing sentences, so a variant identifier reaches the reader
-status: review
+status: closed
 opened: 2026-09-15
 branch: edit/error-prose
 pr: 2719
+closed: 2026-09-16
 ---
 
 
@@ -136,3 +137,9 @@ deciding a question settled the other way beside the code.
 Landed with the other four `SlotId` sites in `editor-core` —
 `EditError` (six arms), `ProgramRefusal`, `resolve::Diagnosis` — under
 `debug-in-prose-residue-after-finding-sink`.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2719 on green CI (run 35047419997, full matrix) and the
+orchestrator's read. Residue is in its own files, named in the Built
+section above.

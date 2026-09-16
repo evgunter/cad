@@ -2,10 +2,11 @@
 id: assembly-mint-spells-the-entity-kind-refusal-a-seventh-way
 kind: issue
 title: The mate mint's NotAFace is a seventh spelling of the entity-kind refusal, invisible to the entity door's census
-status: review
+status: closed
 opened: 2026-09-13
 branch: edit/error-prose
 pr: 2719
+closed: 2026-09-16
 ---
 
 
@@ -100,3 +101,9 @@ One more `NotAFace` sits on a third road and is deliberately untouched:
 rendered name, not a kind — so it answers a different question and the
 word `found` would not fit it. It is not an eighth spelling of this
 answer; it is a different answer.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2719 on green CI (run 35047419997, full matrix) and the
+orchestrator's read. Residue is in its own files, named in the Built
+section above.
