@@ -75,6 +75,14 @@ mod bool3_torus_doors;
 mod bool3_torus_doors_interval;
 #[path = "bool5r2_wedge_reach.rs"]
 mod bool5r2_wedge_reach;
+#[path = "bool6_per_slab_stacking.rs"]
+mod bool6_per_slab_stacking;
+#[path = "bool6_r2_probes.rs"]
+mod bool6_r2_probes;
+#[path = "bool6r1_probes.rs"]
+mod bool6r1_probes;
+#[path = "bool6r1_probes_interval.rs"]
+mod bool6r1_probes_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
