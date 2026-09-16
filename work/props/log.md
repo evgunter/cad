@@ -1285,3 +1285,115 @@ amendment folds in as the trap to avoid rather than a deliverable. The
 dispatch carries this machine's build-mutex rules, which the
 orchestrator's earlier briefs omitted, and tells the lane to expect to
 lose the slot and let hosted CI be the record.
+
+**Band-doors in review (2026-09-15).** PR #2729 at `08262efef` (run
+35057977716 green, nothing narrowed), an E rider: single style review,
+no ordinal, no A/B row. The lane did three things worth the record
+before its review even starts. It re-derived the collapse arithmetic
+instead of quoting the item and found the item's own amendment off by
+one tie case, correcting it in place with a sharp bound (ε ≤ 2⁻¹⁰²³,
+both endpoints pinned as rows). It found a THIRD reachable arm in
+`angular_at` that neither the item nor the spec named — θ = ε/arm
+underflowing to zero, which wants the arm fixed rather than ε. And it
+REFUTED part of the orchestrator's ruling with evidence: one of the
+sites the ruling counted takes K as a deliberate parameter, so
+converting it would make the row follow the run's K and destroy what it
+asserts. That refutation is right on its face and the review lane
+adjudicates it; a ruling pushed back on with evidence is a finding, not
+a deviation, and this is the shape that should happen more often. Two
+further sites were found by its sweep, so five converted rather than
+four. Argument order `(tol, eps)` against the spec's `(eps, tol)`, for
+consistency with every other tolerance-coupled constructor.
+
+**REST works where GraphQL refuses (2026-09-15).** `gh pr create` and
+`gh pr merge` have been failing all session with "API rate limit
+already exceeded for user ID …" while `gh api rate_limit` reports the
+full quota — a secondary content-creation limit, not the documented
+one, on an account many sessions share. The band-doors lane found that
+`gh api repos/<o>/<r>/pulls -X POST` and
+`gh api -X PUT …/pulls/<n>/merge` go through unaffected. Recorded here
+because every lane on this machine will hit it.
+
+**Band-doors review adjudicated (2026-09-15).** Single style review,
+APPROVE-WITH-FIXES, no MAJOR, rubric 4/3/3. Every load-bearing claim
+survived independent execution: the tie analysis and the sharp
+ε ≤ 2⁻¹⁰²³ boundary (the reviewer added an exhaustive scan of both ends
+of every normal binade — no normal ε collapses), the third arm at
+ε = 1e-16 with the largest arm, the sweep's count and, probed rather
+than accepted, its declared blind spot, which hides nothing.
+**The lane's refutation is upheld and the orchestrator's ruling is
+withdrawn**: the reviewer found the conversion would break that row TWO
+ways, the band and the adversarial vector being built from the same
+`k`, so converting only the band decouples them on top of making the
+"at K = 1.2" claim follow the run's K. A ruling pushed back on with
+evidence, confirmed by a third party — the shape the review lane exists
+for.
+
+The sharpest finding is the unit's own defect class: the derivation now
+has THREE homes (the door's `# Errors` and two editor-core variant
+docs), none naming the others, and the class has already drifted once —
+the item's amendment carried the wrong boundary while both editor-core
+copies carried the right one. The fix for a doc duplication minted a
+third copy, which is CLAUDE.md's standing warning about structural
+fixes, caught here by the reader who did not write it. Fix pass
+dispatched with ten items, including one home for the derivation, the
+retirement of the now-byte-identical private helper, and a ruling
+against the reviewer on the door's NAME: `_at` is right because
+`offset_fit`'s module doc already fixes that suffix to mean an
+instrument rather than a door — which carries the obligation to weigh
+`#[doc(hidden)]` on the same precedent, since all five consumers are
+suites pinning a chosen ε.
+
+**Affine-try-map in review (2026-09-16).** PR #2743 at `b8a316ede`
+(run 35067530064 green, 35 jobs, nothing narrowed), the second E rider.
+The kernel now owns the fallible twelve-component walk it lacked:
+`try_map` at `Vec3`, `Mat3`, `Affine3` and `SketchPlane`, with `map`
+respelled as `try_map` over `Infallible` rather than kept as a second
+body — the lane's reason being that two bodies would move the walk from
+two copies with two owners to two copies with one, the same defect
+smaller. `editor-core`'s private `map_affine` is retired and
+`pinned_plane` routed through the door, by the announced seam both
+items permit.
+
+The part worth the record is what the lane's own mutation test caught.
+Its lifting row first read the lifted channels back through `map`, so a
+`c0`/`c1` swap in the walk was re-applied by the readout and CANCELLED:
+the row PASSED under the mutation it was written to catch. The lane
+found that, fixed the row to read through a hand-written third
+spelling, and wrote the lesson into the row's doc. A test that cannot
+fail for the reason it is named after is the style lane's Q3, caught
+here by the author rather than the reviewer, which is the cheaper place
+to catch it. Two findings that were not this unit's deliverables were
+filed rather than folded in — one new, one APPENDED to the row whose
+subject it already was, with a correction to that row's own site list.
+
+**Sphere-pole-side dual dispatched (2026-09-16).** PR #2741 at
+`53a9bee9e` (run 35068825589 green, 36 checks). Ordinal 2406, byte 86
+parity 0 ⇒ R1 opus / R2 fable, concurrent on the frozen head, briefs
+stored with sha256 before dispatch. What the unit delivered, for the
+record before its review lands: the rim-only cap measures
+`2πR²(1 ∓ sin v₀)` at `rel < 1e-12` and certifies at all three tiers
+through the public doors against `πh²(3R − h)/3` with both pads zero;
+the half-cap's complement refuses `props_rim_interior_side` while its
+partner still measures exactly, and which of the pair refuses is the
+sense bit's call, pinned both ways round; the three-face sphere whose
+face C is a rim-only cap now reports `4π/3` where the two-face split
+reported `0.0`; `Rim`'s duplicated direction is retired outright, which
+closes half the cycle-order row, and the anchoring-invariance row the
+spec's amendment demanded is green — the new predicate's recorded signs
+do not move under a re-anchoring.
+
+Three things the unit reported that the spec had wrong or left open,
+all disclosed rather than quietly absorbed. **The die's pips were never
+the rim-only shape** — a pip ball is revolved, so it carries a seam
+meridian and its cap has a meridian's levels; there was no
+quadrature-to-closed-form flip to pin, and the public-door evidence was
+built in `topo` instead. **The cone apex sibling is not the same change**
+— no second candidate for the missing extreme, and `fn cone` takes no
+sense bit — so it is measured and filed rather than served. And the
+**`boundary_material_sign` deviation**: the spec said that arm should
+take the predicate; the unit argues it cannot, because check 6 compares
+the boundary's encoding against the sense bit and σ reads that bit, so
+the comparison would become a tautology. That argument is the first
+thing both reviewers are told to adjudicate, and it is the one place
+the spec is not treated as settled.
