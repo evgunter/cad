@@ -392,6 +392,8 @@ mod perf12_census_bvh_diff;
 mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
+#[path = "pick3_early_out.rs"]
+mod pick3_early_out;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]

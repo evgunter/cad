@@ -1368,27 +1368,33 @@ pub struct PickHit {
 /// `t_lo ≤ min_j t_hi(j)`, any two such candidates overlap each other,
 /// and width-then-position orders that set totally.
 ///
-/// **The answer is that minimum over every candidate's exact test.**
+/// **The answer is that winner over every candidate's exact test.**
 /// Each test reads the ray and the triangle alone, and a ray in a
 /// triangle's plane refuses at the determinant ([`ray_triangle`])
 /// rather than answering a noise `t`, so no candidate's answer
-/// depends on which candidates were visited before it. The traversal
-/// early-outs on [`bvh::RayCandidate::t_enter`] for cost: candidates
-/// are visited in ascending `t_enter` ([`MeshPick::candidates`], the
-/// single-tree sequence), the clamp puts every answered point ON its
-/// own triangle and so inside that triangle's box, and a point of a
-/// box has parameter at least the box's entry — so once the smallest
-/// `t_hi` seen is strictly below a candidate's `t_enter`, every
-/// remaining candidate's true parameter exceeds it and nothing
-/// further can win in exact arithmetic. In `f64` `t_enter` is itself
-/// rounded (an axis-planar triangle's box has zero extent along one
-/// axis, so the entry IS the hit's parameter everywhere on it), so
-/// the early-out can break before a candidate whose interval would
-/// have reached back into the tie by ULPs: the tie-rounding class of
-/// the closed acceptance
-/// (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding.md`),
-/// which decides among triangles sharing a point, never between a
-/// hit and a miss. A poisoned/NaN ray is legal input: the tree
+/// depends on which candidates were visited before it.
+///
+/// **The early-out prunes nothing the set rule keeps** — the
+/// invariant, and the whole of what the box is allowed to decide.
+/// The traversal skips a candidate, without evaluating its crossing,
+/// when `lowest_hi < t_enter − margin` for the margin
+/// [`early_out_margin`] derives from that candidate's own triangle
+/// and the ray. Four lines:
+///
+/// 1. `margin` bounds `t_enter − t_lo` for EVERY admitted candidate
+///    of that triangle (`early_out_margin`, term by term).
+/// 2. So the skip fires only where `lowest_hi < t_lo`, which is
+///    `precedes`: the candidate holding `lowest_hi` precedes this
+///    one, and [`TSpan::best_of`] drops it.
+/// 3. A skipped candidate could not have lowered `lowest_hi` either,
+///    since `t_hi ≥ t_lo > lowest_hi`.
+/// 4. So the set of survivors, and the winner over it, are what an
+///    exhaustive walk of every candidate answers. `Pruned == Every`.
+///
+/// The margin's leading term is the triangle's own extent along the
+/// ray, twice, so the skip still fires for every candidate whose box
+/// is more than its own diameter behind the running bound — which is
+/// where the cost was. A poisoned/NaN ray is legal input: the tree
 /// returns everything, every exact test misses, and the answer is
 /// the typed miss.
 ///
@@ -1446,17 +1452,19 @@ pub fn pick_face<T: Decide>(
     let mut undecided: Vec<Cand> = Vec::new();
     for (target_pos, target) in targets.iter().enumerate() {
         for cand in target.pick.candidates(ray) {
-            if lowest_hi < cand.t_enter {
-                // Candidates ascend in t_enter, a lower bound on any
-                // true hit in their box: nothing further can improve
-                // beyond the rounding of a near-tie (docs).
-                break;
-            }
             let Some((tri, face)) = target.pick.triangle(&cand) else {
                 // Unreachable: the trees were built over exactly the
                 // patches' triangles.
                 continue;
             };
+            if lowest_hi < cand.t_enter - early_out_margin(ray, &tri.corners) {
+                // This candidate's interval cannot reach back to the
+                // running bound, so the candidate holding that bound
+                // precedes it and the set rule drops it: skipping the
+                // crossing is a cost saving that changes no answer
+                // ([`early_out_margin`], where the bound is derived).
+                continue;
+            }
             if let Some(span) = ray_triangle(ray, &tri.corners) {
                 if span.t_lo > lowest_hi {
                     // Preceded by the candidate holding `lowest_hi`.
@@ -1478,25 +1486,14 @@ pub fn pick_face<T: Decide>(
         }
     }
 
-    // The certified tie's own order: the narrower interval, then
-    // position. Total, so the fold does not depend on the order the
-    // survivors were met in (docs).
-    let mut best: Option<Cand> = None;
-    for cand in undecided {
-        let better = match &best {
-            None => true,
-            Some(b) => {
-                cand.span.width() < b.span.width()
-                    || (cand.span.width() == b.span.width()
-                        && (cand.target_pos, cand.tri_pos) < (b.target_pos, b.tri_pos))
-            }
-        };
-        if better {
-            best = Some(cand);
-        }
-    }
-
-    let Some(win) = best else {
+    // The certified tie's own order, in its one spelling
+    // ([`TSpan::best_of`]): the narrower interval, then position. The
+    // survivors are offered in `(target position, flat triangle
+    // position)` order because that is the door's documented last key
+    // and `best_of` reads the slice's own order as it.
+    undecided.sort_unstable_by_key(|c| (c.target_pos, c.tri_pos));
+    let spans: Vec<TSpan> = undecided.iter().map(|c| c.span).collect();
+    let Some(win) = TSpan::best_of(&spans).map(|i| &undecided[i]) else {
         return Ok(None); // the typed miss
     };
     let name = entity_name(
@@ -1573,15 +1570,7 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<TSpan> {
     let [(u, err_u), (v, err_v), _] = barycentrics;
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
-    // **The clamp**: the nearest point of the CLOSED triangle to the
-    // admitted barycentrics, as the per-coordinate projection onto the
-    // simplex — `u` into `[0, 1]`, then `v` into `[0, 1 − u]` with the
-    // clamped `u`. It is what makes the answered point a point OF the
-    // triangle whatever the acceptance admitted, and it never moves an
-    // admitted point farther from a true crossing that is itself on
-    // the triangle ([`t_span`], where the width is derived).
-    let u = u.clamp(0.0, 1.0);
-    let v = v.clamp(0.0, 1.0 - u);
+    let (u, v) = retract_to_simplex(u, v);
     // The parameter of the hit POINT `a + u·e1 + v·e2` along the ray,
     // not Möller–Trumbore's `e2·q / det`: the quotient cancels
     // catastrophically when the determinant is small (a ray grazing
@@ -1591,6 +1580,32 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<TSpan> {
     let forward_and_finite =
         span.t >= 0.0 && span.t.is_finite() && span.t_lo.is_finite() && span.t_hi.is_finite();
     forward_and_finite.then_some(span)
+}
+
+/// **The clamp**: the per-coordinate RETRACTION onto the simplex —
+/// `u` into `[0, 1]`, then `v` into `[0, 1 − u]` with the clamped `u`.
+///
+/// It fixes every point of the simplex, which is all [`t_span`]'s
+/// width derivation needs, and it is NOT the metric projection onto
+/// the closed triangle: `(u, v) = (1, 1)` retracts to the corner
+/// `(1, 0)`, while the nearest point of the triangle is `(0.5, 0.5)`.
+/// It is what makes the answered point a point OF the triangle
+/// whatever the acceptance admitted, and it never moves an admitted
+/// point farther from a true crossing that is itself on the triangle.
+///
+/// `1 − u` is the EXACT bound here, not `fl(1 − u)`: for `u ≥ 0.5` the
+/// subtraction is exact (Sterbenz), and for `u < 0.5` it can round UP
+/// by half an ulp — at `u = 2⁻⁵⁴` it rounds to `1` — and admit a `v`
+/// with `u + v > 1`, a point `2⁻⁵⁴·|e2|` off the triangle, which
+/// would cost the sentence above its "OF". `1 − top < u` detects
+/// exactly that case: when `top ≥ 0.5` that test is itself exact by
+/// Sterbenz, and when `top < 0.5` then `u > 0.5`, so `top` was exact
+/// and the test correctly declines.
+fn retract_to_simplex(u: f64, v: f64) -> (f64, f64) {
+    let u = u.clamp(0.0, 1.0);
+    let top = 1.0 - u;
+    let top = if 1.0 - top < u { top.next_down() } else { top };
+    (u, v.clamp(0.0, top))
 }
 
 /// One admitted hit's parameter along the ray, as an INTERVAL.
@@ -1631,6 +1646,38 @@ impl TSpan {
     pub fn precedes(&self, other: &Self) -> bool {
         self.t_hi < other.t_lo
     }
+
+    /// **The certified tie's winner**: the position in `spans` of the
+    /// hit the door answers, or `None` for an empty slice. THE one
+    /// spelling of the rule — [`pick_face`] calls it, and so does
+    /// every reference loop and probe that pins it, so no row can pass
+    /// by agreeing with a second copy of the door.
+    ///
+    /// The rule, in three lines: a span some other span
+    /// [`precedes`](TSpan::precedes) is out; the survivors are exactly
+    /// those with `t_lo ≤ min_j t_hi(j)`, they pairwise overlap, and
+    /// so they are ONE certified tie; that tie is decided by the
+    /// narrower interval and, at equal width, by the EARLIER position
+    /// in `spans`. Total, so the answer is a function of the set and
+    /// not of the order the candidates were met in.
+    ///
+    /// **The caller owns what position means.** This reads the slice's
+    /// own order as the tie-break's last key, so a caller whose
+    /// documented order is `(target position, flat triangle position)`
+    /// offers the spans in that order ([`pick_face`] sorts its
+    /// survivors before it calls).
+    pub fn best_of(spans: &[Self]) -> Option<usize> {
+        let lowest_hi = spans.iter().map(|s| s.t_hi).fold(f64::INFINITY, f64::min);
+        (0..spans.len())
+            .filter(|&i| spans[i].t_lo <= lowest_hi)
+            .reduce(|best, i| {
+                if spans[i].width() < spans[best].width() {
+                    i
+                } else {
+                    best
+                }
+            })
+    }
 }
 
 /// The hit point's parameter along the ray WITH the width the
@@ -1645,8 +1692,11 @@ impl TSpan {
 ///
 /// **The barycentrics' own bounds, projected.** [`crossing`] bounds
 /// `|ũ − u|` by `err_u` and `|ṽ − v|` by `err_v`. The clamp
-/// [`ray_triangle`] applies is the per-coordinate projection onto the
-/// simplex, which fixes every point of the simplex, so a true `(u, v)`
+/// [`ray_triangle`] applies is the per-coordinate RETRACTION onto the
+/// simplex — not the metric projection onto the closed triangle,
+/// which would move `(1, 1)` to `(0.5, 0.5)` where this moves it to
+/// the corner `(1, 0)`. What the derivation needs is only that it
+/// fixes every point of the simplex, so a true `(u, v)`
 /// ON the triangle survives it: `|u_c − u| ≤ err_u` directly, and
 /// `|v_c − v| ≤ max(err_u, err_v)` because `v`'s admissible range
 /// `[0, 1 − u_c]` moves with the clamped `u` — where the clamp pushes
@@ -1660,8 +1710,21 @@ impl TSpan {
 /// the magnitude sum that constant's derivation counts.
 ///
 /// Both ends are then rounded OUTWARD by one ulp ([`f64::next_down`],
-/// [`f64::next_up`]), which covers the single rounding of the addition
-/// that forms them.
+/// [`f64::next_up`]), which covers the two roundings that form them —
+/// `fl(from_barycentrics + from_rounding)` and `fl(t ∓ half)` — since
+/// one ulp of the result is at least twice either's half-ulp.
+///
+/// # What it is NOT true of
+///
+/// The interval is centred on the CLAMPED point's parameter. When the
+/// exact crossing is off the closed triangle, that point is not it,
+/// and the enclosure claim above does not apply — nor should it: the
+/// door answers a point of the triangle. Under the closed acceptance
+/// the two are within the clamp's own step of each other, since every
+/// admitted `u` is already in `[0, 1]` and every admitted
+/// `fl(u + v)` is at most `1`, so the retraction can move `v` only
+/// across the half-ulp between `fl(u + v) ≤ 1` and `u + v > 1` — at
+/// most `2⁻⁵³·|e2|` of hit point, below the interval's own width.
 fn t_span(
     ray: &Ray,
     a: Point3<f64>,
@@ -1687,6 +1750,82 @@ fn t_span(
         t_hi: (t + half).next_up(),
     }
 }
+
+/// **How far below its own box's entry a candidate's interval can
+/// reach** — the traversal's early-out bound, derived HERE from the
+/// candidate's triangle and the ray alone, with every term counted.
+///
+/// [`pick_face`] drops a candidate without evaluating [`crossing`]
+/// when `lowest_hi < t_enter − margin`. That is sound exactly when
+/// `t_lo ≥ t_enter − margin` for every admitted candidate of this
+/// triangle, which is what this function returns a bound for. Writing
+/// `p` for the answered (clamped) point, `p'` for the entry point the
+/// tree reports and `t(·)` for `(· − o)·d / (d·d)`:
+///
+/// - **the box's own spread**, `t_enter − t(p) ≤ diag(box)/|d|`.
+///   [`bvh::RayCandidate::t_enter`] is a lower bound on the parameter
+///   at which the ray ENTERS the box, and `p` is a point of the
+///   triangle and so of the box, but a point of a box can project
+///   before the ray's entry — by at most the projection's spread over
+///   the box, `|x − y|/|d| ≤ diag(box)/|d|`. The box is the exact hull
+///   of the three corners ([`PickTable`]), so componentwise
+///   `diag_i ≤ |e1_i| + |e2_i|` and `diag ≤ |e1| + |e2|`.
+/// - **the interval's own half-width**, `t(p) − t_lo ≤ half + ulp`,
+///   with `half = from_barycentrics + from_rounding` ([`t_span`]) and
+///   one ulp for the outward [`f64::next_down`]. An admitted
+///   barycentric has `err < 1` — [`admits`] refuses `x − err > 0` and
+///   `x + err < 1` alike once `err ≥ 1` — so `t_span`'s
+///   `err_u·|e1| + max(err_u, err_v)·|e2|` is at most `|e1| + |e2|`
+///   TERM BY TERM, and correct rounding is monotone, so the computed
+///   `from_barycentrics` never exceeds the computed
+///   `(|e1| + |e2|)/|d|` below. The same monotonicity covers
+///   `from_rounding`: `|e1_i·u| ≤ |e1_i|` and `|e2_i·v| ≤ |e2_i|` for
+///   clamped `u, v ∈ [0, 1]`, and `m` below is `t_span`'s own sum with
+///   those substitutions and the same association.
+/// - **this evaluation's own rounding**, `t(p) − t ≤ from_rounding`
+///   again ([`PROJECTION_ERROR_UNITS`]).
+///
+/// So the exact deficit is at most `2·(|e1| + |e2|)/|d|` plus
+/// `2·from_rounding` plus the `next_down` ulp, and
+/// [`EARLY_OUT_ERROR_UNITS`] and [`EARLY_OUT_SLACK_UNITS`] carry the
+/// last two. No tolerance and no chosen factor: the leading term is
+/// the triangle's own extent, twice.
+fn early_out_margin(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
+    let a = tri[0];
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    let o = ray.origin;
+    let d = ray.dir;
+    let dd = d.dot(d);
+    let m = (a.x.abs() + e1.x.abs() + e2.x.abs() + o.x.abs()) * d.x.abs()
+        + (a.y.abs() + e1.y.abs() + e2.y.abs() + o.y.abs()) * d.y.abs()
+        + (a.z.abs() + e1.z.abs() + e2.z.abs() + o.z.abs()) * d.z.abs();
+    let raw = 2.0 * ((e1.norm() + e2.norm()) / d.norm())
+        + EARLY_OUT_ERROR_UNITS * f64::EPSILON * m / dd;
+    raw * (1.0 + EARLY_OUT_SLACK_UNITS * f64::EPSILON)
+}
+
+/// The early-out margin's rounding constant, in units of
+/// `f64::EPSILON` and counted the way its siblings are: TWICE
+/// [`PROJECTION_ERROR_UNITS`], once for the half-width's own
+/// `from_rounding` and once for `|t(p) − t|`, plus ONE unit for the
+/// outward [`f64::next_down`], whose step is at most
+/// `EPSILON·|t − half|` and whose `|t|` part is at most
+/// `EPSILON·m/(d·d)`. `2·8 + 1 = 17`. Not a tuned number: change
+/// [`t_span`] and re-count.
+const EARLY_OUT_ERROR_UNITS: f64 = 17.0;
+
+/// The early-out margin's relative slack, same units. It carries the
+/// three things the term-by-term monotonicity above does not:
+/// the `next_down` step's remaining part (`EPSILON·half`, at most
+/// `2u` of the margin), the final addition and the widening multiply
+/// (`u` each), and the margin's own evaluation of
+/// `2·(|e1| + |e2|)/|d|` — two `norm`s (`γ₃/2 + u` each, the dot's
+/// three products and two sums under a square root), one sum, one
+/// division, `< γ₈ < 8.1u` relative. `16 · EPSILON = 32u` clears
+/// `13u` with a 2.4× margin. Not a tuned number: change the
+/// expression and re-count.
+const EARLY_OUT_SLACK_UNITS: f64 = 16.0;
 
 /// Everything the arithmetic can certify about one ray/triangle
 /// crossing, from one evaluation of it: the answer [`crossing`] gives
@@ -1867,7 +2006,13 @@ const SUM_ERROR_UNITS: f64 = 0.5;
 /// So the whole is `≤ (γ_7 + γ_3 + u)/(1 − γ_3) · M/(d·d) < 11.2·u`
 /// of `M/(d·d)`, and `8 · EPSILON = 16·u` clears it with a `1.4×`
 /// margin — which also covers `M`'s own evaluation (≤ 8 roundings per
-/// term). Not a tuned number: change the arithmetic and re-count.
+/// term). The cross term `γ_3γ_4` dropped from the third bullet is
+/// below `u²·13`, immaterial beside the `4.8·u` the margin leaves
+/// spare. The barycentrics' own roundings are NOT here: `err_u` and
+/// `err_v` are forward bounds on `ũ` and `ṽ` themselves
+/// ([`quotient`]), and [`t_span`] carries them through `|e1|` and
+/// `|e2|` as a separate term. Not a tuned number: change the
+/// arithmetic and re-count.
 const PROJECTION_ERROR_UNITS: f64 = 8.0;
 
 /// The quotient's constant, same units and same style: `fl(1/D̃)` and
@@ -1906,7 +2051,7 @@ mod tests {
     //! differential, which only ever drives the arms a successful
     //! build takes.
 
-    use bvh::{Aabb, Bvh, Ray};
+    use bvh::Ray;
     use geom_core::{Point2, Point3, Tol, Vec3};
     use mesh::tessellate_with;
     use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
@@ -1914,7 +2059,10 @@ mod tests {
     use test_utils::fuzz;
     use topo::Body;
 
-    use super::{MeshPick, MeshPickError, PickMemo, PickTable, TSpan, crossing, ray_triangle};
+    use super::{
+        MeshPick, MeshPickError, PickMemo, PickTable, TSpan, crossing, ray_triangle,
+        retract_to_simplex,
+    };
 
     fn unit_prism() -> Body<f64> {
         let square = ProfileLoop::polygon([
@@ -2667,134 +2815,19 @@ mod tests {
         }
     }
 
-    /// How a walk over the admitted candidates picks its winner: the
-    /// door's rule, and the three mutants a row here reds. **Each
-    /// reads the REAL [`TSpan`] the door answered** — only the
-    /// comparison moves, so no row here can pass by agreeing with a
-    /// second spelling of the door.
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    enum Order {
-        /// The door's: drop every candidate some other candidate
-        /// PRECEDES, then the narrower interval, then position.
-        Exact,
-        /// The rounded `t` alone, as the door compared before it
-        /// answered an interval: `(t, position)` lexicographically.
-        RoundedT,
-        /// The tie-break swapped: the WIDER interval first.
-        WiderFirst,
-        /// `precedes`-then-narrower applied PAIRWISE, in the order the
-        /// candidates arrive — the reading the door's docs reject.
-        PairwiseFold,
-    }
-
-    /// The position of `spans`' winner under `order`.
-    fn winner_under(order: Order, spans: &[TSpan]) -> Option<usize> {
-        if spans.is_empty() {
-            return None;
-        }
-        if order == Order::RoundedT {
-            return (0..spans.len()).min_by(|&i, &j| {
-                (spans[i].t, i)
-                    .partial_cmp(&(spans[j].t, j))
-                    .expect("no admitted span has a NaN t")
-            });
-        }
-        if order == Order::PairwiseFold {
-            return (0..spans.len()).reduce(|b, i| {
-                let (cand, best) = (&spans[i], &spans[b]);
-                let better = cand.precedes(best)
-                    || (!best.precedes(cand)
-                        && (cand.width() < best.width()
-                            || (cand.width() == best.width() && i < b)));
-                if better { i } else { b }
-            });
-        }
-        let lowest_hi = spans.iter().map(|s| s.t_hi).fold(f64::INFINITY, f64::min);
-        let surviving: Vec<usize> = (0..spans.len())
-            .filter(|&i| spans[i].t_lo <= lowest_hi)
-            .collect();
-        surviving.into_iter().reduce(|b, i| {
-            let (cand, best) = (&spans[i], &spans[b]);
-            let ahead = if order == Order::WiderFirst {
-                cand.width() > best.width()
-            } else {
-                cand.width() < best.width()
-            };
-            if ahead || (cand.width() == best.width() && i < b) {
-                i
-            } else {
-                b
-            }
-        })
-    }
-
-    /// What a walk's early-out compares against the next candidate's
-    /// box entry.
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    enum Break {
-        /// The door's: the smallest UPPER end seen.
-        Upper,
-        /// The smallest ROUNDED `t` seen — the bound the door
-        /// compared before it answered an interval.
-        Rounded,
-        /// No early-out at all: every candidate tested.
-        Never,
-    }
-
-    /// The traversal [`pick_face`] runs, restated over a tree this row
-    /// builds: candidates in ascending `t_enter`, `brk` deciding when
-    /// to stop, `order` deciding the winner. Answers the winning
-    /// triangle's position.
-    fn walk_under(
-        tris: &[[Point3<f64>; 3]],
-        tree: &Bvh,
-        ray: &Ray,
-        order: Order,
-        brk: Break,
-    ) -> Option<usize> {
-        let mut bound = f64::INFINITY;
-        let mut seen: Vec<(usize, TSpan)> = Vec::new();
-        for cand in tree.ray(ray) {
-            if brk != Break::Never && bound < cand.t_enter {
-                break;
-            }
-            let Some(span) = ray_triangle(ray, &tris[cand.item]) else {
-                continue;
-            };
-            bound = bound.min(match brk {
-                Break::Rounded => span.t,
-                _ => span.t_hi,
-            });
-            seen.push((cand.item, span));
-        }
-        let spans: Vec<TSpan> = seen.iter().map(|&(_, span)| span).collect();
-        winner_under(order, &spans).map(|i| seen[i].0)
-    }
-
-    /// A tree over `tris`' exact corner hulls, as [`PickTable`] builds
-    /// one.
-    fn tree_over(tris: &[[Point3<f64>; 3]]) -> Bvh {
-        let boxes: Vec<Aabb> = tris
-            .iter()
-            .map(|c| Aabb::from_points(*c).expect("three points box"))
-            .collect();
-        Bvh::build(&boxes)
-    }
-
-    /// **The certified order is a rule about the SET, and the pairwise
-    /// reading of it is not deterministic.** `precedes` is a strict
-    /// partial order, not a total one, and "A precedes B, else the
-    /// narrower wins" compared pairwise has three-cycles: `[−5, 0]`
-    /// precedes `[1, 2.5]`, which is narrower than `[−0.5, 1.5]`, which
-    /// is narrower than `[−5, 0]`. A fold over that relation answers
-    /// whichever candidate the traversal met first, which is exactly
-    /// the order-dependence the door's determinism contract forbids.
+    /// **The certified order is a rule about the SET.** `precedes` is a
+    /// strict partial order, not a total one, and "A precedes B, else
+    /// the narrower wins" compared pairwise has three-cycles:
+    /// `[−5, 0]` precedes `[1, 2.5]`, which is narrower than
+    /// `[−0.5, 1.5]`, which is narrower than `[−5, 0]`. A fold over
+    /// that relation answers whichever candidate it met first, which
+    /// is the order-dependence the door's determinism contract
+    /// forbids.
     ///
-    /// The door's rule takes the survivors of `precedes` as one set —
-    /// they are pairwise overlapping, so they are one certified tie —
-    /// and orders that set by width then position. This row runs both
-    /// over every arrival order of the triple: the door's answer is
-    /// one index, the pairwise fold's is two.
+    /// [`TSpan::best_of`] takes the survivors of `precedes` as one set
+    /// — they are pairwise overlapping, so they are one certified tie
+    /// — and orders that set by width then position. This row runs it
+    /// over every arrival order of the triple and gets one index.
     #[test]
     fn the_certified_order_does_not_depend_on_the_arrival_order() {
         let span = |lo: f64, hi: f64| TSpan {
@@ -2813,7 +2846,6 @@ mod tests {
             "and the widths run the other way round the cycle"
         );
         let mut door = std::collections::BTreeSet::new();
-        let mut pairwise = std::collections::BTreeSet::new();
         for order in [
             [0, 1, 2],
             [0, 2, 1],
@@ -2823,9 +2855,7 @@ mod tests {
             [2, 1, 0],
         ] {
             let spans: Vec<TSpan> = order.iter().map(|&i| cycle[i]).collect();
-            let at = |o: Order| order[winner_under(o, &spans).expect("three candidates")];
-            door.insert(at(Order::Exact));
-            pairwise.insert(at(Order::PairwiseFold));
+            door.insert(order[TSpan::best_of(&spans).expect("three candidates")]);
         }
         assert_eq!(
             door.len(),
@@ -2836,11 +2866,6 @@ mod tests {
             door.iter().copied().next(),
             Some(1),
             "and it is the narrowest of the two the third does not precede: {door:?}"
-        );
-        assert!(
-            pairwise.len() > 1,
-            "the pairwise fold is order-dependent, which is why the door does not use it: \
-             {pairwise:?}"
         );
     }
 
@@ -2898,131 +2923,124 @@ mod tests {
             "the mirrored pair carries the same bound, so width does not order them either"
         );
         assert_eq!(
-            winner_under(Order::Exact, &spans),
+            TSpan::best_of(&spans),
             Some(0),
             "the tie falls to the earlier position"
         );
         let reversed = [spans[1], spans[0]];
         assert_eq!(
-            winner_under(Order::Exact, &reversed),
+            TSpan::best_of(&reversed),
             Some(0),
             "and to the earlier position again when the candidates arrive the other way round"
         );
     }
 
-    /// **The early-out's bound is the interval's UPPER end, and a
-    /// walk that compares the rounded `t` stops too soon.** Two
-    /// triangles on one ray: [`near_tangent`] at `k = 32`, which the
-    /// acceptance admits with `u = v = 0.5` exactly and a `t` interval
-    /// half a unit wide around `t = 1.5`; and a small transversal
-    /// triangle crossing the same ray at `t = 1.7`, whose box the ray
-    /// does not enter until after the first candidate's rounded
-    /// answer. The tree visits them in that order.
+    /// **The clamp is a RETRACTION onto the simplex, not the nearest
+    /// point of the closed triangle** — the word the door's docs used
+    /// to carry. [`retract_to_simplex`] fixes the simplex, which is
+    /// all [`t_span`]'s derivation needs, but it is not the metric
+    /// projection onto it in the `(u, v)` plane or in the triangle's
+    /// own: on the unit right triangle, where the parameter plane IS
+    /// the isometry, `(1, 1)` retracts to the corner `(1, 0)` at
+    /// distance `1` while the nearest point is `(0.5, 0.5)` at
+    /// `0.707`.
     ///
-    /// The door's walk does not break — `1.8` is inside the first
-    /// candidate's own interval, so the geometry has not yet said
-    /// which is in front — tests the second, and the certified tie
-    /// falls to the narrow one at `1.7`. **Three mutants red here**: a
-    /// walk whose early-out compares the rounded `t` (`1.5 < 1.7`)
-    /// breaks and answers the near-tangent candidate; a walk that
-    /// compares rounded `t` for the WINNER answers it too; and a
-    /// tie-break that prefers the wider interval answers it a third
-    /// time.
+    /// The distinction only bites under an acceptance that admits a
+    /// barycentric outside the range; it is pinned because the docs
+    /// name the map and a reader is owed the right name. Authored by
+    /// review lane `pick3-r1`.
     #[test]
-    fn the_early_outs_bound_is_the_intervals_upper_end() {
-        let (ray, wide) = near_tangent(64.0);
-        // Perpendicular to the ray's `x` advance, around the point the
-        // ray reaches at t = 1.7, and comfortably inside the triangle.
-        let narrow = [
-            Point3::new(0.7, 0.5, -0.2),
-            Point3::new(0.7, 0.9, -0.2),
-            Point3::new(0.7, 0.7, 0.3),
+    fn the_clamp_is_a_retraction_onto_the_simplex_and_not_the_nearest_point() {
+        let tri = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
         ];
-        let tris = [wide, narrow];
-        let tree = tree_over(&tris);
-        let spans: Vec<TSpan> = tris
-            .iter()
-            .enumerate()
-            .map(|(i, tri)| {
-                ray_triangle(&ray, tri).unwrap_or_else(|| {
-                    panic!("candidate {i} is admitted: {:?}", crossing(&ray, tri))
-                })
-            })
-            .collect();
-        assert_eq!(spans[0].t, 1.5, "the near-tangent candidate answers 1.5");
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        let at = |u: f64, v: f64| tri[0] + e1 * u + e2 * v;
+        let (cu, cv) = retract_to_simplex(1.0, 1.0);
+        assert_eq!(
+            (cu, cv),
+            (1.0, 0.0),
+            "the retraction takes (1, 1) to a corner"
+        );
+        let dist = |p: Point3<f64>, q: Point3<f64>| (p - q).norm();
+        let outside = at(1.0, 1.0);
         assert!(
-            (spans[1].t - 1.7).abs() < 1e-12,
-            "the transversal candidate answers 1.7: {:?}",
-            spans[1]
+            cu + cv <= 1.0,
+            "it does land on the closed triangle, which is what the width derivation needs"
         );
         assert!(
-            spans[1].width() < 1e-12 && spans[0].width() > 0.5,
-            "one claim is certified to the bit and the other to half a unit: {spans:?}"
+            dist(at(0.5, 0.5), outside) < dist(at(cu, cv), outside),
+            "and the nearest point of the closed triangle is a different point"
         );
-        let visited: Vec<usize> = tree.ray(&ray).into_iter().map(|c| c.item).collect();
-        assert_eq!(
-            visited,
-            vec![0, 1],
-            "the tree offers the near-tangent candidate first"
-        );
-        let entry = tree
-            .ray(&ray)
-            .into_iter()
-            .find(|c| c.item == 1)
-            .expect("the transversal candidate is a candidate")
-            .t_enter;
+    }
+
+    /// **The retraction keeps `u + v ≤ 1` EXACTLY, not just in
+    /// `f64`.** `fl(1 − u)` rounds up to `1` at `u = 2⁻⁵⁴`, so a `v`
+    /// of `1` clamped against it would place the answered point
+    /// `2⁻⁵⁴·|e2|` outside the closed triangle — admitted, because
+    /// `fl(u + v) = 1`, and invisible to a membership check that is
+    /// itself `f64`. [`retract_to_simplex`]'s exact bound is what
+    /// keeps the door's "a point OF the triangle" true to the bit,
+    /// which is the premise [`pick_face`]'s early-out proof rests on.
+    /// Authored by review lane `pick3-r2`.
+    #[test]
+    fn the_retraction_keeps_u_plus_v_at_most_one_exactly() {
+        let tiny = 2f64.powi(-54);
+        assert_eq!(1.0 - tiny, 1.0, "the fixture: fl(1 - u) rounds up to 1");
+        let (u, v) = retract_to_simplex(tiny, 1.0);
+        assert_eq!(u, tiny, "the u arm leaves an in-range u alone");
         assert!(
-            spans[0].t < entry && entry <= spans[0].t_hi,
-            "the row's premise: the second box is entered after the first candidate's rounded t \
-             ({}) and before its upper end ({}) — entry {entry}",
-            spans[0].t,
-            spans[0].t_hi
+            v < 1.0,
+            "and the v arm refuses the value fl(1 - u) would have allowed: v = {v}"
         );
-        assert_eq!(
-            walk_under(&tris, &tree, &ray, Order::Exact, Break::Upper),
-            Some(1),
-            "the door's walk reaches the transversal candidate and the tie falls to it"
+        assert!(
+            1.0 - v >= u,
+            "u + v <= 1 exactly: 1 - v = {} against u = {u:e}",
+            1.0 - v
         );
-        assert_eq!(
-            walk_under(&tris, &tree, &ray, Order::Exact, Break::Never),
-            Some(1),
-            "and the early-out did not change that answer"
-        );
-        assert_eq!(
-            walk_under(&tris, &tree, &ray, Order::Exact, Break::Rounded),
-            Some(0),
-            "a walk breaking on the rounded t never sees the transversal candidate"
-        );
-        assert_eq!(
-            walk_under(&tris, &tree, &ray, Order::RoundedT, Break::Never),
-            Some(0),
-            "and a walk comparing rounded t answers the near-tangent candidate even having seen \
-             both"
-        );
-        assert_eq!(
-            walk_under(&tris, &tree, &ray, Order::WiderFirst, Break::Never),
-            Some(0),
-            "as does a tie-break that prefers the wider interval"
-        );
+        for (u, v) in [
+            (0.0, 1.0),
+            (0.25, 0.75),
+            (0.5, 0.5),
+            (1.0, 0.0),
+            (0.75, 0.25),
+        ] {
+            assert_eq!(
+                retract_to_simplex(u, v),
+                (u, v),
+                "the retraction fixes every point of the simplex"
+            );
+        }
     }
 
     /// **The clamp's law, and why no row here reds a door that drops
     /// it.** Under the closed acceptance every admitted `u` is already
     /// in `[0, 1]` and every admitted `fl(u + v)` is at most `1`, so
-    /// the clamp's `u` arm is a no-op by construction and its `v` arm
-    /// can move `v` only across the half-ULP between `fl(u + v) ≤ 1`
-    /// and `u + v > 1` — at most `2⁻⁵³·|e2|` of hit point, which is
-    /// below the interval's own width on every ray. A row that reds
-    /// when the clamp is dropped therefore cannot exist while the
-    /// acceptance is closed; the clamp is here for what it makes TRUE
-    /// — the answered point is a point OF the triangle, which is the
-    /// premise the traversal's early-out rests on — and it becomes
-    /// observable the day the acceptance admits a barycentric outside
-    /// the range.
+    /// [`retract_to_simplex`]'s `u` arm is a no-op by construction and
+    /// its `v` arm can move `v` only across the half-ULP between
+    /// `fl(u + v) ≤ 1` and `u + v > 1` — at most `2⁻⁵³·|e2|` of hit
+    /// point, which is below the interval's own width on every ray. A
+    /// row that reds when the clamp is dropped therefore cannot exist
+    /// while the acceptance is closed; the clamp is here for what it
+    /// makes TRUE — the answered point is a point OF the triangle,
+    /// which is the premise the traversal's early-out rests on — and
+    /// it becomes observable the day the acceptance admits a
+    /// barycentric outside the range.
+    ///
+    /// **This row's own check is `f64` membership, not bits**: it asks
+    /// whether the answered point's recovered barycentrics satisfy
+    /// `bu + bv <= 1.0` as computed, which is the property a consumer
+    /// can act on. The bit-exact statement is
+    /// [`the_retraction_keeps_u_plus_v_at_most_one_exactly`], where
+    /// `1 − u` rounding up is what the exact bound in
+    /// [`retract_to_simplex`] is for.
     ///
     /// What IS pinned here is that law, over the acceptance's own
     /// boundary cases: the answered point lies on the closed triangle
-    /// to the bit at each of `u = 0`, `u = 1`, `v = 0` and `u + v = 1`.
+    /// at each of `u = 0`, `u = 1`, `v = 0` and `u + v = 1`.
     #[test]
     fn every_admitted_hit_is_placed_on_the_closed_triangle() {
         let tri = [
@@ -3048,7 +3066,8 @@ mod tests {
             let (bu, bv) = ((at.x - 1.0) / 4.0, (at.y - 1.0) / 4.0);
             assert!(
                 (0.0..=1.0).contains(&bu) && (0.0..=1.0).contains(&bv) && bu + bv <= 1.0,
-                "{name}: the answered point {at:?} is a point of the closed triangle"
+                "{name}: the answered point {at:?} is a point of the closed triangle \
+                 (f64 membership, as a consumer computes it)"
             );
             assert_eq!(at.z, 1.0, "{name}: and it is in the triangle's own plane");
         }

@@ -3,109 +3,36 @@
 //! execution. Each row asserts what the door's own docs claim, so a
 //! red row is a claim the head does not keep.
 //!
-//! 1. `the_certified_tie_is_decided_by_the_targets_order_through_the_early_out`
-//!    — the door's contract says the certified tie is a rule about the
-//!    SET and that the early-out "prunes only candidates that could not
-//!    win". A narrower member of the tie whose interval reaches back
-//!    below its own box entry is pruned, and the SAME two triangles
-//!    answer differently depending on which target is offered first.
-//! 2. `the_t_interval_encloses_the_exact_crossing_and_the_clamped_point`
+//! Two of this lane's rows have moved, because they pin the door and
+//! belong beside it: the early-out fixture (a narrower member of the
+//! certified tie, pruned, with the answer then depending on which
+//! target was offered first) is now
+//! `pick3_early_out::the_certified_tie_is_decided_by_the_candidates_and_not_the_targets_order`,
+//! and the clamp's exactness is
+//! `pick::tests::the_retraction_keeps_u_plus_v_at_most_one_exactly`,
+//! calling the real `retract_to_simplex` rather than a restatement of
+//! it.
+//!
+//! 1. `the_t_interval_encloses_the_exact_crossing_and_the_clamped_point`
 //!    — exact rational arithmetic (`num-bigint`) over stressed families
 //!    (near-parallel rays, far origins, `|d| ≫ 1` and `≪ 1`, tiny
 //!    triangles, the `near_tangent` fixture at every `k`): does
 //!    `[t_lo, t_hi]` enclose the exact crossing's parameter whenever
 //!    that crossing is on the closed triangle, and the clamped point's
 //!    own parameter always?
-//! 3. `the_clamped_point_is_a_point_of_the_closed_triangle_to_the_bit`
-//!    — the clamp's `v` bound is `fl(1 − u)`, which rounds up to `1` for
-//!    a tiny `u`, so the answered point can sit outside the closed
-//!    triangle by `u·|e1|`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
 
-test_utils::gated_to![
-    "crates/editor-core/src/resolve/",
-    "crates/bvh/src/",
-    "crates/editor-core/tests/fixture/",
-];
+test_utils::gated_to!["crates/editor-core/src/resolve/", "crates/bvh/src/"];
 
-use crate::fixture;
-
-use bvh::{Aabb, Ray};
-use editor_core::resolve::{TSpan, crossing, ray_triangle};
-use editor_core::{
-    CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, RecipeNodeId,
-    ValuePayload, pick_face,
-};
-use fixture::{insert, len, on_frame};
-use geom_core::{Point3, Tol, Vec3};
-use mesh::Mesh;
+use bvh::Ray;
+use editor_core::resolve::{crossing, ray_triangle};
+use geom_core::{Point3, Vec3};
 use num_bigint::BigInt;
-use topo::Body;
-
-// ---------------------------------------------------------------
-// 1. The early-out prunes a member of the certified tie, and the
-//    answer then depends on the targets' order.
-// ---------------------------------------------------------------
-
-fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    editor_core::evaluate::<f64>(
-        doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-}
-
-fn cube(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(1.0),
-        },
-    )
-}
-
-fn mesh_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Mesh {
-    let body: &Body<f64> = match &ev.value(node).expect("extrude evaluates").payload {
-        ValuePayload::Body(b) => b,
-        other => panic!("extrude payload is a body, got {}", other.kind_name()),
-    };
-    mesh::tessellate(body, 0.1, Tol::witness()).expect("box tessellates")
-}
-
-/// A mesh carrying `tris` as one triangle per patch, under the first
-/// patches' face keys of `base` (so `pick_face` names the winner
-/// through the real tables). `MeshPick` copies geometry out, so the
-/// index is exactly these triangles.
-fn mesh_over(base: &Mesh, tris: &[[Point3<f64>; 3]]) -> Mesh {
-    let mut positions = Vec::new();
-    let mut patches = Vec::new();
-    for (i, tri) in tris.iter().enumerate() {
-        let k = positions.len() as u32;
-        positions.extend_from_slice(tri);
-        let mut patch = base.patches[i].clone();
-        patch.triangles = vec![[k, k + 1, k + 2]];
-        patches.push(patch);
-    }
-    Mesh {
-        positions,
-        patches,
-        boundaries: Vec::new(),
-    }
-}
 
 /// `pick.rs`'s `near_tangent` fixture: a determinant certified at
-/// `k / 6` of its own bound, `u = v = 0.5` exactly, `t = 1.5`.
+/// `k / 6` of its own bound, `u = v = 0.5` exactly, `t = 1.5`. The
+/// enclosure sweep walks it at every `k`.
 fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
     let zeta = 2f64.powi(-20);
     let xi = k * zeta * f64::EPSILON;
@@ -119,157 +46,6 @@ fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
         dir: Vec3::new(1.0, 1.0, zeta),
     };
     (ray, tri)
-}
-
-/// The same shape at `k`, scaled by `lambda` and placed so `ray` meets
-/// it at `u = v = 0.5` at parameter `t_a`.
-fn near_tangent_copy(k: f64, lambda: f64, t_a: f64, ray: &Ray) -> [Point3<f64>; 3] {
-    let zeta = 2f64.powi(-20);
-    let xi = k * zeta * f64::EPSILON;
-    let e1 = Vec3::new(lambda, 0.0, lambda * (zeta + xi));
-    let e2 = Vec3::new(0.0, lambda, 0.0);
-    let p = ray.origin + ray.dir * t_a;
-    let a = p - (e1 + e2) * 0.5;
-    [a, a + e1, a + e2]
-}
-
-fn entry(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
-    ray.slab_enter(&Aabb::from_points(*tri).expect("three points box"))
-        .expect("the ray enters the box")
-}
-
-/// **The early-out is not a pure optimisation of the set rule.**
-///
-/// `pick_face`'s contract: a candidate no other candidate PRECEDES is
-/// in the certified tie, the tie is decided by width then position,
-/// and the early-out "prunes only candidates that could not win" —
-/// "once the smallest `t_hi` seen is strictly below a candidate's
-/// `t_enter`, every remaining candidate's true parameter exceeds it
-/// and nothing further can win in exact arithmetic". That was true of
-/// the rounded-`t` order and is false of the width rule: a candidate
-/// B whose box is entered AFTER `t_hi(A)` can still have
-/// `t_lo(B) ≤ t_hi(A)` (its interval reaches back below its box), so
-/// B is in the tie, and if B is narrower than A the rule answers B.
-/// The traversal never tests B.
-///
-/// Two `near_tangent` triangles on one ray: B at `k = 38`-ish (`t =
-/// 1.5`, box entered at `t = 1`, interval reaching below `1`), and A,
-/// a scaled copy nearer the origin whose `t_hi` lands in
-/// `[t_lo(B), t_enter(B))`. The search over `(k_a, k_b, λ, t_a)` is
-/// deterministic and prints what it found. Then the REAL door:
-///
-/// - both triangles in one target: the walk breaks before B, answers A;
-/// - B's target first, A's second: both tested, B wins the tie;
-/// - A's target first, B's second: breaks before B, answers A.
-///
-/// The rule says B in every case, so this row asserts B — and it is
-/// red on the head, twice: the pruned answer, and the answer depending
-/// on the targets' order, which the same contract forbids.
-#[test]
-fn the_certified_tie_is_decided_by_the_targets_order_through_the_early_out() {
-    let mut found = None;
-    'search: for k_b in 37..=60u32 {
-        let (ray, b) = near_tangent(k_b as f64);
-        let Some(span_b) = ray_triangle(&ray, &b) else {
-            continue;
-        };
-        let enter_b = entry(&ray, &b);
-        if span_b.t_lo >= enter_b {
-            continue;
-        }
-        for k_a in 37..=60u32 {
-            for lambda in [1.5, 2.0, 3.0, 4.0] {
-                for j in 1..64u32 {
-                    let t_a = f64::from(j) / 64.0;
-                    let a = near_tangent_copy(k_a as f64, lambda, t_a, &ray);
-                    let Some(span_a) = ray_triangle(&ray, &a) else {
-                        continue;
-                    };
-                    let enter_a = entry(&ray, &a);
-                    if enter_a < enter_b
-                        && span_a.t_hi < enter_b
-                        && span_b.t_lo <= span_a.t_hi
-                        && span_b.width() < span_a.width()
-                    {
-                        found = Some((ray, a, b, span_a, span_b, enter_a, enter_b));
-                        break 'search;
-                    }
-                }
-            }
-        }
-    }
-    let (ray, a, b, span_a, span_b, enter_a, enter_b) =
-        found.expect("the search finds a wide A whose t_hi lands between B's t_lo and B's box entry");
-    println!(
-        "# pick3-r2: A {a:?}\n#   span {span_a:?} width {} entry {enter_a}\n# B {b:?}\n#   span \
-         {span_b:?} width {} entry {enter_b}",
-        span_a.width(),
-        span_b.width()
-    );
-    // The premises, restated as assertions so the row cannot pass on a
-    // fixture that drifted.
-    assert!(span_a.t_hi < enter_b, "A's upper end is below B's box entry: the walk breaks");
-    assert!(
-        span_b.t_lo <= span_a.t_hi && !span_a.precedes(&span_b) && !span_b.precedes(&span_a),
-        "neither precedes the other: they are one certified tie"
-    );
-    assert!(span_b.width() < span_a.width(), "and B is the narrower claim");
-
-    let doc = ProfileDoc::empty_derived("pick3_r2_early_out", Tol::witness());
-    let (doc, node) = cube(doc);
-    let ev = run(&doc);
-    let base = mesh_of(&ev, node);
-
-    let both = mesh_over(&base, &[a, b]);
-    let pick_both = MeshPick::build(&both).expect("two triangles index");
-    let only_a = mesh_over(&base, &[a]);
-    let only_b = mesh_over(&base, &[b]);
-    let pick_a = MeshPick::build(&only_a).expect("A indexes");
-    let pick_b = MeshPick::build(&only_b).expect("B indexes");
-
-    let one_target = pick_face(&ev, &[PickTarget::new(&ev, node, 0, &pick_both)], &ray)
-        .expect("no error")
-        .expect("a hit");
-    let b_then_a = pick_face(
-        &ev,
-        &[
-            PickTarget::new(&ev, node, 0, &pick_b),
-            PickTarget::new(&ev, node, 0, &pick_a),
-        ],
-        &ray,
-    )
-    .expect("no error")
-    .expect("a hit");
-    let a_then_b = pick_face(
-        &ev,
-        &[
-            PickTarget::new(&ev, node, 0, &pick_a),
-            PickTarget::new(&ev, node, 0, &pick_b),
-        ],
-        &ray,
-    )
-    .expect("no error")
-    .expect("a hit");
-    println!(
-        "# pick3-r2: one target answers t = {} ; [B, A] answers {} ; [A, B] answers {}",
-        one_target.t, b_then_a.t, a_then_b.t
-    );
-    assert_eq!(
-        b_then_a.t, span_b.t,
-        "with B tested first, both survive and the narrower claim B wins (the rule's answer)"
-    );
-    assert_eq!(
-        a_then_b.t, b_then_a.t,
-        "the contract: the certified tie is decided by the candidates, not by the order the \
-         targets were offered in — [A, B] answers {} and [B, A] answers {}",
-        a_then_b.t, b_then_a.t
-    );
-    assert_eq!(
-        one_target.t, span_b.t,
-        "the early-out prunes only candidates that could not win: with both triangles in one \
-         target the door must still answer B, but answers t = {}",
-        one_target.t
-    );
 }
 
 // ---------------------------------------------------------------
@@ -400,13 +176,17 @@ fn exact_clamped(ray: &Ray, tri: &[Point3<f64>; 3], u: f64, v: f64) -> (BigInt, 
     (nt, dt, on_triangle)
 }
 
-/// The door's clamp, restated (two lines of `ray_triangle`) so the
-/// clamped point's own parameter can be checked exactly.
+/// `retract_to_simplex`, restated over [`crossing`]'s barycentrics so
+/// the clamped point's own parameter can be checked exactly. Kept in
+/// step with the door by hand; what pins the map itself is
+/// `pick::tests::the_retraction_keeps_u_plus_v_at_most_one_exactly`,
+/// which calls it.
 fn clamped(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<(f64, f64)> {
     let [(u, _), (v, _), _] = crossing(ray, tri)?.barycentrics;
     let u = u.clamp(0.0, 1.0);
-    let v = v.clamp(0.0, 1.0 - u);
-    Some((u, v))
+    let top = 1.0 - u;
+    let top = if 1.0 - top < u { top.next_down() } else { top };
+    Some((u, v.clamp(0.0, top)))
 }
 
 #[derive(Default, Debug)]
@@ -710,39 +490,5 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
     assert_eq!(
         inside_escapes, 0,
         "an exact crossing on the closed triangle has its parameter outside [t_lo, t_hi]"
-    );
-}
-
-// ---------------------------------------------------------------
-// 3. The clamp's own rounding.
-// ---------------------------------------------------------------
-
-/// **The clamped point is claimed to be a point OF the closed triangle
-/// ("to the bit", `every_admitted_hit_is_placed_on_the_closed_triangle`).**
-/// The `v` bound is `fl(1 − u)`, which rounds to `1` for `u ≤ 2⁻⁵⁴`
-/// (half-even); so at `u = 2⁻⁵⁴`, `v = 1` — admitted, since
-/// `fl(u + v) = 1` — the door's point is `a + 2⁻⁵⁴·e1 + e2`, outside
-/// the closed triangle by `2⁻⁵⁴·|e1|`. The existing row cannot see it
-/// because its membership check is itself `f64` (`bu + bv <= 1.0`
-/// rounds back to `1`).
-#[test]
-fn the_clamped_point_is_a_point_of_the_closed_triangle_to_the_bit() {
-    let tri = [
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(5.0, 1.0, 1.0),
-        Point3::new(1.0, 5.0, 1.0),
-    ];
-    let ray = Ray {
-        origin: Point3::new(1.0 + 2f64.powi(-52), 5.0, 3.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    };
-    let span = ray_triangle(&ray, &tri).expect("u = 2^-54, v = 1 is admitted");
-    let (u, v) = clamped(&ray, &tri).expect("a crossing");
-    println!("# pick3-r2 clamp: span {span:?}, clamped (u, v) = ({u:e}, {v})");
-    assert_eq!((u, v), (2f64.powi(-54), 1.0), "the fixture's barycentrics");
-    let (_, _, on) = exact_clamped(&ray, &tri, u, v);
-    assert!(
-        on,
-        "the answered point a + {u:e}·e1 + {v}·e2 is a point of the closed triangle exactly"
     );
 }
