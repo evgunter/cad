@@ -524,3 +524,5 @@ mod wire_legal_union_refusals;
 mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
+#[path = "wire_rv_bytes.rs"]
+mod wire_rv_bytes;
