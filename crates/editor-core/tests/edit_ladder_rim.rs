@@ -530,7 +530,9 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                 // `+z`, so a point's distance from it is the distance
                 // between their footprints; both ends fix that
                 // footprint and both are read.
-                let d = (p.x - a.x).hypot(p.y - a.y).max((p.x - b.x).hypot(p.y - b.y));
+                let d = (p.x - a.x)
+                    .hypot(p.y - a.y)
+                    .max((p.x - b.x).hypot(p.y - b.y));
                 if (l, k) == (rim.loop_index, j) {
                     assert!(
                         d < NEAR,
@@ -806,7 +808,11 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                 vertex_of(
                     t,
                     &what,
-                    &minted(EntityKind::Vertex, fillet, RoleSeg::BandFoot(NameRef::new(v))),
+                    &minted(
+                        EntityKind::Vertex,
+                        fillet,
+                        RoleSeg::BandFoot(NameRef::new(v)),
+                    ),
                 ),
             );
             min = min.min(dist(foot, s));
