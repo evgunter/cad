@@ -88,10 +88,11 @@ What it still waits on: **curved boolean breadth** — handle ∪ pot is
 torus × cylinder and spout ∪ pot is cone × plane, both
 `CurvedPairUnsupported`, so the teapot is FOUR solids (walls 2 and 3);
 **taper / variable-section sweep and the canal family** — a spout the
-shape of a spout is a swept curved section along a bent spine, which
-`sweep_body` will not round (the U-turn class klein wall 5 pins as
-`ReversedStacking`; the teapot's own spout is not attempted) and no
-variable-section door exists for, so the scene's spout is a straight
+shape of a spout is a swept curved section along a bent spine, for
+which no variable-section door exists (the U-turn half of this was
+BOOL-6's, and is gone: a bent spine is no longer a stacking wall
+unless one of its slabs turns past π; the teapot's own spout is not
+attempted), so the scene's spout is a straight
 cone frustum tilted into place, a spout the way a LATHE would make
 one; and **geometric edge selection by NUMERIC description**: the kind
 half of "the knob rim" goes through the kernel query seat
@@ -186,14 +187,20 @@ the table.
   `insert` refuses. `klein::wall_probes` wall 7 is retired from pinning
   the refusal and now requires all four lottery cells to mesh.
 
-- **`sweep_body` cannot round a U-turn.** The loft's canonical
-  stacking trilean compares the LAST placement's mean displacement
-  against the FIRST section's plane normal, so any path that ends
-  behind where it started refuses `ReversedStacking` wholesale, no
-  matter how well every consecutive pair stacks. The Klein bottle's
-  top loop is one path and would be one body; this gate is why it is
-  two. (`crates/sweep/src/loft.rs`, the `loft_stacking` decide;
-  wall 5.)
+- **`sweep_body` CAN round a U-turn — RETIRED by BOOL-6** (issue
+  368). The loft's stacking statement compared the LAST placement's
+  mean displacement against the FIRST section's plane normal, so any
+  path that ended behind where it started refused `ReversedStacking`
+  wholesale, no matter how well every consecutive pair stacked. It is
+  now a FOLD over the consecutive pairs, each decided against its own
+  base section's plane normal, and the Klein bottle's top loop sweeps
+  as one body (klein wall 5 asserts that build; the scene still draws
+  it as two elbows, which is a scene change and not a kernel wall).
+  The wall that remains is PER-SLAB, at per-slab turn π — total turn
+  `(stations − 1)·π` — so it is a statement about how coarsely the
+  path is sampled rather than about how far it goes, and the refusal
+  names the slab. (`crates/sweep/src/loft.rs`, the `loft_stacking`
+  fold.)
 - **`tube_along_arc` is no longer solid-only.** FIXED by
   VERBS-TUBEWALL: the torus door has a hollow sibling,
   `tube_along_arc_hollow`, taking the outer `minor_radius` plus a

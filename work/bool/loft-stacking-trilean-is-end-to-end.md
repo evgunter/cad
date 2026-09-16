@@ -2,10 +2,12 @@
 id: loft-stacking-trilean-is-end-to-end
 kind: issue
 title: Loft stacking trilean is end-to-end — planar spines turning past pi refuse ReversedStacking (measured at the M8-14 close)
-status: open
+status: closed
 opened: 2026-08-11
 github: 368
 refs: [222, 316, BOOL-6]
+pr: 2752
+closed: 2026-09-16
 ---
 
 ## From GitHub issue 368
