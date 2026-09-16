@@ -928,7 +928,10 @@ mod tests {
             -0.0,
             5e-324,
             -5e-324,
-            2.2250738585072009e-308,
+            // The largest subnormal, spelled by its bits: the boundary
+            // the smallest normal sits one ulp above, and a decimal
+            // literal for it is longer than it is legible.
+            f64::from_bits(0x000f_ffff_ffff_ffff),
             f64::INFINITY,
             f64::NEG_INFINITY,
             f64::from_bits(0x7ff8_0000_0000_0000),
@@ -989,10 +992,15 @@ mod tests {
     /// measurement of the respelling rather than of the arithmetic —
     /// the `Infallible` wrapper adds a closure layer, and this row is
     /// what says the layer changed neither.
+    /// One walk over a placement under a caller-supplied `f`: the shape
+    /// the respelling trace measures the door and the hand spelling
+    /// through, so both go through one signature.
+    type WalkUnder<'a> = &'a dyn Fn(Affine3<f64>, &dyn Fn(f64) -> f64) -> Affine3<f64>;
+
     #[test]
     fn map_calls_an_impure_f_in_the_same_order_and_as_often() {
         let a = distinct();
-        let trace = |via: &dyn Fn(Affine3<f64>, &dyn Fn(f64) -> f64) -> Affine3<f64>| {
+        let trace = |via: WalkUnder<'_>| {
             let seen = RefCell::new(Vec::new());
             let out = via(a, &|x| {
                 let mut s = seen.borrow_mut();
