@@ -1,26 +1,20 @@
-//! Review probes for EDIT-PICK (PR 2721, lane `pick-r2`, frozen head
-//! `428431ab`): the box-entry guard on `ray_triangle` measured off the
-//! corpus, on geometry built for the purpose.
+//! The exact ray/triangle test off the corpus, on geometry built for
+//! the purpose. These rows came in as review probes (branch
+//! `review/pick-r2`) against a box-entry guard the unit withdrew;
+//! each now asserts the behaviour of the certified determinant.
 //!
-//! Two questions the PR body answers by corpus measurement, asked here
-//! by construction:
-//!
-//! 1. **Is "a refused genuine graze is answered by a sibling" geometry
-//!    or fixture luck?** Real cylinders at several tessellation
-//!    budgets, axis rays aimed exactly at cap and rim vertices (the
-//!    tie-break row's shape); the unguarded predicate (main's kernel)
-//!    against the guarded one, over every triangle. A ray whose
-//!    unguarded nearest is the aimed vertex and whose guarded nearest
-//!    is beyond it (or a miss) is a graze the GUARD lost.
-//! 2. **Can a noise `t` land above its entry, inside its box?** Rays in
-//!    a triangle's plane, random triangles; a guarded acceptance whose
-//!    ray point is nowhere near the triangle is the residual the spec
-//!    asked to measure, reached without a corpus.
+//! 1. **Real cylinders, axis rays aimed exactly at cap and rim
+//!    vertices** (the tie-break row's shape): no candidate whose
+//!    determinant is genuinely non-zero is refused at the
+//!    certification, and the aimed vertex is answered at `reach`.
+//! 2. **Rays in a triangle's plane**: an accepted candidate whose
+//!    ray point is not on the triangle is the noise answer the
+//!    certification exists to refuse — zero of them.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use bvh::{Aabb, Ray};
-use editor_core::resolve::ray_triangle;
+use bvh::Ray;
+use editor_core::resolve::{certified_determinant, ray_triangle};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -40,43 +34,32 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
         .body
 }
 
-struct Tri {
-    corners: [Point3<f64>; 3],
-    patch: usize,
-}
-
-fn triangles(mesh: &mesh::Mesh) -> Vec<Tri> {
+fn triangles(mesh: &mesh::Mesh) -> Vec<[Point3<f64>; 3]> {
     let mut out = Vec::new();
-    for (pi, patch) in mesh.patches.iter().enumerate() {
+    for patch in &mesh.patches {
         for tri in &patch.triangles {
-            out.push(Tri {
-                corners: tri.map(|i| mesh.positions[i as usize]),
-                patch: pi,
-            });
+            out.push(tri.map(|i| mesh.positions[i as usize]));
         }
     }
     out
 }
 
-/// Möller–Trumbore's determinant, as `ray_triangle` computes it.
-fn det(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
+/// Möller–Trumbore's determinant, uncertified, and its conditioning
+/// `|det| / (|e1|·|e2|·|d|)` — the sine of the ray/plane angle up to
+/// a constant.
+fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
-    e1.dot(ray.dir.cross(e2))
+    let det = e1.dot(ray.dir.cross(e2));
+    (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
 /// `pick_face`'s answer over every triangle — the lexicographic
-/// minimum of `(t, flat position)` — with the guard (each candidate's
-/// own box entry) or without it (`−∞`, main's kernel).
-fn nearest(tris: &[Tri], ray: &Ray, guarded: bool) -> Option<(f64, usize)> {
+/// minimum of `(t, position)`.
+fn nearest(tris: &[[Point3<f64>; 3]], ray: &Ray) -> Option<(f64, usize)> {
     let mut best: Option<(f64, usize)> = None;
     for (i, tri) in tris.iter().enumerate() {
-        let b = Aabb::from_points(tri.corners).unwrap();
-        let Some(t_enter) = ray.slab_enter(&b) else {
-            continue;
-        };
-        let floor = if guarded { t_enter } else { f64::NEG_INFINITY };
-        if let Some(t) = ray_triangle(ray, &tri.corners, floor)
+        if let Some(t) = ray_triangle(ray, tri)
             && best.is_none_or(|(bt, bi)| (t, i) < (bt, bi))
         {
             best = Some((t, i));
@@ -85,17 +68,20 @@ fn nearest(tris: &[Tri], ray: &Ray, guarded: bool) -> Option<(f64, usize)> {
     best
 }
 
-/// **Probe 1.** Axis rays through every cap and rim vertex of real
-/// cylinders: the guard must never turn the vertex graze into an
-/// answer beyond it. Red = a graze lost to the guard on EVERY
-/// incident triangle, with no sibling to answer.
+/// **Row 1.** Axis rays through every cap and rim vertex of real
+/// cylinders at three budgets: a candidate whose conditioning is at
+/// or above `1e-12` — four orders above the certification's own
+/// bound — is never refused at the determinant, and enough of the
+/// aimed rays are answered at the vertex for the row to have reached
+/// the graze class. A deterministic enumeration, not a search: the
+/// floor is a witness count over a fixed corpus.
 #[test]
-fn a_vertex_graze_refused_by_the_guard_is_always_answered_by_a_sibling() {
+fn no_genuine_determinant_is_refused_on_a_cylinders_vertex_grazes() {
     let tol = Tol::witness();
-    let mut lost = Vec::new();
-    let mut refused_but_rescued = 0usize;
     let mut grazes = 0usize;
     let mut rays = 0usize;
+    let mut refused_genuine = Vec::new();
+    let mut refused_at_det = 0usize;
     for &(r, h) in &[(0.5, 1.0), (1.0, 2.0), (0.37, 0.61)] {
         let body = cylinder(r, h);
         for &chordal in &[0.05, 0.02, 0.008] {
@@ -126,44 +112,23 @@ fn a_vertex_graze_refused_by_the_guard_is_always_answered_by_a_sibling() {
                             origin: *v - dir * reach,
                             dir,
                         };
-                        let unguarded = nearest(&tris, &ray, false);
-                        let guarded = nearest(&tris, &ray, true);
-                        let Some((ut, ui)) = unguarded else {
-                            continue;
-                        };
-                        // The aimed vertex is a true hit at t = reach;
-                        // only rays whose unguarded answer IS that
-                        // graze can be lost by the guard.
-                        if (ut - reach).abs() > 1e-9 {
-                            continue;
-                        }
-                        grazes += 1;
-                        // A genuine (non-noise) graze refused on some
-                        // triangle: the guard's own class.
-                        let refused_genuine = tris.iter().enumerate().any(|(i, tri)| {
-                            let b = Aabb::from_points(tri.corners).unwrap();
-                            let Some(t_enter) = ray.slab_enter(&b) else {
-                                return false;
-                            };
-                            let un = ray_triangle(&ray, &tri.corners, f64::NEG_INFINITY);
-                            let gu = ray_triangle(&ray, &tri.corners, t_enter);
-                            let _ = i;
-                            matches!(un, Some(t) if (t - reach).abs() < 1e-9)
-                                && gu.is_none()
-                                && det(&ray, &tri.corners).abs() > 1e-15
-                        });
-                        match guarded {
-                            Some((gt, _)) if (gt - reach).abs() < 1e-9 => {
-                                if refused_genuine {
-                                    refused_but_rescued += 1;
-                                }
+                        for tri in &tris {
+                            let (det, cond) = det_and_conditioning(&ray, tri);
+                            let certified = certified_determinant(&ray, tri).is_some();
+                            if !certified && det != 0.0 {
+                                refused_at_det += 1;
                             }
-                            other => lost.push(format!(
-                                "r {r} h {h} δ {chordal}: {dir:?} through {v:?} at reach {reach}: \
-                                 unguarded {ut} (patch {}, det {:e}); guarded {other:?}",
-                                tris[ui].patch,
-                                det(&ray, &tris[ui].corners)
-                            )),
+                            if cond >= 1e-12 && !certified {
+                                refused_genuine.push(format!(
+                                    "r {r} h {h} δ {chordal}: {dir:?} through {v:?}: det {det:e} \
+                                     (conditioning {cond:e}) refused on {tri:?}"
+                                ));
+                            }
+                        }
+                        if let Some((t, _)) = nearest(&tris, &ray)
+                            && (t - reach).abs() < 1e-9
+                        {
+                            grazes += 1;
                         }
                     }
                 }
@@ -171,16 +136,15 @@ fn a_vertex_graze_refused_by_the_guard_is_always_answered_by_a_sibling() {
         }
     }
     println!(
-        "# {rays} aimed rays; {grazes} graze at the vertex unguarded; {refused_but_rescued} had a \
-         genuine graze refused by the guard and a sibling answered; {} lost",
-        lost.len()
+        "# {rays} aimed rays; {grazes} answered at the aimed vertex; {refused_at_det} candidates \
+         refused at the determinant"
     );
-    assert!(grazes > 100, "the probe reached the graze class: {grazes}");
+    assert!(grazes > 100, "the row reached the graze class: {grazes}");
     assert!(
-        lost.is_empty(),
-        "{} vertex grazes were lost by the guard on every incident triangle:\n{}",
-        lost.len(),
-        lost.join("\n")
+        refused_genuine.is_empty(),
+        "{} candidates with a genuine determinant refused at the certification:\n{}",
+        refused_genuine.len(),
+        refused_genuine.join("\n")
     );
 }
 
@@ -231,16 +195,18 @@ fn dist2_to_triangle(p: Point3<f64>, tri: &[Point3<f64>; 3]) -> f64 {
     (p - (a + ab * v + ac * w)).norm_squared()
 }
 
-/// **Probe 2.** A ray in a triangle's plane, the triangle's box entry
-/// well below where the ray reaches it: the guard passes a noise `t`
-/// at a ray point that is not on the triangle. Red = such an
-/// acceptance exists (the spec's "residual", constructed).
+/// **Row 2.** A ray in a triangle's plane (origin and direction
+/// built from the triangle's own edges, so out of the plane only by
+/// the rounding of that construction): an acceptance is a noise
+/// answer unless its ray point lies on the triangle. Zero acceptances
+/// off the triangle. Shape: counterexample search (varying seed,
+/// effort dial).
 #[test]
-fn a_noise_t_above_its_entry_passes_the_guard() {
-    let mut rng = fuzz::start("pick-r2: in-plane rays against the guarded predicate");
+fn an_in_plane_ray_never_answers_a_point_off_the_triangle() {
+    let mut rng = fuzz::start("pick: in-plane rays against the certified determinant");
     let mut accepted = 0usize;
+    let mut refused = 0usize;
     let mut garbage = Vec::new();
-    let mut noise_dets = 0usize;
     let cases = fuzz::scaled(20_000);
     for _ in 0..cases {
         let pt = |rng: &mut fuzz::Rng| {
@@ -253,43 +219,42 @@ fn a_noise_t_above_its_entry_passes_the_guard() {
         let tri = [pt(&mut rng), pt(&mut rng), pt(&mut rng)];
         let e1 = tri[1] - tri[0];
         let e2 = tri[2] - tri[0];
-        // Origin and direction in the plane, up to the rounding of
-        // their own construction.
         let origin = tri[0] + e1 * rng.range(-1.5, 2.5) + e2 * rng.range(-1.5, 2.5);
         let dir = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
         if dir.norm_squared() < 1e-6 {
             continue;
         }
         let ray = Ray { origin, dir };
-        let b = Aabb::from_points(tri).unwrap();
-        let Some(t_enter) = ray.slab_enter(&b) else {
-            continue;
-        };
-        let Some(t) = ray_triangle(&ray, &tri, t_enter) else {
+        let Some(t) = ray_triangle(&ray, &tri) else {
+            refused += 1;
             continue;
         };
         accepted += 1;
-        let d = det(&ray, &tri);
-        if d.abs() < 1e-15 {
-            noise_dets += 1;
-        }
         let p = ray.origin + ray.dir * t;
         let off = dist2_to_triangle(p, &tri).sqrt();
         if off > 1e-6 {
+            let (det, cond) = det_and_conditioning(&ray, &tri);
             garbage.push(format!(
-                "det {d:e}: t {t} (entry {t_enter}) at {p:?}, {off:.3} from the triangle {tri:?}"
+                "det {det:e} (conditioning {cond:e}): t {t} at {p:?}, {off:.3} from the \
+                 triangle {tri:?}; {}",
+                fuzz::replay()
             ));
         }
     }
     println!(
-        "# {cases} in-plane rays: {accepted} accepted by the guarded predicate, {noise_dets} of \
-         them at |det| < 1e-15, {} at a point off the triangle",
+        "# {cases} in-plane rays: {refused} refused, {accepted} accepted, {} at a point off \
+         the triangle",
         garbage.len()
     );
     assert!(
         garbage.is_empty(),
-        "{} guarded acceptances at a ray point that is not on the triangle (first five):\n{}",
+        "{} acceptances at a ray point that is not on the triangle (first five):\n{}",
         garbage.len(),
-        garbage.iter().take(5).cloned().collect::<Vec<_>>().join("\n")
+        garbage
+            .iter()
+            .take(5)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }

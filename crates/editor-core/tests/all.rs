@@ -399,8 +399,6 @@ mod review_gui1_r1;
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
 mod review_m4_pr1_die;
-#[path = "review_pick_r2_probes.rs"]
-mod review_pick_r2_probes;
 #[path = "review_m4_pr2.rs"]
 mod review_m4_pr2;
 #[path = "review_m5_pr10_sweep_node.rs"]
@@ -411,6 +409,8 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "review_pick_r2_probes.rs"]
+mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
 #[path = "scalar_frame_r1_probes.rs"]

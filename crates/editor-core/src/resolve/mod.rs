@@ -60,8 +60,8 @@ mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use pick::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
-    ray_triangle,
+    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget,
+    certified_determinant, pick_face, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,

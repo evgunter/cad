@@ -1,21 +1,40 @@
-//! Review probe for EDIT-PICK (PR 2721, lane `pick-r2`, frozen head
-//! `428431ab`): the box-entry guard re-measured over the corpus with a
-//! WIDER aim than the tie-break row — every mesh vertex (subsampled),
-//! six axis directions, three reaches — asking whether a genuine
-//! graze the guard refuses is always answered by a sibling triangle
-//! (the PR's claim from 9 ★ rows), and re-taking the "moved answers"
-//! count with the unguarded predicate (main's kernel) against the
-//! guarded one on the same candidates.
+//! The certified determinant measured over the corpus with a WIDER
+//! aim than the tie-break row: every mesh vertex (subsampled), six
+//! axis directions, three reaches, on the gallery ring and every
+//! parametric corpus document at open and after the first edit. The
+//! row came in as a review probe (branch `review/pick-r2`) against a
+//! box-entry guard the unit withdrew; it now asserts the behaviour of
+//! the certified determinant and pins what that mechanism refuses on
+//! this corpus.
 //!
-//! A LOSS is a ray whose unguarded nearest is the aimed vertex (a true
-//! hit at exactly `reach`) and whose guarded nearest is beyond it or a
-//! miss. Red = the guard turned a hit into a miss somewhere on the
-//! corpus geometry, which the tie-break row's aim did not reach.
+//! Three claims, one row:
+//!
+//! 1. **No genuine determinant is refused.** A candidate whose
+//!    conditioning `|det| / (|e1|·|e2|·|d|)` is at or above `1e-12`
+//!    — four orders above the certification's own bound — is never
+//!    refused at the determinant. Red = the mechanism refuses a
+//!    crossing it could certify.
+//! 2. **The refusals are pinned.** The count of candidates refused at
+//!    the determinant (a non-zero determinant the certification
+//!    cannot vouch for) and the count of rays carrying one are pinned
+//!    to the corpus as it is: a change in either is a change in the
+//!    class the mechanism refuses — or a retessellation — and is
+//!    re-derived by `cargo test -p viewer --test all --
+//!    review_pick_r2 --nocapture`, which prints the tally.
+//! 3. **The aim reaches the graze class**: the count of rays answered
+//!    at the aimed vertex is pinned the same way.
+//!
+//! What is NOT pinned here, and why: the answers that moved against
+//! `main`'s kernel before this unit. That predicate is the copy the
+//! unit removed from the tree, and an independent oracle of another
+//! algebra differs from it at rounding level in exactly the class
+//! being counted, so the moved-answer table is a one-shot measurement
+//! (the PR's), not a row.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::ray_triangle;
+use editor_core::resolve::{certified_determinant, ray_triangle};
 use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::{PickIndex, PictureKey};
@@ -34,8 +53,13 @@ fn fresh_index(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, delta()), session.tol())
-        .expect("the document indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the document indexes")
 }
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
@@ -83,7 +107,6 @@ fn ring_bump(doc: &ProfileDoc) -> SessionOp {
 struct FlatPart {
     tree: Bvh,
     corners: Vec<[Point3<f64>; 3]>,
-    patch: Vec<usize>,
 }
 
 fn flatten(index: &PickIndex) -> Vec<FlatPart> {
@@ -93,99 +116,44 @@ fn flatten(index: &PickIndex) -> Vec<FlatPart> {
         .map(|part| {
             let mesh = part.mesh();
             let mut corners = Vec::new();
-            let mut patch = Vec::new();
             let mut boxes = Vec::new();
-            for (pi, p) in mesh.patches.iter().enumerate() {
+            for p in &mesh.patches {
                 for tri in &p.triangles {
                     let c = tri.map(|i| mesh.positions[i as usize]);
                     boxes.push(Aabb::from_points(c).expect("three points box"));
                     corners.push(c);
-                    patch.push(pi);
                 }
             }
             FlatPart {
                 tree: Bvh::build(&boxes),
                 corners,
-                patch,
             }
         })
         .collect()
 }
 
-fn det(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
+/// Möller–Trumbore's determinant, uncertified, and its conditioning.
+fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
-    e1.dot(ray.dir.cross(e2))
+    let det = e1.dot(ray.dir.cross(e2));
+    (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Hit {
-    t: f64,
-    part: usize,
-    item: usize,
-    patch: usize,
-}
-
-/// Every candidate of every part tested, no early-out; the minimum of
-/// `(t, part, item)`. `guarded` passes each candidate's own entry,
-/// unguarded passes `−∞` (main's kernel). Also answers whether some
-/// candidate's GENUINE graze at `reach` (|det| ≥ 1e-15, unguarded `t`
-/// within 1e-9 of `reach`) was refused by the guard.
-fn nearest(parts: &[FlatPart], ray: &Ray, guarded: bool, reach: f64) -> (Option<Hit>, bool) {
-    let mut best: Option<Hit> = None;
-    let mut genuine_refused = false;
-    for (pi, flat) in parts.iter().enumerate() {
-        for cand in flat.tree.ray(ray) {
-            let tri = &flat.corners[cand.item];
-            let floor = if guarded { cand.t_enter } else { f64::NEG_INFINITY };
-            let un = ray_triangle(ray, tri, f64::NEG_INFINITY);
-            let gu = ray_triangle(ray, tri, cand.t_enter);
-            if matches!(un, Some(t) if (t - reach).abs() < 1e-9)
-                && gu.is_none()
-                && det(ray, tri).abs() >= 1e-15
-            {
-                genuine_refused = true;
-            }
-            let Some(t) = ray_triangle(ray, tri, floor) else {
-                continue;
-            };
-            let hit = Hit {
-                t,
-                part: pi,
-                item: cand.item,
-                patch: flat.patch[cand.item],
-            };
-            if best.is_none_or(|b| (t, pi, cand.item) < (b.t, b.part, b.item)) {
-                best = Some(hit);
-            }
-        }
-    }
-    (best, genuine_refused)
-}
-
-fn key(h: Option<Hit>) -> Option<(u64, usize, usize)> {
-    h.map(|h| (h.t.to_bits(), h.part, h.item))
-}
-
+#[derive(Default)]
 struct Tally {
     rays: usize,
     grazes: usize,
-    moved: usize,
-    moved_noise: usize,
-    genuine_refused: usize,
-    rescued: usize,
-    lost: Vec<String>,
+    refused_candidates: usize,
+    rays_with_a_refusal: usize,
+    genuine_refused: Vec<String>,
 }
 
-fn sweep(
-    name: &str,
-    step: &str,
-    session: &DocSession,
-    index: &PickIndex,
-    tally: &mut Tally,
-    show: bool,
-) {
-    let (_, eval) = session.landed_pair().expect("a landed pair");
+/// The pinned tally over the aim below (docs: re-derive with
+/// `--nocapture`).
+const PINNED: (usize, usize, usize, usize) = (441_126, 140_526, 20_016, 10_536);
+
+fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let parts = flatten(index);
     let mut ext = 0.0f64;
     for part in index.parts() {
@@ -213,45 +181,39 @@ fn sweep(
                         origin: *v - dir * reach,
                         dir,
                     };
-                    let (un, _) = nearest(&parts, &ray, false, reach);
-                    let (gu, refused) = nearest(&parts, &ray, true, reach);
-                    if key(un) != key(gu) {
-                        tally.moved += 1;
-                        let un_det = un.map_or(0.0, |h| det(&ray, &parts[h.part].corners[h.item]));
-                        if un_det.abs() < 1e-15 {
-                            tally.moved_noise += 1;
-                        }
-                        if show && un_det.abs() >= 1e-15 {
-                            println!(
-                                "# {name} after {step}: {dir:?} through {v:?} reach {reach}: \
-                                 unguarded {un:?} (det {un_det:e}) -> guarded {gu:?}"
-                            );
-                        }
-                    }
-                    let Some(u) = un else {
-                        continue;
-                    };
-                    if (u.t - reach).abs() > 1e-9 {
-                        continue;
-                    }
-                    tally.grazes += 1;
-                    if refused {
-                        tally.genuine_refused += 1;
-                    }
-                    match gu {
-                        Some(g) if (g.t - reach).abs() < 1e-9 => {
-                            if refused {
-                                tally.rescued += 1;
+                    let mut best: Option<f64> = None;
+                    let mut refused_here = 0usize;
+                    for flat in &parts {
+                        for cand in flat.tree.ray(&ray) {
+                            let tri = &flat.corners[cand.item];
+                            let certified = certified_determinant(&ray, tri).is_some();
+                            if !certified {
+                                let (det, cond) = det_and_conditioning(&ray, tri);
+                                if det != 0.0 {
+                                    refused_here += 1;
+                                }
+                                if cond >= 1e-12 {
+                                    tally.genuine_refused.push(format!(
+                                        "{name} after {step}: {dir:?} through {v:?}: det {det:e} \
+                                         (conditioning {cond:e}) refused on {tri:?}"
+                                    ));
+                                }
+                            }
+                            if let Some(t) = ray_triangle(&ray, tri)
+                                && best.is_none_or(|b| t < b)
+                            {
+                                best = Some(t);
                             }
                         }
-                        other => tally.lost.push(format!(
-                            "{name} after {step}: {dir:?} through {v:?} reach {reach}: unguarded \
-                             {u:?} (det {:e}) -> guarded {other:?} (det {:e}); the service answers \
-                             {:?}",
-                            det(&ray, &parts[u.part].corners[u.item]),
-                            other.map_or(f64::NAN, |g| det(&ray, &parts[g.part].corners[g.item])),
-                            index.pick(eval, &ray)
-                        )),
+                    }
+                    tally.refused_candidates += refused_here;
+                    if refused_here > 0 {
+                        tally.rays_with_a_refusal += 1;
+                    }
+                    if let Some(t) = best
+                        && (t - reach).abs() < 1e-9
+                    {
+                        tally.grazes += 1;
                     }
                 }
             }
@@ -260,18 +222,9 @@ fn sweep(
 }
 
 #[test]
-fn a_genuine_graze_the_guard_refuses_is_answered_by_a_sibling_over_the_corpus() {
+fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
     let tol = Tol::witness();
-    let mut tally = Tally {
-        rays: 0,
-        grazes: 0,
-        moved: 0,
-        moved_noise: 0,
-        genuine_refused: 0,
-        rescued: 0,
-        lost: Vec::new(),
-    };
-    // The gallery ring at open and after its bump (the item's landing).
+    let mut tally = Tally::default();
     {
         let text = common::gallery_ring_at(tol);
         let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
@@ -279,24 +232,15 @@ fn a_genuine_graze_the_guard_refuses_is_answered_by_a_sibling_over_the_corpus() 
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        sweep(
-            "gallery_ring",
-            "open",
-            &session,
-            &fresh_index(&session),
-            &mut tally,
-            true,
-        );
+        sweep("gallery_ring", "open", &fresh_index(&session), &mut tally);
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         sweep(
             "gallery_ring",
             "the first edit",
-            &session,
             &fresh_index(&session),
             &mut tally,
-            true,
         );
     }
     for c in corpus::documents() {
@@ -308,39 +252,33 @@ fn a_genuine_graze_the_guard_refuses_is_answered_by_a_sibling_over_the_corpus() 
         if session.evaluation().is_none() {
             continue;
         }
-        let show = matches!(c.name, "cut_cylinder" | "tube_arc" | "hollow_tube_elbow");
-        sweep(c.name, "open", &session, &fresh_index(&session), &mut tally, show);
+        sweep(c.name, "open", &fresh_index(&session), &mut tally);
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
         session.pump();
-        sweep(
-            c.name,
-            "the first edit",
-            &session,
-            &fresh_index(&session),
-            &mut tally,
-            show,
-        );
+        sweep(c.name, "the first edit", &fresh_index(&session), &mut tally);
     }
-    println!(
-        "# {} rays; {} graze the aimed vertex unguarded; {} answers moved ({} from a noise \
-         determinant); {} rays had a genuine graze refused by the guard, {} of them answered at \
-         the same point by a sibling; {} LOST",
+    let counts = (
         tally.rays,
         tally.grazes,
-        tally.moved,
-        tally.moved_noise,
-        tally.genuine_refused,
-        tally.rescued,
-        tally.lost.len()
+        tally.refused_candidates,
+        tally.rays_with_a_refusal,
     );
-    assert!(tally.grazes > 1000, "the probe reached the graze class");
+    println!(
+        "# review_pick_r2 tally (rays, answered at the aimed vertex, candidates refused at the \
+         determinant, rays with a refusal): {counts:?}"
+    );
     assert!(
-        tally.lost.is_empty(),
-        "{} grazes lost to the guard with no sibling answering:\n{}",
-        tally.lost.len(),
-        tally.lost.join("\n")
+        tally.genuine_refused.is_empty(),
+        "{} candidates with a genuine determinant refused at the certification:\n{}",
+        tally.genuine_refused.len(),
+        tally.genuine_refused.join("\n")
+    );
+    assert_eq!(
+        counts, PINNED,
+        "the tally over the corpus moved from its pin; if the corpus or the certification \
+         changed on purpose, re-derive with --nocapture and re-pin"
     );
 }

@@ -5,7 +5,7 @@
 //! The chain: [`bvh::Bvh::ray`] over the patches' boxes, then over
 //! the candidate patches' per-triangle boxes, merged into one
 //! candidate sequence ([`MeshPick`]) → exact ray/triangle tests in
-//! plain `f64`, each refused below its own box's certified entry
+//! plain `f64`, each on a determinant certified non-zero
 //! ([`ray_triangle`]) → nearest hit by `t` with a total, documented
 //! tie-break
 //! → the winning patch's [`mesh::FacePatch::face`] back-reference →
@@ -79,12 +79,8 @@ use crate::product::sources_of;
 /// ([`PickPatch::face`]).
 #[derive(Clone, Copy, Debug)]
 struct PickTri {
-    /// First corner.
-    a: Point3<f64>,
-    /// Second corner.
-    b: Point3<f64>,
-    /// Third corner.
-    c: Point3<f64>,
+    /// The corners, in the mesh's winding — the exact test's operand.
+    corners: [Point3<f64>; 3],
 }
 
 /// One patch's pick table: its triangles' corners copied out of the
@@ -160,13 +156,12 @@ impl PickTable {
                     },
                 )?;
             }
-            let [a, b, c] = corners;
             // `from_points` is `None` only for an empty iterator;
             // three points always yield a box. The unreachable arm
             // degrades to poison — never pruned — rather than a
             // panic (fail-safe direction).
-            boxes.push(Aabb::from_points([a, b, c]).unwrap_or_else(Aabb::poison));
-            tris.push(PickTri { a, b, c });
+            boxes.push(Aabb::from_points(corners).unwrap_or_else(Aabb::poison));
+            tris.push(PickTri { corners });
         }
         let hull = boxes
             .iter()
@@ -237,15 +232,14 @@ impl core::error::Error for MeshPickError {}
 /// # Why the two-level query answers exactly as one tree over every
 /// triangle would
 ///
-/// A pick is a function of the candidate SET and of each candidate's
-/// own box: the exact test refuses a `t` below the box's certified
-/// entry ([`ray_triangle`]), so the loop's early-out on that entry
-/// prunes only candidates that could not win ([`pick_face`]), and
-/// the answer is the same in every candidate order. What the order
-/// still decides is the WORK — which candidates are tested before
-/// the early-out fires — so [`MeshPick::candidates`] reproduces the
-/// single-tree sequence verbatim, and the two-level index costs what
-/// one tree would:
+/// A pick is a function of the candidate SET: each candidate's exact
+/// test ([`ray_triangle`]) reads the ray and the triangle and nothing
+/// else, and the loop's early-out on the box entry prunes only
+/// candidates that could not win, up to the rounding of a near-tie
+/// ([`pick_face`]). What the order otherwise decides is the WORK —
+/// which candidates are tested before the early-out fires — so
+/// [`MeshPick::candidates`] reproduces the single-tree sequence
+/// verbatim, and the two-level index costs what one tree would:
 ///
 /// - **Same set.** `bvh`'s contract: a query's candidates are a
 ///   function of the item boxes alone, independent of tree shape, and
@@ -261,8 +255,7 @@ impl core::error::Error for MeshPickError {}
 ///   formula by ~2 ULP; it is reached only when a bound and the ray
 ///   origin differ by more than `f64::MAX`, which no mesh does.)
 /// - **Same values.** Each candidate's `t_enter` is the same function
-///   of the same triangle box — and it is the bound the exact test
-///   refuses below, so each candidate's test answers the same.
+///   of the same triangle box.
 /// - **Same order.** The merged list is sorted by
 ///   `(t_enter under total_cmp, flat position)`, the single tree's
 ///   documented order.
@@ -270,8 +263,8 @@ impl core::error::Error for MeshPickError {}
 /// So the loop in [`pick_face`] sees the sequence one tree over all
 /// the triangles would give it, and answers bit-identically — the
 /// invariant `viewer`'s `index_memo` differential pins against a
-/// single-level reference that tests every candidate in every order,
-/// tie-break row included.
+/// single-level reference that tests every candidate, tie-break row
+/// included.
 ///
 /// # The two doors, and why they answer the same index
 ///
@@ -1163,20 +1156,27 @@ pub struct PickHit {
 /// tie-break, not chance, picks the answer.
 ///
 /// **The answer is the lexicographic minimum over every candidate's
-/// exact test, and nothing else.** The traversal early-outs on
-/// [`bvh::RayCandidate::t_enter`] for cost alone: candidates are
-/// visited in ascending `t_enter` ([`MeshPick::candidates`], the
-/// single-tree sequence), and every accepted hit satisfies
-/// `t ≥ t_enter` of its own box ([`ray_triangle`] refuses the rest),
-/// so once the confirmed best `t` is strictly below a candidate's
-/// `t_enter`, every remaining candidate's accepted `t` is at least
-/// that `t_enter` — strictly worse, never a tie — and the rest of
-/// that target's list cannot change the answer. Without the guard a
-/// grazing ray's noise `t` (a candidate whose exact test answers
-/// below its own box) could win or lose by where the loop broke,
-/// which is what made the answer a function of the candidate order.
-/// A poisoned/NaN ray is legal input: the tree returns everything,
-/// every exact test misses, and the answer is the typed miss.
+/// exact test.** Each test reads the ray and the triangle alone, and
+/// a ray in a triangle's plane refuses at the determinant
+/// ([`ray_triangle`]) rather than answering a noise `t`, so no
+/// candidate's answer depends on which candidates were visited
+/// before it. The traversal early-outs on
+/// [`bvh::RayCandidate::t_enter`] for cost: candidates are visited in
+/// ascending `t_enter` ([`MeshPick::candidates`], the single-tree
+/// sequence), and a true hit's parameter is never below its own box's
+/// entry, so once the confirmed best `t` is strictly below a
+/// candidate's `t_enter` nothing further can beat it in exact
+/// arithmetic. In `f64` the accepted `t` is rounded and can sit a few
+/// ULP below its own entry (an axis-planar triangle's box has zero
+/// extent along one axis, so the entry IS the hit's parameter
+/// everywhere on it), so the early-out can break before a candidate
+/// whose rounded `t` would have tied or beaten `best.t` by ULPs: the
+/// tie-rounding class of the closed acceptance
+/// (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding.md`),
+/// which decides among triangles sharing a point, never between a
+/// hit and a miss. A poisoned/NaN ray is legal input: the tree
+/// returns everything, every exact test misses, and the answer is
+/// the typed miss.
 ///
 /// # Errors
 ///
@@ -1224,9 +1224,9 @@ pub fn pick_face<T: Decide>(
             if let Some(b) = &best
                 && b.t < cand.t_enter
             {
-                // Candidates ascend in t_enter, and every accepted
-                // hit is at or above its own: nothing further can
-                // reach `b.t`, let alone improve on it.
+                // Candidates ascend in t_enter, a lower bound on any
+                // true hit in their box: nothing further can improve
+                // beyond the rounding of a near-tie (docs).
                 break;
             }
             let Some((tri, face)) = target.pick.triangle(&cand) else {
@@ -1234,7 +1234,7 @@ pub fn pick_face<T: Decide>(
                 // patches' triangles.
                 continue;
             };
-            if let Some(t) = ray_triangle(ray, &[tri.a, tri.b, tri.c], cand.t_enter) {
+            if let Some(t) = ray_triangle(ray, &tri.corners) {
                 let better = match &best {
                     None => true,
                     // Plain f64 compare is total here: `t` is never
@@ -1277,69 +1277,30 @@ pub fn pick_face<T: Decide>(
     }))
 }
 
-/// The exact ray/triangle test the pick runs (Möller–Trumbore,
-/// both-sided, plain `f64`), under the triangle's own box: `Some(t)`
-/// iff the ray meets the CLOSED triangle `[a, b, c]` at `t ≥ 0` and
-/// `t` is not below `t_enter`, the certified lower bound on any
-/// point of the ray inside the triangle's box
-/// ([`bvh::RayCandidate::t_enter`] of the box [`bvh::Aabb::from_points`]
-/// spans over the corners).
+/// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
+/// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`
+/// on a determinant certified non-zero ([`certified_determinant`]).
 ///
-/// Boundary semantics, stated: `u ∈ [0, 1]`, `v ≥ 0`, `u + v ≤ 1`,
-/// `t ≥ 0` — all closed, so a hit exactly on a shared edge or vertex
-/// is a hit for EVERY incident triangle (the caller's tie-break
-/// disambiguates; watertight meshes therefore never lose a graze to
-/// an open boundary). A zero determinant (ray parallel to the plane,
-/// or a degenerate triangle) is a miss, as is any NaN anywhere: every
-/// acceptance condition is an affirmative comparison, which NaN
-/// fails — poisoned geometry is un-hittable, never mis-hit. A
-/// NON-FINITE `t` (the `e2·q × inv` product overflowing on a
-/// near-degenerate determinant) is refused by the final guard: a hit
-/// the service cannot place at a finite point is a miss, never a
-/// `PickHit` whose `point` would be `0 · ∞ = NaN`.
+/// Boundary semantics: `u ∈ [0, 1]`, `v ≥ 0`, `u + v ≤ 1`, `t ≥ 0` —
+/// all closed, so a hit exactly on a shared edge or vertex is a hit
+/// for EVERY incident triangle (the caller's tie-break disambiguates;
+/// watertight meshes never lose a graze to an open boundary). A
+/// determinant that is not certifiably non-zero — the ray parallel or
+/// near-parallel to the plane, a degenerate triangle, any NaN — is a
+/// miss, and so is a NON-FINITE `t` (the `e2·q × inv` product
+/// overflowing): a hit the service cannot place at a finite point is
+/// never a `PickHit` whose `point` would be `0 · ∞ = NaN`. Every
+/// other acceptance is an affirmative comparison on the rounded
+/// value, which a NaN fails.
 ///
-/// **The box-entry guard, `t < t_enter` on the bits — no tolerance,
-/// no `≤`.** A ray lying in the triangle's plane has a determinant
-/// that is rounding noise (~1e-19 on a unit-scale mesh), and `u`, `v`
-/// and `t` are then noise too; a noise `t` can pass every closed
-/// acceptance above while lying OUTSIDE the triangle's own box. Every
-/// true hit lies inside that box, and `t_enter` never exceeds the
-/// parameter of any point of the ray inside it, so a `t` strictly
-/// below `t_enter` is already proven wrong and is refused; a `t` at
-/// or above it is left to the acceptance conditions, exactly as
-/// before, so an edge or vertex graze at the box's own entry keeps
-/// its closed-boundary answer. This is what makes [`pick_face`]'s
-/// answer a function of the per-triangle tests and not of the order
-/// its early-out visits them in.
-///
-/// Two things the guard does not do. A noise `t` that lands above
-/// `t_enter` and inside the box is not refused here; the
-/// order-independence row of `viewer`'s `index_memo` differential is
-/// where that would show. And the guard reads the ROUNDED `t`: a
-/// genuine graze at the box's own entry face whose test is
-/// ill-conditioned (a near-tangent hit, determinant ~1e-4 on a
-/// unit-scale mesh) can round below the entry by more than the
-/// entry's own widening and is refused too; the point is then
-/// answered by another triangle sharing it, at the same `t` to
-/// within ULPs. A graze every sharing triangle refuses falls through
-/// — the loss the closed acceptance's own rounding in `u` and `v`
-/// already produces on such hits, which the guard neither causes nor
-/// cures.
-///
-/// Public at this module, not lifted to the crate root: the reference
-/// loop that pins the pick runs the same predicate rather than
-/// restating it, and a consumer with a `Bvh` over triangle boxes has
-/// everything it takes; it is not a door of the façade.
-pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3], t_enter: f64) -> Option<f64> {
+/// This is the one exact test; the reference loop that pins the pick
+/// (`viewer`'s `index_memo`) calls it rather than restating it, which
+/// is why it is public at this module and nowhere else.
+pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
     let p = ray.dir.cross(e2);
-    let det = e1.dot(p);
-    if det == 0.0 {
-        // Parallel or degenerate. (A NaN det passes THIS check and is
-        // refused two comparisons down, at `u_inside`.)
-        return None;
-    }
+    let det = certify(e1, e2, ray.dir, p)?;
     let inv = 1.0 / det;
     let s = ray.origin - tri[0];
     let u = s.dot(p) * inv;
@@ -1355,12 +1316,52 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3], t_enter: f64) -> Option<f
     }
     let t = e2.dot(q) * inv;
     let forward_and_finite = t >= 0.0 && t.is_finite();
-    // The box-entry guard (docs): a true hit is never below the
-    // certified entry of the triangle's own box. `t` is finite here
-    // and `t_enter` is never NaN (`bvh`'s contract), so this is
-    // exactly the refusal of `t < t_enter`.
-    let inside_its_box = t >= t_enter;
-    (forward_and_finite && inside_its_box).then_some(t)
+    forward_and_finite.then_some(t)
+}
+
+/// Möller–Trumbore's determinant `e1 · (d × e2)` for the ray against
+/// the triangle, `Some` iff its computed magnitude exceeds the forward
+/// rounding-error bound of its own evaluation — so its sign, and the
+/// fact that the ray crosses the plane at all, are certified. `None`
+/// is a ray in or within rounding of the triangle's plane (or a
+/// degenerate triangle, or a NaN): there the barycentrics and `t`
+/// would be quotients of rounding noise by rounding noise, which is
+/// the answer [`ray_triangle`] refuses to give.
+pub fn certified_determinant(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    certify(e1, e2, ray.dir, ray.dir.cross(e2))
+}
+
+/// The certification's constant, in units of `f64::EPSILON`, derived
+/// from the operation count (`u = EPSILON / 2` is the unit roundoff,
+/// `γ_n = n·u / (1 − n·u)` the standard bound on `n` roundings):
+///
+/// - each component `p_i = fl(fl(d_j·e2_k) − fl(d_k·e2_j))` of the
+///   cross product carries ≤ `γ_2 · S_i`, with
+///   `S_i = |d_j·e2_k| + |d_k·e2_j|`;
+/// - the dot `fl(Σ e1_i·p_i)` (three products, two sums) carries
+///   ≤ `γ_3 · Σ|e1_i·p_i|` of its own, and `|p_i| ≤ (1 + γ_2)·S_i`;
+/// - the propagated cross-product error is ≤ `γ_2 · Σ|e1_i|·S_i`.
+///
+/// So `|det_fl − det| ≤ (γ_2 + γ_3 + γ_2·γ_3) · M < 5.01·u · M` with
+/// `M = Σ_i |e1_i|·S_i` exact. `M` is itself computed with ≤ 6
+/// roundings per term and the bound with one more, so the computed
+/// bound is at least `(1 − γ_7)` of its exact value; `3 · EPSILON =
+/// 6·u` clears `5.01·u / (1 − γ_7)` with margin. Not a tuned number:
+/// change the arithmetic and re-count.
+const DETERMINANT_ERROR_UNITS: f64 = 3.0;
+
+/// The certification itself, over the operands [`ray_triangle`] has
+/// in hand (`p = d × e2` computed once, shared with the barycentrics).
+fn certify(e1: Vec3<f64>, e2: Vec3<f64>, d: Vec3<f64>, p: Vec3<f64>) -> Option<f64> {
+    let det = e1.dot(p);
+    let m = e1.x.abs() * (d.y.abs() * e2.z.abs() + d.z.abs() * e2.y.abs())
+        + e1.y.abs() * (d.z.abs() * e2.x.abs() + d.x.abs() * e2.z.abs())
+        + e1.z.abs() * (d.x.abs() * e2.y.abs() + d.y.abs() * e2.x.abs());
+    let bound = DETERMINANT_ERROR_UNITS * f64::EPSILON * m;
+    // A NaN anywhere fails the comparison: poison is un-hittable.
+    (det.abs() > bound).then_some(det)
 }
 
 #[cfg(test)]
@@ -1372,13 +1373,17 @@ mod tests {
     //! differential, which only ever drives the arms a successful
     //! build takes.
 
-    use geom_core::{Point2, Tol};
+    use bvh::Ray;
+    use geom_core::{Point2, Point3, Tol, Vec3};
     use mesh::tessellate_with;
     use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
     use sweep::{Extrusion, extrude};
+    use test_utils::fuzz;
     use topo::Body;
 
-    use super::{MeshPickError, PickMemo, PickTable, ray_triangle};
+    use super::{
+        MeshPick, MeshPickError, PickMemo, PickTable, certified_determinant, ray_triangle,
+    };
 
     fn unit_prism() -> Body<f64> {
         let square = ProfileLoop::polygon([
@@ -1464,314 +1469,200 @@ mod tests {
         });
     }
 
-    // ---------------- review probes (review/pick-r1) ----------------
+    // ---------------- the exact test's own rows ----------------
+    //
+    // The rows below came in as review probes (branches
+    // `review/pick-r1`, `review/pick-r2`); each now asserts the fixed
+    // behaviour.
 
-    /// The unguarded exact test, byte-for-byte `ray_triangle` without
-    /// the box-entry guard: what `main` answers.
-    fn unguarded(
-        ray: &bvh::Ray,
-        tri: &[geom_core::Point3<f64>; 3],
-    ) -> Option<(f64, f64, f64, f64)> {
-        use geom_core::Vec3;
+    /// A ray through `target` at parameter `reach`, so the expected
+    /// hit is `t = reach` at `target`.
+    fn ray_through(target: Point3<f64>, dir: Vec3<f64>, reach: f64) -> Ray {
+        Ray {
+            origin: target - dir * reach,
+            dir,
+        }
+    }
+
+    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
+    /// angle between the ray and the plane: the conditioning of the
+    /// exact test on this pair.
+    fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
         let e1: Vec3<f64> = tri[1] - tri[0];
         let e2: Vec3<f64> = tri[2] - tri[0];
-        let p = ray.dir.cross(e2);
-        let det = e1.dot(p);
-        if det == 0.0 {
-            return None;
-        }
-        let inv = 1.0 / det;
-        let s = ray.origin - tri[0];
-        let u = s.dot(p) * inv;
-        if !(0.0..=1.0).contains(&u) {
-            return None;
-        }
-        let q = s.cross(e1);
-        let v = ray.dir.dot(q) * inv;
-        if !(v >= 0.0 && u + v <= 1.0) {
-            return None;
-        }
-        let t = e2.dot(q) * inv;
-        (t >= 0.0 && t.is_finite()).then_some((t, u, v, det))
+        let det = e1.dot(ray.dir.cross(e2));
+        det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
     }
 
-    struct Lcg(u64);
-    impl Lcg {
-        fn next_f64(&mut self) -> f64 {
-            self.0 = self
-                .0
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
-            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
-        }
-        fn range(&mut self, lo: f64, hi: f64) -> f64 {
-            lo + (hi - lo) * self.next_f64()
-        }
+    /// The hit a well-conditioned interior crossing owes: accepted,
+    /// at `reach` to the test's own accuracy (`~u / conditioning`
+    /// relative), which for conditioning ≥ 1e-7 is under 1e-8 —
+    /// asserted at 1e-6 so the row reads the class, not the ULP.
+    fn assert_interior_hit(ray: &Ray, tri: &[Point3<f64>; 3], reach: f64, what: &str) {
+        let t = ray_triangle(ray, tri).unwrap_or_else(|| {
+            panic!(
+                "{what}: a well-conditioned interior hit refused; {ray:?} {tri:?}; {}",
+                fuzz::replay()
+            )
+        });
+        assert!(
+            ((t - reach) / reach).abs() < 1e-6,
+            "{what}: t = {t} for a hit at {reach}; {ray:?} {tri:?}; {}",
+            fuzz::replay()
+        );
     }
 
-    /// **Review probe (not for merge).** Does the box-entry guard
-    /// refuse a genuine hit at a point in the triangle's INTERIOR —
-    /// where no sibling triangle of a watertight mesh shares the
-    /// point, so the answer is lost outright rather than answered by
-    /// a neighbour?
+    /// **The closed boundaries, pinned one ULP each way.** An
+    /// axis-aligned fixture whose Möller–Trumbore arithmetic is exact:
+    /// `a = (1, 1, 1)`, `e1 = (4, 0, 0)`, `e2 = (0, 4, 0)`, `d = (0, 0,
+    /// −1)`, so `p = (4, 0, 0)`, `det = 16`, and with `s = origin − a`
+    /// the test computes `u = s_x / 4`, `v = s_y / 4`, `t = s_z`
+    /// without a rounding. Every acceptance bound is then a hit AT the
+    /// bound and a miss one ULP past it — the pin a mutant that opens
+    /// `u ≤ 1`, `v ≥ 0`, `u + v ≤ 1` or `t ≥ 0` cannot survive. A
+    /// static witness (memories/test-suite-cost: shape 2), not a
+    /// search.
     #[test]
-    fn probe_guard_refuses_a_genuine_interior_hit() {
-        use geom_core::{Point3, Vec3};
-        let mut rng = Lcg(0x5eed_1234_9abc_def0);
-        let mut found = 0usize;
-        let mut worst = String::new();
-        let mut worst_ulps = 0i64;
-        let mut interior_hits = 0usize;
-        for _case in 0..400_000 {
-            let mut pt = |r: &mut Lcg| {
+    fn the_closed_boundaries_are_pinned_one_ulp_each_way() {
+        let tri = [
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(5.0, 1.0, 1.0),
+            Point3::new(1.0, 5.0, 1.0),
+        ];
+        let dir = Vec3::new(0.0, 0.0, -1.0);
+        let at = |u: f64, v: f64, t: f64| Ray {
+            origin: Point3::new(1.0 + 4.0 * u, 1.0 + 4.0 * v, 1.0 + t),
+            dir,
+        };
+        let hits = [
+            ("u = 0", at(0.0, 0.5, 2.0)),
+            ("u = 1", at(1.0, 0.0, 2.0)),
+            ("v = 0", at(0.5, 0.0, 2.0)),
+            ("u + v = 1", at(0.5, 0.5, 2.0)),
+            ("t = 0", at(0.25, 0.25, 0.0)),
+            ("the interior", at(0.25, 0.25, 2.0)),
+        ];
+        for (name, ray) in hits {
+            let t = ray_triangle(&ray, &tri).unwrap_or_else(|| panic!("{name} is a hit"));
+            assert_eq!(
+                t.to_bits(),
+                (ray.origin.z - 1.0).to_bits(),
+                "{name}: t is exact"
+            );
+        }
+        // One ULP past each bound, spelled on the ORIGIN so the
+        // subtraction `s = origin − a` stays exact (Sterbenz): an
+        // origin coordinate one ULP off `1` or `5` puts `u`, `v` or
+        // `t` one ULP (two for `u + v`, where a half-ULP would round
+        // back to `1`) past its bound.
+        let from = |x: f64, y: f64, z: f64| Ray {
+            origin: Point3::new(x, y, z),
+            dir,
+        };
+        let misses = [
+            ("u one ULP below 0", from(1.0f64.next_down(), 3.0, 3.0)),
+            ("u one ULP above 1", from(5.0f64.next_up(), 1.0, 3.0)),
+            ("v one ULP below 0", from(3.0, 1.0f64.next_down(), 3.0)),
+            (
+                "u + v two ULP above 1",
+                from(3.0, 3.0f64.next_up().next_up(), 3.0),
+            ),
+            ("t one ULP below 0", from(2.0, 2.0, 1.0f64.next_down())),
+        ];
+        for (name, ray) in misses {
+            assert_eq!(ray_triangle(&ray, &tri), None, "{name} is a miss");
+        }
+        let in_plane = Ray {
+            origin: Point3::new(0.0, 2.0, 1.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            certified_determinant(&in_plane, &tri),
+            None,
+            "a ray in the plane has no certified determinant"
+        );
+        assert_eq!(ray_triangle(&in_plane, &tri), None);
+    }
+
+    /// **A well-conditioned interior hit is accepted, general
+    /// position.** Random triangles; a ray aimed at an interior
+    /// point (`u, v ∈ [0.15, 0.6]`, `u + v ≤ 0.85`) with an
+    /// out-of-plane component from `1e-6` to `1e-2` of the normal, so
+    /// the conditioning spans the near-tangent crossings a pick makes
+    /// looking along a face. Every draw with conditioning ≥ 1e-7 is a
+    /// hit at `reach`. Shape: counterexample search (varying seed,
+    /// effort dial); the static witness is the fixture row above.
+    #[test]
+    fn a_well_conditioned_interior_hit_is_accepted() {
+        let mut rng = fuzz::start("pick: interior hits in general position");
+        for _ in 0..fuzz::scaled(20_000) {
+            let pt = |r: &mut fuzz::Rng| {
                 Point3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0))
             };
-            let a = pt(&mut rng);
-            let b = pt(&mut rng);
-            let c = pt(&mut rng);
+            let tri = [pt(&mut rng), pt(&mut rng), pt(&mut rng)];
             let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
             if bu + bv > 0.85 {
                 continue;
             }
-            let target = a + (b - a) * bu + (c - a) * bv;
-            let n = (b - a).cross(c - a);
-            let inplane = (b - a) * rng.range(-1.0, 1.0) + (c - a) * rng.range(-1.0, 1.0);
-            let scale = 10f64.powf(rng.range(-6.0, -2.0));
-            let dir: Vec3<f64> = inplane + n * scale;
+            let (e1, e2) = (tri[1] - tri[0], tri[2] - tri[0]);
+            let target = tri[0] + e1 * bu + e2 * bv;
+            let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
+            let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-6.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let origin = target - dir * reach;
-            let ray = bvh::Ray { origin, dir };
-            let bx = bvh::Aabb::from_points([a, b, c]).unwrap();
-            let Some(t_enter) = ray.slab_enter(&bx) else {
-                continue;
-            };
-            let Some((t, u, v, det)) = unguarded(&ray, &[a, b, c]) else {
-                continue;
-            };
-            if !(u > 0.05 && v > 0.05 && u + v < 0.95) {
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
                 continue;
             }
-            interior_hits += 1;
-            if t >= t_enter {
-                continue;
-            }
-            found += 1;
-            let mut x = t;
-            let mut ulps = 0i64;
-            while x < t_enter && ulps < 10_000 {
-                x = x.next_up();
-                ulps += 1;
-            }
-            if ulps > worst_ulps {
-                worst_ulps = ulps;
-                worst = format!(
-                    "t={t:e} t_enter={t_enter:e} ({ulps} ulp below), u={u:e} v={v:e} det={det:e}\n  a={a:?}\n  b={b:?}\n  c={c:?}\n  origin={origin:?}\n  dir={dir:?}"
-                );
-            }
-            assert_eq!(
-                ray_triangle(&ray, &[a, b, c], t_enter),
-                None,
-                "the guard refuses it"
-            );
+            assert_interior_hit(&ray, &tri, reach, "general position");
         }
-        println!("PROBE counts: found={found} interior_hits={interior_hits} worst={worst}");
-        assert_eq!(
-            found, 0,
-            "PROBE: {found} genuine INTERIOR hits (of {interior_hits} interior hits drawn) refused by the box-entry guard.\nworst: {worst}"
-        );
     }
 
-    /// **Review probe (not for merge).** The same question as
-    /// [`probe_guard_refuses_a_genuine_interior_hit`], but for a
-    /// triangle whose own box is THIN along one axis — an
-    /// axis-planar triangle (a flat cap, an extruded planar face, any
-    /// sketch-plane geometry), where the box's entry parameter is the
-    /// hit's own parameter for EVERY point of the triangle, not just
-    /// for points on the entry face. Only WELL-CONDITIONED hits count:
-    /// `|det| / (|e1||e2||d|)` is (up to a constant) the sine of the
-    /// angle between the ray and the plane, so a draw above `1e-7` is
-    /// a genuine crossing and not plane-noise.
+    /// **A well-conditioned interior hit is accepted on an axis-planar
+    /// triangle** — a flat cap, an extruded planar face, any
+    /// sketch-plane geometry — whose own box has zero (or 1e-14 to
+    /// 1e-6) extent along one axis. This is the geometry on which a
+    /// guard comparing the rounded `t` against the box's entry refused
+    /// 7% of interior hits; the certified determinant reads no box.
     #[test]
-    fn probe_guard_refuses_an_interior_hit_on_a_flat_box() {
-        use geom_core::{Point3, Vec3};
-        let mut rng = Lcg(0xabcd_0001_2345_6789);
-        let mut found = 0usize;
-        let mut interior_hits = 0usize;
-        let mut worst = String::new();
-        let mut max_cond = 0f64;
-        for _case in 0..400_000 {
+    fn a_flat_triangles_interior_hits_are_accepted() {
+        let mut rng = fuzz::start("pick: interior hits on axis-planar triangles");
+        for _ in 0..fuzz::scaled(20_000) {
             let zc = rng.range(-1.0, 1.0);
-            let thick = if rng.next_f64() < 0.5 {
+            let thick = if rng.below(2) == 0 {
                 0.0
             } else {
                 10f64.powf(rng.range(-14.0, -6.0))
             };
-            let pt = |r: &mut Lcg, z: f64| Point3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), z);
-            let a = pt(&mut rng, zc);
-            let zb = zc + thick * rng.next_f64();
-            let b = pt(&mut rng, zb);
-            let zcc = zc + thick * rng.next_f64();
-            let c = pt(&mut rng, zcc);
+            let a = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zc);
+            let zb = zc + thick * rng.unit();
+            let b = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zb);
+            let zcc = zc + thick * rng.unit();
+            let c = Point3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), zcc);
+            let tri = [a, b, c];
             let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
             if bu + bv > 0.85 {
                 continue;
             }
-            let target = a + (b - a) * bu + (c - a) * bv;
-            let n = (b - a).cross(c - a);
-            let inplane = (b - a) * rng.range(-1.0, 1.0) + (c - a) * rng.range(-1.0, 1.0);
-            let scale = 10f64.powf(rng.range(-8.0, -2.0));
-            let dir: Vec3<f64> = inplane + n * scale;
+            let (e1, e2) = (b - a, c - a);
+            let target = a + e1 * bu + e2 * bv;
+            let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
+            let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-8.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let origin = target - dir * reach;
-            let ray = bvh::Ray { origin, dir };
-            let bx = bvh::Aabb::from_points([a, b, c]).unwrap();
-            let Some(t_enter) = ray.slab_enter(&bx) else {
-                continue;
-            };
-            let Some((t, u, v, det)) = unguarded(&ray, &[a, b, c]) else {
-                continue;
-            };
-            if !(u > 0.05 && v > 0.05 && u + v < 0.95) {
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
                 continue;
             }
-            let (ee1, ee2) = (b - a, c - a);
-            let cond = det.abs() / (ee1.norm() * ee2.norm() * dir.norm());
-            if cond < 1e-7 {
-                continue;
-            }
-            interior_hits += 1;
-            if t >= t_enter {
-                continue;
-            }
-            found += 1;
-            let mut x = t;
-            let mut ulps = 0i64;
-            while x < t_enter && ulps < 100_000 {
-                x = x.next_up();
-                ulps += 1;
-            }
-            if cond > max_cond {
-                max_cond = cond;
-                worst = format!(
-                    "t={t:e} t_enter={t_enter:e} ({ulps} ulp below), u={u:e} v={v:e} det={det:e} cond={cond:e} thick={thick:e}\n  a={a:?}\n  b={b:?}\n  c={c:?}\n  origin={origin:?}\n  dir={dir:?}"
-                );
-            }
-            assert_eq!(
-                ray_triangle(&ray, &[a, b, c], t_enter),
-                None,
-                "the guard refuses it"
-            );
+            assert_interior_hit(&ray, &tri, reach, "axis-planar");
         }
-        println!(
-            "PROBE-FLAT: found={found} well_conditioned_interior_hits={interior_hits} max_cond_among_refusals={max_cond:e}\nbest-conditioned refusal: {worst}"
-        );
-        assert_eq!(found, 0, "genuine interior hits refused on a flat box");
     }
 
-    /// **Review probe (not for merge).** The same loss on REAL mesh
-    /// geometry: the unit prism's axis-planar cap, picked nearly
-    /// edge-on. Runs `pick_face`'s own candidate loop twice over
-    /// `MeshPick` — once with the shipped guarded predicate, once with
-    /// `main`'s unguarded one — and reports rays whose answer the
-    /// guard moved from a well-conditioned INTERIOR hit to a
-    /// different face or a miss.
+    /// **A fan-triangulated cap accepts every interior hit**: the
+    /// shape a tessellator emits for a round planar face — 64 thin
+    /// axis-planar wedges at a non-dyadic height — picked nearly
+    /// edge-on. A point in a wedge's OPEN interior is shared by no
+    /// sibling, so a refusal there is a lost pick, not a moved one.
     #[test]
-    fn probe_the_prism_cap_loses_an_edge_on_pick() {
-        use geom_core::{Point3, Vec3};
-        let body = unit_prism();
-        let mut pmemo = mesh::PatchMemo::new();
-        let mesh = tessellate_with(&body, 0.01, Tol::witness(), &mut pmemo)
-            .expect("the prism tessellates")
-            .mesh;
-        // The same prism, standing at a non-dyadic place in the
-        // document — the only difference from the axis-exact one.
-        let mut mesh = mesh;
-        let off = Vec3::new(0.3141592653589793, 0.2718281828459045, 0.5772156649015329);
-        for p in &mut mesh.positions {
-            *p = *p + off;
-        }
-        let index = super::MeshPick::build(&mesh).expect("the prism indexes");
-        let mut rng = Lcg(0x1357_9bdf_2468_ace0);
-        let mut moved = 0usize;
-        let mut aimed = 0usize;
-        let mut worst = String::new();
-        let mut max_cond = 0f64;
-        for _case in 0..200_000 {
-            // A point in the interior of the prism's top cap.
-            let target = Point3::new(rng.range(0.15, 0.85) + off.x, rng.range(0.15, 0.85) + off.y, 1.0 + off.z);
-            // Nearly edge-on: mostly in the z = 1 plane.
-            let slope = 10f64.powf(rng.range(-6.0, -1.5));
-            let theta = rng.range(0.0, 6.283_185_307_179_586);
-            let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
-            let reach = rng.range(0.5, 3.0);
-            let origin = target - dir * reach;
-            let ray = bvh::Ray { origin, dir };
-            // pick_face's loop, guarded (shipped) and unguarded (main).
-            let mut best_g: Option<(f64, usize)> = None;
-            let mut best_u: Option<(f64, usize, f64, f64, f64)> = None;
-            for cand in index.candidates(&ray) {
-                let Some((tri, _)) = index.triangle(&cand) else {
-                    continue;
-                };
-                let corners = [tri.a, tri.b, tri.c];
-                if let Some(t) = ray_triangle(&ray, &corners, cand.t_enter)
-                    && best_g.as_ref().is_none_or(|b| t < b.0)
-                {
-                    best_g = Some((t, cand.flat));
-                }
-                if let Some((t, u, v, det)) = unguarded(&ray, &corners)
-                    && best_u.as_ref().is_none_or(|b| t < b.0)
-                {
-                    best_u = Some((t, cand.flat, u, v, det));
-                }
-            }
-            let Some((tu, fu, u, v, det)) = best_u else {
-                continue;
-            };
-            // The unguarded winner is a well-conditioned interior hit.
-            let Some((tri, _)) = index.triangle(&super::Candidate {
-                t_enter: 0.0,
-                flat: fu,
-                patch: 0,
-                tri: fu,
-            }) else {
-                continue;
-            };
-            let (ee1, ee2) = (tri.b - tri.a, tri.c - tri.a);
-            let cond = det.abs() / (ee1.norm() * ee2.norm() * dir.norm());
-            if !(u > 0.05 && v > 0.05 && u + v < 0.95) || cond < 1e-7 {
-                continue;
-            }
-            aimed += 1;
-            let same = best_g.as_ref().is_some_and(|b| b.0 == tu && b.1 == fu);
-            if same {
-                continue;
-            }
-            moved += 1;
-            if cond > max_cond {
-                max_cond = cond;
-                worst = format!(
-                    "unguarded: t={tu:e} flat={fu} u={u:e} v={v:e} det={det:e} cond={cond:e}\n  guarded: {best_g:?}\n  origin={origin:?}\n  dir={dir:?}"
-                );
-            }
-        }
-        println!(
-            "PROBE-PRISM: moved={moved} of {aimed} well-conditioned interior cap hits; max_cond_among_moved={max_cond:e}\nbest-conditioned move: {worst}"
-        );
-        assert_eq!(moved, 0, "the guard moved a real mesh pick");
-    }
-
-    /// **Review probe (not for merge).** The flat-box loss on the
-    /// shape a CAD tessellator actually emits for a round planar face:
-    /// a fan-triangulated disc at a non-dyadic height, picked nearly
-    /// edge-on. Every triangle of the fan is axis-planar (its box has
-    /// zero z-extent, so the box's entry IS the hit's own parameter
-    /// everywhere on it) and thin (the fan's apex angle). Reports hits
-    /// in the OPEN interior of a fan triangle — no sibling triangle of
-    /// a watertight mesh shares such a point — that the guard refuses.
-    #[test]
-    fn probe_a_fan_triangulated_cap_loses_an_interior_hit() {
-        use geom_core::{Point3, Vec3};
+    fn a_fan_triangulated_cap_accepts_its_interior_hits() {
         let z = 0.5772156649015329;
         let n = 64usize;
         let centre = Point3::new(0.0, 0.0, z);
@@ -1781,17 +1672,11 @@ mod tests {
                 Point3::new(a.cos(), a.sin(), z)
             })
             .collect();
-        let tris: Vec<[Point3<f64>; 3]> = (0..n)
-            .map(|i| [centre, rim[i], rim[(i + 1) % n]])
-            .collect();
-        let mut rng = Lcg(0x0f0f_1234_5678_9abc);
-        let mut refused = 0usize;
-        let mut interior = 0usize;
-        let mut worst = String::new();
-        let mut max_cond = 0f64;
-        for _case in 0..200_000 {
-            let k = (rng.next_f64() * (n as f64)) as usize % n;
-            let tri = tris[k];
+        let tris: Vec<[Point3<f64>; 3]> =
+            (0..n).map(|i| [centre, rim[i], rim[(i + 1) % n]]).collect();
+        let mut rng = fuzz::start("pick: interior hits on a fan-triangulated cap");
+        for _ in 0..fuzz::scaled(20_000) {
+            let tri = tris[rng.below(n)];
             let (bu, bv) = (rng.range(0.15, 0.6), rng.range(0.15, 0.6));
             if bu + bv > 0.85 {
                 continue;
@@ -1801,99 +1686,65 @@ mod tests {
             let theta = rng.range(0.0, std::f64::consts::TAU);
             let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
             let reach = rng.range(0.5, 3.0);
-            let origin = target - dir * reach;
-            let ray = bvh::Ray { origin, dir };
-            let bx = bvh::Aabb::from_points(tri).unwrap();
-            let Some(t_enter) = ray.slab_enter(&bx) else {
-                continue;
-            };
-            let Some((t, u, v, det)) = unguarded(&ray, &tri) else {
-                continue;
-            };
-            if !(u > 0.05 && v > 0.05 && u + v < 0.95) {
+            let ray = ray_through(target, dir, reach);
+            if conditioning(&ray, &tri) < 1e-7 {
                 continue;
             }
-            let (ee1, ee2) = (tri[1] - tri[0], tri[2] - tri[0]);
-            let cond = det.abs() / (ee1.norm() * ee2.norm() * dir.norm());
-            if cond < 1e-7 {
-                continue;
-            }
-            interior += 1;
-            if t >= t_enter {
-                continue;
-            }
-            refused += 1;
-            if cond > max_cond {
-                max_cond = cond;
-                worst = format!(
-                    "t={t:e} t_enter={t_enter:e} u={u:e} v={v:e} det={det:e} cond={cond:e} wedge={k}\n  origin={origin:?}\n  dir={dir:?}"
-                );
-            }
-            assert_eq!(ray_triangle(&ray, &tri, t_enter), None);
+            assert_interior_hit(&ray, &tri, reach, "fan cap");
         }
-        println!(
-            "PROBE-FAN: refused={refused} of {interior} well-conditioned interior hits; max_cond={max_cond:e}\nbest-conditioned refusal: {worst}"
-        );
-        assert_eq!(refused, 0, "a fan cap loses an interior hit to the guard");
     }
 
-    /// **Review probe (not for merge).** The residue the spec asked to
-    /// measure: a NOISE hit (the ray all but in the triangle's plane,
-    /// `|det|` at rounding level) whose noise `t` lands at or ABOVE
-    /// its own box's entry and so survives the guard. General-position
-    /// triangles; the out-of-plane component is drawn down to `1e-18`.
+    /// **The prism's cap answers an edge-on pick**, through the
+    /// service's own candidate loop over [`MeshPick`]: the unit prism
+    /// tessellated at δ = 0.01 and moved to a non-dyadic place, a
+    /// target in the interior of its top cap, a ray descending onto it
+    /// at a slope from 1e-5 to 1e-1.5 — above the cap until it lands,
+    /// so the cap is the first and only face on the way. The nearest
+    /// accepted candidate is the cap at `reach`.
     #[test]
-    fn probe_noise_hits_that_survive_the_guard() {
-        use geom_core::{Point3, Vec3};
-        let mut rng = Lcg(0x2222_3333_4444_5555);
-        let mut accepted = 0usize;
-        let mut refused = 0usize;
-        let mut worst = String::new();
-        for _case in 0..400_000 {
-            let pt = |r: &mut Lcg| {
-                Point3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0))
-            };
-            let a = pt(&mut rng);
-            let b = pt(&mut rng);
-            let c = pt(&mut rng);
-            let (bu, bv) = (rng.range(0.1, 0.6), rng.range(0.1, 0.6));
-            if bu + bv > 0.85 {
-                continue;
-            }
-            let target = a + (b - a) * bu + (c - a) * bv;
-            let n = (b - a).cross(c - a);
-            let inplane = (b - a) * rng.range(-1.0, 1.0) + (c - a) * rng.range(-1.0, 1.0);
-            let scale = 10f64.powf(rng.range(-20.0, -15.0));
-            let dir: Vec3<f64> = inplane + n * scale;
-            let reach = rng.range(0.5, 3.0);
-            let origin = target - dir * reach;
-            let ray = bvh::Ray { origin, dir };
-            let bx = bvh::Aabb::from_points([a, b, c]).unwrap();
-            let Some(t_enter) = ray.slab_enter(&bx) else {
-                continue;
-            };
-            let Some((t, u, v, det)) = unguarded(&ray, &[a, b, c]) else {
-                continue;
-            };
-            let (ee1, ee2) = (b - a, c - a);
-            let cond = det.abs() / (ee1.norm() * ee2.norm() * dir.norm());
-            if cond > 1e-14 {
-                continue;
-            }
-            if ray_triangle(&ray, &[a, b, c], t_enter).is_some() {
-                accepted += 1;
-                if worst.is_empty() {
-                    worst = format!(
-                        "t={t:e} t_enter={t_enter:e} u={u:e} v={v:e} det={det:e} cond={cond:e}\n  a={a:?}\n  b={b:?}\n  c={c:?}\n  origin={origin:?}\n  dir={dir:?}"
-                    );
-                }
-            } else {
-                refused += 1;
-            }
+    fn the_prism_cap_answers_an_edge_on_pick() {
+        let body = unit_prism();
+        let mut pmemo = mesh::PatchMemo::new();
+        let mut mesh = tessellate_with(&body, 0.01, Tol::witness(), &mut pmemo)
+            .expect("the prism tessellates")
+            .mesh;
+        let off = Vec3::new(0.3141592653589793, 0.2718281828459045, 0.5772156649015329);
+        for p in &mut mesh.positions {
+            *p = *p + off;
         }
-        println!(
-            "PROBE-NOISE: noise hits accepted_by_the_guard={accepted} refused={refused}\nfirst survivor: {worst}"
-        );
-        assert_eq!(accepted, 0, "a noise hit survived the guard");
+        let index = MeshPick::build(&mesh).expect("the prism indexes");
+        let mut rng = fuzz::start("pick: the prism cap edge-on");
+        for _ in 0..fuzz::scaled(5_000) {
+            let target = Point3::new(
+                rng.range(0.15, 0.85) + off.x,
+                rng.range(0.15, 0.85) + off.y,
+                1.0 + off.z,
+            );
+            let slope = 10f64.powf(rng.range(-5.0, -1.5));
+            let theta = rng.range(0.0, std::f64::consts::TAU);
+            let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
+            let reach = rng.range(0.5, 3.0);
+            let ray = ray_through(target, dir, reach);
+            let mut best: Option<f64> = None;
+            for cand in index.candidates(&ray) {
+                let (tri, _) = index.triangle(&cand).expect("a built candidate");
+                if let Some(t) = ray_triangle(&ray, &tri.corners)
+                    && best.is_none_or(|b| t < b)
+                {
+                    best = Some(t);
+                }
+            }
+            let t = best.unwrap_or_else(|| {
+                panic!(
+                    "the cap is missed at {target:?} along {dir:?}; {}",
+                    fuzz::replay()
+                )
+            });
+            assert!(
+                ((t - reach) / reach).abs() < 1e-6,
+                "the nearest candidate is not the cap at {reach}: t = {t}; {}",
+                fuzz::replay()
+            );
+        }
     }
 }
