@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use bvh::Ray;
-use editor_core::resolve::{crossing, ray_triangle};
+use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -54,18 +54,37 @@ fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
-/// `pick_face`'s answer over every triangle — the lexicographic
-/// minimum of `(t, position)`.
+/// `pick_face`'s answer over every triangle, restated: the candidates
+/// no other candidate PRECEDES, then the narrowest interval, then
+/// position.
 fn nearest(tris: &[[Point3<f64>; 3]], ray: &Ray) -> Option<(f64, usize)> {
-    let mut best: Option<(f64, usize)> = None;
+    let mut lowest_hi = f64::INFINITY;
+    let mut undecided: Vec<(TSpan, usize)> = Vec::new();
     for (i, tri) in tris.iter().enumerate() {
-        if let Some(t) = ray_triangle(ray, tri)
-            && best.is_none_or(|(bt, bi)| (t, i) < (bt, bi))
-        {
-            best = Some((t, i));
+        let Some(span) = ray_triangle(ray, tri) else {
+            continue;
+        };
+        if span.t_lo > lowest_hi {
+            continue;
         }
+        if span.t_hi < lowest_hi {
+            lowest_hi = span.t_hi;
+            undecided.retain(|(s, _)| s.t_lo <= lowest_hi);
+        }
+        undecided.push((span, i));
     }
-    best
+    undecided
+        .into_iter()
+        .reduce(|best, cand| {
+            if cand.0.width() < best.0.width()
+                || (cand.0.width() == best.0.width() && cand.1 < best.1)
+            {
+                cand
+            } else {
+                best
+            }
+        })
+        .map(|(span, i)| (span.t, i))
 }
 
 /// **Row 1.** Axis rays through every cap and rim vertex of real
@@ -225,11 +244,12 @@ fn an_in_plane_ray_never_answers_a_point_off_the_triangle() {
             continue;
         }
         let ray = Ray { origin, dir };
-        let Some(t) = ray_triangle(&ray, &tri) else {
+        let Some(span) = ray_triangle(&ray, &tri) else {
             refused += 1;
             continue;
         };
         accepted += 1;
+        let t = span.t;
         let p = ray.origin + ray.dir * t;
         let off = dist2_to_triangle(p, &tri).sqrt();
         if off > 1e-6 {

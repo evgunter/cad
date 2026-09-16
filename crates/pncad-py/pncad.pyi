@@ -4323,6 +4323,17 @@ class PickHit:
         was given a unit direction. `point` is the dimensioned answer."""
 
     @property
+    def t_lo(self) -> float:
+        """The lower end of the hit parameter's certified interval, in
+        the same units as `t`. The kernel orders two candidates only
+        when one interval lies wholly below the other; this and `t_hi`
+        say how wide a claim the hit is, not a second answer."""
+
+    @property
+    def t_hi(self) -> float:
+        """The upper end of that interval."""
+
+    @property
     def point(self) -> tuple[Length, Length, Length]:
         """The hit point, `origin + t * direction`."""
 

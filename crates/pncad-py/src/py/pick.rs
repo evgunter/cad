@@ -301,6 +301,8 @@ pub(crate) struct PickHit {
     node: NodeId,
     body: u32,
     t: f64,
+    t_lo: f64,
+    t_hi: f64,
     point: pncad::geom_core::Point3<f64>,
 }
 
@@ -330,6 +332,21 @@ impl PickHit {
     #[getter]
     fn t(&self) -> f64 {
         self.t
+    }
+
+    /// The lower end of the parameter's certified interval, in the
+    /// same units as `t`. The kernel orders two candidates only when
+    /// one interval lies wholly below the other; `t_lo` and `t_hi` are
+    /// how wide a claim this hit is, not a second answer.
+    #[getter]
+    fn t_lo(&self) -> f64 {
+        self.t_lo
+    }
+
+    /// The upper end of that interval.
+    #[getter]
+    fn t_hi(&self) -> f64 {
+        self.t_hi
     }
 
     /// The hit point, `origin + t * direction` — dimensioned, and the
@@ -573,6 +590,8 @@ pub(crate) fn pick_face(
             node: NodeId(hit.node),
             body: hit.body,
             t: hit.t,
+            t_lo: hit.t_lo,
+            t_hi: hit.t_hi,
             point: hit.point,
         })),
         Err(err) => Err(hit_test_err(py, &err)),
