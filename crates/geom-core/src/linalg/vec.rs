@@ -190,6 +190,8 @@ impl<T: Real> Vec3<T> {
     /// about it.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec3<U> {
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
         self.try_map(|c| Ok::<U, Infallible>(f(c)))
             .unwrap_or_else(|never| match never {})
     }
@@ -200,6 +202,11 @@ impl<T: Real> Vec3<T> {
     /// consulted. Structural like [`Self::map`], which is this walk
     /// with an `f` that cannot refuse: no arithmetic, so exact
     /// whenever `f` is.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
     pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Vec3<U>, E> {
         Ok(Vec3::new(f(self.x)?, f(self.y)?, f(self.z)?))
     }

@@ -4973,16 +4973,12 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     })
 }
 
-/// **The union's declaration routing, read directly.**
-///
-/// The buckets [`route_declarations`] fills are not visible in a
-/// finished evaluation — a document only shows which pairs RESOLVED —
-/// so the rule is read here, where the answer is the bucket list
-/// itself. What a document row cannot pin and this can: that a step
-/// with no declared pair receives NOTHING, and that a pair is fed at
-/// exactly one step rather than tried at several.
-/// The `f64` crossing itself: what [`pinned_plane`] does with a lane
-/// placement, and what it refuses.
+/// **The lane → `f64` crossing, read directly.** What
+/// [`pinned_plane`] carries across where the lane IS `f64`, and what
+/// it refuses everywhere else. An evaluation shows only the typed
+/// refusal a consumer eventually reports; the crossing's own answer —
+/// which twelve components came back, in which places — is readable
+/// only here.
 #[cfg(test)]
 mod pinned_plane_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -4990,15 +4986,6 @@ mod pinned_plane_tests {
     use super::pinned_plane;
     use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
     use profile::SketchPlane;
-
-    /// The twelve stored components, in the walk's order.
-    fn bits<T: Real>(p: &SketchPlane<T>, f: impl Fn(T) -> u64) -> [u64; 12] {
-        let (l, t) = (p.placement.linear, p.placement.translation);
-        [
-            l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
-        ]
-        .map(f)
-    }
 
     /// Twelve distinct components and no symmetry, so a crossing that
     /// transposed a column or dropped the translation could not hide
@@ -5016,35 +5003,45 @@ mod pinned_plane_tests {
 
     /// Where the lane IS `f64`, the crossing is exact and structural:
     /// all twelve components come back in their places, bit for bit.
+    ///
+    /// The comparison is [`SketchPlane::bit_eq`], which IS that
+    /// twelve-component reading — by bits, in their places, off an
+    /// irrefutable destructuring of the placement rather than through
+    /// any walk. A readout spelled again here would be a second copy of
+    /// it, and the transposed-column mutation reds this row through
+    /// `bit_eq` exactly as it would through one.
     #[test]
     fn a_f64_lane_placement_crosses_bit_for_bit_in_its_places() {
         let plane = distinct();
         let crossed = pinned_plane(&plane).expect("f64 is the pinned lane");
-        assert_eq!(
-            bits(&crossed, f64::to_bits),
-            bits(&plane, f64::to_bits),
+        assert!(
+            plane.bit_eq(&crossed),
             "the crossing keeps the columns and the translation in place"
         );
     }
 
     /// An analysis scalar refuses, and the refusal is the TYPE's, not
-    /// a number's: this plane's components are the same twelve ordinary
-    /// values as above, each lifted with a zero derivative, and every
-    /// one of them is still unpinnable because a tangent has no single
-    /// `f64`. The first component refuses, so nothing downstream ever
-    /// sees a partly-crossed placement.
+    /// a number's: the placement here is the very one the row above
+    /// crossed successfully, lifted component for component, so every
+    /// value that pinned at `f64` is present and still unpinnable. No
+    /// number is inspected anywhere on the path, and the first
+    /// component refuses, so nothing downstream sees a partly-crossed
+    /// placement.
     #[test]
-    fn an_analysis_scalar_refuses_however_ordinary_its_components_are() {
+    fn an_analysis_scalar_refuses_the_very_placement_f64_crossed() {
         let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
-        assert!(
-            bits(&lane, |x| x.deriv.to_bits())
-                .iter()
-                .all(|b| *b == 0.0_f64.to_bits())
-        );
         assert!(pinned_plane(&lane).is_none());
     }
 }
 
+/// **The union's declaration routing, read directly.**
+///
+/// The buckets [`route_declarations`] fills are not visible in a
+/// finished evaluation — a document only shows which pairs RESOLVED —
+/// so the rule is read here, where the answer is the bucket list
+/// itself. What a document row cannot pin and this can: that a step
+/// with no declared pair receives NOTHING, and that a pair is fed at
+/// exactly one step rather than tried at several.
 #[cfg(test)]
 mod route_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

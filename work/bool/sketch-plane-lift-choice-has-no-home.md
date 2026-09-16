@@ -40,11 +40,16 @@ reachable by accident), or the choice becomes a typed argument the
 caller must name. What it must not stay is a sentence in a doc comment
 with four callers who never answer it.
 
-## Where it lives
+## Why this slate
 
 The door is `crates/profile/src/lib.rs`, which
-`scripts/work.py territory` reads as **bool**'s ground; the callers are
-wire's and sweep's. The row sits on PROPS' slate because that is where
-the EVAL orchestrator placed the finding it was folded into, and
-because the decision is about a geometry door rather than about any one
-caller.
+`scripts/work.py territory` reads as **bool**'s ground, so the row is
+filed here rather than on the slate of the program that found it
+(`work/README.md`: a finding goes straight onto the slate of the
+program whose ground it lands on, and a lane needs no permission to put
+it there). The callers are wire's and sweep's, but what the finding
+asks for is a decision about the DOOR, and the door is bool's.
+
+Filed from outside the fence by PROPS' affine-try-map lane, which
+minted `SketchPlane::try_map` beside `SketchPlane::map` and so added a
+second inheritor of the unanswered sentence without answering it.

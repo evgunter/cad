@@ -52,6 +52,8 @@ impl<T: Real> Mat3<T> {
     /// once and a transposition cannot appear in one direction only.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Mat3<U> {
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
         self.try_map(|e| Ok::<U, Infallible>(f(e)))
             .unwrap_or_else(|never| match never {})
     }
@@ -61,6 +63,10 @@ impl<T: Real> Mat3<T> {
     /// ([`Vec3::try_map`]), and the FIRST refusal returned — no entry
     /// after it is consulted. Structural like [`Self::map`]: no
     /// arithmetic, so exact whenever `f` is.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first entry it refuses on.
     pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Mat3<U>, E> {
         Ok(Mat3::from_cols(
             self.c0.try_map(&f)?,

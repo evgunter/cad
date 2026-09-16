@@ -62,6 +62,8 @@ impl<T: Real> Affine3<T> {
     /// one and false of the other.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Affine3<U> {
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
         self.try_map(|c| Ok::<U, Infallible>(f(c)))
             .unwrap_or_else(|never| match never {})
     }
@@ -77,6 +79,11 @@ impl<T: Real> Affine3<T> {
     /// This is the direction a scalar-crossing read needs, where
     /// whether a component has an image is decided by the scalar's
     /// type rather than by its value.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
     pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Affine3<U>, E> {
         Ok(Affine3::from_parts(
             self.linear.try_map(&f)?,
@@ -195,7 +202,7 @@ impl<T: Real> Mul for Affine3<T> {
 mod tests {
     use super::*;
     use crate::Dual64;
-    use core::cell::Cell;
+    use core::cell::{Cell, RefCell};
     use proptest::prelude::*;
 
     /// Coordinate strategy — see `vec.rs::tests::coord` for the range
@@ -715,7 +722,10 @@ mod tests {
 
     /// Both walks land every component where the hand spelling puts
     /// it, to the bit, over the storage corpus — signed zeros in
-    /// every pattern, subnormals, infinities, NaN payloads.
+    /// every pattern, a subnormal, `1e308`, both infinities and one
+    /// NaN, plus a 2000-frame generated sweep. (The corpus carries a
+    /// single NaN bit pattern; three DISTINCT payloads are swept by
+    /// `map_returns_the_hand_walk_bits_at_all_three_levels` below.)
     ///
     /// `map` and `try_map` share one body, so this row is what pins
     /// that fact to something outside itself: each is measured against
@@ -736,9 +746,11 @@ mod tests {
         }
     }
 
-    /// The same, across scalars: lifting to `Dual64` carries each
-    /// component's bits into the value channel and a zero derivative
-    /// beside it, in both directions and in the same places.
+    /// The same claim across scalars, over the SAME corpus: lifting to
+    /// `Dual64` carries each component's bits into the value channel
+    /// and a zero derivative beside it, in both directions and in the
+    /// same places. Signed zeros, the subnormal, the infinities and
+    /// the NaN are lifted cross-scalar here and nowhere else.
     ///
     /// The channels are read off `components` and NOT through `map`. A
     /// readout that is itself the walk would apply the walk's own
@@ -747,21 +759,68 @@ mod tests {
     /// while it read through `map` and reds now.
     #[test]
     fn both_walks_lift_to_another_scalar_in_the_same_places() {
-        let a = distinct();
-        let want = bits(a);
         let channels = |d: Affine3<Dual64>| {
             let c = components(d);
             (c.map(|x| x.value.to_bits()), c.map(|x| x.deriv.to_bits()))
         };
-        let door = channels(a.map(Dual64::from_f64));
-        let walk = channels(
-            a.try_map(|x: f64| Ok::<Dual64, Infallible>(Dual64::from_f64(x)))
-                .unwrap_or_else(|never| match never {}),
-        );
-        assert_eq!(door.0, want);
-        assert_eq!(walk.0, want);
-        assert_eq!(door.1, [0.0_f64.to_bits(); 12]);
-        assert_eq!(walk, door);
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            let want = bits(a);
+            let door = channels(a.map(Dual64::from_f64));
+            let walk = channels(
+                a.try_map(|x: f64| Ok::<Dual64, Infallible>(Dual64::from_f64(x)))
+                    .unwrap_or_else(|never| match never {}),
+            );
+            assert_eq!(door.0, want, "map at {o:?} {u:?} {v:?}");
+            assert_eq!(walk.0, want, "try_map at {o:?} {u:?} {v:?}");
+            assert_eq!(door.1, [0.0_f64.to_bits(); 12]);
+            assert_eq!(walk, door);
+        }
+    }
+
+    /// The same placement at `Dual64`, lifted BY HAND — component by
+    /// component, calling no walk. A row that walks back DOWN needs a
+    /// source the walk did not build: lift through `map` and a
+    /// transposed walk would transpose twice and cancel its own error.
+    fn lifted_by_hand(a: Affine3<f64>) -> Affine3<Dual64> {
+        let v = |w: Vec3<f64>| {
+            Vec3::new(
+                Dual64::from_f64(w.x),
+                Dual64::from_f64(w.y),
+                Dual64::from_f64(w.z),
+            )
+        };
+        Affine3::from_parts(
+            Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
+            v(a.translation),
+        )
+    }
+
+    /// The walk runs DOWNWARD too, and a refusal-shaped `f` that does
+    /// not refuse is still a successful walk: from a hand-built
+    /// `Dual64` placement back to `f64` through an `f` that rejects any
+    /// component carrying a derivative. A constant lift carries none,
+    /// so nothing refuses and all twelve components arrive at their
+    /// source bits, in their places.
+    ///
+    /// The other cross-scalar rows go `f64` → `Dual64`; this is the
+    /// only one that goes the other way, and "scalar-agnostic" is a
+    /// claim about both directions.
+    #[test]
+    fn try_map_walks_back_down_to_f64_when_nothing_refuses() {
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            let back: Affine3<f64> = lifted_by_hand(a)
+                .try_map(|x: Dual64| {
+                    if x.deriv.to_bits() == 0.0_f64.to_bits() {
+                        Ok(x.value)
+                    } else {
+                        Err(())
+                    }
+                })
+                .expect("a constant lift carries no derivative, so nothing refuses");
+            assert_eq!(bits(back), bits(a), "at {o:?} {u:?} {v:?}");
+        }
     }
 
     /// The fallible walk returns the FIRST refusal and consults
@@ -826,5 +885,128 @@ mod tests {
                 [u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z, o.x, o.y, o.z].map(f64::to_bits);
             assert_eq!(bits(a), want, "at {o:?} {u:?} {v:?}");
         }
+    }
+
+    // ---- The respelling oracle ----------------------------------------
+    //
+    // `map` IS `try_map` under an `f` that cannot refuse, so what `map`
+    // returns is measured against a walk written out by hand at each of
+    // the three levels, calling nothing in this crate. Adopted from the
+    // style review's probe for this unit, which is where the corpus and
+    // the impure-`f` trace below were designed.
+
+    /// The walk at each level, transcribed by hand. The oracle: `map`
+    /// must return what these return, in every bit and at every level.
+    /// Nothing here may be rewritten to call the doors it measures.
+    fn hand_vec3_map<T: Real, U: Real>(v: Vec3<T>, f: impl Fn(T) -> U) -> Vec3<U> {
+        Vec3::new(f(v.x), f(v.y), f(v.z))
+    }
+
+    fn hand_mat3_map<T: Real, U: Real>(m: Mat3<T>, f: impl Fn(T) -> U) -> Mat3<U> {
+        Mat3::from_cols(
+            hand_vec3_map(m.c0, &f),
+            hand_vec3_map(m.c1, &f),
+            hand_vec3_map(m.c2, &f),
+        )
+    }
+
+    fn hand_affine3_map<T: Real, U: Real>(a: Affine3<T>, f: impl Fn(T) -> U) -> Affine3<U> {
+        Affine3::from_parts(
+            hand_mat3_map(a.linear, &f),
+            hand_vec3_map(a.translation, &f),
+        )
+    }
+
+    /// Twelve awkward bit patterns, including THREE DISTINCT NaN
+    /// payloads — quiet, quiet with a payload, and a signalling-shaped
+    /// one with the sign bit set. A structural walk must carry a NaN's
+    /// payload and sign, not merely "a NaN", and one pattern cannot
+    /// show that.
+    fn nasty() -> [f64; 12] {
+        [
+            0.0,
+            -0.0,
+            5e-324,
+            -5e-324,
+            2.2250738585072009e-308,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::from_bits(0x7ff8_0000_0000_0000),
+            f64::from_bits(0x7ff8_0000_dead_beef),
+            f64::from_bits(0xfff4_0000_0000_0001),
+            1.0,
+            -1.0e308,
+        ]
+    }
+
+    /// The twelve patterns slid through all twelve slots, so every
+    /// pattern occupies every component in turn: a walk that mishandles
+    /// one pattern in one place has nowhere to hide.
+    fn shifted_corpus() -> Vec<Affine3<f64>> {
+        let n = nasty();
+        (0..12)
+            .map(|shift| {
+                let c: [f64; 12] = core::array::from_fn(|i| n[(i + shift) % 12]);
+                Affine3::from_parts(
+                    Mat3::from_cols(
+                        Vec3::new(c[0], c[1], c[2]),
+                        Vec3::new(c[3], c[4], c[5]),
+                        Vec3::new(c[6], c[7], c[8]),
+                    ),
+                    Vec3::new(c[9], c[10], c[11]),
+                )
+            })
+            .collect()
+    }
+
+    /// `map` returns the hand walk's bits at all three levels, over the
+    /// shifted corpus, under an `f` that cannot round (the identity)
+    /// and one that touches every pattern's sign bit including the
+    /// zeros' and the NaNs' (a bitwise negation).
+    #[test]
+    fn map_returns_the_hand_walk_bits_at_all_three_levels() {
+        let flip = |x: f64| f64::from_bits(x.to_bits() ^ (1u64 << 63));
+        for a in shifted_corpus() {
+            assert_eq!(bits(a.map(|x| x)), bits(hand_affine3_map(a, |x| x)));
+            assert_eq!(bits(a.map(flip)), bits(hand_affine3_map(a, flip)));
+            // The two levels beneath, reassembled so the same readout
+            // serves: a `Mat3`/`Vec3` disagreement cannot be absorbed by
+            // the level above.
+            let door = Affine3::from_parts(a.linear.map(flip), a.translation.map(flip));
+            let hand = Affine3::from_parts(
+                hand_mat3_map(a.linear, flip),
+                hand_vec3_map(a.translation, flip),
+            );
+            assert_eq!(bits(door), bits(hand));
+        }
+    }
+
+    /// `map` calls `f` in the hand walk's order, exactly twelve times.
+    ///
+    /// `f` here is impure: its answer depends on how many times it has
+    /// been called, so a change in ORDER or COUNT changes the twelve
+    /// results as well as the trace. That is what makes this a
+    /// measurement of the respelling rather than of the arithmetic —
+    /// the `Infallible` wrapper adds a closure layer, and this row is
+    /// what says the layer changed neither.
+    #[test]
+    fn map_calls_an_impure_f_in_the_same_order_and_as_often() {
+        let a = distinct();
+        let trace = |via: &dyn Fn(Affine3<f64>, &dyn Fn(f64) -> f64) -> Affine3<f64>| {
+            let seen = RefCell::new(Vec::new());
+            let out = via(a, &|x| {
+                let mut s = seen.borrow_mut();
+                s.push(x.to_bits());
+                #[allow(clippy::cast_precision_loss)]
+                let n = s.len() as f64;
+                x * 1000.0 + n
+            });
+            (bits(out), seen.into_inner())
+        };
+        let door = trace(&|a, f| a.map(f));
+        let hand = trace(&|a, f| hand_affine3_map(a, f));
+        assert_eq!(door.1, hand.1, "the order f sees the components in");
+        assert_eq!(door.1.len(), 12, "twelve calls, no more");
+        assert_eq!(door.0, hand.0, "the twelve results land in the same places");
     }
 }

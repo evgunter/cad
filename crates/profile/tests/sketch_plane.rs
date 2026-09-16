@@ -285,24 +285,39 @@ fn try_map_is_the_fallible_direction_of_map_over_the_same_twelve_components() {
 }
 
 #[test]
-fn try_map_returns_the_first_refusal_and_builds_no_plane() {
+fn try_map_returns_the_first_refusal_in_its_place_and_builds_no_plane() {
     // A refusal is the whole answer: no `SketchPlane` is constructed
     // around a partly-walked placement. The walk is twelve components
     // long and short-circuits, so refusing from the k-th on yields the
     // k-th refusal after exactly `k + 1` calls — a plane door that
     // collected all twelve and picked would report eleven and twelve.
-    let plane = SketchPlane::<f64>::xy();
-    for k in 0..12usize {
+    //
+    // The refusal carries the component's own VALUE, over a placement
+    // whose twelve components are all distinct, so the loop
+    // discriminates PLACEMENT and not only order: a transposed column
+    // changes which value comes out at which k. (The canonical planes
+    // could not do this — their components are zeros and ones, so a
+    // transposition leaves the refused value unchanged.)
+    let plane = SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(4.0, 5.5, -6.0),
+            Vec3::new(-7.25, 0.5, 8.0),
+        ),
+        Vec3::new(10.0, 11.0, 12.0),
+    ));
+    let want = bits(plane.placement);
+    for (k, expected) in want.iter().enumerate() {
         let calls = Cell::new(0usize);
         let got = plane.try_map(|x: f64| {
             let i = calls.get();
             calls.set(i + 1);
-            if i < k { Ok(x) } else { Err(i) }
+            if i < k { Ok(x) } else { Err(x.to_bits()) }
         });
         assert_eq!(
             got.err(),
-            Some(k),
-            "the first refusal is the {k}th component's"
+            Some(*expected),
+            "the first refusal carries component {k}'s own value"
         );
         assert_eq!(
             calls.get(),
@@ -316,6 +331,6 @@ fn try_map_returns_the_first_refusal_and_builds_no_plane() {
         calls.set(calls.get() + 1);
         Ok::<f64, ()>(x)
     });
-    assert_eq!(bits(all.unwrap().placement), bits(plane.placement));
+    assert_eq!(bits(all.unwrap().placement), want);
     assert_eq!(calls.get(), 12);
 }
