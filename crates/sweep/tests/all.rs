@@ -73,6 +73,8 @@ mod bool3_r1_probes;
 mod bool3_torus_doors;
 #[path = "bool3_torus_doors_interval.rs"]
 mod bool3_torus_doors_interval;
+#[path = "bool5r2_wedge_reach.rs"]
+mod bool5r2_wedge_reach;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
