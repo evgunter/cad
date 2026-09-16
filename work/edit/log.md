@@ -134,3 +134,19 @@ blend); the orchestrator agrees. Four computed name-table digests
 re-baselined on the four blend-bearing documents; the persisted text
 of all 28 registry documents byte-identical. One rotted literal in a
 test header corrected in passing. No rows filed.
+
+## 2026-09-16 — error-prose unit merged (E-class, PR #2719)
+
+Twelve `Debug` placeholders in `editor-core`'s user prose re-pointed
+at prose doors that already existed (`SlotId::label`, `StepArg::label`,
+`Dimension`'s `Display`); `RefusedRef::NotAFace`'s field is `found`,
+the word the crate's other entity-kind refusals use; one F6 guard over
+`ProgramFault` verified red. The lane measured first: the census did
+not silently permit either site (one allowlisted, one named undecided)
+and the deeper gap — a fieldless enum's identifier passes the census as
+prose — was already CENSUS's row, which gained the evidence. Three
+rows closed; residue filed as its own files (`quoted-parameter-name-…`
+here, `node-error-kind-renders-the-slot-id-through-debug` on WIRE's
+slate); LIB's row parked on the residue row unparked since its trigger
+fired. A closed FIX row's "no `Dimension` reaches a user through
+`Debug`" claim was found false at one door and the door repaired.
