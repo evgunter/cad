@@ -11829,7 +11829,7 @@ Signed (VIEW implementer lane `view/style-installs`).
 
 ## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
 
-`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed. Unlike
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed (#2710). Unlike
 its two siblings the defect was live, so the red is on the base tree
 rather than a post-hoc mutation: a preferences file naming a theme and
 an input preset the registries do not hold renders

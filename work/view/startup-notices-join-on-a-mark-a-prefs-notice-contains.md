@@ -7,6 +7,7 @@ opened: 2026-09-15
 refs: [withdrawal-causes-join-on-a-mark-a-fault-may-contain, startup-notices-need-holding-to-badge]
 closed: 2026-09-16
 branch: view/startup-notices
+pr: 2710
 ---
 
 

@@ -9,7 +9,7 @@ opened: 2026-09-16
 
 Found by the sweep of
 `work/view/startup-notices-join-on-a-mark-a-prefs-notice-contains`
-(VIEW, #TBD), whose population was every flat join of already-rendered
+(VIEW, #2710), whose population was every flat join of already-rendered
 sentences on a mark the elements are free to write themselves.
 
 ## The site
