@@ -1,8 +1,8 @@
 ---
 id: count-continuous-arm-is-shadowed-by-the-display-unit-walk
 kind: issue
-title: "SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first"
-status: open
+title: SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first
+status: dispatched
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
@@ -53,3 +53,9 @@ and the choice between them is a decision about what a file may carry:
 The edit door's half is not in question: `SetDocParam` refuses
 `ContinuousParamCannotBeCount` through the one shared predicate, and
 that refusal is reachable and pinned.
+
+## Dispatched (2026-09-16, EDIT orchestrator) — middle tier, with the slot-dimension row
+
+Built by the unit `edit/one-predicate-round-three`, whose spec is the
+`## Spec` section of `load-door-checks-slot-dimensions-for-profile-nodes-only`;
+this row's decision is ruled there.

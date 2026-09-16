@@ -2,7 +2,7 @@
 id: recorded-program-arguments-carry-no-notation
 kind: issue
 title: a recorded path program holds bare f64 arguments, so a leg's written unit is gone before any Expr exists
-status: open
+status: dispatched
 opened: 2026-09-09
 ---
 
@@ -42,3 +42,44 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/recorded-argument-notation`. **Ruled by precedent, not
+by a new decision:** D7 makes a unit presentation metadata outside
+`bit_eq`, and the document-parameter family already carries one
+(`DocParam::display_unit`, `Expr::literal_with_unit`); a recorded
+program's argument carries the same thing the same way. The PR body
+says where the orchestrator looked (`docs/DESIGN.md` D7; the doc-param
+unit's PR #2732 body; `git log -S` finds no clause deciding the
+recorded program's notation).
+
+1. **The shape.** A recorded argument is a value with the notation it
+   was authored in: beside each recorded length or angle `f64` in
+   `Step<f64>` (`crates/editor-core/src/program.rs`,
+   `LoopProgram::from_recorded`'s input), an optional `UnitSym` — the
+   doc-param shape, not a `WrittenLength` per leg (a `WrittenLength`
+   re-types the number; the unit beside it does not). `from_recorded`
+   mints `Expr::literal_with_unit` where a unit is present and
+   `Expr::literal` where it is not, so a program recorded without
+   notation is bit-identical to today's. Scalars (bulge, director
+   components) carry none.
+2. **Identity.** `bit_eq` is unchanged: two recordings of one leg, `25
+   mm` and `0.025 m`, are `bit_eq` and evaluate to one geometry; a row
+   pins it. The recorder's replay (`RecordedProgram` compared and
+   re-run) is identical for a recording with no notation; a row pins
+   the round trip of a recording with notation through save and load
+   (the literal's unit persists as every literal's does).
+3. **The seam.** `LoopProgram::from_recorded` is the one door; the Rust
+   path API that records the `f64`s (`Step<f64>`'s producers in
+   `crates/profile`? measure where `Step<f64>` is minted) gains the
+   notation only where a caller wrote one. The Python half
+   (`work/lib/path-legs-erase-the-authored-notation-one-layer-down`,
+   parked on this row) follows the shape; do not build it — the PR
+   body announces the shape and that row unparks at merge.
+4. **Rows**: a leg authored in millimetres reads back millimetres
+   through the document (RED today: it reads back metres — write it
+   first); `bit_eq` across notations; the round trip; a recording with
+   no notation unchanged byte-for-byte in the corpus goldens (none may
+   move — say so). The sweep: every producer of `Step<f64>` and every
+   consumer of a recorded argument, with what the pattern cannot match.
