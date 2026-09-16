@@ -522,7 +522,7 @@ fn plane_segments(origin: Point3<f64>, normal: UnitVec3<f64>, view: View) -> Vec
 /// the mark that cannot coincide with the ruling. The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
-    let mut out = grid(origin, u, v, cross(u, v), view);
+    let mut out = grid(origin, u, v, u.cross(v), view);
     // **The arms refuse on their own scale, not on the patch's.** The
     // ruling is read at the point the camera is aimed at and the arms
     // at the frame's ORIGIN, which are two different depths — so a
@@ -579,7 +579,7 @@ fn grid(
         view.look_at.y - origin.y,
         view.look_at.z - origin.z,
     );
-    let (cu, cv) = (dot(to_target, u), dot(to_target, v));
+    let (cu, cv) = (to_target.dot(u), to_target.dot(v));
     let centre = Point3::new(
         origin.x + u.x * cu + v.x * cv,
         origin.y + u.y * cu + v.y * cv,
@@ -731,7 +731,7 @@ fn axis_segments(origin: Point3<f64>, axis: UnitVec3<f64>, view: View) -> Vec<[f
         view.look_at.y - origin.y,
         view.look_at.z - origin.z,
     );
-    let along = dot(to_target, dir);
+    let along = to_target.dot(dir);
     let centre = Point3::new(
         origin.x + dir.x * along,
         origin.y + dir.y * along,
@@ -790,59 +790,25 @@ fn point_segments(position: Point3<f64>, view: View) -> Vec<[f64; 3]> {
     out
 }
 
-/// The dot product, spelled here for [`cross`]'s reason.
-fn dot(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
-    a.x * b.x + a.y * b.y + a.z * b.z
-}
-
 /// **Two unit vectors spanning the plane `n` is normal to.**
 ///
-/// `n` is unit as a property of its type, so this only has to choose
-/// a direction, not rescue one. The seed is whichever world axis `n`
-/// is least aligned with, which is what keeps the cross product away
-/// from zero: a vector cannot be nearly parallel to the axis it has
-/// its smallest component along.
-fn basis(n: UnitVec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-    let n = n.get();
-    let seed = if n.x.abs() <= n.y.abs() && n.x.abs() <= n.z.abs() {
-        Vec3::new(1.0, 0.0, 0.0)
-    } else if n.y.abs() <= n.z.abs() {
-        Vec3::new(0.0, 1.0, 0.0)
-    } else {
-        Vec3::new(0.0, 0.0, 1.0)
-    };
-    let u = unit(cross(n, seed));
-    (u, unit(cross(n, u)))
-}
-
-/// The cross product, spelled here because this module's vectors are
-/// display scaffolding and never reach a predicate.
-fn cross(a: Vec3<f64>, b: Vec3<f64>) -> Vec3<f64> {
-    Vec3::new(
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x,
-    )
-}
-
-/// `v` normalized, or the x axis where it has no length.
+/// The kernel's door, named here because two marks share it: a plane's
+/// ruling and an axis's end ticks are both drawn along a pair the
+/// datum does not carry, and where that pair comes from is a display
+/// decision this module is answerable for. The answer is that it is
+/// not a second one — the viewer does not decide how a normal is
+/// completed to a frame, so it asks the door that does.
 ///
-/// The fallback is unreachable from [`basis`], and `v` cannot be
-/// non-finite there either. A `UnitVec3` refuses a direction whose
-/// length is not a finite number at construction
-/// (`topo::query::UnitVec3Error::NonFiniteLength`), so `n` arrives a
-/// genuine unit vector; the axis `n` is least aligned with has
-/// `|n · e| ≤ 1/√3`, so the cross has length
-/// `√(1 − (n · e)²) ≥ √(2/3)`. It is a fallback rather than an
-/// assertion because a datum nobody can see is a better failure than
-/// a panic in a paint path.
-fn unit(v: Vec3<f64>) -> Vec3<f64> {
-    let len = (v.x.powi(2) + v.y.powi(2) + v.z.powi(2)).sqrt();
-    if len > 0.0 {
-        Vec3::new(v.x / len, v.y / len, v.z / len)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    }
+/// `n` is unit as a property of its type, and
+/// [`UnitVec3::orthonormal_basis`] completes it to a right-handed
+/// frame with no length to divide by, so there is no direction to
+/// rescue here and no conditioning argument to keep true. The frame it
+/// picks is discontinuous across the equator `n.z == 0`, which that
+/// door states and no construction can avoid: there is no continuous
+/// global frame on the sphere, so the seam is somewhere, and a datum
+/// whose normal crosses it redraws its ruling turned.
+fn basis(n: UnitVec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
+    n.orthonormal_basis()
 }
 
 /// **What a datum is drawn against**: where the eye is, and how much
