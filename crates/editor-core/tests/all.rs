@@ -118,6 +118,8 @@ mod docm7_union_declare;
 mod docm8_flat_merged;
 #[path = "docm9_range.rs"]
 mod docm9_range;
+#[path = "dp_rv_probes.rs"]
+mod dp_rv_probes;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
