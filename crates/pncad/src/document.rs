@@ -416,8 +416,11 @@ pub use editor_core::{
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
 
-// The profile description node type and its document alias.
+// The profile description node type and its document alias, plus the
+// refusal of the door that reads a step's profile edges — matchable
+// here because a caller that asked which edges a step became has to be
+// able to say WHY it was not told.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg, resolve_loops,
+    RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
 };
