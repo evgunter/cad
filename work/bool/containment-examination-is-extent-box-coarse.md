@@ -2,10 +2,12 @@
 id: containment-examination-is-extent-box-coarse
 kind: issue
 title: Containment examination is extent-box coarse — no non-convex-container assembly can certify after PR 737
-status: open
+status: closed
 opened: 2026-08-20
 github: 750
 refs: [637, 737, BOOL-4]
+pr: 2767
+closed: 2026-09-16
 ---
 
 ## From GitHub issue 750

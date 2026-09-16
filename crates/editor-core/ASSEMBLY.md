@@ -227,8 +227,11 @@ that could not be minted refuses the outer gate
 gather order, before this document's own unminted rows and before the
 at-rest gate — an outer assembly is unusable while an inner part's
 contact is unverified. Nothing is re-verified or re-minted across the seam:
-verification runs once, at the outermost gate. Interference fits
-through recorded gate-skips are not implemented.
+verification runs once, at the outermost gate. An interference fit —
+one instance's material containing a vertex of another's — is decided
+by the census's material test and refused typed
+(`ValidationError::InstanceInterference`); recorded gate-skips, the
+declaration C6 above describes, are not implemented.
 
 ## Mirror
 
