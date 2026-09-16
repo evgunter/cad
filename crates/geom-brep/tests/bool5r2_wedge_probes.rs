@@ -259,7 +259,12 @@ fn the_wedge_arms_zero_floor_is_never_reached_from_the_sphere_branch() {
             (2.0, "escalated"),
             (5.0, "escalated"),
             (9.0, "escalated"),
-            (10.0, "own width"),
+            // `R·sin θ` is a hair BELOW `R·θ` at the escalate
+            // threshold, so the coplanar decide is still indefinite
+            // exactly where the wedge decide would be definite —
+            // which is the direction that keeps the wedge arm's
+            // `Zero` floor out of reach.
+            (10.0, "escalated"),
             (11.0, "own width"),
             (20.0, "own width"),
             (1e3, "own width"),
