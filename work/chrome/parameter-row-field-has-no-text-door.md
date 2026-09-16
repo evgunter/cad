@@ -2,10 +2,9 @@
 id: parameter-row-field-has-no-text-door
 kind: issue
 title: A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1776]
-blocked_on: [doc-param-unit-edit-has-no-door]
 ---
 
 
@@ -131,3 +130,13 @@ it closes, the unit half here is unblocked and the `SessionOp` mirroring
 `SetSlotUnit` is buildable: the kernel edit takes a `UnitSym`, so
 `props`' `slot_unit_edit` shape transfers to a parameter row without the
 rebuild-from-parts problem that shape had before the door existed.
+
+## Unparked (2026-09-16, EDIT orchestrator)
+
+The trigger fired: `doc-param-unit-edit-has-no-door` closed with PR
+#2732, which built `DocEdit::SetDocParamUnit` and
+`DocParam::with_display_unit` — the door this row's panel half waits
+on. It is open work on CHROME's slate now; the API the panel consumes
+is named in that item's `## Built`. Header edited from outside CHROME's
+fence only to keep the tracker true (`work/README.md`: a fired trigger
+is not a blocker).
