@@ -597,6 +597,19 @@ block BOOL-B4 per the private draw file, quoted before the arms were
 named. Wave 2 is BOOL-4 (L); wave 3 the BOOL-Q rows as two lanes;
 then the exit walk.
 
+## Close-out wave 2: BOOL-4 spec landed (2026-09-16)
+
+`docs/BOOL-4-SPEC.md` binds the L unit: the census's instance-containment
+arm keeps its six-margin box test as the GATE and decides what the box
+cannot — material — through the per-solid point-in-solid door over the
+one closest-hit core (the issue-1011 arms BOOL-2/3 landed; the coupling
+the plan flagged is the design). Both of issue 750's falsifications ride
+verbatim; a decided interference gets its own typed refusal instead of
+`CensusUndecidable`; `Tol` is threaded from `validate.rs`, not witnessed.
+The adjacent `declared.faces` observation is filed as its own item
+(`work/bool/declared-faces-has-no-cross-solid-check.md`). Block BOOL-B5
+drawn per the private draw file; BOOL-4 dispatches when a wave-1 lane
+frees its disk. Then the exit walk.
 ## BOOL-5 merged (2026-09-16)
 
 PR #2748 merged at the fix-pass head ea55a2c44 (run 35080152715

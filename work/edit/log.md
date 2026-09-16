@@ -221,3 +221,17 @@ one was written at default ε and failed at the other two rows when
 adopted, because `load` reconciles the file's recorded ε — the full
 matrix caught it. Filed: a CHROME row on `viewer/src/sketch.rs`'s false
 compile-break claim; evidence on LIB's short-vocabulary row.
+
+## 2026-09-16 — doc-param unit door merged (middle tier, PR #2732)
+
+`DocParam::with_display_unit` and `DocEdit::SetDocParamUnit`: a
+notation change is not a redeclaration because `bit_eq` already
+excludes the display unit, stated once and executed. The unit→dimension
+reading has one home, `UnitSym::measures()`, which the review found
+still copied in the parser (a claim of "one place" that was false);
+`SetDocParam` now refuses a mismatched pairing at the edit door too.
+Process: the lane pushed an empty commit and closed/reopened the PR
+to re-arm CI on a conflicting head — both forbidden and both recorded
+on the item and in the PR; the real cause was a conflicting PR, which
+GitHub does not run. The lane then reproduced the Python suite locally
+and caught a stale census row before pushing. Two residue rows filed.
