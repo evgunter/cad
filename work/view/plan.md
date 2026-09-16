@@ -1267,6 +1267,36 @@ in the direction it named. The conclusion survived on its other leg,
 which is luck, not method. A ruling is evidence with a name on it, and
 the name is not the evidence.
 
+**A receipt read off the end of a pipeline is a receipt for the wrong
+command.** The `view/datum-refusals-named` lane ran
+`scripts/doc-gate.sh 2>&1 | tail -20; echo "BARE=$?"` and reported the
+bare gate green. `$?` there is **`tail`'s** status, not the gate's —
+the gate had already failed locally, and the lane learned it from
+hosted CI a round trip later (three intra-doc links to
+`ViewerApp::update`, a function that has never existed; the entry
+point is `<ViewerApp as eframe::App>::ui`). This is the register's
+*receipt for a command nobody ran* class in a new shape: the command
+DID run, and the number reported belongs to a different one. Redirect
+to a file and take `$?` off the command itself, or use
+`PIPESTATUS`/`set -o pipefail`. **A pipeline's exit status is its last
+stage, and every validation line in a PR body that pipes is making a
+claim about `tail`, `head` or `grep` unless it says otherwise.**
+
+**Two open PRs can both be right about a count and both be wrong
+together.** `#2762` (`view/dead-seam-badge`) and `#2788`
+(`view/datum-refusals-named`) each add one member to `frame.rs`'s
+badge family, and each moves `frame_policy.rs`'s
+`assert_eq!(badge_doors, 8, …)` and `crates/viewer/README.md`'s
+*"eight"* to **nine**. Both are correct against `main` and against
+each other's absence. Git conflicts on the line, which is the good
+outcome — **and the resolution is `10`, not whichever side arrives
+second.** More generally: a hand-written population count is a
+cross-branch hazard the way a lockfile is, and two lanes told to
+"correct the census" in parallel will each correct it to the same
+wrong number. Where a count is guarded by a `matches(…).count()`
+sweep, the sweep is the thing that is right; the literal beside it is
+the thing to re-derive at merge, never to carry across.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
