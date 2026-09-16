@@ -12871,3 +12871,117 @@ its sweep ends at a kilometre"*) and
 `the-fields-door-has-no-width-bound-at-all`.
 
 **VIEW stands at 78 open / 106 closed.**
+
+## 2026-09-16 — `view/two-spellings`: rule 1 moves down for the value drag
+
+`the-value-drags-in-flight-refusal-has-two-spellings` closed with a
+change rather than a written reason. `SessionOp::BeginGesture` and
+`BeginParamGesture` are `true` in `permitted_during_value_gesture`, and
+the second-begin refusal a user meets is `g1::Slot::begin`'s — the same
+door the probe's begin goes through, with the value drag's words.
+
+The site a user reached before was the table's: `perform` consults it
+before dispatch, so the slot's arm was unreachable through the only
+door that calls it. The alternative — keep the floor, write down which
+row is policy and which is safety — was refused because the two answers
+have no input on which they differ: same state, same `GestureInFlight`.
+The table's own certifying sentence did not cover the rows either
+(*"everything else moves the document, the history or the file"*, false
+of both begins, and of `ProbeBounds`, which is now named as the one
+refusal that reads rather than moves).
+
+Both doors' target checks moved inside `DocSession::start`'s closure, so
+rule 1 still answers before them and no user-visible refusal changed —
+`driver_of` and `guard_driven` are free functions over the committed
+document to make that borrow work. Nothing could red on the base tree
+as a result, so the receipt is the other direction: deleting
+`g1::Slot::begin`'s in-flight arm reds 5 tests on `origin/main` (all
+probe rows) and 12 on this branch, the seven new ones all the value
+drag's.
+
+The hand-written `expected` table keeps its census — the free-move
+table's property shape is not available here, because `ProbeBounds` is
+a counterexample to the nearest short description of the 24 refusals.
+Its calibration paragraph was re-measured on this tree rather than
+carried forward.
+
+Signed (VIEW implementer lane `view/two-spellings`).
+
+## 2026-09-16 — #2739 merged; the slot's arm was a floor nobody stood on, and the measurement proves it
+
+**#2739 merged** (`bb1ea62fda`), verified from the job list on the
+merged head `15e316fd42`: code tier, **39 check runs, 12 `test (…)`,
+5 `k-lint (gate, …)`, `gate ok` success**, six skipped, nothing failed.
+
+**The item's control-flow claim is true and I checked it rather than
+took it**: `begin_gesture` is private (`session.rs:1548`) with
+`perform`'s match arm its only caller, and `perform`'s preamble at
+`:1106` is `if self.gesture.held().is_some() && !op.permitted_during_value_gesture()`
+— consulted before dispatch. So under an open value drag the table
+refused and `g1::Slot::begin`'s arm was **unreachable through every
+door a user has**.
+
+**The decision went to the code, on three grounds, and the third is the
+one that generalises**: the two answers are extensionally identical
+(same state, same `Refusal::GestureInFlight`, no input distinguishes
+them); the table's own certifying sentence — *"everything else moves
+the document, the history or the file the drag is previewing against"*
+— is **false of both begin rows**; and `session/op.rs` already argues
+exactly this for `BeginFreeMove`, an argument that **survives** the
+change and becomes one rule about rule 1 rather than one table's
+exception.
+
+**The receipt is a measurement, not a red, and it is the best shape
+this program has produced for a structural defect.** Nothing can red on
+the base tree — the spellings agree on every input and ordering is
+preserved deliberately — so the lane deleted `g1::Slot::begin`'s
+in-flight arm on both trees instead:
+
+- on `origin/main`: **5 red**, all probe rows;
+- on the branch: **12 red** — the same five plus seven value-drag rows.
+
+**Breaking rule 1 in the module that holds it once left every
+value-drag row green on `main`.** That is the arm being a floor nobody
+stands on, rendered as a number.
+
+**The ordering consequence was moved, not paid.** Removing the rows
+naively would have made a begin on an expression-driven slot refuse
+`DrivenByExpression` and on an undeclared param `NoSuchParam` — both
+wrong, because rule 1 validates the target only once the slot is free.
+Both target checks moved **inside** `DocSession::start`'s closure, with
+`driver_of`/`guard_driven` becoming free functions over the committed
+document (disjoint field borrows, no clone, no `RefCell`). **No
+user-visible refusal changed anywhere**, and a new row pins both
+directions.
+
+**The `expected` table stayed a census, with the reason** — and the
+reason is a proxy defect caught before it was minted. The free-move
+half can be property-checked because its refusals have a name; the
+value table's remaining 24 have no short description except the
+table's own sentence, and **`ProbeBounds` falsifies it** (it reads the
+shown document and commits nothing). A property test on that sentence
+would have been a proxy with a known false member. The sentence in
+`session/op.rs` was corrected instead — 23 of 24, with `ProbeBounds`
+named as the exception.
+
+**And the table's calibration paragraph was RE-MEASURED rather than
+carried forward**: whole-table reversal reds **8 tests, 5 outside the
+file** (the paragraph said five); the per-op witness census is **19 of
+24** with its enumeration rule written beside it, the five unwitnessed
+named, and an explicit statement that 19 is a floor. That is the
+number-with-its-instrument rule applied to a number the lane inherited.
+
+**The sweep's second pattern is the interesting one**: a refusal raised
+through `g1::Slot` **never names its variant at the raising site** —
+the word travels as a struct field — so grepping the variant cannot see
+either door, *"which is how this instance stayed invisible"*. The class
+is empty after this change: the only other `false` rows reach no `Slot`
+door.
+
+**All three sentences it changed were checked for ratification** and
+all three trace to agent lanes (`0b8baf2b46`, `5932ca7e53`,
+`d6461d9ec0`), so nothing waited. G1 untouched — it ratifies the
+three-layer split and preview-vs-commit, not which layer raises a
+second begin's refusal.
+
+Item **closed**. **VIEW stands at 77 open / 107 closed.**
