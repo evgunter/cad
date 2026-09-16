@@ -86,15 +86,16 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
     );
 }
 
-/// The divergence between the SHAPE door and the flux lane, pinned in
-/// both directions: the partial sphere wedge is a rimless lune — a
-/// chart rectangle `[0, θ] × [−π/2, π/2]` — so the door admits it and
-/// it meshes exactly as before, while `mass_properties` refuses the
-/// same body for the flux lane's own reason (`Δu = π`,
-/// `props_band_coplanar`), which is a closed-form premise and not a
-/// statement about the shape.
+/// The SHAPE door and the flux lane answer the same rimless lune on
+/// their own premises: the partial sphere wedge is a chart rectangle
+/// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
+/// `mass_properties` measures it by the flux lane's own reading of the
+/// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
+/// unit ball over `θ = 2`, volume `(2/3)·θ`. Until issue 542 the flux
+/// lane refused this body (`props_band_coplanar`, the two-band
+/// premise); the door's answer did not move when the lane's did.
 #[test]
-fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
+fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let body = sphere_wedge(2.0);
     let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).expect("the lune meshes");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -113,17 +114,13 @@ fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
         Ok(()),
         "a rimless lune is a chart rectangle"
     );
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("the flux lane measures the lune by its meridian pair")
+        .volume;
+    let exact = 2.0 / 3.0 * 2.0;
     assert!(
-        matches!(
-            topo::mass_properties(&body, Tol::witness()),
-            Err(topo::MassPropsError::Face {
-                source: PropsError::NotIsoRectangle {
-                    what: "props_band_coplanar"
-                },
-                ..
-            })
-        ),
-        "the flux lane refuses the same face for its own Δu = π premise"
+        (volume - exact).abs() / exact < 1e-12,
+        "the wedge of the unit ball over θ = 2: volume {volume:.15e} != {exact:.15e}"
     );
 }
 
