@@ -3496,3 +3496,26 @@ entry plus the PR body. Residue filed on `work/census/`:
 and `census-answers-no-field-read-for-a-walk-that-reads-a-field`.
 
 - `CENSUS-HAND-LISTED-SIBLINGS-SPEC.md` — CENSUS-HAND-LISTED-SIBLINGS, six hand-listed walks get a tie to their declaration (#2712)
+
+## Per-merge deletion — EDIT-PICK's spec (2026-09-16)
+
+Recoverable at `git show dde873c04:docs/EDIT-PICK-SPEC.md` (PR
+#2721's fix-pass head, carrying the spec's own amendment section).
+EDIT's first kernel unit under the v6 dual. The sentence that did not
+survive, and it was the spec's central one: **"the box-entry guard
+removes only answers already proven wrong."** True in exact arithmetic,
+false in `f64` — the guard compared a rounded `t` against a bound
+widened for the box's rounding and not the test's, so on any
+axis-planar triangle (whose box is degenerate along one axis and whose
+entry parameter therefore IS the hit's parameter everywhere) genuine
+well-conditioned hits fell below it by ULPs and were refused. Both
+reviewers found it independently, one on a corpus document where the
+service then answered the wrong face. The spec's framing that survived:
+the derived determinant bound as the mechanism for the noise class, and
+the demand that every "measured over every landing" claim be a row. What
+the spec did not foresee: the certified determinant alone leaves the
+ring case wrong (a certified-but-small determinant with exact zero
+barycentrics and a cancelled quotient for `t`), which the fix pass
+closed by taking `t` from the hit point's projection — the amendment
+section records it, and the residual it leaves is
+`work/edit/pick-accepts-uncertified-barycentrics-on-a-certified-determinant`.

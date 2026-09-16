@@ -354,8 +354,13 @@ pub enum EditError {
     ProfileProgramRefused {
         /// The profile node (for `InsertNode`, the id being minted).
         node: RecipeNodeId,
-        /// The typed refusal.
-        refusal: crate::program::ProgramRefusal,
+        /// The typed refusal, behind a pointer: it is this enum's
+        /// widest payload, and every edit door returns the enum BY
+        /// VALUE, so held inline it sets the width of every `Result`
+        /// in the edit vocabulary and of the persist and replay
+        /// refusals that wrap one. `AssemblyError::Product` carries
+        /// `ProductError` the same way for the same reason.
+        refusal: Box<crate::program::ProgramRefusal>,
     },
     /// An inserted node's input ref does not resolve to a live node
     /// (spec D3: `apply` rejects unresolvable refs).
@@ -725,6 +730,19 @@ pub enum EditError {
     NameUnresolvedInEvaluation {
         /// The name no table carries.
         name: StableName,
+    },
+    /// The supplied evaluation is of ANOTHER document (DI3, A2a).
+    ///
+    /// Raised by [`crate::resolve::apply_with_names`], whose docs say
+    /// why that door checks; this arm is the edit vocabulary's word
+    /// for the answer, as `ProductError`, `MateFault` and
+    /// `ChecksError` each carry their own over the one predicate
+    /// [`crate::ident::mispaired`].
+    EvaluationOfAnotherDocument {
+        /// The document the edit is being applied to.
+        expected: crate::ident::DocumentId,
+        /// The document the supplied evaluation is of.
+        found: crate::ident::DocumentId,
     },
     /// A `Rebind` whose appearance-key rewrite would land two
     /// attributes of the same kind on the target name (`from`'s
@@ -1207,6 +1225,12 @@ impl core::fmt::Display for EditError {
                 f,
                 "the {name} does not resolve in the supplied evaluation — recording the \
                  reference would strand it"
+            ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "the supplied evaluation is of document {found}, not of document \
+                 {expected} — its names would be checked against another document's \
+                 tables"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
@@ -1703,8 +1727,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // validates under the CURRENT param env, refusing typed
             // here rather than at first evaluation.
             if let Node::Profile(p) = node {
-                p.check(&new.param_env::<f64>(), tol)
-                    .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+                p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
+                    EditError::ProfileProgramRefused {
+                        node: id,
+                        refusal: Box::new(refusal),
+                    }
+                })?;
             }
             new.next_id += 1;
             new.nodes.insert(id, node.clone());
@@ -2228,8 +2256,12 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     if matches!(slot, SlotId::Profile { .. })
         && let Some(Node::Profile(p)) = new.nodes.get(&id)
     {
-        p.check(&new.param_env::<f64>(), tol)
-            .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+        p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
+            EditError::ProfileProgramRefused {
+                node: id,
+                refusal: Box::new(refusal),
+            }
+        })?;
     }
     Ok(())
 }

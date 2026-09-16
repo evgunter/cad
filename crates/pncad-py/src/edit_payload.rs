@@ -399,6 +399,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::Dimension(_) => none,
+        // The document-mismatch arm names two DOCUMENTS, which no
+        // attribute of this record carries; the message states both
+        // (the `ProductError` arm's precedent, same refusal one door
+        // over).
+        EditError::EvaluationOfAnotherDocument { .. } => none,
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }
