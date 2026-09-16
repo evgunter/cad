@@ -211,10 +211,76 @@ Two rounds to get there, both recorded rather than hidden:
   `set_doc_param_unit` had to join `test_north_star.py`'s bound-`DocEdit`
   roster. Both rosters are committed censuses of public Python surface
   and are meant to move with it.
-- Between the two, this lane pushed an EMPTY commit to re-arm the gate.
-  That is forbidden by `docs/prompts/implementer-discipline.md` and it
-  does not work: an empty diff classifies docs-only. The real cause of
-  the missing runs was a CONFLICTING PR head — GitHub builds no merge
-  ref and schedules no `pull_request` run — and the fix was
-  `git merge origin/main`. The empty commit stays in the history under
-  the merge-only rule.
+- Between the two, this lane pushed an EMPTY commit to re-arm the gate
+  and CLOSED AND REOPENED the PR twice on the same wrong theory. The
+  empty commit is forbidden by `docs/prompts/implementer-discipline.md`
+  and could not have worked (an empty diff classifies docs-only); the
+  two close/reopen cycles did nothing either. The real cause of the
+  missing runs was a CONFLICTING PR head — no merge ref is built for
+  one, so no `pull_request` run is scheduled at all — and the fix was
+  `git merge origin/main`. All three stay in the history under the
+  merge-only rule.
+
+## Fix pass (2026-09-16) — the style review's findings
+
+APPROVE-WITH-FIXES: one MAJOR (a false claim), three MINOR, three NOTE,
+seven style. All twelve ruled items done; the review lane's seven probe
+rows adopted into this unit's suite in their author's words
+(`review/dp-rv`, `2b6bd62e4`), which takes it from six rows to
+thirteen.
+
+- **MAJOR, the fourth ladder.** The `measures()` rustdoc claimed "the
+  one place that reading is spelled" while `parse.rs` and
+  `tests/switch_display_units.rs` each spelled it again. Both now ask
+  `UnitSym::measures()`, and the parser's copy was worse than a
+  duplicate: it derived a dimension that `Expr::literal_with_unit` then
+  re-derived from the same unit to check the two against each other.
+  Sweep `rg 'UnitQuantity::(Length|Angle|Scalar)' crates/ | grep -v
+  crates/quantity`: five hits, two fixed, two are the INVERSE direction
+  or a one-arm equality in CHROME's viewer, one is `measures()` itself.
+  The claim is now true, and it names all five callers.
+- **m1, the sibling door.** `write_doc_param` — the create-or-replace
+  door — now asks `measures()` too and refuses
+  `DocParamUnitMismatch`. Before this, a mismatched pairing could sit
+  in a live in-memory document that no file could carry. The review's
+  probe is adopted with its verdict flipped, and its second half keeps
+  the validator's arm alive by reaching it from a hand-edited FILE.
+- **m2, the refusal sentence.** A row now pins each dimension to the
+  clause it belongs in, at BOTH the edit door and
+  `PersistError::DisplayUnit`, so the reviewer's swap mutant reds. The
+  one word that differs between the two sentences ("its display unit"
+  / "the display unit offered") is stated at the site as deliberate,
+  and the row asserts it.
+- **m3**, the Python `Scalar` premise: `the_table_has_exactly_one_scalar_row`
+  adopted as the guard that claim owes.
+- **n1**, `EDIT_KINDS`: the list is 16 of 20 and now SAYS so at its own
+  definition and in `sink.rs`'s header, with the compile-break that
+  guards a twenty-first arm named (`edit_kind`'s wildcard-free match).
+  The false "every" is gone.
+- **n2**, this item's honesty: the `### Verified` section below names
+  the two close/reopen cycles and the empty commit, as the PR body
+  does.
+- **S1**, the near-copy: the two suites CROSS-CITE rather than merge,
+  because `m10_1_r2_probes.rs` is gated to the analysis lane and these
+  rows are about the edit vocabulary. Their STRENGTH is matched — the
+  trap row now asserts what the older twin asserts, that the analysis
+  reads the parameter as FIXED after the deletion.
+- **S2**, the `Count` rule's two homes: `with_display_unit` answers
+  `Result<Self, DisplayUnitRefusal>` with the two reasons named, and
+  `apply` maps them. The pre-check in `apply` is gone; the door decides
+  both.
+- **S3**, six copies of the KIND-vs-NOTATION argument: one home
+  (`DocParam::with_display_unit`'s rustdoc), cited in a line by the
+  edit's doc and the suite header; the `.pyi` and `py/doc.rs`
+  docstrings keep one sentence.
+- **S4**, "a carry-forward edit" in a user's sentence: the arm carries
+  `door: CarryForwardDoor`, so the refusal names the edit the caller
+  submitted and keeps the "declare it first" clause the viewer asserts
+  on.
+- **S5**, `with_value`'s "the carry-forward, in one place" → "the VALUE
+  carry-forward", pointing at the notation's own.
+- **n3**, `viewer/src/session/refuse.rs`'s "The value door does refuse
+  an undeclared name" is CHROME's file and is left alone; it is now
+  incomplete (both doors do), and the PR body says so.
+- **S6**, `DocEdit`'s stale-changelog header: pre-existing, filed as
+  `work/edit/docedit-header-is-a-changelog-not-an-invariant`.
