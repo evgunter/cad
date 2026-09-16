@@ -2,10 +2,11 @@
 id: recorded-program-arguments-carry-no-notation
 kind: issue
 title: a recorded path program holds bare f64 arguments, so a leg's written unit is gone before any Expr exists
-status: review
+status: closed
 pr: 2779
 branch: edit/recorded-argument-notation
 opened: 2026-09-09
+closed: 2026-09-16
 ---
 
 
@@ -202,3 +203,24 @@ for the fixed head.
   ground, so it is not this unit's.
   `work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`
   is the miscitation class (see the Correction above).
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2779 after one opus style review (MERGEABLE:
+three MINOR, three NOTE, eight style findings, every one taken or
+argued with a measurement in the fix pass). A recorded argument's
+notation travels beside the recording (`RecordedNotation`, keyed by
+`(step, StepArg)`) and meets it at the one door
+(`LoopProgram::from_recorded_with_notation`), which lifts through
+`from_recorded` and applies each entry through the slot doors' own
+addressing; a unit of the wrong quantity and an entry off the program
+refuse typed; `bit_eq` and every golden are unchanged. The unit
+corrected the spec's clause: the display-unit clause is D6 (its first
+paragraph, with `Step<T: Real>`'s arithmetic bound, is why the notation
+cannot ride the recording), and the D7-for-D6 miscitation the review
+found across the tree is filed cross-program
+(`work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`);
+EDIT's own sites are corrected here. Residue in its own file:
+`recorded-notation-makes-a-rust-author-count-step-indices`. LIB's
+`path-legs-erase-the-authored-notation-one-layer-down` unparks at this
+merge.
