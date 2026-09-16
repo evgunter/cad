@@ -7,6 +7,7 @@
 //! vectors forward ([`Affine3::transform_vec`]); the translation is felt
 //! only by points ([`Affine3::transform_point`]).
 
+use core::convert::Infallible;
 use core::ops::Mul;
 
 use crate::linalg::{Mat3, Point3, Vec3};
@@ -53,9 +54,34 @@ impl<T: Real> Affine3<T> {
     /// structural map — no arithmetic, so exact whenever `f` is
     /// (`Real::from_f64` carries a stored `f64` placement to any
     /// evaluation scalar).
+    ///
+    /// ONE body with [`Self::try_map`]: this is that walk under an `f`
+    /// that cannot refuse. The twelve components' placement — three
+    /// columns then the translation — is therefore written once for
+    /// both directions, and a transposed `c1`/`c2` cannot be true of
+    /// one and false of the other.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Affine3<U> {
-        Affine3::from_parts(self.linear.map(&f), self.translation.map(&f))
+        self.try_map(|c| Ok::<U, Infallible>(f(c)))
+            .unwrap_or_else(|never| match never {})
+    }
+
+    /// The same affine map read at another scalar where the read may
+    /// REFUSE: all twelve components through `f` — the linear part
+    /// through [`Mat3::try_map`], then the translation through
+    /// [`Vec3::try_map`], each kept in its place — and the FIRST
+    /// refusal returned, with no component after it consulted.
+    /// Structural like [`Self::map`]: no arithmetic, so exact whenever
+    /// `f` is.
+    ///
+    /// This is the direction a scalar-crossing read needs, where
+    /// whether a component has an image is decided by the scalar's
+    /// type rather than by its value.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Affine3<U>, E> {
+        Ok(Affine3::from_parts(
+            self.linear.try_map(&f)?,
+            self.translation.try_map(&f)?,
+        ))
     }
 
     /// The pure translation by `v` (identity linear part).
@@ -168,6 +194,8 @@ impl<T: Real> Mul for Affine3<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::Dual64;
+    use core::cell::Cell;
     use proptest::prelude::*;
 
     /// Coordinate strategy — see `vec.rs::tests::coord` for the range
@@ -653,12 +681,131 @@ mod tests {
         corpus
     }
 
-    fn bits(a: Affine3<f64>) -> [u64; 12] {
+    /// The twelve components in the order the walk visits them: the
+    /// three columns, each `x, y, z`, then the translation. Written
+    /// out by hand, so it is an INDEPENDENT statement of where each
+    /// component belongs — a transposition inside the walk
+    /// disagrees with it, which is the whole reason the walk rows
+    /// compare against this and not against another call to the walk.
+    fn components(a: Affine3<f64>) -> [f64; 12] {
         let (l, t) = (a.linear, a.translation);
         [
             l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
         ]
-        .map(f64::to_bits)
+    }
+
+    fn bits(a: Affine3<f64>) -> [u64; 12] {
+        components(a).map(f64::to_bits)
+    }
+
+    /// A placement with twelve DISTINCT components and no symmetry —
+    /// deliberately not a frame, so a transposition cannot be hidden by
+    /// an axis coincidence, and so a refusal can name which component
+    /// it came from by its value.
+    fn distinct() -> Affine3<f64> {
+        Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::new(1.0, 2.0, 3.0),
+                Vec3::new(4.0, 5.5, -6.0),
+                Vec3::new(-7.25, 0.5, 8.0),
+            ),
+            Vec3::new(10.0, 11.0, 12.0),
+        )
+    }
+
+    /// Both walks land every component where the hand spelling puts
+    /// it, to the bit, over the storage corpus — signed zeros in
+    /// every pattern, subnormals, infinities, NaN payloads.
+    ///
+    /// `map` and `try_map` share one body, so this row is what pins
+    /// that fact to something outside itself: each is measured against
+    /// `components`, a third spelling neither of them calls. A `c1`/`c2`
+    /// transposition in the shared walk reds both assertions, and if
+    /// `map` is ever given a body of its own again the two stay
+    /// independent receipts rather than one tautology.
+    #[test]
+    fn both_walks_place_the_twelve_components_where_the_hand_spelling_does() {
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            let want = bits(a);
+            assert_eq!(bits(a.map(|x: f64| x)), want, "map at {o:?} {u:?} {v:?}");
+            let walk = a
+                .try_map(|x: f64| Ok::<f64, Infallible>(x))
+                .unwrap_or_else(|never| match never {});
+            assert_eq!(bits(walk), want, "try_map at {o:?} {u:?} {v:?}");
+        }
+    }
+
+    /// The same, across scalars: lifting to `Dual64` carries each
+    /// component's bits into the value channel and a zero derivative
+    /// beside it, in both directions and in the same places. A walk
+    /// that dropped the translation or crossed two columns would
+    /// disagree with `components` on the value channel.
+    #[test]
+    fn both_walks_lift_to_another_scalar_in_the_same_places() {
+        let a = distinct();
+        let want = bits(a);
+        let lifted = |d: Affine3<Dual64>| {
+            let value = d.map(|x: Dual64| x.value);
+            let deriv = d.map(|x: Dual64| x.deriv);
+            (bits(value), bits(deriv))
+        };
+        let door = lifted(a.map(Dual64::from_f64));
+        let walk = lifted(
+            a.try_map(|x: f64| Ok::<Dual64, Infallible>(Dual64::from_f64(x)))
+                .unwrap_or_else(|never| match never {}),
+        );
+        assert_eq!(door.0, want);
+        assert_eq!(walk.0, want);
+        assert_eq!(door.1, [0.0_f64.to_bits(); 12]);
+        assert_eq!(walk, door);
+    }
+
+    /// The fallible walk returns the FIRST refusal and consults
+    /// nothing after it.
+    ///
+    /// For each component in turn, `f` accepts everything before it and
+    /// refuses from there on — so every later component would refuse
+    /// too, and a walk that returned the last refusal, or ran `f` over
+    /// all twelve and picked, would carry out component 11's value and
+    /// twelve calls. What comes out is the k-th component's own value
+    /// (the components are distinct, so the value names which one) and
+    /// exactly `k + 1` calls.
+    #[test]
+    fn try_map_returns_the_first_refusal_and_consults_nothing_after_it() {
+        let a = distinct();
+        for k in 0..12usize {
+            let calls = Cell::new(0usize);
+            let got = a.try_map(|x: f64| {
+                let i = calls.get();
+                calls.set(i + 1);
+                if i < k { Ok(x) } else { Err(x) }
+            });
+            match got {
+                Ok(_) => panic!("component {k} refused, so the walk must not answer Ok"),
+                Err(e) => assert_eq!(
+                    e.to_bits(),
+                    components(a)[k].to_bits(),
+                    "the refusal carried out is component {k}'s"
+                ),
+            }
+            assert_eq!(calls.get(), k + 1, "f runs once per component up to {k}");
+        }
+    }
+
+    /// A walk that never refuses answers `Ok` and runs `f` exactly
+    /// twelve times — the count that makes the short-circuit row
+    /// above a measurement rather than an accident of the closure.
+    #[test]
+    fn try_map_without_a_refusal_visits_all_twelve_components_once() {
+        let a = distinct();
+        let calls = Cell::new(0usize);
+        let out = a.try_map(|x: f64| {
+            calls.set(calls.get() + 1);
+            Ok::<f64, ()>(x)
+        });
+        assert_eq!(bits(out.unwrap()), bits(a));
+        assert_eq!(calls.get(), 12);
     }
 
     #[test]
