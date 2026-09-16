@@ -2924,7 +2924,16 @@ fn wire_assertion<T: Decide>(
     // The bound's DECLARED dimension is what must agree — read off the
     // expression, never inferred from the evaluated number, which has
     // no dimension left (units erase at the evaluation boundary).
-    if bound_expr.dim() != *dim {
+    //
+    // E10's agreement is `AssertionBoundFault::against`, the same rule
+    // the two document doors ask through
+    // `Node::assertion_bound_fault`: this seat reaches it by the
+    // measured-dimension entry point because it has no document to
+    // resolve the reference in, only the measure's evaluated payload —
+    // which carries the dimension that node's own expression declared.
+    // The fault's other arm cannot arise here: a reference that is not
+    // a measure has already failed the operand-kind check above.
+    if crate::node::AssertionBoundFault::against(measure, *dim, bound_expr.dim()).is_some() {
         return Err(NodeErrorKind::AssertionDimension {
             measured: *dim,
             bound: bound_expr.dim(),

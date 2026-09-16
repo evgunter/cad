@@ -116,7 +116,7 @@ pub use checks::{
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
-pub use doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
+pub use doc::{DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, ParamName};
 #[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,

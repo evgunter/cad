@@ -18,7 +18,7 @@ walk is `docs/guide/assembly.md`.
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
-| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`; the memo's drop in `src/eval/mod.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
@@ -54,11 +54,24 @@ cross-instance boolean node, never implied. A resolved document whose
 recorded ε disagrees refuses `ResolveFault::EpsilonSeam`.
 
 **A2a — The pairing doors.** A4's identity stamp is what these read.
-A door that takes a document plus a value that must be OF that
-document refuses a mismatch typed, before reading anything of the
-value. The comparison is the one predicate `ident::mispaired`, and
-each door carries its own arm over it, in its own error vocabulary.
-The doors that do so:
+A door that takes a document — or a value OF a document — plus a
+second value that must be of that same document refuses a mismatch
+typed, before reading anything of the second. The comparison is the
+one predicate `ident::mispaired`, and each door carries its own arm
+over it, in its own error vocabulary.
+
+**The rule binds only where BOTH halves carry an identity to compare**
+— a `Doc`, or a value stamped with one: an `Evaluation`, a
+`SolvedPoses`, a `NodePick` and the `PickTarget` it mints. A value with
+no provenance of its own is outside the clause, because there is
+nothing to run the predicate on rather than because a check was
+declined: `resolve::hit`'s `face_name` / `edge_name` / `vertex_name`
+take a raw arena key beside an evaluation, and a bare `StableName` is
+text. Those are #1098's raw-key class, and the door that closes them is
+a stamped value to hand instead — which is what `NodePick` is for the
+pick doors below.
+
+The doors that refuse:
 
 - `product` (with `product_named` and `product_recorded`,
   `ProductError::EvaluationOfAnotherDocument`), and `assemble`
@@ -74,7 +87,22 @@ The doors that do so:
 - `resolve::apply_with_names`
   (`EditError::EvaluationOfAnotherDocument`), which reads the handed
   evaluation's name tables, so a foreign one admits a name the edited
-  document does not carry or refuses one it does.
+  document does not carry or refuses one it does;
+- the pick index's three doors —`NodePick::patch_names`,
+  `NodePick::boundary_names` and `pick_face`
+  (`HitTestError::EvaluationOfAnotherDocument`). These pair a value
+  OF a document with an evaluation rather than a document with one:
+  a `NodePick` is built from one evaluation and handed a SECOND at
+  each name door, and `pick_face` takes `PickTarget`s built from one
+  evaluation beside an `eval` argument. So the stamp is on the VALUE
+  — `NodePick` keeps the building evaluation's `DocumentId` and
+  `NodePick::target` carries it onto the target it mints — and the
+  refusal is of the CALL, outside the per-entity vector, because a
+  mispairing is one thing wrong with the arguments rather than one
+  thing wrong with each patch. `pick_face` checks every target
+  before it reads any target's standing: a twin recipe's evaluation
+  mints the same node ids, so the standing ladder admits it and the
+  hit would resolve to a name out of the twin's table.
 
 The memo reads the stamp too and refuses differently, since `evaluate`
 returns no `Result`: a prior of another document is dropped whole
@@ -85,13 +113,32 @@ counter, so two documents built from one recipe carry the SAME ids for
 the same nodes, and a gather over the wrong one would succeed, in
 full, about other geometry.
 
+What the stamp decides is the DOCUMENT half only, at every door
+here. A LATER evaluation of the same document is admitted — by the
+pick index's doors as by the rest — because a pairing is about
+identity and never about a version (DI3); whether anything may be
+reused across such a run is the content keys' business.
+
+The pick doors' stamp does not reach a HAND-ASSEMBLED target, in any
+half. A `PickTarget`'s fields are private and it has exactly two
+mints — `NodePick::target`, where the document, the node, the body and
+the mesh all come from one tessellation, and `PickTarget::new`, where
+the caller declares them over a mesh index of its own. A minted target
+cannot be taken apart and re-stamped, so what the door checks is a
+claim a raw caller made: the node half cannot be checked even in
+principle (arena keys collide numerically across sibling nodes of one
+document, so the wrong node of the right document still answers a
+plausible wrong name), and the document half is checked against the
+handed evaluation, which catches every honestly-stamped target paired
+with the wrong run and not a caller who declared another document's
+mesh. That is `PickTarget`'s stated contract and issue #1098's residual
+raw-assembly class, and `NodePick`, whose `(document, node, body)` ↔
+mesh pairing is true by construction, is the door that closes it.
+
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying` — do NOT check it today; `assembly::mint` is
 covered downstream by `product_recorded`. That gap is the tracker row
-`pair-doors-outside-the-three-do-not-check-document-identity`, and a
-door built FROM one evaluation that is later handed another — the
-`NodePick` name doors — is the row
-`nodepick-name-doors-take-a-second-evaluation-unpaired`. Ids, not
+`pair-doors-outside-the-three-do-not-check-document-identity`. Ids, not
 paths: a row moves between programs and a path written here rots at
 the move.
 

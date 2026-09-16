@@ -310,3 +310,18 @@ ruled-carve fixture (middle), the `DocEdit` header rewrite and the
 replay/load boundary ruling (E-class, orchestrator's own), the chain
 radius widening, the recorded-argument notation shape. Three lanes is
 the box's ceiling.
+
+## 2026-09-16 — the pick index carries its document (middle tier, PR #2773)
+
+First of wave 3 to land. The review (MERGEABLE) earned its keep on
+the rows rather than the door: the memo's document comparison — the
+one DI3 refusal that already existed — had no row anywhere, a mutant
+proved it, and the unit's "admitted" row could not tell right from
+stale. The fix pass measured that no parameter edit can move a
+program-anchored name, so the admitted row now asserts the stronger
+fact and drives the node to failure for the contrast. One disagreement
+argued with a measurement and filed: `PickTarget` keeps a second mint
+because four rows need a raw target the index cannot build. A2a's
+opening sentence, widened by this unit's predecessor to cover a value
+of a document, now says the rule binds only where both halves carry a
+stamp.

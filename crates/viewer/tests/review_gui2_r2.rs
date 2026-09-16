@@ -710,7 +710,9 @@ fn the_ray_path_and_the_id_map_invert_each_other_patch_included() {
         key.patch,
         part.mesh().patches.len()
     );
-    let by_patch = part.patch_names(evaluation(&session));
+    let by_patch = part
+        .patch_names(evaluation(&session))
+        .expect("the part is of this evaluation");
     assert_eq!(
         by_patch[key.patch].as_ref().expect("the patch is named"),
         &hit.name,
