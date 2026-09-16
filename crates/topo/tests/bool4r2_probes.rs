@@ -321,3 +321,91 @@ fn embedded_witness_is_the_fifth_vertex_in_arena_order() {
     println!("embedded witness {w:?} at {p:?}");
     assert_eq!((p.x, p.y, p.z), (1.0, 1.0, 1.0));
 }
+
+/// **A straddling part whose only touches are three vertices on the
+/// wall — declarable, so the clear certifies.** A parallelepiped (an
+/// affine image of the unit cube) placed so that the three neighbours
+/// of one corner lie IN the bracket's wall face `x = 1`, that corner
+/// (`map(1,1,1)`, at `(0.8, 1.55, 0.55)`; the map's determinant is
+/// positive, so the part is an ordinary solid, not a complement) sits inside the bracket's material and
+/// the other four corners sit in the concavity. The cube's edge graph
+/// is bipartite, so no edge joins the inside corner to an outside one:
+/// every edge crossing the wall does so AT a vertex on the wall, the
+/// exact sweeps report three `VertexOnFace` touches and nothing else,
+/// and no pierce or edge-edge cross exists. The materials overlap in
+/// the corner tetrahedron (volume `|det| / 6 > 0`).
+///
+/// The first vertex in arena order, `map(0,0,0)` at `x = 1.4`, is
+/// strictly outside the bracket, so the material test CLEARS the pair;
+/// with the three touches declared as v-on-f records — all true, all
+/// confirmed — the assembly CERTIFIES. At the base the same body drew
+/// the all-positive box refusal, declared and undeclared.
+#[test]
+fn a_vertex_touching_straddler_certifies_when_its_three_touches_are_declared() {
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let wall = l.side_faces[3];
+    let part = common::mapped_cube(|u, v, w| {
+        Point3::new(
+            1.4 - 0.2 * (u + v + w),
+            1.8 - 0.3 * v + 0.1 * u - 0.05 * w,
+            0.3 + 0.3 * w - 0.1 * u + 0.05 * v,
+        )
+    });
+    let body = assembly(&l.body, &part);
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let [bracket, part_solid] = solids(&body)[..] else {
+        panic!()
+    };
+    // The overlap is real: the inside corner is in both materials, and
+    // so is a point a little way along the diagonal from it.
+    // The corner tetrahedron's centroid, and a point nearer its
+    // inside corner (0.8, 1.55, 0.55).
+    for q in [
+        Point3::new(0.95, 1.6125, 0.4875),
+        Point3::new(0.8375, 1.5656, 0.534),
+    ] {
+        assert_eq!(
+            point_in_solid_of(&body, bracket, q, band, tol).unwrap(),
+            SolidContainment::In,
+            "{q:?} in the bracket"
+        );
+        assert_eq!(
+            point_in_solid_of(&body, part_solid, q, band, tol).unwrap(),
+            SolidContainment::In,
+            "{q:?} in the part"
+        );
+    }
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+        .expect_err("undeclared touches refuse");
+    for e in &errors {
+        println!("vertex-straddle: {e:?}");
+    }
+    assert!(crossings(&errors).is_empty(), "{errors:?}");
+    let touches: Vec<VfContact> = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::UndeclaredContact {
+                contact: CensusContact::VertexOnFace { vertex, face },
+                ..
+            } => Some(VfContact {
+                vertex: *vertex,
+                face: *face,
+            }),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(touches.len(), 3, "{errors:?}");
+    assert!(touches.iter().all(|t| t.face == wall), "{errors:?}");
+    assert_eq!(
+        errors.len(),
+        3,
+        "three touches and NO placement finding: {errors:?}"
+    );
+    let mut records = ContactRecords::default();
+    records.b_on_a = touches;
+    let declared = validate_pseudomanifold(&body, &records, tol);
+    println!("vertex-straddle declared: {declared:?}");
+    // MEASURED at the head: certified, with the materials overlapping.
+    assert_eq!(declared, Ok(()));
+}
