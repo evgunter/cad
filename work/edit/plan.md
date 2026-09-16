@@ -42,10 +42,16 @@ posture under §Process.
    `t`. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
    not work.
 3. **The persisted recipe's honesty** —
-   `blend-selection-canonical-check-load-only` (one predicate, two
-   doors; kernel unit), `recorded-program-arguments-carry-no-notation`
-   (a shape question with LIB parked on it),
-   `replay-and-load-keep-the-document-without-its-maintenance`.
+   `blend-selection-canonical-check-load-only` merged (kernel unit);
+   its residue `three-door-predicates-are-hand-copied-not-shared`,
+   carrying the sweep row
+   `load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`,
+   is **dispatched**, middle tier. `doc-param-distribution-edit-has-no-door`
+   (the unit door's mirror) is **dispatched**, middle tier.
+   `recorded-program-arguments-carry-no-notation` (a shape question
+   with LIB parked on it) and
+   `replay-and-load-keep-the-document-without-its-maintenance` (a
+   ruling by the documented load boundary, E-class) follow.
 4. **The resolver's doors** — EDIT-PICK and EDIT-PICK2 merged. Three
    residue rows (`pick-closed-acceptance-loses-a-graze-to-rounding`,
    `pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`,

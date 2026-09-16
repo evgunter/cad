@@ -2,7 +2,7 @@
 id: nodepick-name-doors-take-a-second-evaluation-unpaired
 kind: issue
 title: NodePick::patch_names and boundary_names take a second evaluation and check no pairing
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2723, 1098]
 ---
@@ -62,3 +62,51 @@ evaluation B)`, so the stamp it would need is not the one DI3 puts on
 the argument list. Whether the fix is a `DocumentId` on `NodePick`, a
 typed refusal, or a signature that never takes the second evaluation
 is open.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/nodepick-pairing`. The shape is A2a's (`crates/editor-core/ASSEMBLY.md`):
+a door that takes a value OF one document plus an evaluation refuses a
+mismatch typed, before reading anything of the evaluation, through the
+one predicate `ident::mispaired`. `PickMemo` already does this for
+the index (`PickEntry.document`, compared at the memo lookup); the
+name doors do not. DI3 (`crates/editor-core/IDENTITY.md`) stamps the
+document half only — the version half is decided by content keys —
+and this unit keeps that line.
+
+1. `NodePick` carries `document: DocumentId`, stamped from the
+   building evaluation (`eval.document`) at every constructor
+   (`build`, `build_with`, `build_all`, `build_all_with`).
+2. `patch_names` and `boundary_names` refuse a mispaired evaluation
+   FIRST, typed, in the door's own vocabulary (a `HitTestError` arm
+   mirroring `ProductError::EvaluationOfAnotherDocument { expected,
+   found }`), through `ident::mispaired(self.document, eval.document)`.
+   A mispairing is one refusal of the CALL, not a refusal per patch:
+   say what the signature becomes and why, and measure the callers
+   (`crates/viewer`, `crates/pncad`, `crates/pncad-py`) before choosing
+   — a per-row `Err` that repeats one fact `n` times is the shape to
+   argue against.
+3. Sweep `resolve/pick.rs` for every other door that pairs a
+   `NodePick`-derived value with an evaluation: `pick_face` takes
+   `PickTarget`s built from one evaluation and an `eval` argument and
+   checks node standing but not the document; `entity_name`'s callers.
+   Every such door refuses the same way, or the PR body says why it
+   cannot mispair (the row's "by caller convention alone" is not a
+   reason).
+4. A2a's list of pairing doors gains the `NodePick` doors, and its
+   closing paragraph, which names them as the open row, is re-worded:
+   that is a description moved by an approved change, not a second
+   decision (CLAUDE.md, the merge-only rules), and lands here with the
+   sentence in the PR body saying so. DI3 needs no edit.
+5. Rows: the review probe
+   `nodepick_patch_names_answers_out_of_a_twins_tables` on
+   `origin/review/pair-rv` (a square prism's index handed a triangular
+   prism's evaluation; five of six named by the twin, three wrong)
+   becomes the refusal row — adopt it authorship-preserving and turn
+   its "asserts what happens today" into the refusal, for
+   `patch_names`, `boundary_names` and every door item 3 finds. A
+   same-document later evaluation (after an edit that re-tessellates
+   the node) is ADMITTED by this unit — that is DI3's line, the
+   content key's business — and one row says so, so the boundary is
+   pinned rather than implied. A mutant that drops the stamp
+   comparison reds every refusal row.
