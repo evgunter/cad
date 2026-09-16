@@ -2,11 +2,12 @@
 id: doc-param-unit-edit-has-no-door
 kind: unit
 title: No editor-core door changes a document parameter's display unit — SetDocParam would drop the distribution
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1776]
 branch: edit/doc-param-unit
 pr: 2732
+closed: 2026-09-16
 ---
 
 
@@ -298,3 +299,12 @@ routine three skips. The python suite was also reproduced LOCALLY this
 pass (maturin wheel into a venv, `unittest discover` as the job runs
 it: 833 tests, OK), so its two censuses were satisfied before the push
 rather than discovered red on CI as they were the first time.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2732 after one opus style review with a correctness arm
+(APPROVE-WITH-FIXES: one MAJOR that was a false claim, three MINORs, all
+built at the fix pass) and the orchestrator's read. The reading the row
+asked to be stated is in `DocParam::with_display_unit`'s doc. Residue in
+its own files: `doc-param-distribution-edit-has-no-door` (the same trap
+one field over), `docedit-header-is-a-changelog-not-an-invariant`.
