@@ -13,7 +13,7 @@ call and was not taken there.
 
 ## What landed
 
-`ProfileProgram::canonical_segments_of(structure, naming, loop_, step)
+`ProfileProgram::profile_edges_of(structure, naming, loop_, step)
 -> Result<Vec<ProfileEdgeRef>, StepSegmentsError>`
 (`crates/editor-core/src/program.rs`): which profile edges one authored
 step of a loop program became, composed from the replay's per-step
@@ -38,10 +38,14 @@ dependency rather than a binding:
    `profile::ProfileStructure` and `eval::ProfileNaming`. `ProfileValue`
    carries the naming; the structure lives only on `eval`'s
    `pub(crate)` `ProfilePre`. Until it is sited somewhere a consumer can
-   read, no binding can call the door. That siting is EDIT's or WIRE's,
-   not LIB's, and VIEW's
-   `focus-marking-is-per-node-not-per-segment` names the same
-   dependency from the viewer's side.
+   read, no binding can call the door — the door has no caller outside
+   its own tests today, and this is why. That siting is **already a
+   filed row**, WIRE's:
+   `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`,
+   whose subject is precisely that `NodeValue` does not carry
+   `ProfilePre`. VIEW's `focus-marking-is-per-node-not-per-segment`
+   names the same dependency from the viewer's side. Nothing new was
+   filed for it here: a second row would be a duplicate of WIRE's.
 2. The method with its typed refusal, a `pncad.pyi` entry, and one
    Python row asking a reversed loop for a step's edges and naming the
    wall each addresses.

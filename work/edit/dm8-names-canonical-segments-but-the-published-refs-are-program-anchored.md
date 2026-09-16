@@ -50,7 +50,7 @@ landed.
 
 ## What the door does today, and why
 
-`ProfileProgram::canonical_segments_of` answers in the published
+`ProfileProgram::profile_edges_of` answers in the published
 (program) anchoring, and consumes BOTH records DM8 names: the replay's
 span gives the segments, and `LoopCanonical`'s `reversed`/`start` is
 checked against the naming anchor's independently bit-matched
@@ -74,3 +74,16 @@ Two wordings, neither of which a lane should decide:
 
 Both are a change to what a ratified clause decides, so they go to Ev
 as an `[ev]` PR rather than riding the unit that found them.
+
+## The method's name is the lane's, and it moved (2026-09-16)
+
+The unit first spelled the door `canonical_segments_of`, which is the
+one word in it that the code makes false — the answer is in the
+published (program) anchoring, not the canonical one. A METHOD NAME is
+not a ratified clause and needed no ruling, so the style review's S1
+was taken and the door is now
+**`ProfileProgram::profile_edges_of`**: it names what it answers,
+`ProfileEdgeRef`s, the coordinate a consumer holds. Recorded here so
+that Ev's ruling on DM8's own sentence is read against the name the
+code currently carries. The two questions above are unchanged by it —
+they are about what the CLAUSE says, not what the method is called.

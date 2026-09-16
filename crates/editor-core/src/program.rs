@@ -1461,7 +1461,7 @@ impl ProfileProgram {
     /// relative to section 0 is named by section 0's permutation, not
     /// its own, and a consumer asking about one of ITS steps is off by
     /// that permutation. The limitation is pinned in
-    /// `work/edit/loft-anchors-every-section-with-section-zeros-map.md`;
+    /// `work/wire/loft-anchors-every-section-with-section-zeros-map.md`;
     /// nothing here can repair it, because the refs the names carry are
     /// the ones the rewrite published.
     ///
@@ -1479,12 +1479,9 @@ impl ProfileProgram {
         step: u32,
     ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
         let li = loop_ as usize;
-        let program = self
-            .loops
-            .get(li)
-            .ok_or(StepSegmentsError::NoSuchLoop {
-                loops: self.loops.len(),
-            })?;
+        let program = self.loops.get(li).ok_or(StepSegmentsError::NoSuchLoop {
+            loops: self.loops.len(),
+        })?;
         let replay = structure
             .replay
             .get(li)

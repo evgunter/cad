@@ -72,6 +72,21 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// The plane is the conventional one because no decision below reads
 /// it — validation is 2-D and the naming anchor is loop-derived — and
 /// the replayed loops are the profile's own 2-D chains either way.
+///
+/// **Why this is a REBUILD and not the evaluation's own record.**
+/// Measured: nothing public carries it. The pre-pass's
+/// `profile::ProfileStructure` lives on `eval::anchor::ProfilePre`,
+/// which is `pub(crate)`; `ProfileValue` — the payload a `Profile`
+/// node's value carries — holds `validated` and `naming` and no
+/// structure, so from outside the crate there is no path to the record
+/// the geometry was actually made from. That is exactly the gap
+/// `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
+/// records, and the same one that keeps the door from having a caller
+/// outside these rows. So these rows pair a rebuilt structure with the
+/// evaluation's REAL `naming`, and the door's own two-record check is
+/// what holds that pairing honest: a rebuild that had drifted from the
+/// evaluation would disagree with the published anchor's permutation
+/// and every row here would refuse rather than pass.
 fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
     let env = doc.param_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
@@ -142,12 +157,7 @@ fn edges_by_step(
 /// loop's own and that no step's span was dropped or duplicated on the
 /// way through the permutation check — which the profile-side row
 /// cannot see.
-fn assert_partition(
-    per_step: &[Vec<ProfileEdgeRef>],
-    loop_: u32,
-    segments: usize,
-    what: &str,
-) {
+fn assert_partition(per_step: &[Vec<ProfileEdgeRef>], loop_: u32, segments: usize, what: &str) {
     let mut seen: Vec<u32> = Vec::new();
     for edges in per_step {
         for e in edges {

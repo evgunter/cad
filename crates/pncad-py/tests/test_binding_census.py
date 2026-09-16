@@ -1286,7 +1286,7 @@ FAMILIES: dict[str, str] = {
         "report's."
     ),
     # THE FOURTH ARRIVED WITH ITS DOOR, the same way B-EDGE-KIND did.
-    # `ProfileProgram::canonical_segments_of` (DM8) landed on the Rust
+    # `ProfileProgram::profile_edges_of` (DM8) landed on the Rust
     # side with EDIT's `authored-step-to-canonical-segment-map-has-no-home`;
     # its refusal reached the façade with it and the binding did not
     # move, because `crates/pncad-py/*` is LIB's ground. A Python
@@ -1296,7 +1296,7 @@ FAMILIES: dict[str, str] = {
     # finding.
     "B-STEP-SEGMENTS": (
         "the authored-step to profile-edge map — "
-        "`ProfileProgram::canonical_segments_of`, which answers which "
+        "`ProfileProgram::profile_edges_of`, which answers which "
         "`ProfileEdgeRef`s one step of a loop program became. Closing "
         "it needs the two records the door reads to be reachable from "
         "Python first (the replay/canonical structure record is not on "

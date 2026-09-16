@@ -77,7 +77,7 @@ See `tracker-has-no-status-for-an-unscheduled-trigger`.
 ## Unblocked (EDIT, 2026-09-16)
 
 The siting question is ruled (**DM8**) and the door is built:
-`ProfileProgram::canonical_segments_of(structure, naming, loop_, step)`
+`ProfileProgram::profile_edges_of(structure, naming, loop_, step)`
 in `crates/editor-core/src/program.rs` answers the
 `SlotId::Profile { loop_, step, .. }` → set-of-`ProfileEdgeRef`
 question this row waited on, composed from the records the evaluation
@@ -98,9 +98,20 @@ Two things to read before starting.
 - **The records are not on the value yet.** The door takes
   `profile::ProfileStructure` and `eval::ProfileNaming`. `ProfileValue`
   carries the naming; the structure lives on the evaluation's
-  `pub(crate)` precompute, so a viewer-side consumer needs it sited
-  somewhere it can reach. That plumbing is its own row and was not
-  taken here.
+  `pub(crate)` `ProfilePre`, so a viewer-side consumer needs it sited
+  somewhere it can reach. **That plumbing is already a filed row and
+  this one does not duplicate it**:
+  `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
+  is the same carry — it names `ProfilePre` not being on `NodeValue` as
+  its whole subject — and its argument (that widening `NodeValue` to
+  carry the structure record reaches PP1/PP2's "structure f64-once as
+  the witness" and so is a decision, not a threading change) is exactly
+  the argument a viewer-side carry has to make. Read it before
+  starting; if the answer there is that the record stays where it is,
+  this row's consumer needs a different route to it and that is a
+  second question.
+  Until that lands the door has **no caller outside its own tests**,
+  which is the plain state of it today.
 
 A step maps to a SET (possibly empty — an entry verb or a
 direction-binding verb produces no segment), which is the union this

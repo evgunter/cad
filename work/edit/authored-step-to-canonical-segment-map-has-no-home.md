@@ -174,7 +174,7 @@ says so; S-BOOL was not asked).
 5. On merge, VIEW's row `work/view/focus-marking-is-per-node-not-per-segment.md`
    unparks — say so there in a `## Unblocked` section in this PR.
 
-## Built (2026-09-16)
+## Built (2026-09-16) — superseded by `## Built, after the review` below
 
 Both halves, one PR. Branch `edit/step-segment-map`.
 
@@ -244,3 +244,93 @@ both mechanical, and the binding itself is filed as
 **CI.** Run 35086077388 green on head `39024d0b`: twelve `test (…)`
 jobs (six default, six interval) and five `k-lint (gate, …)` jobs, every
 step green.
+
+## Built, after the review (2026-09-16)
+
+The style review's verdict was APPROVE-WITH-FIXES. The tree as it now
+stands differs from the `## Built` above in these ways.
+
+**The door is named `ProfileProgram::profile_edges_of`** (S1). The
+answer is in the PUBLISHED anchoring, so "canonical" was the one word
+in the old name the code makes false; the name now says what it
+answers. A method name is not a ratified clause, so this needed no
+ruling, and the rename is recorded on the `[ev]` row
+(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`)
+so Ev's reading of DM8's own sentence sees the current name.
+
+**The rows can see a wrong ATTRIBUTION** (M1). The two review probes
+are adopted authorship-preserving and re-documented as rows of the
+suites they belong to, and the shape is extended to every step kind the
+corpus has: `edit_step_segments.rs` gains a section that reads each
+step's OWN AUTHORED ARGUMENTS back — the point a `line_to`/`arc_to`/
+`far end` names, the entry point an `at` seeds, the length a `line`
+names, the centre and radius a carrier form names — and asserts the
+segments the door credited it with are the ones that geometry
+describes, with a tally that refuses to pass on a corpus that stopped
+containing an entry verb, a state-binding verb, an arrival at an
+authored point, a close, a length-authored leg, a carrier form, a step
+credited with several segments, or a step credited with an arc.
+Measured, with the mutant planted on this tree: a `Core::record` that
+shifts every boundary one step later leaves the WHOLE profile suite
+green (446 rows) and every one of the unit's original rows green, and
+reds exactly the two attribution rows.
+
+**Both partition helpers now say what they cannot catch** (S2, S6):
+`profile`'s `assert_spans_partition` states that on a chain
+contiguity, cover and count are what `Core::step_spans` makes true by
+construction and names the row that does see attribution, and
+`edges_by_step` answers while `assert_partition` asserts, so four rows
+no longer share one check by accident.
+
+**Every row records before it constructs, entry rows included** (m1).
+`Open::at_kernel` and `Open::director` take the step and record it into
+the core they mint; the three entry rows no longer record into a path
+they already built. The spans are unchanged by it — the old order's
+`saturating_sub` happened to absorb the difference — and `Core::record`
+now states the invariant, which is what makes `step_starts[j]` mean one
+thing for every `j`.
+
+**The refusal prose has no gutters, and every arm is read back** (m2).
+The three `\`-continued literals are `concat!`s; `StepSegmentsError`
+joins the F6 census in `tests/display_contract.rs`, so a variant added
+to it stops that file compiling until it has a case.
+
+**`RecordsDisagree`'s reversed arithmetic is exercised** (m3). A convex
+pentagon authored clockwise from a non-minimal corner:
+reversed AND rotated, with `2 * start != n`, which is the only fixture
+that can tell `(n - start) % n` from `start`. Measured: that mutant
+leaves every other row in the suite green and reds this one alone.
+
+**Two more refusal arms and a new one** (N1, N2). Rows for `NoRecord`
+and `SpanOffTheLoop` — the latter is the last guard before the door
+mints refs for segments a loop does not have — and the record's step
+count is now checked against `LoopProgram::authored_steps()`, refusing
+`RecordShape { loop_, authored, recorded }`, the shape the profile side
+already uses for a record of the wrong length.
+
+**Smaller** (N3, N4, S5): the corpus row's floor is tied to the profile
+nodes the corpus evaluates rather than to `20`/`40`; the dead
+`end.max(start)` clamp is gone; `StepSpan`'s fields are private and
+`StepSpan::new` asserts `start <= end`, so a backwards span cannot be
+built rather than being papered over where it is read.
+
+**Stated, not repaired** (Claim 1, m5). `wire_loft` anchors the whole
+emitted table on section 0's `LoopAnchor`, so the door's answer is
+program-anchored only for section 0 of a loft; that is now on the
+door's doc and filed as
+`work/wire/loft-anchors-every-section-with-section-zeros-map.md`. The
+acceptance rows still REBUILD the structure record, because measurement
+says nothing public carries the evaluation's own: `ProfilePre` is
+`pub(crate)` and `ProfileValue` holds only `validated` and `naming`.
+The rebuild is kept with a comment naming WIRE's row, and the door's
+own two-record check is what holds the pairing honest.
+
+**The door has no caller outside its own tests**, and that is the plain
+state of it: the records it takes are not reachable from a consumer
+until `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
+lands. That row is cited from VIEW's `## Unblocked` and from the LIB
+row rather than duplicated (m4b).
+
+**Rows filed** (m4a, Claim 1):
+`work/edit/carrier-radius-door-answers-none-for-chains-though-the-map-now-exists.md`
+and `work/wire/loft-anchors-every-section-with-section-zeros-map.md`.
