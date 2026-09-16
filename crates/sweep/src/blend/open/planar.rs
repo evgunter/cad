@@ -117,7 +117,8 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     for (slot, &f) in normals.iter_mut().zip(faces.as_slice()) {
         *slot = outward_of(body, f)
-            .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
+            .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?
+            .vec();
     }
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the battery's corner predicate admits a termination only

@@ -79,12 +79,27 @@
 //! number in prose beside a list that grows is a copy that goes stale
 //! in the silent direction.
 //!
+//! # The one thing here that is not a reader
+//!
+//! [`crate::every_suite_file_is_aggregated!`] is exported from this file and is
+//! a `macro_rules!` that GENERATES A TEST FUNCTION — not a view, not an
+//! operation over one, and not a traversal. It is here because its
+//! expansion's whole body is [`aggregation_violations`] and the two are
+//! one mechanism split by where the compiler has to expand it; homing it
+//! anywhere else would put a call site and its reader in different
+//! files. It is called out because every other paragraph in this header
+//! describes something that reads text, and a fourth category that goes
+//! unmentioned is how a header stops being an enumeration.
+//!
 //! # What it does not model
 //!
 //! It is a lexer, not a parser. An identifier assembled by a macro
 //! (`concat_idents!`, `paste!`) is invisible to any textual walk, a
-//! `pub fn` inside a `macro_rules!` body is text like any other, and
-//! an `include!`d file is not seen at all. Nested block comments,
+//! `pub fn` inside a `macro_rules!` body is text like any other — which
+//! is now a fact about THIS file, since the macro above holds one, and
+//! `crates/test-utils/tests/reader_census.rs` reads that body as text
+//! for exactly that reason — and an `include!`d file is not seen at
+//! all. Nested block comments,
 //! every string prefix (`b`, `c`, `r`, `br`, `cr`) and the
 //! lifetime-versus-char-literal distinction ARE modelled, each with a
 //! row in this module's tests that reds if it stops being.
@@ -385,6 +400,18 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
     b + begin.len()..e
 }
 
+/// The offset at which the line holding `at` begins.
+///
+/// The offset half of [`line()`], which answers the line NUMBER. Here
+/// because three readers had spelled the same `rfind('\n')` fold, and
+/// a caller wanting the text before a match ON ITS OWN LINE — a
+/// declaration's modifiers, an attribute's indentation — is asking one
+/// question the tree had three answers to.
+#[must_use]
+pub fn line_start(text: &str, at: usize) -> usize {
+    text[..at].rfind('\n').map_or(0, |nl| nl + 1)
+}
+
 /// **The 1-based line `at` falls on**, for a guard whose refusal a
 /// reader has to be able to open. Offsets come out of a blanked view
 /// and a view blanks in place, so this is correct against the raw text
@@ -623,6 +650,157 @@ pub fn angle_end(blanked: &str, open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// What an `impl` head names: the trait it implements, where it names
+/// one, and the self type it implements it for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplHead {
+    /// The trait as the head WRITES it, path qualification and generic
+    /// arguments kept: `core::fmt::Debug`, `PartialEq<Other>`. `None`
+    /// on an inherent `impl`. A spelling, never a resolution — a
+    /// caller wanting the bare word asks [`type_base`] for it, and one
+    /// that must not conflate `PartialEq<Other>` with `PartialEq` does
+    /// not.
+    pub trait_path: Option<String>,
+    /// The self type as the head writes it, whitespace collapsed:
+    /// `Coset`, `SignCertificate<'_, T>`.
+    pub self_type: String,
+}
+
+/// The trait and self type the `impl` at `impl_at` names, or `None`
+/// where the head is one this reader cannot parse.
+///
+/// **The generic list is stepped over first.** `impl<P: PartialEq>
+/// Doc<P>` names a trait in a BOUND and implements none; reading the
+/// whole head for the word answers a trait the impl does not have.
+///
+/// `blanked` is a [`code_only`] view and `body_start` the offset of
+/// the body's `{`, which is what keeps a `for` or a `<` inside a
+/// comment or a literal out of the head.
+///
+/// **Shared because two censuses read impl heads.**
+/// `crates/test-utils/tests/hand_written_impl_census.rs` keys its
+/// suppression list on `(path, trait, self type)` and
+/// `crates/pncad-py/src/tests.rs` keys its minting roster on
+/// `(trait, self type, item name)`; both had written this walk, by two
+/// algorithms, and a reader hosted inside one of its consumers is how
+/// the tree got its drift.
+#[must_use]
+pub fn impl_head(blanked: &str, impl_at: usize, body_start: usize) -> Option<ImplHead> {
+    let mut at = skip_ws(blanked, impl_at + "impl".len());
+    if blanked[at..].starts_with('<') {
+        at = angle_end(blanked, at)? + 1;
+    }
+    let head = blanked.get(at..body_start)?;
+    let Some(for_at) = top_level_for(head) else {
+        return Some(ImplHead {
+            trait_path: None,
+            self_type: collapsed(head),
+        });
+    };
+    Some(ImplHead {
+        trait_path: Some(collapsed(&head[..for_at])),
+        self_type: collapsed(&head[for_at + "for".len()..]),
+    })
+}
+
+/// A type or trait spelling with its `where` clause, its body brace and
+/// its surrounding whitespace dropped, and the whitespace inside it
+/// collapsed to one space.
+///
+/// A `where` clause is a bound on the impl and not part of the type,
+/// and an UNTERMINATED head runs past the body's own brace — so both
+/// end the spelling.
+fn collapsed(spelling: &str) -> String {
+    let mut end = spelling.len();
+    let mut from = 0usize;
+    while let Some(off) = spelling[from..].find("where") {
+        let at = from + off;
+        from = at + "where".len();
+        if word_at(spelling, at, "where") {
+            end = at;
+            break;
+        }
+    }
+    if let Some(brace) = spelling[..end].find('{') {
+        end = brace;
+    }
+    spelling[..end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The offset of the first whole-word `for` in `head` at bracket depth
+/// zero, or `None`.
+///
+/// **Depth matters and is not decoration.** A bound like
+/// `impl<T: Fn(&str) -> bool> …` and a higher-ranked
+/// `for<'a> Trait<'a>` both put a `for`-shaped token where it ends no
+/// trait; reading either as the separator answers a trait that is not
+/// one. Round and square brackets are counted, angle brackets are not —
+/// the generic list is stepped over by [`angle_end`] before this runs,
+/// so a `for<'a>` inside a WHERE clause is past the body already.
+fn top_level_for(head: &str) -> Option<usize> {
+    let (mut paren, mut bracket) = (0usize, 0usize);
+    for (at, c) in head.char_indices() {
+        match c {
+            '(' => paren += 1,
+            ')' => paren = paren.saturating_sub(1),
+            '[' => bracket += 1,
+            ']' => bracket = bracket.saturating_sub(1),
+            'f' if paren == 0 && bracket == 0 && word_at(head, at, "for") => {
+                // `for<'a>` is a binder, not the separator.
+                let after = skip_ws(head, at + 3);
+                if !head[after..].starts_with('<') {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The bare name at the head of a type or trait spelling: its path
+/// qualification and its generic arguments dropped.
+///
+/// `SignCertificate<'_, T>` is destructured as `SignCertificate { … }`
+/// and `crate::mate::Coset` as `Coset { … }`, so this is the word a
+/// pattern would carry — and the word a roster keyed on a type carries
+/// for `Foo<'a>` and `Foo` alike.
+#[must_use]
+pub fn type_base(spelling: &str) -> &str {
+    spelling
+        .split('<')
+        .next()
+        .unwrap_or_default()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default()
+        .trim()
+}
+
+/// The identifier beginning at `at`, empty when none does.
+///
+/// **A raw identifier is ONE identifier, `r#` included.** Reading
+/// `r#type` as `r` leaves the reader looking at a `#`, and a struct
+/// variant whose name is a keyword then reads as a unit one — a false
+/// green, since the enum has a named field the attribute denies. A
+/// second reader had written the plain-alphanumeric half of this
+/// without the `r#` arm, which is the same defect one keyword away.
+#[must_use]
+pub fn ident(code: &str, at: usize) -> &str {
+    let from = if code[at..].starts_with("r#") {
+        at + 2
+    } else {
+        at
+    };
+    let end = code[from..]
+        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .map_or(code.len(), |off| from + off);
+    &code[at..end]
 }
 
 /// The byte ranges of the `sep`-separated items of `blanked` at bracket
@@ -976,10 +1154,16 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 ///    ([`file_module_decls`]), and helper TREES are directories
 ///    carrying a `mod.rs`, which [`suite_files`] already excludes.
 ///
-/// # The two inputs
+/// # The two inputs, and the one caller that supplies them
+///
+/// **There is exactly one caller**, and it is
+/// [`crate::every_suite_file_is_aggregated!`]'s expansion, a hundred lines
+/// below. Both arguments are shaped by where that expansion lands, so
+/// what follows is a constraint on the macro rather than advice to an
+/// author of an `all.rs`; there are no longer fifteen of those.
 ///
 /// `tests_dir` is the crate's `tests/` directory: the walk and each
-/// suite's text are read from it at RUN time, so a caller passes
+/// suite's text are read from it at RUN time, so the macro passes
 /// [`crate_dir`]'s answer rather than a baked path — a nextest archive
 /// replayed on another runner has no compile-time directory.
 ///
@@ -1016,9 +1200,17 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// [`crate::every_suite_file_is_aggregated!`], which carries those
 /// tokens in its expansion rather than in the file's text: every
 /// aggregator's margin is zero, and the census recognises the
-/// INVOCATION instead. Both are textual proxies for the same fact, and
-/// the invocation is the narrower proxy — closing it takes deleting the
-/// row, not adding a literal elsewhere in the file.
+/// INVOCATION instead.
+///
+/// Both are textual proxies for the same fact and both can be closed
+/// without touching what they proxy; they differ in how easily. The
+/// margin went to a stray `#[path = "` inside any string literal in the
+/// file. The invocation needle goes to deleting the row, or to renaming
+/// the macro — and the census holds BOTH of those: a needle that names
+/// no macro reds on its own row rather than as fifteen stale ledger
+/// lines. What it does not go to is re-delimiting:
+/// `every_suite_file_is_aggregated! { }` compiles, runs and passes, and
+/// the needle carries no delimiter for that reason.
 #[must_use]
 pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<String> {
     let src = code_and_literals(all_rs);
@@ -1097,6 +1289,23 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 /// probe before this macro was written, for the bare and the
 /// `::core::`-qualified spelling both.
 ///
+/// **That measurement has no mechanical guard and cannot have one, and
+/// here is the reason.** If invocation-site resolution ever flipped,
+/// `crate_dir(env!(…))` and `include_str!("all.rs")` would BOTH answer
+/// for `test-utils`, so every row would compare `test-utils`' own
+/// aggregator against `test-utils`' own `tests/` — self-consistent, and
+/// green in every crate. Nothing in this tree would red, which is the
+/// same failure named three paragraphs above. No guard can be written
+/// for it either: a guard sited in some crate would have to compare what
+/// the macro sees against that crate's directory, and that comparison is
+/// what the macro already is, so it would flip with it. The reason it is
+/// safe to leave unguarded is not that the failure would be loud: it is
+/// that `include_str!` and `env!` resolving at the invocation site is
+/// part of Rust's stability promise, so the flip is a breaking language
+/// change and not a regression this repository can land. A scheduled
+/// re-measure would buy nothing that `rustc`'s own release process does
+/// not, which is why there is not one.
+///
 /// The generated `fn` keeps the name `every_suite_file_is_aggregated`,
 /// so the row's identity in a PASS list, in `--filter` arguments and in
 /// the prose that names it across the tree is unchanged.
@@ -1120,6 +1329,27 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 /// `crates/pncad/` is the deliberate non-carrier and must stay one: its
 /// `tests/` holds a single file, its header says why it has no row, and
 /// the guard named above is what keeps that sentence true.
+///
+/// # What the collapse cost, which is redundancy
+///
+/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts.
+/// `crates/test-utils/tests/reader_census.rs` reads each `all.rs` and
+/// asserts a `Shared` ledger line against that file's own text, so a
+/// reversion in one of them red'd one file and named it. One macro is
+/// one fact: this body answers for fifteen call sites, and the file it
+/// lives in is dispositioned `Home`, which that row filters out before
+/// it looks at anything. Rewriting this expansion into a hand-rolled
+/// `read_dir` walk therefore leaves all fifteen `Shared` lines green.
+///
+/// `the_aggregation_row_macro_reaches_the_shared_lexer` is the row that
+/// closes it, by reading THIS body as text and asserting it still calls
+/// [`crate_dir`] and [`aggregation_violations`] — measured: that
+/// reversion reds it and nothing else. So the claim is checked, but it
+/// is checked ONCE. A single check with a single subject is a weaker
+/// thing than fifteen checks with fifteen subjects, and that difference
+/// is what collapsing fifteen copies to one is bought with. It is worth
+/// it here because the fifteen were byte-identical and their drift was
+/// the defect; it would not be worth it where the copies differed.
 #[macro_export]
 macro_rules! every_suite_file_is_aggregated {
     () => {

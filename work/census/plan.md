@@ -42,23 +42,29 @@ its fence in the PR that lands it and announces it to the owners; the
 
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
-| `inert-deny-unknown-fields-on-unit-enums` | **M** | Workspace sweep of 73 sites, but each decided mechanically by unit-vs-struct | `crates/editor-core/src/names/role.rs` + ~17 `editor-core/src` files, `crates/viewer/src/prefs.rs`, editor-core wire tests |
-| `hand-listed-debug-censuses-in-geom-core-geom-and-topo` | **M** | Pattern already proven by #2093, but 9 impls in 3 crates and the PartialEq half needs a scope call | `crates/geom-core/src/spline/knots.rs`, `crates/geom-core/src/spline/hull.rs`, `crates/geom/src/curves/nurbs.rs` (incl. `nurbs_curve!`), `crates/geom/src/surfaces/nurbs.rs` — `Debug` impls and the sibling `PartialEq` impls |
+| `inert-deny-unknown-fields-on-unit-enums` **(closed — CENSUS-INERT-DENY, #2634)** | **M** | Workspace sweep of 73 sites, but each decided mechanically by unit-vs-struct | `crates/editor-core/src/names/role.rs` + ~17 `editor-core/src` files, `crates/viewer/src/prefs.rs`, editor-core wire tests |
+| `hand-listed-debug-censuses-in-geom-core-geom-and-topo` **(closed — CENSUS-DEBUG, #2655)** | **M** | Pattern already proven by #2093, but 9 impls in 3 crates and the PartialEq half needs a scope call | `crates/geom-core/src/spline/knots.rs`, `crates/geom-core/src/spline/hull.rs`, `crates/geom/src/curves/nurbs.rs` (incl. `nurbs_curve!`), `crates/geom/src/surfaces/nurbs.rs` — `Debug` impls and the sibling `PartialEq` impls |
 | `S113` | **M** | Multi-file; member (d) needs a real invariance re-derivation of the retry ladder. | `crates/geom-core/src/ring_interval.rs`, `crates/topo/src/chart_region.rs`, `crates/topo/src/splitting/containment.rs`, `demos/README.md` (+ S64/S67/S74/S89/S98 members) |
 | `S133` | **M** | profile half discharged; remaining sweep+disposition rides staffed lanes, scope needs judgement. | `crates/topo/src/chord_join.rs`, `crates/profile/src/path/{path.rs,family.rs,program.rs}` |
 | `S57` | **M** | Five known sites, but widening a crate-scoped guard to a concept needs a new instrument. | `crates/editor-core/src/names/emit_topo.rs`, `crates/sweep/src/blend/{build.rs,battery.rs}`, `crates/topo/src/face_normal.rs`, the anti-re-fork guard in `scripts/gates/*`; unswept `crates/mesh/src/walk.rs`, `crates/step-export/src/` |
-| `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Ten sites in `py/value.rs` mint the evaluation door's refusal words as string literals the inventory cannot lex; the disposition between the row's two closes was the orchestrator's, and the third one it took — give the door a typed reason — is what makes the class closable. Landed 2026-09-15; E held, because the design call was made in the spec. | `crates/pncad-py/src/errors.rs` (`EvalReason`), `crates/pncad-py/src/tags.rs` (`eval_reason_tag`), `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`, `TAG_CONSTS` and the reader's own guard), `crates/pncad-py/src/py/value.rs` |
+| `pncad-py-eval-err-variants-outside-the-tag-inventory` **(closed — CENSUS-TAG-REACH, #2660)** | **E** | Arrived from M10 (2026-09-13). Ten sites in `py/value.rs` mint the evaluation door's refusal words as string literals the inventory cannot lex; the disposition between the row's two closes was the orchestrator's, and the third one it took — give the door a typed reason — is what makes the class closable. Landed 2026-09-15; E held, because the design call was made in the spec. | `crates/pncad-py/src/errors.rs` (`EvalReason`), `crates/pncad-py/src/tags.rs` (`eval_reason_tag`), `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`, `TAG_CONSTS` and the reader's own guard), `crates/pncad-py/src/py/value.rs` |
 | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | **M** | Arrived from DOCM (2026-09-13). The three live instances are dispositioned by hand at the site; what is open is the general case, and every door to it is a walk over source TEXT — the exact instrument PR 2501 removed as unsound. | `crates/editor-core/src/program.rs` (the `document_vocabulary!` invocation and its `DOCUMENT_VOCABULARIES` doc) |
 | `census-sees-an-inert-attribute-but-not-a-missing-one` | **H** | Arrived from `inert-deny-unknown-fields-on-unit-enums` (2026-09-15); class estimated by that lane, order not yet placed. The census sees the inert attribute and is blind to the missing one. The walk is the easy half; the verdict key is a design call (which `Deserialize` types OWE the attribute) and the one confirmed instance changes what a document accepts. | `crates/test-utils/tests/deny_unknown_fields_census.rs`, `crates/editor-core/src/persist/mod.rs`, and the msolve instance `crates/editor-core/src/mate.rs` |
 | `hand-listed-partialeq-siblings-outside-the-census-debug-fence` | **M** | Arrived from `hand-listed-debug-censuses-…` (2026-09-15) with its class estimated by that lane; order not yet placed. Six hand-listed `PartialEq`/`Debug` walks the CENSUS-DEBUG unit checked and filed rather than swept. Four are one destructure each and are held in the meantime by `KNOWN_HAND_LISTED`; the other two — `SketchPlane`'s hand-list behind a delegation and `NameRef`'s behind a tuple index — are **invisible to the arrival census** and held by the row alone, so landing the four destructures does not close it. It also records that `expr.rs` and `topo/src/props.rs` are claimed by no open program, which is why the row is on this slate at all. | `crates/editor-core/src/{expr.rs,mate/coset.rs,program.rs,names/role.rs}`, `crates/topo/src/props.rs`, `crates/profile/src/lib.rs`; `crates/editor-core/src/clearance.rs` is shell's under its own row |
-| `py-discriminant-getters-under-src-py-are-outside-every-inventory` | **M** | From CENSUS-TAG-REACH (2026-09-15). 30 `-> &'static str` functions under `src/py/`, 6 minting 23 Python-visible words no inventory reads — and **7 of the 23 have a second spelling in `tags.rs`**, held equal by nothing. Two are named `*_tag` and live outside that file. | `crates/pncad-py/src/py/{mate.rs,assembly.rs,refactor.rs,mesh.rs,doc.rs}`, `crates/pncad-py/src/tags.rs` |
-| `py-reason-and-variant-literals-outside-any-enum` | **M** | From CENSUS-TAG-REACH. Nine words minted at raise sites in four files: six in doors with no enum, three on an attribute an inventoried map otherwise fills — and only ONE of those three is a second spelling of a word its own map mints (re-measured 2026-09-15; the row carries the correction). Carries a separate `AttributeError` defect at `flush.rs`. | `crates/pncad-py/src/py/{flush.rs,value.rs,doc.rs,mesh.rs}` hold the nine; `crates/pncad-py/src/py/select.rs` is the `AttributeError` half; `crates/pncad-py/src/{errors.rs,tags.rs}` |
+| `py-discriminant-getters-under-src-py-are-outside-every-inventory` **(closed — CENSUS-PY-GETTERS, #2663)** | **M** | From CENSUS-TAG-REACH (2026-09-15). 30 `-> &'static str` functions under `src/py/`, 6 minting 23 Python-visible words no inventory reads — and **7 of the 23 have a second spelling in `tags.rs`**, held equal by nothing. Two are named `*_tag` and live outside that file. | `crates/pncad-py/src/py/{mate.rs,assembly.rs,refactor.rs,mesh.rs,doc.rs}`, `crates/pncad-py/src/tags.rs` |
+| `py-reason-and-variant-literals-outside-any-enum` **(closed — CENSUS-PY-RAISE-LITERALS, #2682)** | **M** | From CENSUS-TAG-REACH. Nine words minted at raise sites in four files: six in doors with no enum, three on an attribute an inventoried map otherwise fills — and only ONE of those three is a second spelling of a word its own map mints (re-measured 2026-09-15; the row carries the correction). Carries a separate `AttributeError` defect at `flush.rs`. | `crates/pncad-py/src/py/{flush.rs,value.rs,doc.rs,mesh.rs}` hold the nine; `crates/pncad-py/src/py/select.rs` is the `AttributeError` half; `crates/pncad-py/src/{errors.rs,tags.rs}` |
+| `tag-vocabularies-restated-in-py-doc-comments` | **M** | From CENSUS-PY-GETTERS (2026-09-15); **filed by that unit and absent from this slate until 2026-09-15** — see the log. Eight getters under `src/py/` restate in prose a vocabulary their own map holds, in **three shapes** the row refuses to flatten: four a bare roster, three mixing a map's words with neighbouring attribute names, one (`ClassAdmission::why`) using the words to say which arm carries which sentence, where deleting them loses a statement the map does not make. **A disposition has to check `pncad.pyi` first**: a pyo3 doc comment is the property's `__doc__`, so where the stub names the attribute and not its words, deleting the roster deletes it from `help()` — and the stub is not uniform. | `crates/pncad-py/src/py/{assembly.rs,mate.rs,checks.rs}`, `crates/pncad-py/pncad.pyi` |
+| `ring-contact-and-census-contact-share-two-words-by-prose-alone` | **E** | From CENSUS-PY-GETTERS (2026-09-15); **filed by that unit and absent from this slate until 2026-09-15** — see the log. Three maps share contact words held equal by a doc sentence nothing executes: rename one map's `vertex_on_edge` and `TAG_INVENTORY` reds on that map alone while the sibling keeps the old spelling, its doc still claiming they agree. The fix is three lines beside two that already exist. Its tail is a kernel question, not a binding one — whether `edge_along_edge` and `edge_edge_overlap` are one concept under two names. | `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/tests.rs` |
 | `datum-kind-vocabulary-is-hand-spelled-and-uncensused` | **E** | From CENSUS-DEBUG's sibling sweep. `Datum.kind`'s five words are a `&'static str` struct field on a `#[pyclass]` — neither a literal beside a key nor a getter, so every sweep so far was blind to the shape; three have no Rust pin at all. | `crates/pncad-py/src/py/value.rs` |
 | `evaluationerror-stub-lists-five-reasons-and-the-door-raises-six` | **E** | From CENSUS-TAG-REACH. `pncad.pyi` hand-lists a vocabulary that now has a machine census (`EvalReason`); the stub says five and the door raises six. | `crates/pncad-py/pncad.pyi`, `crates/pncad-py/src/errors.rs` |
-| `pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors` | **M** | From CENSUS-TAG-REACH. 6317 lines holding the taxonomy pin, four censuses, a 120-line Rust recogniser and its guard; two magic floors (`>= 60` functions, `>= 500` literals) that nothing re-measures. The floors are the row; the split is the file owner's call. | `crates/pncad-py/src/tests.rs` |
-| `four-censuses-of-python-visible-vocabulary-in-one-crate` | **H** | From CENSUS-TAG-REACH. `TAG_INVENTORY`, `NODE_KIND_ROSTER`, `surface_census` and `prose_census` ask one question — can a Python caller reach every member of this vocabulary — over four populations with four devices. Whether four should be fewer is the design call. | `crates/pncad-py/src/{tests.rs,surface_census.rs,prose_census.rs,node_kind.rs}` |
+| `pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors` | **M** | From CENSUS-TAG-REACH. **7795 lines** (`git show <sha>:crates/pncad-py/src/tests.rs | wc -l`; 6317 when filed, 6798 at the merge base) holding the taxonomy pin, three censuses, **two** Rust recognisers and their guards; two magic floors (`>= 60` functions, `>= 500` literals) that nothing re-measures. CENSUS-ERRORS-ARRIVAL grew it 997 lines, 14.7%, and the row carries both sides of the split argument now — and records that its own first re-measurement was born stale. The floors are the row; the split is the file owner's call. | `crates/pncad-py/src/tests.rs` |
+| `four-censuses-of-python-visible-vocabulary-in-one-crate` | **H** | From CENSUS-TAG-REACH. `TAG_INVENTORY`, `NODE_KIND_ROSTER`, `surface_census` and `prose_census` ask one question — can a Python caller reach every member of this vocabulary — over four populations with four devices; two more devices in `tests/` bring it to six. Whether six should be fewer is the design call. CENSUS-ERRORS-ARRIVAL's `ERRORS_MINTING_ITEMS` is **not** a member and the row says why — it asks whether an ITEM arrived, not whether a word is reachable — but it is a design input, being the one question no compile-time device can answer. | `crates/pncad-py/src/{tests.rs,surface_census.rs,prose_census.rs,node_kind.rs}`, `crates/pncad-py/tests/{test_binding_census.py,test_stubs.py}` |
 | `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read` | **M** | From CENSUS-PY-GETTERS (2026-09-15). `tags.rs` mints 61 words that two or more maps speak — `band` in sixteen, `escalated` in ten. Seven were read and dispositioned; **54 are covered by a scoping rule nobody read them against**. The instrument that holds the population to a roster landed with the unit; the judgement on the remainder did not. | `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/tests.rs` |
-| `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file` | **E** | From CENSUS-PY-GETTERS. All four maps have pins; the defect is that **nothing enumerates the file**, so a fifth arrives with no "NEW tag function" sentence to catch it. Two fix shapes named: a loose arrival reader, or capitalising at the boundary so the seventh map stops existing. | `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
+| `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file` **(closed — CENSUS-ERRORS-ARRIVAL, #2691)** | **M** (was E) | From CENSUS-PY-GETTERS. Every map has a pin; the defect is that **nothing enumerates the file**, so a fifth arrived with no "NEW tag function" sentence to catch it. Landed 2026-09-15 as an arrival alarm keyed on the file's LITERALS rather than on any item form — neither of the two shapes the row named. **E was wrong**: the row's own proposal inherits the form-keying that made every earlier instrument here go blind, so the disposition had to be found rather than read off, and an instrument plus its own guard had to be built. | `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
+| `payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing` | **M** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane, order not yet placed. 67 `("word", field.is_some())` rows across four payload modules no instrument reads, naming 64 Python-visible attribute words; **31 of them are spelled a second time at a raise site under `src/py/`** and nothing holds the two equal. No live mismatch — the defect is that nothing would catch one. | `crates/pncad-py/src/{edit_payload.rs,check_payload.rs,mate_payload.rs,pick_payload.rs}`, `crates/pncad-py/src/py/`, `crates/pncad-py/src/tests.rs` |
+| `dimension-mismatch-sentence-is-spelled-in-two-crates-and-held-equal-by-nothing` | **E** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane's fix pass, order not yet placed. `"cannot apply \`{}\` to {} and {}"` is rendered word for word by two `Display` impls in two crates, held equal by nothing — **while the doc two lines above the first argues the two types are deliberately unrelated**. The prose asserts distinctness and the string asserts identity; which reading is right is the row. | `crates/pncad-py/src/errors.rs`, `crates/editor-core/src/expr.rs` |
+| `the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates` | **M** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane's fix pass, order not yet placed. `reads_as_prose` states the Display-vs-Debug rule with two fingerprints; the `" { "` half is re-spelled at **seven executable sites in five crates** outside it (thirteen raw hits, the rest prose) and **none of the seven carries the other half**, so each is a silently weaker test than the rule it quotes. `prose_census.rs`'s needle set is where the sweep's own blind spot is. | `crates/{topo,viewer,sweep,editor-core,pncad-py}/…` — seven checks; `crates/pncad-py/src/prose_census.rs` |
+| `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short` | **E** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane's fix pass, order not yet placed. The **fourth consecutive** short exclusivity list (standing finding 2), wrong in two executed places. Both closed; what the row carries is the four-item residue, each executed — an item spelling no literal, a within-item word swap, an `impl` at indentation losing its qualifier, and a `held_by` column nothing re-derives. | `crates/pncad-py/src/tests.rs`, `crates/pncad-py/src/errors.rs` |
 | `prose-counts-of-a-populations-size-in-pncad-py-doc-comments` | **M** | From CENSUS-PY-RAISE-LITERALS (2026-09-15). A doc comment stating how many arms, words or maps a population has, with nothing re-deriving it. 195 raw hits, seven repaired in the unit, ten named unverified — and one (`step_import_error_tag`'s "twenty-two arms") was **never right**, `git log -S` putting the sentence at a commit where the map already had 23. | `crates/pncad-py/src/**` |
 | `both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one` | **E** | From CENSUS-PY-RAISE-LITERALS. `SelectRefusal`'s eight arms are all matched above the forced wildcard and `ContactClass` has exactly two, both matched — so `unclassified` is the only inventoried word nothing can make the binding emit, **and the `AttributeError` repair sits on that same dead path**, so it cannot go red either. | `crates/pncad-py/src/py/{flush.rs,select.rs}`, `crates/pncad-py/src/tags.rs` |
 | `dimension-error-op-carries-twelve-words-minted-at-call-sites` | **M** | From CENSUS-PY-RAISE-LITERALS. Twelve `DimensionError.op` words minted at call sites of two `&'static str` parameters; six asserted, six not. `MeasureUnavailableAt.door` takes one from a kernel struct-field literal in `editor-core`. | `crates/pncad-py/src/py/{quantity.rs,analysis.rs,doc.rs,measure.rs}` |
@@ -104,6 +110,17 @@ month re-derives the argument from scratch, and two of the rows record
 facts with a shelf life (which words have a second spelling, which
 doors have no enum).
 
+`tag-vocabularies-restated-in-py-doc-comments` and
+`ring-contact-and-census-contact-share-two-words-by-prose-alone` join
+the block as well, and they are placed here two units late: both were
+filed by CENSUS-PY-GETTERS and **neither reached this slate until
+2026-09-15**, so two units' worth of ordering was reasoned over a set
+that did not contain them. The ring-contact row is the cheaper and
+goes first of the two — three lines beside two that exist, with a
+kernel question as its tail. The prose-restatement row wants the stub
+checked before any of its eight sites is touched, which is a reading
+task the row has already scoped and nobody has done.
+
 The three rows CENSUS-PY-RAISE-LITERALS filed join the block too, and
 one of them is ordered by a fact with a shelf life:
 `prose-counts-of-a-populations-size-…` holds **ten named unverified
@@ -111,12 +128,51 @@ counts**, several of them over kernel enums, which means they go stale
 on someone else's change rather than on this program's — a row that
 decays while nobody touches it.
 
-`sixty-one-tag-words-…` and `errors-rs-holds-four-…` join the block and
-run with it — both are `tags.rs`/`errors.rs` and both were opened by the
-unit that just landed there, so the same warm context applies. The
-61-word row carries the sharper obligation of the two: its instrument
-ships, and what is missing is the READING of 54 pairs, which is exactly
-the kind of debt that stops looking urgent once the instrument is green.
+`sixty-one-tag-words-…` and `errors-rs-holds-four-…` joined the block
+and ran with it — both are `tags.rs`/`errors.rs` and both were opened by
+the unit that landed there, so the same warm context applied.
+`errors-rs-holds-four-…` **is closed** (CENSUS-ERRORS-ARRIVAL, #2691).
+The 61-word row carries the sharper obligation of the two and is still
+open: its instrument ships, and what is missing is the READING of 54
+pairs, which is exactly the kind of debt that stops looking urgent once
+the instrument is green.
+
+**The four rows CENSUS-ERRORS-ARRIVAL filed, ordered.** They do not run
+as a block — they came out of one unit but they answer to four
+different owners.
+
+`the-errors-arrival-blind-spot-list-…` goes **first of the four and
+soon**, and its argument is warmth rather than class. It is the residue
+of the instrument that just landed, entirely inside the two files that
+unit touched, and each of its four items is already EXECUTED — an item
+spelling no literal, a within-item word swap, a nested `impl` losing its
+qualifier, and a `held_by` column nothing re-derives. Almost all of its
+value is that those probes exist and are described; a lane arriving cold
+re-runs four experiments to get back to where the row starts.
+
+`payload-attribute-names-…` joins the `pncad-py` block. It is the same
+shape one file over — a word spelled twice and held equal by nothing —
+and it is the literal "everywhere else" the arrival alarm names as out
+of scope. Its 31 second spellings are a fact with a shelf life: each is
+a raise site that can move.
+
+`the-field-brace-fingerprint-…` is routing, and decays the way
+`hand-listed-partialeq-siblings-…` does: its seven executable sites are
+in five crates that are other programs', so owners move as programs
+close. It carries a tie the others do not — **its own sweep's blind spot
+is `prose_census.rs`'s needle set**, which is the instrument
+`prose-census-cannot-see-a-bypassed-prose-renderer` exists to fix. If
+that row lands first this one should be re-swept before it is specced;
+if this one runs first, it owes the re-sweep to itself.
+
+`dimension-mismatch-sentence-…` is **E by size and not by difficulty**,
+and goes last of the four. Two `Display` impls in two crates render one
+sentence word for word while the doc two lines above the first argues
+the types are deliberately unrelated — so the row is a question about
+which of the two readings is true, not an edit, and the answer belongs
+to whoever owns `crates/editor-core/src/expr.rs`. This plan already
+records that `expr.rs` is claimed by NO open program, which is the same
+routing hazard the `PartialEq` row carries.
 
 `four-censuses-of-python-visible-vocabulary-in-one-crate` does **not**
 ride with them and stays with the H rows: it asks whether four

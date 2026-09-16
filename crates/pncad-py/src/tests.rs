@@ -26,7 +26,10 @@ use std::path::Path;
 // guard's own guard. This is the tree's one answer to "is this text
 // code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
 // carries the line that says so.
-use test_utils::source::{balanced_end, code_and_literals, code_only};
+use test_utils::source::{
+    ItemBody, balanced_end, code_and_literals, code_only, comments_only, ident, impl_head,
+    item_body, line_start, plain_string_literal, type_base,
+};
 
 #[test]
 fn dimension_tags_are_stable() {
@@ -1985,8 +1988,8 @@ fn inner_arm_tags_are_stable() {
         ("revolve", Some("degenerate_axis"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Tube(Box::new(TubeError::NonUnitAxis))),
-        ("tube", Some("non_unit_axis"))
+        pair(&NodeErrorKind::Tube(Box::new(TubeError::DegenerateWindow))),
+        ("tube", Some("degenerate_window"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Extrude(ExtrudeError::ObliqueExtrusion)),
@@ -2790,8 +2793,10 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(!reads_as_prose(&format!("{entropy:?}")));
 
     // The second fingerprint: a fieldless variant renders as one bare
-    // word, which no sentence is.
+    // word, which no sentence is — underscored variant names included,
+    // which is the one character the predicate's alphabet spells.
     assert!(!reads_as_prose("SeamRetrimsArcFirstSide"));
+    assert!(!reads_as_prose("Seam_Retrims_Arc_First_Side"));
     // And the shapes prose legitimately carries: a quoted user string
     // (`Debug` on a `&str`, which the id doors use for its escaping),
     // and a sentence that opens on a capital.
@@ -4507,6 +4512,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ortho_frame_error_tag",
+        values: &[
+            "degenerate_u_axis",
+            "degenerate_v_axis",
+            "escalated",
+            "non_finite_u_axis",
+            "non_finite_v_axis",
+            "underflowed_u_axis",
+            "underflowed_v_axis",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "param_attach_error_tag",
         values: &["field_not_on_kind", "stale_key"],
         delegates: &[],
@@ -5047,10 +5065,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_window",
             "escalated",
-            "frame_not_orthogonal",
             "full_range_window",
-            "non_unit_axis",
-            "non_unit_u_ref",
             "nonpositive_wall",
             "revolve",
             "wall_exceeds_radius",
@@ -5225,7 +5240,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty", 2),
     ("empty_boolean", 2),
     ("empty_placement_list", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 2),
     ("face", 3),
@@ -5853,6 +5868,24 @@ fn the_tag_table_reader_refuses_a_pattern_that_closes_before_its_arrow() {
     );
 }
 
+/// **A `pub const fn` map in this file is refused, and says why.**
+///
+/// `src/tags.rs` holds no `const` map today, so nothing else drives
+/// this rung — and the form is not hypothetical: every map in
+/// `src/errors.rs` has it, which is what makes "move the map here"
+/// wrong as stated wherever that is proposed. `TopForm::Const` matches
+/// on `pub const `, a PREFIX of `pub const fn `, so without the
+/// refusal above the line is read as a malformed `&str` const and the
+/// message names the wrong thing.
+#[test]
+#[should_panic(expected = "a `pub const fn` tag map")]
+fn the_tag_table_reader_refuses_a_const_fn_map() {
+    read_tag_table(
+        "pub const fn dimension_tag(dim: Dimension) -> &'static str {\n    \
+         match dim {\n        Dimension::Length => \"length\",\n    }\n}\n",
+    );
+}
+
 /// One tag function's body, read into (values, delegates) — and the
 /// arm shapes the reader dispatched on getting there.
 fn parse_tag_body(
@@ -5945,7 +5978,11 @@ impl TopForm {
             Self::OptionTagFn => {
                 after("pub fn ").filter(|rest| rest.ends_with(") -> Option<&'static str> {"))
             }
-            Self::Const => after("pub const "),
+            // `pub const ` is a prefix of `pub const fn `, and the two
+            // are different forms rather than a well-formed one and a
+            // malformed one. Refusing the second here sends it to the
+            // ladder below, which says what it is.
+            Self::Const => after("pub const ").filter(|rest| !rest.starts_with("fn ")),
         }
     }
 }
@@ -5978,6 +6015,14 @@ fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a 
          neither `(..) -> &'static str {{` nor \
          `(..) -> Option<&'static str> {{` on one line — I do not \
          understand this, and cannot say what it puts on the wire: {line}"
+    );
+    assert!(
+        !code_line.starts_with("pub const fn "),
+        "tags.rs:{number}: a `pub const fn` tag map. This reader's two function \
+         forms strip `pub fn `, so a `const` one is a form it has never been \
+         taught — every map in `src/errors.rs` has this shape, which is why \
+         moving one here verbatim does not work. Teach this reader in the same \
+         diff that adds the construct: {line}"
     );
     panic!(
         "tags.rs:{number}: I do not understand this top-level line, so the tag \
@@ -6372,6 +6417,968 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          same commit, and check `pncad.pyi` and `tests/*.py` for callers of \
          every word that moved.\n\n  {}",
         complaints.join("\n  ")
+    );
+}
+
+/// **One item in `src/errors.rs` that spells a literal**, and the
+/// check that holds the words it spells.
+struct MintingItem {
+    /// The item, qualified by the `impl` block that holds it where it
+    /// has one: `Type::name`, or `<Type as Trait>::name`.
+    owner: &'static str,
+    /// How many literals it spells, character literals included.
+    literals: usize,
+    /// What holds those WORDS. This roster holds the item's
+    /// EXISTENCE; values are each row's own pin, named here so that a
+    /// row cannot be added without someone answering the question.
+    held_by: &'static str,
+}
+
+/// **The committed roster of everything in `src/errors.rs` that
+/// spells a literal** — the file's arrival alarm.
+///
+/// `src/tags.rs` is safe to add to because `TAG_INVENTORY` reads it:
+/// a new map there is *"a new set of public Python words that no
+/// inventory has looked at"* the moment it lands. This file had no
+/// equivalent, and the cost was measured rather than predicted — a
+/// further `-> &'static str` map arrived here unpinned, in a diff that
+/// left the tracker row predicting it untouched.
+///
+/// **The population is the shared lexer's, not a grammar of this
+/// reader's own, and that is the whole design.** Every previous
+/// instrument over this crate's vocabulary was keyed on a FORM — a
+/// top-level `pub fn`, a literal beside a key, a lowercase word — and
+/// each went blind to the arrival that did not wear it: this file's
+/// `-> &'static str` maps include inherent methods inside `impl`
+/// blocks, which a top-level-keyed reader does not walk, and every one
+/// of them is a `pub const fn`, which the tag reader's `pub fn ` forms
+/// do not admit. [`read_minting_items`] asks [`test_utils::source`] which
+/// bytes of the file are literals and attributes each to the item
+/// that spells it, so a word cannot arrive in a form the reader was
+/// not taught: there is no form.
+///
+/// **The key is `(self type, trait, item name)`, which is the sibling
+/// census's key** — `crates/test-utils/tests/hand_written_impl_census.rs`
+/// keys on `(path, trait, self type)` and says at the site why the
+/// trait is in it. Written as Rust writes it, `<Type as Trait>::name`.
+/// A key without the trait made `impl fmt::Debug for QuantityOpMismatch`
+/// beside the existing `impl fmt::Display` a collision, and hard-stopped
+/// the census on correct code with an instruction — qualify them apart —
+/// that Rust gives no way to follow.
+///
+/// **What this roster does NOT do**, said here because a roster reads
+/// as completeness: it is an ARRIVAL alarm, not a word inventory. The
+/// `literals` count moves when a word is added to or dropped from a
+/// rostered item, so growth is loud; a word RENAMED in place, or
+/// swapped for another inside one item, leaves the count alone and is
+/// the `held_by` column's business. **An item that spells no literal
+/// at all is outside this alarm entirely** — a map forwarding
+/// `crate::tags`', a word built from a kernel `Display` — and
+/// `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
+/// executes that case rather than asserting it. That is the one
+/// exception to the header's claim in `src/errors.rs`, and the header
+/// states it.
+///
+/// **Why this census is in this file, weighed.** Against: this
+/// program's other two instruments —
+/// `crates/test-utils/tests/hand_written_impl_census.rs` and
+/// `deny_unknown_fields_census.rs` — are each their own file, and this
+/// one lands 6,000 lines into a `mod tests` whose size is an open row
+/// on the same slate, which this unit then grew. For: the subject is
+/// ONE sibling module of this crate, read through `crate_dir` like
+/// `TAG_INVENTORY` above it reads `src/tags.rs`, and the `held_by`
+/// column names tests that live here — a census in `test-utils` would
+/// cite nine tests it cannot reach and would be a second place to look
+/// for "what holds a word in this crate". The `TAG_INVENTORY`
+/// precedent decided it. **What it costs is real and is not paid
+/// here**: the file grew 14% in the diff that added this, and
+/// `work/census/pncad-py-tests-rs-…` carries both sides for whoever
+/// splits it.
+///
+/// **Where this reader's parts live, and why each is where it is.**
+/// Four operations here are not this census's: reading an `impl` head
+/// ([`test_utils::source::impl_head`]), taking a type's bare name
+/// ([`type_base`]), lexing an identifier ([`ident`]) and finding a
+/// line's start ([`line_start`]). Each had a second implementation in
+/// this file or a sibling census by a different algorithm, and a core
+/// hosted inside one of its consumers is the drift this program exists
+/// for — so all four moved to `crates/test-utils/src/source.rs`, which
+/// is where this crate's other readers already ask what a byte is.
+/// What stays is what is about THIS census and nothing else: the
+/// `(self type, trait, item name)` key, the attribution of a literal
+/// to the item whose head is nearest above it, and the roster below.
+///
+/// Sorted by owner, and the test below checks that rather than
+/// restating it.
+const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
+    MintingItem {
+        owner: "<QuantityOpMismatch as Display>::fmt",
+        literals: 1,
+        held_by: "a_quantity_operator_mismatch_carries_structure_not_prose, over the \
+                  rendered message",
+    },
+    MintingItem {
+        owner: "ErrorClass::class_name",
+        literals: 35,
+        held_by: "error_classes_name_the_python_hierarchy, whose expectation is a \
+                  SECOND exhaustive match, so a new class stops the build",
+    },
+    MintingItem {
+        owner: "EvalReason::ATTRIBUTE",
+        literals: 1,
+        held_by: "`pncad.pyi`'s `EvaluationError.reason` and the Python suite that \
+                  reads it — no Rust check names this word",
+    },
+    MintingItem {
+        owner: "ValidationRefusal::ATTRIBUTES",
+        literals: 2,
+        held_by: "the_validation_class_mints_exactly_these_attributes, which holds it \
+                  equal to the image of `attribute` over `ALL` in both directions",
+    },
+    MintingItem {
+        owner: "ValidationRefusal::attribute",
+        literals: 2,
+        held_by: "the_validation_class_mints_exactly_these_attributes for the words, \
+                  and every_validation_refusal_writes_the_attribute_it_is_committed_to \
+                  for which refusal writes which",
+    },
+    MintingItem {
+        owner: "canonical_unit",
+        literals: 2,
+        held_by: "canonical_units_match_the_gq5_ratification",
+    },
+    MintingItem {
+        owner: "dimension_tag",
+        literals: 4,
+        held_by: "dimension_tags_are_stable, and dimension_tags_match_the_kernel_prose \
+                  over `Dimension::ALL`",
+    },
+    MintingItem {
+        owner: "is_bare_camel_token",
+        literals: 1,
+        held_by: "the_prose_rule_separates_a_display_from_a_debug_dump, which drives \
+                  the predicate over an underscored bare token — and nothing here \
+                  reaches Python, a `char` being an alphabet rather than a word",
+    },
+    MintingItem {
+        owner: "measurement_dimension_tag",
+        literals: 4,
+        held_by: "the_two_dimension_alphabets_are_one_list_in_two_cases, over \
+                  `Dimension::ALL`",
+    },
+    MintingItem {
+        owner: "reads_as_prose",
+        literals: 1,
+        held_by: "the_prose_rule_separates_a_display_from_a_debug_dump, which drives \
+                  the predicate over both fingerprints",
+    },
+];
+
+/// Every literal `source` spells, by the item that spells it.
+///
+/// **Which bytes are literals is [`test_utils::source`]'s answer, not
+/// this function's**, taken from three of its views at once: `code`
+/// blanks comments and literals, `comments` keeps comments alone, and
+/// `text` keeps literals alone, so a byte blank in the first two and
+/// not the third is inside a literal. No grammar of this reader's
+/// decides the population, which is what keeps a word from arriving in
+/// a form it was never taught. What is left to do is ATTRIBUTION —
+/// which item spells it — and that is where this reader can be wrong,
+/// so both of its known wrong answers are refused rather than reported:
+/// a literal it cannot place at all, and a literal in an attribute
+/// whose item it cannot name.
+///
+/// **Every literal counts, character literals included.** A `char` puts
+/// no word on a Python wire and is not vocabulary; it is counted anyway
+/// because the population is the file's literals and an item is only in
+/// this census if it has one. Dropping them dropped the ITEM that
+/// spelled nothing else — a `pub const fn sep(self) -> char` spliced
+/// onto this file arrived with the roster silent — and made a `char`
+/// added to a rostered item free. A character literal is carried as the
+/// token AS WRITTEN, `'_'` rather than `_`, so a row's list cannot read
+/// as a word it is not.
+///
+/// Fails loud on what it cannot place: a literal above every
+/// declaration, a literal in an attribute on an item this reader does
+/// not name, a literal form it cannot lex, an `impl` whose body does
+/// not close, two items that would answer to one qualified name.
+fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
+    let text = code_and_literals(source);
+    let code = code_only(source);
+    let comments = comments_only(source);
+    let impls = impl_spans(&code);
+    let decls = declaration_heads(&code);
+    let mut named: BTreeSet<String> = BTreeSet::new();
+    for &(start, ref name) in &decls.heads {
+        let owner = qualified(&impls, start, name);
+        assert!(
+            named.insert(owner.clone()),
+            "errors.rs: two items answer to `{owner}` — this reader keys on the item \
+             name qualified by its `impl` block, trait and all, so two spellings of \
+             one key merge into one roster row silently. Rust rejects two such items \
+             in one crate, so this is a reader that has mis-read one of them."
+        );
+    }
+    let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let bytes = text.as_bytes();
+    let blanked = code.as_bytes();
+    let prose = comments.as_bytes();
+    let mut at = 0usize;
+    while at < bytes.len() {
+        // Blank in the code view, blank in the comment view, and NOT
+        // blank in the one that keeps literals: inside a literal.
+        // Three views rather than two, because a comment adjoining a
+        // literal is blank in the same two the literal is, and a walk
+        // that cannot tell them apart reads across the boundary.
+        if blanked[at] != b' ' || prose[at] != b' ' || bytes[at] == b' ' {
+            at += 1;
+            continue;
+        }
+        let mut end = at;
+        while end < bytes.len() && blanked[end] == b' ' && prose[end] == b' ' {
+            end += 1;
+        }
+        let raw = text[at..end].trim_end();
+        let value = if let Some(word) = plain_string_literal(raw) {
+            word.to_owned()
+        } else if raw.starts_with('\'') || raw.starts_with("b'") {
+            // A character literal, carried as written — see the doc.
+            raw.to_owned()
+        } else {
+            // A raw string, a byte string, a C string, a multi-line
+            // literal this walk saw one line of: a form it cannot read
+            // is a form a word could arrive in unseen.
+            panic!(
+                "errors.rs:{}: a literal form I do not understand, so I cannot say \
+                 what it puts on the wire: {raw:?}",
+                test_utils::source::line(&text, at)
+            );
+        };
+        found
+            .entry(minting_owner(&text, &impls, &decls, at))
+            .or_default()
+            .push(value);
+        at += raw.len();
+    }
+    for literals in found.values_mut() {
+        literals.sort();
+    }
+    found
+}
+
+/// Every `impl` block in the file: the prefix a name declared inside
+/// it is qualified by, and the byte range its body spans.
+///
+/// **The key carries the TRAIT, and that is the sibling census's key
+/// rather than this reader's invention.**
+/// `crates/test-utils/tests/hand_written_impl_census.rs` keys on
+/// `(path, trait, self type)` and says why: a key naming less than the
+/// impl covers impls it was never written about. Here the third
+/// element is the item name instead of the file, and dropping the
+/// trait had the same cost in a sharper form — `impl fmt::Debug for
+/// QuantityOpMismatch` beside the existing `impl fmt::Display` puts
+/// two `fmt`s under one key, and ordinary correct Rust then hard-stops
+/// the census on a demand no author can satisfy, because two trait
+/// `fmt`s cannot be qualified apart. `<Type as Trait>::name` is Rust's
+/// own spelling for the distinction and is what the roster carries.
+///
+/// **Column 0 is the claim, and what makes it a safe one is the key
+/// above rather than rustfmt.** An `impl` inside a `mod` or a function
+/// body is ordinary indented Rust that rustfmt is happy with, and this
+/// walk does not see it: its methods lose their qualifier and answer
+/// to bare names. That is loud — a bare name is not on the roster, so
+/// every one of them reports NEW — and the case where it was NOT loud
+/// was the collision, two unqualified names merging into one row,
+/// which the trait in the key has taken from two `fmt`s to a name Rust
+/// itself rejects. Teaching this walk to nest is the better fix and is
+/// not this unit's; what it costs today is a noisier red, not a quiet
+/// one.
+fn impl_spans(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
+    let mut spans = Vec::new();
+    let mut at = 0usize;
+    for line in code.split_inclusive('\n') {
+        let start = at;
+        at += line.len();
+        if !(line.starts_with("impl")
+            && line[4..].starts_with(|c: char| c.is_whitespace() || c == '<'))
+        {
+            continue;
+        }
+        let ItemBody::Body(body) = item_body(code, start) else {
+            panic!(
+                "errors.rs:{}: an `impl` whose body neither opens nor closes — I do \
+                 not understand where its items end",
+                test_utils::source::line(code, start)
+            );
+        };
+        let head = impl_head(code, start, body.start).unwrap_or_else(|| {
+            panic!(
+                "errors.rs:{}: an `impl` head I cannot read — its generic list does \
+                 not close before its body",
+                test_utils::source::line(code, start)
+            )
+        });
+        let subject = type_base(&head.self_type);
+        let qualifier = head.trait_path.map_or_else(
+            || subject.to_owned(),
+            |named| format!("<{subject} as {}>", trait_key(&named)),
+        );
+        spans.push((qualifier, body));
+    }
+    spans
+}
+
+/// A trait spelling as a key: its path qualification dropped, its
+/// generic arguments KEPT.
+///
+/// The path is noise — `fmt::Display` and `core::fmt::Display` are one
+/// trait. The arguments are not: `PartialEq<Other>` and `PartialEq`
+/// are two impls a type may carry at once, and a key that conflated
+/// them would collide on exactly the case the trait was put in it for.
+fn trait_key(path: &str) -> String {
+    let (base, args) = path.split_once('<').map_or((path, ""), |(b, a)| (b, a));
+    let base = base.rsplit("::").next().unwrap_or(base).trim();
+    if args.is_empty() {
+        base.to_owned()
+    } else {
+        format!("{base}<{args}")
+    }
+}
+
+/// Every `fn`, `const` and `static` the file declares: the byte offset
+/// its head starts at, and its name.
+///
+/// **`const` is two items in one keyword** — `const NAME:` declares
+/// one and `const fn NAME(` modifies another — and reading the second
+/// as the first is how a `pub const fn` map goes unread, which is
+/// exactly the shape the tag reader's `pub fn ` forms miss. So the
+/// keyword decides nothing on its own; what follows it does.
+///
+/// **A declaration's head starts at its first ATTRIBUTE, not at its
+/// `fn` line**, and that is the difference between a loud census and a
+/// silent one. Attribution is by the nearest declaration at or above a
+/// literal, and an outer attribute sits ABOVE the item it decorates —
+/// so `#[deprecated(note = "word")]` written over one item was read as
+/// a literal of the item before it. That is not merely the wrong row:
+/// it INFLATES the row above by one and, paired with a deletion in the
+/// same item, cancels to no complaint at all. Absorbing the attribute
+/// run into the head below puts the literal on the item that carries
+/// it, where the count moves the way an arrival does.
+fn declaration_heads(code: &str) -> Declarations {
+    let attributes = attribute_spans(code);
+    let mut absorbed = vec![false; attributes.len()];
+    let mut heads: Vec<(usize, String)> = Vec::new();
+    let mut at = 0usize;
+    for line in code.split_inclusive('\n') {
+        let start = at;
+        at += line.len();
+        if let Some(name) = declaration_name(line) {
+            heads.push((head_start(code, &attributes, &mut absorbed, start), name));
+        }
+    }
+    let stray = attributes
+        .into_iter()
+        .zip(absorbed)
+        .filter_map(|(span, taken)| (!taken).then_some(span))
+        .collect();
+    Declarations {
+        heads,
+        stray_attributes: stray,
+    }
+}
+
+/// What [`declaration_heads`] found: the items literals are attributed
+/// to, and the outer attributes that decorate none of them.
+struct Declarations {
+    /// Each declaration's head start and its name, in file order.
+    heads: Vec<(usize, String)>,
+    /// Outer attributes this reader could not attach to a declaration
+    /// it knows — one on a `struct`, an `enum` or a field. A literal
+    /// inside one belongs to the decorated item and NOT to the
+    /// declaration above it, and since this reader cannot name that
+    /// item it refuses rather than attributing the literal wrongly.
+    stray_attributes: Vec<std::ops::Range<usize>>,
+}
+
+/// Every OUTER attribute in the file, as the byte range from the `#`
+/// to its closing `]`.
+///
+/// `#![…]` is excluded: an inner attribute decorates the module it is
+/// written in, not any item below it, so the literal in one is above
+/// every declaration — which [`minting_owner`] refuses rather than
+/// attributing.
+fn attribute_spans(code: &str) -> Vec<std::ops::Range<usize>> {
+    let mut spans = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("#[") {
+        let start = from + off;
+        let close = balanced_end(code, start + 1).unwrap_or_else(|| {
+            panic!(
+                "errors.rs:{}: an attribute whose `[` does not close — I do not \
+                 understand where it ends",
+                test_utils::source::line(code, start)
+            )
+        });
+        spans.push(start..close + 1);
+        from = close + 1;
+    }
+    spans
+}
+
+/// Where a declaration's head begins: the start of the line of the
+/// first attribute in the unbroken run above it, or the declaration's
+/// own line start where there is none.
+///
+/// A doc comment between an attribute and its item does not break the
+/// run: `code` is a [`code_only`] view, in which a comment is
+/// whitespace.
+fn head_start(
+    code: &str,
+    attributes: &[std::ops::Range<usize>],
+    absorbed: &mut [bool],
+    mut start: usize,
+) -> usize {
+    while let Some(index) = attributes
+        .iter()
+        .rposition(|span| span.end <= start && code[span.end..start].trim().is_empty())
+    {
+        absorbed[index] = true;
+        start = line_start(code, attributes[index].start);
+    }
+    start
+}
+
+/// The name a declaration line declares, or `None` where the line
+/// declares nothing this reader attributes literals to.
+fn declaration_name(code_line: &str) -> Option<String> {
+    let mut words = code_line.split_whitespace();
+    let mut word = words.next()?;
+    if word == "pub" || word.starts_with("pub(") {
+        word = words.next()?;
+    }
+    while matches!(word, "default" | "async" | "unsafe" | "extern") {
+        word = words.next()?;
+    }
+    match word {
+        "fn" => identifier(words.next()?),
+        "const" => {
+            let next = words.next()?;
+            if next == "fn" {
+                identifier(words.next()?)
+            } else {
+                identifier(next)
+            }
+        }
+        "static" => {
+            let next = words.next()?;
+            identifier(if next == "mut" { words.next()? } else { next })
+        }
+        _ => None,
+    }
+}
+
+/// The identifier a token opens with — `None` where it opens with
+/// none, so `fn (` is not read as declaring something unnamed.
+///
+/// The lexing is [`test_utils::source::ident`]'s, shared with
+/// `deny_unknown_fields_census.rs`: this file had written the
+/// plain-alphanumeric half of it without the raw-identifier arm, which
+/// is the same reader one keyword away from reading `r#fn` as `r`.
+fn identifier(token: &str) -> Option<String> {
+    let name = ident(token, 0);
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// A declaration's name qualified by the innermost `impl` block whose
+/// body holds it — `Type::name`, or `<Type as Trait>::name`.
+fn qualified(impls: &[(String, std::ops::Range<usize>)], at: usize, name: &str) -> String {
+    impls
+        .iter()
+        .filter(|(_, body)| body.contains(&at))
+        .min_by_key(|(_, body)| body.end - body.start)
+        .map_or_else(
+            || name.to_owned(),
+            |(qualifier, _)| format!("{qualifier}::{name}"),
+        )
+}
+
+/// Which item spells the literal at `at` — the nearest declaration
+/// head at or above it, qualified.
+///
+/// Fails loud rather than inventing an owner. A literal with no
+/// declaration above it is in a construct this reader has not been
+/// taught, and attributing it to nothing would drop it from the census
+/// silently. A literal inside an attribute on an item this reader does
+/// not name is the SHARPER case: the nearest declaration above it is
+/// the item BEFORE the one the attribute decorates, so attributing it
+/// there would inflate that row by one — and a deletion in the same
+/// item cancels the inflation to no complaint at all.
+fn minting_owner(
+    text: &str,
+    impls: &[(String, std::ops::Range<usize>)],
+    decls: &Declarations,
+    at: usize,
+) -> String {
+    assert!(
+        !decls.stray_attributes.iter().any(|span| span.contains(&at)),
+        "errors.rs:{}: a literal in an attribute on an item I cannot name — a \
+         `struct`, an `enum`, a variant or a field. It belongs to the item the \
+         attribute decorates, and charging it to the declaration above would move \
+         THAT row's count instead. Teach this reader the item in the same diff.",
+        test_utils::source::line(text, at)
+    );
+    let (start, name) = decls
+        .heads
+        .iter()
+        .rev()
+        .find(|&&(start, _)| start <= at)
+        .unwrap_or_else(|| {
+            panic!(
+                "errors.rs:{}: a string literal above every declaration in the file — \
+                 I cannot say which item spells it",
+                test_utils::source::line(text, at)
+            )
+        });
+    qualified(impls, *start, name)
+}
+
+/// Where [`ERRORS_MINTING_ITEMS`] and the file disagree.
+///
+/// A function rather than a block inside the test, so that the WHOLE
+/// instrument — the comparison as well as the reader — is what the
+/// guard below drives over fixtures. A guard that re-implements the
+/// comparison it checks is asserting about a second copy.
+fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let mut complaints = Vec::new();
+    let mut pinned: BTreeMap<&str, &MintingItem> = BTreeMap::new();
+    for item in ERRORS_MINTING_ITEMS {
+        assert!(
+            pinned.insert(item.owner, item).is_none(),
+            "ERRORS_MINTING_ITEMS names `{}` twice",
+            item.owner
+        );
+    }
+    for (owner, literals) in found {
+        match pinned.get(owner.as_str()) {
+            None => complaints.push(format!(
+                "NEW item `{owner}` spells {} literal(s) — {literals:?} — that no \
+                 roster has looked at. If any of them reaches Python, it is public \
+                 vocabulary with no pin; add a row to ERRORS_MINTING_ITEMS naming what \
+                 holds the words, and if nothing does, that is the finding.",
+                literals.len()
+            )),
+            Some(item) if item.literals != literals.len() => complaints.push(format!(
+                "`{owner}` spells {} literal(s) — {literals:?} — and \
+                 ERRORS_MINTING_ITEMS says {}. A word added here is Python-visible \
+                 vocabulary; check it against `{}` and move the count.",
+                literals.len(),
+                item.literals,
+                item.held_by
+            )),
+            Some(_) => {}
+        }
+    }
+    for item in ERRORS_MINTING_ITEMS {
+        if !found.contains_key(item.owner) {
+            complaints.push(format!(
+                "ERRORS_MINTING_ITEMS names `{}`, and the reader found no literal in \
+                 it. Either it is gone — drop the row — or the reader stopped seeing \
+                 it, which is this guard going blind and is the serious case.",
+                item.owner
+            ));
+        }
+    }
+    complaints
+}
+
+/// This crate's own `src/errors.rs` — the census's subject, and what
+/// the guards below drive it over with an arrival spliced on.
+///
+/// `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed on
+/// another runner has no such directory, and this crate's own source is
+/// what the census opens.
+fn errors_source() -> String {
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("errors.rs");
+    std::fs::read_to_string(&path).expect("this crate's own src/errors.rs")
+}
+
+/// **Nothing enumerated `src/errors.rs`, and a fifth Python-visible
+/// map arrived here unpinned while the tracker row predicting it sat
+/// untouched in the same diff.** This is the arrival alarm that row
+/// asked for.
+///
+/// The roster IS the enumeration, so there is no floor: every item is
+/// named, and a reader that came back with nothing reports every row
+/// missing BY NAME rather than a count that drifted.
+#[test]
+fn errors_rs_spells_literals_in_exactly_these_items() {
+    let ordered: Vec<&str> = ERRORS_MINTING_ITEMS.iter().map(|item| item.owner).collect();
+    let mut by_name = ordered.clone();
+    by_name.sort_unstable();
+    assert_eq!(
+        ordered, by_name,
+        "ERRORS_MINTING_ITEMS is not in the order its doc claims — by owner"
+    );
+
+    let complaints = minting_complaints(&read_minting_items(&errors_source()));
+    assert!(
+        complaints.is_empty(),
+        "src/errors.rs and ERRORS_MINTING_ITEMS disagree. Every literal in that \
+         file is a candidate for Python-visible vocabulary, and the roster is what \
+         says one has arrived.\n\n  {}",
+        complaints.join("\n  ")
+    );
+}
+
+/// **The mint reader's own guard.**
+///
+/// [`read_minting_items`] is a source-text reader, and a reader that
+/// stops recognising a form does not fail — it reports agreement over
+/// the set it can still see. The census above exercises it against
+/// `src/errors.rs`, which holds one of some forms and none of others:
+/// no generic `impl`, no `static`, no restricted visibility, no
+/// literal in an attribute, one character literal and no second trait
+/// impl for a type that already has one.
+///
+/// So this drives it over a source written to hold one of each and
+/// pins what every item contributes. The expectation is spelled out
+/// whole rather than derived, because a fixture is the one place in
+/// this file where a hand-written list is the subject rather than the
+/// defect: it is what the reader is measured AGAINST.
+///
+/// **Three of these rows are the reader's key and its alphabet, and
+/// all three were arrived at by running it.** `Taxonomy` carries two
+/// `fmt`s — `Display` and `Debug` — which is ordinary correct Rust and
+/// which a key without the trait in it cannot tell apart; they answer
+/// to `<Taxonomy as Display>::fmt` and `<Taxonomy as Debug>::fmt`.
+/// `SEP` carries `'/'`, a character literal, counted as a literal and
+/// carried as written. And `after_the_attribute` carries the
+/// `#[deprecated]` literal ABOVE it, because an outer attribute is
+/// part of the head of the item it decorates and not a literal of the
+/// item before it. `foreign` carries `"C"`, its own ABI string: an ABI
+/// is a literal like any other and this census counts literals, not
+/// vocabulary, so a row's count is what the file spells and the
+/// `held_by` column is where a word is said to reach Python or not.
+#[test]
+fn the_errors_mint_reader_recognises_what_it_claims() {
+    let source = r#"//! A module header with a "quoted" word the reader must not read.
+
+use pncad::document::Dimension;
+
+/// A doc comment whose "quoted" word is prose, not vocabulary.
+pub const fn top_level_map(d: Dimension) -> &'static str {
+    match d {
+        Dimension::Length => "length",
+        Dimension::Angle => "angle",
+    }
+}
+
+pub const TOP_WORD: &str = "top";
+
+pub const SEP: char = '/';
+
+pub static TOP_STATIC: &str = "static_word";
+
+pub(crate) fn restricted() -> &'static str {
+    "restricted"
+}
+
+pub unsafe extern "C" fn foreign() -> &'static str {
+    "foreign"
+}
+
+impl Taxonomy {
+    pub const ATTRIBUTE: &'static str = "attribute";
+
+    pub const fn inherent(self) -> &'static str {
+        match self {
+            Self::One => "one",
+            Self::Two => "two",
+        }
+    }
+}
+
+impl fmt::Display for Taxonomy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the display word")
+    }
+}
+
+impl fmt::Debug for Taxonomy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the debug word")
+    }
+}
+
+impl<'a> Borrowed<'a> {
+    fn borrowed(&self) -> &'static str {
+        "borrowed"
+    }
+}
+
+#[deprecated(note = "an attribute literal")]
+/// A doc comment between the attribute and its item does not break the
+/// run: over the code view it is whitespace.
+#[must_use]
+pub fn after_the_attribute() -> &'static str {
+    "after"
+}
+"#;
+    let found = read_minting_items(source);
+    let expected: Vec<(&str, Vec<&str>)> = vec![
+        ("<Taxonomy as Debug>::fmt", vec!["the debug word"]),
+        ("<Taxonomy as Display>::fmt", vec!["the display word"]),
+        ("Borrowed::borrowed", vec!["borrowed"]),
+        ("SEP", vec!["'/'"]),
+        ("TOP_STATIC", vec!["static_word"]),
+        ("TOP_WORD", vec!["top"]),
+        ("Taxonomy::ATTRIBUTE", vec!["attribute"]),
+        ("Taxonomy::inherent", vec!["one", "two"]),
+        ("after_the_attribute", vec!["after", "an attribute literal"]),
+        ("foreign", vec!["C", "foreign"]),
+        ("restricted", vec!["restricted"]),
+        ("top_level_map", vec!["angle", "length"]),
+    ];
+    let read: Vec<(&str, Vec<&str>)> = found
+        .iter()
+        .map(|(owner, literals)| {
+            (
+                owner.as_str(),
+                literals.iter().map(String::as_str).collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(read, expected, "the mint reader read the fixture wrongly");
+}
+
+/// **What makes this census go blind, executed — over both halves of
+/// the instrument.**
+///
+/// A reader that matched nothing must not report agreement, and
+/// neither must a comparison that lost its missing-row loop. The two
+/// fail separately, so one source cannot drive both:
+/// [`read_minting_items`] answers empty over an empty source whether it
+/// is sound or broken, which leaves the reader untouched by that case.
+///
+/// So this drives the pair over an empty source AND over a legible
+/// file holding none of the roster's items. Over both, every row
+/// reports missing BY NAME — the property that keeps a pinned count
+/// from passing vacuously over a population that went missing — and
+/// over the second the reader's own answer is named too, which a
+/// reader that came back with nothing cannot do.
+#[test]
+fn the_errors_mint_census_reds_when_the_file_goes_quiet() {
+    let elsewhere = "pub const fn elsewhere() -> &'static str {\n    \"word\"\n}\n";
+    for (what, source) in [
+        ("an empty source", ""),
+        ("a file this roster is not about", elsewhere),
+    ] {
+        let complaints = minting_complaints(&read_minting_items(source));
+        for item in ERRORS_MINTING_ITEMS {
+            let named = format!("names `{}`", item.owner);
+            assert!(
+                complaints.iter().any(|c| c.contains(&named)),
+                "{what} left `{}` unreported: {complaints:?}",
+                item.owner
+            );
+        }
+    }
+    let complaints = minting_complaints(&read_minting_items(elsewhere));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `elsewhere`")),
+        "the reader's own answer went unnamed, so this guard drives only the \
+         comparison: {complaints:?}"
+    );
+}
+
+/// **The arrival this census exists for, executed against the real
+/// file.**
+///
+/// A sixth map, in the position the census is weakest against — an
+/// inherent method inside an `impl` block, which is where both of the
+/// file's unseen maps already live and which a top-level-keyed reader
+/// does not walk. It reds by name.
+#[test]
+fn the_errors_mint_census_reds_on_a_map_arriving_inside_an_impl() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn sixth_map(self) -> &'static str \
+         {{\n        match self {{\n            Self::MassProperties => \"sixth\",\n      \
+         _ => \"other\",\n        }}\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `ValidationRefusal::sixth_map`")),
+        "a sixth map inside an `impl` did not red by name: {complaints:?}"
+    );
+}
+
+/// **What this census cannot see, executed.**
+///
+/// Its population is the file's string LITERALS. A Python-visible word
+/// that reaches the wire from here without being spelled here — a map
+/// forwarding `crate::tags`', a word built from a kernel `Display` —
+/// adds no literal and no row, and this passes green. The alarm is for
+/// vocabulary MINTED in this file; vocabulary forwarded through it is
+/// the inventory's at the file that mints it.
+#[test]
+fn the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn forwarded(self) -> &'static str \
+         {{\n        crate::tags::validation_refusal_tag(self)\n    }}\n}}\n",
+        errors_source()
+    );
+    // Equal AND empty. Equality alone passes over two equal non-empty
+    // sides, which is what this reads as whenever the census above is
+    // red for some unrelated reason — a guard that goes quiet exactly
+    // when the thing it guards is already broken.
+    let baseline = minting_complaints(&read_minting_items(&errors_source()));
+    assert!(
+        baseline.is_empty(),
+        "this file disagrees with its roster already, so nothing here is about the \
+         forwarded map: {baseline:?}"
+    );
+    assert_eq!(
+        minting_complaints(&read_minting_items(&arrival)),
+        baseline,
+        "the blind spot this test records has closed — say so and delete it"
+    );
+}
+
+/// A literal this reader cannot attribute stops the census rather than
+/// being dropped from it.
+#[test]
+#[should_panic(expected = "a string literal above every declaration")]
+fn the_errors_mint_reader_refuses_a_literal_it_cannot_attribute() {
+    read_minting_items("#![doc = \"above every declaration\"]\n");
+}
+
+/// A literal form this reader does not lex stops the census too: it
+/// cannot say what such a form puts on the wire, and skipping it is
+/// how a word arrives unseen.
+#[test]
+#[should_panic(expected = "a literal form I do not understand")]
+fn the_errors_mint_reader_refuses_a_literal_form_it_cannot_read() {
+    read_minting_items("pub fn f() -> &'static str {\n    r\"raw\"\n}\n");
+}
+
+/// Two items under one qualified name would merge into one roster row
+/// — the compensating blindness a census keyed by name has to refuse.
+///
+/// The key carries the trait, so a type's `Display::fmt` and its
+/// `Debug::fmt` are two keys and not this case; what is left is a name
+/// Rust itself rejects, which means the reader has mis-read one of the
+/// two items rather than the file holding both.
+#[test]
+#[should_panic(expected = "two items answer to `Refusal::word`")]
+fn the_errors_mint_reader_refuses_two_items_under_one_name() {
+    read_minting_items(
+        "impl Refusal {\n    fn word() -> &'static str {\n        \"one\"\n    }\n}\n\
+         impl Refusal {\n    fn word() -> &'static str {\n        \"two\"\n    }\n}\n",
+    );
+}
+
+/// **A second trait impl for a type that already has one is not a
+/// collision**, which is the whole of why the trait is in the key.
+///
+/// `impl fmt::Debug for QuantityOpMismatch` beside the existing
+/// `impl fmt::Display` is ordinary, correct, rustfmt-stable Rust. Under
+/// a key of `SelfType::fn_name` it hard-stopped this census on a demand
+/// its author could not satisfy — two trait `fmt`s cannot be qualified
+/// apart in Rust. It arrives by name now, like any other arrival.
+#[test]
+fn the_errors_mint_census_reds_by_name_on_a_second_trait_impl() {
+    let arrival = format!(
+        "{}\nimpl fmt::Debug for QuantityOpMismatch {{\n    fn fmt(&self, f: &mut \
+         fmt::Formatter<'_>) -> fmt::Result {{\n        write!(f, \"a debug word\")\n    \
+         }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `<QuantityOpMismatch as Debug>::fmt`")),
+        "a second trait impl for a type that already has one did not red by name: \
+         {complaints:?}"
+    );
+}
+
+/// **An item spelling only a CHARACTER literal is an arrival too.**
+///
+/// A `char` puts no word on a Python wire, and a reader that read it
+/// and dropped it dropped the ITEM with it: this splice — a whole new
+/// `pub const fn` on a rostered type — left the census silent. The
+/// population is the file's literals, so a character literal counts
+/// toward its item's tally and the item appears.
+#[test]
+fn the_errors_mint_census_reds_by_name_on_an_item_spelling_only_a_char() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn sep(self) -> char {{\n        \
+         '/'\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `ValidationRefusal::sep`")),
+        "an item spelling only a character literal did not red by name: {complaints:?}"
+    );
+}
+
+/// **A literal in an attribute belongs to the item below it**, and the
+/// census is loud about it even when a deletion would have cancelled
+/// the count.
+///
+/// Attribution is by the nearest declaration head, and an outer
+/// attribute sits above its item — so `#[deprecated(note = "…")]`
+/// written over one item was charged to the item BEFORE it. That
+/// inflates a rostered row rather than inventing an unrostered name,
+/// which is the quiet direction: drop a word from that same row in the
+/// same diff and the two cancel to no complaint. Both moves at once,
+/// executed.
+#[test]
+fn the_errors_mint_census_reds_on_an_attribute_literal_that_would_cancel() {
+    let arrival = errors_source()
+        .replace(
+            "pub const ATTRIBUTES: &'static [&'static str] = &[\"door\", \"reason\"];",
+            "pub const ATTRIBUTES: &'static [&'static str] = &[\"door\"];",
+        )
+        .replace(
+            "    pub const fn attribute(self) -> &'static str {",
+            "    #[deprecated(note = \"probe_word\")]\n    pub const fn attribute(self) \
+             -> &'static str {",
+        );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("`ValidationRefusal::ATTRIBUTES` spells 1")),
+        "the deletion from ATTRIBUTES went unreported: {complaints:?}"
+    );
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("`ValidationRefusal::attribute` spells 3")),
+        "the attribute literal was not charged to the item it decorates: {complaints:?}"
+    );
+}
+
+/// A literal in an attribute on an item this reader cannot name stops
+/// the census rather than moving the count of the declaration above it.
+#[test]
+#[should_panic(expected = "a literal in an attribute on an item I cannot name")]
+fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
+    read_minting_items(
+        "pub fn f() -> &'static str {\n    \"word\"\n}\n\n\
+         #[serde(rename = \"renamed\")]\nstruct Payload {\n    field: u8,\n}\n",
     );
 }
 

@@ -765,6 +765,82 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — TINT-5's spec (2026-09-15)
+
+Recoverable at `git show 8e7bcc02b:docs/TINT-5-SPEC.md` (the fix-pass
+head). The second S-TINT spec written after an executed probe, and the
+probe is why the unit had a shape at all: it found that the weld this
+unit was to spread was `pub(crate)` inside ONE test binary, depending on
+a `set_difference` that was also binary-local. A spec written without it
+would have told a lane to "apply TINT-1's shape to mesh and topo",
+which means copying the weld into two more crates — the defect, minted
+by the fix for an instance of it.
+
+**Three things the spec got wrong, all corrected by the lane**, which
+is the point of recording it rather than a failing:
+
+- it said editor-core had **four** `*_is_exhaustive`/`*_VARIANTS` pairs;
+  there are **eight**, seven in `display_contract.rs` plus
+  `m4_pr4_hit.rs`;
+- it said mesh's and topo's local predicates *"check nothing of the
+  kind"* about field punctuation. **Both did** — `face:`/`note:` in
+  mesh, `diag:`/`what:` in topo. That inverts the risk the spec named:
+  `&[]` would have been a REGRESSION at two of three sites, not merely
+  a weak default. The measurement the spec demanded was still the right
+  one to demand; its premise was backwards;
+- it did not name the gate boundary a promotion crosses, which is what
+  turned the unit's first CI run red and is the finding that
+  generalizes past it.
+
+What the spec did not reach at all, and the review did: the weld's
+exhaustiveness token was `fn(&E)`, a type that cannot carry the
+wildcard-free invariant nine doc comments asserted of it, and a no-op
+token passed green. The fix pass closed that with `f6_variants!`.
+Recorded in the PR body, in `work/tint/log.md`, and in the row's
+`## Closed` section.
+
+- `TINT-5-SPEC.md` — TINT-5, the F6 enum weld's home and three adopters
+  (#2694)
+
+
+## Per-merge deletion — TINT-4's spec (2026-09-15)
+
+Recoverable at `git show 5494b9927:docs/TINT-4-SPEC.md` (the fix-pass
+head). **The first S-TINT spec written after an executed probe rather
+than before one**, and the probe's value was not the mechanism it
+confirmed — it was discovering that two of the four rows the
+orchestrator had grouped into a "roster class" were mis-classed, one of
+them wrongly filed by the same seat that filed it the same morning. A
+spec written from the grouping would have sent a lane to weld two rows
+that wanted different mechanisms.
+
+What the spec got right and the unit proved: `roster!`'s ident feeding
+three consumers at once, the `--list` re-exec as ground truth, and the
+kill-shot measurement named up front (time the self-`--list` on
+`editor-core --features interval`, the largest binary in the tree) with
+the lane told to stop and report if it came out badly. It came out at
+6.6-7.9 ms over 1630 rows, so the design held.
+
+What the spec did NOT anticipate, and what the unit turned out to be
+about: the prose column it sanctioned. The spec said the weld holds
+names and never prose and required the lane to say so — and then the
+first substantive sentence written into that column was a false
+citation, in the very entry the unit existed to correct. The fix pass's
+class check found three more wrong or misplaced among the remaining six.
+The spec's "state what it does not enforce" was carried out faithfully
+and was not enough, because the column it disclosed as unchecked was
+unchecked in exactly the way it said and was wrong anyway.
+
+The spec also did not foresee the two narrowings the fix pass closed: a
+`#[test]` under a nested `mod` passing a guard named
+`the_header_roster_names_every_row_in_this_file`, and an assertion in
+the macro's own suite that could not fail. Recorded in the PR body and
+in `work/tint/r2-m10-6-header-roster-omits-the-suites-heaviest-row.md`'s
+`## Closed` section.
+
+- `TINT-4-SPEC.md` — TINT-4, a header roster welded to the rows it
+  names (#2687)
+
 ## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
 
 Recoverable at `git show e3649a523:docs/PORT-PYOPTS-SPEC.md` (the PORT
@@ -3197,3 +3273,137 @@ unit's record is its `## Closed` section, its row in `MODEL-AB-LOG.md`
 (ordinal 2404, sample #208) and the MERGED entry in `work/props/log.md`.
 
 - `PROPS-MIGNITUDE-FLOOR-SPEC.md` — PROPS mignitude-floor, the floor on the residual's norm read through the sign witness instead of componentwise (#2469)
+
+## Per-merge deletion — FRAME-WITNESS's spec (2026-09-15)
+
+Recoverable at `git show 65dd211e3:docs/FRAME-WITNESS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "`from_aim` … the
+`point_at`/`path_start_frame` recipe" as a public mint — the dual's
+bilateral MAJOR: it took perpendicularity on trust, so it is
+`pub(in crate::linalg)` and the public aim door is
+`from_aim_and_reference`, which makes the perpendicular; "`w = u × v`
+… the rounded cross product" — for the aim mints `w` is the aim
+verbatim, `v = aim × u`, and the type's doc says `w` is the third
+witness the mint produced; "`gram_schmidt(origin, u_raw, v_raw,
+site_u, site_v, band)`" — one `site`, the refusal an `OrthoFrameError
+{ axis, error }` naming the ROLE (`OrthoAxis::U` kept, `V` yields)
+shared by all four mints; "`Node.tube` … mint the frame … through
+`from_aim`" — the one home is `from_axis_and_reference(origin,
+axis_raw, reference, site, band)` and the five copies of that ladder
+(Python tube doors, `tube_args`, the tour) became one call each;
+"WIRE's private `AxisFrame` becomes `OrthoFrame`" — read and folded
+through `frame_axes` (no separate struct remains); "`SketchPlane` …
+hand the frame through" for the stored placement — it holds any
+`Affine3`, said honestly, with the witness dying at the read boundary
+(the filed BOOL row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `FRAME-WITNESS-SPEC.md` — FRAME-WITNESS, the frame witness in geom-core, minted by the decided ladders; `from_frame` and the tube door take it (#2675)
+
+## Per-merge deletion — SENSE-FOLD's spec (2026-09-15)
+
+Recoverable at `git show 80ab05d69:docs/SENSE-FOLD-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "every consumer
+spells `radius * side` as a conditional negation of the radius" — the
+negation has one home, `sided(side, x)` in `blend/battery.rs` beside
+`Convexity` (whose `signed` is that call), and both `arms.rs` siblings
+fold onto it; "consider `Option<OutwardNormal<T>>`" for `outward_of` —
+the helper is deleted and its three callers read the keyed door;
+"keeps a raw-text row tree-wide" — the guard
+`no_source_file_folds_the_bit_by_hand` walks `crates/*/src` in the
+`code_only` view and pins the three D6-sanctioned scalar negations
+(`dihedral.rs` `kappa_rel`, `walk.rs` `area`, `shell.rs` `thickness`)
+rather than zero, with the vector class at zero and its blind spots
+(renamed bit, `copysign`, a `±1` local, `match`, tests/demos/tools/
+benches) stated in-file; "a row on one concave and one convex blend
+where the ball side differs, bits pinned" — the fold's proof is the
+stated differential (`a+b` vs `a-(-b)` identical; `s-rim` vs `-(rim-s)`
+identical except a signed zero at `s == rim` no consumer reads) plus
+the suites and the tour digest, the R2 fillet bit dumps having been
+dropped as assertion-free; the curved reading, unnamed by the spec,
+got a home of its own (`geom_brep::implicit_outward_normal`, the topo
+alias gone). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `SENSE-FOLD-SPEC.md` — SENSE-FOLD, the hand multiplies of a normal by `sense_sign` fold onto `OutwardNormal`, and `Face::sense_sign` retires (#2668)
+
+## Per-merge deletion — CENSUS-ERRORS-ARRIVAL's spec (2026-09-15)
+
+Recoverable at `git show fa49e26b0:docs/CENSUS-ERRORS-ARRIVAL-SPEC.md`
+(PR #2691's last head before the merge). CENSUS's sixth unit. Its
+sentences that did not survive:
+
+- **the five-map framing.** The spec said the unit was worth running
+  "rather than for the five maps, none of which is unguarded today",
+  and the row's table listed five. The file's literal-minting
+  population is **ten items and 53 literals**, three of the extras
+  Python-visible. The orchestrator had verified each of the five maps'
+  pins and asserted the shape of the population from them — standing
+  finding 10, *verified the example, asserted the class*, applied to
+  the orchestrator's own framing by the lane. The count moved twice
+  inside the unit: the lane first reported nine and 52, and the tenth
+  (`is_bare_camel_token`, one char literal) appeared only when the
+  char-literal hole the style review found was closed.
+- **the three dispositions, presented as the field.** The spec named a
+  looser reader over the file's ITEMS, a population reduction, and a
+  rule that Python-visible words come from `tags.rs` only — and
+  deliberately took none. **The lane took a fourth**, keyed on the
+  file's LITERALS, and the spec's own argument against the first
+  bullet ("it must walk `impl` bodies … itself a hand-maintained thing
+  needing a guard") turned out to describe the shape that was taken
+  rather than to count against it: it does walk `impl` bodies, it is
+  hand-maintained, and it has its own guard and four refusals.
+
+The spec's framing that survived, and that this unit is the evidence
+for: **not pre-deciding the disposition.** Three of the four specs
+before it pre-decided one and two of those were overturned by a probe
+the lane ran; this one declined, and the disposition the lane found is
+one no bullet on that page named.
+
+What did NOT survive contact with the style review, recorded because
+the PR body first asserted it: the reader's central claim that *"there
+is no form a word can arrive in that the reader was not taught,
+because there is no form"*, and that a wrong attribution is always
+loud. **Both were executed as false** — a char literal was read and
+dropped along with the item spelling nothing else, and an attribute
+literal was charged to the rostered item above it, where a deletion in
+the same item cancelled it. Both are closed, not narrowed. That is
+this program's **fourth consecutive** short exclusivity list.
+
+The corrections are on the item file, which survives this deletion,
+and the unit's record is `work/census/log.md`'s CENSUS-ERRORS-ARRIVAL
+entry plus the PR body. Residue filed on `work/census/`:
+`payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing`,
+`dimension-mismatch-sentence-is-spelled-in-two-crates-and-held-equal-by-nothing`,
+`the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`
+and `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short`.
+
+- `CENSUS-ERRORS-ARRIVAL-SPEC.md` — CENSUS-ERRORS-ARRIVAL, an arrival alarm over `errors.rs` keyed on its literals (#2691)
+
+## Per-merge deletion — TINT-3's spec (2026-09-15)
+
+Recoverable at `git show da1b20f85:docs/TINT-3-SPEC.md` (the fix-pass
+head). **The first S-TINT spec whose mechanism survived contact**, and
+the reason is the section the two before it lacked: it named the
+measurement that would kill the design (does `include_str!` inside an
+exported macro resolve at the invoking file or the defining one) and
+required the lane to take it before writing the fix. It came out the
+spec's way; had it not, all fifteen rows would have checked
+`test-utils`' own tree while reporting on fifteen crates, silently.
+
+What did not survive: the spec's count. It said **fourteen** and the
+tree held **fifteen** — `crates/test-utils/tests/all.rs` landed between
+the re-derivation and the fix, which is also the row's own `test-utils`
+rider resolving itself by growing a copy. The spec also did not
+anticipate the coupling that turned out to be the unit's real subject:
+`crates/test-utils/tests/reader_census.rs` was detecting each aggregating
+`all.rs` by a margin of exactly one `.rs"` literal that
+`include_str!("all.rs")` supplied, so the collapse took fourteen of
+fifteen aggregators to zero margin and forced two detectors to move. No
+spec could have named that; the lane measured it, the review adjudicated
+it a correction rather than a silencing, and the fix pass closed the
+residue it left. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-3-SPEC.md` — TINT-3, fourteen byte-identical aggregation guards
+  (#2680)
