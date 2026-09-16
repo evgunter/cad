@@ -144,6 +144,8 @@ mod review_gui3_r2;
 mod review_gui4_r1;
 #[path = "review_gui4_r2.rs"]
 mod review_gui4_r2;
+#[path = "review_pick_r2.rs"]
+mod review_pick_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
 #[path = "scene_build.rs"]
