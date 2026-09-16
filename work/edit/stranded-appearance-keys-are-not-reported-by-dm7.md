@@ -5,7 +5,6 @@ title: A stranded appearance key is not in DM7's report: the walk is Node::paylo
 status: open
 opened: 2026-09-16
 refs: [2753]
-needs_ev: true
 ---
 
 (Found by the style review of PR 2753, DM7's build; measured by
@@ -78,3 +77,12 @@ gains one sentence naming the appearance store as a carrier;
 **Alternative:** `Node::payload_names` is the deliberate boundary.
 Then DM7 gains a sentence saying so and why, and this row closes as
 ruled.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): widen — DM7 covers appearance keys
+
+"Widening seems reasonable." Recorded in DM7
+(`crates/editor-core/REFERENCES.md`): the report covers every
+reference the document holds under N5 semantics, the appearance store
+is the second carrier, and the stranded attachment rides a second
+`Maintenance` arm, `StrandedAppearance { name }`. This row is now the
+unit that builds it; spec at the next sitting.

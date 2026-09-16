@@ -293,6 +293,24 @@ section-0 anchor), one WIRE row gained its three waiting consumers
 instead of a duplicate, and the door has no caller outside its tests
 until that plumbing lands. VIEW's focus-marking row is open.
 
+## 2026-09-16 — second sitting: wave 3 cut (three middle-tier units)
+
+Wave 2 is on main (eight units, two rulings). Read every open row
+against the tree and cut the next wave, all middle tier: the
+`NodePick` name doors gain the DI3 stamp and A2a's refusal
+(`nodepick-name-doors-take-a-second-evaluation-unpaired`); round two
+of one-predicate-one-home over the assertion bound, the mate
+alignment and the placement registry, carrying the load-shaped-door
+sweep (`three-door-predicates-are-hand-copied-not-shared` +
+`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`);
+and the distribution carry-forward door
+(`doc-param-distribution-edit-has-no-door`, clearing ruled as the same
+door with `None`). Specs on the rows. Queued behind them: the
+ruled-carve fixture (middle), the `DocEdit` header rewrite and the
+replay/load boundary ruling (E-class, orchestrator's own), the chain
+radius widening, the recorded-argument notation shape. Three lanes is
+the box's ceiling.
+
 ## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
 
 With EDIT-PICK2 (#2746) and DM7 (#2753) on main, the two questions

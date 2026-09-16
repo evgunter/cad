@@ -287,6 +287,16 @@ the same payload walk the insert door checks with. The strand is loud
 where it happens rather than at the next evaluation; `NodeGone` and
 `Rebind` remain the diagnosis and the repair.
 
+The report covers every reference the document holds under N5
+semantics, not only the node payloads: an appearance attachment is
+keyed by a `StableName` in the document's appearance store
+(`DocEdit::SetAppearance` gives it Declare's semantics, `Rebind`
+repairs it, evaluation reports its loss as `AppearanceLoss`), so a
+delete that strands one reports it too, as its own `Maintenance` arm
+(`StrandedAppearance { name }`) rather than a `Strand` with no
+carrying node. `Node::payload_names` stays the one list of NODE
+carriers; the store is the other carrier.
+
 - **Why not an edge.** A full edge over payload names reverses the
   carve-out and deadlocks the declared union: the union's input is the
   `Declare`, the `Declare`'s pairs name the union, so neither could be
@@ -301,7 +311,10 @@ where it happens rather than at the next evaluation; `NodeGone` and
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`deletenode-strands-a-declare-payload-name`); built by the unit that
-row names.*
+row names. The appearance-key widening was ruled by Ev on EDIT's third
+`[ev]` PR of 2026-09-16
+(`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
+it.*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
 

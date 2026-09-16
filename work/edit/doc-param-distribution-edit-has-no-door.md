@@ -2,7 +2,7 @@
 id: doc-param-distribution-edit-has-no-door
 kind: issue
 title: No DocEdit annotates a standing document parameter — SetDocParam would drop the notation
-status: open
+status: dispatched
 opened: 2026-09-16
 ---
 
@@ -64,3 +64,42 @@ The sweep of `edit/doc-param-unit` (the unit-only door), whose pattern
 was "a field of the `DocParam` declaration a narrow edit can move";
 `display_unit` was the unit's subject and `distribution` is the one
 remaining hit.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/doc-param-distribution`. The mirror of the unit door
+(`SetDocParamUnit` through `DocParam::with_display_unit`, PR #2732)
+over the third field.
+
+1. `DocParam::with_distribution(&self, Option<Distribution>) ->
+   Result<Self, DistributionRefusal>` — `Result`, as the unit door's
+   is, because there are two refusals: a `Count` (a structural
+   parameter is fixed under any error analysis, E11.3; the arm has no
+   field) and a distribution `Distribution::check` refuses. Exhaustive
+   on both arms; carries `dim`, `value`, `display_unit` forward
+   untouched.
+2. `DocEdit::SetDocParamDistribution { name, distribution:
+   Option<Distribution> }` routing through it, refusing typed on an
+   undeclared name (`EditError::DocParamNotDeclared` with a new
+   `CarryForwardDoor` arm) and on the two refusals above, each in the
+   edit door's vocabulary.
+3. **The clearing question, ruled here:** ONE door, `None` clears.
+   The field is `Option<Distribution>` and "no annotation" is a VALUE
+   of the declaration (E1/E2: absent means no error analysis applies),
+   so writing `None` is the same carry-forward edit as writing `Some`.
+   `SetAppearanceMeta`/`ClearAppearanceMeta` are two arms because a
+   meta entry is a row in a map, where clearing removes the row rather
+   than writing a value; that is a different shape, and the door's doc
+   says so in one sentence. If the tree contradicts this reading,
+   report it before building on it.
+4. Rows, red first where they can be: the notation survives an
+   annotation edit (RED today through `SetDocParam` with
+   `continuous_with`, the row's finding — write it first); the value
+   survives; each refusal by name (undeclared; `Count`; a distribution
+   `check` refuses); clearing keeps unit and value; replay and
+   round-trip of set, change and clear; the F6 census for the new
+   refusal; a mutant that routes the new arm through `SetDocParam` reds
+   the first row.
+5. The `pncad-py` follow-through (the `DocEdit` payload, `.pyi`, tags,
+   binding census) is LIB's, mechanical, taken here as the unit door
+   took it; say so in the PR body.
