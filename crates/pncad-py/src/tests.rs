@@ -531,6 +531,17 @@ fn picking_refusal_tags_are_stable() {
         "node_poisoned"
     );
 
+    // DI3's pairing refusal, under the word the gather, the checks and
+    // the name-level edit door already answer with: one fact, one tag,
+    // whichever door a caller meets it at.
+    assert_eq!(
+        hit_test_error_tag(&H::EvaluationOfAnotherDocument {
+            expected: pncad::document::DocumentId::derive("tag-expected"),
+            found: pncad::document::DocumentId::derive("tag-found"),
+        }),
+        "evaluation_of_another_document"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -4264,6 +4275,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
             "node_poisoned",
@@ -5273,7 +5285,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 3),
+    ("evaluation_of_another_document", 4),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),
