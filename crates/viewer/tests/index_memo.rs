@@ -23,9 +23,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
+use editor_core::resolve::ray_triangle;
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
-    ray_triangle, unparse,
+    unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;

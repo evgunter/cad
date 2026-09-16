@@ -219,7 +219,6 @@ pub use verbs::shell::ShellLane;
 pub use bvh::Ray;
 pub use resolve::{
     MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
-    ray_triangle,
 };
 pub use roots::RootFault;
 #[cfg(feature = "interval")]

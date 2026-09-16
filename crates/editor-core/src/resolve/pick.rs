@@ -1326,9 +1326,10 @@ pub fn pick_face<T: Decide>(
 /// already produces on such hits, which the guard neither causes nor
 /// cures.
 ///
-/// Public so the reference loop that pins the pick can run the same
-/// predicate rather than restate it; a consumer with a `Bvh` over
-/// triangle boxes has everything it takes.
+/// Public at this module, not lifted to the crate root: the reference
+/// loop that pins the pick runs the same predicate rather than
+/// restating it, and a consumer with a `Bvh` over triangle boxes has
+/// everything it takes; it is not a door of the façade.
 pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3], t_enter: f64) -> Option<f64> {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
