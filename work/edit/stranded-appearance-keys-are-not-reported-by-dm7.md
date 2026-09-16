@@ -56,3 +56,33 @@ question: a `Strand`'s `node` field is a `RecipeNodeId` today and an
 attachment has no carrying node). The cost of not widening is that a
 user who paints a face and deletes its body is told nothing until the
 next evaluation, which is exactly what DM7 calls the limp-along shape.
+
+## Recommendation (2026-09-16, EDIT orchestrator) — on the `[ev]` PR
+
+**Widen DM7 to every reference the document holds under N5
+semantics: payload names AND appearance keys.** DM7's reason — an edit
+that strands a reference is loud at the edit, not at the next
+evaluation — holds one door over by the vocabulary's own words:
+`DocEdit::SetAppearance`'s doc gives an appearance key Declare's N5
+semantics, `Rebind` already repairs both, and evaluation already
+reports the loss typed (`AppearanceLoss`). The walk is one more pass
+over the appearance store at the delete door.
+
+**Shape: a second `Maintenance` arm, `StrandedAppearance { name }`,
+not a wider `Strand`.** `Strand { node, name }` carries the CARRYING
+node and an attachment has none — the store carries it. DM7's text
+gains one sentence naming the appearance store as a carrier;
+`Node::payload_names` stays the one list of NODE carriers.
+
+**Alternative:** `Node::payload_names` is the deliberate boundary.
+Then DM7 gains a sentence saying so and why, and this row closes as
+ruled.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): widen — DM7 covers appearance keys
+
+"Widening seems reasonable." Recorded in DM7
+(`crates/editor-core/REFERENCES.md`): the report covers every
+reference the document holds under N5 semantics, the appearance store
+is the second carrier, and the stranded attachment rides a second
+`Maintenance` arm, `StrandedAppearance { name }`. This row is now the
+unit that builds it; spec at the next sitting.

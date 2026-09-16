@@ -105,3 +105,20 @@ anchor's permutation rather than a factor of the answer; and
 carries and when. **Alternative:** rule that the door answers
 canonically and consumers remap — contradicted by the acceptance rows
 and would hand VIEW's focus marking a ref the faces do not carry.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): re-word DM8; the disagreement asserts
+
+DM8's clause now says the door READS the two records — the span gives
+the answer in the program's own step order, the numbering the published
+names carry; canonicalization's `reversed`/`start` are checked against
+the naming anchor's record of the same permutation, never applied — and
+that a disagreement between them is the evaluation contradicting itself
+and asserts (Ev: kernel bugs panic; the one cost, a caller's mispairing
+of two records from different evaluations panicking rather than
+refusing typed, is a caller bug with no façade caller today and
+disappears by construction once the structure record rides on the
+evaluation's own value). What remains is E-class code follow-through
+on this row: `ProfileEdgeRef`'s doc in `names/role.rs` gains the same
+one-clause fix; `StepSegmentsError::RecordsDisagree` becomes an
+assertion with a message naming the invariant, its tag retired (LIB's
+file, mechanical); the door's doc cites this clause.

@@ -4,7 +4,6 @@ kind: ruling
 title: what t the pick door answers for an admitted candidate, and with what width
 status: open
 opened: 2026-09-16
-needs_ev: true
 ---
 
 
@@ -91,3 +90,74 @@ which the current bound explicitly does not cover).
 - EDIT-PICK's own: the projection replaced Möller–Trumbore's quotient
   because the quotient cancels at a small determinant; whatever this
   ruling does to `t` must keep that.
+
+## Recommendation (2026-09-16, EDIT orchestrator) — on the `[ev]` PR
+
+**One shape, four parts.**
+
+(a) **Interval, not bare `f64`.** `ray_triangle` answers `[t_lo, t_hi]`
+derived from the barycentrics' certified bounds through the projection
+(`err_u·|e1| + err_v·|e2|` along the ray, rounded outward), beside the
+rounded value. No factor is chosen: every width is the operation
+count's, as EDIT-PICK and EDIT-PICK2 require.
+
+(b) **Order.** Candidate A precedes B when `t_hi(A) < t_lo(B)`. Two
+candidates whose intervals overlap are a CERTIFIED tie — the geometry
+does not order them — and fall to the tie-break, exactly as an exact
+tie does today.
+
+(c) **Tie-break: the narrower interval first, then `(target position,
+flat position)` as now.** When the geometry cannot say which is in
+front, the door prefers the better-certified claim. Derived (the same
+bounds), not tuned. It does what the parked rows ask: the noise-floor
+winner (width ≫ its two transversal neighbours', hit `0.031` short of
+the vertex they answer exactly) loses to a neighbour; a ray down a
+shared edge still ties two narrow intervals and the existing order
+decides, and both answers are true there. The one case it decides
+against a user's likely intent: a face the ray meets nearly edge-on
+(wide) in front of a transversal face (narrow) — the wide one loses.
+Argued right: a face edge-on to the ray is what the user is aiming
+past. The alternative is (c′) the existing order alone, with the hit
+reporting `decided_by: Geometry | TieBreak`. Refusing on overlap is
+rejected: every shared-edge pick overlaps.
+
+(d) **The hit point is clamped into the closed triangle** (nearest
+admissible barycentrics), so `t` is the parameter of a point OF the
+triangle. Consequence, not guard: a point of the triangle is inside
+the triangle's box, so "a true hit's parameter is never below its
+box's entry" becomes a theorem of the clamp in exact arithmetic, and
+the traversal's early-out compares `t_hi(best) < t_enter(cand)`. The
+box does not otherwise enter the test — EDIT-PICK's withdrawn guard
+refused a hit on that comparison and was false in `f64`; this uses it
+only to stop scanning, and the cost of its rounding is a near-tie at
+ULPs, the class the door's docs already state.
+
+**Left to the unit, measured, not ruled:** whether the acceptance
+returns to MEET ∧ INFORM. What broke MEET (2 `Pruned ≠ Every`) was an
+admitted candidate whose projection preceded its box entry; the clamp
+removes that mechanism. The unit runs the three-rule table (19 296
+rays) and the wide aim (441 126) for closed vs MEET under (a)–(d) and
+takes MEET only at `0 Pruned ≠ Every` and no lost aim; otherwise
+closed stays and the 149 grazes remain the stated class.
+
+**Not answered here:** `pick-a-corner-graze-verdict-depends-on-the-corner-labelling`
+— Möller–Trumbore's `(a, e1, e2)` is not symmetric in the corners and
+the certified bound inherits that; it stays its own row unless the
+unit's measurement shows it vanish under the clamp.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): the recommendation stands
+
+"Ok cool, sounds decided then." The four parts above are the ruling:
+(a) `ray_triangle` answers a `t` INTERVAL derived from the barycentrics'
+certified bounds through the projection, no factor chosen; (b) A
+precedes B when `t_hi(A) < t_lo(B)`, overlap is a certified tie; (c)
+the tie-break is the narrower interval first, then `(target position,
+flat position)` — the viewer's GPU id pass already picks what is
+displayed by construction, and this is what makes the kernel's ray
+path agree with it in the edge-on class instead of raising the two
+paths' disagreement; (d) the hit point is clamped into the closed
+triangle, and the box enters only as the traversal's early-out bound.
+Closed-vs-MEET is the unit's to measure under the acceptance written
+above. This row is now the unit (kernel unit, v6 dual, block EDIT-B1
+slot 2); the three rows parked on it unpark at its merge; the
+corner-labelling row stays its own.
