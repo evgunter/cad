@@ -351,6 +351,17 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
         reads_back_as_a_delta(delta(end));
     }
     fits_and_reads_back_as_a_delta(delta(f64::from_bits(BAND_LOW.to_bits() - 1)));
+    // And PAST the bound, where the door's own answer decides: a δ it
+    // accepts owes this property like any other, and a δ it refuses is
+    // the row next door. Written as a condition rather than as a
+    // refusal because the claim here is about the render — on a tree
+    // whose door has no upper bound these are accepted and render as
+    // `inf`, and this is the assertion that says so.
+    for past in [1.0e306, 1.0e307, f64::MAX] {
+        if let Ok(d) = DisplayTolerance::new(past) {
+            reads_back_as_a_delta(d);
+        }
+    }
 }
 
 /// **The top of the type is a refusal, not a render** — the other half
