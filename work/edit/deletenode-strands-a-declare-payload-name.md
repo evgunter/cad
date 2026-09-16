@@ -161,40 +161,57 @@ Branch `edit/delete-strands`.
 
 PR 2753, branch `edit/delete-strands`. DM7 is built.
 
-**Landed.** `Applied.maintenance` is a `Vec<Maintenance>` — a new enum in
-`edit.rs` whose two arms are `Cluster(ClusterMaintenance)`, the A11
+**Landed.** `Applied.maintenance` is a `Vec<Maintenance>` — a new enum
+in `edit.rs` whose two arms are `Cluster(ClusterMaintenance)`, the A11
 registry acts unchanged, and `Strand { node, name }`, one row per
 surviving payload name whose minting node the edit removed. The
-`DeleteNode` arm of `apply` computes the strands after the removal, over
-the document as it then is, through `Node::payload_names` — the same
-single answer the insert door checks with, so no fifth list. The strands
-lead the column and the reconciliation appends after them, which is
-stated on the field and pinned by a row. `Display` renders all five
-sentences in prose, F6-shaped, welded in `display_contract.rs`.
-`Node::payload_read_sites` is deliberately not walked, and the function
-says why at the site: a read site is an id, not a name, so a delete that
-takes one away is the solve's to refuse.
+`DeleteNode` arm of `apply` computes the strands after the removal,
+over the document as it then stands, through `Node::payload_names` —
+the same single answer the insert door checks with, so no fifth list.
+The strands lead the column and the reconciliation appends after them;
+that order is stated as a CONTRACT on the field, with its pinning row
+named. `ClusterMaintenance` gained a prose `Display` beside its own
+type in `mate/solve.rs` and `Maintenance` delegates to it, so each
+enum's arms are guarded by their own F6 census.
+`Node::payload_read_sites` is deliberately not walked, and the
+function says why at the site, with the walk's per-delete cost under a
+cascade stated beside it.
 
-The façade follows mechanically: `pncad::document` carries `Maintenance`
-beside `Applied`; `pncad-py`'s `ClusterMaintenance` pyclass becomes
-`Maintenance` with a `strand` tag and `node`/`name` getters, with the
-stub, the tag inventory, the census and the `ty` fixture in step.
+The façade follows mechanically: `pncad::document` carries
+`Maintenance` beside `Applied`; `pncad-py`'s `ClusterMaintenance`
+pyclass becomes `Maintenance` with a `strand` tag and `node`/`name`
+getters, with the stub, the tag inventory, the census and the `ty`
+fixture in step. Every sentence promising a cluster-only column was
+swept (`py/doc.rs`, `pncad.pyi`, `refactor.rs`, `eval4`'s header,
+`docs/guide/selecting.md`).
 
-Rows: `crates/editor-core/tests/dm7_delete_strands.rs` (seven, including
-DOCM-7's R1 probe shape lifted from `origin/docm/7-review-r1` into an
-assertion, a carrier-by-carrier row over every name-bearing payload kind,
-two silence rows, a cascade row and the mate head/read-site split), plus
-one `display_contract` row. Three mutants planted in the walk were run
-and each reddened rows; the transcript is in the PR body.
+Rows: `crates/editor-core/tests/dm7_delete_strands.rs` (seven,
+including DOCM-7's R1 probe shape lifted from `origin/docm/7-review-r1`
+into an assertion, and a carrier row whose expectation is DERIVED by an
+exhaustive `match` over `Node` so a new name-carrying variant fails to
+compile), plus one `display_contract` row per enum, plus the review's
+four probes adopted from `review/strands-rv` authorship-preserving
+(`rv_dm7_probes.rs`).
 
 **Did not land, deliberately.** The strand row carries `(node, name)`
 alone: the deleted minting node is `name.node` by construction, and a
-third field repeating it is a disagreement waiting to happen. The spec's
-CHROME filing was not made — the row already existed as
-`work/chrome/cascade-delete-shows-the-strand-count`, parked on this unit,
-and this PR adds its evidence there rather than opening a second file.
-`replay-and-load-keep-the-document-without-its-maintenance` is NOT closed:
-replay and load discard the column by the documented load boundary, which
-the PR states, and the new round-trip row asserts only what makes the
-discard lossless — the same delete against the loaded document reports
-the same rows.
+third field repeating it is a disagreement waiting to happen. The
+spec's CHROME filing was not made as a new file — the row already
+existed as `work/chrome/cascade-delete-shows-the-strand-count`, parked
+on this unit, and this PR corrects its count definition in place rather
+than opening a second file (`work/README.md` "One file, one item";
+`docs/prompts/implementer-discipline.md` §6, "add your evidence to it
+rather than opening a second").
+`replay-and-load-keep-the-document-without-its-maintenance` is NOT
+closed: replay and load discard the column by the documented load
+boundary, which the PR states, and the new round-trip row asserts only
+what makes the discard lossless.
+
+**Filed by this unit.**
+`work/edit/stranded-appearance-keys-are-not-reported-by-dm7` — an
+appearance attachment is the same N5 shape one door over and DM7's
+walk does not see it; a clause-scope question for Ev, measured by an
+adopted probe, not built here.
+`work/lib/maintenance-crosses-python-as-a-nine-attribute-union-class`
+— the façade's union class, recorded as an instance of a class whose
+every LIB row is closed.

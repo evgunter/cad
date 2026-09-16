@@ -1294,37 +1294,21 @@ pub enum Maintenance {
 }
 
 impl core::fmt::Display for Maintenance {
+    /// The cluster arm DELEGATES: a registry act's sentence belongs to
+    /// the type that knows what the act is, so each enum renders its
+    /// own arms and the F6 census guards each list where it lives.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use crate::mate::ClusterMaintenance as C;
         match self {
-            Self::Cluster(C::Join {
-                survived, absorbed, ..
-            }) => write!(
-                f,
-                "the cluster gauged by node {} was absorbed into the one gauged by node {}",
-                absorbed.0, survived.0
-            ),
-            Self::Cluster(C::Split { from, to, .. }) => write!(
-                f,
-                "a cluster separated from the one gauged by node {} and is now gauged by node {}",
-                from.0, to.0
-            ),
-            Self::Cluster(C::GaugeRewrite { from, to, .. }) => write!(
-                f,
-                "the cluster gauged by node {} lost that instance and is now gauged by node {}",
-                from.0, to.0
-            ),
-            Self::Cluster(C::Drop { gauge, .. }) => write!(
-                f,
-                "the cluster gauged by node {} lost its last instance, and its placement record \
-                 went with it",
-                gauge.0
-            ),
+            Self::Cluster(act) => write!(f, "{act}"),
+            // The relative clause binds to the NODE, not to the name:
+            // "a face name minted by node 7, which this edit deleted"
+            // reads as though the name were deleted, and the name is
+            // exactly what survives.
             Self::Strand { node, name } => write!(
                 f,
-                "node {} carries a {}, which this edit deleted; the name resolves to nothing \
-                 until it is rebound",
-                node.0, name
+                "node {} carries a {}; this edit deleted node {}, so the name resolves to \
+                 nothing until it is rebound",
+                node.0, name, name.node.0
             ),
         }
     }
@@ -1349,6 +1333,15 @@ impl core::fmt::Display for Maintenance {
 /// here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
 /// one is the solve's to refuse (A12), not this door's to report.
+///
+/// **Cost.** One pass over the document's payload names per accepted
+/// delete, so a cascade of `n` nodes pays `n` passes. That is the
+/// price of reporting at the door rather than once at the end, and it
+/// is what makes the rows TRUE of the document each step produced;
+/// `cascade_delete_order` is a walk of the same shape already, and a
+/// caller who wants one number for the whole cascade computes it from
+/// the doomed set instead of from these rows (the transients cancel —
+/// `rv_a_cascade_reports_strands_on_carriers_it_then_deletes`).
 fn stranded_names<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
     let mut out = Vec::new();
     for &id in doc.order() {
@@ -1377,10 +1370,16 @@ pub struct Applied<P> {
     /// cluster-record maintenance it forced, and the payload names it
     /// stranded (DM7). See [`Maintenance`].
     ///
-    /// Ordered as the edit computed them: the strands first, read at
-    /// the door out of the document the edit had just produced, then
-    /// the cluster acts, which reconcile the registry against it
-    /// afterwards.
+    /// **The order is a CONTRACT, not an accident of the
+    /// implementation**: the strands come first — read at the door,
+    /// out of the document the edit had just produced — and the
+    /// cluster acts follow, reconciling the registry against it
+    /// afterwards. A consumer may rely on that; it is pinned by
+    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`,
+    /// the one edit that produces both kinds at once. What a consumer
+    /// may NOT do is read position 0 as a kind: a delete that strands
+    /// nothing puts a cluster act there, so an arm is found by
+    /// matching, never by index.
     pub maintenance: Vec<Maintenance>,
 }
 
@@ -1798,7 +1797,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // the check above never saw one and the edit stands. What
             // the door owes is the report — every surviving name whose
             // minting node just left, read out of the document as it
-            // now is.
+            // now stands.
             strands = stranded_names(&new, *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
             reconcile = true;

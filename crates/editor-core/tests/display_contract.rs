@@ -1464,17 +1464,67 @@ fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
 }
 
 test_utils::f6_variants! {
-    /// `Maintenance`'s census — see [`NODE_PICK_ERROR`]. The four
-    /// cluster acts live inside one variant, so the census holds the
-    /// two arms of this enum and the cases below carry all five
-    /// sentences.
+    /// `ClusterMaintenance`'s census — see [`NODE_PICK_ERROR`]. The
+    /// four registry acts render beside their own type, so this is the
+    /// list that guards them; `Maintenance` delegates and carries only
+    /// its own two arms.
+    const CLUSTER_MAINTENANCE: ClusterMaintenance = [Join, Split, GaugeRewrite, Drop];
+}
+
+test_utils::f6_variants! {
+    /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
     const MAINTENANCE: Maintenance = [Cluster, Strand];
 }
 
-/// **What an accepted edit DID reads as prose too.** The maintenance
-/// column is rendered to a person — the strand count beside the
-/// cascade count — so every arm states what happened rather than
-/// handing back the `Debug` dump of a registry act.
+/// **Each registry act says what it did to the placement registry.**
+/// The maintenance column is rendered to a person, so these are prose
+/// and not the `Debug` dump of a frame.
+#[test]
+fn cluster_maintenance_display_names_the_act_not_its_struct() {
+    let gauge = RecipeNodeId(3);
+    let other = RecipeNodeId(5);
+    let cases = [
+        (
+            ClusterMaintenance::Join {
+                survived: gauge,
+                absorbed: other,
+                absorbed_frame: None,
+            },
+            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+        ),
+        (
+            ClusterMaintenance::Split {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["separated from", "node 3", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::GaugeRewrite {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["node 3", "lost that instance", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::Drop { gauge, frame: None },
+            vec!["node 3", "lost its last instance", "placement record"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
+}
+
+/// **What an accepted edit DID reads as prose too** — the strand count
+/// beside the cascade count is rendered from these sentences.
+///
+/// The cluster arm FORWARDS its carried act's own words (the
+/// `NodePickError::Standing` shape one row up), which is why its case
+/// here asserts the delegated sentence rather than a paraphrase of it.
+/// The strand sentence's relative clause binds to the NODE: the name
+/// is what survives a strand, so a sentence reading "a name, which
+/// this edit deleted" would name the wrong casualty.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let gauge = RecipeNodeId(3);
@@ -1489,33 +1539,13 @@ fn maintenance_display_says_what_the_edit_did() {
             vec!["cluster gauged by node 5", "absorbed into", "node 3"],
         ),
         (
-            Maintenance::Cluster(ClusterMaintenance::Split {
-                from: gauge,
-                to: other,
-                frame: None,
-            }),
-            vec!["separated from", "node 3", "now gauged by node 5"],
-        ),
-        (
-            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
-                from: gauge,
-                to: other,
-                frame: None,
-            }),
-            vec!["node 3", "lost that instance", "now gauged by node 5"],
-        ),
-        (
-            Maintenance::Cluster(ClusterMaintenance::Drop { gauge, frame: None }),
-            vec!["node 3", "lost its last instance", "placement record"],
-        ),
-        (
             Maintenance::Strand {
                 node: other,
                 name: face_name(),
             },
             vec![
-                "node 5 carries",
-                "face name minted by node 7",
+                "node 5 carries a face name minted by node 7",
+                "this edit deleted node 7",
                 "resolves to nothing until it is rebound",
             ],
         ),

@@ -1,5 +1,5 @@
 //! The accepted edit travels whole through the refactoring doors:
-//! [`split`]'s outcome carries the cluster-record maintenance its
+//! [`split`]'s outcome carries the [`Maintenance`] its
 //! remainder edits and its part edits performed, and [`inline`]'s
 //! carries its own — beside the documents and the recorded edits,
 //! never instead of them.
@@ -242,11 +242,20 @@ fn inline_records_the_split_its_re_anchoring_performs() {
         vec![vec![kept]],
         "after the splice the mate's far end is local again and welds nothing"
     );
+    // FOUND, not indexed: `Applied::maintenance` contracts that the
+    // strands lead and the cluster acts follow, so position 0 is a
+    // cluster act only when the splice stranded nothing. The claim
+    // here is about the split, so the split is what is looked for.
     assert!(
-        matches!(
-            back.maintenance.first(),
-            Some(Maintenance::Cluster(ClusterMaintenance::Split { from, to, .. })) if *from == kept && *to == out.instance
-        ),
+        back.maintenance
+            .iter()
+            .find_map(|row| match row {
+                Maintenance::Cluster(ClusterMaintenance::Split { from, to, .. }) => {
+                    Some((*from, *to))
+                }
+                _ => None,
+            })
+            .is_some_and(|(from, to)| from == kept && to == out.instance),
         "the re-anchoring rebind split the instance off the kept cluster: {:?}",
         back.maintenance
     );

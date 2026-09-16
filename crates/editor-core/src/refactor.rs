@@ -6,8 +6,10 @@
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
-//! [`DocEdit`]s that produce them, and the cluster-record maintenance
-//! those edits performed — the input documents are untouched,
+//! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
+//! those edits performed — the cluster-record acts the mate graph's
+//! motion forced, and the payload names a departing cut node
+//! stranded. The input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -528,7 +530,7 @@ impl core::error::Error for InlineError {}
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
 /// caller's id, the remainder's from the input document), and the
-/// cluster-record maintenance each edit list performed. Undo of the
+/// [`crate::Maintenance`] each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -582,9 +584,9 @@ pub struct InlineOutcome {
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `edits` performed, in edit order
-    /// ([`Maintenance`]): the part's mates weld their spliced members as
-    /// they
-    /// land, a wrapped name's re-anchoring moves what the instance
+    /// ([`Maintenance`]): the part's mates weld their spliced members
+    /// as they land, a wrapped name's re-anchoring moves what the
+    /// instance
     /// welded onto the spliced node (a split, where the spliced node
     /// is no member), and the instance's delete drops or re-keys its
     /// cluster's row. An accepted edit travels whole; a caller holding

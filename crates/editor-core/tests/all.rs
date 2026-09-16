@@ -98,8 +98,6 @@ mod cert3r1_dump;
 mod display_contract;
 #[path = "dm7_delete_strands.rs"]
 mod dm7_delete_strands;
-#[path = "rv_dm7_probes.rs"]
-mod rv_dm7_probes;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
 #[path = "docm1_face_frame_interval.rs"]
@@ -144,6 +142,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "rv_dm7_probes.rs"]
+mod rv_dm7_probes;
 
 #[path = "gui1_pick.rs"]
 mod gui1_pick;

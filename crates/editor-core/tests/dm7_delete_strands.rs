@@ -96,9 +96,16 @@ fn deleting_a_declared_union_names_every_pair_of_its_declare() {
         expected,
         "the accepted delete names every stranded pair, in the payload's own order"
     );
-    assert!(
-        applied.doc.node(decl).is_some(),
-        "the Declare survives its union — the orphan the user cascades or deletes"
+    // NOT "the Declare survives": a strand row names a SURVIVING
+    // carrier by construction, so the rows above already say that.
+    // What they do not say is that the payload is untouched — DM7
+    // reports, it does not repair — so that is what is asserted.
+    let Some(Node::Declare { pairs: after }) = applied.doc.node(decl) else {
+        panic!("the Declare survives its union — the orphan the user cascades or deletes")
+    };
+    assert_eq!(
+        after, pairs,
+        "the report changes nothing: every pair still says exactly what it said"
     );
 }
 
@@ -172,19 +179,71 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     );
     let (doc, decl) = insert(doc, Node::declare_rest(vec![(f1.clone(), f2.clone())]));
 
+    // **The expectation is DERIVED by an exhaustive match over
+    // `Node`, not written out as a list.** A list is only ever as
+    // complete as whoever last edited it; this match is
+    // non-exhaustive the moment a name-carrying variant joins the
+    // vocabulary, so the suite stops compiling and its author is sent
+    // to the arm that must say what the new carrier reports. No
+    // wildcard arm, deliberately — a `_ => {}` is the hole this
+    // replaces.
+    let mut expected: Vec<(RecipeNodeId, StableName)> = Vec::new();
+    for &id in doc.order() {
+        let Some(node) = doc.node(id) else { continue };
+        match node {
+            Node::Fillet { .. } => expected.push((id, f0.clone())),
+            Node::Chamfer { .. } => expected.push((id, f1.clone())),
+            Node::Shell { .. } => expected.push((id, f2.clone())),
+            Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
+            // Argument order, which is meaning for a measure.
+            Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
+            Node::Declare { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
+            // A mate's heads are the seventh carrier and need an
+            // instance to be minted by, which this document has none
+            // of: its row is `a_mates_head_strands_and_its_read_site_does_not`.
+            Node::Mate { .. } => panic!("this fixture builds no mate"),
+            // The name-free kinds. Spelled out rather than swept into
+            // a wildcard, for the reason above.
+            Node::Datum(
+                Datum::Plane { .. }
+                | Datum::Axis { .. }
+                | Datum::Point { .. }
+                | Datum::Frame { .. }
+                | Datum::AxisInPlane { .. },
+            )
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Assertion { .. } => {}
+        }
+    }
+    // The match is total over `Node`; this says it ran over the
+    // document this fixture actually built, so an arm cannot go
+    // unreached and look satisfied.
+    assert_eq!(
+        expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        vec![
+            fillet, chamfer, shell, derived, measure, measure, decl, decl
+        ],
+        "six carriers, eight names, in document order"
+    );
+
     let applied = delete(&doc, victim);
     assert_eq!(
         strands(&applied.maintenance),
-        vec![
-            (fillet, f0.clone()),
-            (chamfer, f1.clone()),
-            (shell, f2.clone()),
-            (derived, f3),
-            (measure, f4),
-            (measure, f0),
-            (decl, f1),
-            (decl, f2),
-        ],
+        expected,
         "one row per carried name, in document order and then payload order"
     );
 }
@@ -300,12 +359,19 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     }
     assert_eq!(
         per_step,
-        vec![(fillet, vec![(derived, face)]), (body, Vec::new()),],
+        vec![(fillet, vec![(derived, face.clone())]), (body, Vec::new())],
         "the strand is reported by the step that deleted the minting node"
     );
-    assert!(
-        doc.node(derived).is_some(),
-        "the survivor is still in the document, carrying a name that now resolves to nothing"
+    // Again not "it survives" — the order assertion above already
+    // says the cascade does not reach it. What is asserted is that it
+    // still CARRIES the dead name: the report is a report, and the
+    // repair is the user's `Rebind`.
+    let Some(Node::Datum(Datum::FaceFrame { face: still, .. })) = doc.node(derived) else {
+        panic!("the survivor is still a derived frame")
+    };
+    assert_eq!(
+        still, &face,
+        "the survivor holds the name unchanged, now resolving to nothing"
     );
 }
 

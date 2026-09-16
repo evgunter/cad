@@ -3045,10 +3045,13 @@ class Doc:
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     @property
     def last_maintenance(self) -> list[Maintenance]:
-        """The cluster-record maintenance the LAST accepted edit
-        performed. Empty after an edit that moved no mate graph, and
-        on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched.
+        """The maintenance the LAST accepted edit performed: its
+        cluster-record acts, and the payload names its delete
+        stranded. The strands lead and the cluster acts follow, so
+        read `variant`, never a position. Empty after an edit that
+        moved no mate graph and stranded no name, and on a document
+        that has applied none; a REFUSED edit leaves it untouched, as
+        it leaves the document untouched.
 
         The reading begins at the load boundary: a Doc from
         `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
