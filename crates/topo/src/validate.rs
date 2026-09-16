@@ -7258,6 +7258,11 @@ mod tests {
                 b: EntityId::Face(t.face_a),
                 what: "what",
             },
+            ValidationError::InstanceInterference {
+                outer: t.solid,
+                inner: t.solid,
+                witness: crate::entity::VertexKey::default(),
+            },
             ValidationError::NullScaffoldShared {
                 curve: CurveKey::default(),
                 edges: 2,
