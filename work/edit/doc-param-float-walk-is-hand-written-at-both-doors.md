@@ -1,8 +1,8 @@
 ---
 id: doc-param-float-walk-is-hand-written-at-both-doors
 kind: issue
-title: "A doc param's finiteness is spelled twice: param_site at the load door, SetDocParam at the edit door"
-status: open
+title: A doc param's finiteness is spelled twice: param_site at the load door, SetDocParam at the edit door
+status: dispatched
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
@@ -47,3 +47,9 @@ write", and the `NonFiniteSite` vocabulary is persisted-refusal
 vocabulary with a Python tag behind it. Deciding whether the edit door
 should carry the field name too is a small design question, which makes
 this a unit rather than a follow-through.
+
+## Dispatched (2026-09-16, EDIT orchestrator) — middle tier, with the slot-dimension row
+
+Built by the unit `edit/one-predicate-round-three`, whose spec is the
+`## Spec` section of `load-door-checks-slot-dimensions-for-profile-nodes-only`;
+this row's decision is ruled there.

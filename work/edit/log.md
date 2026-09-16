@@ -325,3 +325,35 @@ because four rows need a raw target the index cannot build. A2a's
 opening sentence, widened by this unit's predecessor to cover a value
 of a document, now says the rule binds only where both halves carry a
 stamp.
+
+## 2026-09-16 — wave 3 on main: one-predicate round two (PR #2772), the distribution door (PR #2774), the prose E-class (PR #2771)
+
+Round two gave six predicates one home each and re-censused the load
+door from scratch — the review's MAJOR was that the sweep's closing
+table had undercounted by three, and the fix pass brought those three
+in rather than closing the sweep row on a stale count; the gauge's
+second leg became an exhaustive match over `DocEdit`, so a new arm
+cannot forget it. The distribution door mirrored the unit door exactly
+where it should and its review found only doc-level residue, plus one
+premise measured and confirmed (the kernel `Distribution` carries no
+dimension, so the Python wrapper's is LIB's to keep). The E-class PR
+rewrote `DocEdit`'s header to the invariant and ruled the replay/load
+maintenance boundary by the documented load boundary. Two lessons
+banked in the common lane brief: three lanes' target dirs exhaust the
+box (reclaimed at 97%), and a feature-gated test file plus the façade
+censuses are the two ways a local green lies.
+
+## 2026-09-16 — third sitting: wave 4 cut; the `[ev]` PR's three items ruled
+
+Ev ruled all three items of `[ev]` PR #2764 in conversation: the pick
+door's `t` is an interval with a narrower-then-order tie-break and a
+clamped hit (the viewer's GPU id pass already picks what is displayed,
+so this makes the kernel's ray path agree with it); DM7 covers
+appearance keys; DM8's clause says the permutation is checked, never
+applied, and a disagreement asserts. Wave 4, all middle tier: the
+ruled-carve document fixture; one-predicate round three (the load
+door's slot-dimension walk over every node kind, the unreachable
+count/continuous arm deleted, one float predicate for a document
+parameter); the recorded program's argument notation, ruled by D7 and
+the doc-param precedent. The appearance-key unit and the pick-`t`
+kernel unit (block EDIT-B1 slot 2) follow once #2764 merges.
