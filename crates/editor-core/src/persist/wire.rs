@@ -253,7 +253,8 @@ pub(crate) mod arc_side {
         .serialize(ser)
     }
 
-    /// Reads the tag. Total, for [`arc_sweep::deserialize`]'s reason.
+    /// Reads the tag. Total, for its twin's reason: the wire enum has
+    /// no form the kernel enum lacks.
     ///
     /// # Errors
     ///
