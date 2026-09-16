@@ -2394,6 +2394,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "first", "again"],
     );
+    // The sorted designation's fault reports ONE position, so it
+    // carries `first` and not `again`.
+    carries(
+        &E::SelectionNotCanonical { node: id(1), at: 2 },
+        &["node", "first"],
+    );
     // `found` on a short list is a COUNT and takes the `count`
     // attribute, so it never lands where a dimension word would.
     let short = E::TooFewMembers {
@@ -4101,6 +4107,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_target_missing_node",
             "rebind_unknown_name",
             "repeated_designation",
+            "selection_not_canonical",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",
@@ -4909,7 +4916,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
-            "blend_selection_not_canonical",
             "count_continuous",
             "dangling_input",
             "declare_input",

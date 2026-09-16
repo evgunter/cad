@@ -2905,6 +2905,7 @@ MEMBERS_BOUND_AS = {
     "EditError::WouldCycle": "EditError.variant",
     "EditError::DuplicateInput": "EditError.variant",
     "EditError::RepeatedDesignation": "EditError.variant",
+    "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",

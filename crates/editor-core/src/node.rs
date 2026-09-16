@@ -1038,10 +1038,18 @@ impl SitedRef {
     }
 }
 
-/// **What makes a node's INPUT LIST invalid** ([`Node::input_fault`];
-/// DM5) — one vocabulary for the two edit doors and the load door's
-/// re-check, so the rule has one definition and three callers rather
-/// than three copies.
+/// **What makes a node's structural content invalid**
+/// ([`Node::input_fault`]; DM5) — one vocabulary for the two edit doors
+/// and the load door's re-check, so each rule has one definition and
+/// three callers rather than three copies.
+///
+/// It covers the input list (DM5's own subject) and the NAME
+/// DESIGNATIONS beside it, because the two are one kind of rule: a
+/// structural form that a construction door establishes, and that only
+/// a hand-built variant or a corrupt file can arrive without. Which
+/// form is the payload's own — ORDERED for a shell's `open`, SORTED for
+/// a blend's `selection` — and either way a node that does not hold it
+/// is refused at every door rather than repaired at one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
     /// One node is reached twice through this node's edges. It covers
@@ -1073,6 +1081,23 @@ pub enum InputFault {
         /// The position at which it is named again.
         again: u32,
     },
+    /// A SORTED designation is not in canonical form. A blend's
+    /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
+    /// that has one: its order carries no meaning, so it is stored
+    /// sorted and deduplicated and two recipes picking the same edges
+    /// are bit-identical. That is ONE predicate — the entries strictly
+    /// increase — which a repeat and a swap both break, at the position
+    /// named here. [`Node::fillet`]/[`Node::chamfer`] are the
+    /// construction doors that establish the form; a selection that
+    /// reaches a door without it came from a hand-built variant or a
+    /// corrupt file and is refused rather than re-sorted, because a
+    /// repair would move the node's content key behind the caller's
+    /// back.
+    SelectionNotCanonical {
+        /// The position of the entry that does not sort strictly
+        /// before the one after it.
+        at: u32,
+    },
 }
 
 // The ONE prose vocabulary for this fault, forwarded by every door
@@ -1094,6 +1119,13 @@ impl core::fmt::Display for InputFault {
                 "the open-face designation names one face twice (entries {first} and {again}) — \
                  an ordered designation names each face once, the first occurrence carrying the \
                  rim"
+            ),
+            Self::SelectionNotCanonical { at } => write!(
+                f,
+                "the blend selection is not canonical (entry {at} does not sort strictly before \
+                 entry {}) — a selection is stored sorted and deduplicated, so the same edges \
+                 always make the same recipe",
+                at + 1
             ),
         }
     }
@@ -1430,10 +1462,13 @@ pub enum Node<P> {
     ///
     /// The set is stored sorted and deduplicated, so two recipes that
     /// select the same edges are bit-identical (the content key reads
-    /// the vector in order). [`Node::fillet`] canonicalizes; a loaded
-    /// snapshot is ASSERTED canonical rather than repaired
-    /// ([`crate::persist`]'s strict door — a non-canonical file is a
-    /// corrupt file).
+    /// the vector in order). [`Node::fillet`] canonicalizes; every door
+    /// that ADMITS a node ASSERTS the form rather than repairing it,
+    /// through the one predicate [`Node::input_fault`] states
+    /// ([`InputFault::SelectionNotCanonical`]) — so a hand-built
+    /// variant at the insert door and a non-canonical file at the load
+    /// door are refused alike, and a repair at either would move the
+    /// node's content key behind the caller's back.
     Fillet {
         /// The body whose edges are blended.
         target: RecipeNodeId,
@@ -1461,8 +1496,8 @@ pub enum Node<P> {
     /// Both exactly as [`Node::Fillet`] states them: a set of stable
     /// names and nothing else, no "every edge" variant,
     /// [`crate::DocEdit::Rebind`] the one repair, stored sorted and
-    /// deduplicated by [`Node::chamfer`], and a non-canonical set on
-    /// the wire is a corrupt file. The freeze argument does not depend
+    /// deduplicated by [`Node::chamfer`], and a non-canonical set at
+    /// any door refused rather than repaired. The freeze argument does not depend
     /// on which blend the surgery performs, so it is not restated
     /// here — read it there.
     ///
@@ -2217,11 +2252,14 @@ impl<P> Node<P> {
             .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
     }
 
-    /// **DM5, stated once**: what is wrong with this node's inputs, if
-    /// anything — one node reached twice, or a list left under two.
+    /// **DM5, stated once**: what is wrong with this node's structural
+    /// content, if anything — one node reached twice, a list left under
+    /// two, or a name designation outside the canonical form its
+    /// construction door establishes.
     ///
-    /// One structural rule over [`Node::inputs`] rather than a rule per
-    /// node kind, and ONE definition with three callers: `InsertNode`,
+    /// Structural rules over the node's own content rather than a rule
+    /// per node kind, and ONE definition with three callers:
+    /// `InsertNode`,
     /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
     /// load door's `validate_document`. The two edit doors render it in
     /// [`crate::EditError`]'s vocabulary and the load door in
@@ -2237,9 +2275,9 @@ impl<P> Node<P> {
     ///
     /// # What the rule covers, and why that is sound
     ///
-    /// Both clauses read [`Node::inputs`], so they apply to EVERY node
-    /// kind — not only the union, the list-input kinds and the boolean.
-    /// That is wider than DM5's text, and deliberately:
+    /// The two INPUT clauses read [`Node::inputs`], so they apply to
+    /// EVERY node kind — not only the union, the list-input kinds and
+    /// the boolean. That is wider than DM5's text, and deliberately:
     ///
     /// - The duplicate clause is sound everywhere because no node kind
     ///   in this crate has a meaning for the same input twice. A
@@ -2261,6 +2299,12 @@ impl<P> Node<P> {
     ///   instead of at evaluation naming the sweep.
     ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
     ///   load-door twin pin both.)
+    /// - The two DESIGNATION clauses read one payload each — a shell's
+    ///   `open`, a blend's `selection` — and are silent about every
+    ///   other node kind, because a canonical form is the payload's own
+    ///   and there is nothing to generalize. What is general is that
+    ///   each is asked HERE, so the form a construction door
+    ///   establishes is the form every door admits.
     pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
@@ -2274,10 +2318,15 @@ impl<P> Node<P> {
         if let Some(input) = self.inputs().into_iter().find(|input| !seen.insert(*input)) {
             return Some(InputFault::Duplicate { input });
         }
-        // The one ORDERED name payload carries the one rule the
-        // canonical (sorted) payloads state by their order: no entry
-        // twice. Asked here, once, so the insert door, the load door
-        // and the evaluation backstop refuse alike.
+        // The name designations, each against the canonical form its
+        // own construction door establishes. Asked here, once, so every
+        // door that admits a node refuses the same shapes: the two edit
+        // doors and the load door are the three callers, and neither
+        // form is repaired at any of them.
+        //
+        // The ORDERED payload — a shell's `open` — carries only the
+        // rule the sorted payloads state by their order: no entry
+        // twice.
         if let Node::Shell { open, .. } = self {
             for (again, name) in open.iter().enumerate() {
                 if let Some(first) = open[..again].iter().position(|n| n == name) {
@@ -2287,6 +2336,16 @@ impl<P> Node<P> {
                     });
                 }
             }
+        }
+        // The SORTED payload — a blend's selection — states both rules
+        // in one: strictly increasing IS "sorted and deduplicated", so
+        // a swap and a repeat are one fault at one position. An empty
+        // selection holds it vacuously and is evaluation's refusal to
+        // name (`BlendSelectionEmpty`), not this door's.
+        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
+            && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
+        {
+            return Some(InputFault::SelectionNotCanonical { at: at as u32 });
         }
         None
     }

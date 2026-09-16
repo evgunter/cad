@@ -2,9 +2,10 @@
 id: blend-selection-canonical-check-load-only
 kind: unit
 title: A blend's non-canonical selection is refused at load only: the insert door accepts a hand-built Fillet/Chamfer variant the load door then refuses
-status: spec
+status: review
 opened: 2026-09-08
 branch: edit/blend-canonical
+pr: 0
 ---
 
 `Node::Fillet` and `Node::Chamfer` are public variants; `Node::fillet`
@@ -73,3 +74,58 @@ against the tree: `crates/editor-core/src/edit.rs` (`InsertNode`) and
 5. The `M6-5` history in `check.rs`'s comment does not move with the
    predicate; the new doc states the invariant (one canonical form,
    asked by every door that admits a node).
+
+## Built (2026-09-16)
+
+The predicate has one home. `InputFault::SelectionNotCanonical { at }`
+answers for a `Fillet`/`Chamfer` selection whose entries do not
+strictly increase — "sorted and deduplicated" is one predicate, so a
+swap and a repeat are one fault at one position — and `input_fault`'s
+three callers (`InsertNode`, `SetMembers` on the rewritten node, the
+load validator) all ask it. `check.rs`'s `windows(2)` line and
+`SnapshotError::BlendSelectionNotCanonical` are gone; the load door
+refuses the same document through `SnapshotError::InputList`, the arm
+that already carried every other `input_fault` answer. The edit doors
+name it `EditError::SelectionNotCanonical { node, at }` and forward the
+fault's own sentence, as `RepeatedDesignation` does.
+
+On the spec, point by point:
+
+1. `input_fault`, not a sibling `payload_fault`. `RepeatedDesignation`
+   — a shell's `open` list — is already a name PAYLOAD living there,
+   and a blend's selection is the same kind of thing: a structural form
+   a construction door establishes, that only a hand-built variant or a
+   corrupt file can arrive without. A second function would split the
+   two designation rules across two homes and give the load door two
+   arms where it has one. The enum's own header said "INPUT LIST",
+   which `RepeatedDesignation` had already made stale; it now states
+   the actual scope.
+2. Done. Grep-proven absent, including `crates/pncad-py`.
+3. **The spec's premise is wrong, and the code said so too.** No
+   evaluation site asks `input_fault` — its callers are exactly
+   `edit.rs`'s `check_node_inputs` (from `InsertNode` and `SetMembers`)
+   and `check.rs`'s `validate_document`. What evaluation has is its own
+   independent refusal per payload: `topo::ShellError::OpenFaceRepeated`
+   for a repeat, and for a blend `resolve_selection` re-SORTS the
+   resolved keys and leaves a duplicate to the kernel. So an unsorted
+   selection was not merely accepted at the insert door — it evaluated
+   silently, and only `save`/`load` ever objected. `input_fault`'s own
+   comment claimed "the insert door, the load door and the evaluation
+   backstop refuse alike"; it now says the two doors, which is what is
+   true.
+4. Rows in `crates/editor-core/tests/edit_blend_canonical.rs`, one per
+   door so a mutant that drops the predicate at either is caught by
+   that door's row rather than by its twin: unsorted at the insert door
+   (fillet and chamfer), a repeat at the insert door, unsorted at the
+   load door, a repeat at the load door, the construction doors still
+   canonicalize, an empty selection is canonical (evaluation's refusal,
+   not this door's), and the two doors forward one sentence.
+   `m6_5_selection_wire`'s load-door arm moved to the new refusal.
+5. The `M6-5` history did not move: the new prose states the invariant
+   — one canonical form per payload, asked by every door that admits a
+   node, repaired at none.
+
+Filed: `three-door-predicates-are-hand-copied-not-shared` (this
+program's slate) — the sweep found the assertion bound, a mate's
+alignment and the placement registry spelled twice, once per door, with
+the placement pair not even refusing the same set.
