@@ -306,24 +306,15 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
 }
 
-/// `HitTestError`'s exhaustiveness token: the `match` has no wildcard
-/// arm, so a variant added to the enum — or renamed — leaves it
-/// non-exhaustive and this file stops compiling. It returns nothing on
-/// purpose; the identifiers come off each value's own `Debug`, never
-/// off a string typed beside a pattern.
-fn hit_test_error_is_exhaustive(e: &HitTestError) {
-    match e {
-        HitTestError::NodeNotEvaluated { .. }
-        | HitTestError::NodeFailed { .. }
-        | HitTestError::NodePoisoned { .. }
-        | HitTestError::Unnamed { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `HitTestError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases. The mechanism and what
+    /// it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const HIT_TEST_ERROR: HitTestError =
+        [NodeNotEvaluated, NodeFailed, NodePoisoned, Unnamed];
 }
-
-/// The identifier roster, welded to the cases by the set difference in
-/// [`assert_f6_every_variant`].
-const HIT_TEST_ERROR_VARIANTS: &[&str] =
-    &["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"];
 
 /// The Display contract (#1111): a consumer renders a `HitTestError`
 /// through the payload's own words, so every arm must state what
@@ -366,10 +357,5 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec!["node 7", "face", "body 2", "kernel bug"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        hit_test_error_is_exhaustive,
-        HIT_TEST_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);
 }

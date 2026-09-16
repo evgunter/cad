@@ -5294,6 +5294,100 @@ its numbers are on the row now. **Report what you measured, or report
 that you did not measure.**
 
 Signed (`wire-t1`).
+
+## 2026-09-15 — PR 2681 MERGED (`228b076d`): the tie-before-kind class, three rows, four rounds
+
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`the-declared-pair-refusal-reads-the-authored-kind` and
+`interrogate-read-answers-a-tie-before-the-door-s-kind` closed together.
+Review → fix → **delta** → fix, and the delta was worth running because
+the fix pass introduced `DeclaredStep`, a mechanism no round had seen.
+
+### The delta's MAJOR was a claim, and the way it was found is the lesson
+
+The fix pass replaced a `bool` with an enum and wrote, in the PR body and
+in this log, *"a fourth **pair shape** is added by adding a variant and
+fails to compile."* **The reviewer did not read the code to check it —
+it ran two experiments:**
+
+- a fourth **variant** → `error[E0004]: non-exhaustive patterns`;
+- a fourth **pair shape** reusing an existing variant → **compiled
+  clean, zero warnings**, with the cross-operand V–V contact landing in
+  operand 1's list carrying operand 2's vertex.
+
+So the property was true of variants and false of pair shapes. And the
+paragraph directly above that claim in this log told future lanes
+*"writing 'once' is a claim to check with `rg`, not a summary of
+intent."* **The claim was written one paragraph below the warning against
+writing it.** The lesson now on the row: *"fails to compile" is the same
+kind of claim as "once"*.
+
+### One row closed by being shown wrong
+
+`the-declared-pair-refusal-reads-the-authored-kind` asked whether
+`kinds: (n1.kind, n2.kind)` should read the resolved key instead. It
+should not, and the reason is forced rather than preferred: once the kind
+is asked BEFORE resolution — which is what the other two rows require — a
+tied name has no single key, so the word must come off the name. The row
+closes because its proposal is refuted, not because it was implemented.
+
+### The both-operands argument, settled
+
+The first round found `DeclareBothOperands` raised before the kind
+question — a multiplicity question outranking the kind question where the
+tie does not. The lane argued rather than moved, and the argument holds:
+`DeclareUnsupportedPair` carries `cross_operand`, a plain `bool` with one
+construction site and no way to say "neither", **so the kind refusal
+cannot be built over a name that landed in both — a field of it has no
+value.** A tie leaves no field empty. Verified by the delta reviewer down
+to the side pick never distinguishing `Unique` from `Tied`.
+
+### What the second fix pass built, and how it was adjudicated
+
+A private `mod sides` whose three witnesses have unreachable fields and
+whose only constructors compare the two sides. The variants carry them;
+the projection re-derives nothing; `declared_step` matches on `(ka, kb)`
+alone, so **the operands left the match entirely** and an arm pairing
+kinds with a wrong operand assumption cannot be written.
+
+**Adjudicated by re-running the experiment rather than reading the
+report** — the whole finding was that a compile-time claim had been
+asserted instead of checked, so accepting one would have repeated it:
+
+- naming the variant without its witness → **`E0308`**, as reported;
+- the **disclosed** residue (`SameOperand::of(oa, oa)`, the comparison
+  called with one side twice) → **compiles**, as reported.
+
+The second check is the one that mattered. It confirms the lane was
+honest about what it could not close, rather than narrowing the claim to
+whatever it happened to achieve. Both residues are named in
+`DeclaredStep`'s own doc — rule 1's procedure completed: take the
+bijection where it exists, and where it does not, write why at the site.
+
+### Two things the lane did that nobody asked for
+
+**It corrected its own blocker with measurements.** Having reported row 3
+unconstructible, it probed and found `NameTable::project` does keep a
+straddling tie in both halves (`in-BOTH=2` at one plane, `4/4/0` at
+another) — exactly as that function's own 40-line doc says. The real
+blocker is narrower: the fixture's two ties are symmetric about one
+plane. Reported as **not measured** rather than dressed up, with the
+numbers and the required fixture shape on the item.
+
+**It withdrew a row it had filed.** The third fault it added to SHELL's
+slate was already there (`named-face-scope-…`, finding 2, 2026-09-13), so
+per `work/README.md` it cross-linked and stated the split instead of
+leaving a duplicate for someone else to reconcile.
+
+### The standing pattern, third instance today
+
+The evidence against a claim was in the tree, beside the thing claimed
+about: `NameTable::project`'s doc for row 3's blocker, as
+`emit_sweep.rs`'s `UNRESOLVED` const is for PR 2688's MAJOR 1, and as
+`each_kind_has_an_arm_…`'s caveat was for PR 2629's test claim. **Three
+units in one day, three times the refutation was already written down.**
+
+Signed (WIRE orchestrator).
 ---
 
 ## 2026-09-15 — `wire-e2`: two emitter refusals a legal declared union reaches
