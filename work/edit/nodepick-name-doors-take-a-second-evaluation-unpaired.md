@@ -119,7 +119,9 @@ and this unit keeps that line.
 at `build` and `build_with` (`build_all` / `build_all_with` enumerate
 through them, so all four constructors stamp). `PickMemo`'s
 `PickEntry.document` field is gone: the memo's document half of the key
-is now the memoised pick's own stamp, so the two cannot drift.
+is now the memoised pick's own stamp, so the two cannot drift. That
+comparison is the memo's own DI3 refusal, said so in `PickMemo`'s doc
+and pinned by `the_memo_refuses_a_prior_of_another_document`.
 
 `patch_names` and `boundary_names` return
 `Result<Vec<Result<StableName, HitTestError>>, HitTestError>` and refuse
@@ -129,32 +131,64 @@ CALL — one fact about the arguments, outside the vector — and the
 per-entity `Unnamed` lane keeps its own meaning.
 
 Item 3's sweep also reached `pick_face`, which could mispair and now
-cannot: `PickTarget` gained a public `document` field, `NodePick::target`
-stamps it, and `pick_face` refuses the same arm for the first offending
-target BEFORE the standing loop (a twin mints the same node ids, so
-standing admits it). The node half of `PickTarget`'s provenance contract
-is untouched — arena keys collide across sibling nodes of ONE document
-and there is nothing to compare — and stays #1098's residual raw-assembly
-class, still witnessed by the ignored row
+cannot: `PickTarget` carries the document, `NodePick::target` stamps it,
+and `pick_face` refuses the same arm for the first offending target
+BEFORE the standing loop (a twin mints the same node ids, so standing
+admits it; `the_pairing_refusal_wins_over_standing` pins the order
+against a document in which the node does not exist at all).
+
+`PickTarget`'s fields are PRIVATE, with two mints: `NodePick::target`,
+where every half comes from one tessellation, and `PickTarget::new`,
+where a caller declares them over a mesh index of its own. A minted
+target cannot be taken apart and re-stamped — neither type hands its
+`MeshPick` out — so the review's forgery
+(`PickTarget { document: twin, ..pick.target() }`) is a compile error,
+with a `compile_fail,E0451` row on the type. What remains is the raw
+path, where all four halves are the caller's claim uniformly; the node
+half stays #1098's residual raw-assembly class, still witnessed by the
+ignored row
 `gui1_pick_r2::a_mesh_paired_with_the_wrong_node_does_not_answer_a_name`.
 
-A2a's door list and its closing paragraph re-worded for the three new
-doors and for what the stamp does not decide (the description an
-approved change moved, not a second decision). DI3 unedited.
+`ident::Mispaired` projects through ONE `impl From<Mispaired>` per error
+type, at the error type (`ProductError`, `ChecksError`, `EditError`,
+`HitTestError`, `MateFault`); the eight sites that spelled the field
+mapping by hand are one `.into()` each. `pick.rs`'s local helper is
+`mispairing` — named for what it returns — over that `From`.
+
+A2a's door list and its closing paragraphs re-worded for the three new
+doors, for what the stamp does not decide, and for the rule's boundary:
+it binds only where BOTH halves carry an identity, so a raw arena key or
+a bare name is outside it rather than an unchecked door. DI3 unedited.
 
 Rows, in `crates/editor-core/tests/edit_pair_apply_names.rs`: the
-`pair-rv` probe becomes `the_name_doors_refuse_a_twins_evaluation`
-(both doors, plus the shape assertion that a per-slot spelling would
-fail), `pick_face_refuses_a_target_of_another_document`, and
-`a_later_evaluation_of_the_same_document_is_admitted` (the prism's own
-extrusion distance edited between the runs, content key asserted moved).
-A mutant that drops the stamp comparison reds the first two and leaves
-the third green. Python mirrors in
-`crates/pncad-py/tests/test_picking.py`
-(`TestThePickIndexPairsWithItsDocument`, five rows including the premise
-that the twin's tables would have answered).
+`pair-rv` probe becomes `the_name_doors_refuse_a_twins_evaluation` (both
+doors, the shape assertion, and the premise asserted on the TWIN — its
+own index answers a full name set that is not the square's),
+`pick_face_refuses_a_target_of_another_document`, and
+`a_later_evaluation_of_the_same_document_is_admitted`, which now asserts
+what the later run ANSWERS: the same names slot for slot (a
+program-anchored name does not move when a parameter does — measured),
+and, when the same parameter is driven to a degenerate value, the call
+still admitted with every slot `NodeFailed`. Lane `nodepick-rv`'s five
+probes are adopted authorship-preserving and become rows:
+`the_memo_refuses_a_prior_of_another_document`,
+`the_pairing_refusal_wins_over_standing`,
+`a_raw_target_is_a_claim_in_every_half`,
+`the_pairing_arm_renders_both_documents` (both ids' `hex()`, as the
+`product` twin asserts) and `what_the_admitted_later_evaluation_answers`
+(the memo misses and rebuilds on the moved key, so a caller through
+`PickMemo` never pairs a stale index).
+
+Mutants: `mispairing -> None` reds five rows (two before the fix pass);
+the memo's document comparison -> `true` reds exactly one, where it red
+none before. Python mirrors in `crates/pncad-py/tests/test_picking.py`
+(`TestThePickIndexPairsWithItsDocument`), whose admitted row now edits
+the INDEXED node as the Rust row does.
 
 Not done here: `face_name` / `edge_name` / `vertex_name` (`resolve/hit.rs`)
 take a raw arena key beside the evaluation and carry no provenance at
 all, so there is no stamped value for `ident::mispaired` to run on —
-the raw-key class, not this one.
+the raw-key class, not this one. Not taken from the review: splitting
+`pick.rs` (a TINT-shaped row if anyone wants it) and a public
+`PickTarget::document()` accessor (no caller, and one would re-open the
+mint the private fields closed).
