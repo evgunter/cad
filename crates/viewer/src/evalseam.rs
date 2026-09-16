@@ -1513,19 +1513,42 @@ mod threaded {
             );
         }
 
+        /// The OTHER arm: a job the handle cannot hand over.
+        ///
+        /// **Reached here through [`Coalescing::close`], and the row
+        /// says so rather than pretending to a live race.** A submit
+        /// while the worker holds a job only replaces `waiting`, so
+        /// after a worker dies under its job the handle finds out
+        /// through `poll` — the row above — and the failed `send` is
+        /// left for two narrower cases: a worker that dies between
+        /// answering and the redispatch of a superseding job, and a
+        /// closed channel. Only the second is deterministic from
+        /// outside, and both run the same three lines. What is pinned
+        /// is that this arm records the fact as well as clearing the
+        /// flags, which is the half a reader would otherwise have to
+        /// take on trust from the other row.
         #[test]
-        fn a_send_that_cannot_reach_the_worker_reports_it_gone() {
-            let mut seam = dying();
-            // Never polled: this row is the OTHER arm, where the
-            // handle finds out by failing to hand a job over.
-            for _ in 0..NAPS {
-                seam.submit(Nothing);
-                if seam.worker_gone().is_some() {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(1));
-            }
-            assert_eq!(seam.worker_gone(), Some(WorkerGone::of(Worker::Fit)));
+        fn a_job_that_cannot_be_handed_over_records_the_worker_gone() {
+            let mut seam = Coalescing::<Nothing>::spawn(
+                Worker::Index,
+                "viewer-test-closed",
+                (),
+                |(), Nothing| {},
+            )
+            .expect("the worker starts");
+            assert_eq!(seam.worker_gone(), None, "a live worker");
+            seam.close();
+            assert_eq!(
+                seam.worker_gone(),
+                None,
+                "closing the channel is not itself the discovery",
+            );
+            seam.submit(Nothing);
+            assert_eq!(
+                seam.worker_gone(),
+                Some(WorkerGone::of(Worker::Index)),
+                "the job that could not be handed over is the discovery",
+            );
             assert!(!seam.busy(), "and no job is left looking outstanding");
         }
     }
