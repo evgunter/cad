@@ -2,7 +2,7 @@
 id: mesh
 kind: program
 title: S-MESH — mesh honesty and budget
-status: open
+status: closed
 opened: 2026-08-31
 area: kernel
 prefix: mesh/
@@ -10,6 +10,7 @@ tag: (S-MESH orchestrator)
 ab_band: 1200-1299
 paths: [crates/mesh/*, crates/topo/src/coherence.rs]
 keep_out: [props/quad.rs and patch_bound.rs and the area lanes and the tess-budget re-baseline are S-CERT's until its slate closes, S65 and D283-class questions are Ev's, demos/tour pins are Track X/G conventions (re-pin in the moving PR with what moved and why), the guide page docs/guide/meshing.md is LIB's, props/curved.rs seams go by coordination with S-BOOL and S-CERT]
+closed: 2026-09-16
 ---
 
 `crates/mesh`'s honesty: watertightness and guards (undeclared poles, the
