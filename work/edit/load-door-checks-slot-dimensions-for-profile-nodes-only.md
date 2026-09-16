@@ -2,10 +2,11 @@
 id: load-door-checks-slot-dimensions-for-profile-nodes-only
 kind: issue
 title: The load door re-spells the slot-dimension predicate and asks it of profile nodes only
-status: review
+status: closed
 pr: 2780
 branch: edit/one-predicate-round-three
 opened: 2026-09-16
+closed: 2026-09-16
 ---
 
 
@@ -185,3 +186,22 @@ beside it as a second node kind and a pattern's Count slot as a third
 (`rv_onepred3_probes::rv_a_retyped_pattern_count_is_refused_at_both_doors`,
 the review lane's). `m4_pr6_refusal`'s program row reads the new
 refusal.
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2780 with its two sibling rows, after one opus
+style review (APPROVE-WITH-FIXES: the MAJOR was the hand-written census
+undercounting again — the walk this PR added — and the fix pass made
+the census the code's: `persist::check::Walk` is iterated by
+`validate_document` and an exhaustive match places every
+`SnapshotError` arm on its walk, so a new arm or walk fails to compile
+until placed). The load door walks every node kind's slots and asks the
+parameter-table rule of slot expressions; the missing-expression case
+is an invariant asserted at the site, with `slots() ⊆ expr()` pinned
+over every node kind (which caught a placed union claiming a count slot
+it did not carry — fixed in-fence); the unreachable `CountContinuous`
+arm is gone; a document parameter's finiteness is one predicate naming
+the field at both doors; `set_slot` asks the same one comparison. Two
+disagreements argued with a measurement (the "does not ban" paragraph
+had moved, not vanished; the roster is load-bearing rather than beside
+the function). Residue in its own file:
+`load-door-does-not-check-payload-expression-param-refs` (measured).

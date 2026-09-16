@@ -2,11 +2,12 @@
 id: count-continuous-arm-is-shadowed-by-the-display-unit-walk
 kind: issue
 title: SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first
-status: review
+status: closed
 pr: 2780
 branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
+closed: 2026-09-16
 ---
 
 
@@ -86,3 +87,7 @@ door where it can fire.
 
 Outside EDIT's fence, mechanical: `crates/pncad-py/src/tags.rs` and
 `src/tests.rs` lose the tag word. LIB's files.
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2780; the record is on
+`load-door-checks-slot-dimensions-for-profile-nodes-only`'s `## Closed`.
