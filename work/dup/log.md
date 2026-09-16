@@ -280,3 +280,66 @@ them are general:
   lane's own new prism row does; it is now required to say so and to
   name the instrument it owes. The next lane must not inherit a
   confidence nobody earned.
+
+### Link 1's full review (2026-09-16) — mergeable, and the concern in the brief was real
+
+**Verdict: mergeable, no MAJOR.** All six falsification claims hold.
+Two were corrected in passing (the standing guard has five doors, not
+six — the sixth was in the throwaway probe only; and "reds only the
+new row" is true of the new file and false of the tree, where the two
+mutations red 23 and 4 rows respectively, mostly pre-existing). The
+reviewer re-ran both mutations rather than accepting the lane's word,
+and verified `geometric_cube`'s unchanged body by executing at both
+SHAs and hashing the dumps rather than by reading the PR.
+
+**The dispatch was wrong about the instrument and the reviewer said
+so.** The brief worried that asserting on `format!("{body:#?}")` would
+red on changes that mean nothing and train people to re-baseline. It
+will not: there is no stored baseline, the row compares five **live**
+dumps to each other in one process, so a new `Body` field or a `Debug`
+reformat moves all five sides identically. **A dispatch is a
+hypothesis and a reviewer correcting it is the lane working**, which is
+`reviewer-style-lane.md` §1's "the dispatch is a hypothesis" doing its
+job in the direction nobody plans for.
+
+**The Q1 concern the brief flagged was real, and the evidence is
+stronger than the suspicion.** `cube_ops` and `prism_z` are the same
+function — hand-traced at `n = 4`, operator for operator, down to the
+`f_bottom.he_plus` special case at `i == n-1` — and **`prism_z`'s doc
+has said so since `0765b4617`**. Link 1's justification for keeping
+both was *"`prism_z` can neither write into an existing body nor take a
+tilt map, which are the two things every `cube_into` call site uses"*,
+and both halves fail: the first describes a signature link 1 had just
+changed on the other function, and the second is factually wrong —
+three of four direct `cube_into` call sites take axis-aligned affine
+maps. **A justification written at the copy site by the author of the
+copy**, which is the shape only an outside reader catches, one level up
+from the instance the unit closed.
+
+**Inserted as link 1b, before link 2**, so the tolerance is threaded
+through one builder family rather than two. Not folded into link 1: the
+unification wants its own review, and link 1's guard is what makes it
+checkable — which is the argument for merging link 1 first rather than
+sending it back.
+
+**A row that fails the rule it was written to enforce.** The same lane
+filed `topo-prism-z-is-hand-written-again-in-four-places`, naming four
+re-writes of `prism_z`'s construction, all unmeasured, and offering
+*"`prism_z`'s own `cube_ops` treatment"* as the model for the fix.
+`cube_ops` is a **fifth member of that class** and the only one whose
+equality is proved. The row treats the instance as the model, so its
+census reads four when it is five and leaves out the one with a
+receipt. Worth keeping as a general shape: **when a unit's own output
+is an instance of a class the unit is filing, it is the member most
+likely to be left out**, because the author is looking at it as a
+solution.
+
+**Prose the unit shipped that hides its own residue.** `common/mod.rs`
+says "the Euler sequence **both** of this file's cube doors run" where
+the diff's own guard proves five run it, and three hand-written counts
+of one door set already disagree across two files in a single diff
+("three cube doors", "five box doors", six actual builders). Sent back
+with the rest of the prose corrections; the standing lesson is that a
+hand-written census that has gone stale is the defect rather than a
+description of it, so the instruction was to prefer not counting in
+prose at all over counting correctly.
