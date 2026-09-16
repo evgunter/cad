@@ -63,59 +63,74 @@ different friction with an overlapping cast: there the complaint is
 that a caller has to INVENT a name for an exact frame that needs no
 decision. Here the names are earned and the corpus cannot see them.
 
-## The question for Ev (2026-09-16)
+## The question for Ev (2026-09-16), as re-framed after his first reply
 
-Reading this row to schedule it turned up something the row did not
-know: **`docs/K-REPORT.md` states two different membership rules, and
-this row's own table follows the second one.** Separating them is what
-leaves a single question worth Ev's time.
+**The first version of this section asked the wrong question, and his
+reply is why.** It asked whether a test-support name is roster
+material, and divided the three names on *"reaches the sweep's
+corpus?"*. Ev: *"isn't everything that reaches the funnel dependent on
+our particular demos and tests?"*
 
-**The rule as written.** `docs/K-REPORT.md`'s "inventory method,
-restated" says a predicate name is in scope *"if it reaches the
-`geom_core::k_stats` funnel — `decide`, `decide_flagged` or
-`decide_invariant` — from anywhere **the sweep can execute**, however it
-is spelled at the call site."* By that sentence neither name above is
-roster material: the sweep cannot execute either one, which is this
-row's whole finding.
+**It is, entirely.** Every sample in the distribution comes from
+running our demos and tests — as true of `props_quad_converged` and
+every other rostered row as of these three. The corpus is the only
+thing that produces margins. So that column cannot be the membership
+axis: it divides the corpus, not the names, and makes the roster a
+property of what we ran last.
 
-**The rule as practised**, in the same document, in the
-`chart_bound_*` paragraph: *"`chart_boundary` has no shipped caller
-until the clearance seam lands, so a `k_probe_sweep.sh` CSV taken at
-this merge carries no `chart_bound_*` row — **the roster's code half
-reaches them and its behavioural half does not**."* That is a two-half
-model: the roster records what the code reaches, and says separately
-what today's corpus samples. The frame-mint table's third column
-(*"reaches the sweep's corpus?"*) is that model, already applied to
-both names here.
+### What does divide them, and it is not corpus-relative
 
-**What does not need Ev.** Making the stated rule say what the document
-already practises is a reconciliation of two sentences against a
-precedent in the same document, and `docs/DESIGN.md`'s companion table
-carries `docs/K-REPORT.md` as **Reference**, not Ratified. That half
-lands with this unit and does not wait.
+The tree states it at both sites. `crates/pncad-py/src/py/doc.rs`, on
+the constant itself: the name is *"the binding's own seat, because the
+pair reaches it **from a user's Python call** and not from a datum or
+from the evaluation layer."* And `crates/sweep/src/lib.rs`:
 
-**What does.** `tour_frame_axis` is a DEMO's name, rostered and
-sampled. `sketch_plane_frame_norm` is PRODUCTION, rostered and
-unsampled — plainly roster material under either reading, and the
-honest fix is the coverage note or a corpus that reaches the binding.
-`fixture_frame_axis` is neither: it is `crates/sweep/src/test_support.rs`,
-**test scaffolding**, rostered today and reachable only if a rostered
-probe module builds a fixture plane off the world axes, which none
-does. So:
+```rust
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
+```
 
-**Is a test-support name roster material at all?**
+| name | who can ask for the decision | in a default build? |
+|---|---|---|
+| `sketch_plane_frame_norm` | a user's Python call | **yes** — ships on the binding's value road |
+| `tour_frame_axis` | the tour's authored planes | no, but the demo goes through the public doors as a user would |
+| `fixture_frame_axis` | our test harness only | **no** — gated and `doc(hidden)` |
 
-- **(a) Keep it.** The roster records every name that reaches the funnel
-  from any code that compiles, scaffolding included, and the coverage
-  column carries the rest. This is today's state, and it needs no edit
-  beyond the reconciliation above. It also means the roster's size is
-  partly a fact about the test suite.
-- **(b) Retire it.** The roster is about the kernel's shipped decisions,
-  so a name only a fixture can mint leaves the table with a line saying
-  why. This makes the roster a claim about the product, and costs a
-  sentence of explanation at the seam each time a fixture mints a name.
+`fixture_frame_axis` is not a name the corpus happens not to reach. It
+is a name **nothing outside a test build can reach at all** — a
+different kind of fact from `sketch_plane_frame_norm`, where a shipped
+door decides two lengths per call and no sweep watches.
 
-Both are defensible and neither dominates, which is why it is here
-rather than settled in the unit. The rest of the unit — the coverage
-honesty for `sketch_plane_frame_norm`, and the reconciliation — lands
-either way and does not wait on the answer.
+### The question, restated
+
+**What is the roster a record OF?**
+
+- **(a) Decisions the kernel can be asked to make.** The `cfg` gate
+  decides: `fixture_frame_axis` leaves, `sketch_plane_frame_norm` stays
+  and its missing coverage is the finding, and the roster is a claim
+  about the product that does not move when we change what we run.
+- **(b) Decisions our corpus did make.** Sampling is the only
+  criterion; `fixture_frame_axis` and `sketch_plane_frame_norm` are
+  both out today and return when something exercises them — and the
+  roster's size becomes a fact about the test suite, which is what Ev's
+  question exposes.
+
+**This program recommends (a)**: under (b) the roster is re-derivable
+only by running everything, and a reader cannot tell *"we do not decide
+this"* from *"we did not run it this week"*. Ev's call.
+
+### The inconsistency this exposes, which is bigger than the one name
+
+`docs/K-REPORT.md` currently practises neither cleanly. The
+`chart_bound_*` paragraph — *"the roster's code half reaches them and
+its behavioural half does not"* — is **(a)** with a coverage column.
+The stated rule in "the inventory method, restated" — in scope *"if it
+reaches the funnel from anywhere **the sweep can execute**"* — is
+**(b)**. Whichever way the ruling goes, one of those two sentences is
+wrong and has to follow it.
+
+### Not blocked
+
+Unit 16 is late in lane C, and the coverage-honesty half for
+`sketch_plane_frame_norm` lands under either answer.
