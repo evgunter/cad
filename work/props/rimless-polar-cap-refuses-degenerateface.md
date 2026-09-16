@@ -82,10 +82,35 @@ one rim into two rim-only caps weighs `4π/3`.
 level whose traversals disagree name two opposite poles, so nothing is
 pushed (`rims_at_one_level_with_opposite_traversals_stay_degenerate`).
 
+**A pole is interior only to a rim that CLOSES.** Found by the dual
+review (R1's `probe_c1b_partial_and_doubled_rims`, PR 2741): the fold
+reads a traversal DIRECTION, which says nothing about how far the rim
+goes, and no other premise on the arm was watching either. Until
+`props_rim_only_closed` was added — `(Δu − τ)·R`, the arc the rim fails
+to close by — half a rim answered half the cap's area, a quarter a
+quarter, the same full rim stated twice double, and a full rim plus a
+half arc 1.5×. Each was a `DegenerateFace` before the fold, so the
+first landing of this fix turned four typed refusals into wrong numbers
+at the public door; the row is
+`a_rim_only_cap_refuses_a_rim_that_does_not_close`.
+
 **The sibling checked, as the issue asked.** The cone apex cap refuses
-`DegenerateFace` by the same `lo == hi` path and is NOT served here:
-its missing extreme has no second candidate, so σ would decide whether
-the face is the cap or its unbounded complement, and `fn cone` takes no
-sense bit. Filed as `cone-apex-cap-refuses-degenerateface` with the
-measurement. The cylinder's rim-only face is genuinely extent-less and
-needs no lane.
+`DegenerateFace` by the same `lo == hi` path and is NOT served here.
+Filed as `cone-apex-cap-refuses-degenerateface` with the measurement
+and with the shape the fold would take. The cylinder's rim-only face is
+genuinely extent-less and needs no lane.
+
+## Correction to the imported text above
+
+The line *"The honest serving alternative today is the
+certified-quadrature lane at the cost of a `pad > 0` enclosure"* is
+**false**, and was when it was written. `topo::props`' per-face
+dispatch routes STRUCTURALLY on the carrier kind: only an
+`Ellipse`/`Nurbs`-trimmed boundary or a spline chart enters `quad(…)`,
+and a circle-bounded sphere face refused by `curved_face` is
+`map_err(wrap)?` — final, with no enclosure to fall back to. A face
+this lane refuses has no measuring path at all; what a caller can do is
+STATE it differently (split the notch out with a meridian). Found by
+the R2 review lane on PR 2741, which read the dispatch rather than the
+sentence; the same sentence stood in `require_iso_rectangle`'s docs and
+is corrected there too.

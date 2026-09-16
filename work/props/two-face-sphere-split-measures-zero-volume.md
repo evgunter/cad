@@ -75,10 +75,30 @@ refuses, each way round. The body-level rows are MESH's two,
 `mesh11_arc_branch::mass_properties_reports_the_interior_side_refusal_on_the_half_cap`
 and the re-aimed `mesh7r1_probes` row.
 
-**What could not be fixed with it.** `boundary_material_sign` — tier
-3's check 6 — consumes the same parse and would need σ to refuse this
-face, but σ needs `Face::sense` and that function deliberately does not
-read it: check 6 compares the boundary's encoding against the bit, so a
-derivation that read the bit would make the comparison a tautology. The
-rim-only cap it CAN answer honestly, and does: `MaterialSign::Unencoded`,
-the rimless band's second sibling.
+**What the gate can and cannot take.** `boundary_material_sign` — tier
+3's check 6 — consumes the same parse and cannot ask σ: σ needs
+`Face::sense`, and that function deliberately does not read it, because
+check 6 IS the comparison of the boundary's encoding against the bit.
+What it can ask, and now does, is the sense-free residue —
+`unanimous_rim_side`, *every rim encodes the same side* — which the
+dual review showed is not a tautology: on a face carrying a rim at `lo`
+and a rim at `hi` traversed the same way, the old first-rim read
+answered `Encoded(Positive)` or `Encoded(Negative)` according to which
+rim the loop walk handed over first, an anchor-relative ANSWER rather
+than an anchor-relative recorded verdict. The rim-only cap it answers
+`MaterialSign::Unencoded`. **This face is the residue**: the half-cap
+and its complement have ONE rim each, so unanimity has nothing to
+compare, and no sense-free derivation can separate them.
+
+**Classification, and the recourse there is not.** The complement is
+D2 addendum **row 2** — valid input, lane not built — which is what
+`require_rims_at_extremes`' own doc files `NotIsoRectangle` under. What
+row 2 usually costs is a `pad > 0` enclosure; here it costs the whole
+answer, because `topo::props`' dispatch routes structurally on the
+carrier kind and a circle-bounded sphere face never reaches the
+quadrature lane. A caller's recourse is to STATE the face as
+iso-rectangles — the three-face split of this same sphere measures
+`4π/3` exactly. The state this issue recorded for three months — an
+ADMITTED input answered wrongly — has no row in the addendum at all;
+that gap is filed as
+`d2-addendum-has-no-row-for-an-admitted-input-answered-wrongly`.

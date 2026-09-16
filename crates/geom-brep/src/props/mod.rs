@@ -106,7 +106,18 @@
 //! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
 //! because that is where the extent can be silent and where a face's
 //! complement shares its whole boundary; the linear kinds' rim-only
-//! faces have no extent to name at all. The total
+//! faces have no extent to name at all.
+//!
+//! **The SHAPE DOOR asks only the first of the two**, and that is a
+//! divergence rather than an oversight: σ reads the face's sense bit
+//! and [`require_iso_rectangle`] is handed a surface and a loop, with
+//! no face, so that it answers a question about the boundary alone.
+//! The executed case is issue 1598's L-shaped complement — `Ok(())`
+//! from the door, `NotIsoRectangle { what: "props_rim_interior_side" }`
+//! from the flux lane, on one face. The door's own docs say what a
+//! consumer that needs the stronger premise reads instead, and the
+//! sense-free residue it could take is
+//! `work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per

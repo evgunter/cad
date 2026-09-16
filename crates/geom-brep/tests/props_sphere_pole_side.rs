@@ -128,6 +128,59 @@ fn a_rim_only_cap_stated_as_three_arcs_measures_the_same() {
     );
 }
 
+/// **A pole is interior to a rim only if the rim CLOSES around it.**
+///
+/// Adopted from the R1 review lane's `probe_c1b_partial_and_doubled_rims`
+/// (PR 2741's dual), which is what found this: the fold reads a
+/// traversal DIRECTION, which says which side of the rim the material
+/// is on and nothing about how far the rim goes, and nothing else on
+/// the arm was watching either — the levels hold one latitude however
+/// much of it the boundary states, `props_rim_level` places a rim at an
+/// extreme whatever its span, and `du_of_rims` sums a group's spans
+/// without comparing the sum to a whole turn. So four shapes that were
+/// `DegenerateFace` before the fold answered a definite AREA through
+/// this door: half a rim at half the cap's, a quarter at a quarter, the
+/// same full rim stated twice at double, and a full rim plus a half arc
+/// at 1.5×. `props_rim_only_closed` decides `(Δu − τ)·R`, the arc the
+/// rim fails to close by, and each of them refuses by that name.
+#[test]
+fn a_rim_only_cap_refuses_a_rim_that_does_not_close() {
+    let v0 = 0.5_f64;
+    let cap = TAU * RS * RS * (1.0 - v0.sin());
+    let mut answered = Vec::new();
+    for (name, edges) in [
+        ("half a rim only (du = pi)", vec![rim(v0, 0.0, PI, 0, 1)]),
+        ("quarter rim only", vec![rim(v0, 0.0, PI / 2.0, 0, 1)]),
+        (
+            "the same full rim stated twice",
+            vec![rim(v0, 0.0, TAU, 0, 0), rim(v0, 0.0, TAU, 0, 0)],
+        ),
+        (
+            "full rim + an extra half arc, same direction",
+            vec![rim(v0, 0.0, TAU, 0, 0), rim(v0, 0.0, PI, 0, 1)],
+        ),
+    ] {
+        match curved_face(&sphere(), &edges, true, band()) {
+            Ok(fc) => {
+                println!(
+                    "  {name:<44} ACCEPT area={:.15e} (whole cap {cap:.15e}, ratio {:.4})",
+                    fc.area,
+                    fc.area / cap
+                );
+                answered.push(name);
+            }
+            Err(e) => println!("  {name:<44} REFUSE {e:?}"),
+        }
+    }
+    assert!(
+        answered.is_empty(),
+        "a rim that does not close bounds no cap, and these answered an area: {answered:?}"
+    );
+    // The closed rim, stated as one arc or as three, is what the fold
+    // is for — the refusal above must not have cost it.
+    measures_outward("the closed rim", &[rim(v0, 0.0, TAU, 0, 0)], cap);
+}
+
 /// **The true zero-extent patch keeps `DegenerateFace`** — the M2
 /// verdict this unit must not spend. Two rims at ONE level traversed
 /// opposite ways point at opposite poles, so there is no pole the face
@@ -232,6 +285,112 @@ fn the_l_shaped_complement_refuses_by_its_own_name() {
     }
 }
 
+/// **The gate answers an EXEMPTION where the rims contradict each
+/// other, instead of whichever rim came first.**
+///
+/// Adopted from R2's `r2_staircase_face` and R1's
+/// `probe_c5_contradictory_two_rim_face` (PR 2741's dual). The
+/// staircase is a closed simple curve — rim at `lo` over `[0, π]` `+u`,
+/// a meridian up, rim at `hi` over `[π, 2π]` `+u`, a meridian down —
+/// whose left region is the half-zone PLUS the whole cap above `hi`.
+/// Every OLD premise passed it: both rims sit at an extreme, and the
+/// two (level, direction) groups sum to the same `Δu = π`. The closed
+/// form answered `R²π(sin hi − sin lo)` for it, 57% of the truth, with
+/// `pad = 0`.
+///
+/// `props_rim_interior_side` refuses the flux lane's answer. What this
+/// row is about is the OTHER lane: `boundary_material_sign` reads no
+/// sense bit, so it cannot ask σ — but "every rim encodes the same
+/// side" needs no bit and is not a tautology, and without it the gate
+/// answered a DEFINITE ±1 whose value was `Positive` with the lower rim
+/// first and `Negative` with the upper rim first. Not a recorded
+/// verdict that moves under a re-anchoring: an ANSWER that does, which
+/// is the precise failure `linear_rim_side`'s own docs say the paired
+/// premise exists to prevent.
+#[test]
+fn the_gate_exempts_a_face_whose_rims_encode_different_sides() {
+    let (lo, hi) = (-0.3_f64, 0.5_f64);
+    let stair = vec![
+        rim(lo, 0.0, PI, 0, 1),
+        great(PI, lo, hi, 1, 2),
+        rim(hi, PI, TAU, 2, 3),
+        great(0.0, hi, lo, 3, 0),
+    ];
+    let true_area = RS * RS * PI * (hi.sin() - lo.sin()) + TAU * RS * RS * (1.0 - hi.sin());
+    for k in 0..stair.len() {
+        let e: Vec<LoopEdge<f64>> = (0..stair.len())
+            .map(|i| stair[(i + k) % stair.len()].clone())
+            .collect();
+        let flux = curved_face(&sphere(), &e, true, band());
+        let gate = boundary_material_sign(&sphere(), &e, band());
+        println!("  staircase k={k}: flux {flux:?} gate {gate:?} (true area {true_area:.6e})");
+        assert!(
+            matches!(
+                flux,
+                Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_interior_side"
+                })
+            ),
+            "k={k}: the flux lane refuses the notch: {flux:?}"
+        );
+        assert!(
+            matches!(
+                gate,
+                Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_side"
+                })
+            ),
+            "k={k}: the gate exempts rather than answering: {gate:?}"
+        );
+    }
+    // Two full rims traversed the SAME way — R1's shape, no meridian to
+    // carry the notch — reads the same way round.
+    for e in [
+        vec![rim(lo, 0.0, TAU, 0, 0), rim(hi, 0.0, TAU, 1, 1)],
+        vec![rim(hi, 0.0, TAU, 1, 1), rim(lo, 0.0, TAU, 0, 0)],
+    ] {
+        assert!(matches!(
+            boundary_material_sign(&sphere(), &e, band()),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_side"
+            })
+        ));
+    }
+    // And the consistent zone still ANSWERS, the same sign either way
+    // round: unanimity is a property of the set.
+    for e in [
+        vec![rim(lo, 0.0, TAU, 0, 0), rim(hi, TAU, 0.0, 1, 1)],
+        vec![rim(hi, TAU, 0.0, 1, 1), rim(lo, 0.0, TAU, 0, 0)],
+    ] {
+        assert_eq!(
+            boundary_material_sign(&sphere(), &e, band()),
+            Ok(MaterialSign::Encoded(geom_core::Sign::Positive))
+        );
+    }
+}
+
+/// **The one shape no sense-free gate can see**, adopted from R2's
+/// `r2_c5_gate_on_the_l_shape` and kept as this unit's recorded
+/// residue. The half-cap and its L-shaped complement are the same two
+/// edges traversed opposite ways, each with ONE rim, so there is
+/// nothing for unanimity to compare and the gate answers a definite —
+/// and for the complement, wrong — side. Only σ separates them, and σ
+/// is the traversal under the face's sense bit, which is the very
+/// thing tier 3's check 6 compares the gate's answer TO. The flux
+/// lane's refusal is what reports this face.
+#[test]
+fn the_gate_cannot_see_the_l_shaped_complement() {
+    let v0 = 0.5_f64;
+    assert_eq!(
+        boundary_material_sign(&sphere(), &half_cap(v0, true), band()),
+        Ok(MaterialSign::Encoded(geom_core::Sign::Positive))
+    );
+    assert_eq!(
+        boundary_material_sign(&sphere(), &half_cap(v0, false), band()),
+        Ok(MaterialSign::Encoded(geom_core::Sign::Negative))
+    );
+}
+
 // ---------------------------------------------------------------------
 // The recorded sign is a face fact
 // ---------------------------------------------------------------------
@@ -321,12 +480,51 @@ fn the_interior_side_verdicts_are_a_face_fact_under_re_anchoring() {
     assert_eq!(signs_of(&zone(true), "props_rim_side"), ["Negative"]);
 }
 
+/// **The recorded population is a face fact on a REFUSING face too.**
+///
+/// Adopted from R1's `probe_c4_recorded_population_on_a_refusing_face`
+/// (PR 2741's dual), which found a fresh instance of the class the
+/// spec's own amendment is about: `require_rim_interior_sides` returned
+/// at the first rim that pointed out, so a face with one agreeing rim
+/// and one refusing rim recorded TWO verdicts anchored one way and ONE
+/// anchored the other — each sign a face fact, the multiset not. Every
+/// rim is decided before any refusal is returned now.
+#[test]
+fn the_refusing_faces_verdicts_are_a_face_fact_too() {
+    let lo_ok = rim(-0.3, 0.0, TAU, 0, 0); // at lo, σ = +1 -> Positive
+    let hi_bad = rim(0.5, 0.0, TAU, 1, 1); // at hi, σ = +1 -> Negative
+    let first = signs_of(&[lo_ok.clone(), hi_bad.clone()], "props_rim_interior_side");
+    let second = signs_of(&[hi_bad.clone(), lo_ok.clone()], "props_rim_interior_side");
+    println!("  lo-first {first:?} / hi-first {second:?}");
+    assert_eq!(first.len(), 2, "every rim is decided: {first:?}");
+    let (mut a, mut b) = (first, second);
+    a.sort();
+    b.sort();
+    assert_eq!(
+        a, b,
+        "the same face records the same verdicts either way round"
+    );
+    // And it still refuses, by the name, either way round.
+    for e in [vec![lo_ok.clone(), hi_bad.clone()], vec![hi_bad, lo_ok]] {
+        assert!(matches!(
+            curved_face(&sphere(), &e, true, band()),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_interior_side"
+            })
+        ));
+    }
+}
+
 /// **The rim-only cap's own verdicts, named.** The fold decides
-/// `props_rim_only_extent` once per meridian-free rim boundary and
-/// `props_rim_interior_side` once per rim — no new tolerance is read
-/// anywhere (σ is a product of two discrete signs, and the two margins
-/// above are `require_extent`'s comparand and `props_rim_side`'s, at
-/// their own levers).
+/// `props_rim_only_extent` once per meridian-free rim boundary,
+/// `props_rim_interior_side` once per rim, and `props_rim_only_closed`
+/// once per folded pole. No new COMPARAND is read anywhere: σ is a
+/// product of two discrete signs, `props_rim_only_extent` is
+/// `require_extent`'s own sphere margin asked one step earlier (hence
+/// the two records here), `props_rim_interior_side` is
+/// `props_rim_side`'s pointed by σ, and `props_rim_only_closed` is the
+/// `Δu` angle at the azimuthal arm `props_du_consistent` already
+/// meters.
 #[test]
 fn the_rim_only_cap_records_its_two_named_decides() {
     let got = verdict_multiset(&[rim(0.5, 0.0, TAU, 0, 0)]);
@@ -338,6 +536,7 @@ fn the_rim_only_cap_records_its_two_named_decides() {
         ("props_rim_fit Zero", 1),
         ("props_rim_interior_side Positive", 1),
         ("props_rim_level Zero", 1),
+        ("props_rim_only_closed Zero", 1),
         ("props_rim_only_extent Zero", 1),
         ("props_rim_side Positive", 1),
     ]

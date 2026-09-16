@@ -327,17 +327,23 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **The pip caps measure through the CLOSED FORM** — the lane that
-/// answers for a rim-only spherical cap, read at the die.
+/// **The pip caps measure through the CLOSED FORM, and were never the
+/// rim-only shape** — measured, because the interior-side unit's spec
+/// assumed otherwise.
 ///
-/// Each pip leaves one sphere face bounded by one circular rim and
-/// nothing else, with the pole interior to it. That face's levels hold
-/// one latitude, so before the interior-side fold the closed form
-/// refused it `DegenerateFace` and whatever served the body served it
-/// with an enclosure. What this row pins is which lane answers now:
-/// every pad is exactly zero, so the 21 caps are measured by
-/// `R²·Δu·(sin v_hi − sin v_lo)` and the volume is a closed form end
-/// to end, not a bracket whose midpoint happens to land.
+/// A pip is a `revolve`d ball, so its surface carries a SEAM meridian
+/// from pole to pole; the cap face the cut leaves is bounded by the
+/// intersection rim AND that seam, and the seam's span-derived pole
+/// extreme is in its levels. It is therefore an ordinary rim-plus-
+/// meridian face, not the rim-only cap of issue 1250, and it took the
+/// closed form before that issue was served and takes it after: this
+/// body reads `volume_pad = 0` on both sides of the fold. What this
+/// row pins is that it stays there — every pad exactly zero, the 21
+/// caps measured by `R²·Δu·(sin v_hi − sin v_lo)` and the volume a
+/// closed form end to end rather than a bracket whose midpoint happens
+/// to land. The rim-only cap's own public-door evidence is
+/// `topo/tests/props_sphere_cap_door.rs`, which builds the shape the
+/// die does not have.
 #[test]
 fn the_pip_caps_measure_through_the_closed_form() {
     let pipped = subtract(&cube(DIE_L, Tol::witness()), &pip_tool());
