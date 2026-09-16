@@ -273,7 +273,10 @@ fn r2_the_l_shaped_complement_at_the_predicate() {
     assert_eq!(require_iso_rectangle(&sphere(), &ell, bd), Ok(()));
     let fc_cap = curved_face(&sphere(), &cap, true, bd).expect("cap");
     let fc_ell = curved_face(&sphere(), &ell, true, bd);
-    println!("R2-L cap flux={} area={} | L {fc_ell:?}", fc_cap.flux, fc_cap.area);
+    println!(
+        "R2-L cap flux={} area={} | L {fc_ell:?}",
+        fc_cap.flux, fc_cap.area
+    );
     assert!(
         matches!(
             fc_ell,

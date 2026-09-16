@@ -2,7 +2,9 @@
 id: rim-stores-its-traversal-direction-twice
 kind: issue
 title: Rim stores the traversal direction twice (d_u: T and d_u_sign: Sign) and du_of_rims compares the exact one through the tolerance funnel
-status: open
+status: review
+pr: 2741
+branch: props/sphere-pole-side
 opened: 2026-09-11
 refs: [877, S40]
 ---
@@ -42,3 +44,26 @@ claims it, and "which representation is authoritative" is a call about
 this program's own data, not a ruling to escalate. Worth reading beside
 its sibling `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`
 — both are `props/curved.rs` and both came off `S40`.
+
+## Answered (PROPS sphere-pole-side, 2026-09-15)
+
+**`d_u_sign` is authoritative; the `T` copy is gone.** The design call
+the row left open is settled by what the direction IS: a definite
+`Sign`, minted by `rim_dir` from a definite `props_circle_axis_class`
+outcome and the stored traversal bool, both discrete at origin. There
+is nothing for a scalar image to say that the sign does not, and the
+one consumer that used it — `du_of_rims`' group key — was banding a
+difference of two values that are `±1` by construction, so it compares
+`rim.d_u_sign == g.1` now. `props_rim_dir_group` forms no margin, reaches
+no funnel site, and is retired from `docs/predicate-dimension-audit.md`
+(its note **N2** with it).
+
+The unit that could retire it is this one because
+`props_rim_interior_side` reads the same field for σ: the direction had
+to be settled before a second predicate was built on it.
+
+Moved with it: `voided_rod`'s recorded verdict multiset loses
+`("props_rim_dir_group Positive", 2)`, and the three
+`shell-census-digest/eps-*.txt` rows move on that body's channel alone,
+`verdicts n=40 h=c40da6c25f7ffe61` → `verdicts n=38 h=30974de0c3cd1571`,
+identically at every ε. Every reading is bitwise unchanged.

@@ -2,7 +2,9 @@
 id: two-face-sphere-split-measures-zero-volume
 kind: issue
 title: "props: a closed sphere split into two faces by the same two meridian arcs measures volume 0.0 — one parse hands both faces the same levels"
-status: open
+status: review
+pr: 2741
+branch: props/sphere-pole-side
 opened: 2026-09-02
 github: 1598
 refs: [723, 1571, 1565]
@@ -45,3 +47,38 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Refused typed (PROPS sphere-pole-side, 2026-09-15)
+
+The two faces parse to the same levels because a level says a latitude
+and never says which side of it the material is on. The half-cap's rim
+sits at `lo` with its interior above; the complement's sits at `lo`
+with its interior BELOW, all the way to the south pole, so the chart
+rectangle the levels fold is not its domain.
+`require_rim_interior_sides` decides that per rim — σ must point INTO
+`[lo, hi]` from where the rim sits — and the complement refuses
+`NotIsoRectangle { what: "props_rim_interior_side" }`.
+
+Face A is unmoved: it still measures `πR²(1 − sin v₀)` exactly, which
+is why the branch door could not be the fix (citing it from
+`curved_face` would have retracted CERT-1's three pole rows, and those
+are green). The closed sphere now reports the refusal naming the
+complement instead of `Ok { volume: 0.0 }`, and the three-face split of
+the same sphere measures `4π/3`.
+
+A row per traversal direction, as this issue asked, in
+`crates/geom-brep/tests/props_sphere_pole_side.rs`'s
+`the_l_shaped_complement_refuses_by_its_own_name`: which of the two
+faces is the cap is the SENSE bit's to say, so the row runs the pair
+under both bits and pins that the measuring one measures and the other
+refuses, each way round. The body-level rows are MESH's two,
+`mesh11_arc_branch::mass_properties_reports_the_interior_side_refusal_on_the_half_cap`
+and the re-aimed `mesh7r1_probes` row.
+
+**What could not be fixed with it.** `boundary_material_sign` — tier
+3's check 6 — consumes the same parse and would need σ to refuse this
+face, but σ needs `Face::sense` and that function deliberately does not
+read it: check 6 compares the boundary's encoding against the bit, so a
+derivation that read the bit would make the comparison a tautology. The
+rim-only cap it CAN answer honestly, and does: `MaterialSign::Unencoded`,
+the rimless band's second sibling.

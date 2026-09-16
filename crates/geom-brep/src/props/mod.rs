@@ -91,7 +91,22 @@
 //!
 //! **The rectangle itself is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
-//! sits at one of the face's two extreme `v`-levels*. The total
+//! sits at one of the face's two extreme `v`-levels*.
+//!
+//! On the sphere it is one of TWO, and the second is about the same
+//! `[lo, hi]` from the other side: *every rim's interior side points
+//! INTO the extent*, `curved::require_rim_interior_sides`
+//! (`props_rim_interior_side`). A level says a latitude the boundary
+//! touches and never says which side of it the material is on, so the
+//! two faces a rim separates fold the same levels; what tells them
+//! apart is the rim's own traversal under the face's sense bit
+//! (`curved::rim_interior_side`). Where the levels are silent
+//! altogether — a rim-only polar cap — that traversal supplies the
+//! missing extreme instead of refusing the face
+//! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
+//! because that is where the extent can be silent and where a face's
+//! complement shares its whole boundary; the linear kinds' rim-only
+//! faces have no extent to name at all. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per

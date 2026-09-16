@@ -109,10 +109,7 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
         .unwrap();
     let s_seed = body.get_face(seed.face).unwrap().surface;
     let s_made = body.get_face(made.face).unwrap().surface;
-    for (edge, witness) in [
-        (e_rim.edge, p3(0.0, r, z)),
-        (made.edge, p3(0.0, -r, z)),
-    ] {
+    for (edge, witness) in [(e_rim.edge, p3(0.0, r, z)), (made.edge, p3(0.0, -r, z))] {
         if transverse {
             let curve = body.get_edge(edge).unwrap().curve;
             let spec = body

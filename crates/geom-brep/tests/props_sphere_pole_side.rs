@@ -28,9 +28,7 @@ use crate::shared::surf;
 use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::{Curve3, Surface};
-use geom_brep::props::{
-    LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face,
-};
+use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
 
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
