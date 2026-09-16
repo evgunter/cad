@@ -512,6 +512,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
         EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
         EditError::DocParamCountHasNoUnit { .. } => "doc_param_count_has_no_unit",
+        EditError::DocParamCountHasNoDistribution { .. } => "doc_param_count_has_no_distribution",
         EditError::DocParamUnitMismatch { .. } => "doc_param_unit_mismatch",
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
@@ -1101,6 +1102,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DocParamNotDeclared { .. } => None,
         EditError::DocParamValueKindMismatch { .. } => None,
         EditError::DocParamCountHasNoUnit { .. } => None,
+        EditError::DocParamCountHasNoDistribution { .. } => None,
         EditError::DocParamUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
@@ -2313,6 +2315,14 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
 /// `node_not_evaluated` from a frame read should not have to learn a
 /// second word for it at the pick.
 ///
+/// `evaluation_of_another_document` is DI3's pairing refusal, the
+/// same word the gather, the checks and the name-level edit door
+/// already answer with: one fact — the index and the evaluation are
+/// of two documents — so a caller that branches on it at one door
+/// branches on it here. Its payload is two `DocumentId`s, which the
+/// four projected fields do not carry and the message states, the
+/// `product` door's convention.
+///
 /// `unnamed` is the BUG arm (spec D4): the node evaluated and the
 /// entity has no name in its table. Its payload is an `EntityRef`,
 /// which is an arena key plus a body index — the key does not cross
@@ -2324,6 +2334,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
         HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
         HitTestError::NodeFailed { .. } => "node_failed",
         HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         HitTestError::Unnamed { .. } => "unnamed",
     }
 }
@@ -2621,6 +2632,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",

@@ -637,7 +637,10 @@ fn assert_flat_reference(
     let names: Vec<Vec<Result<StableName, HitTestError>>> = index
         .parts()
         .iter()
-        .map(|part: &NodePick| part.patch_names(eval))
+        .map(|part: &NodePick| {
+            part.patch_names(eval)
+                .expect("the parts are of this evaluation")
+        })
         .collect();
     let mut ties = 0;
     for (i, ray) in rays.iter().enumerate() {
@@ -800,8 +803,8 @@ fn assert_same_picture(
         // by it — and the row that catches a served table whose
         // corners are no longer the mesh's.
         assert_eq!(
-            format!("{:?}", a.target().pick),
-            format!("{:?}", b.target().pick),
+            format!("{:?}", a.target()),
+            format!("{:?}", b.target()),
             "{name} after {step}: node {:?} body {} — the seam's index is not the fresh one, table for table and tree for tree",
             a.node(),
             a.body()

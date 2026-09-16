@@ -302,6 +302,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
             eval: &prior_ev,
         },
         loss,
+        Tol::witness(),
     );
     let Resolution::Failed(f) = r else {
         panic!("expected Failed, got {r:?}");

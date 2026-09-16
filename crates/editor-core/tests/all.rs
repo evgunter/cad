@@ -88,6 +88,12 @@ mod bool12r2_ec_probe;
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
+#[path = "bool7_shadow_exec.rs"]
+mod bool7_shadow_exec;
+#[path = "bool7r1_probes.rs"]
+mod bool7r1_probes;
+#[path = "bool7r2_probes.rs"]
+mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
@@ -126,6 +132,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_doc_param_distribution.rs"]
+mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
 #[path = "edit_pair_apply_names.rs"]

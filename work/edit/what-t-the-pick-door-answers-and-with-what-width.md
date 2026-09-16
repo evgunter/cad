@@ -4,7 +4,6 @@ kind: ruling
 title: what t the pick door answers for an admitted candidate, and with what width
 status: open
 opened: 2026-09-16
-needs_ev: true
 ---
 
 
@@ -145,3 +144,20 @@ closed stays and the 149 grazes remain the stated class.
 — Möller–Trumbore's `(a, e1, e2)` is not symmetric in the corners and
 the certified bound inherits that; it stays its own row unless the
 unit's measurement shows it vanish under the clamp.
+
+## RULED (Ev, on the `[ev]` PR #2764, 2026-09-16): the recommendation stands
+
+"Ok cool, sounds decided then." The four parts above are the ruling:
+(a) `ray_triangle` answers a `t` INTERVAL derived from the barycentrics'
+certified bounds through the projection, no factor chosen; (b) A
+precedes B when `t_hi(A) < t_lo(B)`, overlap is a certified tie; (c)
+the tie-break is the narrower interval first, then `(target position,
+flat position)` — the viewer's GPU id pass already picks what is
+displayed by construction, and this is what makes the kernel's ray
+path agree with it in the edge-on class instead of raising the two
+paths' disagreement; (d) the hit point is clamped into the closed
+triangle, and the box enters only as the traversal's early-out bound.
+Closed-vs-MEET is the unit's to measure under the acceptance written
+above. This row is now the unit (kernel unit, v6 dual, block EDIT-B1
+slot 2); the three rows parked on it unpark at its merge; the
+corner-labelling row stays its own.
