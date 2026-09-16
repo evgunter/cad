@@ -43,9 +43,7 @@ fn probe_nested_instance_overlap_at_three_prime() {
     // The containment arm DECIDES the nested pair: the box gate cannot
     // separate the extents, and the material test finds an inner
     // vertex strictly inside the outer's material — the typed
-    // interference, not an undecidable refusal. (This probe pinned the
-    // silent Ok(()) the R2 review found, then the union fix's
-    // `CensusUndecidable`; the material test retired that.)
+    // interference, not an undecidable refusal.
     println!("nested overlap verdict: {verdict:?}");
     let errs = verdict.expect_err("nested instance extents refuse loudly");
     assert!(

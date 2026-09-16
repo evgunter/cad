@@ -92,6 +92,12 @@ fn the_face(body: &Body<f64>, pick: impl Fn(Point3<f64>) -> bool) -> FaceKey {
 /// substring of the refusal's `what`, so each row names the verdict it
 /// means.
 fn containment_refused(errors: &[ValidationError], want: &str) -> bool {
+    any_solid_pair_undecidable(errors, |what| what.contains(want))
+}
+
+/// Does some `CensusUndecidable` name two SOLIDS with a `what` that
+/// satisfies `pick`? `|_| true` asks for any solid-pair refusal at all.
+fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) -> bool) -> bool {
     errors.iter().any(|e| {
         matches!(
             e,
@@ -99,7 +105,7 @@ fn containment_refused(errors: &[ValidationError], want: &str) -> bool {
                 a: EntityId::Solid(_),
                 b: EntityId::Solid(_),
                 what,
-            } if what.contains(want)
+            } if pick(what)
         )
     })
 }
@@ -187,7 +193,7 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
          not refuse it as undecidable: {errors:?}"
     );
     assert!(
-        !containment_refused(&errors, ""),
+        !any_solid_pair_undecidable(&errors, |_| true),
         "no undecidable verdict rides beside the decided one: {errors:?}"
     );
     // And the declaration did its own job: the four corner rests it

@@ -1345,21 +1345,23 @@ pub enum ValidationError {
     },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
-    /// DECIDED by the material test and not undecidable. The two
-    /// instances' boundaries carry no crossing (the exact sweeps and
-    /// the proximity backstop pushed none against either), so a vertex
-    /// strictly inside the container's material places the whole of
-    /// the contained instance's interior there (`census.rs` arm 2
-    /// states the argument). Recorded gate-skips — the declaration that
+    /// DECIDED by the material test and not undecidable. A vertex
+    /// strictly inside another instance's material is an overlap of
+    /// the two materials by itself (`census.rs` arm 2 states what the
+    /// arm probes and why). Recorded gate-skips — the declaration that
     /// would admit a deliberate interference — do not exist, so no
     /// record can answer for this finding.
     InstanceInterference {
-        /// The containing instance.
+        /// The instance whose material holds the witness. Nothing about
+        /// size or nesting is implied: the arm probes both instances'
+        /// vertices against the other's material, and a container's
+        /// own vertex inside the part it surrounds is reported with the
+        /// part as `outer`.
         outer: SolidKey,
-        /// The contained instance.
+        /// The instance that owns the witness.
         inner: SolidKey,
-        /// The contained instance's vertex found strictly inside the
-        /// container's material — the first in arena order.
+        /// `inner`'s first vertex in arena order found strictly inside
+        /// `outer`'s material.
         witness: VertexKey,
     },
     /// An entity holds a topology key that does not resolve in its arena.

@@ -214,11 +214,9 @@ fn undecidable_what(e: &ValidationError) -> Option<&'static str> {
     }
 }
 
-/// **The red-first row.** Declared, the L-bracket certifies: the part
-/// is inside the bracket's box and outside its material, and the
-/// material test says so (at the base this drew `CensusUndecidable
-/// { Solid, Solid, "one instance's extent box inside another's — the
-/// interference class (recorded gate-skips do not exist yet)" }`).
+/// Declared, the L-bracket certifies: the part is inside the bracket's
+/// box and outside its material, every vertex of each instance is
+/// outside-or-on the other, and the four declared rests are one-sided.
 #[test]
 fn the_declared_l_bracket_certifies() {
     let (body, records) = lbracket(true, 0.0);
@@ -230,9 +228,8 @@ fn the_declared_l_bracket_certifies() {
 
 /// Undeclared, the L-bracket refuses on its eight touch findings — the
 /// four resting corners and the four resting edges on the wall — and
-/// on NOTHING about placement: a touch leaves the arm's invariant
-/// intact, so the material test still runs and clears. (At the base:
-/// nine errors, the ninth the containment refusal.)
+/// on NOTHING about placement: each touch is a one-sided rest by the
+/// local side analysis, so the clear stands beside them.
 #[test]
 fn the_undeclared_l_bracket_carries_no_placement_finding() {
     let (body, _) = lbracket(false, 0.0);
@@ -270,9 +267,8 @@ fn the_undeclared_l_bracket_carries_no_placement_finding() {
 /// **The decided interference.** The embedded cube refuses as
 /// `InstanceInterference`, its witness the first inner vertex in arena
 /// order that is strictly inside — a top corner, the bottom four being
-/// ON the boundary and skipped. No undecidable verdict rides beside
-/// it, and no record is refuted (the loudness is the arm's own). At
-/// the base this drew the in-band `CensusUndecidable`.
+/// ON the boundary. No undecidable verdict rides beside it, and no
+/// record is refuted (the loudness is the arm's own).
 #[test]
 fn the_embedded_cube_is_a_decided_interference() {
     let (body, records) = embedded();
@@ -321,11 +317,10 @@ fn the_embedded_cube_decides_the_same_undeclared() {
     );
 }
 
-/// The cavity assembly clears: the part's first vertex is in the void
-/// — the closest hit from it is the void shell's face, whose material
-/// side faces away — so it is strictly outside the container's
-/// material. (At the base: "one instance's extent box inside
-/// another's".)
+/// The cavity assembly clears: every vertex of the part is in the void
+/// — the closest hit from each is the void shell's face, whose material
+/// side faces away — so strictly outside the container's material, and
+/// every vertex of the container is outside the part; no touch stands.
 #[test]
 fn a_part_in_a_cavity_clears() {
     assert_eq!(
@@ -334,8 +329,7 @@ fn a_part_in_a_cavity_clears() {
     );
 }
 
-/// The planar pocket clears. (At the base: "one instance's extent box
-/// inside another's".)
+/// The planar pocket clears on the same conditions.
 #[test]
 fn a_part_in_a_planar_pocket_clears() {
     assert_eq!(
@@ -345,11 +339,10 @@ fn a_part_in_a_planar_pocket_clears() {
 }
 
 /// An instance whose every vertex lies on the container's boundary is
-/// not a placement a witness decides: the typed refusal, beside the
+/// not a placement its vertices decide: the typed refusal, beside the
 /// sixteen touch findings, and never an interference verdict (the slab
 /// IS inside the cube's material, and the arm says it cannot tell —
-/// which is true of what it reads). At the base: the in-band
-/// `CensusUndecidable`.
+/// which is true of what it reads).
 #[test]
 fn every_vertex_on_the_boundary_refuses_typed() {
     let body = all_on_boundary();
@@ -368,12 +361,11 @@ fn every_vertex_on_the_boundary_refuses_typed() {
 /// **The witness at the band edge**: the part shifted off the wall by
 /// a distance inside the run's ambiguity band — within ε of the
 /// container's boundary, not on it. The vertex-face and edge-face
-/// sweeps escalate on the same residual first, an escalation names no
-/// entity, and the arm refuses the material test to a pair whose
-/// boundaries are not certified crossing-free — the typed in-band
-/// refusal, with no clear and no interference. `delta` is taken from
-/// the run's band, so the row is the same statement at every
-/// `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
+/// sweeps escalate on that residual, and the material test's own
+/// boundary pre-pass escalates on it too: the witness is refused typed
+/// ("escalated in band"), with no clear and no interference. `delta`
+/// is taken from the run's band, so the row is the same statement at
+/// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
 #[test]
 fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let tol = Tol::witness();
@@ -392,7 +384,7 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let placements = placement_findings(&errors);
     assert_eq!(placements.len(), 1, "{errors:?}");
     let what = undecidable_what(placements[0]).expect("the typed refusal");
-    assert!(what.contains("not certified crossing-free"), "{what}");
+    assert!(what.contains("escalated in band"), "{what}");
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
     let (body, _) = lbracket(false, 10.0 * band.escalate());
@@ -440,6 +432,86 @@ fn the_per_solid_door_answers_for_one_solid_of_the_arena() {
         ),
         Err(topo::PointInSolidError::NoSuchSolid { .. })
     ));
+}
+
+/// **A brick straddling the wall, split AT the wall.** The part spans
+/// `x ∈ [0, 2]` through the bracket's tall arm, `y ∈ [1.5, 2.5]`,
+/// `z ∈ [0.25, 0.75]`, built as a prism whose profile carries a vertex
+/// at `x = 1`: its four vertices at `x = 1` lie in the wall's region and
+/// its two vertical edges there lie in the wall, its four vertices at
+/// `x = 0` lie in the bracket's outer face, and its vertices at `x = 2`
+/// float in the concavity. No vertex of either instance is strictly
+/// inside the other, and nothing pierces: the wall is crossed AT the
+/// part's vertices and edges. The materials overlap in
+/// `[0, 1] × [1.5, 2.5] × [0.25, 0.75]`.
+fn split_straddle() -> (Body<f64>, ContactRecords) {
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let part = common::prism_z::<f64>(
+        &[
+            (0.0, 1.5),
+            (1.0, 1.5),
+            (2.0, 1.5),
+            (2.0, 2.5),
+            (1.0, 2.5),
+            (0.0, 2.5),
+        ],
+        0.25,
+        0.75,
+    );
+    let body = assembly(&l.body, &part.body);
+    // Every touch the sweeps report, declared as the v-on-f records it
+    // is: all true (each vertex IS in that face's region).
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
+        .expect_err("undeclared touches refuse");
+    let mut records = ContactRecords::default();
+    for e in &errors {
+        if let ValidationError::UndeclaredContact {
+            contact: CensusContact::VertexOnFace { vertex, face },
+            ..
+        } = e
+        {
+            records.b_on_a.push(VfContact {
+                vertex: *vertex,
+                face: *face,
+            });
+        }
+    }
+    assert_eq!(records.b_on_a.len(), 8, "{errors:?}");
+    (body, records)
+}
+
+/// **A mixed-side touch is a crossing at a lower-dimensional feature,
+/// and it BLOCKS.** At each vertex on the wall the part's edges leave
+/// the wall's plane to `x < 1` (the bracket's material) and to `x > 1`
+/// (the concavity); the vertical edges in the wall have their two
+/// adjacent faces on both sides. Undeclared, the sweeps report the
+/// touches and the side analysis refuses the clear typed; declared,
+/// the same analysis runs over the records and refuses the same way —
+/// a record certifies a coincidence, never a side. No interference is
+/// claimed (no vertex is inside) and nothing clears.
+#[test]
+fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
+    let (body, records) = split_straddle();
+    for (name, recs) in [
+        ("undeclared", ContactRecords::default()),
+        ("declared", records),
+    ] {
+        let errors = validate_pseudomanifold(&body, &recs, Tol::witness())
+            .unwrap_or_else(|_| panic!("{name}: the straddle must not certify"));
+        let placements = placement_findings(&errors);
+        assert_eq!(placements.len(), 1, "{name}: {errors:?}");
+        let what = undecidable_what(placements[0]).expect("the typed refusal");
+        assert!(
+            what.contains("crossing at a lower-dimensional feature"),
+            "{name}: {what}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "{name}: {errors:?}"
+        );
+    }
 }
 
 /// The L-bracket's far outer wall (`x = 0`, two metres from the part,

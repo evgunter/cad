@@ -50,19 +50,27 @@
 //!   can today be neither certified nor silently passed. One
 //!   instance's extent box inside another's (the nested-instance
 //!   class) is no longer refused on the box: the box is the GATE, and
-//!   the MATERIAL test decides — a vertex of the contained instance
-//!   probed against the container's material through the per-solid
-//!   point-in-solid door, strictly outside clearing (a part in a
-//!   concavity, a pocket, a cavity) and strictly inside refusing typed
-//!   as [`ValidationError::InstanceInterference`]; what the backstop
-//!   still refuses there is a witness the door cannot answer.
+//!   the MATERIAL test decides — every vertex of each instance probed
+//!   against the other's material through the per-solid point-in-solid
+//!   door, a vertex strictly inside refusing typed as
+//!   [`ValidationError::InstanceInterference`] and a pair whose
+//!   vertices all lie outside-or-on clearing only under the arm's
+//!   stated conditions (its header); what the backstop still refuses
+//!   there is a witness the door cannot answer, or a touch the side
+//!   analysis cannot read.
 //! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
-//!   curved pairs only (the backstop is cross-solid — a single
-//!   solid's own curved faces are its constructor's obligations).
-//!   Cross-solid pairs the reach filter CLEARS are cleared soundly
-//!   (the pads are sound bounds for the kinds that take the test),
-//!   so clearance is a genuine no-touch certificate, not a skip.
-//!   Named, not sampled.
+//!   curved pairs (the backstop is cross-solid — a single solid's own
+//!   curved faces are its constructor's obligations), and one
+//!   CROSS-solid class the gate lets through: two instances whose
+//!   materials partly overlap while their boundaries meet only in
+//!   touches — half-overlapping cubes sharing two extents — are
+//!   cleared at arm 2's extent gate (neither hull is inside the
+//!   other's reach), and no arm asks the partial-overlap question
+//!   (`work/bool/partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate.md`;
+//!   pinned by `bool4r2_probes`). Cross-solid pairs the reach filter
+//!   CLEARS are cleared soundly (the pads are sound bounds for the
+//!   kinds that take the test), so clearance is a genuine no-touch
+//!   certificate, not a skip. Named, not sampled.
 //!
 //! A record or candidate a certifier could not certify refuses
 //! [`ValidationError::CensusUnsupported`], never samples. The refusal
@@ -238,10 +246,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
-use crate::boolean::{
-    ContactRecords, ContainError, FaceContainment, PointInSolidError, SolidContainment, contfp,
-    point_in_solid_of,
-};
+use crate::boolean::{ContactRecords, ContainError, FaceContainment, SolidContainment, contfp};
 use crate::chart_region::ChartRegionError;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
@@ -2713,63 +2718,63 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 ///    contained side is a subset of its own locus, which is what makes
 ///    the box clear sound) — a nested placement makes no boundary
 ///    event at all (the reviewed nested-cube witness), so this arm is
-///    the only one that sees it. **The box is the GATE and the
-///    MATERIAL test is the verdict**: a definitely-negative margin on
-///    any axis clears the pair for free; every other pair — all six
-///    margins definitely positive, or some in band, as a flush face
-///    produces — has its contained instance's vertices probed, in
-///    arena order, against the containing instance's material through
-///    the per-solid point-in-solid door ([`point_in_solid_of`], at the
-///    run band, through that door's own predicates — no comparand of
-///    this arm's). The first vertex strictly `Out` clears the pair (a
-///    part in a concavity, a pocket, a cavity: inside the box, outside
-///    the material); strictly `In` is the decided interference
-///    [`ValidationError::InstanceInterference`]; `OnBoundary` is a
-///    coincidence — the confirm pass's business — and the next vertex
-///    is asked; a witness the door refuses (an escalation, ray
-///    exhaustion, a face kind it does not serve) and an instance whose
-///    every vertex lies on the container's boundary refuse as
-///    [`ValidationError::CensusUndecidable`], each naming its cause.
+///    the only one that sees it. **The box is the GATE and the MATERIAL
+///    test is the verdict.** A pair clears at the gate only when BOTH
+///    orderings separate — a definitely-negative extent margin on some
+///    axis each way. Otherwise the material test runs in BOTH orderings
+///    with no gate on either: every vertex of each instance is probed
+///    against the other's material through the per-solid point-in-solid
+///    door ([`point_in_solid_faces`], at the run band, through that
+///    door's own predicates — no comparand of this arm's), and:
+///    - any vertex strictly `In` the other's material ⇒
+///      [`ValidationError::InstanceInterference`] (`outer` holds the
+///      witness, `inner` owns it), whatever else stands;
+///    - a vertex the door refuses (escalation, ray exhaustion, a kind it
+///      does not serve, …) and no `In` ⇒ [`ValidationError::CensusUndecidable`]
+///      naming the cause; every vertex `OnBoundary` ⇒ the typed refusal;
+///    - both orderings "every vertex `Out` or `OnBoundary`, at least one
+///      `Out`" ⇒ the CLEAR, and only under the precondition below.
 ///
-///    **Why one witness decides a whole instance** (the invariant the
-///    clear rests on, stated once, here). Let `U` be the contained
-///    instance's open interior (connected), `M` the container's
-///    material and `S = ∂M`. A vertex strictly `Out` puts points of
-///    `U` beside it in the exterior of `M`. If `U` also met `M`, `U`
-///    being connected would meet `S`, and a shell of `S` meeting `U`
-///    either has points strictly on both sides of `∂U` — a CROSSING —
-///    or lies inside the closure of `U`: the NESTED case, the
-///    container sitting inside the contained instance. The census
-///    excludes the first by its own earlier work and this arm reads
-///    that off its state: every exact sweep and arm 1 have run before
-///    arm 2, and the precondition below refuses the material test to
-///    any pair against whose solids a crossing finding
-///    (`EdgeFacePierce`, an unbacked `EdgeEdgeCross`) or an
-///    unexaminable one (an escalation — which names no entity, so any
-///    escalation blocks every pair — an unsupported subject, arm 1's
-///    undecidable face pair) already stands; a TOUCH finding (a
-///    vertex on a vertex, edge or face, a collinear or in-face overlap,
-///    a conformal patch) puts no point of one boundary strictly across
-///    the other and leaves the invariant intact, declared or not. The
-///    nested case is refused by the REVERSE ordering of the same pair:
-///    the container's own hull is then inside the contained instance's
-///    reach box, and its witness lands strictly `In` (the typed
-///    interference) or every one of its vertices on the boundary (the
-///    typed refusal). So a pair clears only when BOTH orderings push
-///    nothing — the two-ordering loop below is load-bearing, not a
-///    symmetry nicety — and with a crossing excluded and nesting
-///    refused, `U` never meets `M`: the clear. Symmetrically, a vertex
-///    strictly `In` with no crossing places the whole of `U` in `M`.
+///    **Why the clear is sound on planar boundaries, and what it does
+///    not cover.** Every vertex of each instance is outside-or-on the
+///    other; the exact sweeps pushed no pierce (`EdgeFacePierce`) and
+///    no transverse edge cross (`EdgeEdgeCross`) against either solid;
+///    and every touch between the two is a REST by a local side
+///    analysis — for a vertex on a face, every edge of the vertex's
+///    solid at that vertex leaves the face's plane on one side (or
+///    lies in it); for an edge in a face, both faces adjacent to the
+///    edge lie on one side (or in it); each direction decided under
+///    the run band with the vertex-face sweep's own residual. Then no
+///    face of one instance dips into the other's material: a planar
+///    face that did would carry a vertex `In`, or an edge crossing the
+///    other's face transversally (a pierce), or an edge crossing one
+///    of its edges (an edge cross), or a crossing at a lower-dimensional
+///    feature — a vertex or an edge in the other's face with material
+///    leaving to both sides, which the side analysis reports as
+///    `Mixed`. The analysis reads undeclared touches from the standing
+///    findings and DECLARED ones from the records (the confirm pass
+///    certifies a record's coincidence, never its side). What is NOT
+///    covered, and blocks instead: a touch kind with no local analysis
+///    yet (a coincident vertex pair, a vertex on an edge, a collinear
+///    edge overlap, a conformal patch — each wants the dihedral wedge;
+///    `work/bool`'s item), a declared face-pair record between the two
+///    (it backs vertex events without a side), a direction the band
+///    cannot decide, any escalation standing (it names no entity), and
+///    anything a curved face takes part in — arm 1 refuses a
+///    cross-solid pair with a curved side within reach BEFORE this arm
+///    runs, and that refusal is a PRECONDITION of the clear for curved
+///    instances: vertices are a thin sample of a curved body, and this
+///    arm adds no curved witness scheme. The arm is conservative, never
+///    clever: what the analysis does not cover refuses typed.
 ///
-///    **Over-width in the containing reach box costs work, not an
-///    answer**: a solid genuinely outside whose margin is not
-///    definitely negative is sent to the material test instead of
-///    being cleared for free, and pays a probe per vertex (and can
-///    meet a witness escalation there). Each box rule claims exactly
-///    its construction and no more (`boxes`' ceiling rows pin that),
-///    so what is left is the looseness the rules THEMSELVES state — a
-///    whole ball for a sphere band, a full turn for an arc — not slack
-///    in the code.
+///    **Over-width in the containing reach box costs a probe per
+///    vertex** where it costs anything: a pair whose margins are not
+///    definitely negative is sent to the material test instead of being
+///    cleared for free. On planar-only pairs the reach box is the
+///    vertex hull, so the case is not reached; a reach box a curved
+///    face inflates belongs to a pair arm 1 refuses first
+///    (`bool4r1_probes::probe_d`). Each box rule claims exactly its
+///    construction (`boxes`' ceiling rows pin that).
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
 /// (`census_backstop_gap` — metre coordinate differences) and refuses
@@ -2831,11 +2836,10 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did until the deferral was removed. The
-/// vocabulary that
-/// WOULD license a skip here is C6's recorded gate-skips, which are a
-/// statement about placement and do not exist yet; when they do, the
-/// deferral they license is keyed on the gate-skip, not on contact.
+/// validates clean — which it did until the deferral was removed. What
+/// a recorded interference fit is, and what it may skip, is C6's
+/// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
+/// gate-skips are not implemented.
 #[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     body: &Body<T>,
@@ -2847,14 +2851,11 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
 ) {
-    use crate::entity::{FaceKey as FK, ShellKey, SolidKey};
+    use crate::entity::{FaceKey as FK, SolidKey};
     if body.solids().count() < 2 {
         return; // single-solid bodies have no cross-solid pairs
     }
-    let solid_of = |f: FK| -> Option<SolidKey> {
-        let shell: ShellKey = body.get_face(f)?.shell;
-        Some(body.get_shell(shell)?.solid)
-    };
+    let solid_of = |f: FK| -> Option<SolidKey> { body.solid_of_face(f) };
     // Every boundary vertex of `f` — outer loop and rings — exactly as
     // `snapshot` records them into `vertex_faces`; a loop this cannot
     // walk contributes none, and an empty set is disjoint from every
@@ -3191,11 +3192,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         let pts = face_points(f);
         // The CONTAINED side's hull, and it may be any subset of the
         // solid's locus (this arm's own comment below). A face that
-        // contributes no vertices shrinks the hull, which makes
-        // containment easier to claim and separation harder — the loud
-        // direction on both branches — so skipping it here is sound
-        // where the same skip in the `reaches` build above is not.
-        // Arm 1 has already refused the face itself.
+        // contributes no vertices shrinks the hull, which makes a
+        // definite separation harder to claim — so the pair is sent to
+        // the material test rather than cleared at the gate, the
+        // conservative direction — and the vertices it would have
+        // contributed are probed by the material test whether or not
+        // the hull saw them. Skipping it here is therefore sound where
+        // the same skip in the `reaches` build above is not. Arm 1 has
+        // already refused the face itself.
         let Some((lo, hi)) = hull(&pts) else { continue };
         solid_boxes
             .entry(solid)
@@ -3233,118 +3237,340 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     }
     let solids: Vec<_> = solid_boxes.iter().collect();
     // The findings standing when arm 2 begins: every exact sweep's, the
-    // conformal arm's and arm 1's. The invariant precondition reads
-    // this prefix and nothing arm 2 itself pushes — a placement verdict
-    // on one pair says nothing about another pair's boundaries.
+    // conformal arm's and arm 1's. The clear's precondition reads this
+    // prefix and nothing arm 2 itself pushes — a placement verdict on
+    // one pair says nothing about another pair's boundaries.
     let standing = errors.len();
-    // Entity → owning solid, for the precondition's "names this pair".
     let solid_of_entity = |id: EntityId| -> Option<SolidKey> {
-        let face_solid = |f: FK| solid_of(f);
         match id {
             EntityId::Solid(s) => Some(s),
             EntityId::Shell(s) => body.get_shell(s).map(|d| d.solid),
-            EntityId::Face(f) => face_solid(f),
-            EntityId::Loop(l) => body.get_loop(l).and_then(|d| face_solid(d.face)),
+            EntityId::Face(f) => body.solid_of_face(f),
+            EntityId::Loop(l) => body.get_loop(l).and_then(|d| body.solid_of_face(d.face)),
             EntityId::HalfEdge(h) => body
                 .half_edges
                 .get(h)
                 .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| face_solid(l.face)),
+                .and_then(|l| body.solid_of_face(l.face)),
             EntityId::Edge(e) => body
                 .edges
                 .get(e)
                 .and_then(|d| body.half_edges.get(d.he_plus))
                 .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| face_solid(l.face)),
+                .and_then(|l| body.solid_of_face(l.face)),
             EntityId::Vertex(v) => geo
                 .vertex_faces
                 .get(&v)
                 .and_then(|fs| fs.iter().next().copied())
-                .and_then(face_solid),
+                .and_then(|f| body.solid_of_face(f)),
         }
     };
-    // Does a standing finding void the invariant for the pair
-    // `(sa, sb)`? A crossing or an unexaminable finding naming an
-    // entity of either solid does; a touch does not (the header's
-    // argument). `CensusEscalated` names no entity and blocks every
-    // pair. Anything else standing here is not a finding the sweeps
-    // ahead of this arm push — the census is entered with tiers 1–3
-    // clean — and blocks conservatively rather than being read as a
-    // touch.
-    let blocks = |e: &ValidationError, sa: SolidKey, sb: SolidKey| -> bool {
-        let names = |ids: &[EntityId]| {
-            ids.iter()
-                .any(|&id| matches!(solid_of_entity(id), Some(s) if s == sa || s == sb))
+    let vertex_solid = |v: VertexKey| solid_of_entity(EntityId::Vertex(v));
+    // ---- The local side analysis of a touch (the clear's condition 3).
+    // Where a set of points lies relative to a planar face's carrier:
+    // every point in the plane, all off-plane points on one side, on
+    // both sides, or a residual the run band cannot decide. The
+    // residual is the vertex-face sweep's own (`pm_census_vf_residual`,
+    // metres) — no comparand of this arm's.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Side {
+        InPlane,
+        One,
+        Mixed,
+        InBand,
+        /// A curved face or edge takes part: the planar analysis does
+        /// not apply (arm 1's territory).
+        Unreadable,
+    }
+    let sides = |f: &FaceGeo<T>, pts: &[Point3<T>]| -> Side {
+        let mut seen: Option<Sign> = None;
+        for &p in pts {
+            let elev = (p - f.origin).dot(f.normal);
+            match decide("pm_census_vf_residual", Margin::of(elev), band) {
+                Err(_) => return Side::InBand,
+                Ok(Sign::Zero) => {}
+                Ok(s) => match seen {
+                    None => seen = Some(s),
+                    Some(t) if t == s => {}
+                    Some(_) => return Side::Mixed,
+                },
+            }
+        }
+        if seen.is_some() {
+            Side::One
+        } else {
+            Side::InPlane
+        }
+    };
+    // A vertex `v` resting in face `f`: every edge of `v`'s solid at
+    // `v` leaves `f`'s plane on one side (or lies in it). A curved face
+    // at `v`, or a face `f` outside the planar snapshot, is unreadable.
+    let vf_rest = |v: VertexKey, f: FK| -> Side {
+        let Some(plane) = planar_face(geo, f) else {
+            return Side::Unreadable;
         };
-        match e {
-            ValidationError::CensusEscalated { .. } => true,
-            ValidationError::UndeclaredContact { contact, .. } => match contact {
-                CensusContact::EdgeFacePierce { edge, face } => {
-                    names(&[EntityId::Edge(*edge), EntityId::Face(*face)])
+        if geo
+            .vertex_faces
+            .get(&v)
+            .is_some_and(|fs| fs.iter().any(|g| geo.curved_faces.contains(g)))
+        {
+            return Side::Unreadable;
+        }
+        let far: Vec<Point3<T>> = geo
+            .edges
+            .iter()
+            .filter_map(|e| {
+                let other = if e.v0 == v {
+                    e.v1
+                } else if e.v1 == v {
+                    e.v0
+                } else {
+                    return None;
+                };
+                geo.vmap.get(&other).copied()
+            })
+            .collect();
+        sides(plane, &far)
+    };
+    // An edge `e` lying in face `f`: both faces adjacent to `e` lie on
+    // one side of `f`'s plane (or in it).
+    let ef_rest = |e: EdgeKey, f: FK| -> Side {
+        let Some(plane) = planar_face(geo, f) else {
+            return Side::Unreadable;
+        };
+        let Some(edge) = geo.edges.iter().find(|d| d.key == e) else {
+            return Side::Unreadable;
+        };
+        let mut agreed: Option<Sign> = None;
+        for adj in [edge.f_plus, edge.f_minus] {
+            let Some(face) = planar_face(geo, adj) else {
+                return Side::Unreadable;
+            };
+            let pts: Vec<Point3<T>> = face
+                .boundary
+                .iter()
+                .filter_map(|v| geo.vmap.get(v).copied())
+                .collect();
+            match sides(plane, &pts) {
+                Side::InPlane => {}
+                Side::One => {
+                    // Which side: the first off-plane point decides
+                    // (`sides` certified they all agree).
+                    let s = pts
+                        .iter()
+                        .find_map(|&p| {
+                            match decide(
+                                "pm_census_vf_residual",
+                                Margin::of((p - plane.origin).dot(plane.normal)),
+                                band,
+                            ) {
+                                Ok(Sign::Zero) | Err(_) => None,
+                                Ok(s) => Some(s),
+                            }
+                        })
+                        .unwrap_or(Sign::Zero);
+                    match agreed {
+                        None => agreed = Some(s),
+                        Some(t) if t == s => {}
+                        Some(_) => return Side::Mixed,
+                    }
                 }
-                CensusContact::EdgeEdgeCross { a, b } => {
-                    names(&[EntityId::Edge(*a), EntityId::Edge(*b)])
-                }
-                CensusContact::VertexVertex { .. }
-                | CensusContact::VertexOnFace { .. }
-                | CensusContact::VertexOnEdge { .. }
-                | CensusContact::EdgeEdgeOverlap { .. }
-                | CensusContact::EdgeFaceOverlap { .. }
-                | CensusContact::ConformalPatch { .. } => false,
-            },
-            ValidationError::CensusUnsupported { subject, .. }
-            | ValidationError::CensusLaneUnsupported { subject } => match subject {
-                CensusSubject::Entity(id) => names(&[*id]),
-                CensusSubject::FacePair(f, g) => names(&[EntityId::Face(*f), EntityId::Face(*g)]),
-            },
-            ValidationError::CensusUndecidable { a, b, .. } => names(&[*a, *b]),
-            ValidationError::ContactContradicted { declaration, .. } => {
-                names(&[EntityId::Face(declaration.a), EntityId::Face(declaration.b)])
+                other => return other,
             }
-            // A declared coincidence with no witness: no geometry, no
-            // crossing.
-            ValidationError::StaleContactDeclaration { .. } => false,
-            _ => true,
+        }
+        if agreed.is_some() {
+            Side::One
+        } else {
+            Side::InPlane
         }
     };
-    // One instance's vertices, in arena order — `geo.verts` IS arena
-    // order, restricted by owner.
-    let vertex_solid = |v: VertexKey| -> Option<SolidKey> { solid_of_entity(EntityId::Vertex(v)) };
-    // The `what` a refused witness carries: the cause, not the key (a
-    // `&'static str`; the pair names the instances).
-    let cause = |e: &PointInSolidError| -> &'static str {
-        match e {
-            PointInSolidError::Escalated { .. } => {
-                "the material witness escalated in band at the containing instance's \
-                 boundary — undecided at this ε"
+    const CROSSING: &str = "a crossing already stands against one of these instances, so \
+                            their boundaries are not certified crossing-free and no \
+                            witness decides the placement";
+    const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
+                              one of these instances, so their boundaries are not \
+                              certified crossing-free and no witness decides the \
+                              placement";
+    const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
+                               lower-dimensional feature — the touching solid's edges \
+                               or faces leave the touched face's plane on both sides — \
+                               so the placement is not decided by its vertices";
+    const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
+                                 leaving the touched face's plane in band, so which side \
+                                 it rests on is undecided at this ε";
+    const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
+                                    face or edge, whose side the planar analysis does \
+                                    not read — the exclusion ring's case";
+    const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
+                                    pair, a vertex on an edge, a collinear edge overlap \
+                                    or a conformal patch) has no local side analysis \
+                                    yet, so the placement is not decided by its vertices";
+    const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
+                                      backs vertex events without a side, so the \
+                                      placement is not decided by its vertices";
+    // Does anything standing void the clear for the pair? `None` = the
+    // clear may stand; `Some(what)` = the refusal to push.
+    let touch_verdict = |side: Side| -> Option<&'static str> {
+        match side {
+            Side::InPlane | Side::One => None,
+            Side::Mixed => Some(MIXED_TOUCH),
+            Side::InBand => Some(TOUCH_IN_BAND),
+            Side::Unreadable => Some(TOUCH_UNREADABLE),
+        }
+    };
+    let blocks =
+        |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| -> Option<&'static str> {
+            let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
+            let names = |ids: &[EntityId]| ids.iter().any(|&id| owns(id));
+            // One entity on each side of the pair.
+            let between = |x: EntityId, y: EntityId| {
+                matches!(
+                    (solid_of_entity(x), solid_of_entity(y)),
+                    (Some(p), Some(q)) if (p == sa && q == sb) || (p == sb && q == sa)
+                )
+            };
+            for e in standing_errors {
+                let what = match e {
+                    // Names no entity: it may be about this pair.
+                    ValidationError::CensusEscalated { .. } => Some(UNEXAMINED),
+                    ValidationError::UndeclaredContact { contact, .. } => match *contact {
+                        CensusContact::EdgeFacePierce { edge, face }
+                            if names(&[EntityId::Edge(edge), EntityId::Face(face)]) =>
+                        {
+                            Some(CROSSING)
+                        }
+                        CensusContact::EdgeEdgeCross { a, b }
+                            if names(&[EntityId::Edge(a), EntityId::Edge(b)]) =>
+                        {
+                            Some(CROSSING)
+                        }
+                        CensusContact::VertexOnFace { vertex, face }
+                            if between(EntityId::Vertex(vertex), EntityId::Face(face)) =>
+                        {
+                            touch_verdict(vf_rest(vertex, face))
+                        }
+                        CensusContact::EdgeFaceOverlap { edge, face }
+                            if between(EntityId::Edge(edge), EntityId::Face(face)) =>
+                        {
+                            touch_verdict(ef_rest(edge, face))
+                        }
+                        CensusContact::VertexVertex { a, b }
+                            if between(EntityId::Vertex(a), EntityId::Vertex(b)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::VertexOnEdge { vertex, edge }
+                            if between(EntityId::Vertex(vertex), EntityId::Edge(edge)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::EdgeEdgeOverlap { a, b }
+                            if between(EntityId::Edge(a), EntityId::Edge(b)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::ConformalPatch { ref finding } => {
+                            if between(
+                                EntityId::Face(finding.pair.a),
+                                EntityId::Face(finding.pair.b),
+                            ) {
+                                Some(TOUCH_UNANALYSED)
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    },
+                    ValidationError::CensusUnsupported { subject, .. }
+                    | ValidationError::CensusLaneUnsupported { subject } => match subject {
+                        CensusSubject::Entity(id) if names(&[*id]) => Some(UNEXAMINED),
+                        CensusSubject::FacePair(f, g)
+                            if names(&[EntityId::Face(*f), EntityId::Face(*g)]) =>
+                        {
+                            Some(UNEXAMINED)
+                        }
+                        _ => None,
+                    },
+                    ValidationError::CensusUndecidable { a, b, .. } if names(&[*a, *b]) => {
+                        Some(UNEXAMINED)
+                    }
+                    ValidationError::CensusUndecidable { .. } => None,
+                    // Nothing else is pushed ahead of this arm: the census
+                    // is entered with tiers 1–3 clean and the confirm pass
+                    // runs after it. Whatever does stand here is unknown to
+                    // this arm and blocks.
+                    _ => Some(UNEXAMINED),
+                };
+                if what.is_some() {
+                    return what;
+                }
             }
-            PointInSolidError::RayExhausted => {
-                "every schedule ray from the material witness grazed the containing \
-                 instance's boundary — undecided"
+            // Declared touches leave no finding and are confirmed for their
+            // coincidence only, never for their side: the same analysis
+            // runs over the records that name this pair.
+            for &(v, f) in &declared.vf {
+                if between(EntityId::Vertex(v), EntityId::Face(f))
+                    && let Some(what) = touch_verdict(vf_rest(v, f))
+                {
+                    return Some(what);
+                }
             }
-            PointInSolidError::KindUnsupported { .. } => {
-                "the containing instance carries a face kind the point-in-solid door does \
-                 not serve (a spline surface), so its material cannot be probed"
+            if declared
+                .vv
+                .iter()
+                .any(|&(a, b)| between(EntityId::Vertex(a), EntityId::Vertex(b)))
+            {
+                return Some(TOUCH_UNANALYSED);
             }
-            PointInSolidError::PartialSphereFace { .. }
-            | PointInSolidError::PartialConeFace { .. }
-            | PointInSolidError::PartialTorusFace { .. } => {
-                "the containing instance carries a curved face outside the point-in-solid \
-                 door's chart classes, so its material cannot be probed"
+            if declared
+                .faces
+                .iter()
+                .any(|&(a, b)| between(EntityId::Face(a), EntityId::Face(b)))
+            {
+                return Some(DECLARED_FACE_PAIR);
             }
-            PointInSolidError::VolumeUncertified | PointInSolidError::ZeroVolumeBody => {
-                "the containing instance's at-infinity side could not be read — its \
-                 closed-form signed volume is uncertified or zero"
+            None
+        };
+    // ---- The material test of one ordering: every vertex of `inner`
+    // against `outer`'s material.
+    enum Probe {
+        /// A vertex of `inner` strictly inside `outer`'s material.
+        In(VertexKey),
+        /// The door refused a vertex (and none was `In`).
+        Refused(&'static str),
+        /// Every vertex on `outer`'s boundary.
+        AllOn,
+        /// Every vertex outside or on the boundary, at least one outside.
+        Clear,
+        /// `inner` has no vertex to probe.
+        NoVertex,
+    }
+    let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
+        let sel = match crate::boolean::SolidFaces::of(body, outer) {
+            Ok(sel) => sel,
+            Err(e) => return Probe::Refused(e.summary()),
+        };
+        let (mut refused, mut out_seen, mut any) = (None, false, false);
+        for &(v, p) in geo
+            .verts
+            .iter()
+            .filter(|(v, _)| vertex_solid(*v) == Some(inner))
+        {
+            any = true;
+            match crate::boolean::point_in_solid_faces(body, &sel, p, band, tol) {
+                Ok(SolidContainment::In) => return Probe::In(v),
+                Ok(SolidContainment::Out) => out_seen = true,
+                Ok(SolidContainment::OnBoundary) => {}
+                Err(e) => {
+                    refused.get_or_insert(e.summary());
+                }
             }
-            PointInSolidError::Loop(_) => {
-                "the in-plane region walk at the containing instance's boundary refused"
-            }
-            PointInSolidError::CorruptFace { .. }
-            | PointInSolidError::NoSuchSolid { .. }
-            | PointInSolidError::SurfaceSharedOutsideSolid { .. } => {
-                "the containing instance's faces could not be walked as one solid's — a \
-                 corrupt face, or a surface group spanning two instances"
-            }
+        }
+        match (any, refused, out_seen) {
+            (false, _, _) => Probe::NoVertex,
+            (_, Some(what), _) => Probe::Refused(what),
+            (_, None, true) => Probe::Clear,
+            (_, None, false) => Probe::AllOn,
         }
     };
     // The pre-filter over the instances' extents (`Trees` docs): a
@@ -3354,7 +3580,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     // box, so the refusal it owes every partner is still pushed. Two
     // extents disjoint on an axis put a definite Negative among that
     // axis's margins in BOTH orderings, which is exactly the clearance
-    // the loop finds first; pruning the pair loses no finding.
+    // the gate finds; pruning the pair loses no finding.
     let extent_boxes: Vec<Aabb> = solids
         .iter()
         .map(
@@ -3375,8 +3601,16 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // states one coincidence, and this arm's question is where
             // one instance sits relative to another. A pair carrying
             // records is examined exactly like a pair carrying none.
-            // Both orderings run, and both are load-bearing (the
-            // header's nested case).
+            //
+            // The GATE, per ordering: `inner`'s vertex hull against
+            // `outer`'s reach box; a definitely-negative margin on any
+            // axis says `inner` is not inside `outer`'s reach. A
+            // container whose extent no sound box claims refuses the
+            // ordering. Only when BOTH orderings separate is the pair
+            // cleared here; otherwise the material test runs — in
+            // both orderings, with no gate on either.
+            let mut unclaimable = false;
+            let mut reaches = false;
             for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
                 let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
                     errors.push(ValidationError::CensusUndecidable {
@@ -3386,12 +3620,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                                containing instance's extent unclaimable — the \
                                same interference class",
                     });
+                    unclaimable = true;
                     continue;
                 };
-                // The GATE: any definitely-negative extent margin
-                // clears `inner` of `outer` for free; anything weaker
-                // — all positive, or in band — goes to the material
-                // test. Only a definite verdict clears here.
                 let margins = [
                     ilo.x - olo.x,
                     ohi.x - ihi.x,
@@ -3406,66 +3637,51 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                         Ok(Sign::Negative)
                     )
                 });
-                if separated {
-                    continue;
-                }
-                // The precondition: the pair's boundaries are certified
-                // crossing-free by the census's own earlier work, or the
-                // witness decides nothing.
-                if errors[..standing].iter().any(|e| blocks(e, outer, inner)) {
+                reaches |= !separated;
+            }
+            if !unclaimable && reaches {
+                // The material test, both orderings, every vertex. An
+                // `In` is the decided interference whatever else stands;
+                // the CLEAR needs both orderings clear and the
+                // precondition below.
+                let fwd = probe(sa, sb);
+                let rev = probe(sb, sa);
+                let mut clear = true;
+                for (outer, inner, verdict) in [(sa, sb, fwd), (sb, sa, rev)] {
+                    let what = match verdict {
+                        Probe::In(witness) => {
+                            clear = false;
+                            errors.push(ValidationError::InstanceInterference {
+                                outer,
+                                inner,
+                                witness,
+                            });
+                            continue;
+                        }
+                        Probe::Clear => continue,
+                        Probe::Refused(what) => what,
+                        Probe::AllOn => {
+                            "every vertex of the contained instance lies on the containing \
+                             instance's boundary — a placement its vertices do not decide"
+                        }
+                        Probe::NoVertex => {
+                            "the contained instance has no vertex to probe — a placement \
+                             no witness decides"
+                        }
+                    };
+                    clear = false;
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
-                        what: "a crossing or an unexamined finding already stands against \
-                               one of these instances, so their boundaries are not \
-                               certified crossing-free and no single witness decides \
-                               the placement",
+                        what,
                     });
-                    continue;
                 }
-                // The material test: the contained instance's vertices
-                // in arena order against the container's material.
-                // `None` = no vertex reached a decision; `Some(None)` =
-                // a vertex strictly outside, the clear; `Some(Some(e))`
-                // = the finding to push.
-                let mut probed = false;
-                let mut finding: Option<Option<ValidationError>> = None;
-                for &(v, p) in geo
-                    .verts
-                    .iter()
-                    .filter(|(v, _)| vertex_solid(*v) == Some(inner))
-                {
-                    probed = true;
-                    finding = Some(match point_in_solid_of(body, outer, p, band, tol) {
-                        Ok(SolidContainment::Out) => None,
-                        Ok(SolidContainment::In) => Some(ValidationError::InstanceInterference {
-                            outer,
-                            inner,
-                            witness: v,
-                        }),
-                        Ok(SolidContainment::OnBoundary) => continue,
-                        Err(e) => Some(ValidationError::CensusUndecidable {
-                            a: EntityId::Solid(outer),
-                            b: EntityId::Solid(inner),
-                            what: cause(&e),
-                        }),
+                if clear && let Some(what) = blocks(&errors[..standing], sa, sb) {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(sa),
+                        b: EntityId::Solid(sb),
+                        what,
                     });
-                    break;
-                }
-                match finding {
-                    Some(Some(e)) => errors.push(e),
-                    Some(None) => {}
-                    None => errors.push(ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(outer),
-                        b: EntityId::Solid(inner),
-                        what: if probed {
-                            "every vertex of the contained instance lies on the containing \
-                             instance's boundary — a placement no single witness decides"
-                        } else {
-                            "the contained instance has no vertex to probe — a placement \
-                             no witness decides"
-                        },
-                    }),
                 }
             }
             if let Some(t) = trace.as_deref_mut() {

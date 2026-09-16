@@ -286,6 +286,52 @@ pub enum PointInSolidError {
     },
 }
 
+impl PointInSolidError {
+    /// The refusal in one clause — the short form of the sentence
+    /// `Display` renders with its recourse, and the one vocabulary a
+    /// consumer that carries a `&'static str` reads (the census's
+    /// containment arm names the witness it could not decide with it).
+    pub fn summary(&self) -> &'static str {
+        match self {
+            Self::Escalated { .. } => {
+                "the material witness escalated in band at the instance's boundary — \
+                 undecided at this ε"
+            }
+            Self::RayExhausted => {
+                "every schedule ray from the material witness grazed the instance's \
+                 boundary — undecided"
+            }
+            Self::ZeroVolumeBody => {
+                "the instance's signed volume is (near-)zero — no material side at \
+                 infinity to classify against"
+            }
+            Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
+            Self::CorruptFace { .. } => {
+                "a face of the instance is not walkable, or an entity it names is lost"
+            }
+            Self::KindUnsupported { .. } => {
+                "the instance carries a face kind the point-in-solid door does not serve \
+                 (a spline surface), so its material cannot be probed"
+            }
+            Self::VolumeUncertified => {
+                "the instance's at-infinity side could not be read — its closed-form \
+                 signed volume is uncertified"
+            }
+            Self::PartialSphereFace { .. }
+            | Self::PartialConeFace { .. }
+            | Self::PartialTorusFace { .. } => {
+                "the instance carries a curved face outside the point-in-solid door's \
+                 chart classes, so its material cannot be probed"
+            }
+            Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
+            Self::SurfaceSharedOutsideSolid { .. } => {
+                "a surface group of the instance spans another instance, so its faces \
+                 could not be walked as one solid's"
+            }
+        }
+    }
+}
+
 impl From<PointInLoopError> for PointInSolidError {
     fn from(e: PointInLoopError) -> Self {
         Self::Loop(e)
@@ -677,6 +723,8 @@ fn face_geo<T: Decide>(
                 sense: f.sense,
             })
         }
+        // A group-read kind (`reads_surface_group`): the arm carries a
+        // representative chosen over the whole body by surface key.
         Some(&Surface::Cone {
             apex,
             axis,
@@ -2331,48 +2379,104 @@ pub fn point_in_solid_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    if body.get_solid(solid).is_none() {
-        return Err(PointInSolidError::NoSuchSolid { solid });
-    }
-    let owner = |f: FaceKey| -> Option<SolidKey> {
-        body.get_face(f)
-            .and_then(|d| body.get_shell(d.shell))
-            .map(|s| s.solid)
-    };
-    let faces: Vec<FaceKey> = body
-        .faces()
-        .filter(|&(k, _)| owner(k) == Some(solid))
-        .map(|(k, _)| k)
-        .collect();
-    // A group-read kind whose surface key is carried on both sides of
-    // the selection boundary (the variant's doc). One pass over the
-    // arena: every key's first face outside the selection, if any.
-    let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
-        std::collections::BTreeMap::new();
-    for (k, d) in body.faces() {
-        if owner(k) != Some(solid) {
-            foreign.entry(d.surface).or_insert(k);
+    let sel = SolidFaces::of(body, solid)?;
+    point_in_solid_faces(body, &sel, q, band, tol)
+}
+
+/// One solid's faces, selected once and probed many times — what the
+/// census's containment arm holds per ordering, so the selection and
+/// its shared-key guard are paid once per pair rather than once per
+/// vertex. [`point_in_solid_of`] is this selection followed by one
+/// [`point_in_solid_faces`].
+#[derive(Clone, Debug)]
+pub struct SolidFaces {
+    faces: Vec<FaceKey>,
+}
+
+impl SolidFaces {
+    /// The faces of `solid`'s shells in face-arena order, guarded.
+    ///
+    /// # Errors
+    ///
+    /// [`PointInSolidError::NoSuchSolid`] for a key the body does not
+    /// hold; [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
+    /// group-read kind's surface key crosses the selection boundary
+    /// (the variant's doc carries why that is refused rather than
+    /// served). An empty selection is not refused here: the probe
+    /// answers [`PointInSolidError::ZeroVolumeBody`] for it.
+    pub fn of<T: Decide>(body: &Body<T>, solid: SolidKey) -> Result<Self, PointInSolidError> {
+        if body.get_solid(solid).is_none() {
+            return Err(PointInSolidError::NoSuchSolid { solid });
         }
-    }
-    for &face in &faces {
-        let d = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        let grouped = matches!(
-            body.get_surface(d.surface),
-            Some(Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. })
-        );
-        if grouped && let Some(&other) = foreign.get(&d.surface) {
-            return Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other });
+        let faces: Vec<FaceKey> = body
+            .faces()
+            .filter(|&(k, _)| body.solid_of_face(k) == Some(solid))
+            .map(|(k, _)| k)
+            .collect();
+        // A group-read kind whose surface key is carried on both sides
+        // of the selection boundary (the variant's doc). One pass over
+        // the arena: every key's first face outside the selection.
+        let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
+            std::collections::BTreeMap::new();
+        for (k, d) in body.faces() {
+            if body.solid_of_face(k) != Some(solid) {
+                foreign.entry(d.surface).or_insert(k);
+            }
         }
+        for &face in &faces {
+            let d = body
+                .get_face(face)
+                .ok_or(PointInSolidError::CorruptFace { face })?;
+            if body.get_surface(d.surface).is_some_and(reads_surface_group)
+                && let Some(&other) = foreign.get(&d.surface)
+            {
+                return Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other });
+            }
+        }
+        Ok(Self { faces })
     }
-    point_in_faces(body, &faces, q, band, tol)
+
+    /// The selected faces, in face-arena order.
+    pub fn faces(&self) -> &[FaceKey] {
+        &self.faces
+    }
+}
+
+/// The surface kinds [`face_geo`] reads through a surface GROUP — its
+/// arms that carry a `representative`: the cone, the closed sphere and
+/// the torus. The one list; [`SolidFaces::of`]'s guard and those arms
+/// cite it rather than restating it.
+pub(crate) fn reads_surface_group<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+    matches!(
+        surface,
+        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. }
+    )
+}
+
+/// Trilean containment of `q` in the material the selection's faces
+/// bound — [`point_in_solid_of`] with the selection made once.
+///
+/// # Errors
+///
+/// The core's ([`point_in_solid`]'s), plus
+/// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
+pub fn point_in_solid_faces<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    point_in_faces(body, &sel.faces, q, band, tol)
 }
 
 /// The one closest-hit core behind both entries: the boundary
 /// pre-pass and the schedule sweep over exactly `faces` (module docs).
-/// An empty selection bounds no material and answers
-/// [`PointInSolidError::ZeroVolumeBody`] before any predicate runs.
+/// An empty selection answers [`PointInSolidError::ZeroVolumeBody`]
+/// before any predicate runs, and it is the same state that variant
+/// names: no face means no enclosure, and the at-infinity fold would
+/// read the volume of nothing as exactly zero — there is no material
+/// side to classify against.
 fn point_in_faces<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -3658,10 +3762,7 @@ mod per_solid_entry_tests {
     }
 
     fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-        body.faces()
-            .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
-            .map(|(k, _)| k)
-            .collect()
+        SolidFaces::of(body, solid).unwrap().faces().to_vec()
     }
 
     /// A sphere key on one face of each solid — the SAME key, written

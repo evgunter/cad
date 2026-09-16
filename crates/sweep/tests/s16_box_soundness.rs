@@ -67,33 +67,12 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// The three-arc cylinder: radius 0.5 about the z axis, `z ∈ [0, 1]`.
-/// Six vertices; the hull of them is the inscribed triangular prism,
-/// `x ∈ [−0.25, 0.5]`, `y ∈ [−0.433, 0.433]`.
-fn cylinder() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
-/// spanning `z in [z0, z0 + 0.4]`.
-/// [`cylinder`] with its base at `z0` and height `height` — the tool a
-/// blind bore is cut with.
-fn cylinder_at(z0: f64, height: f64) -> Body<f64> {
+/// The three-arc cylinder: radius 0.5 about the z axis, its base at
+/// `z0`, `height` tall (the rows' cylinder is `cylinder(0.0, 1.0)`; the
+/// blind bore's tool is a raised one). Six vertices; the hull of them
+/// is the inscribed triangular prism, `x ∈ [−0.25, 0.5]`,
+/// `y ∈ [−0.433, 0.433]`.
+fn cylinder(z0: f64, height: f64) -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
         let th: f64 = deg.to_radians();
@@ -113,6 +92,8 @@ fn cylinder_at(z0: f64, height: f64) -> Body<f64> {
         .body
 }
 
+/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
+/// spanning `z in [z0, z0 + 0.4]`.
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
@@ -145,8 +126,11 @@ fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
 }
 
 /// **The regression row.** A body wholly inside the cylinder, but
-/// outside the hull of the cylinder's six vertices, must be REFUSED as
-/// the decided interference — never cleared.
+/// outside the hull of the cylinder's six vertices, must be REFUSED —
+/// never cleared. Arm 1 refuses the cylinder wall × box-face pairs
+/// (the proximity class), AND the material test decides the pair: the
+/// box's vertices are strictly inside the cylinder's material, so the
+/// arm reports the interference beside arm 1's refusals.
 ///
 /// `cx` is swept across the whole annulus between the inscribed hull's
 /// face (x = −0.25) and the true wall (x = −0.5), so the row goes red
@@ -156,7 +140,7 @@ fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
 /// refusal can never be explained by the probe poking out for real.
 #[test]
 fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
-    let outer = cylinder();
+    let outer = cylinder(0.0, 1.0);
     let h = 0.05;
     for &cx in &[-0.22_f64, -0.26, -0.30, -0.35, -0.40] {
         // Genuinely inside the cylinder: the far corner is within r.
@@ -176,14 +160,8 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         );
         let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
-        // MEASURED, not the interference verdict: the box sits inside
-        // the cylinder wall's REACH, so arm 1 refuses the wall × box-face
-        // pairs first (the proximity class, the exclusion ring's), and
-        // arm 2 then refuses its material test to a pair whose
-        // boundaries are not certified crossing-free — the typed
-        // precondition refusal, naming the solid pair. The material
-        // test never runs here; the day the ring clears the wall pairs,
-        // this row is what moves to `InstanceInterference`.
+        // Arm 1's refusals stand (the box is within the wall's reach),
+        // and an `In` vertex is decided whatever else stands.
         assert!(
             errors.iter().any(|e| matches!(
                 e,
@@ -196,22 +174,21 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
             "probe at {cx}: arm 1 refuses the wall pairs first, got {errors:?}"
         );
         assert!(
-            errors.iter().any(|e| matches!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "probe at {cx}: the material test decides the nested pair, got {errors:?}"
+        );
+        assert!(
+            !errors.iter().any(|e| matches!(
                 e,
                 ValidationError::CensusUndecidable {
                     a: EntityId::Solid(_),
                     b: EntityId::Solid(_),
-                    what,
-                } if what.contains("not certified crossing-free")
+                    ..
+                }
             )),
-            "probe at {cx}: the containment arm names the solid pair with the \
-             precondition's refusal, got {errors:?}"
-        );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-            "probe at {cx}: no witness was probed, so no interference is claimed: {errors:?}"
+            "probe at {cx}: decided, so no solid-pair undecidable rides beside it: {errors:?}"
         );
     }
 }
@@ -233,7 +210,7 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
 #[test]
 fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
     let block = plate((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0));
-    let tool = cylinder_at(0.5, 1.0);
+    let tool = cylinder(0.5, 1.0);
     let BooleanResult::Body(bored) = topo::subtract(&block, &tool, Tol::witness()).unwrap() else {
         panic!("the bore cuts a body");
     };
@@ -328,7 +305,7 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
 /// reach box, is still cleared by the containment arm.
 #[test]
 fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
-    let outer = cylinder();
+    let outer = cylinder(0.0, 1.0);
     let beside = nested_box(3.0, 0.2);
     let body = assembly(&outer, &beside);
     // The whole verdict, not a filtered slice of it. Filtering to
@@ -362,7 +339,7 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
 /// ones (the pair stops being clearable at all).
 #[test]
 fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
-    let outer = cylinder();
+    let outer = cylinder(0.0, 1.0);
     // Half-width 0.2 against radius 0.5: radially inside the wall, so
     // `z` is the only axis that can clear any of these pairs.
     for &z0 in &[1.01, 1.1, 1.25, 1.5, 2.0] {
@@ -476,7 +453,7 @@ fn top_rim_x_plate(x_max: f64) -> Body<f64> {
 /// at their nearest points, which are mid-arc on both.
 fn cylinder_apart(gap: f64) -> Body<f64> {
     topo::transform_rigid(
-        &cylinder(),
+        &cylinder(0.0, 1.0),
         &Affine3::translation(Vec3::new(1.0 + gap, 0.0, 0.0)),
         Tol::witness(),
     )
@@ -512,7 +489,7 @@ fn rounded_plate() -> Body<f64> {
 /// — inside its hull, across its extreme, or clear of it by a stated
 /// margin.
 fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
-    let cyl = cylinder();
+    let cyl = cylinder(0.0, 1.0);
     let rounded = rounded_plate();
     let mut v = vec![
         (
@@ -629,7 +606,7 @@ fn conic_pruning_never_loses_an_accepted_pair() {
 /// exact form does not have.
 #[test]
 fn a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined() {
-    let cyl = cylinder();
+    let cyl = cylinder(0.0, 1.0);
     let count = |b: &Body<f64>| {
         let (ab, ba) =
             sweep_traces(&cyl, b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
