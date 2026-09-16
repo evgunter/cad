@@ -690,7 +690,7 @@ pub enum RoleSeg {
     /// `Fragment(OrderAlong)` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
-    /// (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
+    /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
     /// so it is the verb's asymmetry showing through a fold rather
     /// than anything the fold or this segment adds.
     ///

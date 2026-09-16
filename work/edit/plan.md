@@ -47,10 +47,12 @@ posture under §Process.
    `replay-and-load-keep-the-document-without-its-maintenance`.
 4. **The resolver's doors** —
    `pick-grazing-ray-answer-depends-on-candidate-order` (kernel unit;
-   re-baselines `viewer`'s reference loop by announcement),
-   `pair-doors-outside-the-three-do-not-check-document-identity`
-   (EDIT builds the `apply_with_names` door; the `stackup` and
-   `drive` doors are PROPS's, announced to it).
+   re-baselines `viewer`'s reference loop by announcement) and
+   `nodepick-name-doors-take-a-second-evaluation-unpaired`, which the
+   pairing unit's review found on the same file: whether the fix is a
+   `DocumentId` on `NodePick`, a typed refusal or a signature that
+   never takes the second evaluation is open, so it is an issue before
+   it is a unit.
 5. **Error-surface hygiene** — one E-class unit over
    `persist-check-renders-enum-variants-through-debug-into-user-prose`,
    `debug-in-prose-residue-after-finding-sink` and

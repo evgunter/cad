@@ -1157,9 +1157,7 @@ pub fn apply_with_names<T: Decide>(
     tol: Tol,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
-    // DI3, before any name is read: node ids are minted by a
-    // per-document counter, so an evaluation of a twin answers every
-    // lookup below and the carve-out never fires.
+    // The pairing, before any name is read (why: this fn's docs).
     if let Some(m) = crate::ident::mispaired(doc.id(), eval.document) {
         return Err(EditError::EvaluationOfAnotherDocument {
             expected: m.expected,

@@ -2,11 +2,9 @@
 id: pair-doors-outside-the-three-do-not-check-document-identity
 kind: unit
 title: Beyond product/assemble/placement, (document, evaluation) doors do not check the pairing, and the three that do spell the predicate three ways
-status: review
+status: open
 opened: 2026-09-04
 refs: [1808]
-branch: edit/pair-apply-names
-pr: 2723
 ---
 
 
@@ -128,23 +126,39 @@ prose with no category prefix (this enum's own rule), and the
 take no payload attribute, the message states both, which is the
 `ProductError` arm's precedent one door over.
 
-The red row is `edit_pair_apply_names::
-apply_with_names_refuses_an_evaluation_of_another_document` — review
-lane R2's DOCM-4 probe, adopted and widened. Twins of one recipe that
-differ in ONE thing the tables can see (a square prism has a fourth
+The rows are `crates/editor-core/tests/edit_pair_apply_names.rs`, one
+claim each over a `Twins` fixture — two documents of one recipe
+differing in ONE thing the tables can see (a square prism has a fourth
 rim edge, a triangular one does not), so BOTH wrong answers are
-reachable and both are pinned: the false admission (a name the twin
-carries and the edited document does not) and the spurious
-`NameUnresolvedInEvaluation` (a name the edited document carries and
-the twin does not). The two own-evaluation answers are pinned beside
-them as the premises, and a name-free edit refused on the pairing pins
-that the check is the door's rather than the name loop's.
+reachable:
+
+- `a_name_only_the_twin_carries_is_not_admitted` — the false
+  admission; review lane R2's DOCM-4 probe, adopted and widened.
+- `a_name_this_document_carries_is_not_refused_for_the_twins_tables` —
+  the spurious `NameUnresolvedInEvaluation`, its mirror.
+- `an_edit_carrying_no_name_is_refused_on_the_pairing_too` — the check
+  is the door's, not the name loop's.
+- `a_document_against_its_own_evaluation_answers_as_it_always_did` —
+  the premise, and what the check leaves untouched.
+
+Measured red: with the door's four lines disabled, the first three
+fail and the fourth passes.
+
+Two more rows come from the review lane `pair-rv`, adopted with their
+authorship: `the_pairing_is_identity_and_survives_a_new_version_of_
+the_document` (DI3 declines a version pin, so a stale-but-own
+evaluation still pairs) and
+`nodepick_patch_names_answers_out_of_a_twins_tables`, a MEASUREMENT
+row pinning today's wrong answer at the door its own filed row
+carries.
 
 The prose that enumerated the doors moved with it: `ASSEMBLY.md`'s A2a
 is the one list (it was already a door behind — DOCM-5's `run_checks`
-door landed without it), and `ident.rs`'s `Mispaired` and
-`Evaluation::document` now point there instead of carrying a second
-copy that rots.
+door landed without it), and `IDENTITY.md`'s DI3, `ident.rs`'s
+`Mispaired`, `Evaluation::document` and `pncad`'s `Mispaired`
+re-export note now point there instead of carrying a fifth copy of a
+count that rots. A2a names its tracker rows by **id** with no
+directory, for the same reason.
 
 One thing the door dragged with it, disclosed because it is a public
 shape change: two `DocumentId`s are two `u128`s, so the new arm gives
@@ -175,6 +189,14 @@ paths (`work.py territory`: `crates/editor-core/src/stackup.rs` and
 (`work/README.md`). PROPS was not asked — a lane does not need the
 owner's permission to put a finding where it belongs.
 
-`status: review` and `pr` are this PR's. Once it merges the row is
-PROPS's open work again: the door EDIT owed is built, the three that
-remain have no spec yet.
+The header is **PROPS's open work**, not EDIT's review: `status: open`
+with no `pr` and no `branch`, because the door EDIT owed is built and
+the three that remain have no spec and no lane. EDIT's half is the
+`## Built` section above, and PR 2723 carries it — which PR that was
+is one `git log` away, and a `pr` field pointing at a merged PR would
+put a finished unit on PROPS's board.
+
+The `## Spec` above is EDIT's and is spent. PROPS writes its own for
+the `stackup` and `drive` doors; the shape it should follow is the
+one this row records — one arm per door over `ident::mispaired`, in
+that door's own error vocabulary.

@@ -1619,7 +1619,7 @@ pub enum Node<P> {
     /// or inside a merged row that was later fragmented — is not
     /// looked through, and a pair naming it resolves only in the
     /// orders that reach it while it is still a row
-    /// (`work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// (`work/wire/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

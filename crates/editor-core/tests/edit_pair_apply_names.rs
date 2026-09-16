@@ -1,32 +1,23 @@
 //! **The name-level edit door binds its document to its evaluation**
 //! (DI3, A2a).
 //!
-//! `apply_with_names` validates an edit's recorded names against the
-//! tables of the evaluation it is handed, under a carve-out keyed on
-//! `eval.value(name.node)`. Node ids are minted by a per-document
-//! counter, so two documents built from one recipe carry the same ids
-//! for the same nodes: a foreign evaluation satisfies the carve-out on
-//! every name and the door then answers out of the wrong table. Both
-//! wrong answers are reachable and both are pinned here — a name the
-//! handed table happens to carry is admitted into a document whose own
-//! tables do not carry it, and a name the document's own tables DO
-//! carry is refused `NameUnresolvedInEvaluation` because the twin's
-//! tables do not.
+//! Why the door checks is `apply_with_names`'s own docs. What is
+//! pinned here is that BOTH wrong answers a mispairing produces are
+//! reachable, one row each over the [`Twins`] fixture: a name the
+//! handed table happens to carry, admitted into a document whose own
+//! tables do not carry it; and a name the edited document's own tables
+//! DO carry, refused `NameUnresolvedInEvaluation` because the twin's
+//! do not. A third row holds the premise — each document against its
+//! own evaluation — and a fourth pins that the check is the DOOR's
+//! rather than the name loop's, an edit carrying no name being refused
+//! just the same.
 //!
-//! The twins differ in ONE way that the tables can see: an `n`-gon's
-//! rim edges are one per outer segment, so the square prism has a
-//! fourth and the triangular prism does not. Everything else — the
-//! recipe's shape, its node ids, the carve-out's `Ok` values — is
-//! identical by construction, which is the condition the field exists
-//! for.
-//!
-//! The door's check therefore runs before any name is read, and a
-//! name-free edit is refused too: the pairing is a property of the
-//! two arguments, not of what the edit happens to carry.
-//!
-//! (The foreign-evaluation row is review lane R2's DOCM-4 probe
-//! `red_apply_with_names_admits_a_foreign_evaluation`, on branch
-//! `docm/4-review-r2`, adopted and widened to both directions.)
+//! Two rows are review lanes' probes, adopted: the foreign-evaluation
+//! shape is R2's DOCM-4 probe
+//! `red_apply_with_names_admits_a_foreign_evaluation`
+//! (`docm/4-review-r2`), widened here to both directions; the
+//! version-survives-pairing row and the `NodePick` measurement row are
+//! lane `pair-rv`'s (`review/pair-rv`) and keep their own headers.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -81,6 +72,65 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
+/// **The twins, and the one name that tells them apart.**
+///
+/// Two documents of one recipe shape whose tables differ in exactly
+/// one thing: an `n`-gon prism's rim edges are one per outer segment,
+/// so `edit` selects the FOURTH, which the square carries and the
+/// triangle cannot. Everything else — the recipe's shape, its node
+/// ids, the carve-out's `Ok` values — is identical by construction,
+/// which is the condition `Evaluation::document` exists for, and the
+/// constructor asserts each half of it rather than assuming it.
+struct Twins {
+    square: ProfileDoc,
+    triangle: ProfileDoc,
+    ev_square: Evaluation<f64>,
+    ev_triangle: Evaluation<f64>,
+    /// The name only the square's tables carry.
+    fourth: editor_core::StableName,
+    /// An `InsertNode` whose payload is that name.
+    edit: DocEdit<editor_core::ProfileProgram>,
+}
+
+impl Twins {
+    fn build() -> Self {
+        let (square, sq) = prism("edit-pair-apply-square", 4);
+        let (triangle, tri) = prism("edit-pair-apply-triangle", 3);
+        assert_ne!(square.id(), triangle.id(), "two documents");
+        assert_eq!(sq, tri, "the premise: the two recipes mint the same ids");
+
+        let ev_square = run(&square);
+        let ev_triangle = run(&triangle);
+        assert!(
+            ev_square.value(sq).is_some() && ev_triangle.value(tri).is_some(),
+            "the premise: both extrudes evaluate Ok, so the carve-out is \
+             satisfied on either evaluation"
+        );
+
+        let fourth = ename(
+            sq,
+            RoleSeg::RimEdge(
+                CapEnd::End,
+                ProfileEdgeRef {
+                    loop_index: 0,
+                    segment: 3,
+                },
+            ),
+        );
+        let edit = DocEdit::InsertNode {
+            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+        };
+        Self {
+            square,
+            triangle,
+            ev_square,
+            ev_triangle,
+            fourth,
+            edit,
+        }
+    }
+}
+
 /// The pairing refusal, with both ids read off it.
 #[track_caller]
 fn expect_pairing(
@@ -102,85 +152,75 @@ fn expect_pairing(
     }
 }
 
+/// **The premise, stated as a row**: each document against its OWN
+/// evaluation, which is what the pairing check must leave untouched.
+/// The square's tables carry the fourth rim edge and the triangle's do
+/// not, and both answers are the door's behaviour before and after.
 #[test]
-fn apply_with_names_refuses_an_evaluation_of_another_document() {
+fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
+    let t = Twins::build();
     let tol = Tol::witness();
-    let (square, sq) = prism("edit-pair-apply-square", 4);
-    let (triangle, tri) = prism("edit-pair-apply-triangle", 3);
-
-    // The construction: different documents, identical node ids.
-    assert_ne!(square.id(), triangle.id());
-    assert_eq!(sq, tri, "the premise: the two recipes mint the same ids");
-
-    let ev_square = run(&square);
-    let ev_triangle = run(&triangle);
     assert!(
-        ev_square.value(sq).is_some() && ev_triangle.value(tri).is_some(),
-        "the premise: both extrudes evaluate Ok, so the carve-out is \
-         satisfied on either evaluation"
-    );
-
-    // A fillet selecting the rim edge of the FOURTH outer segment: the
-    // square prism's tables carry it, the triangular prism's cannot.
-    let fourth = ename(
-        sq,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 3,
-            },
-        ),
-    );
-    let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
-    };
-
-    // The premise, both halves, each door against its OWN evaluation —
-    // and the answers the pairing check must leave untouched.
-    assert!(
-        apply_with_names(&square, &edit, &ev_square, tol).is_ok(),
-        "the premise: the square's own tables carry the fourth rim edge"
+        apply_with_names(&t.square, &t.edit, &t.ev_square, tol).is_ok(),
+        "the square's own tables carry the fourth rim edge"
     );
     assert_eq!(
-        apply_with_names(&triangle, &edit, &ev_triangle, tol)
+        apply_with_names(&t.triangle, &t.edit, &t.ev_triangle, tol)
             .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation {
-            name: fourth.clone()
-        },
-        "the premise: the triangle's own tables do not"
+        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        "the triangle's own tables do not"
     );
+}
 
-    // A false admission: the name is absent from the document being
-    // edited and present in the twin's tables.
+/// **A false admission.** The name is absent from the document being
+/// edited and present in the twin's tables, so the carve-out fires on
+/// the twin's `Ok` value and the lookup hits the twin's row: without
+/// the pairing check the edit is recorded, stranding the name in the
+/// document it was recorded against.
+#[test]
+fn a_name_only_the_twin_carries_is_not_admitted() {
+    let t = Twins::build();
     expect_pairing(
-        apply_with_names(&triangle, &edit, &ev_square, tol),
-        triangle.id(),
-        square.id(),
+        apply_with_names(&t.triangle, &t.edit, &t.ev_square, Tol::witness()),
+        t.triangle.id(),
+        t.square.id(),
         "a name the twin carries and this document does not",
     );
+}
 
-    // A spurious `NameUnresolvedInEvaluation`: the name is present in
-    // the document being edited and absent from the twin's tables.
+/// **A spurious `NameUnresolvedInEvaluation`.** The mirror of the row
+/// above: the name IS in the edited document's tables and absent from
+/// the twin's, so without the pairing check a legal edit is refused —
+/// and refused by a sentence about the name rather than about the
+/// evaluation, which is the wrong thing to go and look at.
+#[test]
+fn a_name_this_document_carries_is_not_refused_for_the_twins_tables() {
+    let t = Twins::build();
     expect_pairing(
-        apply_with_names(&square, &edit, &ev_triangle, tol),
-        square.id(),
-        triangle.id(),
+        apply_with_names(&t.square, &t.edit, &t.ev_triangle, Tol::witness()),
+        t.square.id(),
+        t.triangle.id(),
         "a name this document carries and the twin does not",
     );
+}
 
-    // The check is the DOOR's, not the name loop's: an edit carrying
-    // no `StableName` at all is refused on the pairing just the same,
-    // while the same edit against its own evaluation still applies.
+/// **The check is the DOOR's, not the name loop's.** An edit carrying
+/// no `StableName` at all reaches no lookup, so only a check sited
+/// before the payload is read refuses it — while the same edit against
+/// its own evaluation still applies.
+#[test]
+fn an_edit_carrying_no_name_is_refused_on_the_pairing_too() {
+    let t = Twins::build();
+    let tol = Tol::witness();
     let nameless = DocEdit::SetTolerance { eps: 1e-7 };
     assert!(
-        apply_with_names(&triangle, &nameless, &ev_triangle, tol).is_ok(),
+        apply_with_names(&t.triangle, &nameless, &t.ev_triangle, tol).is_ok(),
         "the premise: the edit itself is legal"
     );
     expect_pairing(
-        apply_with_names(&triangle, &nameless, &ev_square, tol),
-        triangle.id(),
-        square.id(),
+        apply_with_names(&t.triangle, &nameless, &t.ev_square, tol),
+        t.triangle.id(),
+        t.square.id(),
         "an edit carrying no name",
     );
 }

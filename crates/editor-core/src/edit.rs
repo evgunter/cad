@@ -644,21 +644,11 @@ pub enum EditError {
     },
     /// The supplied evaluation is of ANOTHER document (DI3, A2a).
     ///
-    /// Raised by [`crate::resolve::apply_with_names`] before any name
-    /// is read, and for the reason the pairing doors exist: node ids
-    /// are minted by a per-document counter, so a foreign evaluation
-    /// of one recipe satisfies the carve-out on every name and answers
-    /// every table lookup — a name the edited document does not carry
-    /// is admitted, or one it does carry is refused
-    /// [`EditError::NameUnresolvedInEvaluation`], with nothing missing
-    /// to say which.
-    ///
-    /// Its own arm rather than a shared refusal type: the one
-    /// predicate is [`crate::ident::mispaired`] and the vocabulary is
-    /// each door's, so an authoring caller matches this beside the
-    /// rest of `EditError` instead of importing another enum
-    /// (`ProductError`, `MateFault` and `ChecksError` each carry their
-    /// own arm over the same predicate).
+    /// Raised by [`crate::resolve::apply_with_names`], whose docs say
+    /// why that door checks; this arm is the edit vocabulary's word
+    /// for the answer, as `ProductError`, `MateFault` and
+    /// `ChecksError` each carry their own over the one predicate
+    /// [`crate::ident::mispaired`].
     EvaluationOfAnotherDocument {
         /// The document the edit is being applied to.
         expected: crate::ident::DocumentId,

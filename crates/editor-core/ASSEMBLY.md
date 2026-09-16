@@ -56,9 +56,9 @@ recorded ε disagrees refuses `ResolveFault::EpsilonSeam`.
 **A2a — The pairing doors.** A4's identity stamp is what these read.
 A door that takes a document plus a value that must be OF that
 document refuses a mismatch typed, before reading anything of the
-value, through the one predicate `ident::mispaired` and an arm of its
-OWN vocabulary — a typed arm a caller already matches on beats a
-shared type a caller must import. The doors that do so:
+value. The comparison is the one predicate `ident::mispaired`, and
+each door carries its own arm over it, in its own error vocabulary.
+The doors that do so:
 
 - `product` (with `product_named` and `product_recorded`,
   `ProductError::EvaluationOfAnotherDocument`), and `assemble`
@@ -87,8 +87,13 @@ full, about other geometry.
 
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying` — do NOT check it today; `assembly::mint` is
-covered downstream by `product_recorded`. That gap is tracked at
-`work/props/pair-doors-outside-the-three-do-not-check-document-identity`.
+covered downstream by `product_recorded`. That gap is the tracker row
+`pair-doors-outside-the-three-do-not-check-document-identity`, and a
+door built FROM one evaluation that is later handed another — the
+`NodePick` name doors — is the row
+`nodepick-name-doors-take-a-second-evaluation-unpaired`. Ids, not
+paths: a row moves between programs and a path written here rots at
+the move.
 
 ## Nodes and mates
 
