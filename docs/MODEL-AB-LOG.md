@@ -3326,6 +3326,21 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-7 (PR #2755) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1111** (S-BOOL band 1100–1199). v6 dual: parity byte **131**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `4c23a978f`
+(run 35077622754 verified at dispatch: head SHA matches, 39 checks —
+33 success + 6 skipped, 0 neutral; not narrowed: 12 `test (…)` rows and
+5 `k-lint (gate, …)` rows), R2 isolated from R1, briefs symmetric (HARD
+RULES written fresh for this unit), no relaxations granted. Implementer
+difficulty M (pre-logged at the spec, pre-draw); implementer arm OPUS
+(block BOOL-B4 slot 2, byte 189 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Filed at dispatch from the unit's
+forward list (the names lane is WIRE's territory per `work.py
+territory`):
+`work/wire/order-along-qualifier-records-no-partner-so-its-pruned-pair-vanish-cannot-be-recovered.md`.
+
 BOOL-6 (PR #2752) ordinal FIXED AT DISPATCH (2026-09-16):
 **ordinal 1110** (S-BOOL band 1100–1199). v6 dual: parity byte **190**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `9f7ae4954`
