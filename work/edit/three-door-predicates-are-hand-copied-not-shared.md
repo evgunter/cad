@@ -6,7 +6,7 @@ status: review
 opened: 2026-09-16
 branch: edit/one-predicate-round-two
 pr: 2772
-refs: [blend-selection-canonical-check-load-only]
+refs: [blend-selection-canonical-check-load-only, check-rs-hand-copied-predicate-sweep-undercounts]
 ---
 
 Found by the sweep behind `blend-selection-canonical-check-load-only`,
@@ -191,3 +191,152 @@ enforces it). Those are LIB's files.
 
 **Filed:** `load-door-checks-slot-dimensions-for-profile-nodes-only`
 (this program's slate) — the sweep's one hit.
+
+## Built, fix pass (2026-09-16) — three more predicates, and two rules made structural
+
+The style review's verdict was APPROVE-WITH-FIXES and every finding is
+taken. What the fix pass added to the unit:
+
+**Three more predicates, one home each, both doors** — the review's
+MAJOR-1, each the shape the unit already had in hand:
+
+- **A witness row's key** is `doc::witness_site_fault(doc, node)` with a
+  two-arm answer (`NoSuchNode`, `NotSketchBearing`).
+  `edit.rs`'s `check_witness_site` and `validate_snapshot`'s walk over
+  the store both call it. The load door's fold is gone with it:
+  `SnapshotError::WitnessSite` now means "bears no sketch" and
+  `WitnessOnMissingNode` is its own arm, as the edit door has always
+  named the two apart.
+- **The recorded ε** is `doc::epsilon_admissible(eps)`, asked by
+  `SetTolerance` and by the snapshot walk. A free function beside the
+  field, because the edit door decides the value before it is a
+  document's ε.
+- **A continuous parameter declared `Count`** is
+  `DocParam::is_continuous_count`, asked by `SetDocParam` and by the
+  snapshot walk.
+
+**The two weaker pairs, measured rather than assumed.** Both are
+irreducible and now say so at both sites. `MetadataUnversioned` already
+shares its RULE (`MetaValue::require_versioned`); what differs is the
+walk, and a walk over the one value a door is about to write is not a
+walk. `DanglingInput` against `UnresolvedInput` is `contains_key` on
+the node map at both sites — there is no predicate between them to give
+a home to, only a different subject.
+
+**The frame rule, once** (S1). `Frame::admission_fault` on
+`placement.rs` is A11/A6's frame half — finite, orientation-preserving
+— and `doc::PlacementFault` and `node::PlacementRuleFault` keep their
+arms and delegate to it. Its `Display` is one predicate CLAUSE, so
+every door that refuses a frame forwards the same sentence into its own
+subject ("placement 2 …", "the placement frame on node 7 …").
+
+**The gauge's second leg, structural** (MINOR-1).
+`DocEdit::moves_the_mate_graph` is an exhaustive match with no wildcard
+arm, and `apply` reads it instead of four hand-set `reconcile = true`
+assignments. A new edit arm now fails to compile until it answers
+whether it moves the mate graph — which is the invariant that keeps
+`PlacementNotGauge` unreachable from the edit doors. Pinned by
+`edit::tests::exactly_the_graph_moving_edits_ask_for_reconciliation`.
+
+**The evaluation backstop reaches the same rule** (S8).
+`eval::wire`'s `wire_assertion` spelled E10's agreement a third time;
+it now decides through `AssertionBoundFault::against`, the
+measured-dimension entry point `Node::assertion_bound_fault` reaches
+once it has resolved the reference.
+
+**`SnapshotError` gets the exhaustive F6 census** (S2) —
+`snapshot_error_display_names_its_content_not_its_struct`, over all
+twenty-one arms, so a new arm cannot land unrendered. The two placement
+frame arms left the dimension-word row, which is about dimension words.
+
+**Rows added**, in `crates/editor-core/tests/edit_one_predicate.rs`:
+a witness on a non-sketch node, a witness on a missing node, a
+non-positive ε, and a continuous parameter declared `Count` — each
+naming both doors' refusals for one fact. The suite's module doc no
+longer claims that a file which loads is a file the edit door could
+have produced: it states what the shared predicates actually buy and
+cites the slot-dimension gap as the known exception.
+
+**Mutants**, each applied and reverted, at `f305afee6`:
+
+| Mutant | Rows it reds |
+| --- | --- |
+| `assertion_bound_fault` → `None` | both assertion rows |
+| `assertion_bound_fault`'s non-measure arm → `DimensionMismatch` | the non-measure row |
+| `has_non_finite_alignment` → `false` | the alignment row AND the in-crate save row |
+| `placement_fault` → `None` | both placement rows AND the in-crate save row |
+| `Frame::admission_fault` → `None` | the improper-placement row, the in-crate save row AND `lib_placedunion::placement_frames_are_held_to_the_cluster_frame_bar` |
+| `Frame::admission_fault`'s two arms swapped | the same three |
+| `witness_site_fault` → `None` | both witness rows |
+| `witness_site_fault`'s two arms swapped | both witness rows |
+| `epsilon_admissible` → `true` | the ε row AND the in-crate save row |
+| `is_continuous_count` → `false` | the count row |
+| `moves_the_mate_graph` with `UpdateReference` removed | **does not compile** (`E0004`, the arm named) |
+
+**Filed by the fix pass**, on this program's slate:
+`mate-head-entity-kind-is-decided-only-at-assembly` (the review's
+NOTE-4 — a V1 class-2 gap, not a duplication),
+`count-continuous-arm-is-shadowed-by-the-display-unit-walk` and
+`doc-param-float-walk-is-hand-written-at-both-doors` (both disclosed by
+the fresh census below).
+
+**Outside EDIT's fence, mechanical:** `crates/pncad-py/src/tags.rs` and
+`crates/pncad-py/src/tests.rs` gain one tag word
+(`witness_on_missing_node`) for the new arm. LIB's files.
+
+## Census (2026-09-16, re-read at `f305afee6`, `edit/one-predicate-round-two`)
+
+The classification above counted three hits and was short by three, as
+the review lane's row
+(`check-rs-hand-copied-predicate-sweep-undercounts`) measured. **This
+section replaces it**, and it is a fresh reading of `validate_document`
+at this branch's head rather than a correction of the old list: every
+refusal the function can produce, whether the predicate behind it is
+DELEGATED (one function both doors call) or HAND-WRITTEN at this door,
+and what its edit-door twin is.
+
+`validate_document` calls five walks, in this order. A refusal from an
+earlier walk shadows a later one for the same document — which is
+itself a census entry below, not a footnote.
+
+| # | Walk | Refusal | Predicate | Edit-door twin |
+| --- | --- | --- | --- | --- |
+| 1 | `first_non_finite` | `PersistError::NonFinite { site: Epsilon }` | hand-written (`!epsilon.is_finite()`) | `SetTolerance`'s `InvalidTolerance`, whose rule is `doc::epsilon_admissible` — **this walk asks the finiteness half a second time**, and shadows entry 8 for a non-finite ε. Kept: the two report different facts (WHICH float the format cannot write, against WHICH rule the ε breaks), and the float walk is the D2 round-trip class. |
+| 2 | `first_non_finite` | `NonFinite { site: DocParam }` | hand-written (`param_site`) | `SetDocParam`'s `NonFiniteDocParam` — the same `is_finite` over the nominal and the distribution offsets, in two walks. A predicate over one `DocParam` would have one home; not moved here, and named as residue below. |
+| 3 | `first_non_finite` | `NonFinite { site: Metadata }` | **delegated** — `MetaValue::first_non_finite` | `SetAppearanceMeta`'s `MetaNonFinite`, same function. |
+| 4 | `first_non_finite` | `NonFinite { site: Edit }` | **delegated** — the same `edit_non_finite` over the log | None, and there cannot be: the edit door sees one edit, not a log. |
+| 5 | `first_distribution_fault` | `PersistError::Distribution` | **delegated** — `Distribution::check` | `SetDocParam`'s `InvalidDistribution`, same function. |
+| 6 | `first_display_unit_fault` | `PersistError::DisplayUnit` | **delegated** — `UnitSym::measures` | `SetDocParamUnit`'s `DocParamUnitMismatch`, same function. |
+| 7 | `first_program_fault` | `ProgramFault::SlotDimension`, `ProgramRefusal::Transition` | **HIT (open)** for the slot walk — `edit.rs`'s `check_node_slots` spells the same rule over every node kind; **delegated** for the replay probe (`ProfileProgram::check`, which `InsertNode`'s VQ9 door also calls) | `EditError::SlotDimensionMismatch`. Filed as `load-door-checks-slot-dimensions-for-profile-nodes-only` and measured by the `load_door_slot_dimension` suite; a unit rather than a follow-through, for the three questions that row names. |
+| 8 | `validate_snapshot` | `EpsilonInvalid` | **delegated** — `doc::epsilon_admissible` | `SetTolerance`'s `InvalidTolerance`. Moved by this unit. |
+| 9 | `validate_snapshot` | `CountContinuous` | **delegated** — `DocParam::is_continuous_count` | `SetDocParam`'s `ContinuousParamCannotBeCount`. Moved by this unit. The arm is UNREACHABLE through `validate_document`, because entry 6 runs first and no unit measures a count — filed as `count-continuous-arm-is-shadowed-by-the-display-unit-walk`. |
+| 10 | `validate_snapshot` | `OrderMismatch` | hand-written | **No twin.** `order` against the node map is a file's fact; `apply` maintains the two together by construction. |
+| 11 | `validate_snapshot` | `IdBeyondCounter` | hand-written (`check_id`, one closure, six call sites) | **No twin.** The mint counter is `apply`'s own monotone state. |
+| 12 | `validate_snapshot` | `DanglingInput` | hand-written | `InsertNode`/`SetMembers`'s `UnresolvedInput`. **Irreducible**: the rule IS `doc.nodes.contains_key`, which both sites already call — there is no predicate between them to extract, only a different subject. Said at both sites. |
+| 13 | `validate_snapshot` | `ForwardInput` | hand-written | **No twin.** Insertion order is topological by construction at the edit door. |
+| 14 | `validate_snapshot` | `PlacementRule` | **delegated** — `Node::placement_rule_fault` | `InsertNode`'s rule arms. Its frame half is now `Frame::admission_fault`, shared with entry 19. |
+| 15 | `validate_snapshot` | `InputList` | **delegated** — `Node::input_fault` | `InsertNode`/`SetMembers`. |
+| 16 | `validate_snapshot` | `MeasureRefs` | **delegated** — `Node::measure_fault` | `InsertNode`. |
+| 17 | `validate_snapshot` | `DeclareInput` | **delegated** — `Node::bad_declare_input` | `InsertNode`. |
+| 18 | `validate_snapshot` | `AssertionTarget` / `AssertionBound` | **delegated** — `Node::assertion_bound_fault` | `check_node_slots`'s `AssertionTarget` / `AssertionDimension`. Moved by this unit; the evaluation backstop now reaches the same rule through `AssertionBoundFault::against`. |
+| 19 | `validate_snapshot` | `MateAlignment` | **delegated** — `Node::has_non_finite_alignment` | `InsertNode`'s `NonFiniteAlignment`. Moved by this unit. |
+| 20 | `validate_snapshot` | `WitnessSite` / `WitnessOnMissingNode` | **delegated** — `doc::witness_site_fault` | `ReWitness`/`ReWitnessBulk`'s `WitnessOnNonSketch` / `UnknownNode`. Moved by this unit. |
+| 21 | `validate_snapshot` | `PlacementSite` / `PlacementNonFinite` / `PlacementImproper` | **delegated** — `doc::placement_fault`, over `Frame::admission_fault` | `SetPlacement`'s three arms. Moved by this unit. |
+| 22 | `validate_snapshot` | `PlacementNotGauge` | hand-written | **No twin, and that is the invariant.** `SetPlacement` keys the row on the gauge instead of refusing a non-gauge key, and `mate::solve::reconcile` re-keys the registry after every edit that moves the mate graph — which `DocEdit::moves_the_mate_graph` now decides exhaustively. Said at both sites. |
+| 23 | `validate_snapshot` | `Roots` | **delegated** — `roots::check` | `SetRoots`, `on_insert`, `on_delete`, `on_set_members`. |
+| 24 | `validate_snapshot` | `MetadataUnversioned` | **delegated** — `MetaValue::require_versioned` | `SetAppearanceMeta`'s `MetaUnversioned`. **The rule is shared; only the WALK differs, irreducibly**: the edit door holds the one value it is about to write, and this door holds a map that arrived whole. Said at both sites. |
+
+**What this census cannot see.** It reads `validate_document` and the
+functions it calls. A predicate duplicated between an edit door and a
+door that admits a document by ANOTHER route is invisible to it — the
+blind spot the companion row
+(`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`)
+names and partly runs, whose own residue is `assembly.rs`'s mint and
+instantiate seats, the workspace store's scan, and
+`ProfileProgram::from_recorded`.
+
+**Residue disclosed by this census, filed rather than left here**:
+entry 2 (the doc-param float walk, hand-written at both doors) is
+`doc-param-float-walk-is-hand-written-at-both-doors`; entry 9's shadow
+is `count-continuous-arm-is-shadowed-by-the-display-unit-walk`; entry
+7 remains `load-door-checks-slot-dimensions-for-profile-nodes-only`.
