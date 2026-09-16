@@ -83,9 +83,15 @@ pub struct EditPayload<'a> {
     pub to_kind: Option<EntityKind>,
     /// How many entries a short list would have had.
     pub count: Option<usize>,
-    /// A repeated designation's FIRST position.
+    /// The position a DESIGNATION fault is reported at. The VARIANT
+    /// decides which position it is: `RepeatedDesignation`'s first
+    /// occurrence of a repeated entry, or `SelectionNotCanonical`'s
+    /// entry that does not sort strictly before the one after it.
+    /// Both are one index into one payload list, so they share the
+    /// attribute rather than minting a second word for it.
     pub first: Option<u32>,
-    /// The position at which it is named AGAIN.
+    /// The position at which a repeat is named AGAIN — carried only by
+    /// `RepeatedDesignation`, the one fault that names two entries.
     pub again: Option<u32>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
@@ -266,6 +272,17 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*node),
             first: Some(*first),
             again: Some(*again),
+            ..none
+        },
+        // One position, not two: a selection's canonical form breaks
+        // between an entry and its successor, so the successor's index
+        // is the entry's plus one and publishing it would be arithmetic
+        // dressed as data. `again` staying `None` is what tells a
+        // reader which of the two designation faults this is, beside
+        // the variant word itself.
+        EditError::SelectionNotCanonical { node, at } => EditPayload {
+            node: Some(*node),
+            first: Some(*at),
             ..none
         },
         // `found` here is a COUNT, not a dimension, so it takes the
