@@ -182,6 +182,13 @@ pub use editor_core::{
 // distribution back is `analysis`'s door, not this one.
 pub use editor_core::{Distribution, DistributionFault, DistributionField};
 
+// WHICH float of a continuous parameter a non-finite refusal is about
+// — the nominal or one of the annotation's offsets. Both doors' typed
+// refusals carry it (`EditError::NonFiniteDocParam`,
+// `NonFiniteSite::DocParam`), so a caller matching either needs to be
+// able to name it.
+pub use editor_core::DocParamField;
+
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
 // the result vocabulary: `Evaluation::result` and

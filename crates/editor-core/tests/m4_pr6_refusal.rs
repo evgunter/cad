@@ -312,9 +312,10 @@ fn metadata_convention_doors_refuse_typed() {
 fn program_structure_doors_refuse_typed_at_load() {
     // v4 (LIB-SWITCH §4h): the stored-joint corruption class died with
     // stored joints; the program layer's corrupt-file classes are a
-    // wrong-dimension argument ROLE and a lattice-violating step
-    // order, both refused by the shared validator on the parsed
-    // document. Craft a valid file, then mutate the JSON body.
+    // wrong-dimension argument ROLE — decided for every node kind by
+    // the shared slot walk — and a lattice-violating step order, both
+    // refused by the shared validator on the parsed document. Craft a
+    // valid file, then mutate the JSON body.
     let (doc, plane) = insert(
         ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
         xy_frame(),
@@ -342,16 +343,16 @@ fn program_structure_doors_refuse_typed_at_load() {
     v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
         serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
+    // A program slot is a slot like any other, so the document-wide
+    // slot walk decides it — the same `Node::slot_dimension_fault` the
+    // edit doors ask, in the load door's vocabulary.
     match load(&mangled, Tol::witness()) {
-        Err(PersistError::ProfileProgram {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::SlotDimension {
             node,
-            fault:
-                editor_core::ProgramFault::SlotDimension {
-                    expected: editor_core::Dimension::Length,
-                    found: editor_core::Dimension::Angle,
-                    ..
-                },
-        }) => assert_eq!(node, circle),
+            expected: editor_core::Dimension::Length,
+            found: editor_core::Dimension::Angle,
+            ..
+        })) => assert_eq!(node, circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
     }
     // (b) Lattice violation: an unclosed chain (a step list that stops
