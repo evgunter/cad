@@ -76,7 +76,9 @@ next unit. What a count in a tracker row is about is the TREE, and a
 merge-only repo moves the tree between the measurement and the landing.
 
 **CENSUS-ARRIVAL-RESIDUE grew it 1357 lines, 17.4%** (9162 at
-`c9c007ef6`, against 7805 on `main` at `370bd6f41`; **1544 added and
+`c9c007ef6`, against 7805 on `main` at `370bd6f41` — and still 7805 at
+`f8f8e648e`, which is `main` re-read on 2026-09-16, the check the
+paragraph above says a number in this row now owes; **1544 added and
 187 removed**, of which 637 of the additions are doc comments —
 `git diff --numstat origin/main -- crates/pncad-py/src/tests.rs`, taken
 after the last edit to the file). Its subject was the residue of the
