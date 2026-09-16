@@ -711,7 +711,11 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
 /// evaluated bodies. The magnitude is not pinned here — the closed form
 /// is `sweep`'s, and `review_fillet_h7_r1_probes` holds it against the
 /// section oracle at both senses. Swapping `sunk_rod`'s bulge for the
-/// [`d_rod`]'s reds this row and nothing else in the suite.
+/// groove's — the wall arc traversed the other way, so the section
+/// DIPS into the block instead of standing on it — reds this row and
+/// none of the four name rows; the only other row that sees it is
+/// [`the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex`],
+/// which pins a measured number of this fixture.
 #[test]
 fn a_convex_band_removes_material_and_a_concave_one_adds_it() {
     for f in fixtures() {
