@@ -140,6 +140,8 @@ mod edit_doc_param_unit;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_recorded_notation.rs"]
+mod edit_recorded_notation;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
 #[path = "eval10_section_reads_the_nominal.rs"]

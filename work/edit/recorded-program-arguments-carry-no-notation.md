@@ -2,7 +2,8 @@
 id: recorded-program-arguments-carry-no-notation
 kind: issue
 title: a recorded path program holds bare f64 arguments, so a leg's written unit is gone before any Expr exists
-status: dispatched
+status: review
+branch: edit/recorded-argument-notation
 opened: 2026-09-09
 ---
 
@@ -83,3 +84,38 @@ recorded program's notation).
    no notation unchanged byte-for-byte in the corpus goldens (none may
    move — say so). The sweep: every producer of `Step<f64>` and every
    consumer of a recorded argument, with what the pattern cannot match.
+
+## Built (2026-09-16)
+
+`RecordedNotation` in `crates/editor-core/src/program.rs` and
+`LoopProgram::from_recorded_with_notation` beside `from_recorded`, with
+`crates/editor-core/tests/edit_recorded_notation.rs` as the rows.
+
+**The spec's shape moved, and the spec's own clause 3 asked for the
+measurement.** Clause 1 put an `Option<UnitSym>` beside each `f64` in
+`Step<f64>`; `Step<T>` is `profile`'s, `profile` depends on `geom-core`
+alone, and D6's first paragraph is that kernel-internal code carries no
+dimensional types (G1 layering keeps `quantity` and `UnitSym` above
+`profile`). So the notation travels BESIDE the recording and meets it at
+the crossing D6's second paragraph names: a value entering a document
+carries the unit it was written in. Same precedent, same shape as
+`DocParam::display_unit`, one door.
+
+The notation is keyed by `(step, StepArg)` — the pair
+`SlotId::Profile` addresses an expression by — so the lift applies it
+through the same `expr_mut` the slot doors read, and there is no second
+table of which argument is which. A unit whose quantity is not the
+role's dimension refuses at `set`; an entry addressing an argument the
+recording has none of refuses at the lift
+(`RecordedProgramError::NotationOffProgram`), never silently dropped.
+
+`bit_eq` is untouched: `Expr::bit_eq` already excludes the display unit,
+so `25 mm` and `0.025 m` are one program and replay to the same
+vertices. No golden moved. `from_recorded` is unchanged and an empty
+notation returns its answer bit for bit.
+
+Not built: the Python half (`work/lib/path-legs-erase-the-authored-notation-one-layer-down`,
+parked on this row, unparks at merge). `crates/pncad/src/document.rs`
+carries the new type and `crates/pncad-py/tests/test_binding_census.py`
+dispositions it as `gap: B-PATH-NOTATION`, both mechanically, both LIB's
+ground.

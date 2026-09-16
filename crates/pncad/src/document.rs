@@ -439,7 +439,13 @@ pub use topo::ShellClassifyError;
 // refusal of the door that reads a step's profile edges — matchable
 // here because a caller that asked which edges a step became has to be
 // able to say WHY it was not told.
+//
+// `RecordedNotation` rides with them because a recorded path program is
+// bare `f64`s and a document literal names its notation (D6): it is what
+// a caller writing `25 mm` through the path algebra hands
+// `LoopProgram::from_recorded_with_notation` so the document reads back
+// what they wrote.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
+    RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
 };
