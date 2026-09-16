@@ -86,10 +86,11 @@ case that made the payload numbers differ has no analogue here, and the
 two counts coincide for this half. The post-click panel lists the new
 arm beside `Strand`; it renders its own prose sentence like every
 other, and it carries no node, because the store carries the
-attachment rather than any node. `Rebind` repairs it, and
-`ClearAppearance` — which deliberately does not require a live node —
-retires it, so the panel has two actions to offer for such a row and
-one for a payload strand. Nothing here asks CHROME for more than the
+attachment rather than any node. The kernel's repairs for this row
+are `Rebind`, which moves the key to a live name, and
+`ClearAppearance`, which retires it and deliberately does not require
+a live node — the arm's own doc says which. What a panel offers for
+such a row is CHROME's. Nothing here asks CHROME for more than the
 count and the list it already owed. Appended from outside CHROME's
 fence, as the earlier sections were, only to keep the definition true
 of the kernel the affordance reads.

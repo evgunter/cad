@@ -2960,6 +2960,17 @@ MEMBERS_BOUND_AS = {
     # off `Doc.last_maintenance`: the four cluster-record acts, and the
     # references a delete stranded — a payload name on its carrying
     # node, an appearance key on the store.
+    #
+    # THE MEASUREMENT for the third of these, the same one this file
+    # makes at `SetAppearanceMeta`: a `stranded_appearance` needs a key
+    # in the appearance store, the only doors that write that store are
+    # `DocEdit::{SetAppearance, SetAppearanceMeta}`, and neither is
+    # bound because the facade leaves `Attr` and the record types out.
+    # So the arm is bound, tagged and readable, and no Python program
+    # can make one appear. Filed as
+    # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
+    # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
+    # selection and `DocEdit.delete_node` is bound.
     "Maintenance::Cluster": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",

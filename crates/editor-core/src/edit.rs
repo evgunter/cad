@@ -1626,9 +1626,12 @@ impl core::fmt::Display for Maintenance {
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
             // is still there and which node's departure orphaned it.
+            // A store holds a thing UNDER a key, and `StableName`'s own
+            // Display supplies the noun ("face name minted by node 7"),
+            // so the article is this sentence's to provide.
             Self::StrandedAppearance { name } => write!(
                 f,
-                "the appearance store carries an attachment on a {}; this edit deleted node {}, \
+                "the appearance store holds an attachment under a {}; this edit deleted node {}, \
                  so the name resolves to nothing until it is rebound or cleared",
                 name, name.node.0
             ),
@@ -1692,11 +1695,7 @@ fn stranded_names<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
 ///
 /// `doc` is the document AFTER the removal, the same value
 /// [`stranded_names`] walks, so the two passes read ONE document and
-/// cannot disagree about which nodes are gone. The delete does not
-/// prune the store — the attachment survives its minting node, which
-/// is what makes it stranded rather than deleted — so the rows would
-/// be the same read before it; reading after is what keeps the two
-/// walks one answer about one document.
+/// cannot disagree about which nodes are gone.
 ///
 /// Rows come in the store's own key order, which is
 /// [`StableName`]'s: an appearance map is a `BTreeMap`, so the report
@@ -1733,11 +1732,16 @@ pub struct Applied<P> {
     /// carriers before the appearance store, the two carriers in the
     /// order DM7 names them — and the cluster acts follow,
     /// reconciling the registry against it afterwards. A consumer may
-    /// rely on that; the two segments are pinned by
+    /// rely on that, and each boundary is held by the row whose
+    /// fixture actually produces the pair of kinds it separates:
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
-    /// and
-    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`,
-    /// each the one edit that produces its pair of kinds at once.
+    /// for payload strand before appearance strand,
+    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`
+    /// for payload strand before cluster act, and
+    /// `dm7_delete_strands::an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+    /// for appearance strand before cluster act — the last one paints,
+    /// which the mate row does not, so it is the only row a walk that
+    /// appended the store's rows after `reconcile` goes red on.
     /// What a consumer may NOT do is read position 0 as a kind: a
     /// delete that strands no payload name puts an appearance strand
     /// or a cluster act there, so an arm is found by matching, never

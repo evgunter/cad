@@ -1867,7 +1867,7 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::StrandedAppearance { name: face_name() },
             vec![
-                "the appearance store carries an attachment on a face name minted by node 7",
+                "the appearance store holds an attachment under a face name minted by node 7",
                 "this edit deleted node 7",
                 "rebound or cleared",
             ],

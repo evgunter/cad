@@ -17,6 +17,12 @@
 //! second arm, `Maintenance::StrandedAppearance { name }`, with no
 //! carrying node because the store is what carries it.
 //!
+//! `m4_pr7_appearance::deleting_the_minting_node_strands_the_attribute_loudly`
+//! is the other end of that key's life: it asserts the typed
+//! `AppearanceLoss` the next EVALUATION answers, where the appearance
+//! rows here assert the report the DELETE DOOR made — the door is what
+//! DM7 added, the loss is what it was limping along on.
+//!
 //! These rows are what goes red when a strand goes unreported.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -556,38 +562,52 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
     let doc = paint(&doc, &one);
     let doc = paint(&doc, &two);
     let doc = paint(&doc, &live);
+    // The WHOLE store, not the three keys: "it never repairs" is a
+    // claim about every key and every record, and a walk that emptied
+    // a stranded record's attrs would survive `contains_key`.
+    let before = doc.appearance().clone();
 
     let applied = delete(&doc, victim);
     assert_eq!(
         appearance_strands(&applied.maintenance),
-        vec![one.clone(), two.clone()],
+        vec![one, two],
         "both keys the deleted node minted, and only those"
     );
-    for name in [&one, &two, &live] {
-        assert!(
-            applied.doc.appearance().contains_key(name),
-            "the store is untouched: DM7 reports, it never repairs ({name})"
-        );
-    }
+    assert_eq!(
+        applied.doc.appearance(),
+        &before,
+        "the store is untouched: DM7 reports, it never repairs"
+    );
 }
 
-/// **A key whose minting node is live is never reported.** The report
-/// is a report of what this edit did, not a dump of the store: a
-/// document full of paint is silent about all of it when the deleted
-/// node minted none of the keys.
+/// **A key whose minting node is live is never reported, in the same
+/// document as one whose minting node just went.** The report is a
+/// report of what this edit did, not a dump of the store — and the
+/// row carries tension both ways: a walk that reported every key
+/// fails on the live one, a walk that reported none fails on the
+/// stranded one. `a_delete_that_strands_nothing_reports_nothing` is
+/// the sibling that holds the all-silent case, where there is no
+/// stranded key to find; this one is the discrimination.
 #[test]
 fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_live", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let doc = paint(&doc, &fname(body, wall(0)));
-    let doc = paint(&doc, &fname(body, wall(2)));
+    let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let live = fname(body, wall(0));
+    let doomed = fname(victim, wall(0));
+    let doc = paint(&doc, &live);
+    let doc = paint(&doc, &doomed);
 
-    let applied = delete(&doc, spare);
-    assert!(
-        applied.maintenance.is_empty(),
-        "the deleted node minted none of the painted names: {:?}",
+    let applied = delete(&doc, victim);
+    assert_eq!(
+        appearance_strands(&applied.maintenance),
+        vec![doomed],
+        "the key the deleted node minted, and not the one the live node did: {:?}",
         applied.maintenance
+    );
+    assert!(
+        applied.doc.appearance().contains_key(&live),
+        "and the live node's paint is still in the store"
     );
 }
 
@@ -632,6 +652,71 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     );
 }
 
+/// **The appearance strand is inside the strand segment, ahead of the
+/// cluster acts** — the second boundary of `Applied::maintenance`'s
+/// order contract, for the second carrier.
+///
+/// `a_mates_head_strands_and_its_read_site_does_not` holds that
+/// boundary for a PAYLOAD strand only: its fixture paints nothing, so
+/// a walk that appended the store's rows after `reconcile` passes it
+/// unchanged. This is the edit that produces all three kinds at once
+/// — a mate head stranded, a painted instance face stranded, and the
+/// registry act the deleted instance forced — so it is the row that
+/// reds when the store's pass moves behind the reconcile.
+///
+/// (Authored by the style review of this unit as
+/// `rv_an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+/// and adopted here, because what it pins is a documented boundary
+/// rather than a mutant's residue.)
+#[test]
+fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
+    let mut store = PartStore::new();
+    let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
+    let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let doc_ref = store.insert(part, Tol::witness());
+
+    let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
+    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
+    let head_a = instance_face(ia, part_body);
+    let (doc, mate) = insert(
+        doc,
+        Node::Mate {
+            a: SitedRef::at_mint(head_a.clone()),
+            b: SitedRef::at_mint(instance_face(ib, part_body)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: mate_frame(),
+                b: mate_frame(),
+                primitive: MatePrimitive::Coaxial,
+                sense: AxisSense::Aligned,
+                clocking: Some(0.0),
+            },
+        },
+    );
+    let painted = instance_face(ia, part_body);
+    let doc = paint(&doc, &painted);
+
+    let applied = delete(&doc, ia);
+    let cluster = applied
+        .maintenance
+        .iter()
+        .position(|row| matches!(row, Maintenance::Cluster(_)))
+        .expect("the deleted instance forces a registry act, so the row is not vacuous");
+    assert_eq!(
+        &applied.maintenance[..cluster],
+        &[
+            Maintenance::Strand {
+                node: mate,
+                name: head_a,
+            },
+            Maintenance::StrandedAppearance { name: painted },
+        ],
+        "both strand kinds are read at the door, before the registry reconciles: {:?}",
+        applied.maintenance
+    );
+}
+
 /// **A cascade reports each appearance strand at the step that made
 /// it**, and the store keeps every attachment the cascade orphaned.
 ///
@@ -658,6 +743,7 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let on_body = fname(body, wall(2));
     let doc = paint(&doc, &on_fillet);
     let doc = paint(&doc, &on_body);
+    let before = doc.appearance().clone();
 
     let order = cascade_delete_order(&doc, body);
     assert_eq!(order, vec![fillet, body], "the consumer goes first");
@@ -673,12 +759,11 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
         vec![vec![on_fillet.clone()], vec![on_body.clone()]],
         "each key at the step that removed the node that minted it"
     );
-    for name in [&on_fillet, &on_body] {
-        assert!(
-            doc.appearance().contains_key(name),
-            "the attachment outlives the whole cascade ({name})"
-        );
-    }
+    assert_eq!(
+        doc.appearance(),
+        &before,
+        "every attachment outlives the whole cascade, unchanged"
+    );
 }
 
 /// **The repair path still works on a reported key.**
