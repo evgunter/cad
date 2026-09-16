@@ -100,7 +100,8 @@
 //! record of anything, which is the same one-home doctrine this
 //! paragraph is about, applied to the pointer rather than the count.
 //!
-//! The cure for the three live copies is the one-home rule above.
+//! The cure the three took is the one-home rule above: each points
+//! here rather than carrying a count of its own.
 //!
 //! ## What an undetected swap COSTS, and which half is a theorem
 //!
@@ -488,11 +489,18 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 /// `nu`/`nv` alone.
 ///
 /// The split is DERIVED, column by column, from
-/// [`tess_lint::identity_readings`] rather than spot-checked: the
-/// constant set and the discriminating set are both named in full, and
-/// between them they name the whole of [`IDENTITY_COLUMNS`], so a
-/// column that changes side and an eighth column both land here rather
-/// than going uncounted.
+/// [`tess_lint::identity_readings`] rather than spot-checked, and both
+/// sets are named in full, so a column that changes side and an eighth
+/// column land here rather than going uncounted.
+///
+/// **The discriminating list is undiscriminating against a change in
+/// the DATA, and it is said rather than hidden**: over a non-empty
+/// corpus every column has at least one reading, so the two filters
+/// partition [`IDENTITY_COLUMNS`] whatever the rows say, and once the
+/// constant list is pinned the discriminating one is the rest of that
+/// list in order. No re-cut of the baseline can red it alone. What it
+/// still catches is a SOURCE edit — an eighth column, or a column
+/// leaving — which lands on one list or the other and reds that one.
 #[test]
 fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
