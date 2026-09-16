@@ -428,13 +428,15 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::ProfileProgramRefused {
-            refusal:
+        Err(EditError::ProfileProgramRefused { refusal, .. })
+            if matches!(
+                *refusal,
                 ProgramRefusal::Transition {
-                    loop_: 0, step: 0, ..
-                },
-            ..
-        }) => {}
+                    loop_: 0,
+                    step: 0,
+                    ..
+                }
+            ) => {}
         other => panic!("a lattice-violating program must refuse at apply, got {other:?}"),
     }
 }

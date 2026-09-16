@@ -2533,9 +2533,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::ProfileProgramRefused {
             node: id(1),
-            refusal: pncad::document::ProgramRefusal::Validate(
+            refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
-            ),
+            )),
         },
         &["node"],
     );
@@ -5260,7 +5260,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 2),
+    ("evaluation_of_another_document", 3),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),
