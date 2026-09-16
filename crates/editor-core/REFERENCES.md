@@ -319,14 +319,22 @@ it.*
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
 
 The map from an authored profile step (`SlotId::Profile { loop_, step,
-arg }`) to the canonical segments it became (`ProfileEdgeRef {
-loop_index, segment }`) is a function in `program.rs` composing two
+arg }`) to the profile edges it became (`ProfileEdgeRef {
+loop_index, segment }`) is a function in `program.rs` reading two
 records the evaluation already produces: the replay's per-step segment
 span (a field of `crates/profile`'s `ReplayStructure`, beside its
-fillet decisions) and canonicalization's `reversed` and `start` on
-`LoopCanonical`. It refuses where a record is absent rather than
-guessing. It is derived from the structure record the geometry came
-from, so it cannot disagree with the geometry, and it is not persisted.
+fillet decisions) gives the answer, in the program's own step order —
+the numbering the published names carry, since `eval/anchor.rs`
+renumbers every emitted ref canonical → program before the name table
+is published — and canonicalization's `reversed` and `start` on
+`LoopCanonical` are checked against the naming anchor's record of the
+same permutation, never applied. A disagreement between those two
+records is the evaluation contradicting itself and asserts. The door
+refuses typed where a record is absent or of the wrong shape rather
+than guessing. It is derived from the structure record the geometry
+came from, so it cannot disagree with the geometry, and it is not
+persisted. For a loft the published anchoring is section 0's
+(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -338,7 +346,13 @@ from, so it cannot disagree with the geometry, and it is not persisted.
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`authored-step-to-canonical-segment-map-has-no-home`); the
-`ReplayStructure` field is S-BOOL's ground by announcement.*
+`ReplayStructure` field is S-BOOL's ground by announcement. The
+wording — the answer in the program's numbering, the permutation
+checked rather than applied, a disagreement asserting — was ruled by
+Ev on EDIT's third `[ev]` PR of 2026-09-16
+(`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`),
+after the unit that built the door measured the original clause's
+composition wrong.*
 
 ## What this doc does not touch
 
