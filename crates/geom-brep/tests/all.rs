@@ -60,6 +60,8 @@ mod arc_eval_anchor;
 mod bool5_wedge_arm;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
+#[path = "bool5r2_wedge_probes.rs"]
+mod bool5r2_wedge_probes;
 #[path = "budget_faces.rs"]
 mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
