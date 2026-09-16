@@ -12,13 +12,15 @@
 //!    centers, down all 12 edges, into all 8 corners, and from the
 //!    interior, on dyadic geometry where every winning computation is
 //!    exact — asserting hit `t`, the resolved face (via public
-//!    `resolve`), and the documented tie-break (earliest flat
-//!    patch-major triangle among the exactly-tied) on every case.
+//!    `resolve`), and the documented tie-break among the exactly-tied
+//!    (the narrower `t` interval, then the earliest flat patch-major
+//!    triangle) on every case.
 //! 2. `coplanar_cross_target_tie_...` (static): two touching bodies
-//!    whose faces meet the ray at the SAME exact `t` — the winner is
-//!    the earlier TARGET POSITION (not node id), so reversing the
-//!    slice flips the winner. The PR's own occlusion row has distinct
-//!    `t`s and cannot see this clause.
+//!    whose faces meet the ray at the SAME exact `t` — a certified tie
+//!    the door breaks by the narrower interval, so the answer is a
+//!    function of the candidates and NOT of the slice order, and
+//!    reversing the slice does not flip it. The PR's own occlusion row
+//!    has distinct `t`s and cannot see this clause.
 //! 3. `random_integer_rays_match_the_exact_oracle` (counterexample
 //!    search — varying seed, effort dial): random integer rays against
 //!    the cube; the exact oracle computes every triangle hit as a
@@ -43,6 +45,7 @@ test_utils::gated_to![
 
 use crate::fixture;
 
+use editor_core::resolve::{TSpan, ray_triangle};
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
     RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
@@ -221,6 +224,54 @@ fn oracle_hits(
     hits
 }
 
+/// The corners of flat triangle `flat` of target `target_pos`, in the
+/// patch-major order the oracle and the service both count in.
+fn flat_triangle(meshes: &[(usize, &Mesh)], target_pos: usize, flat: usize) -> [Point3<f64>; 3] {
+    for &(pos, mesh) in meshes {
+        if pos != target_pos {
+            continue;
+        }
+        let mut i = 0usize;
+        for patch in &mesh.patches {
+            for tri in &patch.triangles {
+                if i == flat {
+                    return tri.map(|k| mesh.positions[k as usize]);
+                }
+                i += 1;
+            }
+        }
+    }
+    panic!("no flat triangle {flat} on target {target_pos}")
+}
+
+/// **The documented tie-break, restated over the exactly-tied hits**:
+/// the narrower `t` interval the door answers, then `(target
+/// position, flat triangle position)`. The oracle's exact arithmetic
+/// says WHICH hits tie; how wide each claim is, is the door's own
+/// answer and is read from it.
+fn tie_break_winner(
+    tied: &[OracleHit],
+    meshes: &[(usize, &Mesh)],
+    ray: &Ray,
+) -> (OracleHit, TSpan) {
+    tied.iter()
+        .map(|h| {
+            let tri = flat_triangle(meshes, h.target_pos, h.flat);
+            let span = ray_triangle(ray, &tri).expect("an oracle hit is admitted by the door");
+            (*h, span)
+        })
+        .reduce(|(bh, bs), (ch, cs)| {
+            if cs.width() < bs.width()
+                || (cs.width() == bs.width() && (ch.target_pos, ch.flat) < (bh.target_pos, bh.flat))
+            {
+                (ch, cs)
+            } else {
+                (bh, bs)
+            }
+        })
+        .expect("at least one tied hit")
+}
+
 fn oracle_winner(hits: &[OracleHit]) -> Option<OracleHit> {
     let mut best: Option<OracleHit> = None;
     for h in hits {
@@ -337,9 +388,17 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
             "case {ci}: exact dyadic t (o={o:?} d={d:?})"
         );
         let got_patch = resolved_patch_index(&doc, &ev, &mesh, &hit.name);
+        let tied: Vec<OracleHit> = hits.iter().copied().filter(|h| h.t_ties(&win)).collect();
+        assert!(
+            tied.iter().any(|h| h.patch == got_patch),
+            "case {ci}: the winner is one of the hits tied at the minimal exact t (o={o:?} \
+             d={d:?}; oracle hits {hits:?})"
+        );
+        let (documented, span) = tie_break_winner(&tied, &scaled_meshes, &r2);
         assert_eq!(
-            got_patch, win.patch,
-            "case {ci}: documented winner patch (o={o:?} d={d:?}; oracle hits {hits:?})"
+            got_patch, documented.patch,
+            "case {ci}: documented winner patch — the narrower interval ({span:?}), then \
+             position (o={o:?} d={d:?}; tied {tied:?})"
         );
     }
 }
@@ -347,13 +406,17 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
 /// Row 2 — the coplanar cross-target tie: cubes `[0,1]` and `[1,2]`
 /// share the plane `x = 1`; a ray running INSIDE that plane first
 /// touches both bodies at the same exact `t` (their `y = 0` faces'
-/// shared edge point). The documented winner is the earlier TARGET
-/// POSITION, so reversing the slice must flip the winning node — and
-/// the parallel `x = 1` faces themselves are misses (zero
+/// shared edge point). Their `t` intervals overlap, so this is a
+/// CERTIFIED TIE and the door takes the narrower claim; target
+/// position decides only where the widths are equal, and here they
+/// are not. **So the answer is a function of the candidates and not
+/// of the slice order**: reversing the slice does not flip it, which
+/// is the stronger determinism property and is what this row now
+/// pins. The parallel `x = 1` faces themselves are misses (zero
 /// determinant), which this row also witnesses through the resolved
 /// patch being a `y = 0` patch, not an `x = 1` patch.
 #[test]
-fn coplanar_cross_target_tie_resolves_by_target_position() {
+fn coplanar_cross_target_tie_resolves_by_the_narrower_interval() {
     let doc = ProfileDoc::empty_derived("r1_xtie", Tol::witness());
     let (doc, a) = cube_doc_node(doc, 0.0); // x ∈ [0, 1]
     let (doc, b) = cube_doc_node(doc, 1.0); // x ∈ [1, 2] — touching
@@ -372,27 +435,54 @@ fn coplanar_cross_target_tie_resolves_by_target_position() {
         .expect("no error")
         .expect("tie ray hits");
     assert_eq!(hit.t, 1.0);
-    assert_eq!(hit.node, a, "earlier target wins the exact tie");
+    assert!(
+        hit.t_lo < hit.t && hit.t < hit.t_hi,
+        "the answer is an interval around the exact t: {hit:?}"
+    );
+    // Which claim is narrower is the door's own answer, so the row
+    // reads it rather than asserting a body: each target alone.
+    let alone_a = pick_face(&ev, &[ta], &r)
+        .expect("no error")
+        .expect("a hits");
+    let alone_b = pick_face(&ev, &[tb], &r)
+        .expect("no error")
+        .expect("b hits");
+    assert_eq!((alone_a.t, alone_b.t), (1.0, 1.0));
+    let (wa, wb) = (alone_a.t_hi - alone_a.t_lo, alone_b.t_hi - alone_b.t_lo);
+    assert!(
+        wb < wa,
+        "the second body's claim is the better-certified one: {wb} against {wa}"
+    );
+    assert_eq!(
+        hit.node, b,
+        "and it wins the certified tie though its target is second in the slice"
+    );
 
     let flipped = pick_face(&ev, &[tb, ta], &r)
         .expect("no error")
         .expect("tie ray hits");
     assert_eq!(flipped.t, 1.0);
     assert_eq!(
-        flipped.node, b,
-        "the tie-break is target POSITION, not node identity"
+        flipped.node, hit.node,
+        "and it wins from either slice order — the certified tie is decided by the candidates, \
+         not by the order they were offered in"
+    );
+    assert_eq!(
+        (flipped.t_lo.to_bits(), flipped.t_hi.to_bits()),
+        (hit.t_lo.to_bits(), hit.t_hi.to_bits()),
+        "to the bit"
     );
 
     // The winning face is a y = 0 patch (the in-plane x = 1 faces are
     // parallel-miss by the documented zero-determinant rule).
-    let pi = resolved_patch_index(&doc, &ev, &mesh_a, &hit.name);
-    let patch = &mesh_a.patches[pi];
+    let pi = resolved_patch_index(&doc, &ev, &mesh_b, &hit.name);
+    let patch = &mesh_b.patches[pi];
     assert!(
         patch
             .triangles
             .iter()
             .flatten()
-            .all(|&i| mesh_a.positions[i as usize].y == 0.0),
+            .all(|&i| mesh_b.positions[i as usize].y == 0.0),
         "winner lies on the y = 0 face"
     );
 }
