@@ -798,9 +798,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  same rim family is BUILT — a plane cuts a sphere in a circle, always, \
                  and `torax_the_sphere_lune_rim_solves_in_closed_form` carries it — \
                  but a sphere lune still does not reach `shell`, at a different door \
-                 again: the flux arm's props_band_coplanar premise cannot give tier 3 \
-                 the volume its +V invariant needs \
-                 (`torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
+                 again: the operand's own wall measures (the rim-free wedge arm), and \
+                 it is the CAVITY's lens face — bounded by the moved caps' \
+                 off-centre sections — whose volume the flux arm cannot give tier 3 \
+                 (`props_meridian_great`; \
+                 `torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
                  SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
                  has closed forms for planar faces only, so this multi-shell CURVED \
                  solid refuses CurvedShellClassification — declared at the body and \
