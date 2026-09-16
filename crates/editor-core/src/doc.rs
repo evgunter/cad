@@ -125,6 +125,51 @@ impl core::fmt::Display for DocParamValue {
     }
 }
 
+/// Why a notation cannot be written onto a declaration
+/// ([`DocParam::with_display_unit`]).
+///
+/// The two reasons a notation edit is refused, decided in ONE place —
+/// the door — so that its callers only route them. The edit vocabulary
+/// maps these to [`crate::EditError::DocParamCountHasNoUnit`] and
+/// [`crate::EditError::DocParamUnitMismatch`]; nothing re-derives which
+/// of the two applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplayUnitRefusal {
+    /// The parameter is a [`DocParam::Count`]. A count is an exact
+    /// integer, not a quantity: it names no notation, and the arm
+    /// carries no field to write one into.
+    CountHasNoNotation,
+    /// The offered unit measures a different quantity than the
+    /// parameter was declared with — millimetres for an angle, degrees
+    /// for a length.
+    Mismatch {
+        /// What the offered unit measures.
+        unit: Dimension,
+        /// What the parameter declares.
+        declared: Dimension,
+    },
+}
+
+// The refusal's own prose, for a caller holding the door's `Err`
+// without an `EditError` around it. The edit vocabulary renders its
+// two arms in the parameter's own terms and names it; this says the
+// fault alone.
+impl core::fmt::Display for DisplayUnitRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CountHasNoNotation => {
+                f.write_str("a count is an integer rather than a quantity, so it has no notation")
+            }
+            Self::Mismatch { unit, declared } => write!(
+                f,
+                "the display unit measures {unit} but the parameter is declared {declared}"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for DisplayUnitRefusal {}
+
 impl DocParam {
     /// The parameter's dimension.
     pub fn dim(&self) -> Dimension {
@@ -204,9 +249,11 @@ impl DocParam {
 
     /// This parameter with `value` written into it, keeping the whole
     /// DECLARATION — the dimension, the authored display unit and the
-    /// optional distribution — untouched. **The carry-forward, in one place**: every value
-    /// door goes through here rather than rebuilding a parameter from
-    /// parts, so no door can drop an annotation it never mentioned.
+    /// optional distribution — untouched. **The VALUE carry-forward, in
+    /// one place**: every value door goes through here rather than
+    /// rebuilding a parameter from parts, so no door can drop an
+    /// annotation it never mentioned. The notation has its own, in
+    /// [`Self::with_display_unit`].
     ///
     /// `None` when the value's arm does not match the declaration's.
     /// Changing a parameter's kind is a REDECLARATION — the
@@ -241,49 +288,72 @@ impl DocParam {
     /// This parameter written in `unit`, keeping the whole rest of the
     /// DECLARATION — the dimension, the exact value and the optional
     /// distribution — untouched. [`Self::with_value`]'s mirror over the
-    /// other field, and the carry-forward for a NOTATION change in one
-    /// place: every unit door goes through here rather than rebuilding
-    /// a parameter from parts, so no door can drop an annotation it
-    /// never mentioned.
+    /// other field, and the notation carry-forward in one place: every
+    /// door that writes a notation goes through here rather than
+    /// rebuilding a parameter from parts, so no door can drop an
+    /// annotation it never mentioned.
     ///
-    /// **Changing a parameter's NOTATION is not a redeclaration**, and
-    /// that is why this door exists at all. Changing its KIND is one —
-    /// [`Self::with_value`]'s argument — but [`Self::bit_eq`] already
-    /// EXCLUDES `display_unit` as presentation metadata, the same
-    /// ruling `Expr::bit_eq` makes about a literal's. A unit edit
-    /// therefore changes nothing bit-semantic equality sees, so there
-    /// is nothing about the parameter for a caller to restate; the
-    /// create-or-replace door would make them restate it all, and
-    /// silently delete whatever they forgot.
+    /// # Changing a NOTATION is not a redeclaration
     ///
-    /// `None` in the two cases the edit door refuses typed:
+    /// **This is the home of that argument**; everywhere else that
+    /// needs it cites this paragraph rather than restating it.
     ///
-    /// - a [`Self::Count`] — a count is an integer, not a quantity, and
-    ///   names no notation. There is no field here to write into.
-    /// - a unit that does not MEASURE the declared dimension. That is
-    ///   the pairing the save/load validator refuses a document for
-    ///   (`persist::check`) and the one
-    ///   [`Self::written_length`]/[`Self::written_angle`] make
-    ///   unreachable by construction; the predicate is
-    ///   [`crate::UnitSym::measures`], asked rather than restated.
+    /// Changing a parameter's KIND is a redeclaration — that is
+    /// [`Self::with_value`]'s argument, and why a value edit refuses a
+    /// kind change rather than performing one. Changing its NOTATION is
+    /// a different class of thing, and the document already ruled so:
+    /// [`Self::bit_eq`] EXCLUDES `display_unit` as presentation
+    /// metadata, the same ruling `Expr::bit_eq` makes about a literal's.
+    /// A notation edit therefore changes nothing bit-semantic equality
+    /// sees — it enters the history and it persists, and replay
+    /// identity and `diff.rs` are blind to it exactly as they are to a
+    /// literal's notation. So there is nothing about the parameter for
+    /// a caller to restate; the create-or-replace door would make them
+    /// restate it all, and silently delete whatever they forgot.
+    ///
+    /// # Errors
+    ///
+    /// A TYPED reason rather than a bare `None`, because there are two
+    /// of them and the edit door reports them as two different
+    /// refusals: a caller that had to re-derive which one applied would
+    /// be the second home of a rule that lives here.
+    /// [`DisplayUnitRefusal::CountHasNoNotation`] for a [`Self::Count`],
+    /// [`DisplayUnitRefusal::Mismatch`] for a unit that does not MEASURE
+    /// the declared dimension — the pairing the save/load validator
+    /// refuses a document for (`persist::check`) and the one
+    /// [`Self::written_length`]/[`Self::written_angle`] make unreachable
+    /// by construction. The predicate is [`crate::UnitSym::measures`],
+    /// asked rather than restated.
     ///
     /// EXHAUSTIVE on both arms as [`Self::with_value`] is: a new
     /// `DocParam` variant must say how a notation edit reaches it, or
     /// the compile breaks.
-    pub fn with_display_unit(&self, unit: crate::expr::UnitSym) -> Option<Self> {
+    pub fn with_display_unit(
+        &self,
+        unit: crate::expr::UnitSym,
+    ) -> Result<Self, DisplayUnitRefusal> {
         match self {
             Self::Continuous {
                 dim,
                 value,
                 display_unit: _,
                 distribution,
-            } => (unit.measures() == *dim).then_some(Self::Continuous {
-                dim: *dim,
-                value: *value,
-                display_unit: unit,
-                distribution: *distribution,
-            }),
-            Self::Count { .. } => None,
+            } => {
+                let measured = unit.measures();
+                if measured != *dim {
+                    return Err(DisplayUnitRefusal::Mismatch {
+                        unit: measured,
+                        declared: *dim,
+                    });
+                }
+                Ok(Self::Continuous {
+                    dim: *dim,
+                    value: *value,
+                    display_unit: unit,
+                    distribution: *distribution,
+                })
+            }
+            Self::Count { .. } => Err(DisplayUnitRefusal::CountHasNoNotation),
         }
     }
 

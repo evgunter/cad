@@ -233,7 +233,8 @@ fn the_parametric_living_walk() {
     });
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
-            EditError::DocParamNotDeclared { ref name } => assert_eq!(name.0, "tapper"),
+            // The door rides along now; this row is about the NAME.
+            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.0, "tapper"),
             ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),

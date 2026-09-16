@@ -2925,10 +2925,8 @@ class DocEdit:
 
         `set_doc_param_value`'s mirror over the other field of the same
         declaration, and preferable over `set_doc_param` for the same
-        reason. A notation change is not a redeclaration: the display
-        unit is presentation metadata, excluded from `DocParam.bit_eq`,
-        so this edit changes nothing bit semantics see while still
-        entering the history and persisting.
+        reason. A notation change is not a redeclaration — the display
+        unit is presentation metadata, excluded from `DocParam.bit_eq`.
 
         The unit is one of the typed unit objects (`mm`, `deg`, ...),
         so an off-table notation is a `TypeError` here rather than a

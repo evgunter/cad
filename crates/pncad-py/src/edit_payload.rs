@@ -358,7 +358,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::ContinuousParamCannotBeCount { name }
-        | EditError::DocParamNotDeclared { name }
+        | EditError::DocParamNotDeclared { name, door: _ }
         | EditError::DocParamCountHasNoUnit { name }
         | EditError::NonFiniteDocParam { name }
         | EditError::InvalidDistribution { name, fault: _ } => EditPayload {

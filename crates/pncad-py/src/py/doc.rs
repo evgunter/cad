@@ -3310,10 +3310,8 @@ impl DocEdit {
     /// declaration to re-spell one unit, and whatever they leave out
     /// — the annotation, every time — is deleted with no refusal.
     ///
-    /// A notation change is NOT a redeclaration: `display_unit` is
-    /// presentation metadata, excluded from `DocParam.bit_eq`, so this
-    /// edit changes nothing bit semantics see. It still enters the
-    /// history and still persists.
+    /// A notation change is NOT a redeclaration — `DocParam.bit_eq`
+    /// already excludes the display unit as presentation metadata.
     ///
     /// The unit is a `LengthUnit` or an `AngleUnit` — the same objects
     /// `25 * mm` is written with — so an off-table notation is a

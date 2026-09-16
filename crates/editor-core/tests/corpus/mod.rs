@@ -367,7 +367,21 @@ pub const NODE_KINDS: [&str; 21] = [
     "Assertion",
 ];
 
-/// The edit kinds a document exercises (the coverage tally's domain).
+/// The edit kinds the corpus is required to exercise — the coverage
+/// tally's DOMAIN, not the `DocEdit` vocabulary.
+///
+/// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
+/// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
+/// corpus document authors, and listing them here would report four
+/// permanent misses rather than covering anything. What guards the
+/// vocabulary itself is not this list but [`edit_kind`]'s match, which
+/// is exhaustive with no wildcard: a twenty-first `DocEdit` arm fails
+/// the BUILD there and its author then decides whether the corpus
+/// should exercise it, rather than the arm slipping in unnamed.
+///
+/// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
+/// the tally in both directions, so a kind listed and never exercised
+/// is as red as a kind exercised and never listed.
 pub const EDIT_KINDS: [&str; 16] = [
     "InsertNode",
     "DeleteNode",

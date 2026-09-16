@@ -2367,7 +2367,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ContinuousParamCannotBeCount { name: param() },
         &["param"],
     );
-    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
+    carries(
+        &E::DocParamNotDeclared {
+            name: param(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &["param"],
+    );
     carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
     carries(
         &E::DocParamValueKindMismatch {

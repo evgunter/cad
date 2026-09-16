@@ -390,13 +390,18 @@ impl UnitSym {
     /// pairing [`Self::canonical_for`] makes, read in the opposite
     /// direction.
     ///
-    /// **The one place that reading is spelled.** Every door that has
-    /// to decide whether a unit belongs beside a dimension asks here:
-    /// [`Expr::literal_with_unit`] at construction,
-    /// [`crate::DocParam::with_display_unit`] at the parameter's
-    /// notation door, and the save/load validator's parameter walk
-    /// (`persist::check`). Three callers restating one `match` is three
-    /// chances for them to disagree about what `mm` measures.
+    /// **The one place that reading is spelled**, and every caller that
+    /// needs it asks here rather than re-laddering it: the expression
+    /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
+    /// construction, [`crate::DocParam::with_display_unit`] at the
+    /// parameter's notation door, `write_doc_param` at the
+    /// create-or-replace door, and the save/load validator's parameter
+    /// walk (`persist::check`). Callers restating one `match` are that
+    /// many chances for them to disagree about what `mm` measures —
+    /// and the parser's copy was worse than a duplicate, because the
+    /// dimension it derived was then handed to a door that derives the
+    /// same thing from the same unit to check the two against each
+    /// other.
     ///
     /// Total: the table's quantity column has three rows and
     /// [`Dimension`] has a variant for each. `Count` is not among them

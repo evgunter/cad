@@ -1,6 +1,8 @@
 //! Corpus document **kitchen_sink** — every v1 node kind and every
-//! `DocEdit` kind in ONE document (M4 PR 8a spec D1's "touching
-//! everything at once"). It grew out of the M4 PR 6 round-trip
+//! REQUIRED `DocEdit` kind in ONE document (M4 PR 8a spec D1's
+//! "touching everything at once"); "required" is `EDIT_KINDS`, which
+//! is sixteen of the twenty arms and says at its own definition which
+//! four stand outside it and why. It grew out of the M4 PR 6 round-trip
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
@@ -9,7 +11,11 @@
 //! Split, Boolean (Union, with a Declare operand), Transform, Pattern
 //! (Linear and Circular), Declare.
 //!
-//! Edit kinds: `InsertNode`, `DeleteNode`, `SetParam`,
+//! Edit kinds — the sixteen `EDIT_KINDS` names, which is every arm the
+//! corpus is required to cover and NOT every arm `DocEdit` has (that
+//! list's own doc says which four stand outside it and what guards a
+//! new one):
+//! `InsertNode`, `DeleteNode`, `SetParam`,
 //! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
 //! `SetDocParamValue`, `SetDocParamUnit`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
