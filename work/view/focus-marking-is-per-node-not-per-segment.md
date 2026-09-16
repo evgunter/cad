@@ -73,3 +73,35 @@ This item stays `open` rather than parked, for the same reason
 `session-shims-and-test-imports` does: `blocked_on` can name an item
 or a PR, and what gates this is a siting question nobody has claimed.
 See `tracker-has-no-status-for-an-unscheduled-trigger`.
+
+## Unblocked (EDIT, 2026-09-16)
+
+The siting question is ruled (**DM8**) and the door is built:
+`ProfileProgram::canonical_segments_of(structure, naming, loop_, step)`
+in `crates/editor-core/src/program.rs` answers the
+`SlotId::Profile { loop_, step, .. }` → set-of-`ProfileEdgeRef`
+question this row waited on, composed from the records the evaluation
+already produced and refusing rather than guessing. So "the filter is
+expressible today as 'the drawn patches whose role path mentions this
+`ProfileEdgeRef`'" now has the set of refs to filter on, and this row
+is VIEW's work again rather than a blocked one.
+
+Two things to read before starting.
+
+- **The refs are program-anchored.** The door answers with the
+  `ProfileEdgeRef`s the published name table carries — for a program
+  loop, the segment the program's step order authored
+  (`eval/anchor.rs`), which is the same coordinate
+  `PickIndex::name_of` hands back. No remap is needed at the viewer;
+  `work/edit/dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`
+  is the wording row about DM8 saying "canonical" here.
+- **The records are not on the value yet.** The door takes
+  `profile::ProfileStructure` and `eval::ProfileNaming`. `ProfileValue`
+  carries the naming; the structure lives on the evaluation's
+  `pub(crate)` precompute, so a viewer-side consumer needs it sited
+  somewhere it can reach. That plumbing is its own row and was not
+  taken here.
+
+A step maps to a SET (possibly empty — an entry verb or a
+direction-binding verb produces no segment), which is the union this
+row already anticipated.

@@ -2,9 +2,9 @@
 id: authored-step-to-canonical-segment-map-has-no-home
 kind: unit
 title: The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone
-status: spec
+status: review
 opened: 2026-09-04
-refs: [focus-marking-is-per-node-not-per-segment]
+refs: [focus-marking-is-per-node-not-per-segment, dm8-names-canonical-segments-but-the-published-refs-are-program-anchored]
 branch: edit/step-segment-map
 ---
 
@@ -172,3 +172,62 @@ says so; S-BOOL was not asked).
    reversed and one that is rotated.
 5. On merge, VIEW's row `work/view/focus-marking-is-per-node-not-per-segment.md`
    unparks — say so there in a `## Unblocked` section in this PR.
+
+## Built (2026-09-16)
+
+Both halves, one PR. Branch `edit/step-segment-map`.
+
+**The profile half (spec item 1).** `ReplayStructure` gains `steps:
+Vec<StepSpan>` — per authored step, in program order, the half-open
+range of pre-canonical segment indices it produced — beside the fillet
+decisions, with `StepSpan`'s own `Display` so a refusal renders it as
+words. The chain records it as it lowers: `Core::record`, which every
+row calls before it constructs, now also notes the chain length the
+step starts from, and `Core::step_spans` turns those boundaries into
+spans at the close (segment `k` leaves vertex `k`, so a step produces
+the segments whose end vertices it pushed, plus the seam segment when
+it is the closing step). The complete-loop carrier forms mint
+`ReplayStructure::carrier(n)` — one step, every segment — which is how
+`circle`/`circle_split` answer the door with no arm of their own.
+`replay_guided` verifies the spans it reproduced against the record,
+refusing `Decision::StepSpan { step }` flipped; the check sits there
+rather than inside the guide because the carrier forms take no guide at
+all.
+
+**The door (spec item 2).** `ProfileProgram::canonical_segments_of(
+structure, naming, loop_, step) -> Result<Vec<ProfileEdgeRef>,
+StepSegmentsError>` in `crates/editor-core/src/program.rs`. Refusals are
+typed for a loop or step the program does not have, a record that does
+not cover the loop, an anchor that does not mention it, a span that
+reaches past the loop, and — the substantive one — two records that
+describe the loop's permutation differently.
+
+**One correction to the spec's premises, filed as its own row.** The
+spec (and DM8) has the door composing `LoopCanonical`'s
+`reversed`/`start` into its answer. A program loop's published
+`ProfileEdgeRef` is program-anchored, not canonical (`eval/anchor.rs`
+rewrites every emitted ref canonical → program before the table is
+published), so permuting the span moves the answer off the refs the
+names carry — measured: the reversed and rotated acceptance rows fail
+under exactly that mutant. The door therefore answers in the published
+anchoring and consumes `LoopCanonical` as the CHECK on the anchor's
+independently bit-matched permutation. The wording of DM8 and of
+`ProfileEdgeRef`'s own doc is Ev's call and is filed as
+`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`.
+
+**Rows that go red (spec item 4).** In `crates/profile`,
+`common::pinned` — the blanket funnel every closing verb in the suite
+goes through — now asserts the spans partition the loop, and
+`guided_replay` gains a lying-span row. In `crates/editor-core`,
+`tests/edit_step_segments.rs`: every step of every corpus profile is
+answered and the answers partition its loop; three extruded prisms
+(identity, reversed, rotated — each asserting it IS that case) check by
+GEOMETRY that the wall a ref names carries that segment's endpoints
+placed into 3-space; and the two-records-disagree refusal. The
+permuting mutant is caught by the reversed row, the rotated row and the
+corpus row.
+
+**Not done, deliberately (spec item 3).** The `LoopProgram::carrier_radius`
+doc is re-worded to present tense — the map is built and named — and the
+door is NOT widened to chains: that doc states the content-key attach
+obligation as the reason, and it is a separate row.
