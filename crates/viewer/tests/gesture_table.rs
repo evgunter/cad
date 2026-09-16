@@ -27,16 +27,26 @@
 //! not by consulting behaviour. Both copies were written by one author
 //! in one commit, so the honest scope is narrower than "the answers are
 //! checked": reversing the whole table — every op permitted, in the
-//! predicate and in `expected` together — turns five tests red across
-//! the viewer suite, which witnesses 20 of the 26 refusals from outside
-//! this file. The six with no external witness are
+//! predicate and in `expected` together — turns eight tests red, five
+//! of them outside this file.
+//!
+//! **Which refusals those five witness is a second census and has its
+//! own rule**: an op is witnessed from outside when a test outside this
+//! file asserts `Refusal::GestureInFlight` for it with a drag open —
+//! the union of the ops in those five assertion sites. That union is 19
+//! of the 24 refusals. The five with no external witness are
 //! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
-//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`],
-//! [`SessionOp::BeginParamGesture`] and [`SessionOp::AddMate`]; for
-//! those, `expected` is the only place the answer is written down
-//! rather than a check on a written answer. That is strictly more than
-//! the dispatch recorded before the table existed, and it is not the
-//! same as an independent confirmation.
+//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`] and
+//! [`SessionOp::AddMate`]; for those, `expected` is the only place the
+//! answer is written down rather than a check on a written answer.
+//! That is strictly more than the dispatch recorded before the table
+//! existed, and it is not the same as an independent confirmation.
+//!
+//! **What the census rule cannot see** is a test that witnesses a
+//! refusal without naming it — one asserting that nothing was
+//! committed, say — so 19 is a floor on the witnessed set and not a
+//! measurement of it. The reversal count above is the measurement that
+//! does not depend on the naming.
 //!
 //! # What the behavioural rows deliver
 //!
