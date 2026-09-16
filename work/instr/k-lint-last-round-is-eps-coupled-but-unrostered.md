@@ -2,8 +2,9 @@
 id: k-lint-last-round-is-eps-coupled-but-unrostered
 kind: issue
 title: props_quad_last_round is eps-coupled by the criterion the roster pin now applies, and is not on the roster
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-16
 ---
 
 
