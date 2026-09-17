@@ -68,14 +68,19 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
-    NameRef, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, StableName,
 };
-use fixture::{len, scl};
-use geom_core::{Point3, Tol};
+// The name-table and body readers, and the name-authoring shorthands,
+// live in `fixture` — one home for what this suite and
+// `edit_ladder_rim` both read an evaluation with.
+use fixture::{
+    count, edge_of, ends, face_of, face_vertices, len, minted, point, scl, table, tol, vertex_of,
+};
+use geom_core::Point3;
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, rod_chord_at};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use topo::{Body, VertexKey};
 
 /// **The closest pair any row here has to tell apart**: a foot and the
 /// source cap vertex it was retracted from, measured across both
@@ -102,10 +107,6 @@ const FOOT_TO_SOURCE: f64 = 0.043_099_918_793_752_2;
 /// window there would report agreement the carve does not actually
 /// deliver.
 const NEAR: f64 = FOOT_TO_SOURCE * 1e-7;
-
-fn tol() -> Tol {
-    Tol::witness()
-}
 
 // ---------------------------------------------------------------- //
 // The two documents
@@ -315,121 +316,28 @@ fn wall(rod: RecipeNodeId, segment: u32) -> StableName {
     )
 }
 
+/// Both fixtures' rods extrude ONE profile loop, so a cap entity of
+/// theirs is fixed by its cap end and its index in that loop.
 fn rim_edge(rod: RecipeNodeId, end: CapEnd, segment: u32) -> StableName {
-    fixture::ename(
+    fixture::rim_edge(
         rod,
-        RoleSeg::RimEdge(
-            end,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment,
-            },
-        ),
+        end,
+        ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        },
     )
 }
 
 fn cap_vertex(rod: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node: rod,
-        path: vec![RoleSeg::CapVertex(
-            end,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
-        )],
-    }
-}
-
-/// A name minted by `node` in the blend vocabulary.
-fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
-}
-
-fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
-        doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol(),
+    fixture::cap_vertex(
+        rod,
+        end,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        },
     )
-}
-
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-/// The one entity a name answers to — the row's loud end when a mint is
-/// missing, misspelled or aliased.
-fn key_of(t: &NameTable, what: &str, n: &StableName) -> EntityKey {
-    match t.lookup(n) {
-        Some(Entry::Unique(r)) => r.key,
-        other => panic!("{what}: {n:?} is not uniquely named: {other:?}"),
-    }
-}
-
-fn edge_of(t: &NameTable, what: &str, n: &StableName) -> EdgeKey {
-    match key_of(t, what, n) {
-        EntityKey::Edge(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not an edge"),
-    }
-}
-
-fn vertex_of(t: &NameTable, what: &str, n: &StableName) -> VertexKey {
-    match key_of(t, what, n) {
-        EntityKey::Vertex(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not a vertex"),
-    }
-}
-
-fn face_of(t: &NameTable, what: &str, n: &StableName) -> FaceKey {
-    match key_of(t, what, n) {
-        EntityKey::Face(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not a face"),
-    }
-}
-
-/// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
-/// the body rather than inferred from the surface it is a region of.
-fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<VertexKey> {
-    let face = body.get_face(f).expect("a live face");
-    let mut out = Vec::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        match body.get_loop(lk).expect("a live loop").boundary {
-            LoopBoundary::Empty { vertex } => out.push(vertex),
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).expect("a closed cycle") {
-                    out.push(body.get_half_edge(he).expect("a live half-edge").start);
-                }
-            }
-        }
-    }
-    out
-}
-
-/// An edge's two end vertices.
-fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let edge = body.get_edge(e).expect("a live edge");
-    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
-    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
-    [h.start, far]
-}
-
-fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
-    topo::readback::vertex_point(body, v).expect("a live vertex")
-}
-
-/// How many names in `t` take `seg`'s role.
-fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
-    t.iter().filter(|(n, _)| seg(&n.path[0])).count()
 }
 
 fn same_pair(a: [VertexKey; 2], b: [VertexKey; 2]) -> bool {
@@ -495,7 +403,7 @@ fn volume(body: &Body<f64>) -> f64 {
 #[test]
 fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let t = table(&ev, f.fillet);
         let body = corpus::body_of(&ev, f.fillet);
         for end in CAPS {
@@ -551,7 +459,7 @@ fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
 #[test]
 fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
         let (body, rod) = (corpus::body_of(&ev, f.fillet), corpus::body_of(&ev, f.rod));
         for end in CAPS {
@@ -607,7 +515,7 @@ fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
 #[test]
 fn a_trimline_runs_between_the_two_feet_on_its_own_support() {
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let t = table(&ev, f.fillet);
         let body = corpus::body_of(&ev, f.fillet);
         for &(crease, supports) in f.creases {
@@ -654,7 +562,7 @@ fn a_trimline_runs_between_the_two_feet_on_its_own_support() {
 #[test]
 fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let t = table(&ev, f.fillet);
         let body = corpus::body_of(&ev, f.fillet);
         for end in CAPS {
@@ -719,7 +627,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
 #[test]
 fn a_convex_band_removes_material_and_a_concave_one_adds_it() {
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let dv = volume(corpus::body_of(&ev, f.fillet)) - volume(corpus::body_of(&ev, f.rod));
         match f.side {
             Side::Removes => assert!(
@@ -753,7 +661,7 @@ fn a_convex_band_removes_material_and_a_concave_one_adds_it() {
 #[test]
 fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
     let f = sunk_rod();
-    let ev = run(&f.doc);
+    let ev = fixture::run(&f.doc, &EvalOptions::default());
     let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
     let (body, rod) = (corpus::body_of(&ev, f.fillet), corpus::body_of(&ev, f.rod));
     for end in CAPS {
@@ -793,7 +701,7 @@ fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
 fn the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex() {
     let mut min = f64::INFINITY;
     for f in fixtures() {
-        let ev = run(&f.doc);
+        let ev = fixture::run(&f.doc, &EvalOptions::default());
         let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
         let (body, rod) = (corpus::body_of(&ev, f.fillet), corpus::body_of(&ev, f.rod));
         for end in CAPS {

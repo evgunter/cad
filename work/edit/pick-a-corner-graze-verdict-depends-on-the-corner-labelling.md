@@ -73,3 +73,23 @@ tessellator is free to emit a triangle's corners in any rotation.
 
 Not resolved by implementing one: it changes what the door refuses on
 a class the corpus exercises.
+
+## Measured under the clamp (EDIT-PICK3, 2026-09-16): it survives
+
+The `t` ruling asked whether the asymmetry vanishes once the hit point
+is clamped into the closed triangle. It does not, and it cannot: the
+clamp changes what the door ANSWERS, not what it ADMITS, and the
+verdict this row is about is a refusal at INFORM. The row's own pin,
+`a_corner_graze_is_admitted_or_refused_by_its_label`
+(`crates/editor-core/src/resolve/pick.rs`), is unchanged and green
+under the clamp — `(a, b, c)` admits the graze at corner `b`,
+`(b, c, a)` refuses the same geometry.
+
+The third shape (“answer it inside the `t` ruling”) is also measured
+and does not close it: the interval order makes the refused graze
+matter less only where the neighbour that answers OVERLAPS it, and the
+corpus instance (`cut_cylinder` at open, `+z` through
+`(−0.4843, 0.1243, 0.0595)`) is not that case — it is the same shape as
+the gallery ring's, a candidate certified to a piece of the ray shorter
+than its distance from the aimed vertex. This row stays its own, with
+the first two shapes untried.

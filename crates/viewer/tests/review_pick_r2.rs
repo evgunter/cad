@@ -218,9 +218,10 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                                     ));
                                 }
                             }
-                            if let Some(t) = ray_triangle(&ray, tri)
-                                && best.is_none_or(|(b, _)| t < b)
+                            if let Some(span) = ray_triangle(&ray, tri)
+                                && best.is_none_or(|(b, _)| span.t < b)
                             {
+                                let t = span.t;
                                 let bounds = cross
                                     .expect("an admitted candidate has a certified determinant")
                                     .barycentrics

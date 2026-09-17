@@ -1261,7 +1261,7 @@ impl core::fmt::Display for EditError {
             Self::UnknownPayloadParam { name, node } => write!(
                 f,
                 "document parameter {} does not exist (referenced by node {}'s \
-                 measurement payload)",
+                 payload expression)",
                 name.0, node.0
             ),
             Self::PayloadParamDimensionMismatch {
@@ -1272,7 +1272,7 @@ impl core::fmt::Display for EditError {
             } => write!(
                 f,
                 "document parameter {} is declared {declared} but node {}'s \
-                 measurement payload references it as {referenced}",
+                 payload expression references it as {referenced}",
                 name.0, node.0
             ),
             Self::MeasureMalformed { node, fault } => {

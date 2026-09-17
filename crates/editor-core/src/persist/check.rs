@@ -7,72 +7,24 @@
 //! before replay. A document that would refuse to load is therefore
 //! impossible to save by construction: not two mirrored door sets
 //! kept in sync by a sweep, but code that is literally the same and
-//! cannot drift. Its walks:
+//! cannot drift.
 //!
-//! - [`first_non_finite`] — every float the format would write,
-//!   checked finite, with a typed site name. Expression literals are
-//!   finite BY CONSTRUCTION (`Expr::literal` refuses non-finite —
-//!   ruled door 1; the load side re-runs the same constructors), so
-//!   the walk covers the float carriers outside that door: profile
-//!   PLANE PLACEMENTS (program args are Exprs, already doored),
-//!   continuous doc params, the recorded ε, and D7 metadata
-//!   trees (in the snapshot AND in the edit log). A NEW float-carrying
-//!   field must join this walk — the D2 round-trip property tests are
-//!   the tripwire. (Post-parse this walk cannot fire — JSON has no
-//!   non-finite tokens — which is the asymmetry being BYTE-level, not
-//!   a reason to fork the validator.)
-//! - [`first_distribution_fault`] — the E2 invariants of every doc
-//!   param's distribution beyond finiteness, by the same
-//!   `Distribution::check` the edit door runs. It walks the SNAPSHOT
-//!   only: a `SetDocParam` in the log carries its distribution through
-//!   `apply` on replay, which is the same door and the same check, so
-//!   a second walk over the log would ask a question `apply` has
-//!   already answered. Every snapshot-only walk below holds for this
-//!   reason and no other.
-//! - [`first_display_unit_fault`] — every document parameter's
-//!   authored display unit measures the dimension it was declared
-//!   with. A literal needs no twin walk (`Expr::literal_with_unit`
-//!   makes the pairing at construction and the load side re-runs it);
-//!   a `DocParam` does, because its payload is `pub` and its dimension
-//!   is data. Snapshot only, for the reason above.
-//! - [`first_slot_fault`] — every node's SLOT expressions carry the
-//!   dimension their addresses fix (spec D6), by the same
-//!   `Node::slot_dimension_fault` the edit doors ask. EVERY node kind:
-//!   a walk that asked profile programs alone admitted a retyped
-//!   extrude distance the edit door refuses. Snapshot only, for the
-//!   reason above.
-//! - [`first_slot_param_ref_fault`] — every slot expression's
-//!   document-parameter references against the param table, by the
-//!   same `Doc::param_ref_fault` the edit doors ask. An undeclared
-//!   name and a dimension the declaration contradicts are facts about
-//!   the document; a reference that merely fails to EVALUATE is V1
-//!   class 2 and passes. Snapshot only, for the reason above.
-//! - [`first_program_fault`] — profile PROGRAM structure: a REPLAY
-//!   PROBE under the document's params whose LATTICE violations refuse
-//!   (the corrupt-file class — no authoring surface produces them);
-//!   resolve failures and geometry refusals PASS this door (V1
-//!   class 2: refusing programs may exist at rest — they surface as
-//!   typed node errors at evaluation). A step argument's dimension is
-//!   the slot walk's above, not a second spelling here. The retired
-//!   stored-joint walk died with stored joints: programs persist no
-//!   derived values.
-//! - [`validate_snapshot`] — the document invariants `apply`
-//!   maintains, re-checked structurally (a parsed snapshot is not
-//!   trusted; an in-memory one can be corrupted through the `pub`
-//!   payload or an in-crate bug). Every rule an edit door also decides
-//!   is DELEGATED to the one predicate both doors ask, and this walk
-//!   only names the answer in the load door's vocabulary:
-//!   `doc::epsilon_admissible`, `doc::witness_site_fault`,
-//!   `doc::placement_fault`,
-//!   `Node::placement_rule_fault`, `Node::input_fault`,
-//!   `Node::measure_fault`, `Node::bad_declare_input`,
-//!   `Node::assertion_bound_fault`, `Node::has_non_finite_alignment`,
-//!   `MetaValue::require_versioned` and `roots::check`. What is stated
-//!   HERE and nowhere else is what only a FILE can be wrong about —
-//!   `order` against the node map, ids past the mint counter, a
-//!   forward input, and the placement registry's gauge — plus the two
-//!   liveness walks whose rule is the node map's own lookup. Each site
-//!   says which it is.
+//! **The census of its walks is the code's.** [`Walk`] is the roster,
+//! [`Walk::ORDER`] is the order [`validate_document`] iterates, and
+//! [`Walk::run`] is the exhaustive map from a walk to the function
+//! behind it and to the refusal it raises — none of the three compiles
+//! with a walk missing from it. What each walk covers, and why, is on
+//! that walk's own variant; a second hand-written list here is exactly
+//! what undercounted twice.
+//!
+//! Two things no roster can carry stay in prose. **The ORDER** — which
+//! adjacencies are contracts and which are free — is on
+//! [`validate_document`]. **Why most walks read the SNAPSHOT only** is
+//! this, said once instead of at each: a `SetDocParam` in the log
+//! carries its payload through `apply` on replay, which is the same
+//! door and the same check, so a second walk over the log would ask a
+//! question `apply` has already answered. Every walk that says
+//! "snapshot only" holds for this reason and no other.
 //!
 //! The genuinely asymmetric residue stays at its door and is the
 //! symmetry sweep's whole remit now: header/parse/position errors and
@@ -167,22 +119,80 @@ impl core::fmt::Display for NonFiniteSite {
 /// tracker beside this roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Walk {
-    /// [`first_non_finite`] over ε, the params, the nodes, the
-    /// appearance records and the edit log.
+    /// [`first_non_finite`] over ε, the params, the appearance records
+    /// and the edit log — every float the format would write, checked
+    /// finite, with a typed site name.
+    ///
+    /// Expression literals are finite BY CONSTRUCTION (`Expr::literal`
+    /// refuses non-finite — ruled door 1; the load side re-runs the
+    /// same constructors), so this walk covers the float carriers
+    /// outside that door: profile PLANE PLACEMENTS (program args are
+    /// Exprs, already doored), continuous doc params, the recorded ε,
+    /// and D7 metadata trees, in the snapshot AND in the edit log. A
+    /// NEW float-carrying field must join it — the D2 round-trip
+    /// property tests are the tripwire. Post-parse it cannot fire —
+    /// JSON has no non-finite tokens — which is the asymmetry being
+    /// BYTE-level, not a reason to fork the validator.
     NonFinite,
-    /// [`first_distribution_fault`] over the param table.
+    /// [`first_distribution_fault`] over the param table: the E2
+    /// invariants of every doc param's distribution beyond finiteness,
+    /// by the same `Distribution::check` the edit door runs. Snapshot
+    /// only.
     Distribution,
-    /// [`first_display_unit_fault`] over the param table.
+    /// [`first_display_unit_fault`] over the param table: every
+    /// document parameter's authored display unit measures the
+    /// dimension it was declared with. A literal needs no twin walk
+    /// (`Expr::literal_with_unit` makes the pairing at construction and
+    /// the load side re-runs it); a `DocParam` does, because its
+    /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
-    /// [`first_slot_fault`] over every node's slots.
+    /// [`first_slot_fault`] over every node's slots: every node's SLOT
+    /// expressions carry the dimension their addresses fix (spec D6),
+    /// by the same `Node::slot_dimension_fault` the edit doors ask.
+    /// EVERY node kind — a walk that asked profile programs alone
+    /// admitted a retyped extrude distance the edit door refuses.
+    /// Snapshot only.
     SlotDimension,
     /// [`first_slot_param_ref_fault`] over every slot expression's
-    /// document-parameter references.
+    /// document-parameter references, against the param table, by the
+    /// same `Doc::param_ref_fault` the edit doors ask. An undeclared
+    /// name and a dimension the declaration contradicts are facts about
+    /// the document; a reference that merely fails to EVALUATE is V1
+    /// class 2 and passes. Snapshot only.
     SlotParamRef,
-    /// [`first_program_fault`] over the profile programs' replay.
+    /// [`first_payload_param_ref_fault`] over the document-parameter
+    /// references of every expression no slot addresses, asking that
+    /// same one predicate.
+    ///
+    /// **Why this is a second walk rather than a wider domain for
+    /// [`Walk::SlotParamRef`]**: the two answer at different
+    /// ADDRESSES — a slot fault names the slot, a payload fault has
+    /// only the node to name — so folding them would mint an address
+    /// that is sometimes absent, and would erase the order between
+    /// them, which [`validate_document`] holds as a contract.
+    PayloadParamRef,
+    /// [`first_program_fault`] over the profile programs' replay: a
+    /// REPLAY PROBE under the document's params whose LATTICE
+    /// violations refuse (the corrupt-file class — no authoring surface
+    /// produces them). Resolve failures and geometry refusals PASS this
+    /// door (V1 class 2: refusing programs may exist at rest — they
+    /// surface as typed node errors at evaluation). A step argument's
+    /// dimension is [`Walk::SlotDimension`]'s, not a second spelling
+    /// here.
     Program,
-    /// [`validate_snapshot`] over the document's structural
-    /// invariants.
+    /// [`validate_snapshot`] over the document's structural invariants
+    /// — the ones `apply` maintains, re-checked because a parsed
+    /// snapshot is not trusted and an in-memory one can be corrupted
+    /// through the `pub` payload or an in-crate bug.
+    ///
+    /// Every rule an edit door also decides is DELEGATED to the one
+    /// predicate both doors ask, and this walk only names the answer in
+    /// the load door's vocabulary. What is stated THERE and nowhere
+    /// else is what only a FILE can be wrong about — `order` against
+    /// the node map, ids past the mint counter, a forward input, and
+    /// the placement registry's gauge — plus the two liveness walks
+    /// whose rule is the node map's own lookup. Each site says which it
+    /// is.
     Snapshot,
 }
 
@@ -190,12 +200,13 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 7] = [
+    pub(crate) const ORDER: [Walk; 8] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::SlotDimension,
         Walk::SlotParamRef,
+        Walk::PayloadParamRef,
         Walk::Program,
         Walk::Snapshot,
     ];
@@ -231,7 +242,13 @@ impl Walk {
                 })
             }
             Walk::SlotDimension => first_slot_fault(snapshot).map(slot_refusal),
-            Walk::SlotParamRef => first_slot_param_ref_fault(snapshot).map(slot_param_ref_refusal),
+            Walk::SlotParamRef => {
+                first_slot_param_ref_fault(snapshot).map(|(node, slot, fault)| {
+                    param_ref_refusal(node, ParamRefAddress::Slot(slot), fault)
+                })
+            }
+            Walk::PayloadParamRef => first_payload_param_ref_fault(snapshot)
+                .map(|(node, fault)| param_ref_refusal(node, ParamRefAddress::Payload, fault)),
             Walk::Program => first_program_fault(snapshot, tol)
                 .map(|(node, fault)| super::PersistError::ProfileProgram { node, fault }),
             Walk::Snapshot => validate_snapshot(snapshot)
@@ -243,10 +260,9 @@ impl Walk {
 
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. The walks it
-/// runs are [`Walk`]'s variants, in that order — float walk →
-/// distribution walk → display-unit walk → SLOT walks (dimension,
-/// then param refs) → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite).
+/// runs are [`Walk`]'s variants, in [`Walk::ORDER`] — which this
+/// function iterates, so the roster IS the order rather than a
+/// description of it.
 ///
 /// **The order is a CONTRACT, not an implementation detail**: a
 /// document broken in two ways at once is refused by the EARLIER walk,
@@ -255,10 +271,35 @@ impl Walk {
 /// both ways. `rv_onepred3_probes::rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before`
 /// is the row that pins the class.
 ///
-/// The slot walk runs before the program walk because the program
-/// walk PROBES the replay: a step whose argument is an angle where the
-/// role fixes a length is not a walk worth probing, and "your loop is
-/// not a legal lattice walk" is the wrong sentence for it.
+/// **Which adjacencies are contracts, and which are free.** A walk's
+/// position is load-bearing exactly when some document is broken in
+/// both its subject and its neighbour's, so that moving it re-diagnoses
+/// that document. Three are, each with the row that says so:
+///
+/// - [`Walk::SlotDimension`] before [`Walk::SlotParamRef`] — a slot
+///   expression can be retyped AND read an undeclared name, and the
+///   slot's own address is the more specific answer.
+/// - [`Walk::SlotParamRef`] before [`Walk::PayloadParamRef`]
+///   (`load_door_payload_param_ref::a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal`).
+/// - Both param-ref walks before [`Walk::Snapshot`]
+///   (`…::an_assertion_bound_on_a_non_measure_reads_the_payload_refusal`,
+///   and `rv_onepred3_probes::rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before`
+///   for the slot half): a node can carry a broken param reference AND
+///   a structurally invalid shape, and the param-table answer names the
+///   parameter while the structural one does not.
+///
+/// The slot walks before [`Walk::Program`] is a contract of the same
+/// kind with a different reason: the program walk PROBES the replay, so
+/// a step whose argument is an angle where the role fixes a length is
+/// not a walk worth probing, and "your loop is not a legal lattice
+/// walk" is the wrong sentence for it.
+///
+/// The rest are FREE, and no row pins them: [`Walk::NonFinite`],
+/// [`Walk::Distribution`] and [`Walk::DisplayUnit`] read the param
+/// table's three independent properties, and a parameter broken in two
+/// of them is a file this door refuses either way. Reordering those
+/// three changes which sentence such a file gets and breaks no stated
+/// contract.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -287,21 +328,65 @@ fn slot_refusal((node, fault): (RecipeNodeId, SlotDimensionFault)) -> super::Per
     })
 }
 
-/// The slot param-ref walk's answer, in the load door's vocabulary.
-fn slot_param_ref_refusal(
-    (node, slot, fault): (RecipeNodeId, SlotId, crate::doc::ParamRefFault),
+/// **Where a param-ref fault was found** — the ONE thing the two
+/// param-ref walks differ in, and therefore the only argument
+/// [`param_ref_refusal`] needs beside the fault itself.
+enum ParamRefAddress {
+    /// A SLOT expression, at the slot that addresses it
+    /// ([`Walk::SlotParamRef`]).
+    Slot(SlotId),
+    /// An expression no slot addresses ([`crate::node::payload_exprs`],
+    /// [`Walk::PayloadParamRef`]): the node is the whole address.
+    Payload,
+}
+
+/// **The param-ref walks' answer, in the load door's vocabulary** —
+/// one mapper for both walks, because the FAULT is one vocabulary
+/// ([`crate::doc::ParamRefFault`], the one predicate both doors ask)
+/// and only the address differs.
+///
+/// The edit door has the same two destructurings of the same fault
+/// (`check_param_refs` and the payload arm of `check_node_slots`) and
+/// keeps them apart, because there they feed a different error type
+/// with a different subject; the slot-dimension and assertion pairs
+/// have that same both-doors shape. The class is filed as
+/// `param-ref-refusals-spell-two-facts-four-ways` on EDIT's slate.
+fn param_ref_refusal(
+    node: RecipeNodeId,
+    address: ParamRefAddress,
+    fault: crate::doc::ParamRefFault,
 ) -> super::PersistError {
-    super::PersistError::Snapshot(match fault {
-        crate::doc::ParamRefFault::Unknown { name } => {
+    use crate::doc::ParamRefFault;
+    super::PersistError::Snapshot(match (address, fault) {
+        (ParamRefAddress::Slot(slot), ParamRefFault::Unknown { name }) => {
             SnapshotError::SlotUnknownDocParam { node, slot, name }
         }
-        crate::doc::ParamRefFault::Dimension {
+        (
+            ParamRefAddress::Slot(slot),
+            ParamRefFault::Dimension {
+                name,
+                declared,
+                referenced,
+            },
+        ) => SnapshotError::SlotDocParamDimension {
+            node,
+            slot,
             name,
             declared,
             referenced,
-        } => SnapshotError::SlotDocParamDimension {
+        },
+        (ParamRefAddress::Payload, ParamRefFault::Unknown { name }) => {
+            SnapshotError::PayloadUnknownDocParam { node, name }
+        }
+        (
+            ParamRefAddress::Payload,
+            ParamRefFault::Dimension {
+                name,
+                declared,
+                referenced,
+            },
+        ) => SnapshotError::PayloadDocParamDimension {
             node,
-            slot,
             name,
             declared,
             referenced,
@@ -374,6 +459,55 @@ fn first_slot_param_ref_fault(
             let fault = snapshot.param_ref_fault(node.expr(slot)?)?;
             Some((id, slot, fault))
         })
+    })
+}
+
+/// The first PAYLOAD expression whose document-parameter references
+/// the param table cannot answer, as `(node, fault)`, by the ONE
+/// predicate the edit doors ask ([`crate::Doc::param_ref_fault`]).
+///
+/// The expressions no slot addresses ([`crate::node::payload_exprs`]):
+/// a [`crate::Node::Measure`]'s measured expression leaves and a
+/// [`crate::Node::Assertion`]'s bound.
+/// The address reported is the NODE, because that is the address the
+/// expression has — which is why this is its own pair of refusal arms
+/// rather than a wider domain for the slot walk's.
+///
+/// Runs after the slot param-ref walk, so a document broken in a slot
+/// AND in a payload is diagnosed at the slot, which is the address
+/// that carries more.
+///
+/// Their DIMENSIONS are not this walk's subject and are checked
+/// nowhere here: a `MeasureExpr` runs the F1 checker at every
+/// constructor, and an assertion's bound is checked against its
+/// measure's dimension by [`Node::assertion_bound_fault`], whose
+/// refusal is [`SnapshotError::AssertionBound`]. What is left for this
+/// walk is the param TABLE, exactly as for a slot expression.
+///
+/// **The domain's edge, stated because it is not empty.** `slots()`
+/// and [`crate::node::payload_exprs`] together do NOT reach every
+/// `Expr` a node can hold: a `Node::Pattern`'s or `Node::PlacedUnion`'s
+/// COUNT expression under an `Explicit` rule is addressed by no slot
+/// (`node::rule_slots` gives a count slot only under a STEPPED rule)
+/// and is no payload either. Such a file is still refused — by
+/// [`Walk::Snapshot`], as `PlacementRule` with
+/// `PlacementRuleFault::CountSpelling`, because a count expression and
+/// an `Explicit` rule are two spellings of the count that disagree —
+/// so no document reaches memory carrying an unchecked parameter
+/// reference. What it does NOT get is this walk's sentence: the
+/// structural refusal names neither the parameter nor the reference.
+/// `rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`
+/// is the row that pins that, and the `Snapshot`/`PlacementRule` row of
+/// `work/edit/three-door-predicates-are-hand-copied-not-shared`'s table
+/// is where the same fact is recorded for the slot walk.
+fn first_payload_param_ref_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(RecipeNodeId, crate::doc::ParamRefFault)> {
+    snapshot.nodes.iter().find_map(|(&id, node)| {
+        crate::node::payload_exprs(node)
+            .into_iter()
+            .flatten()
+            .find_map(|expr| Some((id, snapshot.param_ref_fault(expr)?)))
     })
 }
 
@@ -706,6 +840,35 @@ pub enum SnapshotError {
         /// The dimension the expression reads it at.
         referenced: crate::expr::Dimension,
     },
+    /// A node whose PAYLOAD expression — a measured expression's value
+    /// leaf or an assertion's bound, the expressions no slot addresses
+    /// ([`crate::node::payload_exprs`]) — reads a document parameter
+    /// the document does not declare. The edit door refuses it through
+    /// the same predicate (`Doc::param_ref_fault`), so a file carrying
+    /// one is data the edit doors could not have produced.
+    ///
+    /// The address is the NODE rather than a slot, which is what
+    /// separates this from [`SnapshotError::SlotUnknownDocParam`]:
+    /// there is no slot to name.
+    PayloadUnknownDocParam {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The name its payload reads.
+        name: ParamName,
+    },
+    /// A node whose PAYLOAD expression reads a declared parameter at
+    /// another dimension than it was declared with — the pairing a
+    /// (re)declaration can break, at the address no slot names.
+    PayloadDocParamDimension {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The name its payload reads.
+        name: ParamName,
+        /// The dimension the declaration carries.
+        declared: crate::expr::Dimension,
+        /// The dimension the expression reads it at.
+        referenced: crate::expr::Dimension,
+    },
     /// A measure node whose expression reads a reference the node does
     /// not carry (E3). The expression indexes the reference list
     /// positionally, so this is a corrupt file, not a stale reference:
@@ -895,6 +1058,25 @@ impl core::fmt::Display for SnapshotError {
                  declared {declared}",
                 node.0,
                 slot.label(),
+                name.0,
+                referenced.article()
+            ),
+            Self::PayloadUnknownDocParam { node, name } => write!(
+                f,
+                "node {}: its payload expression reads the parameter {:?}, which the \
+                 document does not declare",
+                node.0, name.0
+            ),
+            Self::PayloadDocParamDimension {
+                node,
+                name,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "node {}: its payload expression reads the parameter {:?} as {} \
+                 {referenced}, and it is declared {declared}",
+                node.0,
                 name.0,
                 referenced.article()
             ),
@@ -1265,6 +1447,7 @@ mod tests {
             DisplayUnit,
             SlotDimension,
             SlotParamRef,
+            PayloadParamRef,
             Program,
             Snapshot,
         ];
@@ -1279,7 +1462,9 @@ mod tests {
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
-            Walk::SlotDimension | Walk::SlotParamRef | Walk::Snapshot => true,
+            Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
+                true
+            }
         }
     }
 
@@ -1299,6 +1484,8 @@ mod tests {
             SlotDimension,
             SlotUnknownDocParam,
             SlotDocParamDimension,
+            PayloadUnknownDocParam,
+            PayloadDocParamDimension,
             EpsilonInvalid,
             Roots,
             PlacementSite,
@@ -1320,11 +1507,13 @@ mod tests {
     /// does not compile until it says which walk raises it.
     fn walk_of(err: &SnapshotError) -> Walk {
         match err {
-            // `validate_document` itself, from the two slot walks it
+            // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             SnapshotError::SlotUnknownDocParam { .. }
             | SnapshotError::SlotDocParamDimension { .. } => Walk::SlotParamRef,
+            SnapshotError::PayloadUnknownDocParam { .. }
+            | SnapshotError::PayloadDocParamDimension { .. } => Walk::PayloadParamRef,
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
@@ -1406,6 +1595,16 @@ mod tests {
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            SnapshotError::PayloadUnknownDocParam {
+                node,
+                name: ParamName::new("depth"),
+            },
+            SnapshotError::PayloadDocParamDimension {
+                node,
                 name: ParamName::new("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,

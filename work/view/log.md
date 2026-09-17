@@ -13393,3 +13393,121 @@ this program has recorded; the rule is already written (*commit before
 you mutate*) and I did not follow it for an edit made after the commit.
 
 Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+## 2026-09-17 — `view/clamp-nan`: a clamp is not a bound against NaN
+
+Three doors that handed back a value the arithmetic did not compute,
+in a field shaped like one it did. All three of the row's claims
+re-executed and held; all three got a different repair, because the
+question a door can answer is a property of the door.
+
+`theme::channel_to_srgb8` refuses with `is_nan` and not `is_finite`,
+which is the whole argument at that site: **an infinity is ordered and
+a `NaN` is not**, so the clamp genuinely bounds one and cannot see the
+other. Refusing an infinity there would have been a second, unargued
+decision wearing the first one's clothes.
+
+`sketch::arc_points` refuses with `is_finite`, which is the OPPOSITE
+call for the opposite reason: an infinite radius emits `NaN` points
+just as surely as a `NaN` radius does. Two sites in one diff, two
+different finiteness tests, and a lane that reached for one rule for
+both would have been wrong at one of them.
+
+**The row's own framing was wrong about site 1, and the correction
+made the site stronger.** It called `channel_to_srgb8` a paint path
+that cannot refuse mid-frame. `Mark::over` and `from_linear` have one
+caller between them — `crates/viewer/tests/theme.rs`, the colourblind
+check — because the shader mixes in WGSL. So the consequence is not a
+black pixel; it is that the SAFETY MEASUREMENT would have taken pure
+black, the far end of every distance it computes, as the composited
+colour and certified the palette on it. A door that can refuse was
+argued as one that cannot, and the argument came from the item.
+
+**Site 2's live producer is not a `NaN` at all.** A bulge of `1e-320`
+on a horizontal chord — a finite literal `Expr::literal` accepts, typed
+through an ordinary `DragValue` — gives an infinite apothem, and the
+chord's left normal is exactly zero there, so `0 * inf` puts a `NaN` in
+the centre. 256 points at `[NaN, NaN]`, reached through the CAP rather
+than the floor, from an authored path. Hunting only the `NaN` input
+would have closed the arm nobody can reach and left the one anybody
+can.
+
+**A distinguishability assertion over an `f32` needs two rows, not
+one.** The share row was first written as *the poisoned answer differs
+from every legitimate answer*, which is the right shape for the `u8`
+and `usize` sites and worthless for this one: a `NaN` differs from
+everything including itself, so `Some(NaN)` — the broken door's own
+output — passed. The mutation found it, not the reading. The landed
+pair is *the poisoned inputs answer `None`* plus *every legitimate
+input answers a share*; neither row says anything alone. Generalises to
+the register's rule about a suggested assertion's two cheapest
+failures: for a float-valued door there is a third, which is an
+assertion the defect satisfies by being a defect.
+
+**Site 3's red could only be a compile failure**, because the function
+it holds did not exist on the base tree. Certified instead by three
+mutations, each redding the named row: the base tree's guard verbatim,
+the stack-half alone, and the `wanted`-half alone. Sites 1 and 2 took
+ordinary base-tree reds from a committed tree.
+
+Signed (VIEW implementer lane `view/clamp-nan`).
+
+### The review, and the three guards that were held by nothing
+
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything, and I reported a provenance receipt I had not taken.**
+The PR body named `07b41f6bf6` as the commit that wrote `theme.rs`'s
+clamp sentence. That SHA does not resolve in this repository. The real
+commit is `df8cc27873` (2026-08-30). Two things are worth keeping:
+this checkout is shallow — `.git/shallow` exists and history bottoms
+out at a grafted boundary — so a pickaxe over it reports an absence it
+has no standing to report; and the sentence spans a `///`
+continuation, which is the register's split-span trap and would have
+defeated the search even in a full clone. **The conclusion survived
+anyway** — `theme.rs` is in no companion table, so nothing was waiting
+for Ev — which is exactly what makes the class expensive: a receipt
+that is wrong about its own evidence and right about its answer passes
+every reading that stops at the answer.
+
+**Three of the guards I landed were held by nothing, and mutation is
+the only thing that said so.** The reviewer ran three and all three
+were green: undoing the theme refusal into the cap
+(`unwrap_or(255)`), deleting `flatten`'s `centre`/`start` filter, and
+replacing its `return Err` with `continue`. I reproduced all three
+before repairing any. The general shape is this program's own — *a
+typed refusal whose production is asserted nowhere* — and what it
+cost here is specific: I wrote a distinguishability row for the
+`usize` site that compared against the floor, the cap and an ordinary
+value, wrote one for the `u8` site that compared against the floor
+ALONE, and then wrote a PR body claiming both did the first thing. The
+sentence was true of one row and false of the other, and it read as
+true because the two rows sit in different files.
+
+**So: a claim about a POPULATION of rows is checked against each
+member, not against the row you wrote most recently.** The body's
+"both rows" is the same defect this register already records as *a
+universal in prose owes the sweep rule that produces its population*,
+scoped down to two.
+
+**The guard I argued for at greatest length was the one held by
+nothing, and my own account of why it exists was wrong.** The
+`centre`/`start` check: I wrote that it is earned by the denormal
+bulge. It is not — in that producer `radius` is `inf`, so `arc_points`
+refuses and `centre` never fires. It is earned by an arc whose radius
+is ORDINARY and whose midpoint overflows: two vertices near the top of
+the exponent range. Both cases are now rows and deleting the filter
+reds exactly one of them. A long argument attached to the wrong
+example is harder to catch than a short one, because the length reads
+as diligence.
+
+**And driving it through the real door moved a claim of mine.** I had
+written that the denormal bulge is a live producer and described it in
+a two-vertex loop. Through `preview` that loop never reaches the
+flattener at all — the seam reverses onto itself and the driver
+refuses it as an undeclared cusp two steps earlier. It takes a third
+vertex. The claim was right; the shape I stated it in was not, and the
+arithmetic I executed standalone could not tell me, because it was the
+flattener's arithmetic and not the door's. **Executing a function's
+arithmetic is not the same as reaching the function.**
+
+Signed (VIEW implementer lane `view/clamp-nan`, after review).
