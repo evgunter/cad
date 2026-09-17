@@ -1553,15 +1553,20 @@ pub fn pick_face<T: Decide>(
     }
 
     // One group per FACE: several triangles of one face are one
-    // answer, not a tie (docs). The first target a face was met on
-    // rides along as the list's first key; survivors arrive in target
-    // order, so it is the target order the refusal is documented in.
+    // answer, not a tie (docs). Each group accumulates its answer as
+    // it is built — the HULL of its members' intervals, at the
+    // smallest rounded `t` among them, ties to the earlier position —
+    // so there is no empty group to unwrap and no second pass. The
+    // first target a face was met on rides along as the list's first
+    // key; survivors arrive in target order, so it is the target order
+    // the refusal is documented in.
     struct Group {
         target_pos: usize,
         node: RecipeNodeId,
         body: u32,
         face: FaceKey,
-        members: Vec<usize>,
+        /// The hull so far, at the smallest rounded `t` so far.
+        span: TSpan,
     }
     let mut groups: Vec<Group> = Vec::new();
     for &i in &survivors {
@@ -1570,45 +1575,33 @@ pub fn pick_face<T: Decide>(
             .iter_mut()
             .find(|g| g.node == cand.node && g.body == cand.body && g.face == cand.face)
         {
-            Some(group) => group.members.push(i),
+            Some(group) => {
+                group.span = TSpan {
+                    // The survivors arrive in position order, so the
+                    // strict `<` keeps the earlier position at equal
+                    // `t` — which decides which POINT of one face is
+                    // reported, and nothing else.
+                    t: if cand.span.t < group.span.t {
+                        cand.span.t
+                    } else {
+                        group.span.t
+                    },
+                    t_lo: group.span.t_lo.min(cand.span.t_lo),
+                    t_hi: group.span.t_hi.max(cand.span.t_hi),
+                };
+            }
             None => groups.push(Group {
                 target_pos: cand.target_pos,
                 node: cand.node,
                 body: cand.body,
                 face: cand.face,
-                members: vec![i],
+                span: cand.span,
             }),
         }
     }
     groups.sort_by_key(|g| (g.target_pos, g.face));
 
-    // One face's answer: the hull of its members' intervals, at the
-    // smallest rounded `t` among them (ties to the earlier position —
-    // every member is a point of the same face, so this decides which
-    // POINT of it is reported and nothing else).
-    let answer = |group: &Group| -> PickHitParts {
-        let at = *group
-            .members
-            .iter()
-            .min_by(|&&a, &&b| {
-                undecided[a]
-                    .span
-                    .t
-                    .total_cmp(&undecided[b].span.t)
-                    .then(a.cmp(&b))
-            })
-            .expect("a group is built from at least one member");
-        let span = TSpan::hull_at(
-            group.members.iter().map(|&i| undecided[i].span),
-            undecided[at].span.t,
-        );
-        PickHitParts {
-            span,
-            point: ray.origin + ray.dir * span.t,
-        }
-    };
     let hit_of = |group: &Group| -> Result<PickHit, HitTestError> {
-        let parts = answer(group);
         let name = entity_name(
             eval,
             group.node,
@@ -1621,10 +1614,10 @@ pub fn pick_face<T: Decide>(
             name: name.clone(),
             node: group.node,
             body: group.body,
-            t: parts.span.t,
-            t_lo: parts.span.t_lo,
-            t_hi: parts.span.t_hi,
-            point: parts.point,
+            t: group.span.t,
+            t_lo: group.span.t_lo,
+            t_hi: group.span.t_hi,
+            point: ray.origin + ray.dir * group.span.t,
         })
     };
 
@@ -1638,14 +1631,6 @@ pub fn pick_face<T: Decide>(
         return Err(HitTestError::Ambiguous { hits });
     };
     Ok(Some(hit_of(only)?))
-}
-
-/// The two halves of one face's answer that are functions of its
-/// members' spans alone — split out so the door builds them once for
-/// the hit and for every member of a refusal.
-struct PickHitParts {
-    span: TSpan,
-    point: Point3<f64>,
 }
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
@@ -1813,21 +1798,6 @@ impl TSpan {
         (0..spans.len())
             .filter(|&i| spans[i].t_lo <= lowest_hi)
             .collect()
-    }
-
-    /// The hull of a non-empty set of intervals: `[min t_lo, max t_hi]`
-    /// around the `t` of `at`.
-    ///
-    /// The members of one face's tie each enclose the crossing of
-    /// their own triangle, so the hull encloses every crossing the tie
-    /// holds — which is what makes it the face's answer rather than
-    /// one triangle's ([`pick_face`]).
-    fn hull_at(spans: impl IntoIterator<Item = Self>, at: f64) -> Self {
-        let (t_lo, t_hi) = spans.into_iter().fold(
-            (f64::INFINITY, f64::NEG_INFINITY),
-            |(lo, hi), s| (lo.min(s.t_lo), hi.max(s.t_hi)),
-        );
-        Self { t: at, t_lo, t_hi }
     }
 }
 

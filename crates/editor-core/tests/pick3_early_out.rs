@@ -537,11 +537,7 @@ fn equal_widths_refuse_with_both_faces() {
     for hit in first.iter().chain(&second) {
         assert_eq!(
             [hit.point.x, hit.point.y, hit.point.z],
-            [
-                first[0].point.x,
-                first[0].point.y,
-                first[0].point.z
-            ],
+            [first[0].point.x, first[0].point.y, first[0].point.z],
             "at the same point: the refusal names faces, not places"
         );
         assert_eq!(

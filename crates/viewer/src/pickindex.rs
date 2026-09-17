@@ -1451,9 +1451,7 @@ impl PickIndex {
             .map_err(PickError::Camera)?;
         match self.pick_for(eval, &ray, display) {
             Ok(hit) => Ok(hit.map(selection).into_iter().collect()),
-            Err(HitTestError::Ambiguous { hits }) => {
-                Ok(hits.into_iter().map(selection).collect())
-            }
+            Err(HitTestError::Ambiguous { hits }) => Ok(hits.into_iter().map(selection).collect()),
             Err(other) => Err(PickError::HitTest(other)),
         }
     }

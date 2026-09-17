@@ -636,13 +636,7 @@ fn assert_flat_reference(
                     let part = &index.parts()[hit.part];
                     let point = ray.origin + ray.dir * hit.t();
                     match &names[hit.part][hit.patch] {
-                        Ok(name) => descriptor(
-                            part.node(),
-                            part.body(),
-                            name,
-                            hit.t(),
-                            point,
-                        ),
+                        Ok(name) => descriptor(part.node(), part.body(), name, hit.t(), point),
                         Err(e) => format!("refused: {e}"),
                     }
                 })

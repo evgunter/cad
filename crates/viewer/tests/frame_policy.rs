@@ -1428,7 +1428,12 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), &[hit.name.clone()]),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&hit.name)
+        ),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
@@ -1437,19 +1442,20 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::disagreement(&index, answer(6, id), Some(7), &[]),
         None
     );
-    assert_eq!(
-        idpass::disagreement(&index, answer(7, id), None, &[]),
-        None
-    );
+    assert_eq!(idpass::disagreement(&index, answer(7, id), None, &[]), None);
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
         idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), &[]),
         None
     );
     // A real disagreement reports both sides.
-    let report =
-        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), &[hit.name.clone()])
-            .expect("nothing vs a face is a disagreement");
+    let report = idpass::disagreement(
+        &index,
+        answer(7, IdMap::NOTHING),
+        Some(7),
+        std::slice::from_ref(&hit.name),
+    )
+    .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
@@ -1466,7 +1472,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .filter(|name| **name != hit.name)
         .cloned()
         .collect();
-    let second = others.first().expect("the plate draws a second face").clone();
+    let second = others
+        .first()
+        .expect("the plate draws a second face")
+        .clone();
     let outside = others
         .iter()
         .find(|name| **name != second)
@@ -1550,12 +1559,23 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        idpass::disagreement(&index, answer(7, id), Some(7), &[edge.name.clone()]).is_some(),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&edge.name)
+        )
+        .is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), &[face.name.clone()]),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&face.name)
+        ),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1588,7 +1608,12 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
         .expect("a second occurrence");
     assert_eq!(
-        idpass::disagreement(&index, answer(3, other), Some(3), &[hit.name.clone()]),
+        idpass::disagreement(
+            &index,
+            answer(3, other),
+            Some(3),
+            std::slice::from_ref(&hit.name)
+        ),
         None,
         "two ids of one name are the same answer"
     );

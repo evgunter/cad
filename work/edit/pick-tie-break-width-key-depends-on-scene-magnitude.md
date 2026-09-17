@@ -2,8 +2,10 @@
 id: pick-tie-break-width-key-depends-on-scene-magnitude
 kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
-status: spec
+status: review
 opened: 2026-09-16
+pr: 0
+branch: edit/pick-tie-refuses
 ---
 
 
@@ -224,3 +226,63 @@ index_memo}.rs` (VIEW's, announced on the ruling), `crates/pncad-py/src/{tags.rs
 py/pick.rs, tests.rs}` and the Python pick test (LIB's, mechanical),
 `docs/DESIGN.md`'s picking bullet (the description of what is built).
 One style review with a correctness arm (opus), then the fix pass.
+
+
+## Built (2026-09-17, `edit/pick-tie-refuses`)
+
+The ruling is built across the three crates.
+
+**The kernel** (`crates/editor-core/src/resolve/pick.rs`,
+`resolve/hit.rs`). `TSpan::best_of` is gone; `TSpan::survivors`
+answers the set of candidates no other precedes, in slice order, and
+is the one spelling of the rule every reference loop and probe calls.
+`pick_face` groups the survivors by `(node, body, face)`: one group is
+the answer (the hull of the members' intervals, at the member with the
+smallest rounded `t`), several are `HitTestError::Ambiguous { hits }`
+— one `PickHit` per tied face, listed in the caller's target order and
+then face-arena order. `TSpan::width` stays as the enclosure and as
+the early-out margin's quantity, and is a key nowhere. The early-out
+is unchanged and now also makes the refusal's list complete.
+`HitTestError` loses `Copy`/`Eq` (its new arm carries a `Vec`) and
+`PickHit` gains a written-out `PartialEq`, floats included, so a
+refusal is a value a row can pin.
+
+**The viewer** (VIEW's, announced on the ruling). `PickIndex::pick_for`
+merges the groups' answers with `TSpan::survivors` — the kernel's own
+order, not `<` on a rounded `t` — and refuses with the tied groups,
+which closes §2 of
+`work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts`.
+Its §1 (a moved instance's `t_lo`/`t_hi` carried unconverted) and §3
+(`OCCLUSION_SLACK_REL`) stand: neither is touched here, and §3's site
+now reads `PickIndex::front_of`, which answers the occlusion question
+across a tie rather than refusing it. `face_under_cursor` becomes
+`faces_under_cursor` (a list), `idpass::Disagreement::from_ray` becomes
+the SET the ray path names, and the id pass counts as AGREEING when it
+named one of the tied faces. An ambiguous click selects nothing and the
+status line names the tied faces, through the refusal's own `Display`
+on the path `frame::pick_refusal` already took.
+
+**The Python door** (LIB's, mechanical): tag `ambiguous`, the
+exception's `hits` attribute carrying the tied `PickHit`s, the class
+docstring, the stub, the binding census and one test in
+`test_picking.py`.
+
+`docs/DESIGN.md`'s picking bullet is re-worded as the description of
+what was built.
+
+**Rows re-baselined**: `pick.rs`'s shared-edge row (now the arithmetic
+under the door's refusal); `pick3_early_out`'s four rows plus two new
+ones (the shared edge refusing with both faces; several triangles of
+one face answering that face); `gui1_pick`'s edge ray; `gui1_pick_r2`'s
+corner ray; `review_gui1_r1`'s three rows; `review_pick_r2_probes`'s
+reference loop; `m4_pr4_hit`'s `HitTestError` census and Display case;
+`index_memo`'s reference and its two `tube_arc`/ring probes;
+`pick3_acceptance`'s reference, both sweeps and its assertions.
+
+**Not built, and why**: the spec named "the width rows of the two
+PICK3 review-probe suites (`review_pick3_r1_probes`,
+`review_pick3_r2_probes`)". Those suites carry no width-ORDER row —
+their only use of `TSpan::width` is the enclosure's half-width, which
+the ruling keeps — so there was nothing to re-baseline there. The
+`tube_arc` width rows are in `crates/viewer/tests/index_memo.rs`, and
+those are re-baselined.

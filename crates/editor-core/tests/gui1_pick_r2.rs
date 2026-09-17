@@ -343,8 +343,10 @@ fn a_ray_through_a_shared_corner_refuses_with_every_incident_face() {
     // Straight at the (1,1,1) corner along the body diagonal.
     let r = ray([3.0, 3.0, 3.0], [-1.0, -1.0, -1.0]);
     let Err(HitTestError::Ambiguous { hits }) = pick_face(&ev, &targets, &r) else {
-        panic!("a corner ray is answered for — closed triangle boundaries — and the three \
-                incident faces are one tie");
+        panic!(
+            "a corner ray is answered for — closed triangle boundaries — and the three \
+                incident faces are one tie"
+        );
     };
     assert_eq!(
         hits.len(),

@@ -348,7 +348,11 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         name: StableName {
             kind: EntityKind::Face,
             node,
-            path: vec![RoleSeg::Cap(if at == 3 { CapEnd::Start } else { CapEnd::End })],
+            path: vec![RoleSeg::Cap(if at == 3 {
+                CapEnd::Start
+            } else {
+                CapEnd::End
+            })],
         },
         node,
         body: 0,

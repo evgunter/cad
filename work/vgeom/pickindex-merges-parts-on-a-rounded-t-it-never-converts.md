@@ -85,3 +85,27 @@ should stop being a guess either way.
 left the file untouched and says so in its PR body; the interval is the
 ray's own parameter, and converting a moved instance's hit is the
 viewer's job, which is what makes this a row rather than a patch.
+
+
+## §2 closed by announcement (2026-09-17, EDIT `edit/pick-tie-refuses`)
+
+Ev's ruling on `[ev]` PR #2795 gave the kernel door a set-valued
+answer: the survivors of `TSpan::precedes` are the answer when they
+name one face and `HitTestError::Ambiguous { hits }` when they name
+several, with no width and no position key. The ruling names the
+viewer's cross-group merge as taking the same rule, so the unit built
+it: `PickIndex::pick_for` collects one candidate per group, runs
+`TSpan::survivors` over their spans, answers the single survivor and
+refuses with the rest. `<` on a rounded `t`, and the comment about
+group order, are gone.
+
+**§1 and §3 stand.** §1 — a moved instance's `t_lo`/`t_hi` carried
+across `map` unconverted by `..hit`, while `point` is converted — is
+untouched: the unit changed the merge, not the crossing, and the
+`..hit` struct update is still there. §3 — `OCCLUSION_SLACK_REL`'s
+tuned `1e-6` — is untouched too, and its site moved: the occlusion
+probe now reads `PickIndex::front_of`, which answers the nearest
+parameter across a certified tie rather than refusing it, and still
+compares it with the same relative slack. Whether the viewer wants
+`front.span.precedes(&span)` instead remains VIEW's call and this
+row's §3.
