@@ -2,8 +2,9 @@
 id: tess-lint-ungated-columns-fold-silently
 kind: issue
 title: Six CSV columns reach the gate unparsed and unrefused, and a re-cut folds every ungated column's movement in silently
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-17
 ---
 
 
