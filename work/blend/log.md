@@ -1216,3 +1216,50 @@ container restart; the usage limit) and resumed each time. **Ordinal
 frozen head** — byte 86 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
 digests on `blend/b3-block` before either ran. The unit's log entry
 waits for the dual.
+
+**Unit 15's dual concluded (2026-09-17, ~08:35 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/5/5, rubric 3/2/4; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 1/3/5, rubric 3/4/4. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The doors, the gap sentence's home and the
+differential are right by both instruments: each reproduced the
+170-render differential in two trees and two targets and checked the
+fall-through clause per render (R2 also shimmed all thirteen `Display`
+impls and dumped every refusal both suites emit at both SHAs — four
+profile strings changed, all the fall-through, none in `sweep`); each
+confirmed the gap sentence at both doors for a named and a nameless
+unknown with no category and no third mouth; each reproduced mutants
+C and D. Headline BILATERAL by execution at MAJOR: the roster reader
+has silent holes on ordinary spellings — R1 by a turbofish
+`decide::<f64>(…)` (the suffix branch drops the site before reading
+its argument), R2 by a one-line wrapper around a declared carrier and
+a const-built `CosurfaceNames` (the carrier scan is one level deep) —
+every row green while the door renders the gap sentence for the new
+name; C2 falsified by both, so the unit's clause (b) guarantee does
+not hold as shipped. R1's second MAJOR — `validate.rs`'s
+near-tangency addendum is a third Display selecting prose by predicate
+name with a silent default, and the spec's "one name, two sentences"
+list is empty only because it was measured across crates — is a
+classification by reading that R2 explicitly adjudicated the other way
+("not this class") and pinned with a probe row: unilateral, by
+reading, doc/contract class ⇒ EXCLUDED under 3(d), recorded as a
+genuine split for calibration; the facts both agree on (the three
+names carry a different sentence at the stored-form arm) go to the fix
+pass as a Phase 1 re-measurement within each crate. Converged: the
+rows prove routed-or-listed, never paired (R1 rewired a name into the
+wrong arm and 448 rows stayed green; R2 Q3); the gap sentence false at
+the names the roster lists as deliberately unrouted and self-
+contradicting after D4's advice; the `UNROUTED` reasons false for some
+names under them and guarded by nothing; a gate outside `src`
+invisible; the reader copied twice beside a third pre-existing copy —
+the trap the style lane names, sprung. Unique R2: the enum-keyed
+`CornerConfig` tables whose `_ =>` asserts a recourse; `flush.rs`
+inventing a name for a nameless escalation; two spellings of one
+`Option<&str>` in `geom-core`; the lane's "a pure re-ordering changes
+no text" corrected (the natural move reds two rows). Unique R1: the
+turbofish and `include!` shapes; sweep has no order row; the brief's
+"eight deviations" against the body's seven (the orchestrator's
+error). Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-15-brief.md`); both probe branches
+adopted; the `test-utils` seam for the one homed reader announced to
+S-TINT and S-TCOST; delta by R1.
