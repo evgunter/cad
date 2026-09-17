@@ -227,3 +227,13 @@ pub use editor_core::{
 pub use editor_core::{
     Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx, resolve,
 };
+
+/// REVIEW PROBE rawtarget-rv P2: is a `compile_fail` row honest here?
+///
+/// ```compile_fail,E0599
+/// # use editor_core::MeshPick;
+/// # fn probe(m: &mesh::Mesh) {
+/// let _ = MeshPick::build(m);
+/// # }
+/// ```
+pub fn rawtarget_rv_probe_p2() {}
