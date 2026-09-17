@@ -2,7 +2,7 @@
 id: pick-tie-break-width-key-depends-on-scene-magnitude
 kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
-status: open
+status: spec
 opened: 2026-09-16
 ---
 
@@ -160,3 +160,67 @@ the width rows of the two PICK3 review-probe suites, `pick3_acceptance`'s
 edge. `docs/DESIGN.md`'s picking bullet ("a total documented
 tie-break") is re-worded by the unit, as the description of what it
 built.
+
+## Spec'd (2026-09-17, EDIT orchestrator) — middle tier, branch `edit/pick-tie-refuses`
+
+The `## RULED` section is the spec's premises; this section is the
+rows, the mutants and the territory.
+
+**Rows** (red first, then the door):
+
+- `a_ray_down_a_shared_edge_…` (`pick.rs`) becomes "…refuses with both
+  faces": the two hits carried by `HitTestError::Ambiguous`, each true
+  (same `t`, same point), in target order; and the refusal is the same
+  set whichever order the targets are offered in.
+- `pick3_early_out::equal_widths_fall_to_the_earlier_target` becomes
+  "equal widths refuse": swapping the targets swaps the LIST's order
+  and nothing else. `…decided_by_the_candidates_and_not_the_targets_order`
+  re-baselines to the refusal's set. `the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box`
+  keeps its claim: the kept candidate now appears in the refusal's
+  list (or is the answer, when it precedes) — `Pruned == Every` over
+  the list.
+- **Same face, one answer**: a ray across a triangle diagonal of one
+  planar face answers that face (no refusal), with the hull interval
+  and the smaller rounded `t`; a ray down a shared in-face edge the
+  same. A mutant that refuses on triangle count instead of face
+  count reds it.
+- **Wide over narrow refuses**: the `tube_arc` class
+  (`pick-a-wide-but-informative-barycentric-…`, the edge-on face in
+  front of the transversal one) now refuses with both — re-baseline
+  the PICK3 review-probe rows that pinned the width order
+  (`review_pick3_r1_probes`, `review_pick3_r2_probes`) and say which
+  claim each now pins.
+- `pick3_acceptance`: `winner` becomes the door's set rule; the
+  tie-break aim counts refusals (edges/vertices aimed by construction
+  across distinct faces) and asserts `Pruned == Every` over hit AND
+  refusal; `wide_winners` stays a measurement column; the wide aim's
+  `aim_lost` re-baselines with the count of aims that became refusals
+  stated in the PR body.
+- The viewer: an ambiguous ray answer selects nothing and the status
+  line names the tied faces (`pane/viewport.rs`'s click path);
+  `idpass::disagreement` answers `None` when the id pass's name is one
+  of the tied set, and a `Disagreement` whose `from_ray` is the tied
+  set otherwise (render "rendered X, ray path tied between X and Y");
+  `PickIndex::pick_for`'s cross-group merge applies `precedes` over
+  the groups' intervals, else the refusal — closing §2 of
+  `work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts`
+  by announcement (say what of its §1 and §3 stands).
+- Python: `HitTestError` gains the `ambiguous` tag; the exception
+  carries the tied hits; one test in the binding's suite.
+
+**Mutants**: keep the width key (the wide-over-narrow row reds it; the
+equal-widths row cannot, both widths being equal there); keep the
+position key (the shared-edge row reds); refuse on
+triangle count (the same-face row reds); drop the early-out margin
+(the below-box row reds); list the hits in flat-triangle order only
+(the target-order row reds).
+
+**Territory**: `crates/editor-core/src/resolve/pick.rs` (EDIT),
+`crates/editor-core/tests/{pick3_early_out, review_pick3_r1_probes,
+review_pick3_r2_probes, gui1_pick, review_gui1_r1, gui1_pick_r2}.rs`
+(TCOST/TINT), `crates/viewer/src/{pickindex.rs, idpass.rs,
+pane/viewport.rs}` and `crates/viewer/tests/{pick3_acceptance,
+index_memo}.rs` (VIEW's, announced on the ruling), `crates/pncad-py/src/{tags.rs,
+py/pick.rs, tests.rs}` and the Python pick test (LIB's, mechanical),
+`docs/DESIGN.md`'s picking bullet (the description of what is built).
+One style review with a correctness arm (opus), then the fix pass.
