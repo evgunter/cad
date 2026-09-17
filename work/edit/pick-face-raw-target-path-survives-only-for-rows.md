@@ -5,7 +5,7 @@ title: pick_face's raw PickTarget path has no non-test consumer, and its documen
 status: review
 opened: 2026-09-16
 refs: [2773, 1098]
-pr: 0
+pr: 2801
 branch: edit/raw-target-test-support
 ---
 
