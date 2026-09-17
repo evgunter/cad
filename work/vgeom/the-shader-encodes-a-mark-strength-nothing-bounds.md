@@ -5,6 +5,9 @@ title: The paint path a NaN actually reaches is the shader, and the Rust/WGSL pa
 status: closed
 opened: 2026-09-17
 closed: 2026-09-17
+pr: 2808
+branch: view/shader-mark-strength
+refs: [2798, 2806]
 ---
 
 Found by the review of #2798, which asked the question that PR's own
@@ -111,7 +114,7 @@ rounding `channel_to_srgb8`'s exponent to 2.2 left it **green**.
 
 The rest of the boundary sweep is
 `the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, filed on
-this program's slate — the cut opened VGEOM and carried this row here
+this program's slate — the cut (#2806) opened VGEOM and carried this row here
 while the branch was in flight, and the residue followed it.
 
 The item's `## Fence` above still says VIEW's; it was true when the

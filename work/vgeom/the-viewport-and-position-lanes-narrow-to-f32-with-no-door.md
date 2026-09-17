@@ -4,6 +4,7 @@ kind: issue
 title: The remaining Rust/GPU float lanes are doored by their producers or not at all, and the f32 narrowing is doored nowhere
 status: open
 opened: 2026-09-17
+refs: [2808]
 ---
 
 

@@ -58,7 +58,7 @@ row.
 
 ## 2026-09-17 — `view/shader-mark-strength`
 
-**Dispatched as a VIEW lane, landing on VGEOM's slate.** The cut
+**Dispatched as a VIEW lane, landing on VGEOM's slate.** The cut (#2806)
 opened this program while the branch was in flight and carried
 `the-shader-encodes-a-mark-strength-nothing-bounds` here by `git mv`;
 the branch merged `main` in, followed the rename, and this entry
@@ -148,4 +148,5 @@ are doored by their producers or not at all, and the `f64 → f32`
 narrowing is doored nowhere —
 `the-viewport-and-position-lanes-narrow-to-f32-with-no-door`.
 
-Signed (VIEW implementer lane `view/shader-mark-strength`).
+PR #2808. Signed (VIEW implementer lane `view/shader-mark-strength`,
+landing on VGEOM's slate).
