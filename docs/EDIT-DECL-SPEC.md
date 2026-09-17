@@ -190,3 +190,58 @@ premises stated and argued or scheduled; the list of persisted files
 re-authored; the retired rows and what replaced each; the mutant
 table; the sweep for `Node::Declare { pairs }` readers and what it
 could not match; the CI run id.
+
+## Amended at the fix pass (2026-09-17)
+
+The unit's v6 dual review converged on one MAJOR, and the orchestrator
+ruled it. Two premises move; everything else above stands as written.
+
+**Premise 4 keeps its decision and gains the refusal shape it was
+missing.** Fold-minted rows are still not declaration subjects — the
+class is unrepresentable by type, and `Node::Declare`'s
+`compile_fail` + running-twin pair is where that is now pinned. What
+the premise did not say is what a union's REFUSAL does when the
+contact a user actually has is against such a row, and the answer was:
+`union_refusal` pushed every finding through `sited_member`, which
+answered `None` for a `Merged`/`Seam`/`Fragment`/`OutputBody`-tailed
+row, and the whole refusal degraded to `NamingError::Emission` — the
+crate blaming itself for the user's document. Both reviewers built it
+independently. The shape is:
+
+- **A `Merged` row's contact is refused `UndeclaredContact` with that
+  side sited at a CONSTITUENT.** The merged row's flat constituent set
+  (N3) holds member faces; the refusal takes the one whose member comes
+  first in the union's member order (D9 — deterministic), sites the
+  finding there with that member's own face name, and carries the whole
+  set beside it (`NodeErrorKind::UndeclaredContact`'s `merged` field,
+  rendered in the refusal's prose). Any constituent declares the same
+  contact, because a declaration resolves to the merged row through
+  `look_through_merges`, so the pick is immaterial and the caller can
+  declare the finding verbatim.
+- **A row no member's entity stands for** — a fragment, the union's own
+  body — is refused `NodeErrorKind::UndeclarableContact { row, diag }`,
+  which says the contact is with a row the fold minted and that a sited
+  declaration cannot name it. `tags.rs`'d as `undeclarable_contact`.
+- **`sited_member` is TOTAL in the type**: it answers
+  `Member` / `Merged` / `FoldMinted` instead of `Option`, so the caller
+  must handle the fold's own rows rather than collapsing them into an
+  invariant break. `union_refusal`'s doc and `refusal_menu`'s "never
+  masked" sentence are true again.
+
+**Premise 7's "no case" is withdrawn.** It said the detect→declare
+protocol was total by construction and that a finding whose names
+cannot be sited has no case. It has one: the fold-minted row above,
+which the typed arm answers for. What remains true is the part the PR
+argued — the SITE travels with the finding, so no downstream door has
+to recover it.
+
+**What the ruling could not be built as stated.** The typed arm was to
+get one row per fold-row kind, "`Seam` at least". A contact refusal
+resolves a FACE key pair through the operand tables
+(`wire.rs`'s `face_name`), and `RoleSeg::Seam` mints edges (face ×
+face) and vertices (edge × face) but never a face, while
+`RoleSeg::OutputBody` names the body. So the only fold-row kind a
+contact refusal can name is `Fragment`, which
+`docm8_flat_merged::a_contact_against_a_fold_minted_fragment_is_undeclarable`
+pins; the row's doc states the reach and why the other two are out of
+it.

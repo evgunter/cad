@@ -18,8 +18,8 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveError, RoleSeg, SitedRef, find_flush_candidates,
+    BooleanOp, CapEnd, DocEdit, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, ResolveError,
+    RoleSeg, SitedRef, find_flush_candidates,
 };
 use geom_core::Tol;
 
@@ -201,7 +201,6 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
 // Claim 5 — deleting a site; rebinding a name away from its site.
 // ---------------------------------------------------------------------
 
-
 /// **A `Declare` orphaned by a cascade is silent.** `DeleteNode` of a
 /// site (a transform member) cascades the union away, so no consumer
 /// is left to refuse: the `Declare` survives, the delete reports no
@@ -243,8 +242,6 @@ fn a_declare_orphaned_by_a_cascade_refuses_nothing() {
         .count();
     assert_eq!(strands, 0);
 }
-
-
 
 /// **Every corpus document that declares replays in document order**:
 /// the `Declare` precedes its consumer in `order()`, every name and
@@ -297,14 +294,18 @@ fn every_declaring_corpus_document_replays_in_document_order() {
                 .unwrap_or_else(|e| panic!("{}: edit {i} refused: {e:?}", d.name))
                 .doc;
         }
-        assert_eq!(replay.order(), doc.order(), "{}: the replay is the document", d.name);
+        assert_eq!(
+            replay.order(),
+            doc.order(),
+            "{}: the replay is the document",
+            d.name
+        );
     }
     // Six: `kiss_carry`, `slots`, `part_select`, `corner_table`,
     // `kitchen_sink` and `die`. Exact, so a document that stops
     // declaring is not silently dropped from this row's reach.
     assert_eq!(declaring, 6, "the declaring corpus documents");
 }
-
 
 // ---------------------------------------------------------------------
 // The DM4 headline through the flush door: findings of two placements
@@ -328,7 +329,8 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         assert_eq!((f.pair.0.at, f.pair.1.at), (m1, m2));
         assert_eq!((f.pair.0.name.node, f.pair.1.name.node), (proto, proto));
     }
-    let (applied, decl) = editor_core::declare_all(&doc, &findings, Tol::witness()).expect("declares");
+    let (applied, decl) =
+        editor_core::declare_all(&doc, &findings, Tol::witness()).expect("declares");
     let (doc, union) = insert(
         applied.doc,
         Node::Union {
@@ -372,4 +374,3 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         "{next:?}"
     );
 }
-

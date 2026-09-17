@@ -1776,8 +1776,10 @@ impl core::fmt::Display for MergedSides<'_> {
             for r in rest {
                 write!(f, ", {}", r.name)?;
             }
-            f.write_str("; the pair names one constituent and any other declares the \
-                         same contact)")?;
+            f.write_str(
+                "; the pair names one constituent and any other declares the \
+                         same contact)",
+            )?;
         }
         Ok(())
     }
@@ -2085,10 +2087,9 @@ impl core::fmt::Display for NodeErrorKind {
                     diag,
                 },
             ),
-            Self::UndeclarableContact { row, diag } => crate::finding::compose(
-                f,
-                &UndeclarableContactFinding { row, diag },
-            ),
+            Self::UndeclarableContact { row, diag } => {
+                crate::finding::compose(f, &UndeclarableContactFinding { row, diag })
+            }
             Self::BlendSelectionResolve { verb, error } => {
                 write!(f, "a {verb} selection name failed to resolve: {error}")
             }

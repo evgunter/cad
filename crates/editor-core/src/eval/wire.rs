@@ -3582,8 +3582,8 @@ fn site_operand<'n>(
     doc: &crate::doc::Doc<ProfileProgram>,
     absent: impl FnOnce(&ladder::Live<'n>) -> NodeErrorKind,
 ) -> Result<(usize, ladder::Live<'n>), NodeErrorKind> {
-    let live = ladder::live(&r.name, doc)
-        .map_err(|error| NodeErrorKind::DeclareResolve { error })?;
+    let live =
+        ladder::live(&r.name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
     match operands.iter().position(|m| *m == r.at) {
         Some(i) => Ok((i, live)),
         None => Err(absent(&live)),
@@ -3606,8 +3606,8 @@ fn side_by_operand<'n>(
     doc: &crate::doc::Doc<ProfileProgram>,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
     let side = |r: &'n SitedRef| -> Result<(topo::Operand, SidedName<'n>), NodeErrorKind> {
-        let (i, live) = site_operand(r, &[a, b], doc, |_| NodeErrorKind::DeclareSiteNotAnOperand {
-            at: r.at,
+        let (i, live) = site_operand(r, &[a, b], doc, |_| {
+            NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }
         })?;
         let op = if i == 0 {
             topo::Operand::A
@@ -3714,7 +3714,10 @@ fn route_declarations(
             // The rung-1 token is not carried past here: the name
             // this mints is a NEW one, minted under the union, and
             // the landing pays rung 1 on the name it actually reads.
-            (op, SidedName::Rewritten(names::member_name(id, r.at, &r.name)))
+            (
+                op,
+                SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
+            )
         };
         buckets[bucket].push((sided(i, r1), sided(j, r2), *class));
     }
@@ -3965,7 +3968,15 @@ fn sited_member(
             let mut sited: Vec<(usize, SitedRef)> = set
                 .iter()
                 .filter_map(member_of)
-                .map(|r| (members.iter().position(|m| *m == r.at).unwrap_or(usize::MAX), r))
+                .map(|r| {
+                    (
+                        members
+                            .iter()
+                            .position(|m| *m == r.at)
+                            .unwrap_or(usize::MAX),
+                        r,
+                    )
+                })
                 .collect();
             // Member order (D9) is the union's list order, which is
             // data the node carries; a constituent whose member has
@@ -5211,11 +5222,19 @@ mod route_tests {
         assert_eq!((*o1, *o2), (Operand::A, Operand::B));
         assert_eq!(
             *n1.name(),
-            crate::names::member_name(union, members[1], &at_minted_at(members[1], proto, CapEnd::Start).name)
+            crate::names::member_name(
+                union,
+                members[1],
+                &at_minted_at(members[1], proto, CapEnd::Start).name
+            )
         );
         assert_eq!(
             *n2.name(),
-            crate::names::member_name(union, members[3], &at_minted_at(members[3], proto, CapEnd::End).name)
+            crate::names::member_name(
+                union,
+                members[3],
+                &at_minted_at(members[3], proto, CapEnd::End).name
+            )
         );
     }
 

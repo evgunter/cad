@@ -11,11 +11,11 @@ use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
     EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName, ValuePayload,
-    evaluate,
+    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName,
+    ValuePayload, evaluate,
 };
-pub(crate) use fixture::{flush_pairs, member_face};
 use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
+pub(crate) use fixture::{flush_pairs, member_face};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -85,7 +85,6 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-
 /// A node's contact records, read out of its boolean value.
 fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
     match &ev.value(id).expect("the node evaluated").payload {
@@ -93,7 +92,6 @@ fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
         other => panic!("expected a boolean body, got {other:?}"),
     }
 }
-
 
 /// **A union carrying a declaration, in the two edits it takes.**
 ///
@@ -584,7 +582,10 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
     // not merely that the file is unreadable.
     let said = refused.to_string();
     for word in ["`at`", "`name`", "unknown field"] {
-        assert!(said.contains(word), "the refusal does not say {word}: {said}");
+        assert!(
+            said.contains(word),
+            "the refusal does not say {word}: {said}"
+        );
     }
     // The other half of the same shape: an EXTRA field on a side is
     // refused too, which is what `deny_unknown_fields` buys.
@@ -1030,8 +1031,7 @@ fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
     let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
-    let (doc, union, _) =
-        declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
+    let (doc, union, _) = declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
     let ev = run(&doc);
     let what = failure(&ev, union);
     let Some(NodeErrorKind::UndeclaredContact {
@@ -1050,7 +1050,10 @@ fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
     );
     assert!(merged.1.is_empty(), "the joining member's side is its own");
     assert_eq!(finding.pair.0, merged.0[0], "the finding takes the first");
-    assert_eq!(finding.pair.1.at, m3, "the other side is the joining member");
+    assert_eq!(
+        finding.pair.1.at, m3,
+        "the other side is the joining member"
+    );
     // Declared verbatim, the same document fuses: any constituent
     // names the merged row through the look-through.
     let mut pairs = flush_pairs((m1, proto), (m2, proto));
@@ -1070,7 +1073,11 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
         let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, m1) = placed(doc, proto, 0.0);
         let (doc, m2) = placed(doc, proto, 0.5);
-        let (a_at, b_at) = if site_at_extrude { (proto, proto) } else { (m1, m2) };
+        let (a_at, b_at) = if site_at_extrude {
+            (proto, proto)
+        } else {
+            (m1, m2)
+        };
         let pairs: Vec<(SitedRef, SitedRef)> = [
             wall(0),
             wall(2),

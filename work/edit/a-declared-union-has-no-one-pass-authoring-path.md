@@ -222,3 +222,48 @@ it — green on the branch tip, red on the PR's merge ref. **A PR run
 builds `refs/pull/N/merge`, not the branch tip**, so a branch that is
 green locally can be red in CI for a conflict git resolved silently.
 Main is merged in and the import restored.
+
+## Built at the fix pass (2026-09-17) — the v6 dual review's union
+
+Two blinded reviewers read the frozen head and converged on one MAJOR;
+the orchestrator's twelve rulings are built here. What moved:
+
+**The union's refusal against a row its own fold minted.** `sited_member`
+pushed every finding through one `Option`, so a `Merged`/`Fragment`-tailed
+row degraded the whole refusal to `NamingError::Emission` — the crate
+blaming itself for a user's document. It is now total
+(`DeclarationSubject::{Member, Merged, FoldMinted}`): a merged row's
+contact is `UndeclaredContact` sited at the CONSTITUENT whose member
+comes first in the list, with the whole flat set carried beside it and
+named in the refusal's prose, declarable verbatim; a row no member
+stands for is `NodeErrorKind::UndeclarableContact { row, diag }`
+(`undeclarable_contact`). `docs/EDIT-DECL-SPEC.md`'s amendment records
+that premise 4 keeps its decision and premise 7's "no case" is
+withdrawn.
+
+**One home for site → operand.** `site_operand` answers "which operand
+does this site name" for both declaring doors, rung 1 first; the pair
+boolean used to refuse `DeclareSiteNotAnOperand` above `NodeGone`. The
+rung-1 token travels with the name instead of being paid twice
+(`SidedName::{Live, Rewritten}`).
+
+**Pins and honesty.** `Node::Declare` gains the `compile_fail` +
+running-twin pair for "a bare name does not typecheck"; the serde
+refusal row asserts what the message says; six stale sentences fixed
+(`decl_site`, `latest_member`, two `wire_union`/`route_declarations`
+paragraphs, `node.rs`'s and Python's "dropping a member re-derives the
+routing" — it refuses); the mutant table re-run with eight writable
+mutants, each naming the row it reds.
+
+**Both review branches merged authorship-preserving**, every probe
+re-headed to the invariant it pins and every instrument dropped.
+
+**Filed, not built**: `work/lib/python-flush-findings-do-not-carry-their-sites.md`
+and `work/edit/a-declare-orphaned-by-a-cascade-is-never-reported.md`.
+
+**Not buildable as ruled**: the typed arm was to get a row per
+fold-row kind, "`Seam` at least". A contact refusal resolves a FACE
+pair, and `RoleSeg::Seam` mints only edges and vertices while
+`OutputBody` names the body, so `Fragment` is the only kind reachable;
+`docm8_flat_merged::a_contact_against_a_fold_minted_fragment_is_undeclarable`
+pins it and states the reach.
