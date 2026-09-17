@@ -18,8 +18,9 @@
 //! with a type — `NodePick` fetches the body from the evaluation
 //! payload itself, tessellates and indexes in one call, so the pairing
 //! is true by construction — and puts raw `PickTarget` assembly
-//! behind `editor-core`'s `test-support` feature, so it exists only in
-//! that crate's own test builds.
+//! behind `editor-core`'s `test-support` feature, which that crate's
+//! own dev-dependency enables and no consumer's manifest wires onto an
+//! edge of its own.
 //!
 //! **Python has no raw target, twice over.** `MeshPick` is DECIDED
 //! absent from the façade (CUR3; `crates/pncad/src/select.rs`, which
