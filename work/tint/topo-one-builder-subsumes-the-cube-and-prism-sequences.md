@@ -84,3 +84,33 @@ reflex profile and no non-diagonal map, and a builder that subsumes
 **Do not take this as a mechanical merge.** `geometric_cube`'s missing
 description step is the axis its whole suite rides on, and the
 conditional shape that keeps it has to survive N-corner generality.
+
+## Done (2026-09-17, `dup/one-prism-builder`)
+
+One `common::prism_ops(body, profile, z, map) -> PrismOps`, with
+`prism_z`, `prism`, `brick`, `geometric_cube`, `cube_into`,
+`mapped_cube`, `review_m3_pr55`'s `tprism` and
+`review_m3_pr3_consumer`'s `add_quad_prism` as its callers — eight, not
+the six the sketch named, because `add_quad_prism` turned out to be a
+member too and to be inside the same fence.
+
+**The guard was extended first and watched pass on unmodified
+builders**, at the merge base, before anything was unified. What it
+samples now, beyond the four axis-aligned `f64` boxes it had: a
+triangle, a pentagon and a reflex hexagon; a shear with determinant
+1.015625; and `Interval`. The row it gained is the one that does not
+compare doors to each other — it re-derives the body from the profile,
+the z-range and the map, which is the only row that can survive the
+doors becoming one function. Mutation-checked three ways, the last of
+which is the case the file exists for: a re-ordering planted inside
+`prism_ops` leaves every door agreeing with every other and reds only
+that row.
+
+`geometric_cube` still keeps its scaffolding: 12/12
+`Scaffold(ExtrudedPoint …)`/`Declared`, measured before and after, not
+reasoned about. The `describe: bool` flag stayed rejected for link 1's
+reason.
+
+The residue this row named is settled: `cube_into` is still `f64`-only
+while the core is generic, unchanged here and still worth revisiting
+once the family has a home in `src/`.
