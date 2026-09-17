@@ -343,3 +343,36 @@ with the rest of the prose corrections; the standing lesson is that a
 hand-written census that has gone stale is the defect rather than a
 description of it, so the instruction was to prefer not counting in
 prose at all over counting correctly.
+
+### Link 1 merged (2026-09-16, PR #2727); link 1b claimed and dispatched
+
+Run 35063417572 green over the full code-tier matrix on the exact
+branch head. Closing state-sync rode the unit's PR, per
+`memories/orchestration-model.md`; `work/tint/topo-tests-review-m2-pr7-rederives-the-shared-cube.md`
+moved onto this slate with it, because the unit that closed a row is
+the program the board should name.
+
+**Closing the row tripped the documented lint ERROR**, and that is the
+check working rather than a nuisance: `brick-has-two-constructions-and-two-homes`
+was `parked` on the cube-sequence row, so closing the trigger made the
+park false and `work.py lint` said so. `work/README.md` anticipates
+exactly this and says the answer is to fix the stale row, not to soften
+the check. Re-parked on link 1b, which is the real gate now.
+
+**A second-order version of the same rule bit on the orchestrator
+branch**: the re-park could not be made there until the unit merged,
+because the row it points at existed only on the unit's branch and
+`lint` refuses a reference that does not resolve. Two branches, one
+item — the cost `work/README.md` describes, paid in the small.
+
+### Operational: this session was running blind on two channels
+
+Ev, 2026-09-17: subscribe to your PRs, and set an hourly check-in on
+the lanes (the remote analogue of `local-scripts/monitors/hourly-checkin.sh`,
+which does not exist on a hosted box). Both were missing for this
+program's whole first sitting, and the cost was real though small — the
+session sat idle on a concluded CI run it never saw conclude. **A
+remote orchestrator has no away-channel monitor and no
+`hourly-checkin.sh`; the substitutes are `subscribe_pr_activity` per
+open PR and a `create_trigger` Routine bound to this session.** Arm
+both at the first dispatch, not after the first stall.
