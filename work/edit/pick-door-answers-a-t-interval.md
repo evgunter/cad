@@ -2,10 +2,11 @@
 id: pick-door-answers-a-t-interval
 kind: unit
 title: EDIT-PICK3: the pick door answers a t interval, orders by it, breaks a certified tie by width
-status: review
+status: closed
 branch: edit/pick-t-interval
 pr: 2786
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -159,3 +160,24 @@ Every` **0**, beyond-or-miss 149, wide winners 0. Wide aim 441 126 rays,
 - The CURVED row this unit filed gained its counterexample, copied out
   of run `35152647206`'s job log before it expires (seed, pose, both
   disagreeing roots).
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2786 (kernel unit, v6 dual on the frozen
+head `31cbee19f`: R1 opus 1/6/12 rubric 3/3/2, R2 fable 1/3/6 rubric
+4/3/3, both APPROVE-WITH-FIXES and both on the same MAJOR — the
+traversal's early-out pruned a narrower member of the certified tie, so
+the answer depended on target order; the fix pass derived the margin
+with no chosen factor and `Pruned == Every` is a theorem). Recorded as
+sample #215 in `docs/MODEL-AB-LOG.md` (ordinals 4802/4803; block
+EDIT-B1 concluded and its record folded to main with this merge); the
+spec deleted with its `docs/DOC-LEDGER.md` entry. The ruling row closes
+with it, and the two rows parked on the ruling. Residue in their own
+files: `pick-tie-break-width-key-depends-on-scene-magnitude`,
+`pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`,
+`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts`;
+`pick-a-corner-graze-verdict-depends-on-the-corner-labelling` and
+`pick-refuses-a-crossing-within-rounding-of-a-plane` stand as the
+mechanism's stated classes. Premise 5's inequality and premise 4's
+word were amended at the fix pass with the decision unchanged; Ev is
+told on the next `[ev]` PR.

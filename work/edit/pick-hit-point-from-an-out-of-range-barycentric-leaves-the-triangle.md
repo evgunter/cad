@@ -2,9 +2,9 @@
 id: pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle
 kind: issue
 title: a hit point placed from a barycentric outside [0, 1] leaves the closed triangle, so its t can precede the candidate's box entry
-status: parked
+status: closed
 opened: 2026-09-16
-blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
+closed: 2026-09-17
 ---
 
 
@@ -86,3 +86,19 @@ most `1`), which is why no row reds when it is dropped; that is stated
 at `every_admitted_hit_is_placed_on_the_closed_triangle`
 (`crates/editor-core/src/resolve/pick.rs`) rather than claimed to be
 covered. This row closes with EDIT-PICK3's merge.
+
+## Unparked (2026-09-17, EDIT orchestrator)
+
+The trigger fired: `what-t-the-pick-door-answers-and-with-what-width`
+was ruled by Ev on `[ev]` PR #2764 and built by EDIT-PICK3, which
+built the clamp this row asked for and closes it.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Closed at EDIT-PICK3's merge (PR #2786): the hit point is
+`retract_to_simplex`, the per-coordinate retraction into the closed
+triangle with an exact `v` bound, so an admitted candidate's answer is
+a point OF the triangle to the bit — the premise the early-out's proof
+rests on. The `Pruned ≠ Every` column is 0 under both acceptances; the
+mechanism this row named is gone, and MEET is not taken for the reason
+`pick-closed-acceptance-loses-a-graze-to-rounding` records.

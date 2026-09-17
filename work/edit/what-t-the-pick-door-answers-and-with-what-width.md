@@ -2,8 +2,9 @@
 id: what-t-the-pick-door-answers-and-with-what-width
 kind: ruling
 title: what t the pick door answers for an admitted candidate, and with what width
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -204,3 +205,18 @@ Built by `pick-door-answers-a-t-interval` (kernel unit, v6 dual,
 block EDIT-B1 slot 2; spec `docs/EDIT-PICK3-SPEC.md`). This ruling row
 closes at that unit's merge, which is when the three rows parked on it
 unpark.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Ruled by Ev on `[ev]` PR #2764 and built by EDIT-PICK3
+(`pick-door-answers-a-t-interval`, PR #2786, sample #215). What the
+door answers: a certified interval `[t_lo, t_hi]` around the rounded
+`t`, derived at one site from the arithmetic the acceptance already
+certifies; the order is `precedes` over the set of candidates no other
+precedes, then the narrower interval, then `(target position, flat
+triangle position)`; the hit point is the per-coordinate retraction
+into the closed triangle; the box enters only as the traversal's
+early-out, with the derived margin the `## Amended` section records.
+The mechanism moved once (the early-out's inequality) with the decision
+unchanged; the class the width key's magnitude dependence opens is
+`pick-tie-break-width-key-depends-on-scene-magnitude`.
