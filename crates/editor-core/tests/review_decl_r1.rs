@@ -447,3 +447,39 @@ fn r1_flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     eprintln!("R1 one refusal declared verbatim: {:?}", failure(&ev, union2));
     let _ = table(&ev, m1);
 }
+
+// ---------------------------------------------------------------------
+// The row the suite lacks for mutant M1 ("resolve regardless of site"):
+// a name ABSENT at its site but PRESENT in the other operand's table
+// must refuse `Vanished`; a resolver that falls back to the other table
+// would fuse instead.
+// ---------------------------------------------------------------------
+
+#[test]
+fn r1_a_name_absent_at_its_site_but_present_at_the_other_operand_refuses() {
+    let doc = ProfileDoc::empty_derived("r1_swapped_sites", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    // Each name sited at the OTHER operand: `a`'s rows are not in `b`'s
+    // table and vice versa.
+    let pairs: Vec<(SitedRef, SitedRef)> = flush_pairs((b, a), (a, b));
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, u),
+            Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })
+        ),
+        "{:?}",
+        failure(&ev, u)
+    );
+}
