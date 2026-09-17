@@ -2,9 +2,12 @@
 id: load-door-appearance-key-id-check-is-pinned-by-no-row
 kind: issue
 title: The load door's appearance-key id check is pinned by no row
-status: open
+status: closed
 opened: 2026-09-17
+closed: 2026-09-17
 refs: [document-stablename-carriers-have-no-enumeration, 2784]
+branch: edit/stablename-carriers
+pr: 2797
 ---
 
 (Measured by the carrier-enumeration unit's mutant pass, 2026-09-17.)
@@ -52,3 +55,25 @@ read it; its own mutant table is what disclosed this. Filed at the
 moment it was disclosed. The unit's change makes the gap *smaller* —
 the two halves are now one loop, so dropping the pass reds the two
 rows above — but the store half specifically is still unheld.
+
+## Closed (2026-09-17, PR #2797)
+
+The row the shape asks for is
+`persist::check::tests::rv_an_appearance_key_past_the_mint_counter_refuses_typed`
+— a document whose only fault is an appearance key minted by node 7
+over a mint counter of 0, asserting
+`SnapshotError::IdBeyondCounter { id: 7, next_id: 0 }`. It sits in
+`persist/check.rs`'s own `tests` module, beside
+`structurally_invalid_documents_refuse_at_save`, which is where this
+file said it belonged: the corruption needs `pub(crate)` reach because
+no edit door mints a key past the counter.
+
+It arrived as a review probe of the enumeration unit and was adopted
+into it, the file being one that unit rewrites.
+
+Re-measured on the enumeration branch at the fix pass, with the row in
+place: the mutant that made this finding — the validator's name pass
+skipping its `Store` arm — now reds, and reds this row alone (1 red in
+`--lib`, `--test all` green at 1425). The payload half's twin,
+`asm_r2a_mate_solve::row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter`,
+is unaffected by it, which is the asymmetry this row removes.

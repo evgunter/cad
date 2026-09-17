@@ -1665,15 +1665,23 @@ mod tests {
         }
     }
 
-    /// **The row `work/edit/load-door-appearance-key-id-check-is-pinned-by-no-row`
-    /// asks for**: a document whose ONLY fault is an appearance key
-    /// minted by a node past the mint counter refuses typed.
+    /// **The store half of the load door's id check**: a document
+    /// whose ONLY fault is an appearance key minted by a node past
+    /// the mint counter refuses typed, with that id named.
     ///
-    /// The store half of the validator's name pass is held by nothing
-    /// — the unit's own M6 measured 0 red across the whole `all`
-    /// binary. The corruption needs `pub(crate)` reach: no edit door
-    /// mints a key past the counter, and `SetAppearance` is the one
-    /// name-carrying edit the insert door deliberately does not check.
+    /// Before this row the store half was held by nothing — dropping
+    /// the whole name pass reds two rows, dropping only its `Store`
+    /// arm red none. The check is reachable, not dead: no edit door
+    /// mints a key past the counter, but `SetAppearance` is the one
+    /// name-carrying edit the insert door deliberately does not check
+    /// (`resolve::walk_names`' match says why — an appearance name
+    /// resolves at evaluation, where a miss is a typed
+    /// `AppearanceLoss`), so a loaded document can hold such a key and
+    /// this door is the only one that refuses it. The corruption
+    /// needs in-crate reach for the same reason.
+    ///
+    /// The twin on the payload side is
+    /// `asm_r2a_mate_solve::row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter`.
     #[test]
     fn rv_an_appearance_key_past_the_mint_counter_refuses_typed() {
         let mut doc = ProfileDoc::empty_derived("rv-store-id", Tol::witness());
@@ -1694,13 +1702,23 @@ mod tests {
     /// **The validator's name pass answers in DOCUMENT order, not id
     /// order.** Two payload names are corrupt at once, and the
     /// document orders their carrying nodes in the REVERSE of their id
-    /// order, so the two walks name different offending ids.
+    /// order, so a walk over `doc.nodes` and a walk over `doc.order`
+    /// name different offending ids. This row says which one this
+    /// door does: the pass is `Doc::name_carriers`, which walks
+    /// `Doc::order`, so the document's FIRST node answers and the id
+    /// is 60.
     ///
-    /// Before PR #2797 the payload-name check ran inside the per-node
-    /// loop over `doc.nodes` (a `BTreeMap`, id order) and this
-    /// document refused with id 50. It is now one pass over
-    /// `Doc::name_carriers`, which walks `doc.order()`, and the same
-    /// document refuses with id 60.
+    /// **That order is not a contract.** `validate_snapshot` promises
+    /// that a corrupt document refuses typed, not WHICH of its faults
+    /// it names first; `Walk::ORDER` contracts between walks, not
+    /// within one, and a caller cannot repair a doubly corrupt file by
+    /// reading the first refusal anyway. What this row is for is that
+    /// the answer moved and nothing said so — the pass used to run
+    /// inside the per-node loop over `doc.nodes`, a `BTreeMap`, and
+    /// this document refused with 50. An unpinned order that changes
+    /// silently is how a diagnosis drifts one refactor at a time, so
+    /// the row names the order the walk has now: a later change that
+    /// moves it again has to say it is moving it.
     #[test]
     fn rv_the_name_pass_refuses_in_document_order() {
         let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());

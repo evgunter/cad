@@ -113,13 +113,12 @@ TCOST/TINT). Middle tier.
 ## Built (2026-09-17, branch `edit/stablename-carriers`)
 
 `Carrier` and `NameCarrier` in `doc.rs`, with `Doc::name_carriers` and
-the private `Doc::carrier_names` behind them, and the four sites read
-them.
+the private `Doc::names_in` behind it, and the four sites read them.
 
 - **The enumeration.** `Carrier` has one variant per `Doc` field that
   holds a `StableName` (`Payloads`, `Appearance`); `Carrier::ALL` is
-  what `name_carriers` iterates and `carrier_names`' wildcard-free
-  match is what places each. `NameCarrier::Payload { node, name }` and
+  what `name_carriers` iterates and `names_in`' wildcard-free match is
+  what places each. `NameCarrier::Payload { node, name }` and
   `NameCarrier::Store { name }` carry the difference the spec ruled;
   `NameCarrier::name()` is for the callers that ask one question of
   both. `Doc`'s struct doc says a field holding a name is placed in
@@ -164,6 +163,60 @@ them.
    (`work/fix/program.md` `paths`); the spec's Territory section says
    EDIT. Crossed by announcement in the PR body.
 
-**Not built** (filed, not carried): the load door's appearance-key id
-check is pinned by no row —
-`work/edit/load-door-appearance-key-id-check-is-pinned-by-no-row`.
+**Not built here** (filed at the moment it was disclosed): the load
+door's appearance-key id check is pinned by no row —
+`work/edit/load-door-appearance-key-id-check-is-pinned-by-no-row`. It
+was carried at the fix pass instead; see below.
+
+## After the review (2026-09-17, verdict APPROVE-WITH-FIXES)
+
+Every finding taken. What changed in the tree:
+
+- **The named pin that did not exist.** `name_carriers`' doc said
+  `edit::tests` and `dm7_delete_strands` held the order at the door.
+  `edit::tests` holds one row and it is about mate-graph
+  reconciliation. The doc now names the three rows that actually red
+  when `Carrier::ALL` is reversed — measured, no others do:
+  `doc::tests::name_carriers_reads_the_payloads_then_the_store`,
+  `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
+  and `..._precedes_the_cluster_acts_of_the_same_delete`. Every
+  "pinned by" sentence in the diff was re-read against a mutant run
+  before the push.
+- **What the compiler forces, exactly.** A `Carrier` VARIANT is
+  compile-forced, at two matches (E0004 at `Doc::names_in` and at the
+  roster row's `f6_variants!`-generated match). A `Doc` FIELD is not:
+  placing it as a variant is the struct doc's prose and the one step a
+  person takes. The three sentences that blurred the two now say which
+  is which.
+- **The validator's order change is disclosed.** The name pass moved
+  from id order over `doc.nodes` to document order over `Doc::order`,
+  so a doubly corrupt file's first refusal can change. The review
+  probe `rv_the_name_pass_refuses_in_document_order` is adopted as the
+  row that pins which order it is now, with a doc saying that the
+  order is NOT a contract — `validate_snapshot` promises a typed
+  refusal, not which fault it names first — and why it is pinned
+  anyway: an unpinned order that changes silently is how a diagnosis
+  drifts one refactor at a time.
+- **The store half of the load door's id check is held.** The review
+  probe `rv_an_appearance_key_past_the_mint_counter_refuses_typed` is
+  adopted. M6 (the validator skipping the `Store` arm) reds it, and
+  only it. `work/edit/load-door-appearance-key-id-check-is-pinned-by-no-row`
+  closes at this merge.
+- **The roster row's residual is written down**: the census pins that
+  every carrier is walked, not that an arm reads its own field, nor
+  that a third carrier gets a `NameCarrier` shape that suits it. No
+  new row — an arm that yields nothing reds thirteen rows already
+  (M9), so a per-carrier non-empty row is subsumed.
+- **`name_carriers` yields an iterator** (`impl Iterator<Item =
+  NameCarrier<'_>>`, arms boxed behind the exhaustive match), so the
+  four readers that refuse at the first bad name stop there. The order
+  row and the roster row still red under their mutants (M2, M4, M5).
+  The cost sentence now says the measured truth: the per-node `Vec`
+  `Node::payload_names` returns is the node's own and unchanged; the
+  walk adds no vector of its own.
+- **`carrier_names` is `names_in`**, so the pair is no longer an
+  anagram; `Applied::maintenance`'s pub doc states the order in words
+  a consumer can read, since `Carrier::ALL` is `pub(crate)`;
+  `NameCarrier::name()`'s doc cites `pncad`'s `Maintenance.name` as the
+  same flattening one layer up; the `doc.rs` fixture says why no edit
+  door can mint the order it pokes in.

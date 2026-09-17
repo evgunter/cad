@@ -1681,7 +1681,6 @@ impl core::fmt::Display for Maintenance {
 /// `rv_a_cascade_reports_strands_on_carriers_it_then_deletes`).
 fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
     doc.name_carriers()
-        .into_iter()
         .filter(|carrier| carrier.name().node == deleted)
         .map(|carrier| match carrier {
             NameCarrier::Payload { node, name } => Maintenance::Strand {
@@ -1707,17 +1706,24 @@ pub struct Applied<P> {
     /// See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
-    /// implementation**: the strands come first — read at the door,
-    /// out of the document the edit had just produced, payload
-    /// carriers before the appearance store, the two carriers in the
-    /// order DM7 names them — and the cluster acts follow,
-    /// reconciling the registry against it afterwards. The strands'
-    /// own order is not restated here: it is the document's
-    /// name-carrier enumeration's (`Carrier::ALL` in `doc.rs`),
-    /// because the report is that walk filtered on the deleted
-    /// node. A consumer may
-    /// rely on that, and each boundary is held by the row whose
-    /// fixture actually produces the pair of kinds it separates:
+    /// implementation, and a consumer may rely on it**: every
+    /// [`Maintenance::Strand`] first, in the document's node order
+    /// and within one node in the payload's own order; then every
+    /// [`Maintenance::StrandedAppearance`], in the appearance store's
+    /// key order; then the A11 cluster acts, which reconcile the
+    /// registry against the document the strands were read out of.
+    /// The strands are read at the door, out of the document the edit
+    /// had just produced.
+    ///
+    /// The paragraph above is the contract — it is stated here in
+    /// full because a consumer outside this crate cannot read
+    /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
+    /// one home all the same: the report is `Doc::name_carriers`
+    /// filtered on the deleted node, so the strands' order is that
+    /// walk's, and a reader who wants to see why reads it there.
+    ///
+    /// Each boundary is held by the row whose fixture actually
+    /// produces the pair of kinds it separates:
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
     /// for payload strand before appearance strand,
     /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`
