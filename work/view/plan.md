@@ -1445,6 +1445,36 @@ arithmetic was right and the shape was untested, which is this
 program's *a test can pin the wrong SHAPE and still pass* rule reached
 from the other end.
 
+**A parity row that spells the constants itself is a THIRD copy, and
+it compares one side against the copy.** `gpu.rs`'s
+`the_shaders_srgb_curve_states_the_same_constants_the_palette_does`
+existed because the sRGB curve is spelled twice — once in `theme.rs`,
+once in the WGSL — and its own neighbour says *"two spellings of one
+curve is a thing to know about."* Its body was
+
+```
+for constant in ["12.92", "1.055", "0.055", "1.0 / 2.4", "0.0031308"] {
+    assert!(SHADER.contains(constant), …);
+}
+```
+
+— five literals **in the test**, checked against the shader alone. The
+palette it is named for was never read. Measured on `origin/main` by
+the `view/shader-mark-strength` lane: round `channel_to_srgb8`'s
+exponent to `1.0 / 2.2` and the row is **green, exit 0**. So the row
+filed to catch a divergence between two spellings introduced a third
+and then compared one spelling against it — and for however long it
+sat there, it was a receipt that the two halves agreed, issued by
+something that had looked at one half.
+
+The test to apply to any parity, census or "these two stay in step"
+row: **name the two sources and check the row reads BOTH.** A row that
+restates one side as a literal is a copy wearing a guard's name, and
+it fails in the direction nobody checks — silently, while reporting
+success. Related and already here: *a row can pin the wrong SHAPE of a
+defect and still pass*; this is its parity-flavoured sibling, and it is
+worse, because the name asserts the coverage the body does not have.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
