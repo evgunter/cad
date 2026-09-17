@@ -48,9 +48,10 @@
 //! by construction and offers no other constructor, so the pairing
 //! cannot drift as this structure grows a field. **Nothing here
 //! re-pairs a mesh with a node by hand, and this type offers no door
-//! through which it could** — said about `PickIndex` and about nothing
-//! else: whether the FAÇADE hands a consumer the raw-assembly lane is
-//! a separate question, answered in `pncad::select`'s own docs.
+//! through which it could** — and neither does anything below it: the
+//! raw mints are behind `editor-core`'s `test-support` feature, which
+//! no consumer's manifest enables, so this is the local half of a claim
+//! the whole stack now makes (`pncad::select`'s own docs).
 //!
 //! # Staleness is by picture, and it is a discard
 //!

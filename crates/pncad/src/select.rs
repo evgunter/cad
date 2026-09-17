@@ -149,13 +149,18 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // reason.
 //
 // **The raw-assembly lane is NOT carried, and its absence is
-// structural.** `MeshPick` stays interior, so a façade consumer
-// cannot build one — and the raw mint `PickTarget::new` takes a
-// `&MeshPick`, so the target whose contract warns of a confidently
-// wrong name has no constructor here. The type is carried only
-// because `pick_face`'s signature names it. `NodePick` is therefore
-// not merely the door to prefer: through this façade it is the only
-// one.
+// structural twice over.** `MeshPick` stays interior, so a façade
+// consumer cannot NAME one; and both raw mints — `MeshPick::build`
+// and `PickTarget::new` — now live behind `editor-core`'s
+// `test-support` feature, which no consumer's manifest wires onto an
+// edge of its own — the claim `scripts/gates/test-features-dev-only.sh`
+// holds across every manifest in the repository, and the strongest one
+// a feature carries, since a build COMMAND may always ask for a feature
+// by name (that gate's header retracted the absolute this sentence used
+// to make). So a build of this façade has neither mint. The type is
+// carried only because `pick_face`'s signature names it. `NodePick`
+// is therefore not merely the door to prefer: it is the only one, here
+// and in `editor_core` itself.
 //
 // **`MeshPickError` is carried and its index is not, and the two
 // facts do not pull against each other.** The absence above is about
