@@ -88,10 +88,11 @@ What it still waits on: **curved boolean breadth** — handle ∪ pot is
 torus × cylinder and spout ∪ pot is cone × plane, both
 `CurvedPairUnsupported`, so the teapot is FOUR solids (walls 2 and 3);
 **taper / variable-section sweep and the canal family** — a spout the
-shape of a spout is a swept curved section along a bent spine, which
-`sweep_body` will not round (the U-turn class klein wall 5 pins as
-`ReversedStacking`; the teapot's own spout is not attempted) and no
-variable-section door exists for, so the scene's spout is a straight
+shape of a spout is a swept curved section along a bent spine, for
+which no variable-section door exists (the U-turn half of this was
+BOOL-6's, and is gone: a bent spine is no longer a stacking wall
+unless one of its slabs turns past π; the teapot's own spout is not
+attempted), so the scene's spout is a straight
 cone frustum tilted into place, a spout the way a LATHE would make
 one; and **geometric edge selection by NUMERIC description**: the kind
 half of "the knob rim" goes through the kernel query seat
@@ -186,14 +187,20 @@ the table.
   `insert` refuses. `klein::wall_probes` wall 7 is retired from pinning
   the refusal and now requires all four lottery cells to mesh.
 
-- **`sweep_body` cannot round a U-turn.** The loft's canonical
-  stacking trilean compares the LAST placement's mean displacement
-  against the FIRST section's plane normal, so any path that ends
-  behind where it started refuses `ReversedStacking` wholesale, no
-  matter how well every consecutive pair stacks. The Klein bottle's
-  top loop is one path and would be one body; this gate is why it is
-  two. (`crates/sweep/src/loft.rs`, the `loft_stacking` decide;
-  wall 5.)
+- **`sweep_body` CAN round a U-turn — RETIRED by BOOL-6** (issue
+  368). The loft's stacking statement compared the LAST placement's
+  mean displacement against the FIRST section's plane normal, so any
+  path that ended behind where it started refused `ReversedStacking`
+  wholesale, no matter how well every consecutive pair stacked. It is
+  now a FOLD over the consecutive pairs, each decided against its own
+  base section's plane normal, and the Klein bottle's top loop sweeps
+  as one body (klein wall 5 asserts that build; the scene still draws
+  it as two elbows, which is a scene change and not a kernel wall).
+  The wall that remains is PER-SLAB, at per-slab turn π — total turn
+  `(stations − 1)·π` — so it is a statement about how coarsely the
+  path is sampled rather than about how far it goes, and the refusal
+  names the slab. (`crates/sweep/src/loft.rs`, the `loft_stacking`
+  fold.)
 - **`tube_along_arc` is no longer solid-only.** FIXED by
   VERBS-TUBEWALL: the torus door has a hollow sibling,
   `tube_along_arc_hollow`, taking the outer `minor_radius` plus a
@@ -421,14 +428,46 @@ the table.
   "disjoint"; the shell verb's own precondition escalates the same way
   and never proceeds to build.
 
-  **What check 9 does NOT match, enumerated** (an unstated blind spot
-  is an unverified claim): one-point TANGENCY between two edges at a
-  point that is a vertex of neither (circle-circle internal or
-  external, line-circle) and a transversal CROSSING at a non-vertex
+  **What check 9's contact arms do NOT match, enumerated** (an unstated
+  blind spot is an unverified claim): one-point TANGENCY between two
+  edges at a point that is a vertex of neither (circle-circle internal
+  or external, line-circle) and a transversal CROSSING at a non-vertex
   point — three-sample locus agreement cannot see a single shared
   point, and the closed forms that could need an arc-containment test
   this predicate has not got; and `Ellipse`/NURBS carriers in the two
   locus arms, whose endpoints the vertex arm still covers.
+
+  **The other half of the same sentence is stated at rest too**: a ring
+  is a hole *strictly inside* the region its face trims, so a ring that
+  stands clear of its outer loop and yet lies OUTSIDE it is refused by
+  name as well (`ValidationError::RingOutsideOuter`, carrying the face,
+  the ring and the ring vertex the walk placed outside). That is the
+  statement an inverted host/guest pick at the rim glue falsifies. The
+  instrument is the crate's one trilean containment walk
+  (`splitting::point_in_loop`) over the ring's vertices, and a pair no
+  query could place is reported (`ValidationError::RingNestingUndecided`)
+  rather than read as nested — the same escalate-never-guess direction
+  the contact arms take.
+
+  **What the nesting half does NOT match, in the same shape**: any face
+  on a non-planar surface, and any planar face whose outer loop bears
+  an ARC at all — the loop classes `boolean::contain`'s `loop_shape`
+  calls `ArcParity` (arcs over three or more vertices, where the
+  polygon through them is a proper region but not the loop's region:
+  an arc bowing outward leaves region between polygon and boundary),
+  `Disc` (every edge an arc of one circle, whose region `disc_side`
+  decides exactly and tier 3 does not yet reach) and `NoWalk`
+  (arc-bearing over fewer than three vertices, whose polygon has zero
+  area). All three are silent rather than answered, and so is a loop
+  the classifier could not read, because this arm REFUSES a body on an
+  `Out` and answering from a polygon that is not the region would
+  refuse valid ones — measured, on a bored D-rod's transverse cap.
+  `contfp` takes the opposite posture on `ArcParity` because one
+  point's classification is not a refusal. And inside the gate: a ring
+  that CROSSES its outer loop, part in and part out, passes whenever
+  the first vertex the walk decides is an inside one. Filed, with the
+  widening that closes the disc third:
+  `work/topo/check-9-nesting-is-line-bounded-only.md`.
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

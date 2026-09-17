@@ -435,11 +435,14 @@ fn report_band_arm_under_the_runs_eps() {
 /// edge is a great-circle ARC that crosses the north pole mid-edge.
 /// The SHAPE door still admits both faces — props certifies the
 /// CARRIER (`props_meridian_great`) and folds the pole into the
-/// extent, so `mass_properties` still answers, and what it answers is
-/// this body's own defect: 0.0 for a closed unit sphere, because both
-/// faces are bounded by the same two edges traversed opposite ways and
-/// their fluxes cancel (issue 1598; the three-face split measures the
-/// exact 4π/3 — the rows above print both). What has changed is that
+/// extent. What `mass_properties` answers is this body's own defect,
+/// and a different answer than it once was: both faces are bounded by
+/// the same two edges traversed opposite ways, so one parse handed
+/// them the same levels and their fluxes cancelled at 0.0 for a closed
+/// unit sphere (issue 1598). The closed form's interior-side premise
+/// now refuses the complement by name instead, while the three-face
+/// split of the same sphere measures the exact 4π/3 — the rows above
+/// print both. What has changed at the WALK is that
 /// the BRANCH door now stands beside the shape door in front of the
 /// walk: `props::require_one_chart_branch` refuses the traversed arc
 /// typed, at every δ, before a mesh is minted, so the walk no longer
@@ -459,8 +462,23 @@ fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));
-    let mp = topo::mass_properties(&body, tol).expect("props answers for the pole-crossing body");
-    assert_eq!(mp.volume, 0.0, "issue 1598, unmoved by the branch door");
+    // Issue 1598 is closed at the closed form's own premise, not at
+    // either door: the complement's rim traversal says its interior
+    // lies below the extent the levels fold, so the face refuses by
+    // name and the body no longer answers 0.0 for a closed sphere.
+    let mp = topo::mass_properties(&body, tol);
+    assert!(
+        matches!(
+            mp,
+            Err(topo::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::NotIsoRectangle {
+                    what: "props_rim_interior_side"
+                }
+            }) if face == rest
+        ),
+        "issue 1598: the complement refuses typed; got {mp:?}"
+    );
     let got = mesh::tessellate(&body, 0.1, tol).map(|_| ());
     assert!(
         matches!(

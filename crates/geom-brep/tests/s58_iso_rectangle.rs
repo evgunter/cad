@@ -128,7 +128,7 @@ fn plus_loop(
 /// closed form is a product of stored quantities).
 fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_area: f64) {
     let band = band();
-    match curved_face(s, edges, 1.0, band) {
+    match curved_face(s, edges, true, band) {
         Ok(fc) => {
             let rel = (fc.area - exact_area).abs() / exact_area;
             assert!(
@@ -147,7 +147,7 @@ fn accepts_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact_
 /// private rule, and that is what made the fragmentation invisible).
 fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
     let band = band();
-    match curved_face(s, edges, 1.0, band) {
+    match curved_face(s, edges, true, band) {
         Err(PropsError::NotIsoRectangle {
             what: "props_rim_level",
         }) => {}
@@ -406,7 +406,7 @@ fn the_whole_649_family_refuses() {
     ];
     assert!(
         matches!(
-            curved_face(&s, &l_shape, 1.0, band()),
+            curved_face(&s, &l_shape, true, band()),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "the L-shape must stay refused"
@@ -562,7 +562,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     );
     assert!(
         matches!(
-            curved_face(&s, &edges, 1.0, band),
+            curved_face(&s, &edges, true, band),
             Err(PropsError::NotIsoRectangle {
                 what: "curved face without a rim (non-sphere)"
             })
@@ -582,8 +582,8 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 /// the boundary to lie on ONE great circle. These two rows are that
 /// arm's evidence: the hemisphere it is written for measures exactly,
 /// and a lune bounded by meridians on two DIFFERENT great circles —
-/// which would take `Δu = π` for a domain of width `π/2` and measure
-/// twice its area — is refused.
+/// which `Δu = π` would measure at the wrong width — is measured at
+/// its OWN width by the wedge arm (`props_wedge_azimuth`), never at π.
 ///
 /// **What these rows do not carry:** the arcs' `v`-extent. The fold
 /// carries each arc's span-derived pole extremes, so the arcs need
@@ -617,15 +617,44 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
         )
     };
     let half = core::f64::consts::FRAC_PI_2;
-    let band = vec![
+    let hemisphere = vec![
         great(0.0, -half, half, 0, 1),
         great(0.0, half, 3.0 * half, 1, 0),
     ];
     accepts_exactly(
         "rimless hemisphere",
         &s,
-        &band,
+        &hemisphere,
         2.0 * core::f64::consts::PI * rs * rs,
+    );
+
+    // **The sense BIT is what the exemption rests on, and the two
+    // words answer differently.** The domain is the same patch either
+    // way, so the area does not move; the flux's radial term is the
+    // one thing the bit selects, so the reversed band measures the
+    // same hemisphere with the opposite material side. A door that
+    // ignored its sense argument would pass the row above and red
+    // here. Asserted as an EXACT negation because a conditional
+    // negation is exact — the bit selects, it does not scale.
+    let out = curved_face(&s, &hemisphere, true, band()).expect("the outward hemisphere measures");
+    let inward =
+        curved_face(&s, &hemisphere, false, band()).expect("the inward hemisphere measures");
+    assert_eq!(
+        inward.area.to_bits(),
+        out.area.to_bits(),
+        "the sense bit selects a material side, not a domain"
+    );
+    assert_eq!(
+        inward.flux.to_bits(),
+        (-out.flux).to_bits(),
+        "the rimless band's flux side IS the face's sense bit: {} vs {}",
+        out.flux,
+        inward.flux
+    );
+    assert!(
+        out.flux > 0.0,
+        "anti-vacuity: the two senses must differ, so the flux cannot be zero ({})",
+        out.flux
     );
 }
 
@@ -653,21 +682,27 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
         )
     };
     let half = core::f64::consts::FRAC_PI_2;
-    // Pole to pole at azimuth 0, back pole to pole at azimuth π/2: a
-    // quarter lune. `Δu = π` would measure it at twice its area.
+    // Pole to pole at azimuth 0, back pole to pole at azimuth π/2:
+    // the two meridian planes a quarter turn apart. Which of the two
+    // lunes between them this loop bounds is the loop's own statement
+    // — interior-left about the outward normal puts the interior on
+    // the `−u` side of a NORTHWARD meridian, so with `sense = true`
+    // this is the THREE-quarter lune and with `sense = false` the
+    // quarter one. `Δu = π` would measure either at the wrong width.
     let lune = vec![
         great(0.0, -half, half, 0, 1),
         great(half, half, -half, 1, 0),
     ];
-    assert!(
-        matches!(
-            curved_face(&s, &lune, 1.0, band()),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_band_coplanar"
-            })
-        ),
-        "a rimless domain whose meridians span two great circles must be refused"
-    );
+    for (sense, du) in [(true, 3.0 * half), (false, half)] {
+        let fc = curved_face(&s, &lune, sense, band())
+            .expect("a lune on two great circles measures at its own width");
+        let exact = 2.0 * rs * rs * du;
+        assert!(
+            (fc.area - exact).abs() / exact < 1e-12,
+            "sense = {sense}: area {:.15e} != {exact:.15e}",
+            fc.area
+        );
+    }
 }
 
 /// **The torus arm of the gate needs the premise too, and the reason

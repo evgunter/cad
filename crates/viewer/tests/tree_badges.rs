@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, SitedRef, evaluate};
+use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::session::{DocSession, SessionOp};
@@ -179,8 +179,8 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: SitedRef::at_mint(common::asm::in_part(post, &bench.post_top)),
-                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+                a: common::head(common::asm::in_part(post, &bench.post_top)),
+                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },
@@ -282,8 +282,8 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: SitedRef::at_mint(common::asm::in_part(bench.post_a, &bench.post_top)),
-                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+                a: common::head(common::asm::in_part(bench.post_a, &bench.post_top)),
+                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },
@@ -397,8 +397,8 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: SitedRef::at_mint(common::asm::in_part(post, &bench.post_top)),
-                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+                a: common::head(common::asm::in_part(post, &bench.post_top)),
+                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },
@@ -452,4 +452,236 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     }
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+// ---- The refusal that names no row ----
+
+/// The env var naming the child process that commits a bandless
+/// tolerance. `geom_core::Tolerance` commits once per process and
+/// `tests/all.rs` aggregates every suite into ONE binary, so the
+/// pathological tolerance runs in a re-exec'd child or it poisons
+/// every other suite in the binary
+/// (`crates/editor-core/tests/wire_band_cause.rs`'s pattern).
+const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
+
+/// An ε large enough that K·ε overflows at the default K, and still
+/// finite and strictly positive — so `Tolerance::validate` admits it
+/// and `Band::linear` refuses it.
+///
+/// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it
+/// was derived from; that both spellings exist is
+/// `work/tint/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
+const BANDLESS_EPS: f64 = f64::MAX / 2.0;
+
+/// **What the child prints once it has run every assertion below.**
+///
+/// The parent asserts on THIS, not on the child's exit status:
+/// libtest exits 0 when a filter matches nothing (*"running 0 tests …
+/// test result: ok"*), so a rename of this suite, of the child fn, or
+/// of `all.rs`'s nesting would turn the row into a silent pass while
+/// the child holds every assertion it has. The sentinel is stronger
+/// than a matched-test count as well as cheaper: it is printed after
+/// the last assertion, so it also goes missing if the environment
+/// guard sends the child down its no-op return.
+const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
+
+/// **A run-tolerance refusal reaches every mate and every instance in
+/// the DOCUMENT, blames none of them, and points the eye nowhere.**
+///
+/// `MateFault::Band` is the one fault arm that reaches rows without
+/// naming a subject, so it is the one arm `blamed_mates` answers empty
+/// for on rows a user can actually meet. What this row pins is what
+/// that costs and what it must not buy back:
+///
+/// - the refusal is the RUN's, not a cluster's — the instance no mate
+///   touches is reached exactly like the mated pair, which is why a
+///   badge wording scoped to "this cluster" would name the wrong set;
+/// - every reached row keeps the payload's own words, byte-identical,
+///   so nothing here composes a sentence onto a failing row;
+/// - and NO row is drawn downstream of another, because the fault
+///   names no culprit and one may not be invented to have somewhere
+///   to send the eye.
+///
+/// CHILD MODE. No-op unless [`BAND_PROBE`] is set, so the parent suite
+/// run passes over it.
+#[test]
+fn child_band_refusal_rows() {
+    use pncad::document::{
+        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, Node,
+        NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
+    };
+    use pncad::geom_core::Band;
+    use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
+    use pncad::prelude::StableName;
+    use pncad::select::EntityKind;
+
+    if std::env::var(BAND_PROBE).is_err() {
+        return;
+    }
+    // DOOR 1 — the premise. `init` validates before it commits, so a
+    // pair this call accepts is a pair the run's own validator
+    // accepts.
+    Tolerance::init(Tolerance {
+        eps: BANDLESS_EPS,
+        k: DEFAULT_K,
+    })
+    .expect("the pathological pair is a VALID tolerance");
+    let tol = Tol::witness();
+    // DOOR 2 — the failure the whole row stands on. If `Band::linear`
+    // ever admits this tolerance, `MateFault::Band` stops being
+    // reachable and the carve-out below has no subject.
+    Band::linear(tol).expect_err("no band exists at this tolerance");
+
+    // The document. Nothing in it carries geometry — a profile cannot
+    // be AUTHORED where no band exists — which is the shape a user
+    // meets when a saved document commits its own ε on open: three
+    // instances and a mate, authored elsewhere, read back at a
+    // tolerance that admits no band.
+    let part = ProfileDoc::empty_derived("band-part", tol);
+    let doc_ref = DocRef {
+        id: part.id(),
+        pin: content_pin(&part, tol).expect("the pin computes"),
+    };
+    let mut asm = ProfileDoc::empty_derived("band-asm", tol);
+    let insert = |doc: &mut ProfileDoc, node: Node<_>| -> RecipeNodeId {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("an insert mints an id")
+    };
+    let mated_a = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let mated_b = insert(&mut asm, Node::instantiate_part(doc_ref));
+    // The instance NO mate touches: its own singleton cluster, and the
+    // row that decides whether this refusal is a cluster's or the
+    // run's.
+    let lone = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let face_of = |instance| {
+        common::head(StableName {
+            kind: EntityKind::Face,
+            node: instance,
+            path: Vec::new(),
+        })
+    };
+    let frame = MateFrame {
+        origin: [0.0, 0.0, 0.0],
+        axis: [0.0, 0.0, 1.0],
+        reference: [1.0, 0.0, 0.0],
+    };
+    let mate = insert(
+        &mut asm,
+        Node::Mate {
+            a: face_of(mated_a),
+            b: face_of(mated_b),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame,
+                b: frame,
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        },
+    );
+
+    let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+        &asm,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let rows = tree::rows(&asm, Some(&evaluation));
+    assert!(tree::has_faults(&rows), "the run refused: {rows:?}");
+
+    // DOOR 3 — the fault is the MATE arm, not the evaluator's own
+    // per-node band door. The whole carve-out is about which arm a
+    // user meets: if the evaluator ever refuses mates and instances
+    // before the solve does, this goes red and there is no live
+    // `MateFault::Band` left to badge.
+    let reached: Vec<RecipeNodeId> = [mated_a, mated_b, lone, mate]
+        .into_iter()
+        .filter(|&id| {
+            matches!(
+                evaluation.result(id),
+                Some(NodeResult::Failed(e))
+                    if matches!(&e.kind, NodeErrorKind::Mate(f)
+                        if matches!(**f, MateFault::Band { .. }))
+            )
+        })
+        .collect();
+    assert_eq!(
+        reached,
+        vec![mated_a, mated_b, lone, mate],
+        "the band refusal reaches every mate and every instance, the unmated one included — \
+         it is the RUN's refusal, not one cluster's"
+    );
+
+    // Every reached row draws its own FAILED, carrying the payload's
+    // own words byte-identical. Composing a cohort clause onto a
+    // failing row's message reddens here.
+    for &id in &reached {
+        let status = common::status_of(&rows, id);
+        assert_eq!(status.badge(), "FAILED", "{id:?}: {status:?}");
+        let Some(NodeResult::Failed(error)) = evaluation.result(id) else {
+            panic!("{id:?} must be Failed in the evaluation");
+        };
+        assert_eq!(
+            status.message(),
+            Some(error.to_string().as_str()),
+            "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
+        );
+    }
+
+    // And nothing is drawn downstream of anything: the fault names no
+    // mate, so there is no row to send the eye to and none is
+    // invented. A lane that closes the badging defect by PICKING a
+    // culprit reddens here, which is the decision this row holds.
+    let pointed: Vec<RecipeNodeId> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Poisoned { .. }))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        pointed,
+        Vec::<RecipeNodeId>::new(),
+        "a band refusal blames no mate, so no row may point at one"
+    );
+
+    // Last act: the parent reads this to know the assertions above ran
+    // at all.
+    println!("{BAND_PROBE_DONE}");
+}
+
+/// The parent of [`child_band_refusal_rows`].
+#[test]
+fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
+    let exe = std::env::current_exe().expect("test exe path");
+    // Name the probe by MODULE PATH: `tests/all.rs` aggregates the
+    // suites, so libtest sees it as
+    // `<this_module>::child_band_refusal_rows`.
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::child_band_refusal_rows"),
+        None => "child_band_refusal_rows".to_string(),
+    };
+    let out = std::process::Command::new(exe)
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env(BAND_PROBE, "1")
+        .env_remove("CAD_TOLERANCE_EPS")
+        .env_remove("CAD_AMBIGUITY_K")
+        .output()
+        .expect("probe spawns");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(out.status.success(), "the band row failed:\n{text}");
+    // THE ANTI-VACUITY FLOOR, and it is the whole row's: every
+    // assertion this test makes lives in the child, and a green exit
+    // status is what a child that ran NOTHING also reports. Reading
+    // the child's own stdout for a sentinel is the tree's idiom for
+    // this (`crates/geom-core/tests/ambiguity_k_env.rs`);
+    // `test_utils::vacuity` is the wrong instrument here because its
+    // floors are counted and asserted in-process, which is exactly the
+    // process whose execution is in doubt.
+    assert!(
+        text.contains(BAND_PROBE_DONE),
+        "the child exited 0 without reaching its assertions — a filter that \
+         matches nothing greens. Child output:\n{text}"
+    );
 }

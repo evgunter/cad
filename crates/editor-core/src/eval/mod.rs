@@ -72,22 +72,16 @@ pub struct Evaluation<T: Decide> {
     /// reuse, so the version half would cost a canonicalization per
     /// run for a check the keys already make.
     ///
-    /// THREE doors read this field to refuse a mispairing typed,
-    /// before reading anything of the value: [`product`](fn@crate::product)
-    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
-    /// through them, and — for the solve's own twin of this stamp —
-    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
-    /// reader and refuses differently, below. Node ids alone could not
-    /// decide any of it: they are minted by a per-document counter, so
-    /// two documents built from one recipe carry the SAME ids for the
-    /// same nodes, and every lookup would hit.
+    /// The pairing doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value; the memo reads it too and
+    /// refuses differently, below. Node ids alone could not decide any
+    /// of it: they are minted by a per-document counter, so two
+    /// documents built from one recipe carry the SAME ids for the same
+    /// nodes, and every lookup would hit.
     ///
-    /// Other doors taking such a pair — `run_checks`,
-    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
-    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
-    /// covered downstream by `product_recorded`); that gap is tracked
-    /// at
-    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    /// Which doors those are, and which doors taking such a pair do
+    /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
+    /// one place for a set that grows as each door is built.
     ///
     /// The field is `pub` like every other field of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
@@ -716,11 +710,11 @@ pub enum SplitSide<T: Decide> {
 // where a degenerate, decided-zero-length vector becomes a typed
 // refusal; this layer maps that refusal onto its own node error and
 // invents nothing. `DatumValue` is re-exported at its historical home,
-// so no consumer's path to it moved — but the surface GREW: the two
-// `UnitVec3` names are new here, and they are not optional decoration.
-// A consumer cannot build a datum, or read a normal back out of one,
-// without naming the type that carries the invariant.
-pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
+// so no consumer's path to it moved. The type that carries its
+// directions, `geom_core::UnitVec3`, is NOT re-exported here: a
+// consumer that builds a datum, or reads a normal back out of one,
+// names the witness at the crate that mints it.
+pub use topo::query::DatumValue;
 
 // `NodeErrorKind::VerbArity` carries the kernel's verb name and
 // declared-arity types in a pub payload, so both cross with it — the
@@ -808,6 +802,139 @@ impl PartialEq for NodeRefusal {
 impl core::fmt::Display for NodeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// **The entity-kind door**: one home for *read a thing, test what kind
+/// of entity it is, refuse* — and, unlike a door built out of a
+/// convention, one a road cannot go around.
+///
+/// Four refusals in `eval::wire` ask that question — a shell's open
+/// designation, a blend's selection, a derived frame's face, a
+/// measure's scope. They differ in the entity they admit, in the word
+/// they use for the road, and in what else the refusal carries (a
+/// name, a verb). They do NOT differ in how the answer to *"what was
+/// it instead"* is obtained, and that half is this module's.
+///
+/// # Why a token rather than a rule
+///
+/// The obvious shape hands the road an [`crate::names::EntityKind`]
+/// and asks it not to make one up. That is a rule, and a rule over a
+/// spelling is enforceable only by a reader or a census — both of
+/// which can be walked past by a road that computes its own answer and
+/// passes it where the door's belongs. [`entity_door::Found`] removes
+/// that: it carries the kind, its field is private to this module, and
+/// [`entity_door::entity`] is the only thing that can mint one.
+///
+/// The refusals therefore keep their own identities — four variants,
+/// four sentences — while the one fact they share has one source.
+///
+/// # Why the door is in two files
+///
+/// [`entity_door::entity`] is here and `eval::wire`'s `named_entity` — the
+/// designation road, which resolves an authored name and then comes
+/// here — is there. That split is not a preference: [`entity_door::Found`]'s field
+/// must be private to a module that is NOT an ancestor of the roads,
+/// and the roads live in `eval::wire`, so the minting site cannot live
+/// there with them. Putting [`entity_door::Found`] beside
+/// [`crate::names::EntityKind`] instead would need a crate-visible
+/// constructor, which every road could call — the guarantee would be
+/// gone. `named_entity`'s own docs carry the other half of this
+/// sentence.
+///
+/// **What an outside reader gets from this module is [`entity_door::Found`]**, which
+/// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
+/// itself is `pub(crate)`: nothing outside this crate resolves an
+/// entity, so nothing outside it has a key to ask about.
+///
+/// # What this does NOT promise, stated because the difference matters
+///
+/// **The WORD is unforgeable; the KEY it is read off is the caller's.**
+/// [`entity_door::entity`] computes the kind from the
+/// [`crate::names::EntityKey`] it was handed, so a road that hands it
+/// the wrong key gets a refusal that truthfully describes that key and
+/// falsely describes the entity the road was talking about. Nothing
+/// here prevents that, and no census in this repo does either: closing
+/// it would mean making [`crate::names::EntityKey`] itself unforgeable,
+/// and the naming layer constructs one in about 150 places.
+///
+/// What IS closed is the shape that made such a substitution
+/// invisible. `read` is a `fn` pointer, not a closure, so it cannot
+/// capture a second key: it answers from the key the door holds or not
+/// at all. A road that substitutes a key therefore substitutes it for
+/// its own success path too and stops working, rather than succeeding
+/// on one entity while refusing about another. The byte-exact refusals
+/// in `crates/editor-core/tests/wire_entity_door.rs` are what covers
+/// the rest, and
+/// `work/wire/the-entity-doors-key-comes-from-its-caller.md` is the row.
+pub mod entity_door {
+    use crate::names::{EntityKey, EntityKind};
+
+    use super::NodeErrorKind;
+
+    /// **What an entity turned out to be**, as a value only
+    /// [`entity`] can make.
+    ///
+    /// Readable by anyone (a refusal renders it; a test asserts on
+    /// it), constructible by nobody outside this module — the private
+    /// field is the whole mechanism, and it is why no census guards
+    /// the rule this type states.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Found(EntityKind);
+
+    impl Found {
+        /// The kind, for a reader.
+        #[must_use]
+        pub fn kind(self) -> EntityKind {
+            self.0
+        }
+
+        /// The indefinite article agreeing with [`Found::noun`] — the
+        /// value decides it ("an edge", "a face"), so a sentence that
+        /// hard-codes one is wrong for some kind it can reach.
+        pub(crate) fn article(self) -> &'static str {
+            self.0.article()
+        }
+
+        /// The kind as a prose noun, for a refusal's own sentence.
+        pub(crate) fn noun(self) -> &'static str {
+            self.0.noun()
+        }
+    }
+
+    /// **What kind of entity is this, and refuse if it is not** — the
+    /// one home for that question, over a resolved
+    /// [`crate::names::EntityKey`].
+    ///
+    /// `read` is the only thing a caller decides about the ADMITTED
+    /// set: the projection that either finds on the key what this
+    /// door's consumer needs ([`EntityKey::face`], [`EntityKey::edge`],
+    /// or a wider one where a road admits two kinds), or says it is
+    /// not there. `refuse` is that road's OWN refusal — a shell
+    /// designation names a face, a blend's names an edge under its
+    /// verb, a measure's reference names a scope — and it is handed
+    /// the one thing it could not otherwise have.
+    ///
+    /// **`read` is a `fn` pointer rather than a closure, and that is
+    /// the door's second guarantee.** A capturing `read` can ignore its
+    /// argument and answer from a key it closed over, which lets a road
+    /// succeed on one entity while the refusal beside it describes
+    /// another — a lie with a byte-identical success path. A `fn`
+    /// cannot capture, so the value this door returns and the kind it
+    /// reports come off the same key. What remains is that the key is
+    /// the caller's (module docs), and a road that substitutes one
+    /// breaks its own success path in the same stroke.
+    ///
+    /// # Errors
+    ///
+    /// `refuse`'s own refusal, when `read` finds the key is not the
+    /// entity asked for.
+    pub(crate) fn entity<R>(
+        key: EntityKey,
+        read: fn(EntityKey) -> Option<R>,
+        refuse: impl FnOnce(Found) -> NodeErrorKind,
+    ) -> Result<R, NodeErrorKind> {
+        read(key).ok_or_else(|| refuse(Found(key.kind())))
     }
 }
 
@@ -1194,13 +1321,27 @@ pub enum NodeErrorKind {
         /// The pair, as the recipe carries it.
         pair: Box<(crate::names::StableName, crate::names::StableName)>,
     },
-    /// A `Declare` pair outside the v1 threading vocabulary
-    /// (supported: cross-operand Face–Face; same-operand
-    /// Vertex–Vertex and Vertex–Face).
+    /// A `Declare` pair outside the v1 threading vocabulary, which is
+    /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
+    /// deliberately not re-listed here, so a fourth pair shape cannot
+    /// be added to the code and left out of this sentence.
+    ///
+    /// Asked and answered BEFORE either name is resolved to one
+    /// entity: a pair the vocabulary has no step for is unsupported
+    /// however many entities answer to either name (`wire`'s
+    /// `resolve_declarations`, and `assembly::resolve_face` for the
+    /// same rule at the mate doors).
     DeclareUnsupportedPair {
-        /// The pair's entity kinds, declaration order.
+        /// The pair's entity kinds, declaration order — the AUTHORED
+        /// names' kinds, which is the only source available before
+        /// resolution and which the name table makes every
+        /// candidate's kind (`NameTable::insert_ref` and
+        /// `insert_tied_ref` are its only two writers and both refuse
+        /// a row whose name's kind is not its key's).
         kinds: (crate::names::EntityKind, crate::names::EntityKind),
-        /// Whether the names resolved in different operands.
+        /// Whether the two names LANDED in different operands — the
+        /// side pick, made before resolution, so a tied name has a
+        /// side here without having a single entity.
         cross_operand: bool,
     },
     /// The boolean refused an UNDECLARED contact (F6) and the raise
@@ -1252,8 +1393,9 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
@@ -1295,8 +1437,9 @@ pub enum NodeErrorKind {
     ShellOpenKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// **This evaluation scalar cannot form the shell door's call.**
     /// The door validates what it built with a certified claim, so it
@@ -1325,8 +1468,9 @@ pub enum NodeErrorKind {
     FaceFrameKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A derived frame's face is not planar (DM1b): a sketch frame
     /// needs a plane, and the carrier found is named so a headless
@@ -1511,8 +1655,9 @@ pub enum NodeErrorKind {
     MeasureSelectionKind {
         /// Which primitive.
         verb: &'static str,
-        /// What the reference resolved to instead, as its class.
-        found: &'static str,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
@@ -1960,7 +2105,9 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureSelectionKind { verb, found } => write!(
                 f,
                 "`{verb}` measures between two selections — a whole body or one of its faces — \
-                 and this reference resolves to {found}"
+                 and this reference resolves to {} {}",
+                found.article(),
+                found.noun()
             ),
             Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
             Self::AssertionDimension { measured, bound } => write!(
@@ -3740,8 +3887,8 @@ where
     // the compile breaks. It cannot default to "tag plus slots" and
     // hash identically to a node that differs in that payload — a memo
     // hit would then serve another node's geometry, which is not
-    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
-    // with `ArcContinue`'s and was caught by a reviewer, not a type).
+    // hypothetical (see S4: two steps once shared a content-key tag,
+    // and a reviewer caught it rather than a type).
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -4228,7 +4375,6 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::CloseTo => 24,
         V::Circle => 26,
         V::CircleSplit => 27,
-        V::ArcContinue => 28,
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
@@ -4243,6 +4389,7 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (19, "ArcVia"),
     (20, "ArcCenter"),
     (25, "CloseToOn"),
+    (28, "ArcContinue"),
     (29, "AtToward"),
 ];
 
@@ -4372,7 +4519,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
+        Step::At(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
@@ -4487,7 +4634,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
     }
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::At(p) | Step::FarEndTo(p) => pt(h, p),
         Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
         Step::Toward { dx, dy } => {
             f(h, dx);
@@ -4753,7 +4900,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CornerFace => 30,
         S::TrimEdge => 31,
         S::FootVertex => 32,
-        S::CornerArc => 33,
+        S::EndArc => 33,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -4938,7 +5085,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             feed_stable_name(h, vertex);
             feed_stable_name(h, support);
         }
-        RoleSeg::CornerArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } => {
             feed_stable_name(h, vertex);
             feed_stable_name(h, edge);
         }
@@ -5137,8 +5284,8 @@ mod tag_vocabulary_tests {
     /// it would stay green while a new inline node claimed 17 or 24 —
     /// which is precisely the accident that moving two tags out of the
     /// match created the room for, and precisely the accident the S4
-    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
-    /// a reviewer rather than a type) says costs a memo hit serving
+    /// lesson (two steps sharing one content-key tag, caught by a
+    /// reviewer rather than a type) says costs a memo hit serving
     /// another node's geometry.
     ///
     /// **It is a source census, and that is the honest shape here.** The

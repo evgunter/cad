@@ -77,3 +77,50 @@ the claim. This row is one of the twenty on INSTR's opening slate.
 ## Refs at METER's sweep (2026-09-09)
 
 METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `cut-prefix-three-unpinned-spellings` is now cited by its closing PR 2151.
+
+## A third way it misleads, worse than the two above, measured on the orchestrator (2026-09-16)
+
+The two modes this row lists both end with the reader knowing something
+is wrong — the stamp looks broken, or the wanted commit cannot be
+reached. **There is a third that ends with the reader confidently
+holding the wrong numbers**, and it cost a live adjudication today.
+
+`git show <cut>:docs/tess-budget-data/tess-budget-baseline.csv` does
+not yield the baseline that cut produced. It yields **the baseline as
+it stood at that commit — the PREVIOUS cut's file**, which parses
+cleanly, carries the same shape, and sums to different totals. Measured:
+
+| read | cut line inside the file | `opt_cells` | `span_opt_cells` |
+|---|---|---|---|
+| `git show 3f55f361b22e:…baseline.csv` | `aba2625f8f84` | 94,154 | 44,446 |
+| the file STAMPED `3f55f361b22e` (committed at `715977e6a`) | `3f55f361b22e` | 93,066 | 44,162 |
+
+So the natural spelling of *"let me check the figures against the cut
+the document names"* silently answers a different question, and returns
+a plausible answer. Nothing errors; the two files differ only in
+values.
+
+**What it cost.** INSTR unit 1 froze a passage in `docs/TESS-BUDGET.md`
+and labelled it with the cut it reads. The orchestrator checked the
+label by the spelling above, got 94,154 / 44,446 against the document's
+93,066 / 44,162, and sent the unit a correction instructing it to
+re-point the label at a later cut — which would have been **wrong**:
+that later blob (`448275c8d`) agrees on the four sums but carries 316
+named rows against 286, so re-pointing would have broken the same
+passage's `name` figure. The lane re-summed, found the stamp-versus-tree
+distinction, and refused the instruction. The correct attribution
+survived because a lane checked an orchestrator, not because the
+tooling said anything.
+
+**This sharpens what the fix owes.** The row already asks that the read
+site say the commit is the sweeping tree's HEAD. It should also give
+the reader the thing they actually want at that moment: **the commit
+whose blob holds the rows**, which is not derivable from the stamp by
+any spelling. Unit 1's own repair — every cut citation written as two
+parts, the stamp AND the commit to sum, with the re-sum command beside
+it — is the shape that works in prose; the instrument has no equivalent
+yet, and `tess_lint::Cut` is where it would live.
+
+**Whoever takes this row is warned**: the hazard reaches the people
+holding the whole board, not only a passing reader, and it did so on a
+slate that already carried this row.

@@ -73,6 +73,16 @@ mod bool3_r1_probes;
 mod bool3_torus_doors;
 #[path = "bool3_torus_doors_interval.rs"]
 mod bool3_torus_doors_interval;
+#[path = "bool5r2_wedge_reach.rs"]
+mod bool5r2_wedge_reach;
+#[path = "bool6_per_slab_stacking.rs"]
+mod bool6_per_slab_stacking;
+#[path = "bool6_r2_probes.rs"]
+mod bool6_r2_probes;
+#[path = "bool6r1_probes.rs"]
+mod bool6r1_probes;
+#[path = "bool6r1_probes_interval.rs"]
+mod bool6r1_probes_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -113,6 +123,8 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "topo_ring_nesting.rs"]
+mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
 mod torax_axial;
 #[path = "torax_interval.rs"]
@@ -144,12 +156,16 @@ mod blend4_concave_fillet;
 mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
+#[path = "blend_ball_side_bits.rs"]
+mod blend_ball_side_bits;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
@@ -256,6 +272,8 @@ mod mass_props_interval;
 mod must_carry_rule;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
+#[path = "r2_sense_fold_probes.rs"]
+mod r2_sense_fold_probes;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
@@ -358,10 +376,14 @@ mod revolve_washer;
 mod ring_r1_probes;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
+#[path = "s393_start_frame_door.rs"]
+mod s393_start_frame_door;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_edge_loft_charts.rs"]
+mod split_edge_loft_charts;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -423,14 +445,7 @@ mod verbs_tubewall_r2_probes;
 #[path = "verbs_tubewall_r2_solidbits.rs"]
 mod verbs_tubewall_r2_solidbits;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
@@ -485,9 +500,16 @@ mod review_ring_clearance_r1_probes;
 mod review_ring_clearance_r2_probes;
 #[path = "ring_clearance_forms.rs"]
 mod ring_clearance_forms;
+#[path = "vrev_acceptance_set.rs"]
+mod vrev_acceptance_set;
+#[path = "vrev_reversed_chart_hazard.rs"]
+mod vrev_reversed_chart_hazard;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
+
+#[path = "curved_mergedoor.rs"]
+mod curved_mergedoor;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
@@ -649,6 +671,12 @@ mod shell7_r2_probes;
 
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
+
+#[path = "revert_plane_charts.rs"]
+mod revert_plane_charts;
+
+#[path = "revert_periodic_wrap.rs"]
+mod revert_periodic_wrap;
 
 #[path = "shell9_rows.rs"]
 mod shell9_rows;

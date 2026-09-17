@@ -30,12 +30,13 @@ use geom_brep::{DihedralClass, classify_dihedral};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 /// The cap surface an extrusion mints: a plane of normal `n`.
+///
+/// The in-plane reference is the kernel's own
+/// ([`Vec3::orthonormal_basis`], the door for an axis and a reference
+/// pair off it), not a world-axis cone chosen here: `n` is unit, which
+/// is that door's precondition.
 fn cap_plane(n: Vec3<f64>) -> Surface<f64> {
-    let u = if n.z.abs() < 0.5 {
-        Vec3::new(0.0, 0.0, 1.0).cross(n).normalize()
-    } else {
-        Vec3::new(1.0, 0.0, 0.0).cross(n).normalize()
-    };
+    let (u, _) = n.orthonormal_basis();
     Surface::Plane {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: n,

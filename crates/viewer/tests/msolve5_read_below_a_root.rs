@@ -16,8 +16,8 @@ use crate::common;
 
 use common::asm;
 use pncad::document::{
-    AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, Node, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, apply,
+    AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -73,8 +73,8 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
     let mate = insert(
         &mut asm,
         Node::Mate {
-            a: SitedRef::at_mint(asm::in_part(post, &bench.post_top)),
-            b: SitedRef::new(lifted, b.clone()),
+            a: common::head(asm::in_part(post, &bench.post_top)),
+            b: common::head_at(lifted, b.clone()),
             class: ContactClass::Rest,
             alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
         },
@@ -82,11 +82,13 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
     );
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");
     let path = ws.create(&asm, tol).expect("the assembly stores");
-    let expected = AssemblyError::Reference {
-        mate,
-        side: MateSide::B,
-        name: Box::new(b),
-        why: RefusedRef::ReadBelowARoot { at: lifted },
+    let expected = AssemblyError::Mint {
+        refusals: vec![MintRefusal::Reference {
+            mate,
+            side: MateSide::B,
+            name: Box::new(b),
+            why: RefusedRef::ReadBelowARoot { at: lifted },
+        }],
     };
     (path, expected)
 }

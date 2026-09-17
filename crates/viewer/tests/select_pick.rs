@@ -27,7 +27,7 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pickindex::{IdMap, PatchId, PickIndex};
+use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
 use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
@@ -49,7 +49,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -840,7 +846,11 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = index_of(&session);
     assert!(
-        index.current_for(session.landed_generation(), delta()),
+        index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "freshly built, it describes the run on screen"
     );
 
@@ -851,15 +861,31 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     });
     session.pump();
     assert!(
-        !index.current_for(session.landed_generation(), delta()),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
     // the tessellations the picture is drawn from.
     let coarser = delta().scaled(2.0).expect("a positive delta");
     let rebuilt = index_of(&session);
-    assert!(rebuilt.current_for(session.landed_generation(), delta()));
-    assert!(!rebuilt.current_for(session.landed_generation(), coarser));
+    assert!(
+        rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        )
+    );
+    assert!(
+        !rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, coarser))
+        )
+    );
 }
 
 #[test]

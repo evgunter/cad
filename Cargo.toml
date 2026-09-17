@@ -47,6 +47,10 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
+# Held equal to rust-toolchain.toml's channel by
+# scripts/gates/msrv-floor-equals-channel.sh, whose header says why and
+# when to delete it. Not documentation-only: `resolver = "3"` above makes
+# this an input to dependency version selection.
 rust-version = "1.97.0"
 # Nothing is publishable until the project has its name (Q9).
 publish = false

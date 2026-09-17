@@ -255,6 +255,20 @@ pub struct Face {
     /// surface's chart normal (i.e. the face's outward normal is `+n`);
     /// `false` iff it is reversed (outward normal `-n`).
     ///
+    /// **The bit is the whole representation of reversal, and it
+    /// never leaves as a scalar.** A consumer that wants the outward
+    /// normal obtains it typed, as a [`geom_brep::OutwardNormal`]:
+    /// through [`crate::face_normal`]'s doors, which resolve the face
+    /// and fold the bit in, or by naming
+    /// [`geom_brep::OutwardNormal::from_chart`] — the type's only
+    /// constructor — on a chart normal it holds, in this crate or
+    /// out of it. A consumer that wants a signed SCALAR (a winding, an
+    /// area) spells the bit as a conditional negation at the point of
+    /// use. There is no `±1` accessor, so a sign crossing a function
+    /// boundary as a `T` cannot be minted from this field by name; a
+    /// vector negated under the bit by hand can be, and
+    /// `face_normal`'s tree-wide row is what stands against that.
+    ///
     /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
     /// face it puts on a NEW surface (the material side is not op-level
     /// knowledge — `mef` sees two chords, not the profile); a face that
@@ -287,23 +301,6 @@ pub struct Face {
     pub shell: ShellKey,
 }
 
-impl Face {
-    /// The face's **outward-normal sign**: `+1` when [`Face::sense`] is
-    /// `true` (material side agrees with the surface's chart normal),
-    /// `-1` when it is `false`. The face's outward normal at a point is
-    /// `sense_sign() * chart_normal(u, v)`.
-    ///
-    /// Exact structure, not a numeric decision: the sign is *selected*
-    /// by a `bool`, so no comparison, no tolerance, and nothing for the
-    /// k-lint to flag. `Interval` instantiations get an exact `±1`
-    /// (`Real::one()` is exact in every backend), so a sense flip is a
-    /// bitwise sign change, never a widening.
-    #[must_use]
-    pub fn sense_sign<T: geom_core::Real>(&self) -> T {
-        if self.sense { T::one() } else { -T::one() }
-    }
-}
-
 /// The boundary state of a loop: a genuine cycle of half-edges, or the
 /// *empty loop* degenerate state — a lone vertex, no edges at all.
 ///
@@ -328,14 +325,27 @@ pub enum LoopBoundary {
         /// The lone vertex this loop consists of.
         vertex: VertexKey,
     },
-    /// A circular cycle of half-edges, entered at an arbitrary
-    /// representative. The full cycle is reached by following
-    /// [`HalfEdge::next`]; the validator checks that the walk closes and
-    /// that every member points back via
-    /// [`HalfEdge::parent_loop`].
+    /// A circular cycle of half-edges, entered at a representative. The
+    /// full cycle is reached by following [`HalfEdge::next`]; the
+    /// validator checks that the walk closes and that every member
+    /// points back via [`HalfEdge::parent_loop`].
     Cycle {
-        /// A representative half-edge of the cycle (which one is
-        /// arbitrary and carries no meaning).
+        /// The cycle's anchor: the half-edge every walk of the cycle
+        /// starts at. Any member closes the cycle, and tier 1 asks
+        /// nothing more of it — but on a loop whose face carries
+        /// stored pcurve rows on a periodic chart the anchor is
+        /// load-bearing: the one-branch loop walk
+        /// (`crate::pcurves`, "The one-branch walk") pins every joint
+        /// of the cycle to its predecessor's exit, so a one-period
+        /// wrap of the chart's azimuth can be REPORTED only at the
+        /// closure — the joint between the cycle's last half-edge and
+        /// this one — and the stored rows are continuous in the
+        /// walk's order from here. A producer that reverses a cycle
+        /// therefore moves `first` to its source predecessor
+        /// (`crate::Body::revert`), which keeps that joint the
+        /// closure; a producer that re-anchors a minted loop anywhere
+        /// else owes a re-mint of its rows (the `Transfers` posture in
+        /// `crate::pcurves`).
         first: HalfEdgeKey,
     },
 }

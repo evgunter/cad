@@ -89,7 +89,7 @@ fn plane_outward(body: &Body<f64>, f: FaceKey) -> Vec3<f64> {
     let Surface::Plane { normal, .. } = body.get_surface(fd.surface).unwrap() else {
         panic!("not a plane")
     };
-    if fd.sense { *normal } else { -*normal }
+    geom_brep::OutwardNormal::from_chart(*normal, fd.sense).vec()
 }
 
 /// The reading of whichever clearance predicate refused, by name.

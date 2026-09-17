@@ -11,7 +11,7 @@
 
 use crate::common;
 
-use common::prism;
+use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::readback::euler_counts;
@@ -694,16 +694,16 @@ fn interval_lane_acceptance() {
 /// a plane touching a face without cutting.
 #[test]
 fn empty_sides_are_typed() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], 1.0);
+    let fx = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
     // Plane far above: everything Below.
-    let r = split(&fx.body, &plane_y(5.0), Tol::witness()).unwrap();
+    let r = split(&fx, &plane_y(5.0), Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
-    assert_eq!(census(below), census(&fx.body));
+    assert_eq!(census(below), census(&fx));
     // Plane coplanar with the top face: ON contact, no cut — still a
     // typed Empty above.
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(&fx, &plane_y(1.0), Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     assert_eq!(validate_closed(body_of(&r.below)), Ok(()));
 }

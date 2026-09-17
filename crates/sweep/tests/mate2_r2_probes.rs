@@ -11,7 +11,7 @@
 
 use crate::mate2_common;
 
-use geom_core::{Point3, Tol, Vec2, Vec3};
+use geom_core::{OrthoFrame, Point3, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use topo::{Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration};
@@ -186,7 +186,7 @@ fn revolved_collar() -> Body<f64> {
 
 /// A three-arc peg along the world Y axis, y ∈ [y0, y0 + h].
 fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::from_frame(Point3::new(0.0, y0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, y0, 0.0)));
     let profile = Profile::new(plane, vec![three_arc(0.5, 0.0)])
         .validate(Tol::witness())
         .unwrap();
@@ -235,7 +235,7 @@ fn r2_full_period_bore_still_refuses_typed() {
 #[test]
 fn r2_full_period_peg_still_refuses_typed() {
     // The collar along Y, arc-split (extruded on the peg's plane).
-    let plane = SketchPlane::from_frame(Point3::new(0.0, 1.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
     let profile = Profile::new(plane, vec![three_arc(1.5, 0.0), three_arc(0.5, 0.0)])
         .validate(Tol::witness())
         .unwrap();

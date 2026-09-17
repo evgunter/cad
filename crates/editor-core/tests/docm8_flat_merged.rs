@@ -6,8 +6,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
+use crate::corpus::body_of;
 use crate::docm7_union_declare::{
-    block, body_of, declared_union, failure, flush_pairs, member_face, run, table,
+    block, declared_union, failure, flush_pairs, member_face, run, table,
 };
 use crate::fixture;
 use crate::fixture::{Recorder, fname, insert, len, wall};
@@ -122,7 +123,7 @@ fn member_space_declarations_survive_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(&body_of(&ev, union));
+        let v = volume(body_of(&ev, union));
         assert!(
             (v - 2.2).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
@@ -151,7 +152,7 @@ fn a_four_member_chain_fuses_in_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(&body_of(&ev, union));
+        let v = volume(body_of(&ev, union));
         assert!(
             (v - 2.9).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
@@ -180,7 +181,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(&body_of(&ev, union));
+        let v = volume(body_of(&ev, union));
         assert!(
             (v - 3.2).abs() < 1e-9,
             "{label}: the chain plus the far block, got volume {v}"
@@ -618,7 +619,7 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
     enum Outcome {
         Fused,
         VanishedEndCapOfA,
-        SeamVertexEmission,
+        SeamVertexNoRule,
     }
     let a_end = |u: RecipeNodeId| member_face(u, a, fname(a, RoleSeg::Cap(CapEnd::End)));
     for (order, want) in [
@@ -626,8 +627,8 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
         (vec![c, a, s], Outcome::Fused),
         (vec![a, s, c], Outcome::VanishedEndCapOfA),
         (vec![s, a, c], Outcome::VanishedEndCapOfA),
-        (vec![c, s, a], Outcome::SeamVertexEmission),
-        (vec![s, c, a], Outcome::SeamVertexEmission),
+        (vec![c, s, a], Outcome::SeamVertexNoRule),
+        (vec![s, c, a], Outcome::SeamVertexNoRule),
     ] {
         let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
         let ev = run(&docx);
@@ -636,16 +637,18 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
             Some(NodeErrorKind::DeclareResolve { error }) if matches!(&**error, ResolveError::Vanished { name, .. } if *name == a_end(union)) => {
                 Outcome::VanishedEndCapOfA
             }
-            Some(NodeErrorKind::Naming(NamingError::Emission { what }))
-                if what.starts_with("seam vertex parentage") =>
-            {
-                Outcome::SeamVertexEmission
+            // NOT an `Emission`: this document is well formed, so the
+            // refusal is the emitter saying it has no rule for the
+            // construction — `tests/wire_legal_union_refusals.rs`
+            // carries the argument.
+            Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
+                Outcome::SeamVertexNoRule
             }
             other => panic!("{order:?}: unexpected outcome {other:?}"),
         };
         assert_eq!(got, want, "{order:?}");
         if got == Outcome::Fused {
-            let v = volume(&body_of(&ev, union));
+            let v = volume(body_of(&ev, union));
             assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
         }
     }

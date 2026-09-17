@@ -1,7 +1,13 @@
-//! **The anti-vacuity floor** — the tree's spelling of *how much this run
-//! actually exercised*, printed every run and asserted.
+//! **How much this run actually exercised**, in the tree's two shapes.
+//! [`Exposure`] is the anti-vacuity FLOOR: a tally a run can fall
+//! through, so it reds. The STAND-DOWN is a run saying which mode it
+//! could not enter, which asserts nothing and cannot red — spelled
+//! [`stood_down`] from inside a row that ran, and
+//! [`crate::loud_skip_marker!`] for a whole binary whose rows did not
+//! compile. Only the floor is a guard. The stand-down is documented
+//! here at the same length so that nobody reads it as one.
 //!
-//! # The idiom
+//! # The floor
 //!
 //! A guard that samples — a fuzz sweep, a corpus drive, a hammer pass —
 //! has two failure modes, and only one of them is loud. It can observe
@@ -17,13 +23,13 @@
 //!    which a `continue` inflates for free, but the events that put the
 //!    code under test in scope.
 //! 2. [`Exposure::report`] prints the whole tally **unconditionally**,
-//!    before the floors, so a `--nocapture` or local run leaves the
-//!    numbers where a reader of the claim can find them. **On a green CI
-//!    run it reaches nobody** — libtest and nextest both capture a
-//!    passing test's stdout and no job here passes `--nocapture` — so
-//!    the tally is *also* carried in every floor's panic message, which
-//!    is the path CI shows. The numbers that matter on a red run are on
-//!    the red run; the ones on a green run are for whoever goes looking.
+//!    before the floors, so a local run leaves the numbers where a reader
+//!    of the claim can find them. **On a green CI run it reaches
+//!    nobody** (see *What a passing row prints reaches nobody on the
+//!    gate*, below), so the tally is *also* carried in every floor's
+//!    panic message, which is the path CI shows. The numbers that matter
+//!    on a red run are on the red run; the ones on a green run are for
+//!    whoever goes looking.
 //! 3. [`Exposure::require`], [`Exposure::require_each`] and
 //!    [`Exposure::require_nonzero_among`] put a floor under it. Below the
 //!    floor the run is red, and the message carries the whole tally plus
@@ -54,6 +60,18 @@
 //! prints the `SKIPPED (…)` line naming the coverage this run did not
 //! deliver.
 //!
+//! **On the gate that line reaches nobody** — the section below this one
+//! states why, once, for everything in this module that prints.
+//!
+//! The channel is the smaller half. `stood_down` has **no failing
+//! path**: a row that stood down where it could have asserted is the
+//! same green as a row that asserted, and would be even if every word
+//! reached the log. Turning that red is not a louder print — it is a
+//! floor the ROW states about its own condition, which is that row's
+//! posture to argue and not this door's to impose. It cannot be a
+//! suite-wide count either, because nextest runs each test in its own
+//! process and no tally survives the row that built it.
+//!
 //! `stood_down` is for a mode that is *unreachable in this
 //! configuration*, never for one that merely did not happen to come up.
 //! The second case is what the floor is for. And a stand-down states why
@@ -61,19 +79,50 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **The hand-rolled in-row `println!`s that predated this module are
-//! converted, so every in-row stand-down in `crates/` goes through this
-//! door.** Nothing guards that, so read it as a sweep result rather than
-//! an invariant: what the sweep matched is `SKIPPED (` / `SKIPPED:` over
-//! `crates/*/{src,tests}`, so it cannot see a stand-down announced
-//! without the word — an `eprintln!("standing down …")`, a `dbg!`, or a
-//! comment where a print should be — and it does not reach `demos/`,
-//! `tools/` or `interval-transcendentals/`.
+//! **The hand-rolled in-row `println!`s a sweep found were converted;
+//! that every in-row stand-down in `crates/` goes through this door is
+//! not a claim this module can make.** Nothing guards it, and the
+//! sweep's blind spot has a known occupant: in
+//! `crates/editor-core/tests/m10_5_r1_probes_interval.rs`,
+//! `a_partial_revolve_band_reports_its_phantom_turn` asserts nothing in
+//! three of its four arms and announces each through a bare `println!`
+//! the pattern cannot match. What the sweep matched is `SKIPPED (` /
+//! `SKIPPED:` over `crates/*/{src,tests}`, so it sees no stand-down
+//! announced without the word — an `eprintln!("standing down …")`, a
+//! `dbg!`, or a comment where a print should be — and it does not reach
+//! `demos/`, `tools/` or `interval-transcendentals/`.
 //!
-//! The four whole-binary
-//! `interval_lane_skipped_no_certified_coverage_here` rows are a
-//! different idiom and deliberately not converted: their entire body is
-//! the announcement, and `memories/test-suite-cost.md` names them.
+//! # The third spelling: a whole binary that did not compile
+//!
+//! [`crate::loud_skip_marker!`] is the other stand-down, and it is a different
+//! idiom from [`stood_down`] rather than a caller of it. `stood_down`
+//! announces from INSIDE a row that ran and could not enter its mode;
+//! the marker exists only because its siblings did not compile, so its
+//! condition is a `#[cfg]` and there is no running row to announce
+//! from. It has the working half this door lacks: its NAME reaches the
+//! PASS list, which is the payload a gating run actually carries.
+//! `memories/test-suite-cost.md` points at the interval spelling of that
+//! name, and no other.
+//!
+//! # What a passing row prints reaches nobody on the gate
+//!
+//! Stated once, because three things here print — [`Exposure::report`],
+//! [`stood_down`] and [`crate::loud_skip_marker!`]'s row — and the fact
+//! is the same for all three. libtest and nextest both capture a passing
+//! test's stdout. nextest then discards it unless `--success-output`
+//! says otherwise: its default is `never`, every gating
+//! `cargo nextest run` passes no such flag, and no `nextest.toml` in
+//! this tree sets a profile default. Exactly one job passes it —
+//! `viewer --features app`, for its smoke row's adapter — and libtest's
+//! `--nocapture` is passed by no gating job either. **So a `println!`
+//! from a row that PASSES is read on a local run, on a run someone asked
+//! for one of those flags on, and nowhere else.** A `println!` from a
+//! row that FAILS is shown, which is why every floor in this module
+//! carries its tally in the panic message rather than trusting the
+//! print.
+//!
+//! That is a channel fact about the gating jobs, not about this crate:
+//! if it ever changes, this section is the one place that has to.
 
 use std::collections::BTreeMap;
 
@@ -198,8 +247,94 @@ impl core::fmt::Display for Exposure {
 /// `what_is_not_asserted` states the claim this run did not make, in the
 /// row's own words. A stand-down that says only "skipped" leaves the
 /// reader to work out what the green meant.
+///
+/// **What this does not do.** It is a print, and it is the whole
+/// mechanism: it cannot fail, it counts nothing, and no floor reads it.
+/// It does not make the row it stands in visible as a skip — the name
+/// that reaches a gating run's PASS list is the row's own, which says
+/// the row passed. And on every gating job the line itself is discarded
+/// (see this module's docs), so the reader it addresses is a local one.
+/// A caller that needs a stand-down something can go RED on has to state
+/// a floor over its own condition; this door will not supply one.
 pub fn stood_down(label: &str, what_is_not_asserted: &str) {
     println!("SKIPPED ({label}): {what_is_not_asserted}");
+}
+
+/// **The whole-binary loud skip, in one spelling.** Emits the marker row
+/// a test binary carries when the feature its rows need is not built:
+///
+/// ```ignore
+/// test_utils::loud_skip_marker!(
+///     feature = "interval",
+///     row = interval_lane_skipped_no_certified_coverage_here,
+///     absent = "certified coverage",
+/// );
+/// ```
+///
+/// `feature` is the feature the file's rows need, `row` is the `fn` name
+/// the PASS list will carry, and `absent` names the coverage this build
+/// does not have — a SUBJECT, in the file's own vocabulary, never a list
+/// of rows.
+///
+/// # Why the row exists at all
+///
+/// A binary whose every row is gated away reports "0 passed", which
+/// reads like coverage in a battery summary; a file that merely loses
+/// some of its rows reports a smaller number and nothing else. Either
+/// way a reader of a default-feature run cannot tell a lane that was
+/// never built from a lane that was deleted. The marker is the sentence
+/// that says which.
+///
+/// # Why this is a macro and not nine copies
+///
+/// The marker's payload is split: the NAME reaches the PASS list and is
+/// read; the `println!` body is discarded on every gating run (see
+/// [`crate::vacuity`]'s *What a passing row prints reaches nobody on the
+/// gate*). A
+/// body nobody can read is the worst possible home for anything kept by
+/// hand, so nothing here is. The feature reaches both the `#[cfg]` and
+/// the printed text from the SAME token, so the two cannot disagree; the
+/// file name is `file!()` at the invocation site, as rustc spells it, so
+/// a `git mv` re-spells it; and the sentence about what the row is and
+/// is not lives here, once, instead of in every file that has one.
+///
+/// Which JOB builds the feature is deliberately not named: that is
+/// `.github/workflows/ci.yml`'s to say, it is not knowable from here,
+/// and a job name written down in ten test files is the hand-kept
+/// enumeration this macro exists to end.
+///
+/// # What it claims about the file, and what it does not
+///
+/// It says only that the rows THIS FILE gates behind `feature` are not
+/// compiled in this build. It does **not** say the binary is otherwise
+/// empty — several of these files carry rows that run at default
+/// features — and it does not enumerate, count or name any gated row.
+/// Adding a row to the gated block, removing one, or renaming one leaves
+/// every word of this true.
+///
+/// # What it does not enforce
+///
+/// Nothing. It cannot fail, it asserts nothing, and no gating job reads
+/// its body. Its whole delivered payload is `row` appearing in the PASS
+/// list, so a reader of a default-feature run meets the absence instead
+/// of inferring it from a test count. Keep gating to the rows
+/// themselves.
+#[macro_export]
+macro_rules! loud_skip_marker {
+    (feature = $feature:literal, row = $row:ident, absent = $absent:literal $(,)?) => {
+        #[cfg(not(feature = $feature))]
+        #[test]
+        fn $row() {
+            println!(
+                "SKIPPED (no --features {feature}): {file} contributes NO {absent} \
+                 in this run — the rows it gates behind the `{feature}` feature are \
+                 not compiled in this build, and run wherever that feature is.",
+                feature = $feature,
+                file = ::core::file!(),
+                absent = $absent,
+            );
+        }
+    };
 }
 
 #[cfg(test)]

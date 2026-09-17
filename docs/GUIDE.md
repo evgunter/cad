@@ -448,10 +448,17 @@ to share a plane bind the id once and pass it twice — which is a fact
 about the document now, with something in the document to be a fact
 about.
 
-Rigidity (u, v unit and perpendicular) is **conventional data,
-unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
-well-defined skewed sketch, not poison, and the kernel's geometric
-validation is what certifies a body at rest.
+Rigidity (u, v unit and perpendicular) is **the door's, not yours**,
+in Python exactly as in Rust. `SketchPlane.from_frame(origin, u, v)`
+and `doc.sketch_frame(u=..., v=...)` ORTHONORMALIZE the pair you give
+them: `u` is normalized and kept, `v` yields whatever component of it
+lies along `u`, so a `v` leaning 45 degrees into `u` comes back
+perpendicular and the numbers you read off the plane are not the
+numbers you wrote. A pair that spans NO plane — parallel,
+antiparallel, or either direction zero — raises `FrameError` rather
+than building a degenerate sketch; that refusal is new, and a
+previously total constructor can now fail. The kernel's geometric
+validation still certifies a body at rest, as before.
 
 ```python
 from pncad import Doc, Expr, Node, SketchPlane, evaluate, m
@@ -546,9 +553,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(p2(x.1, y.1), tol)?
         .line_to(p2(x.0, y.1), tol)?
         .line_to(Start, tol)?;
-    let plane = SketchPlane::from_frame(
-        p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
     Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 }
@@ -592,7 +597,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -647,7 +652,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -676,7 +681,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -749,7 +754,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -789,7 +794,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -834,7 +839,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -1252,11 +1257,15 @@ square = doc.insert(
 )
 cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
-# A ball, revolved as two quarter arcs, sunk H into the top face.
+# A ball, revolved as two quarter arcs on one carrier, sunk H into the
+# top face: the second arc leaves along the first's tangent (a declared
+# tangent joint at the equator) and is derived from that tangent and
+# its target.
 half = (
     Open.at((0 * m, -R * m))
     .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
-    .arc_continue((0 * m, R * m))
+    .tangent()
+    .tangent_arc_to((0 * m, R * m))
     .line_to(Start)
 )
 frame = doc.sketch_frame(

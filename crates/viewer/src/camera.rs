@@ -574,13 +574,7 @@ impl Camera {
     /// The camera's up axis (screen +y), unit length: `right ×
     /// forward`.
     pub fn up(&self) -> Vec3<f64> {
-        let f = self.forward();
-        let r = self.right();
-        Vec3::new(
-            r.y * f.z - r.z * f.y,
-            r.z * f.x - r.x * f.z,
-            r.x * f.y - r.y * f.x,
-        )
+        self.right().cross(self.forward())
     }
 
     /// The near plane distance.

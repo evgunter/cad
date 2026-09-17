@@ -104,6 +104,11 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
         s::HitTestError::NodePoisoned { node: n, through } => {
             [node(*n), node(*through), none(), none()]
         }
+        // The pairing arm names two DOCUMENTS, which this
+        // node/through/kind/body quadruple cannot carry; the message
+        // states both, and the tag is what a caller branches on (the
+        // `product` door's convention for the same refusal).
+        s::HitTestError::EvaluationOfAnotherDocument { .. } => [none(), none(), none(), none()],
         s::HitTestError::Unnamed { node: n, entity } => {
             [node(*n), none(), kind(entity.key.kind()), int(entity.body)]
         }
@@ -296,6 +301,8 @@ pub(crate) struct PickHit {
     node: NodeId,
     body: u32,
     t: f64,
+    t_lo: f64,
+    t_hi: f64,
     point: pncad::geom_core::Point3<f64>,
 }
 
@@ -325,6 +332,35 @@ impl PickHit {
     #[getter]
     fn t(&self) -> f64 {
         self.t
+    }
+
+    /// The lower end of the parameter's certified interval, in the
+    /// same units as `t`, and `t_lo <= t <= t_hi` always.
+    ///
+    /// The kernel orders two candidates only when one interval lies
+    /// wholly below the other. Where the intervals OVERLAP the
+    /// geometry has not said which surface is in front, and the
+    /// NARROWER interval wins before position is looked at: `t_lo` and
+    /// `t_hi` are how wide a claim this hit is, not a second answer,
+    /// and they are what decided it against its neighbours.
+    ///
+    /// The enclosure is conditional — it contains the true crossing's
+    /// parameter when that crossing is a point of the closed triangle
+    /// — and the interval is always centred on the point the kernel
+    /// answers, which is always on the triangle. The parameter is the
+    /// caller's own ray's: a hit carried across a transform converts
+    /// all three or none, which is the viewer's own row
+    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// where a display frame moves an instance.
+    #[getter]
+    fn t_lo(&self) -> f64 {
+        self.t_lo
+    }
+
+    /// The upper end of that interval ([`PickHit::t_lo`]).
+    #[getter]
+    fn t_hi(&self) -> f64 {
+        self.t_hi
     }
 
     /// The hit point, `origin + t * direction` — dimensioned, and the
@@ -476,9 +512,20 @@ impl NodePick {
     /// such bug must not cost a consumer the names of every other patch
     /// it is drawing. Branch with `isinstance(entry, str)`; the
     /// exception in a slot is a value, not something raised.
+    ///
+    /// **`evaluation` must be an evaluation of the document this index
+    /// was built from**, and one of another document RAISES
+    /// `HitTestError` with variant `evaluation_of_another_document`
+    /// before a single name is read. Node ids are minted per document,
+    /// so a twin recipe's evaluation would answer every slot out of
+    /// its own tables: other geometry's names, in patch order, with no
+    /// slot marked. That is one thing wrong with the arguments, so it
+    /// is raised rather than written into every slot. A LATER
+    /// evaluation of the same document is fine.
     fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .patch_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -491,10 +538,14 @@ impl NodePick {
     /// `Mesh.boundaries` is the drawing side: entry `i` here names the
     /// edge polyline `i` of that list, so a consumer that drew the
     /// wireframe and hit-tested an edge reads its selectable name out
-    /// of here, with the arena key never leaving.
+    /// of here, with the arena key never leaving — and it pairs the
+    /// way [`Self::patch_names`] does, raising `HitTestError` with
+    /// variant `evaluation_of_another_document` for an evaluation of
+    /// another document.
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -553,6 +604,8 @@ pub(crate) fn pick_face(
             node: NodeId(hit.node),
             body: hit.body,
             t: hit.t,
+            t_lo: hit.t_lo,
+            t_hi: hit.t_hi,
             point: hit.point,
         })),
         Err(err) => Err(hit_test_err(py, &err)),

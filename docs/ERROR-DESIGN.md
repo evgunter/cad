@@ -623,13 +623,25 @@ number.
   capability evaluation-code discipline exists to keep out of that
   position.
 
-  The point witness is also ε-INDEPENDENT: a relative constant
-  (`geom_core::real::WITNESS_REL`), not the run's tolerance, because a
-  library body may not mint one and the door takes no `tol`. At a tight
-  ε row it is many band-widths loose. Filed with the two routes out
-  (`work/sym/the-witness-slack-is-eps-independent`); the `Interval`
-  refusal, which is the one that matters over a box, carries no
-  tolerance at all.
+  The point witness moves with the RUN'S ε: the slack is
+  `tol.eps() · max(|a|, |b|, 1)` — relative because ε is a length in
+  metres and `f64` rounding far from the origin exceeds it, floored at
+  one so a near-zero pair is compared absolutely at ε. The tolerance
+  ARRIVES: `Real::register_equal` takes a `tol: Tol` handed down from
+  the registrant's caller, because a library body may not mint one
+  (`scripts/gates/witness-not-ambient.sh`). The `Interval` refusal,
+  which is the one that matters over a box, carries no tolerance at
+  all and ignores the parameter: its witness is the exact meet.
+
+  **The refusal is TWO arms, split by the kind of witness** (Ev's D2
+  ruling on `[ev]` #2552, taken by SYM-6). `Disputed` is an INEXACT
+  witness's refusal — `f64` and `Probe`, two sides further apart than
+  the slack — and may be a lie or may be a theorem of the reals the
+  arithmetic lost at this scale, so it is counted and never asserted on.
+  `Contradicted` is reserved for the EXACT witness, `Interval`'s
+  disjoint certified enclosures: a proof that the two reals differ or
+  that an upstream enclosure does not contain its real, so a registrant
+  may assert on it and the swept and revolve registrants do.
 
   The "same-OBJECT" limit in this bullet is exactly what M10-9
   measured, and it BINDS: the swept arc's rim and span identities

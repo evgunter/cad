@@ -16,11 +16,8 @@ peg-in-bore with a three-arc bore wall, `declared_surface_pairs`
 `(SurfaceKey, SurfaceKey)` pairs — one per (face, face) combination
 sharing the two surface keys — so the door's skip record repeats nine
 times for one declaration. Harmless for the planar merge (union is
-idempotent) and noisy for the new record. Also in the same function's
-family: `ops.rs`'s `describe_minted_edges` error arm drops a
-`Certification { ResidualExceeded }` payload into a bare `JoinDesync`,
-which is the refusal a user sees for the zip's chord-on-cylinder defect
-(`work/curved/rest-zip-seam-chord-on-cylinder-wall.md`).
+idempotent) and noisy for the new record. (The `describe_minted_edges` payload swallow that was first noted here
+is now its own item: `joindesync-swallows-the-certification-payload`.)
 
 ## Fix
 

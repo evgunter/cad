@@ -76,9 +76,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
     EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    MatePrimitive, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, UNDER_RECOURSE, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -164,6 +165,28 @@ const SHELF_VOLUME: f64 = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS;
 /// — the way a user types a dimension (`"section"`, `"120 mm"`).
 fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
     parse_expr(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
+}
+
+/// A mate head, read at the instance the name is qualified by.
+///
+/// A mate declares a contact between two FACES, and the kernel says so
+/// in the type: `Node::Mate` takes `SitedFace`s, whose names are
+/// `pncad::document::FaceName`s. A caller holding a `StableName` from
+/// a selection door asks for one and handles the refusal — which for
+/// this tour is the same loud panic every other authoring helper here
+/// uses, because a demo that named an edge would be a demo with a bug
+/// in it.
+///
+/// **Spelled by full path**, because this binary also uses
+/// `tess_meter::FaceName` (`main.rs`'s face-name tokens): two
+/// unrelated types with one short name, and a bare `FaceName` here
+/// would be read as either. `tess-meter`'s is a validated text token
+/// for a mesh report; this one is a `StableName` whose kind is
+/// `Face`.
+fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
+    let name = pncad::document::FaceName::new(in_part(instance, local))
+        .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
+    SitedFace::at_mint(name)
 }
 
 /// Inserts a node and returns its minted id.
@@ -456,8 +479,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(post_a, post_top)),
-            b: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
+            a: head(post_a, post_top),
+            b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -472,8 +495,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
-            b: SitedRef::at_mint(in_part(post_b, post_top)),
+            a: head(shelf_i, shelf_bottom),
+            b: head(post_b, post_top),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -900,8 +923,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(contra.post_a, post_top)),
-            b: SitedRef::at_mint(in_part(contra.shelf_i, shelf_bottom)),
+            a: head(contra.post_a, post_top),
+            b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
@@ -974,7 +997,11 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
-        matches!(err, AssemblyError::NoAtRestRecord { .. }),
+        matches!(&err, AssemblyError::Mint { refusals }
+            if !refusals.is_empty()
+                && refusals
+                    .iter()
+                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
         "the class table's mint half is what refuses, got {err}"
     );
     assert!(
