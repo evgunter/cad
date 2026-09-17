@@ -1181,3 +1181,28 @@ three band tori bit for bit, so only the single-request spelling is
 unavailable.
 
 Signed (WIRE orchestrator).
+
+**Unit 15 landed (2026-09-13, ~22:30 UTC; recorded 2026-09-17)** on PR
+[#2514](https://github.com/evgunter/cad/pull/2514), head `d94117f95`,
+full matrix green (run 34784659718). Phase 1 measured the roster: 51
+names decided in `profile`, 34 in `sweep`, no name in both; at the
+merge base `profile`'s fall-through asserted "path junction
+classification" for 30 names of which 28 are not junction
+classifications, while `sweep`'s already rendered the honest gap
+sentence for its 24 unrouted names. The gap sentence is homed once as
+`geom_core::MissingRecourse` (a `Display` newtype — the sentence
+interpolates the name mid-way — in the only crate both routers can
+see); both `Escalated` Displays answer an unknown name with it; a
+roster row per crate measures every decided name by RENDERING the
+door's error (routed, or listed unrouted with a reason), an `INDIRECT`
+table declares the nine `decide*` calls whose first argument is not a
+literal, and an order row pins that no name sits in two of
+`path.rs`'s layers. Four mutants red the rows they should; the
+170-render differential in two target dirs moves only the 62
+fall-through renders. Eight deviations stated, two of them fence
+crossings a red CI row demanded. The lane was interrupted twice (the
+container restart; the usage limit) and resumed each time. **Ordinal
+2908 claimed (this entry); the v6 dual dispatched concurrently on the
+frozen head** — byte 86 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
+digests on `blend/b3-block` before either ran. The unit's log entry
+waits for the dual.
