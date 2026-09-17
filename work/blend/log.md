@@ -1264,6 +1264,18 @@ error). Fix pass dispatched on the union
 adopted; the `test-utils` seam for the one homed reader announced to
 S-TINT and S-TCOST; delta by R1.
 
+**MERGED — unit 15 (2026-09-17)** on PR [#2514](https://github.com/evgunter/cad/pull/2514):
+an escalation's recourse is routed by one rule with one fall-through;
+the item closed. Dual: bilateral headline at MAJOR (the roster reader's
+silent holes), no tally candidate, one split recorded; the fix pass
+homed one reader in `test-utils` under an announced seam, moved the
+unrouted list to `src`, reworded the gap sentence, pinned pairing on
+both doors and re-measured Phase 1 within each crate. Delta by R1 on
+the fixed head: every item CONFIRMED by execution — the four mutants (turbofish, `include!`, a wrapped carrier, a const-built `CosurfaceNames`) red exactly the rows the lane names, and three shapes neither reviewer had tried (a method call on a struct field, a raw string literal, the round-one macro shapes) are caught loud; the pairing rows are the pin (a mis-wired name reds them with the roster rows green); the shared clause read alone off the door at a real fixture's name and the reworded gap sentence at an unknown one, the nameless case without `Debug`; the validator addendum argued at its site and pinned by R2's row ("better than listed"); a listed name routed to an arm reds three rows; the differential re-taken in a second tree and target (166 renders, 133 changed, 0 whose base was not a fall-through); the one red CI run on the way was a stale prose-census line. Two NOTEs, none blocking: the R1 probe suite re-declared the roster's carrier list (folded into one home in the state-sync commit); R2's probe pins the validator addendum against a hand-written six-name list. Verdict MERGEABLE.
+Sample #219 (main's order rules). Block BLEND-B3's last slot;
+its CONCLUDED record folds into main from `blend/b3-block`. The
+program's unit order is done but for 13 (blocked); the exit walk
+follows the cut.
 ## The cut (2026-09-17)
 
 Ev, in chat 2026-09-17: the program is very large with many open rows;

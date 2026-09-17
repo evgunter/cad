@@ -1814,14 +1814,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          match binding, and this census types patterns and fields",
     ),
     (
-        "crates/sweep/src/blend/mod.rs",
-        "BlendError",
-        "other",
-        1,
-        "a catch-all arm binds the name, and a pattern naming no variant path\
-         declares no field type to read it at",
-    ),
-    (
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,

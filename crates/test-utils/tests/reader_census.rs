@@ -249,6 +249,13 @@ const LEDGER: &[Entry] = &[
                              // gate, code+literal view
     },
     Entry {
+        path: "crates/profile/tests/recourse_roster.rs",
+        disposition: Shared, // the dispatch-order row reads path.rs's own match
+                             // patterns, code+literal view. The decide-site walk
+                             // it also runs is source::predicate_census, so that
+                             // half reads nothing here
+    },
+    Entry {
         path: "crates/profile/tests/seal.rs",
         disposition: Shared, // serde-free seal, code view
     },

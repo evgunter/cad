@@ -2624,6 +2624,21 @@ Recorded in the PR body and the unit's log entry.
 
 - `BLEND-14-SPEC.md` — BLEND-14, the blend's contact edges carry the tangency rule (#2509)
 
+## Per-merge deletion — BLEND-15's spec (2026-09-17)
+
+Recoverable at `git show 575963daab1c85bfce1ee7e097cf368d2ae73e1a:docs/BLEND-15-SPEC.md`
+(the fix-pass head). Three of its sentences did not survive: the gap
+sentence is a `Display` newtype in `geom-core`, not the constant it
+asked for (the sentence interpolates the name mid-way); the roster it
+specified as a per-crate census became one reader homed in
+`test_utils::source` after both reviewers defeated the per-crate copies
+by mutation; and its "one name, two sentences" list is measured within
+each crate, not between them (three names in `profile` carry a
+validator sentence and a door sentence, on purpose). Recorded in the PR
+body and the unit's log entry.
+
+- `BLEND-15-SPEC.md` — BLEND-15, an escalation's recourse is routed by one rule with one fall-through (#2514)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit

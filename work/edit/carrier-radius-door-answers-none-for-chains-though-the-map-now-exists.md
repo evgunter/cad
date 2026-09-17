@@ -2,8 +2,11 @@
 id: carrier-radius-door-answers-none-for-chains-though-the-map-now-exists
 kind: issue
 title: LoopProgram::carrier_radius answers None for chain loops though the step-to-profile-edge map now exists: the widening waits on the content-key attach
-status: spec
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
+pr: 2804
+branch: edit/chain-radius-attach
 ---
 
 Disclosed by the DM8 unit
@@ -120,3 +123,109 @@ that carry a chain profile with arcs (the content-key/name-digest
 goldens may move — say which and why, and re-baseline with the reason
 stated); `crates/editor-core/tests/*` (TCOST/TINT). Middle tier: one
 opus style review with a correctness arm, then a fix pass.
+
+## Built (2026-09-17, `edit/chain-radius-attach`)
+
+All four halves landed as one change.
+
+1. `LoopProgram::step_radii` — the PROGRAM-side question: each step's
+   own radius expression, a carrier form's one at step 0 and a chain's
+   per radius-bearing step. `ProfileProgram::segment_radii` — the
+   RECORD-side one: those expressions paired with the profile edges
+   their steps swept, through `profile_edges_of`, in program indices.
+2. The attach is per EDGE end to end. `SweptOut::walls` keeps the
+   record's second index (`Vec<Vec<Option<FaceKey>>>` — the revolve's
+   `None` positions are no longer flattened away), `attach_swept` takes
+   a token per canonical segment, and `profile_radius_tokens` lowers
+   the per-edge expressions the profile's value now carries.
+3. `content_key` feeds `step_radii`, so a chain arc's spelling moves
+   the profile's key. The feed's comment states the invariant the guard
+   now rests on: the key feeds the program's answer, the attach stamps
+   the record-filtered subset of it, and a spelling cannot be attached
+   without having been keyed.
+4. `carrier_radius` keeps its per-loop question and loses the
+   obligation paragraph; DM8's consumers line names the built door.
+
+**Not built, and why.** No fillet arc's radius reaches its wall,
+because the step a fillet's radius is authored on is never the step
+its arc is credited to. A `fillet(r)` binder holds the radius and
+emits no segment — the arc is the ARRIVAL step's, and that step holds
+no radius. `arc_fillet` is the same binder with an incoming carrier
+fused into it: measured, its span is EMPTY too. `fillet_arc` and
+`arc_fillet_arc` are arrival steps emitting the fillet arc AND the
+spec's, so their span is longer than one segment. Every one of them
+answers no edge, which leaves those walls exactly where they were
+rather than guessing; the one-radius shapes' spellings do enter the
+key, which is the conservative side. Pinned by
+`a_fillets_radius_is_a_program_answer_and_no_edges` and
+`a_one_radius_fused_step_attaches_to_no_edge`, filed as
+`fused-arc-fillet-steps-have-no-per-segment-radius-address`.
+
+**The radius COUNT is not what keeps a fused step out.** Only the
+`Radius`, `Sweep` and `ArcLen` arc specs carry a `CarrierRadius` role;
+a `Bulge`, `Via` or `Center` spec carries none, so a fused step over
+one of those holds exactly the fillet's one radius and passes
+`radius_arg`. `a_step_with_several_radii_answers_no_radius` is the row
+for the two-and-three-radius shapes and is not cited for the span.
+
+**One spec premise corrected.** The RED row's spelling pair is
+param → literal, not `10 mm` → `0.01 m`: display units never enter the
+key by ratified design (D7), so the two unit spellings are one
+expression and move nothing.
+
+**One deviation stands, argued rather than scheduled.**
+`ProfileValue::edge_radii` is computed in `wire_profile` from the
+node's own inputs, carries no `Serialize`, and the replay record stays
+`pub(crate)` on `ProfilePre` — so the value gains an answer, not a
+witness, and WIRE's PP1/PP2 question about where a structure witness
+lives is untouched.
+
+## Fix pass (2026-09-17)
+
+The style review's findings, built. `StepArg::is_radius` replaces the
+hand-written three-variant roster in `radius_arg` with an exhaustive
+match; `segment_radii`'s loop-shape test is `step_radii`'s own match;
+`attach_swept` refuses a walls/tokens shape mismatch loudly instead of
+attaching nothing; `edge_radii`'s `unreachable!` says why the state
+cannot occur and its lookup matches the whole `ProfileEdgeRef`. The
+review lane's probes are adopted as rows, including a chain
+canonicalization that both reverses and ROTATES (no committed fixture
+had a non-zero `start`), a mechanical inclusion row over the whole
+corpus, and a revolve whose first leg lies ON the axis, which pins
+that the attach addresses by position across the `None` its record
+holds there. The loft's per-loop-per-segment walls are filed as
+`work/issues/loft-walls-carry-no-per-edge-radius-address.md`.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2804 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). The radius attach is per
+EDGE end to end: `LoopProgram::step_radii` answers each step's own
+radius expression in program order, `ProfileProgram::segment_radii`
+pairs them with the edges their steps swept through `profile_edges_of`,
+`SweptOut::walls` carries one wall per edge, `attach_swept` stamps
+`walls[i][j]` from `tokens[i][j]`, and `eval::content_key` feeds
+`step_radii` — so a chain arc's spelling moves the profile's key and
+reaches its wall, and carrier documents write byte-identical keys
+(measured by a corpus dump at both heads: 2 of 355 per-node keys
+move, both `declared_tangency`'s, whose fillet radius now enters the
+key on the conservative side). One deviation ruled to stand:
+`ProfileValue::edge_radii` carries the per-edge ANSWER (computed in
+`wire_profile` from the node's own inputs, not serialised), while the
+replay record stays on `ProfilePre` — WIRE's PP1/PP2 row is untouched.
+The review (0 MAJOR, 2 MINOR, 3 NOTE) found the fused-step account
+wrong (a `Bulge`/`Via`/`Center` spec carries no radius role, so a
+one-radius fused step enters the key) and `attach_swept` quiet on a
+shape mismatch; the fix pass corrected the account by measurement —
+`arc_fillet` is a binder like `fillet`, its span empty, so it attaches
+to no edge for the binder reason — and made the mismatch
+`unreachable!` with its why; a `None` wall row (a revolve chain's leg
+on the axis) and rotated-chain rows were authorable and are in. The
+hand-written radius roster became `StepArg::is_radius`, an exhaustive
+match. Filed: `fused-arc-fillet-steps-have-no-per-segment-radius-address`
+(the one-radius fused ARRIVAL arm over `Via`/`Center` has no row — the
+fixture that would pin it is named) and
+`work/issues/loft-walls-carry-no-per-edge-radius-address` (the loft's
+walls are per loop per segment with no flow row today). Territory
+crossed by announcement: WIRE's `eval/{mod,wire,anchor}.rs` and
+`verbs/src/flow.rs`, TCOST/TINT suites, the DM8 consumers line.
