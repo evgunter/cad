@@ -3789,6 +3789,31 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-PICK3's spec (2026-09-17)
+
+Recoverable at `git show af694692:docs/EDIT-PICK3-SPEC.md` (PR
+#2786's fix-pass head, carrying the `## Amended at the fix pass`
+section). EDIT's third kernel unit on the pick door, built on Ev's
+ruling from `[ev]` PR #2764 (the `t` interval, the order, the
+tie-break, the clamp, the box as early-out only). Its central premises
+held — the enclosure was verified exactly by both reviewers, the
+closed-∧-INFORM measurement reproduced to the number — and three of its
+sentences fell, each measured before it was built on or by the dual:
+the headline ring fixture could not turn green (the noise-floor
+candidate's certified interval precedes the aimed vertex, so the
+tie-break never runs; the class was pinned on `tube_arc`), the ruling's
+pairwise order has 3-cycles and was built as a rule over the set of
+candidates no other precedes, and premise 5's early-out inequality was
+unsound for the width tie-break the same ruling added — both blinded
+reviewers found it with red probes on the real door, and the fix pass
+derived the margin (no chosen factor) so `Pruned == Every` is a
+theorem, the decision unchanged and Ev told on the next `[ev]` PR.
+Premise 4's "nearest point" was the wrong word for a retraction. The
+rule above; the unit's record is its row's `## Closed`, the ruling
+row's `## Amended` and `## Closed`, its row in `MODEL-AB-LOG.md`
+(ordinals 4802/4803, sample #215; block EDIT-B1 concluded) and the
+MERGED entry in `work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-PICK2's spec (2026-09-16)
 
 Recoverable at `git show 121608392:docs/EDIT-PICK2-SPEC.md` (PR

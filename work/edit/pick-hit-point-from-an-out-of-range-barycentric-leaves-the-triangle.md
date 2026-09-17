@@ -2,9 +2,9 @@
 id: pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle
 kind: issue
 title: a hit point placed from a barycentric outside [0, 1] leaves the closed triangle, so its t can precede the candidate's box entry
-status: parked
+status: closed
 opened: 2026-09-16
-blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
+closed: 2026-09-17
 ---
 
 
@@ -63,3 +63,42 @@ since MEET is what would close it.
 
 EDIT-PICK2 landed the half that does not need this row (the closed
 comparison ∧ INFORM); this row is why the other half did not land.
+
+## Measured (EDIT-PICK3, 2026-09-16): the clamp landed
+
+The first of the two shapes landed: `ray_triangle` places the hit at
+the nearest admissible barycentrics (`u` into `[0, 1]`, then `v` into
+`[0, 1 − u]`, the per-coordinate projection onto the simplex), so the
+answered point is a point OF the closed triangle whatever the
+acceptance admitted, and the traversal's early-out rests on a theorem
+rather than on the acceptance.
+
+Measured: under MEET ∧ INFORM the tie-break aim's `Pruned ≠ Every`
+column is **0** where it was 2 before the clamp
+(`crates/viewer/tests/pick3_acceptance.rs`, 19 296 rays over every
+landing). The mechanism this row named is removed. MEET is still not
+taken, for a different reason the same probe found — see
+`pick-closed-acceptance-loses-a-graze-to-rounding`.
+
+Under the closed acceptance the clamp is very nearly a no-op (every
+admitted `u` is already in `[0, 1]` and every admitted `fl(u + v)` is at
+most `1`), which is why no row reds when it is dropped; that is stated
+at `every_admitted_hit_is_placed_on_the_closed_triangle`
+(`crates/editor-core/src/resolve/pick.rs`) rather than claimed to be
+covered. This row closes with EDIT-PICK3's merge.
+
+## Unparked (2026-09-17, EDIT orchestrator)
+
+The trigger fired: `what-t-the-pick-door-answers-and-with-what-width`
+was ruled by Ev on `[ev]` PR #2764 and built by EDIT-PICK3, which
+built the clamp this row asked for and closes it.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Closed at EDIT-PICK3's merge (PR #2786): the hit point is
+`retract_to_simplex`, the per-coordinate retraction into the closed
+triangle with an exact `v` bound, so an admitted candidate's answer is
+a point OF the triangle to the bit — the premise the early-out's proof
+rests on. The `Pruned ≠ Every` column is 0 under both acceptances; the
+mechanism this row named is gone, and MEET is not taken for the reason
+`pick-closed-acceptance-loses-a-graze-to-rounding` records.

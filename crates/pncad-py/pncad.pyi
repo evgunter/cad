@@ -4323,6 +4323,31 @@ class PickHit:
         was given a unit direction. `point` is the dimensioned answer."""
 
     @property
+    def t_lo(self) -> float:
+        """The lower end of the hit parameter's certified interval, in
+        the same units as `t`, and `t_lo <= t <= t_hi` always.
+
+        The kernel orders two candidates only when one interval lies
+        wholly below the other. Where the intervals OVERLAP the
+        geometry has not said which surface is in front, and the
+        NARROWER interval wins — the better-certified claim — before
+        position is looked at at all. So this and `t_hi` say how wide
+        a claim the hit is, not a second answer, and they are what
+        decided it against its neighbours.
+
+        The enclosure is conditional: `[t_lo, t_hi]` contains the
+        parameter of the true crossing when that crossing is a point
+        of the closed triangle. The interval is always centred on the
+        point the kernel answers, which is always on the triangle.
+
+        The parameter is the parameter of the ray you passed. A hit
+        carried across a transform converts all three or none."""
+
+    @property
+    def t_hi(self) -> float:
+        """The upper end of that interval. See `t_lo`."""
+
+    @property
     def point(self) -> tuple[Length, Length, Length]:
         """The hit point, `origin + t * direction`."""
 
