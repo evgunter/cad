@@ -458,8 +458,8 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
 /// else.
 fn retype_crossing(text: &str, instance: RecipeNodeId, side: &str, kind: EntityKind) -> String {
     doctored(text, |wire| {
-        let field = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]
-            ["interface"]["crossings"][0]["Mate"][side]["kind"];
+        let field = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
+            ["crossings"][0]["Mate"][side]["kind"];
         assert_eq!(
             *field,
             serde_json::json!("Face"),

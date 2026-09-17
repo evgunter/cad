@@ -31,9 +31,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
     EntityKind, EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, MateFrame,
-    MatePrimitive,
-    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, assemble,
-    content_pin, inline, product_recorded, split,
+    MatePrimitive, MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    assemble, content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, step};
