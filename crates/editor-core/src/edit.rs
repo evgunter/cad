@@ -620,7 +620,7 @@ pub enum EditError {
     /// This and its three siblings — [`EditError::PayloadDocParamDimension`],
     /// [`EditError::SlotUnknownDocParam`],
     /// [`EditError::SlotDocParamDimension`] — are the whole image of
-    /// [`Doc::param_ref_fault`] at this door: TWO facts (undeclared,
+    /// `Doc::param_ref_fault` at this door: TWO facts (undeclared,
     /// wrong dimension) at TWO addresses (a slot, a payload
     /// expression). Each name is the ADDRESS then the FACT, and the
     /// load door's four ([`crate::SnapshotError::PayloadUnknownDocParam`]
