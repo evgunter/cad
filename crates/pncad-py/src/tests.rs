@@ -2341,14 +2341,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- document parameters ----
     carries(
-        &E::UnknownPayloadParam {
+        &E::PayloadUnknownDocParam {
             name: param(),
             node: id(1),
         },
         &["node", "param"],
     );
     carries(
-        &E::PayloadParamDimensionMismatch {
+        &E::PayloadDocParamDimension {
             name: param(),
             node: id(1),
             declared: Dimension::Length,
@@ -2357,7 +2357,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "param", "expected", "found"],
     );
     carries(
-        &E::UnknownDocParam {
+        &E::SlotUnknownDocParam {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -2365,7 +2365,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "slot", "param"],
     );
     carries(
-        &E::DocParamDimensionMismatch {
+        &E::SlotDocParamDimension {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -4102,7 +4102,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "doc_param_count_has_no_distribution",
             "doc_param_count_has_no_unit",
-            "doc_param_dimension_mismatch",
             "doc_param_not_declared",
             "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
@@ -4124,7 +4123,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_placement",
             "not_structural_slot",
             "path_off_tree",
-            "payload_param_dimension_mismatch",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
             "pin_unchanged",
             "placement_axis",
             "placement_on_non_instance",
@@ -4142,11 +4142,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "selection_not_canonical",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
             "structural_slot_needs_structural_edit",
             "too_few_members",
-            "unknown_doc_param",
             "unknown_node",
-            "unknown_payload_param",
             "unknown_slot",
             "unresolved_input",
             "update_on_non_instance",
@@ -5274,7 +5274,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// whenever a map does, and a prose count of it has gone stale twice.
 ///
 /// The row does not say which of the entries below are one concept and
-/// which are coincidence — all but eight are unread, and `work/census/`'s
+/// which are coincidence — all but twelve are unread, and `work/census/`'s
 /// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
 /// is where that question lives. What it does is make the population
 /// OBSERVED: a word that starts colliding, or stops, or picks up a
@@ -5325,6 +5325,14 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_body", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
+    // The param-table rule's two facts at their two addresses, ONE
+    // concept and pinned as one: `Doc::param_ref_fault` answers
+    // `Unknown` or `Dimension`, both doors ask it of a slot
+    // expression and of a payload expression, and the eight arms
+    // carry four names between them on purpose. A door that
+    // re-mints a word of its own drops out of these four rows.
+    ("payload_doc_param_dimension", 2),
+    ("payload_unknown_doc_param", 2),
     ("pcurve", 5),
     ("pcurves", 3),
     ("placement_rule_mismatch", 2),
@@ -5335,6 +5343,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("skin", 2),
     ("sliver_join", 2),
     ("sliver_rim", 2),
+    // The slot-addressed half of the four above.
+    ("slot_doc_param_dimension", 2),
+    ("slot_unknown_doc_param", 2),
     ("split", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),

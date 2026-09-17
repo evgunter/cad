@@ -628,7 +628,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::PayloadParamDimensionMismatch {
+        &EditError::PayloadDocParamDimension {
             name: name.clone(),
             node: RecipeNodeId(3),
             declared: Dimension::Length,
@@ -648,7 +648,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::DocParamDimensionMismatch {
+        &EditError::SlotDocParamDimension {
             name: name.clone(),
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
@@ -1029,6 +1029,107 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
+}
+
+/// **One rule, two facts, two addresses — and one set of four names at
+/// both doors.**
+///
+/// `Doc::param_ref_fault` answers `Unknown` or `Dimension`, and each
+/// door asks it at two addresses: a slot expression and a payload
+/// expression. That is four meanings, and both doors must spell them
+/// the same way or a reader who knows one door's pair cannot predict
+/// the other's. The convention is the walk's — the ADDRESS leads, the
+/// FACT trails, one noun for the parameter — so
+/// `{Slot,Payload}` x `{UnknownDocParam,DocParamDimension}` is the
+/// whole vocabulary, written below as that product rather than as a
+/// third list of four names.
+///
+/// The names are read back off `Debug`, the one runtime value that
+/// carries them: a door that re-mints a name of its own reds here, and
+/// so does a rename applied at one door only.
+#[test]
+fn the_two_doors_spell_the_four_param_ref_refusals_with_the_same_four_names() {
+    /// The variant identifier a `Debug` dump opens with, up to the
+    /// first byte that cannot be part of one.
+    fn variant_of<T: core::fmt::Debug>(value: &T) -> String {
+        format!("{value:?}")
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect()
+    }
+
+    let node = RecipeNodeId(5);
+    let name = ParamName::new("width");
+
+    let mut edit_door: Vec<String> = vec![
+        variant_of(&EditError::SlotUnknownDocParam {
+            name: name.clone(),
+            node,
+            slot: SlotId::Radius,
+        }),
+        variant_of(&EditError::SlotDocParamDimension {
+            name: name.clone(),
+            node,
+            slot: SlotId::Radius,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        variant_of(&EditError::PayloadUnknownDocParam {
+            name: name.clone(),
+            node,
+        }),
+        variant_of(&EditError::PayloadDocParamDimension {
+            name: name.clone(),
+            node,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+    let mut load_door: Vec<String> = vec![
+        variant_of(&SnapshotError::SlotUnknownDocParam {
+            node,
+            slot: SlotId::Radius,
+            name: name.clone(),
+        }),
+        variant_of(&SnapshotError::SlotDocParamDimension {
+            node,
+            slot: SlotId::Radius,
+            name: name.clone(),
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        variant_of(&SnapshotError::PayloadUnknownDocParam {
+            node,
+            name: name.clone(),
+        }),
+        variant_of(&SnapshotError::PayloadDocParamDimension {
+            node,
+            name,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+
+    let mut convention: Vec<String> = ["Slot", "Payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["UnknownDocParam", "DocParamDimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}{fact}"))
+        })
+        .collect();
+
+    edit_door.sort();
+    load_door.sort();
+    convention.sort();
+    assert_eq!(
+        edit_door, convention,
+        "the edit door's four param-ref refusals have left the address-then-fact convention"
+    );
+    assert_eq!(
+        load_door, convention,
+        "the load door's four param-ref refusals have left the address-then-fact convention"
+    );
 }
 
 /// A predicate flip names the two signs as words: `Sign` has a
@@ -2003,8 +2104,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     let node = RecipeNodeId(5);
     let framed: Vec<(&str, String)> = vec![
         (
-            "EditError::UnknownDocParam",
-            EditError::UnknownDocParam {
+            "EditError::SlotUnknownDocParam",
+            EditError::SlotUnknownDocParam {
                 name: name.clone(),
                 node,
                 slot: SlotId::Radius,
