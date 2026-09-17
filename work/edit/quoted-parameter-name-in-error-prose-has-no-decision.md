@@ -5,6 +5,7 @@ title: editor-core quotes a parameter name in error prose at some doors and not 
 status: review
 opened: 2026-09-16
 branch: edit/param-name-display
+pr: 2800
 ---
 
 
