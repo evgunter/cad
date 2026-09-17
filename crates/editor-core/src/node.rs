@@ -242,6 +242,53 @@ impl StepArg {
             Self::DirX | Self::DirY | Self::Bulge | Self::Bulge2 => Dimension::Scalar,
         }
     }
+
+    /// **Whether an expression in this role is a RADIUS** — the length
+    /// an arc is drawn at, as against a coordinate or a distance
+    /// travelled.
+    ///
+    /// The distinction is the vocabulary's own and belongs beside
+    /// [`StepArg::dimension`], which cannot make it: every radius is a
+    /// `Length` and so is every coordinate. A consumer asking "which of
+    /// this step's arguments could name the radius of an edge it drew"
+    /// asks here rather than keeping a list of variant names, so a role
+    /// added to this enum is answered by the author of that role and
+    /// not silently missed.
+    ///
+    /// The match is exhaustive and takes no wildcard arm: a new role
+    /// fails to compile until it is dispositioned.
+    #[must_use]
+    pub fn is_radius(self) -> bool {
+        match self {
+            Self::Radius | Self::CarrierRadius | Self::CarrierRadius2 => true,
+            Self::PointX
+            | Self::PointY
+            | Self::TargetX
+            | Self::TargetY
+            | Self::ViaX
+            | Self::ViaY
+            | Self::CenterX
+            | Self::CenterY
+            | Self::DirX
+            | Self::DirY
+            | Self::AngleVal
+            | Self::TurnVal
+            | Self::Length
+            | Self::Bulge
+            | Self::Phase
+            | Self::SweepVal
+            | Self::ArcLenVal
+            | Self::Center2X
+            | Self::Center2Y
+            | Self::Via2X
+            | Self::Via2Y
+            | Self::Target2X
+            | Self::Target2Y
+            | Self::SweepVal2
+            | Self::ArcLenVal2
+            | Self::Bulge2 => false,
+        }
+    }
 }
 
 /// The NAMED expression-slot identities (spec D5: a per-node-type

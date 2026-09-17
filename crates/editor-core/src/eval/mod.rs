@@ -340,8 +340,9 @@ pub enum ValuePayload<T: Decide> {
     /// values; directions normalized, degenerate refused).
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
-    /// through the driver, then the profile crate's validation door)
-    /// plus its program-anchor naming map ([`ProfileValue`]).
+    /// through the driver, then the profile crate's validation door),
+    /// its program-anchor naming map, and the radius expression each
+    /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, placed union, instantiate,
@@ -3442,9 +3443,9 @@ mod tag {
         /// loop's step count and its steps; the lane stream, when the
         /// lift's second pass ran, is `LANE`, the loop count, then per
         /// loop `LOOP_START`, the loop's scalar count and its scalars,
-        /// each under `LANE_SCALAR`; then, per carrier loop whose
-        /// radius is flow-bearing, `CARRIER_RADIUS` and the radius
-        /// expression.
+        /// each under `LANE_SCALAR`; then, per authored radius of every
+        /// loop in program order while the profile edge's radius is
+        /// flow-bearing, `CARRIER_RADIUS` and the radius expression.
         ///
         /// The counts are what make a loop boundary a SINGLE
         /// vocabulary: a reader that has consumed a loop's declared
@@ -3925,7 +3926,7 @@ where
                     }
                 }
             }
-            // A carrier loop's RADIUS EXPRESSION, when a migrated verb
+            // A profile edge's RADIUS EXPRESSION, when a migrated verb
             // declares that operand-carried scalar into a stored field
             // (SEAT-7, key format v5). The stream above carries the
             // radius's VALUE, at f64 bits, which is what the geometry
@@ -3945,6 +3946,22 @@ where
             // moment no verb declares the profile edge's radius into a
             // field, nothing is written and the keys are the v4 ones.
             //
+            // **What is fed is the PROGRAM's answer, and the attach's
+            // is a subset of it.** This feed has no record of the
+            // evaluation in hand — it runs before one exists — so it
+            // asks `LoopProgram::step_radii`, which reads the program
+            // alone. The attach asks `ProfileProgram::segment_radii`,
+            // which additionally reads the replay's spans and drops
+            // what they leave ambiguous. That inclusion is the whole
+            // guard, and it is the direction that cannot go stale: a
+            // spelling can be keyed and not attached, which costs a
+            // memo hit and nothing else, and cannot be attached without
+            // having been keyed, which is what would serve a wall whose
+            // token names an expression the document no longer holds.
+            // It stays true of a THIRD per-edge scalar someone adds
+            // later only while that scalar's two doors keep the same
+            // relation, which is why each says so at its own end.
+            //
             // **How wide this is, stated rather than implied.** Three
             // separate breadths, none of which moves a VALUE — keys are
             // process-internal and never persisted (spec D3), so what
@@ -3952,9 +3969,10 @@ where
             //
             // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
             //    the whole vocabulary, not this document, so the word is
-            //    written for every profile with a carrier loop in every
-            //    document — one that no sweep ever consumes included.
-            // 2. Keys FOLD upstream keys, so a carrier radius
+            //    written for every profile that authors a radius
+            //    anywhere in every document — one that no sweep ever
+            //    consumes included.
+            // 2. Keys FOLD upstream keys, so a radius
             //    re-spelled invalidates the whole downstream subtree,
             //    not only its sweeps: a loft, a section or a boolean
             //    over that profile re-runs too, and none of them
@@ -3979,21 +3997,19 @@ where
                 verbs::EdgeScalar::Radius,
             )) {
                 for lp in &program.loops {
-                    if let Some(expr) = lp.carrier_radius() {
+                    // Every step's own radius, in program-step order: a
+                    // carrier form's one, a chain's per radius-bearing
+                    // step. The loop shapes are not distinguished here
+                    // because the question is not per loop — it is
+                    // "which spellings of this program can reach a
+                    // stored field", and a chain's arc radii reach the
+                    // walls its arcs sweep exactly as a carrier's does.
+                    for (_, expr) in lp.step_radii() {
                         // Opened by its word in the profile-payload
                         // vocabulary (`tag::program`).
                         h.write_tag(tag::program::CARRIER_RADIUS);
                         crate::param_source::feed_content_key(&mut h, expr);
                     }
-                    // A CHAIN loop answers `None` above and writes
-                    // nothing, which is correct exactly while nothing
-                    // attaches its per-segment arc radii either. The
-                    // guard cannot see the difference — the declaration
-                    // this feed reads is true of the profile edge's
-                    // radius already — so chain radii enter the key in
-                    // the same change that attaches them
-                    // (`LoopProgram::carrier_radius` carries the same
-                    // obligation at the door that would widen).
                 }
             }
         }

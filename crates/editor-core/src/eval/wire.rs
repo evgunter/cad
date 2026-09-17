@@ -72,7 +72,7 @@ use topo::{
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
-use crate::names::{self, NameTable, SplitHalf};
+use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
 use crate::node::{
     Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
 };
@@ -1689,7 +1689,59 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
+        edge_radii: edge_radii(program, pre),
     })))
+}
+
+/// **The per-edge radius expressions, in the sweep's own indexing** —
+/// `ProfileProgram::segment_radii`'s answer re-addressed from program
+/// segments to CANONICAL ones, which is what a wall record is keyed by.
+///
+/// The hop is the anchor's, and only the anchor's: `LoopAnchor::segment`
+/// is the canonical → program reindexing the published names were
+/// rewritten through, so asking it for canonical segment `k` names the
+/// program segment the door answered about. Nothing here re-derives a
+/// permutation; the door already checked the evaluation's two records
+/// of this one against each other.
+///
+/// **A refusal here is the evaluation contradicting itself.** The
+/// records were minted from this program by the same pre-pass, so no
+/// loop is missing, no record is of the wrong shape and no span runs
+/// off its loop. That is the class `ProfileProgram::profile_edges_of`
+/// asserts on rather than refusing, and it is surfaced the same way
+/// here: a typed error would be one no document can reach and no
+/// caller can repair, so it is a kernel bug the code observes in a
+/// branch — `unreachable!`'s own job (D9's D2 addendum).
+fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::expr::Expr>>> {
+    pre.naming
+        .loops
+        .iter()
+        .map(|anchor| {
+            let by_program_segment = program
+                .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
+                .unwrap_or_else(|e| {
+                    unreachable!(
+                        "this profile's structure record and its naming anchor were \
+                         minted from this one program by one pre-pass, so every loop \
+                         the anchor names is a loop the record describes — program \
+                         loop {} is not: {e}",
+                        anchor.program_loop
+                    )
+                });
+            (0..anchor.len)
+                .map(|k| {
+                    let want = ProfileEdgeRef {
+                        loop_index: anchor.program_loop,
+                        segment: anchor.segment(k),
+                    };
+                    by_program_segment
+                        .iter()
+                        .find(|(e, _)| *e == want)
+                        .map(|(_, expr)| (*expr).clone())
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// Applies the program-anchor rewrite to an emitted table (identity
@@ -1781,13 +1833,14 @@ fn wire_swept<
     // **Attach-at-mint for the lowered parameter-identity channel**
     // (VERB-SEAT-DESIGN P2), through the sweeps' per-EDGE flow source.
     // The token is not this node's: a swept wall's radius is the
-    // PROFILE's, so what lowers is the operand profile's own carrier
-    // radius, under this evaluation's scope, and the walls the record
-    // exported are what it lands on. A profile with no carrier radius
-    // (every polygon) yields no token and attaches nothing, which is
-    // the declaration being obeyed rather than a case skipped.
+    // PROFILE's, so what lowers is the radius the operand profile
+    // draws that wall's own edge at, under this evaluation's scope, and
+    // the walls the record exported are what it lands on. An edge with
+    // no authored radius (every straight one) yields no token and
+    // attaches nothing, which is the declaration being obeyed rather
+    // than a case skipped.
     let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-    let tokens = crate::param_source::profile_radius_tokens(doc, profile, &vp.naming, scope);
+    let tokens = crate::param_source::profile_radius_tokens(vp, scope);
     crate::param_source::attach_swept(
         &mut body,
         flow,

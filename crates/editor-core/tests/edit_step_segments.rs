@@ -30,6 +30,13 @@
 //! segments the door credited it with are the ones that geometry
 //! describes. A mutant that shifts every step's attribution one step
 //! along passes §1 and §2 and reds here.
+//!
+//! **3. The PAIRING** (§5), for the door's one built consumer:
+//! `ProfileProgram::segment_radii` reads the map for one argument role
+//! and answers which radius each EDGE is drawn at. That is a third
+//! thing that can be wrong independently — the refs can be right and
+//! the expression beside one of them belong to another step — so it
+//! has its own rows.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -42,9 +49,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, RecipeNodeId, RoleSeg, StableName, StepSegmentsError,
-    ValuePayload, eval::ProfileNaming, evaluate,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StableName, StepSegmentsError, ValuePayload, eval::ProfileNaming,
+    evaluate,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point2, Tol};
@@ -77,12 +85,14 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// Measured: nothing public carries it. The pre-pass's
 /// `profile::ProfileStructure` lives on `eval::anchor::ProfilePre`,
 /// which is `pub(crate)`; `ProfileValue` — the payload a `Profile`
-/// node's value carries — holds `validated` and `naming` and no
-/// structure, so from outside the crate there is no path to the record
-/// the geometry was actually made from. That is exactly the gap
+/// node's value carries — holds the validated profile, the naming
+/// anchor and the per-edge radii derived from the record, but not the
+/// record, so from outside the crate there is no path to the one the
+/// geometry was actually made from. That is exactly the gap
 /// `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
 /// records, and the same one that keeps the door from having a caller
-/// outside these rows. So these rows pair a rebuilt structure with the
+/// outside these rows and the in-crate one that reads those radii. So
+/// these rows pair a rebuilt structure with the
 /// evaluation's REAL `naming`, and the door's own two-record check is
 /// what holds that pairing honest: a rebuild that had drifted from the
 /// evaluation would disagree with the published anchor's permutation
@@ -938,5 +948,829 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
             end: n + 1,
             segments: n,
         })
+    );
+}
+
+// ------------------------------------------------------------------
+// 5. The per-edge radius door
+//
+// `ProfileProgram::segment_radii` is `profile_edges_of` read for one
+// argument role: which radius each of a loop's edges is drawn at. The
+// rows here are about the PAIRING — that the expression handed back
+// with a ref is the one the wall that ref names is drawn from — which
+// §2 and §3 say nothing about, because neither reads a step's radius.
+//
+// Measured against the extruded solid: an answered ref's wall must be a
+// CYLINDER at the answered expression's own radius, and every wall the
+// door did not answer for must not be one. A door that paired the
+// loop's first radius with every edge, or that answered in canonical
+// indices, names a plane on the reversed and two-arc fixtures and reds
+// here without any index arithmetic being re-done.
+// ------------------------------------------------------------------
+
+/// A chain of straight-then-arc legs, closed back to its start, on the
+/// xy plane and extruded 1 unit. Answers the authored radius
+/// expressions alongside, in program-step order.
+///
+/// `side` is what makes a fixture's winding: `Left` turns the chain
+/// counterclockwise and canonicalization leaves it alone, `Right` turns
+/// it clockwise and canonicalization reverses it. `radii` is one
+/// quarter-turn arc apiece, each after a straight leg.
+fn arc_prism(
+    id: &str,
+    side: profile::ArcSide,
+    radii: &[f64],
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Expr>) {
+    let mut exprs = Vec::new();
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: fixture::scl(1.0),
+            dy: fixture::scl(0.0),
+        },
+    ];
+    for (i, &r) in radii.iter().enumerate() {
+        if i > 0 {
+            steps.push(ProgramStep::Tangent);
+        }
+        steps.push(ProgramStep::Line(len(if i == 0 { 4.0 } else { 2.0 })));
+        steps.push(ProgramStep::Tangent);
+        let expr = len(r);
+        exprs.push(expr.clone());
+        steps.push(ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r: expr,
+            side,
+            angle: fixture::ang(core::f64::consts::FRAC_PI_2),
+        }));
+    }
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    (doc, profile, ext, exprs)
+}
+
+/// The radius the wall named by `e` stores, `None` where that wall is
+/// not a cylinder at all.
+fn wall_radius(ev: &Evaluation<f64>, ext: RecipeNodeId, e: ProfileEdgeRef) -> Option<f64> {
+    let face = lateral(ev, ext, e)?;
+    let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
+        return None;
+    };
+    match body.get_surface(body.get_face(face)?.surface)? {
+        geom::Surface::Cylinder { radius, .. } => Some(*radius),
+        _ => None,
+    }
+}
+
+/// **Every edge the door answered for is an arc at the answered
+/// radius, and every edge it did not answer for is not an arc's.**
+///
+/// The shared body of the chain rows. The answer is checked to hold one
+/// pair per authored arc, each carrying that arc's own expression and
+/// naming a cylindrical wall at that expression's radius; the walls
+/// left over are checked not to be cylinders, which is the half that
+/// catches a door answering too widely.
+fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], want_reversed: bool) {
+    let (doc, profile, ext, exprs) = arc_prism(id, side, radii);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{id}: the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("{id}: the profile node carries a profile");
+    };
+    let r = records(&doc, program);
+    assert_eq!(
+        r.structure.canonical.loops[0].reversed,
+        want_reversed,
+        "{id}: the fixture is written to be the {} case",
+        if want_reversed {
+            "reversed"
+        } else {
+            "identity"
+        }
+    );
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
+    assert_eq!(
+        answer.len(),
+        radii.len(),
+        "{id}: one arc step, one answer — got {answer:?}"
+    );
+    let mut answered = BTreeSet::new();
+    for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
+        assert_eq!(
+            *expr, want,
+            "{id}: the edges are answered in program-step order, so pair {k} carries \
+             arc {k}'s own expression"
+        );
+        let got = wall_radius(&ev, ext, *e).unwrap_or_else(|| {
+            panic!("{id}: {e:?} names no cylindrical wall, so it is not an arc's edge")
+        });
+        assert!(
+            (got - radii[k]).abs() < 1e-9,
+            "{id}: {e:?} was paired with the radius {} and its wall stores {got}",
+            radii[k]
+        );
+        answered.insert(e.segment);
+    }
+    let n = r.verts[0].len();
+    for segment in 0..n as u32 {
+        if answered.contains(&segment) {
+            continue;
+        }
+        let e = ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        };
+        assert_eq!(
+            wall_radius(&ev, ext, e),
+            None,
+            "{id}: {e:?} was answered for by nobody, so its wall must not be an arc's"
+        );
+    }
+}
+
+/// **Two arcs of one chain are answered with two different radii, each
+/// on the edge its own step drew.**
+///
+/// The mutant this reds is a door that hands every edge the loop's
+/// FIRST radius — the shape the carrier forms' one-radius-per-loop rule
+/// invites. It reds twice over: the second pair carries the wrong
+/// expression, and the wall it names stores the wrong radius.
+#[test]
+fn each_arc_step_is_answered_with_the_edge_it_drew() {
+    assert_arcs_are_answered(
+        "segment-radii-two-arcs",
+        profile::ArcSide::Left,
+        &[1.0, 0.25],
+        false,
+    );
+}
+
+/// **The answer is in PROGRAM indices, on a loop canonicalization
+/// REVERSED.**
+///
+/// Authored clockwise, so canonicalization reverses the chain to reach
+/// the outer role's winding and canonical segment `k` is a different
+/// segment from program segment `k`. A door that answered in canonical
+/// indices — or a consumer that paired the program's radii with
+/// canonical positions — names the wrong wall here and reds, while
+/// every identity-permutation row above still passes.
+#[test]
+fn a_reversed_chains_arcs_are_answered_in_program_indices() {
+    assert_arcs_are_answered(
+        "segment-radii-reversed",
+        profile::ArcSide::Right,
+        &[1.0, 0.25],
+        true,
+    );
+}
+
+/// **A carrier loop answers its one radius on EVERY edge**, which is
+/// what makes one door serve both loop shapes.
+///
+/// `circle_split` at n = 3 is the fixture, because a plain `circle`'s
+/// two segments cannot tell "every edge" from "the first two". The
+/// carrier form's single step replays to the whole loop, so the answer
+/// is that step's radius repeated — not one pair, which is what a door
+/// that treated every loop as a chain would give.
+#[test]
+fn a_carrier_loop_is_answered_at_every_edge() {
+    let doc = ProfileDoc::empty_derived("segment-radii-carrier", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let radius = len(0.5);
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::CircleSplit {
+                centre: [len(0.0), len(0.0)],
+                radius: radius.clone(),
+                n: 3,
+                phase: fixture::ang(0.3),
+            }],
+        }),
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let segments: Vec<u32> = answer.iter().map(|(e, _)| e.segment).collect();
+    assert_eq!(
+        segments,
+        vec![0, 1, 2],
+        "a split carrier's every edge is drawn at the loop's one radius"
+    );
+    for (_, expr) in &answer {
+        assert_eq!(
+            **expr, radius,
+            "every edge carries the loop's own expression"
+        );
+    }
+}
+
+/// **A step carrying more than one radius answers NOTHING**, and a
+/// straight step answers nothing either.
+///
+/// Read off the program alone, because that is where the rule lives:
+/// `arc_fillet_arc` authors three radii — the incoming spec's, the
+/// fillet's, the arrival spec's — and the record says only which
+/// segments the step emitted, never which of its radii drew which. A
+/// door that answered the first would stamp two of those walls with an
+/// expression they are not drawn from, and no per-edge row over a
+/// single-radius chain can see it.
+///
+/// The program is never replayed here, so the fused step's arguments
+/// need not be a geometry that closes: what is under test is which
+/// arguments the enumeration calls radii.
+#[test]
+fn a_step_with_several_radii_answers_no_radius() {
+    let spec = || ProgramArcData::Radius {
+        r: len(1.0),
+        side: profile::ArcSide::Left,
+    };
+    let fused = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::ArcFilletArc {
+            spec: spec(),
+            radius: len(0.5),
+            spec2: spec(),
+        },
+    ]);
+    assert!(
+        fused.step_radii().is_empty(),
+        "a step with three radii says which segment none of them drew, and the \
+         straight leg beside it has none at all"
+    );
+    let one = LoopProgram::Chain(vec![ProgramStep::ArcTo(spec())]);
+    assert_eq!(
+        one.step_radii().len(),
+        1,
+        "the same spec ALONE carries exactly one radius and is answered, or the row \
+         above is passing because the shape was never reached"
+    );
+}
+
+/// **A `fillet(r)` is answered by the program and by NO edge**, and
+/// that gap is this unit's stated residue.
+///
+/// `fillet` is a tip-state binder: it holds the radius and emits no
+/// segment, and the arc it opens is emitted by the ARRIVAL step, which
+/// holds no radius of its own. So there is no step whose radius and
+/// whose segments can be paired, and the filleted corner's wall
+/// carries no parameter identity — while the radius's SPELLING does
+/// reach the content key, because `step_radii` is program-side and
+/// cannot see a span. That is the conservative side of the inclusion
+/// the key's feed rests on, and the row pins both halves of it so a
+/// widening has to move them together
+/// (`work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`).
+#[test]
+fn a_fillets_radius_is_a_program_answer_and_no_edges() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let radius = len(0.5);
+    let filleted = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::Toward {
+            dx: fixture::scl(-1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::Fillet(radius.clone()),
+        ProgramStep::Toward {
+            dx: fixture::scl(0.0),
+            dy: fixture::scl(1.0),
+        },
+        ProgramStep::FarEndTo(pt(1.0, 3.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    assert_eq!(
+        filleted.step_radii(),
+        vec![(4, &radius)],
+        "the program answers the fillet's radius at the step that holds it"
+    );
+    let doc = ProfileDoc::empty_derived("segment-radii-fillet", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![filleted],
+        }),
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert!(
+        r.structure.replay[0].steps[4].is_empty(),
+        "the fixture's fillet is the binder shape this row is about: it emitted \
+         {}",
+        r.structure.replay[0].steps[4]
+    );
+    assert_eq!(
+        program
+            .segment_radii(&r.structure, &pv.naming, 0)
+            .expect("the door answers")
+            .len(),
+        0,
+        "no edge is answered, because the step that holds the radius drew none of them"
+    );
+}
+
+/// **The per-edge door's refusals are the map's own**, unaltered.
+///
+/// It composes [`ProfileProgram::profile_edges_of`] and adds no
+/// question of its own, so it owes no refusal of its own either: a loop
+/// this program does not have, and a record that does not describe it,
+/// come back exactly as the map states them. The row pins that the
+/// composition does not swallow one into an EMPTY answer, which is the
+/// failure that would leave a caller attaching nothing and calling it a
+/// profile with no radii.
+#[test]
+fn the_per_edge_door_refuses_where_the_map_does() {
+    let (doc, profile, _, _) = arc_prism("segment-radii-refusal", profile::ArcSide::Left, &[1.0]);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert_eq!(
+        program.segment_radii(&r.structure, &pv.naming, 1),
+        Err(StepSegmentsError::NoSuchLoop { loops: 1 })
+    );
+    let empty = ProfileStructure {
+        replay: Vec::new(),
+        canonical: CanonicalStructure { loops: Vec::new() },
+    };
+    assert_eq!(
+        program.segment_radii(&empty, &pv.naming, 0),
+        Err(StepSegmentsError::NoRecord { loop_: 0 })
+    );
+    let mut short = r.structure.clone();
+    let authored = short.replay[0].steps.len();
+    short.replay[0].steps.pop();
+    assert_eq!(
+        program.segment_radii(&short, &pv.naming, 0),
+        Err(StepSegmentsError::RecordShape {
+            loop_: 0,
+            authored,
+            recorded: authored - 1,
+        })
+    );
+    assert_eq!(
+        program.segment_radii(&r.structure, &ProfileNaming::default(), 0),
+        Err(StepSegmentsError::NoAnchor { loop_: 0 })
+    );
+}
+
+/// A closed chain whose lexicographic-minimum vertex is NOT its
+/// program start, so canonicalization ROTATES it; `side` reverses it as
+/// well. `Right` mirrors the whole chain in y, so its arcs close the
+/// same shape the `Left` ones do.
+///
+/// [`arc_prism`]'s chains all begin at their own minimum, which makes
+/// their anchor hop a pure reversal or the identity. This one adds the
+/// other half of the permutation.
+fn rotated_arc_prism(
+    id: &str,
+    side: profile::ArcSide,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Expr>) {
+    let s = if matches!(side, profile::ArcSide::Left) {
+        1.0
+    } else {
+        -1.0
+    };
+    let r1 = len(1.0);
+    let r2 = len(0.25);
+    let pt = |x: f64, y: f64| [len(x), len(y * s)];
+    let steps = vec![
+        ProgramStep::At(pt(2.0, 2.0)),
+        ProgramStep::Toward {
+            dx: fixture::scl(1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::Line(len(3.0)),
+        ProgramStep::Tangent,
+        ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r: r1.clone(),
+            side,
+            angle: fixture::ang(core::f64::consts::FRAC_PI_2),
+        }),
+        ProgramStep::Tangent,
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Tangent,
+        ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r: r2.clone(),
+            side,
+            angle: fixture::ang(core::f64::consts::FRAC_PI_2),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 5.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    (doc, profile, ext, vec![r1, r2])
+}
+
+/// The shared body of the rotated rows: the door's answer AND the
+/// attach's own list are both read against the geometry, on a loop
+/// whose anchor hop is a rotation.
+///
+/// Two claims, because the rotation can be dropped at either end. The
+/// door answers in program indices, checked by the wall each answered
+/// ref names being a cylinder at the answered expression's radius. The
+/// value's `edge_radii` is that answer re-addressed to CANONICAL
+/// positions, checked position by position against the wall canonical
+/// segment `j` swept: a consumer that carried the reversal through the
+/// hop and dropped the rotation names a different wall here.
+fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_reversed: bool) {
+    let (doc, profile, ext, exprs) = rotated_arc_prism(id, side);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{id}: the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("{id}: carries a profile");
+    };
+    let r = records(&doc, program);
+    let c = &r.structure.canonical.loops[0];
+    assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
+    assert_ne!(c.start, 0, "{id}: the fixture is written to be ROTATED too");
+    let a = &pv.naming.loops[0];
+    assert_ne!(a.offset, 0, "{id}: the anchor hop is a rotation too");
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
+    assert_eq!(answer.len(), 2, "{id}: two arc steps, two answers");
+    let radii = [1.0, 0.25];
+    for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
+        assert_eq!(*expr, want, "{id}: pair {k} carries arc {k}'s expression");
+        let got = wall_radius(&ev, ext, *e)
+            .unwrap_or_else(|| panic!("{id}: {e:?} names no cylindrical wall"));
+        assert!(
+            (got - radii[k]).abs() < 1e-9,
+            "{id}: {e:?} paired with {} and its wall stores {got}",
+            radii[k]
+        );
+    }
+    for (j, slot) in pv.edge_radii[0].iter().enumerate() {
+        let e = ProfileEdgeRef {
+            loop_index: 0,
+            segment: a.segment(j as u32),
+        };
+        let wall = wall_radius(&ev, ext, e);
+        match (slot, wall) {
+            (Some(expr), Some(got)) => {
+                let want = if *expr == exprs[0] { 1.0 } else { 0.25 };
+                assert!(
+                    (got - want).abs() < 1e-9,
+                    "{id}: canonical segment {j} carries {expr:?} and its wall stores {got}"
+                );
+            }
+            (None, None) => {}
+            (radius, wall) => {
+                panic!("{id}: canonical segment {j}: radius {radius:?} but wall {wall:?}")
+            }
+        }
+    }
+}
+
+/// **The answer is in program indices on a loop canonicalization
+/// ROTATES**, without reversing it.
+///
+/// Authored counterclockwise from a corner that is not the
+/// lexicographic minimum, so `start` is non-zero and canonical segment
+/// `k` is a different segment from program segment `k` by a shift. The
+/// fixture asserts it IS that case before it asserts anything about the
+/// door, per §2's rule.
+#[test]
+fn a_rotated_chains_arcs_are_answered_in_program_indices() {
+    assert_rotated_arcs_are_answered("segment-radii-rot", profile::ArcSide::Left, false);
+}
+
+/// **Reversed AND rotated** — the anchor hop non-identity in both
+/// senses, which is the case the other chain rows cannot see.
+///
+/// Every `arc_prism` chain starts at its own lexicographic-minimum
+/// vertex, so its hop is a pure reversal and a consumer that applied
+/// the reversal and dropped the rotation still names the right wall.
+/// Here `offset` is non-zero too and it names the wrong one, at both
+/// ends the rotation can be dropped: the door's own answer and the
+/// canonical re-addressing `ProfileValue::edge_radii` carries.
+#[test]
+fn a_reversed_and_rotated_chains_arcs_are_answered_in_program_indices() {
+    assert_rotated_arcs_are_answered("segment-radii-rot-rev", profile::ArcSide::Right, true);
+}
+
+/// **Every expression the ATTACH carries was written by the KEY's feed
+/// first**, over every profile the corpus holds.
+///
+/// This is the inclusion the memo's stale-token guard rests on, read
+/// mechanically rather than argued: `ProfileValue::edge_radii` is what
+/// `param_source::profile_radius_tokens` lowers onto walls, and
+/// `LoopProgram::step_radii` is what `eval::content_key` feeds, so a
+/// spelling that appears in the first and not the second is one a wall
+/// could carry while the document's key never named it.
+///
+/// The STRICT side is asserted too — at least one spelling that is
+/// keyed and never attached — because an inclusion that happened to be
+/// an equality would make the row pass while saying nothing about the
+/// direction. A fillet's radius is the corpus's instance of it.
+#[test]
+fn every_attached_radius_was_keyed_first() {
+    let documents = corpus::documents();
+    let mut attached = 0_usize;
+    let mut keyed_only = 0_usize;
+    for d in &documents {
+        let ev = run(&d.doc);
+        for &id in &ev.order {
+            let Some(Node::Profile(program)) = d.doc.node(id) else {
+                continue;
+            };
+            let Some(value) = ev.value(id) else { continue };
+            let ValuePayload::Profile(pv) = &value.payload else {
+                continue;
+            };
+            assert_eq!(
+                pv.edge_radii.len(),
+                pv.naming.loops.len(),
+                "{}: one canonical row per anchor",
+                d.name
+            );
+            for (ci, row) in pv.edge_radii.iter().enumerate() {
+                let anchor = &pv.naming.loops[ci];
+                assert_eq!(
+                    row.len() as u32,
+                    anchor.len,
+                    "{}: canonical loop {ci} has one slot per segment",
+                    d.name
+                );
+                let fed: Vec<&Expr> = program.loops[anchor.program_loop as usize]
+                    .step_radii()
+                    .into_iter()
+                    .map(|(_, e)| e)
+                    .collect();
+                for slot in row.iter().flatten() {
+                    attached += 1;
+                    assert!(
+                        fed.contains(&slot),
+                        "{}: canonical loop {ci} attaches {slot:?}, which its program \
+                         loop's key feed never wrote",
+                        d.name
+                    );
+                }
+            }
+            let attached_here: Vec<&Expr> = pv.edge_radii.iter().flatten().flatten().collect();
+            for lp in &program.loops {
+                for (_, e) in lp.step_radii() {
+                    if !attached_here.contains(&e) {
+                        keyed_only += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(attached > 0, "the corpus exercises the attach at all");
+    assert!(
+        keyed_only > 0,
+        "the corpus exercises the STRICT side of the inclusion too — a spelling that \
+         is keyed and never attached, which is what makes the direction a claim"
+    );
+}
+
+/// **A `fillet(r)` has exactly one authorable position**: mid-chain,
+/// with an arrival step of its own after it.
+///
+/// This is what bounds `a_fillets_radius_is_a_program_answer_and_no_edges`
+/// to the whole of the case rather than to one shape of it. `Fillet`
+/// exists only inside `LoopProgram::Chain` — the carrier forms hold no
+/// steps — and the loop's closer is refused in the tip state a fillet
+/// leaves behind, in both of its spellings. So there is no "closing
+/// fillet" whose arc the closer emits and whose radius a closer-shaped
+/// pairing would have to answer for.
+#[test]
+fn a_fillet_cannot_be_a_loops_closing_corner() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let head = |closer: ProgramStep| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At(pt(0.0, 0.0)),
+            ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
+            ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 3.0))),
+            ProgramStep::Toward {
+                dx: fixture::scl(-1.0),
+                dy: fixture::scl(0.0),
+            },
+            ProgramStep::Fillet(len(0.5)),
+            ProgramStep::Toward {
+                dx: fixture::scl(0.0),
+                dy: fixture::scl(-1.0),
+            },
+            closer,
+        ])
+    };
+    for closer in [
+        ProgramStep::LineTo(ProgramTarget::Start),
+        ProgramStep::ContinueTo(ProgramTarget::Start),
+    ] {
+        let doc = ProfileDoc::empty_derived("segment-radii-closing-fillet", tol());
+        let (doc, plane) = insert(doc, fixture::xy_frame());
+        let attempt = doc.apply(
+            &editor_core::DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane,
+                    loops: vec![head(closer.clone())],
+                }),
+            },
+            tol(),
+        );
+        assert!(
+            attempt.is_err(),
+            "a fillet whose arrival is the loop closer is refused, so there is no \
+             closing-fillet position a per-edge pairing would have to answer for"
+        );
+    }
+}
+
+/// **A fused step holds one radius ROLE per radius-bearing spec, and
+/// three of the six arc specs bear none.**
+///
+/// `Radius`, `Sweep` and `ArcLen` hold a `CarrierRadius`; `Bulge`,
+/// `Via` and `Center` hold a bulge, a through-point or a centre and no
+/// radius at all. So a fused step over one of those three holds exactly
+/// the fillet's own `StepArg::Radius`, `radius_arg` answers it, and its
+/// spelling reaches the content key like any other one-radius step's.
+/// What keeps such a step out of the ATTACH is the SPAN rule, not the
+/// radius count — which is why
+/// [`a_one_radius_fused_step_attaches_to_no_edge`] is a separate row and
+/// not a corollary of `a_step_with_several_radii_answers_no_radius`.
+#[test]
+fn a_fused_step_over_a_radius_less_spec_holds_one_radius() {
+    let bulge = || ProgramArcData::Bulge {
+        target: ProgramTarget::Point([len(1.0), len(1.0)]),
+        b: fixture::scl(0.4),
+    };
+    let radius = len(0.5);
+    let fused = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::ArcFillet {
+            spec: bulge(),
+            radius: radius.clone(),
+        },
+    ]);
+    assert_eq!(
+        fused.step_radii(),
+        vec![(2, &radius)],
+        "an arc_fillet over a BULGE spec holds exactly one radius role, so the \
+         multi-radius filter does not reach it"
+    );
+    let three = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::ArcFilletArc {
+            spec: bulge(),
+            radius: radius.clone(),
+            spec2: bulge(),
+        },
+    ]);
+    assert_eq!(
+        three.step_radii(),
+        vec![(2, &radius)],
+        "nor an arc_fillet_arc over two of them"
+    );
+}
+
+/// **A one-radius FUSED step still attaches to no edge**, because the
+/// segments it is responsible for are not on the step its radius is on.
+///
+/// `arc_fillet(spec, r)` authors an incoming arc carrier AND opens a
+/// fillet off it in one act, and the step is a BINDER: its recorded
+/// span is EMPTY, and the incoming arc, the fillet arc and the arrival
+/// leg are all credited to the ARRIVAL step, which holds no radius of
+/// its own. So the pairing has no single step whose radius and whose
+/// one segment can be put together, exactly as for a plain `fillet` —
+/// and the wall carries nothing rather than the wrong thing.
+///
+/// The fixture is the one shape that reaches this: a bulge spec bears
+/// no radius role, so the step passes `radius_arg` where a `Sweep` or
+/// `Radius` spec would make it a two-radius step and never get here.
+/// The residue row
+/// `work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`
+/// is what would move this.
+#[test]
+fn a_one_radius_fused_step_attaches_to_no_edge() {
+    let radius = len(0.2);
+    let program = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::ArcFillet {
+            spec: ProgramArcData::Bulge {
+                target: ProgramTarget::Point([len(3.0), len(0.0)]),
+                b: fixture::scl(0.2),
+            },
+            radius: radius.clone(),
+        },
+        ProgramStep::Toward {
+            dx: fixture::scl(0.0),
+            dy: fixture::scl(1.0),
+        },
+        ProgramStep::FarEndTo([len(3.3), len(4.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(4.0)])),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    assert_eq!(
+        program.step_radii(),
+        vec![(1, &radius)],
+        "the program answers the fused step's one radius, so its spelling reaches \
+         the content key"
+    );
+    let doc = ProfileDoc::empty_derived("segment-radii-fused-bulge", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let applied = doc
+        .apply(
+            &editor_core::DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane,
+                    loops: vec![program],
+                }),
+            },
+            tol(),
+        )
+        .expect("a fused step over a bulge spec is authorable and replays");
+    let doc = applied.doc;
+    let profile = *doc.order().last().expect("the inserted profile node");
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert!(
+        r.structure.replay[0].steps[1].is_empty(),
+        "the fused step is the binder shape this row is about: it emitted {}",
+        r.structure.replay[0].steps[1]
+    );
+    assert_eq!(
+        program
+            .segment_radii(&r.structure, &pv.naming, 0)
+            .expect("the door answers")
+            .len(),
+        0,
+        "no edge is answered, because the step that holds the radius drew none of them"
+    );
+    assert!(
+        pv.edge_radii[0].iter().all(Option::is_none),
+        "and nothing is attached: {:?}",
+        pv.edge_radii[0]
     );
 }

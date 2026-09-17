@@ -2347,3 +2347,15 @@ measurement stays the result of record; nothing here re-takes it.
 ported and, once answered, un-ignored as the unit's pins at the
 nominal and one width), registered in `tests/all.rs`; the evidence
 rows stay `#[ignore]`; the pins' cost is stated in the PR body.
+
+**Seam announced by BLEND (2026-09-17, at unit 15's fix pass):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, PR #2514) adds ONE source reader to
+`crates/test-utils/src/source.rs` — the `decide*` call-site roster
+reader its two `recourse_roster.rs` suites and `profile`'s
+`fillet_recourse_followability.rs` census currently carry as three
+hand-rolled copies — beside `plain_string_literal` and `balanced_end`,
+which it uses. No test mechanism changes; the `reader_census.rs`
+ledger gains the lines the gate demands. Announced here and in
+`work/tint/log.md` because `crates/test-utils/*` is both programs'
+ground by declaration (S-TCOST's `program.md:12`: the fence is the
+question, not the path).
