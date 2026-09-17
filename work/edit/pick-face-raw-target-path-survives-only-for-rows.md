@@ -2,8 +2,9 @@
 id: pick-face-raw-target-path-survives-only-for-rows
 kind: issue
 title: pick_face's raw PickTarget path has no non-test consumer, and its document half is a claim
-status: review
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 refs: [2773, 1098]
 pr: 2801
 branch: edit/raw-target-test-support
@@ -228,3 +229,30 @@ other than success or skipped, twelve `test (…)` and five
 the unittest step. A fourth site of MINOR-2's class —
 `crates/pncad-py/src/py/pick.rs` — was found by the bare-identifier
 sweep and re-worded with the other three.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2801 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `PickTarget::new` and
+`MeshPick::build` exist only under `cfg(any(test, feature =
+"test-support"))`, so no consumer build can mint an unpaired target —
+`NodePick::target` is the one door a consumer can reach, and the raw
+mints live where the four rows that need them do, through the
+workspace's self-dev-dependency pattern. Two premises corrected by the
+lane: no `pncad` test used the raw mint (the spec's "one test" had no
+referent), and a `compile_fail` unreachability row cannot be honest
+here — `--workspace` doc-test runs unify the feature on, so the row's
+colour would depend on the run's package scope (the reviewer measured
+it tier-flaky); CI's two feature-off compiles and the manifest gate
+carry the claim instead. The review (0 MAJOR, 2 MINOR, 10 style)
+caught the manifest's false compile-consequence claim for the
+`profile/test-support` forward (the census convention is the reason)
+and three prose absolutes the repo had already retracted once (a build
+COMMAND can still enable the feature; no consumer manifest edge does,
+and the gate holds that) — a fourth site found by the fix pass's
+bare-identifier sweep. One impl block per mint with the cfg on the
+fn; the not-hidden ruling kept with its trade stated at the site.
+Filed: `work/issues/test-support-convention-has-no-prose-home` (four
+manifests restate one convention). Territory crossed by announcement:
+`crates/pncad*` (LIB's) and `crates/viewer/src/pickindex.rs` (VIEW's),
+prose only.
