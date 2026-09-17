@@ -5297,12 +5297,14 @@ class RefusedRef:
     The gate asks two tables in order: the product's, then — when it
     is silent — the operand's own. `ref_vanished` is a name neither
     spells; `ref_read_below_a_root` is a name the operand spells at a
-    node the product does not list as a root."""
+    node the product does not list as a root. A head's KIND is not
+    among the questions: a mate head is a face by its type, refused
+    where the name is made (`mate_head_not_a_face`)."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_read_below_a_root`, `ref_ambiguous`,
-        or `ref_not_a_face`."""
+        """`ref_vanished`, `ref_read_below_a_root`, or
+        `ref_ambiguous`."""
 
     @property
     def at(self) -> Optional[NodeId]:
@@ -5314,10 +5316,6 @@ class RefusedRef:
     def width(self) -> Optional[int]:
         """How many entities a tie holds. A mate declaration must name
         ONE face, and a tie is never broken by picking."""
-
-    @property
-    def kind(self) -> Optional[str]:
-        """What a non-face reference did name."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.

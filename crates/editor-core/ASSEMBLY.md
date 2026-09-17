@@ -240,10 +240,10 @@ reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
 `RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
 `RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. The gate asks no KIND question of its own: a head is a
+reads it. The gate asks no KIND question at all: a head is a
 `SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
-by the type and `RefusedRef::NotAFace` guards only the name table's own
-rule that a row's kind is its name's. It runs no predicate of its own; kernel findings
+by the type, and the refusal vocabulary here has three arms and no
+kind arm. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the

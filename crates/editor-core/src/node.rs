@@ -995,38 +995,30 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
 /// resolved through it still points at the minting node while the
 /// geometry has moved.
 ///
-/// One type, two readers, and what `at` means to each is the same
-/// question answered at different layers:
+/// **One reader: [`Node::Measure`].** Its reference reads the carrier
+/// out of `at`'s evaluated value, so `at` is an ordinary DAG edge
+/// ([`Node::inputs`]) and `name` resolves against `at`'s own evaluated
+/// name table, through the N5 ladder every other authored name takes —
+/// the carrier has to be findable there or the measure has nothing to
+/// read. `name` is a bare [`StableName`] because a measure reads a
+/// LENGTH between entities of any kind: a face, an edge, a vertex, a
+/// whole body.
 ///
-/// - a [`Node::Measure`]'s reference reads the carrier out of `at`'s
-///   evaluated value, and `at` is therefore an ordinary DAG edge
-///   ([`Node::inputs`]);
-/// - a [`Node::Mate`]'s reference names the OPERAND the mate is
-///   authored against, and `at` is an A12 reading edge — never
-///   consuming, or the mated bodies would leave A10's root set. The
-///   solve walks from `at` down to the name's head and composes every
-///   pose-bearing node it passes ([`crate::mate::member_of`]).
-///
-/// **Where `name` resolves differs with the reader, and that is not a
-/// contradiction.** A measure's name resolves against `at`'s own
-/// evaluated name table, through the N5 ladder every other authored
-/// name takes — the carrier has to be findable there or the measure
-/// has nothing to read. A mate's name resolves nowhere at the solve:
-/// the solve is structural and inspects no geometry, so it reads the
-/// name's HEAD and its `Instance(i)` qualifiers as recipe data and
-/// nothing more. The mate's name is resolved later, against the
-/// PRODUCT's table, by the at-rest gate that mints its declaration.
+/// A mate's head is the other sited reference in the vocabulary and is
+/// its own type, [`SitedFace`] — not this one with a different name in
+/// it. What `at` means there is a different fact (an A12 reading edge,
+/// never consuming) about a name that resolves somewhere else (the
+/// PRODUCT's table, at the at-rest gate), so the two carry their own
+/// contracts rather than one doc saying "it depends who holds it".
 ///
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
 ///
-/// **`Rebind` moves a mate's at-mint operand and never a measure's.**
-/// One repair, two shapes, because the two `at`s are different kinds
-/// of fact: a mate's at-mint operand is the reference saying "read me
-/// where I was minted", so it follows the name it was authored to
-/// coincide with; a measure's `at` is a DAG edge the author chose, and
-/// an edit that rewrote it would be re-pointing a dependency behind
-/// the author's back.
+/// **`Rebind` never moves a measure's `at`.** A measure's `at` is a
+/// DAG edge the author chose, and an edit that rewrote it would be
+/// re-pointing a dependency behind the author's back; only the NAME
+/// is repaired ([`Node::rebind_payload_names`]). [`SitedFace`]'s doc
+/// states the other half of that one repair.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -1066,27 +1058,49 @@ impl SitedRef {
 /// downstream has a document to refuse.
 ///
 /// The three boundaries that turn data into names — the wire, the
-/// Python binding, and authored text — call [`FaceName::new`] and
-/// answer its refusal in their own vocabulary. `at` is the A12 reading
-/// edge, exactly as it is on a [`SitedRef`]; everything [`SitedRef`]'s
-/// docs say about it holds here.
+/// Python binding, and the viewer's picked face — call
+/// [`FaceName::new`] and answer its refusal in their own vocabulary.
+///
+/// **`at` is an A12 READING edge** — never consuming, or the mated
+/// bodies would leave A10's root set. It names the OPERAND the mate is
+/// authored against, and the solve walks from it down to the name's
+/// head, composing every pose-bearing node it passes
+/// ([`crate::mate::member_of`]). The name resolves nowhere at the
+/// solve: the solve is structural and inspects no geometry, so it
+/// reads the name's HEAD and its `Instance(i)` qualifiers as recipe
+/// data and nothing more, and the name is resolved later against the
+/// PRODUCT's table by the at-rest gate that mints the declaration.
+///
+/// **`Rebind` moves a head's at-mint operand**, which is the half of
+/// that one repair a measure does not have ([`SitedRef`]'s doc states
+/// the other): a head read at its own mint is the reference saying
+/// "read me where I was minted", so the operand follows the name it
+/// was authored to coincide with, while a head read somewhere ELSE
+/// keeps its operand — that node is an authored fact the edit knows
+/// nothing about.
 ///
 /// **A mate cannot be built from a bare name**, which is the whole
 /// claim, pinned where a claim about types belongs:
 ///
 /// ```compile_fail,E0308
-/// use editor_core::{EntityKind, Node, ProfileProgram, RecipeNodeId, SitedRef, StableName};
-/// let edge = StableName {
-///     kind: EntityKind::Edge,
-///     node: RecipeNodeId(0),
-///     path: Vec::new(),
-/// };
-/// let node: Node<ProfileProgram> = Node::Mate {
-///     a: SitedRef::at_mint(edge.clone()),
-///     b: SitedRef::at_mint(edge),
+/// fn head() -> editor_core::SitedRef {
+///     editor_core::SitedRef::at_mint(named(editor_core::EntityKind::Edge))
+/// }
+///
+/// let _: editor_core::Node<editor_core::ProfileProgram> = editor_core::Node::Mate {
+///     a: head(),
+///     b: head(),
 ///     class: editor_core::ContactClass::Rest,
 ///     alignment: alignment(),
 /// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
 ///
 /// fn alignment() -> editor_core::Alignment {
 ///     let frame = editor_core::MateFrame {
@@ -1104,22 +1118,70 @@ impl SitedRef {
 /// }
 /// ```
 ///
-/// The head is made by asking, and the answer is a value or a typed
-/// refusal — never a face name that is not one:
+/// **What that row proves, and what it does not.** Stable rustdoc
+/// checks only that the block FAILS to build; it does not enforce the
+/// `,E0308` named beside it, so a row whose body had a typo, a
+/// renamed field or a missing import would pass just as well and
+/// prove nothing about the head's type. The twin below is the same
+/// body with the one difference this claim is about — `head()` returns
+/// a [`SitedFace`] made through the constructor instead of a
+/// [`SitedRef`] made from a bare name — and it is a RUNNING doctest:
+/// every other line above is a line it also compiles, so a defect
+/// anywhere but the head reddens here rather than silently satisfying
+/// the block above for the wrong reason. (The idiom is
+/// `quantity::units`', which states the rule; the code was read off
+/// `rustc` on the snippet.)
 ///
 /// ```
-/// use editor_core::{EntityKind, FaceName, RecipeNodeId, SitedFace, StableName};
-/// let name = |kind| StableName {
-///     kind,
+/// fn head() -> editor_core::SitedFace {
+///     editor_core::SitedFace::at_mint(
+///         editor_core::FaceName::new(named(editor_core::EntityKind::Face))
+///             .expect("a face name is a face"),
+///     )
+/// }
+///
+/// let _: editor_core::Node<editor_core::ProfileProgram> = editor_core::Node::Mate {
+///     a: head(),
+///     b: head(),
+///     class: editor_core::ContactClass::Rest,
+///     alignment: alignment(),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+///
+/// fn alignment() -> editor_core::Alignment {
+///     let frame = editor_core::MateFrame {
+///         origin: [0.0, 0.0, 0.0],
+///         axis: [0.0, 0.0, 1.0],
+///         reference: [1.0, 0.0, 0.0],
+///     };
+///     editor_core::Alignment {
+///         a: frame,
+///         b: frame,
+///         primitive: editor_core::MatePrimitive::FrameCoincidence,
+///         sense: editor_core::AxisSense::Aligned,
+///         clocking: None,
+///     }
+/// }
+/// ```
+///
+/// The constructor's other answer is a typed refusal, never a face
+/// name that is not one:
+///
+/// ```
+/// use editor_core::{EntityKind, FaceName, RecipeNodeId, StableName};
+/// let edge = StableName {
+///     kind: EntityKind::Edge,
 ///     node: RecipeNodeId(0),
 ///     path: Vec::new(),
 /// };
-/// let head = FaceName::new(name(EntityKind::Face)).expect("a face name is a face");
-/// assert_eq!(SitedFace::at_mint(head).at, RecipeNodeId(0));
-/// assert_eq!(
-///     FaceName::new(name(EntityKind::Edge)).unwrap_err().found,
-///     EntityKind::Edge
-/// );
+/// assert_eq!(FaceName::new(edge).unwrap_err().found, EntityKind::Edge);
 /// ```
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,

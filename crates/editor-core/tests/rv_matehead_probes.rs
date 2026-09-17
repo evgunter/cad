@@ -1,8 +1,24 @@
-//! **Review probes for `edit/mate-head-kind`** (lane `matehead-rv`).
+//! **What a mate head's type does and does not decide.**
 //!
-//! Not rows the branch owes — the reviewer's falsification attempts,
-//! kept on the review branch so the fix pass can adopt or delete them.
-//! Each says which claim of PR #2799 it is aimed at.
+//! Three rows around the edge of the claim that a mate head is a
+//! `FaceName`, each measuring one thing that claim does NOT reach:
+//!
+//! - an `InterfaceCrossing::Mate`'s `outer`/`inner` are bare
+//!   `StableName`s, so an EDGE-headed crossing is buildable in memory
+//!   through `Node::instantiate_part_with`, inserts, saves and loads.
+//!   The row that owns the repair is
+//!   `work/edit/interface-crossing-heads-are-bare-stable-names`; this
+//!   is the measurement that pins the hole open until it is taken, and
+//!   it is wider than a file: no file is needed to build one.
+//! - the name table refuses a row whose KEY disagrees with its name's
+//!   kind, at both of its two seating doors. That is why the assembly
+//!   gate's refusal vocabulary has no kind arm: the state such an arm
+//!   would have answered cannot be seated, so what it documented was a
+//!   crate bug rather than a refusal.
+//! - `DocEdit::Rebind` refuses a cross-kind pair at its own door,
+//!   before any payload is touched, which is what makes the mate arm
+//!   of `Node::rebind_payload_names` a `debug_assert` rather than a
+//!   refusal it would have to invent.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,13 +37,13 @@ fn face_name(node: RecipeNodeId, cap: CapEnd) -> StableName {
     }
 }
 
-/// **CLAIM 1 / CLAIM 8.** `Node::instantiate_part_with` is public and
-/// an `InterfaceCrossing::Mate`'s `outer`/`inner` are bare
-/// `StableName`s, so an EDGE-headed crossing is buildable IN MEMORY,
-/// inserts, saves and LOADS. That is the filed row
-/// `interface-crossing-heads-are-bare-stable-names` reproduced — and
-/// it is wider than the row says: the row calls it "a hole in what a
-/// FILE may carry", but no file is needed.
+/// **An interface crossing's heads are not the mate's type.** A mate's
+/// two heads are `SitedFace`s, so a mate naming an edge does not
+/// compile and a file carrying one refuses at the wire door's
+/// constructor. `InterfaceCrossing::Mate`'s `outer`/`inner` did not
+/// follow: they are bare `StableName`s written by the split out of two
+/// heads, so an edge-headed crossing INSERTS, SAVES and LOADS — no
+/// file needed, `Node::instantiate_part_with` is public.
 #[test]
 fn probe_an_edge_headed_interface_crossing_inserts_saves_and_loads() {
     let doc_ref = DocRef {
@@ -61,13 +77,16 @@ fn probe_an_edge_headed_interface_crossing_inserts_saves_and_loads() {
         .expect("and it LOADS: the crossing record did not follow the head's type");
 }
 
-/// **CLAIM 3.** `RefusedRef::NotAFace` is said to now guard
-/// `NameTable::insert`'s rule that a row's kind is its name's. That
-/// rule is enforced by the one public door, so the state the arm
-/// answers cannot be built from outside the crate: the arm is
-/// unreachable, and what it documents is a crate bug, not a refusal.
+/// **A row's kind is its name's, at both seating doors.** The assembly
+/// gate resolves a head — a face by its type — against a name table,
+/// and reads the answer's key as a face. It may, because
+/// `NameTable::insert` and `NameTable::insert_tied` are the only doors
+/// that seat a row and each refuses a key whose kind disagrees with
+/// the name's. So the state a kind arm in that gate's vocabulary would
+/// have answered is unseatable, which is why the gate asserts it
+/// instead of naming it.
 #[test]
-fn probe_the_name_table_refuses_the_only_row_not_a_face_could_guard() {
+fn probe_the_name_table_refuses_a_key_that_disagrees_with_its_name() {
     let mut table = NameTable::default();
     let refused = table.insert(
         face_name(RecipeNodeId(0), CapEnd::End),
@@ -78,16 +97,36 @@ fn probe_the_name_table_refuses_the_only_row_not_a_face_could_guard() {
     );
     assert!(
         refused.is_err(),
-        "the ONE public door that could seat the row `NotAFace` answers \
-         admitted it, so the arm would be reachable"
+        "`insert` seated a BODY key under a face name, so a kind arm at the gate \
+         would be reachable"
+    );
+
+    let refused = table.insert_tied(
+        face_name(RecipeNodeId(1), CapEnd::End),
+        vec![
+            EntityRef {
+                body: 0,
+                key: EntityKey::Body,
+            },
+            EntityRef {
+                body: 1,
+                key: EntityKey::Body,
+            },
+        ],
+    );
+    assert!(
+        refused.is_err(),
+        "`insert_tied` seated BODY keys under a face name, so a tie at the gate could \
+         hold a non-face"
     );
 }
 
-/// **CLAIM 1 (the rebind door).** `rebind_payload_names` carries a
-/// `debug_assert!(false)` for a `to` that is not a face, justified by
-/// "its door refuses that pair". It does: `DocEdit::Rebind` answers
-/// `RebindKindMismatch` before any payload is touched, so the assert
-/// is unreachable through the one caller.
+/// **A rebind never crosses entity kinds.** `DocEdit::Rebind` answers
+/// `RebindKindMismatch` before any payload is touched, so the mate arm
+/// of `Node::rebind_payload_names` — which must produce a `FaceName`
+/// for `to` — meets a face whenever it can replace a head at all. That
+/// is what its `debug_assert` stands on, and this is the door it
+/// stands on.
 #[test]
 fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
     use editor_core::EditError;

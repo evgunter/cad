@@ -47,15 +47,9 @@ lists only the union and spells that face as an instance row, and
 the gate names the operand. (`placed_union` is what puts the
 transform below a root there; the kernel's own row spells the same
 document with `Node::Pattern`, and both wrap the transform's rows the
-same way.) The other three are MEASURED as unreachable from Python
+same way.) The other two are MEASURED as unreachable from Python
 authoring today, which is a finding about the doors and not a gap in
 this file:
-
-* `ref_not_a_face` — a head that is not a face. A head's kind is the
-  TYPE's (`SitedFace` over a `FaceName`), and `Node.mate` calls that
-  type's one constructor, so the refusal a Python caller meets is
-  `mate_head_not_a_face` at the build call (asserted below) and no
-  document reaching the gate carries a non-face head.
 
 * `ref_vanished` — no product entity answers to the name, and the
   operand the mate reads at does not spell it either. Reaching it
@@ -66,6 +60,12 @@ this file:
   produces is tied, and Python cannot hand-build a name.
 
 Each is bound and tagged; a reach appears when some other door does.
+
+There is no arm for a head that is NOT A FACE, and that is the type's
+doing: a head is a `SitedFace` over a `FaceName`, `Node.mate` calls
+that type's one constructor, and the refusal a Python caller meets is
+`mate_head_not_a_face` at the build call (asserted below) — before a
+document exists, not at the gate.
 
 THE SPELLING OF THE PLACED FAMILY, MEASURED RATHER THAN CLAIMED
 ---------------------------------------------------------------

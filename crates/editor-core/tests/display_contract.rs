@@ -1195,9 +1195,17 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
 /// An entity kind carries the article that agrees with it, because the
 /// value decides which one is correct: three of the four kinds take
 /// "a" and `Edge` takes "an", so a sentence that hard-codes one is
-/// wrong for every edge-kind refusal it can reach — and each of these
-/// IS reachable with an edge (a mate reference may name any kind,
-/// which is what `NotAFace` reports).
+/// wrong for every edge-kind refusal it can reach.
+///
+/// Two sentences read it, and they differ in how an edge reaches them.
+/// [`editor_core::NotAFaceName`] — what the mate head's one
+/// constructor answers — is RAISED with an edge wherever a boundary
+/// turns data into a head, so its article is live.
+/// `MintRefusal::Reference` renders the NAME's own kind: the gate
+/// raises it only over a face name, because a head is a `SitedFace`,
+/// but the row is public data with public fields and its article is
+/// therefore read off the value a consumer hands it rather than fixed
+/// at the raise.
 #[test]
 fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     let edge_name = StableName {
@@ -1206,17 +1214,33 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
 
+    let shown = editor_core::FaceName::new(edge_name.clone())
+        .expect_err("an edge is not a face name")
+        .to_string();
+    assert!(
+        shown.contains("an edge"),
+        "an edge-kind head refusal reads as \"a edge\": {shown:?}"
+    );
+    let shown = editor_core::FaceName::new(StableName {
+        kind: EntityKind::Vertex,
+        ..edge_name.clone()
+    })
+    .expect_err("a vertex is not a face name")
+    .to_string();
+    assert!(
+        shown.contains("a vertex"),
+        "the consonant kinds must keep \"a\": {shown:?}"
+    );
+
     let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
-        why: RefusedRef::NotAFace {
-            found: EntityKind::Edge,
-        },
+        why: RefusedRef::Vanished,
     });
     let shown = reference.to_string();
     assert!(
-        shown.contains(&format!("(an {edge_name})")) && shown.contains("it names an edge"),
+        shown.contains(&format!("(an {edge_name})")),
         "an edge-kind mate reference reads as \"a edge\": {shown:?}"
     );
 
@@ -1224,13 +1248,11 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::NotAFace {
-            found: EntityKind::Vertex,
-        },
+        why: RefusedRef::Vanished,
     });
     let shown = face.to_string();
     assert!(
-        shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
+        shown.contains(&format!("(a {})", face_name())),
         "the consonant kinds must keep \"a\": {shown:?}"
     );
 }

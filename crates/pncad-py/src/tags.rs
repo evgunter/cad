@@ -2066,7 +2066,6 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
         RefusedRef::Vanished => "ref_vanished",
         RefusedRef::ReadBelowARoot { .. } => "ref_read_below_a_root",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
-        RefusedRef::NotAFace { .. } => "ref_not_a_face",
     }
 }
 
