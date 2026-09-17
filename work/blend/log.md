@@ -1181,3 +1181,13 @@ three band tori bit for bit, so only the single-request spelling is
 unavailable.
 
 Signed (WIRE orchestrator).
+**MERGED — unit 14 (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509):
+the blend's contact edges carry the tangency rule; the item closed.
+Dual: bilateral headline at MAJOR (the new recourse's 'enlarge' clause
+false at sites the predicate fires), no tally candidate; the fix pass
+conditioned the recourse by site, pinned the reached `Chart` arm and
+routed it through the home, corrected the surgery header and the
+screening claims, and filed the residues. Delta by R1 on the fixed
+head: every item CONFIRMED by execution (the resumed arm, after the 429 outage cut its first attempt) — the corrected sentence read at the annulus rim and the slim wedge and true at both, its lever followed at the wedge (0.1× builds with four chart contact edges; 0.5× still in band; 2× builds intrinsic); mutant B reds exactly the wedge row and the followability row; mutant A reds the six verdict rows, plus the three K-count rows on the probe leg, with the census/definite/screened/mill/D-bore rows green; the rendered refusal names the requested edge's key; the bit-dump re-taken at the true merge base in its own target, 14 files / 1702 lines clean; the probe-suite census exits 0 at floors 5/6; 1382 passed / 0 failed / 8 ignored at three ε rows; fmt clean. Three NOTEs, none blocking: the three-clause sentence never says which site kind the caller is at though the arm holds the carrier and support kinds; the wedge clause is under-specified in both directions (a larger radius also builds at the wedge's pose, and hits the clearance screen at BLEND-4's); `rod_with_flat`'s bit-exact delegation rests on `ROD_L = 1.0` making `2·len` coincide with the old `len + 1.0` (a doc line added in the state-sync). Both MAJORs closed; verdict MERGEABLE.
+Sample #218 (a TOPO row took #186 on main first; main's order rules). Block BLEND-B3's slot 1;
+slot 2 (unit 15) is in its lane.
