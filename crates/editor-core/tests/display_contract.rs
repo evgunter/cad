@@ -811,6 +811,8 @@ test_utils::f6_variants! {
         SlotDimension,
         SlotUnknownDocParam,
         SlotDocParamDimension,
+        PayloadUnknownDocParam,
+        PayloadDocParamDimension,
         EpsilonInvalid,
         Roots,
         PlacementSite,
@@ -907,6 +909,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 referenced: Dimension::Length,
             },
             vec!["depth", "as a length", "declared angle"],
+        ),
+        (
+            SnapshotError::PayloadUnknownDocParam {
+                node,
+                name: ParamName::new("depth"),
+            },
+            vec!["node 5", "payload expression", "depth", "does not declare"],
+        ),
+        (
+            SnapshotError::PayloadDocParamDimension {
+                node,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec![
+                // The NODE, which is this arm's whole reason for
+                // existing beside the slot one: a payload expression
+                // has no slot, so the node is the only address the
+                // refusal can carry.
+                "node 5",
+                "payload expression",
+                "depth",
+                "as a length",
+                "declared angle",
+            ],
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
