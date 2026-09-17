@@ -1049,3 +1049,74 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
         "and hovers nothing, so the picture agrees with the click"
     );
 }
+
+/// **REVIEW PROBE (lane `pickrefuse-rv`): where the face pick ties,
+/// the EDGE pick dies with it.**
+///
+/// `hovered_for` seeds on `PickIndex::seed`, which is `pick_for`, and
+/// propagates its error with `?` before `edge_near` is ever asked. So
+/// at a cursor whose ray meets two faces the arithmetic cannot order —
+/// which is what a cursor ON a shared edge is — the whole pick refuses
+/// and the edge under the cursor cannot be hovered or clicked either,
+/// however far the priority rule would have carried it.
+///
+/// This row sweeps the plate's own drawn edges for such a cursor and
+/// reports what the two doors say there. It is a probe, not a
+/// verdict: if the plate has no such cursor it says so and passes.
+#[test]
+fn review_probe_a_tied_cursor_refuses_the_edge_pick_too() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let mut tied_cursors = 0usize;
+    let mut edge_refused = 0usize;
+    let mut cursors = 0usize;
+    let mut edges_hit = std::collections::BTreeSet::new();
+    let mut edges_all = 0usize;
+    let mut example = String::new();
+    for (id, points) in drawn_edges(&index, extrude) {
+        edges_all += 1;
+        for pair in points.windows(2) {
+            let mid = Point3::new(
+                (pair[0].x + pair[1].x) * 0.5,
+                (pair[0].y + pair[1].y) * 0.5,
+                (pair[0].z + pair[1].z) * 0.5,
+            );
+            let cursor = pixel_of(&camera, mid);
+            cursors += 1;
+            let faces = index
+                .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+                .expect("the cursor un-projects");
+            if faces.len() < 2 {
+                continue;
+            }
+            tied_cursors += 1;
+            edges_hit.insert(format!("{id:?}"));
+            match index.edge_at_for(eval, &camera, pane(), cursor, &DisplayView::none()) {
+                Ok(pick) => {
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered {pick:?}");
+                    }
+                }
+                Err(error) => {
+                    edge_refused += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick REFUSED: {error}");
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "# REVIEW PROBE {tied_cursors} tied cursors of {cursors} on {} of {edges_all} drawn \
+         edges; the edge pick refuses at {edge_refused} of them; {example}",
+        edges_hit.len()
+    );
+    assert_eq!(
+        edge_refused, 0,
+        "a cursor the face pick ties on takes the EDGE pick down with it: {example}"
+    );
+}

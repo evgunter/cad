@@ -661,6 +661,12 @@ fn several_triangles_of_one_face_answer_that_face() {
         "the row's premise: the diagonal is a hit for both halves and neither is in \
          front ({spans:?})"
     );
+    assert_eq!(
+        spans[0].t, spans[1].t,
+        "REVIEW PROBE (lane pickrefuse-rv): this fixture's two members carry the SAME \
+         rounded t, so `min` over them pins nothing — see \
+         `one_faces_members_answer_the_SMALLEST_rounded_t` below"
+    );
 
     let door = Door::new("pick3_one_face_diagonal");
     // ONE face: both halves are offered as two targets carrying the
@@ -683,5 +689,58 @@ fn several_triangles_of_one_face_answer_that_face() {
             spans[0].t_hi.max(spans[1].t_hi)
         ),
         "and the HULL of their intervals, which encloses every crossing the tie holds"
+    );
+}
+
+/// **REVIEW PROBE (lane `pickrefuse-rv`): one face's members answer the
+/// SMALLEST rounded `t`.**
+///
+/// `several_triangles_of_one_face_answer_that_face` builds its two
+/// members at the same rounded `t` (both `3.0`), so `min` over them is
+/// either member and a door answering the LARGEST — or the hull's
+/// midpoint — passes it. This row puts two members of ONE face at
+/// `t = 1.5` and `t = 1.7` (the `the_early_outs_bound_…` pair, carried
+/// under one face instead of two): they overlap, so both survive, and
+/// the answer is the smaller parameter on the hull of both intervals.
+///
+/// Reds a door that answers the larger member, or the hull's midpoint.
+#[test]
+fn one_faces_members_answer_the_smallest_rounded_t() {
+    let (ray, wide) = near_tangent(64.0);
+    let narrow = [
+        Point3::new(0.7, 0.5, -0.2),
+        Point3::new(0.7, 0.9, -0.2),
+        Point3::new(0.7, 0.7, 0.3),
+    ];
+    let spans = [
+        span_of(&ray, &wide, "the near-tangent member"),
+        span_of(&ray, &narrow, "the transversal member"),
+    ];
+    assert!(
+        !spans[0].precedes(&spans[1]) && !spans[1].precedes(&spans[0]),
+        "the row's premise: both members survive ({spans:?})"
+    );
+    assert!(
+        spans[0].t < spans[1].t,
+        "and they answer DIFFERENT parameters: {spans:?}"
+    );
+    let door = Door::new("pick3_one_face_two_parameters");
+    // Both members under the cube's FIRST face: one face, one answer.
+    let hit = door.ask_from(&[&[wide], &[narrow]], &[0, 0], &ray);
+    assert_eq!(
+        hit.t, spans[0].t,
+        "the smallest rounded t of the face's members, not the largest"
+    );
+    assert_eq!(
+        (hit.t_lo, hit.t_hi),
+        (
+            spans[0].t_lo.min(spans[1].t_lo),
+            spans[0].t_hi.max(spans[1].t_hi)
+        ),
+        "on the hull of both members' intervals"
+    );
+    assert_ne!(
+        hit.t, spans[1].t,
+        "a door answering the LARGEST member's parameter reds here"
     );
 }
