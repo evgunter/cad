@@ -415,6 +415,18 @@ mod cvd {
             );
             out.extend(composited.map(|c| (label, scale(linear(c)))));
         }
+        // **A short list would still measure.** `extend` over an
+        // `Option` drops rather than refusing, so if the row above is
+        // ever relaxed the separation below would be taken over fewer
+        // swatches and pass for having less to compare. The length is
+        // the structural half of that guard; the row above names which
+        // mark, which a length cannot.
+        assert_eq!(
+            out.len(),
+            theme.marks().len() + 1,
+            "{}: the swatch walk lost a mark",
+            theme.name,
+        );
         out
     }
 
@@ -596,7 +608,7 @@ mod cvd {
     }
 }
 
-/// **A channel that is not a number is not a channel of zero.**
+/// **A channel that is not a number is not a channel of anything.**
 ///
 /// `f32::clamp` returns `self` when `self` is a `NaN` — a clamp cannot
 /// order the one value that has no order — and `NaN as u8` is `0`, so
@@ -605,21 +617,59 @@ mod cvd {
 /// and pure black is the far end of every distance it takes: a channel
 /// that could not be computed read as the most legible answer there is.
 ///
-/// What this row holds is the DISTINCTION, not the absence of a `NaN`.
-/// An answer for a poisoned channel that equals the answer for `0.0` is
-/// the defect whatever either answer happens to be, and a row asserting
-/// only "the result is not a NaN" would pin neither. Each channel is
-/// poisoned in turn because the encode runs once per channel.
+/// What this row holds is the DISTINCTION, and it is held against
+/// **every** answer the encode gives rather than against black alone.
+/// Comparing with the floor only leaves the refusal free to be undone
+/// into any other legitimate value — `unwrap_or(255)` in place of the
+/// `?` passes a floor-only row and is the same defect at the other end
+/// of the ramp. So each channel is checked against the floor, the cap
+/// and an ordinary value between them, **substituted into that same
+/// channel**: the poisoned answer for lane `i` has to differ from the
+/// answer for every real light level in lane `i`, not from some other
+/// lane's colour. Each lane in turn, because the encode runs per
+/// channel.
 #[test]
-fn a_channel_that_is_not_a_number_is_not_black() {
-    let black = from_linear([0.0; 3]);
+fn a_channel_that_is_not_a_number_is_not_a_channel() {
     for lane in 0..3 {
-        let mut poisoned = [0.0_f32; 3];
-        poisoned[lane] = f32::NAN;
-        assert_ne!(
-            from_linear(poisoned),
-            black,
-            "channel {lane} answered as if it had been zero",
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let legitimate = [at(0.0), at(1.0), at(0.25)];
+        let poisoned = at(f32::NAN);
+        assert!(
+            !legitimate.contains(&poisoned),
+            "channel {lane} that is not a number answered {poisoned:?}, \
+             which is an answer a real channel gives",
         );
+    }
+}
+
+/// The three legitimate answers per channel are three different
+/// answers, which is what makes the row above a test of anything: an
+/// encode that answered one colour for every level would satisfy a
+/// difference check against a set whose members had collapsed.
+///
+/// All three pairs, not two of them — a set of three has three pairs,
+/// and checking the two adjacent ones leaves `floor == cap` unread.
+#[test]
+fn the_legitimate_channel_answers_are_distinct() {
+    for lane in 0..3 {
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let (floor, cap, ordinary) = (at(0.0), at(1.0), at(0.25));
+        assert_ne!(
+            floor, ordinary,
+            "channel {lane}: the floor and an ordinary level"
+        );
+        assert_ne!(
+            ordinary, cap,
+            "channel {lane}: an ordinary level and the cap"
+        );
+        assert_ne!(floor, cap, "channel {lane}: the floor and the cap");
     }
 }

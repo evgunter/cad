@@ -31,6 +31,17 @@
 //! and by [`preview`] before it, which is the same ladder run for the
 //! picture instead of for the verdict.
 //!
+//! **A fourth question is judged here and belongs to neither list:
+//! whether a replayed loop can be DRAWN.** It is not the profile
+//! layer's, because a loop can be a perfectly good profile and still
+//! have an arc whose radius or centre is not a number — a finite
+//! bulge near the bottom of the exponent range, or two vertices whose
+//! midpoint overflows. And it is not a literal's, because every
+//! literal involved passed [`DimensionError`] already. It is the
+//! flattener's, it is answered by
+//! [`PreviewError::Unflattenable`], and it exists because this module
+//! is the one place that turns a loop into coordinates.
+//!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
@@ -1204,5 +1215,8 @@ mod tests {
         let ordinary = arc_points(1.0, 1.0, 0.1);
         assert_ne!(floor, ordinary, "the floor and an ordinary count");
         assert_ne!(ordinary, cap, "an ordinary count and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
     }
 }

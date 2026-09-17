@@ -2316,6 +2316,9 @@ mod tests {
         let ordinary = features_fraction(100.0, 500.0);
         assert_ne!(floor, ordinary, "the floor and an ordinary share");
         assert_ne!(ordinary, cap, "an ordinary share and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
         assert_eq!(cap, Some(FEATURES_SHARE_CAP), "the cap is the cap");
     }
 
