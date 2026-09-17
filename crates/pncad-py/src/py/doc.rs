@@ -2618,6 +2618,13 @@ impl Node {
     /// and `b` name (issue #944), so a mate can solve cleanly and
     /// still be refuted at the gate.
     ///
+    /// **A head must name a FACE, and that is refused here.** A mate
+    /// declares a face-pair contact; the kernel says so in the type of
+    /// a head, and this door calls that type's constructor, so
+    /// `a`/`b` naming an edge raises `EditError` with
+    /// `variant == "mate_head_not_a_face"` at this call rather than
+    /// reaching a document.
+    ///
     /// A dangling reference is not refused here: the solve refuses
     /// typed naming its head (`MateFault`, `mate_dangling_head`),
     /// which is the ratified dangling-reference semantics — or, where

@@ -2290,6 +2290,13 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
+        A head must name a FACE, and that IS refused here: a mate
+        declares a face-pair contact, the kernel says so in the type of
+        a head, and this door calls that type's constructor — so `a` or
+        `b` naming an edge raises `EditError` with `variant ==
+        "mate_head_not_a_face"` at this call rather than reaching a
+        document.
+
         A dangling reference is not refused here: the solve refuses
         typed naming its head (`mate_dangling_head`) — or, where the
         head resolves and a pattern or transform placing it could not
