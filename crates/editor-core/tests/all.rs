@@ -392,6 +392,8 @@ mod perf12_census_bvh_diff;
 mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
+#[path = "pick3_early_out.rs"]
+mod pick3_early_out;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
@@ -437,6 +439,10 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "review_pick3_r1_probes.rs"]
+mod review_pick3_r1_probes;
+#[path = "review_pick3_r2_probes.rs"]
+mod review_pick3_r2_probes;
 #[path = "review_pick_r2_probes.rs"]
 mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]

@@ -441,3 +441,26 @@ and the `StableName` carrier enumeration
 (`document-stablename-carriers-have-no-enumeration`); the first two
 dispatch now, the third as the fix-pass slot frees.
 
+## 2026-09-17 — EDIT-PICK3 merged (kernel unit, v6 dual, PR #2786); block EDIT-B1 concluded
+
+The pick door answers a certified interval and orders by it, as Ev
+ruled on `[ev]` #2764. Two of the spec's sentences fell before the
+build (the ring fixture cannot turn green — the wide candidate's
+interval precedes the vertex; the pairwise order has 3-cycles and was
+built as a rule over the set no other candidate precedes) and one fell
+to the dual: both blinded reviewers, independently and each with a red
+probe on the real door, found the traversal's early-out pruning a
+narrower member of the certified tie, so the answer depended on target
+order — the determinism contract the whole series exists to hold. The
+orchestrator ruled to repair the mechanism rather than the sentence:
+the fix pass derived the margin from the box and triangle alone (no
+chosen factor), `Pruned == Every` is a theorem, the break became a
+per-candidate skip, and the order got one callable home. Premise 5's
+inequality and premise 4's word ("nearest" for a retraction) were
+amended with the decision unchanged; **Ev is told on the next `[ev]`
+PR.** Sample #215 recorded (ordinals 4802/4803; 1 bilateral MAJOR, 0
+unilateral, tally +0); block EDIT-B1 concluded (fable, opus, opus) and
+its record folded to main. The ruling row and the two rows parked on
+it closed; three rows filed (two EDIT, one VIEW); the MEET measurement
+retired to a dated record (closed ∧ INFORM stays: MEET loses 513 aims).
+

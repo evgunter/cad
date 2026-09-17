@@ -203,10 +203,10 @@ fn sweep(name: &str, step: &str, index: &PickIndex, c: &mut Contingency) {
                     for flat in &parts {
                         for cand in flat.tree.ray(&ray) {
                             let tri = &flat.corners[cand.item];
-                            if let Some(t) = ray_triangle(&ray, tri)
-                                && best_landed.is_none_or(|b| t < b)
+                            if let Some(span) = ray_triangle(&ray, tri)
+                                && best_landed.is_none_or(|b| span.t < b)
                             {
-                                best_landed = Some(t);
+                                best_landed = Some(span.t);
                             }
                             if let Some(t) = main_ray_triangle(&ray, tri)
                                 && best_main.is_none_or(|b| t < b)
@@ -386,10 +386,10 @@ fn tie_sweep(name: &str, step: &str, index: &PickIndex, a: &mut TieAim) {
         for flat in &parts {
             for cand in flat.tree.ray(&ray) {
                 let tri = &flat.corners[cand.item];
-                if let Some(t) = ray_triangle(&ray, tri)
-                    && best_landed.is_none_or(|b| t < b)
+                if let Some(span) = ray_triangle(&ray, tri)
+                    && best_landed.is_none_or(|b| span.t < b)
                 {
-                    best_landed = Some(t);
+                    best_landed = Some(span.t);
                 }
                 if let Some(t) = main_ray_triangle(&ray, tri)
                     && best_main.is_none_or(|b| t < b)

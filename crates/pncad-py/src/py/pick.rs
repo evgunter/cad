@@ -301,6 +301,8 @@ pub(crate) struct PickHit {
     node: NodeId,
     body: u32,
     t: f64,
+    t_lo: f64,
+    t_hi: f64,
     point: pncad::geom_core::Point3<f64>,
 }
 
@@ -330,6 +332,35 @@ impl PickHit {
     #[getter]
     fn t(&self) -> f64 {
         self.t
+    }
+
+    /// The lower end of the parameter's certified interval, in the
+    /// same units as `t`, and `t_lo <= t <= t_hi` always.
+    ///
+    /// The kernel orders two candidates only when one interval lies
+    /// wholly below the other. Where the intervals OVERLAP the
+    /// geometry has not said which surface is in front, and the
+    /// NARROWER interval wins before position is looked at: `t_lo` and
+    /// `t_hi` are how wide a claim this hit is, not a second answer,
+    /// and they are what decided it against its neighbours.
+    ///
+    /// The enclosure is conditional — it contains the true crossing's
+    /// parameter when that crossing is a point of the closed triangle
+    /// — and the interval is always centred on the point the kernel
+    /// answers, which is always on the triangle. The parameter is the
+    /// caller's own ray's: a hit carried across a transform converts
+    /// all three or none, which is the viewer's own row
+    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// where a display frame moves an instance.
+    #[getter]
+    fn t_lo(&self) -> f64 {
+        self.t_lo
+    }
+
+    /// The upper end of that interval ([`PickHit::t_lo`]).
+    #[getter]
+    fn t_hi(&self) -> f64 {
+        self.t_hi
     }
 
     /// The hit point, `origin + t * direction` — dimensioned, and the
@@ -573,6 +604,8 @@ pub(crate) fn pick_face(
             node: NodeId(hit.node),
             body: hit.body,
             t: hit.t,
+            t_lo: hit.t_lo,
+            t_hi: hit.t_hi,
             point: hit.point,
         })),
         Err(err) => Err(hit_test_err(py, &err)),
