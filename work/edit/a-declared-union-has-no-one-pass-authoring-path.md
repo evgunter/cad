@@ -207,10 +207,18 @@ and needed no change; `FlushFinding`'s pair became sited, because
 `declare_node(&findings)` holds no consumer context and could not have
 sited a same-operand carried finding at all.
 
-**CI**: run `35197936603` green on head `5ff5db8093011f46f53ba160bc9de36c27c33ee6`
-(38 jobs, 0 failed; twelve `test (…)`, five `k-lint (gate, …)`, the python
-suite). An earlier run was red in six jobs from ONE cause, recorded on the
-PR: main had moved `asm_r2a_mate_solve.rs`'s import block, and the
-auto-merge of this branch with main dropped the `SitedRef` the branch had
-added to it — green on the branch tip, red on the PR's merge ref. Main is
-merged in and the import restored.
+**CI**: run `35200292463` green on the code head
+`a18cf07657c8d106bb7c4a0a6e0b7cf642f8d9a7` (39 jobs: 33 success, 6
+skipped, 0 failed; twelve `test (…)`, five `k-lint (gate, …)`, the python
+suite, and no step in any job with a non-success conclusion). Run
+`35197936603` was green on the head before it merged main. The commit
+that writes this paragraph is doc-only on top of that code head and is
+green on its own run, recorded on the PR.
+
+An earlier run was red in six jobs from ONE cause, recorded on the PR:
+main had moved `asm_r2a_mate_solve.rs`'s import block, and the auto-merge
+of this branch with main dropped the `SitedRef` the branch had added to
+it — green on the branch tip, red on the PR's merge ref. **A PR run
+builds `refs/pull/N/merge`, not the branch tip**, so a branch that is
+green locally can be red in CI for a conflict git resolved silently.
+Main is merged in and the import restored.
