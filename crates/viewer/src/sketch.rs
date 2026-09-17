@@ -1075,3 +1075,54 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     let length = dx.hypot(dy);
     (length > 0.0).then(|| [dx / length, dy / length])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::arc_points;
+
+    /// **A count the arithmetic could not compute is not a count.**
+    ///
+    /// `f64::clamp` returns `self` for a `NaN` and `NaN as usize` is
+    /// `0`, so a subdivision that could not be computed used to arrive
+    /// as the one-segment floor — indistinguishable from the arc that
+    /// genuinely needs one segment. An infinite radius arrived as the
+    /// cap, indistinguishable from the arc that genuinely needs 256.
+    ///
+    /// What this row holds is that DISTINCTION, not the absence of a
+    /// `NaN`: the poisoned answer is compared against one of each
+    /// legitimate answer the door gives — the floor, the cap, and an
+    /// ordinary count between them — because an assertion that only
+    /// said "not a number came back" would pin neither.
+    #[test]
+    fn an_arc_that_cannot_be_measured_gets_no_count() {
+        let floor = arc_points(1.0, 1.0, 2.0);
+        let cap = arc_points(1.0, core::f64::consts::TAU, 1.0e-6);
+        let ordinary = arc_points(1.0, 1.0, 0.1);
+        let legitimate = [floor, cap, ordinary];
+        for (what, radius, theta, chord) in [
+            ("a radius", f64::NAN, 1.0, 0.1),
+            ("a swept angle", 1.0, f64::NAN, 0.1),
+            ("a chord tolerance", 1.0, 1.0, f64::NAN),
+            ("an unbounded radius", f64::INFINITY, 1.0, 0.1),
+        ] {
+            let answer = arc_points(radius, theta, chord);
+            assert!(
+                !legitimate.contains(&answer),
+                "{what} that is not a number answered {answer:?}",
+            );
+        }
+    }
+
+    /// The three legitimate answers this door gives are three
+    /// different answers, which is what makes the row above a test of
+    /// anything: comparing against a set whose members had collapsed
+    /// would pass over a door that answers one value for everything.
+    #[test]
+    fn the_legitimate_answers_are_distinct() {
+        let floor = arc_points(1.0, 1.0, 2.0);
+        let cap = arc_points(1.0, core::f64::consts::TAU, 1.0e-6);
+        let ordinary = arc_points(1.0, 1.0, 0.1);
+        assert_ne!(floor, ordinary, "the floor and an ordinary count");
+        assert_ne!(ordinary, cap, "an ordinary count and the cap");
+    }
+}

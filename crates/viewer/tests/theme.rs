@@ -582,3 +582,31 @@ mod cvd {
         }
     }
 }
+
+/// **A channel that is not a number is not a channel of zero.**
+///
+/// `f32::clamp` returns `self` when `self` is a `NaN` — a clamp cannot
+/// order the one value that has no order — and `NaN as u8` is `0`, so
+/// a poisoned channel used to arrive as a legitimate pure black. The
+/// composited colour is what [`cvd`] measures a palette's safety from,
+/// and pure black is the far end of every distance it takes: a channel
+/// that could not be computed read as the most legible answer there is.
+///
+/// What this row holds is the DISTINCTION, not the absence of a `NaN`.
+/// An answer for a poisoned channel that equals the answer for `0.0` is
+/// the defect whatever either answer happens to be, and a row asserting
+/// only "the result is not a NaN" would pin neither. Each channel is
+/// poisoned in turn because the encode runs once per channel.
+#[test]
+fn a_channel_that_is_not_a_number_is_not_black() {
+    let black = from_linear([0.0; 3]);
+    for lane in 0..3 {
+        let mut poisoned = [0.0_f32; 3];
+        poisoned[lane] = f32::NAN;
+        assert_ne!(
+            from_linear(poisoned),
+            black,
+            "channel {lane} answered as if it had been zero",
+        );
+    }
+}
