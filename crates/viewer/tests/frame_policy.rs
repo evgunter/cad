@@ -1028,7 +1028,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     assert_eq!(
         frame::datums_badge(0),
         None,
-        "a view that drew every datum it was given has nothing to report —          and so does a document with no datums, which is the same zero"
+        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
 }
 

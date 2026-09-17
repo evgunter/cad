@@ -1095,23 +1095,52 @@ fn datum_view_refuses_a_window_the_way_the_cameras_own_door_does() {
             width_px,
             height_px,
         };
-        let refused = datum_view(&camera, viewport)
-            .expect_err("a window {width_px} x {height_px} px is not a window");
-        let sibling = camera
-            .ray_through([0.0, 0.0], viewport)
-            .expect_err("and the camera's own door refuses it too");
+        let Err(refused) = datum_view(&camera, viewport) else {
+            panic!("a {width_px} x {height_px} px window came back as a view");
+        };
+        let Err(sibling) = camera.ray_through([0.0, 0.0], viewport) else {
+            panic!("a {width_px} x {height_px} px window is one the camera's own door takes");
+        };
         assert_eq!(
             format!("{refused:?}"),
             format!("{sibling:?}"),
-            "a {width_px} x {height_px} px window: this door says {refused},              the camera's says {sibling}",
+            "a {width_px} x {height_px} px window: this door says {refused}, the camera's says {sibling}",
         );
         // And the words reach a reader, which is the whole of what a
-        // named refusal buys over a `None`.
-        assert!(
-            format!("{refused}").contains("viewport")
-                || matches!(refused, CameraError::UnusableBounds),
-            "the refusal reads {refused}, which does not name the viewport",
-        );
+        // named refusal buys over a `None`. Asserted per ARM: both of
+        // `CameraError`'s sentences happen to contain the word
+        // "viewport", so one predicate over both checks neither.
+        let words = refused.to_string();
+        match refused {
+            CameraError::NotFinite { what, value } => {
+                // The side named is the side that was wrong, which is
+                // the claim a single shared `what` would break.
+                let offending = if width_px.is_finite() {
+                    "viewport height"
+                } else {
+                    "viewport width"
+                };
+                assert_eq!(
+                    what, offending,
+                    "a {width_px} x {height_px} px window was refused as {words}",
+                );
+                assert!(
+                    words.contains(what) && words.contains(&value.to_string()),
+                    "the refusal reads {words}, which does not carry both {what} and {value}",
+                );
+            }
+            other => {
+                assert_eq!(
+                    other,
+                    CameraError::UnusableBounds,
+                    "a {width_px} x {height_px} px window was refused as {words}",
+                );
+                assert!(
+                    words.contains("viewport aspect"),
+                    "the zero-area refusal reads {words}, which never reaches the viewport",
+                );
+            }
+        }
     }
 }
 
@@ -1148,7 +1177,7 @@ fn the_panes_aspect_guard_admits_an_extent_this_door_refuses() {
         };
         assert!(
             viewport.aspect().is_some(),
-            "a {width_px} x {height_px} px pane has no aspect, so the pane's              guard covers this door after all",
+            "a {width_px} x {height_px} px pane has no aspect, so the pane's guard covers this door after all",
         );
         assert!(
             datum_view(&refusing_camera(), viewport).is_err(),
@@ -1224,10 +1253,14 @@ fn a_hand_built_view_that_is_not_pixels_still_draws_no_invented_mark() {
 /// that the segment list is empty would pass on all three and pin
 /// neither fact.
 ///
-/// - Four datums out at `f64::MAX`, whose ruling loses its extent to
-///   their own magnitude: **four vanished**.
+/// - Four datums out at `f64::MAX`: **four vanished**. Emptied by
+///   THREE refusals at once rather than by one, which is measured
+///   rather than argued — `a_plane_can_lose_its_extent_while_every_
+///   point_of_it_still_has_a_scale` beside this one splits them.
 /// - The same four at the origin with the eye exactly on them,
-///   reachable by flying the camera into a plane: **four vanished**.
+///   reachable by flying the camera into a plane: **four vanished**,
+///   and this one IS a pure want of scale — every point of every
+///   datum is at a depth of exactly zero.
 /// - A document holding no datums at all: **none vanished**, because
 ///   there was nothing to draw and that is a different sentence.
 #[test]
@@ -1239,7 +1272,7 @@ fn how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed() {
     assert_eq!(
         far.vanished(),
         4,
-        "a ruling whose extent is lost to the datum's magnitude drew {:?}",
+        "a datum at the end of the number line drew {:?}",
         far.drawn
             .iter()
             .map(|d| d.segments.len())
@@ -1261,7 +1294,7 @@ fn how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed() {
     assert_eq!(
         ordinary.vanished(),
         0,
-        "the same four datums vanished from an ordinary view, so nothing          above is a fact about this view",
+        "the same four datums vanished from an ordinary view, so nothing above is a fact about this view",
     );
 
     // And the other side of the distinction the count exists to
@@ -1274,6 +1307,101 @@ fn how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed() {
         0,
         "a document with no datums reported datums it drew nothing of",
     );
+}
+
+/// **A plane can lose its EXTENT while every point of it still has a
+/// SCALE** — which is why the count is named for what was drawn and
+/// not for what was scaled.
+///
+/// The two predicates are different sets and this row is the witness.
+/// Measured on a plane `z = 0` whose origin sits at `x = 1e100`, with
+/// an ordinary camera a decimetre from an ordinary looked-at point —
+/// so nothing about the VIEW is extreme and the whole of the extremity
+/// is the datum's own coordinate:
+///
+/// - the patch centre is the looked-at point, `0.18 m` from the eye,
+///   so the ruling is scaled and `rule_patch` runs;
+/// - the datum's ORIGIN is `1e100` from the eye, which is still a
+///   depth, so the normal tick is scaled and drawn;
+/// - and one ruled direction still comes out no ruling, because its
+///   two endpoints are `cv ± half` with `half ≈ 0.26 m` against a
+///   spacing of representable numbers around `1e100` of about
+///   `2e84` — so both ends round onto `cv`.
+///
+/// **The same plane at `f64::MAX` is empty for three reasons at
+/// once**, which is what makes it the wrong witness for any one of
+/// them: the tick's depth overflows to `inf` and it refuses for want
+/// of a scale, one ruled direction's `cv / pitch` overflows and it
+/// refuses on the finiteness guard, and the other loses its extent as
+/// here. At `1e100` only the third is live.
+///
+/// **What makes this falsifiable**: if `rule_patch` emitted the
+/// zero-length segments instead of refusing them, the drawing here
+/// would carry pairs of no length and the plane at `f64::MAX` would
+/// stop being empty at all.
+#[test]
+fn a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale() {
+    let view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
+    let ruled_and_ticked = |magnitude: f64| {
+        let (doc, tol) = evaluated(vec![plane([magnitude, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+        let drawn = drawn_draws(&doc, tol, view);
+        assert_eq!(drawn.drawn.len(), 1, "one plane");
+        let segments = drawn.drawn[0].segments.clone();
+        // The plane is `z = 0`, so a ruled line is the pair that stays
+        // on it and the normal tick is the pair that leaves it.
+        let ruled = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .count();
+        (
+            ruled,
+            segments.len() / 2 - ruled,
+            drawn.vanished(),
+            segments,
+        )
+    };
+
+    // The control: a magnitude at which nothing is lost.
+    let (near_ruled, near_ticks, near_vanished, _) = ruled_and_ticked(1.0e15);
+    assert!(near_ruled > 1, "the control ruled {near_ruled} lines");
+    assert_eq!(near_ticks, 1, "and drew its normal tick");
+    assert_eq!(near_vanished, 0, "and has not vanished");
+
+    let (ruled, ticks, vanished, segments) = ruled_and_ticked(1.0e100);
+    assert_eq!(
+        ticks, 1,
+        "the tick went, so the ORIGIN has no scale and this row is about the wrong thing",
+    );
+    assert!(
+        ruled < near_ruled,
+        "this plane ruled {ruled} lines against the control's {near_ruled}: no extent was lost",
+    );
+    // The half this row exists for: what survived is a drawing, so the
+    // refusal was a refusal and not a collapse emitted as geometry.
+    let dead = segment_lengths(&segments)
+        .iter()
+        .filter(|n| n.is_nan() || **n <= 0.0)
+        .count();
+    assert_eq!(
+        dead,
+        0,
+        "the plane drew {dead} of {} segments with no length, the first pair at {:?}",
+        segments.len() / 2,
+        segments.first(),
+    );
+    assert_eq!(
+        vanished, 0,
+        "a plane that drew its tick and a line has not vanished",
+    );
+
+    // And the far end, where the same plane is empty for three
+    // reasons and this one is only the third.
+    let (far_ruled, far_ticks, far_vanished, far_segments) = ruled_and_ticked(f64::MAX);
+    assert!(
+        far_segments.is_empty() && far_ruled == 0 && far_ticks == 0,
+        "the plane at f64::MAX drew {far_segments:?}",
+    );
+    assert_eq!(far_vanished, 1, "and so it vanished");
 }
 
 /// Every drawing this document makes under `view`, with the count of

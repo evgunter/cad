@@ -448,18 +448,32 @@ impl DatumDraws {
     /// the thing it counts.
     ///
     /// **The property is "drew nothing", not "has no scale"**, and
-    /// the two are not the same set. A drawing is empty when every
-    /// mark of that datum refused — [`View::screen_metres_at`] or
-    /// [`grid_pitch`] declining the point it is scaled at — and ALSO
-    /// when a mark was scaled and its geometry came out no geometry,
-    /// which is the ruling whose extent is lost to the datum's own
-    /// magnitude ([`rule_patch`]). Both are a datum that is in the
-    /// document and is not on the screen, which is what a reader is
-    /// owed; neither is separable from the picture.
+    /// the two are not the same set, because THREE different refusals
+    /// empty a drawing and only the first is about a scale:
     ///
-    /// **What it is NOT.** A datum whose ruling refused while its
-    /// normal tick drew is not counted: something of it is on screen,
-    /// and a count of partial drawings would be a different fact.
+    /// - a mark's own point lends it no length, so
+    ///   [`View::screen_metres_at`] or [`grid_pitch`] declines it;
+    /// - a ruling's index bounds overflow, so `rule_patch`'s
+    ///   finiteness guard declines a direction whose `coordinate /
+    ///   pitch` is no longer a number;
+    /// - a ruling keeps its scale and loses its EXTENT, so
+    ///   `rule_patch` declines a direction whose two endpoints round
+    ///   onto the same point.
+    ///
+    /// The three are independent and they fire in different bands of
+    /// the datum's own magnitude. A plane out at the end of the
+    /// number line is emptied by all three at once — and its patch
+    /// centre still HAS a scale there, because the centre is what the
+    /// camera is aimed at. So a count named for the scale would be a
+    /// count of the first mechanism wearing the name of the set. What
+    /// every member has in common is only this: the datum is in the
+    /// document and none of it is on the screen, which is the fact a
+    /// reader is owed and the one this counts.
+    ///
+    /// **What it is NOT.** A datum that drew SOME of itself is not
+    /// counted — a plane whose ruling lost a direction while its
+    /// normal tick drew is on the screen, and a count of partial
+    /// drawings would be a different fact.
     pub fn vanished(&self) -> usize {
         self.drawn
             .iter()

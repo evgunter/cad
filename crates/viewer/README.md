@@ -799,8 +799,9 @@ refusal (scene, pick index, projection) — each a function of the typed
 value it reads, so each one's SILENCE is a row a test can write. The
 datums count is the one member that HOLDS nothing: its writer re-takes
 it every frame and the application zeroes it whether or not the
-viewport drew, so it says what the last frame found and cannot outlive
-the view it describes. **The population is every
+viewport drew, so it says what the last frame found. The toolbar draws
+before the panes, so it trails the view it describes by one frame and
+no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
 `frame` function returning `Option<Badge>`** — nine — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because

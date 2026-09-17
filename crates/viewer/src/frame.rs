@@ -179,8 +179,7 @@
 //! index ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
 //! which `frame_policy.rs` counts against the README rather than
-//! against this sentence; this sentence had named seven of the eight
-//! it was written over.
+//! against this sentence.
 //!
 //! # Two rules that follow, one per channel
 //!
@@ -1798,20 +1797,31 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 /// [`Subject::Camera`], and a badge rather than a sentence, for
 /// [`projection_badge`]'s reasons in both halves. The subject: what
 /// makes the count the wrong answer is the camera moving, which is
-/// also what a reader does about it — the two reachable causes are an
-/// eye exactly on a datum and a view whose span is lost against the
-/// datum's own magnitude, and both are read from where the eye is.
-/// The channel: it is true on every frame until the view changes, so
-/// it is a read of held state and not news.
+/// also what a reader does about it. No population of causes is named
+/// here, because naming one is a claim and there is no sweep rule
+/// that produces it: what empties a drawing is `crate::datums`'
+/// business and it has at least three ways
+/// (`datums::DatumDraws::vanished` enumerates them), each in its own
+/// band of the datum's magnitude and the view's. The channel: the
+/// count is true on every frame until the view or the document
+/// changes, so it is a read of held state and not news.
 ///
 /// **What it does not do is HOLD.** The three display seams above
 /// keep a refusal until the seam succeeds; this is a per-frame count
 /// its writer re-takes, zeroed by the frame entry point
 /// (`<crate::app::ViewerApp as eframe::App>::ui`) before the panes
-/// draw whether or not the viewport is one of them.
-/// So it needs no sweeper and cannot outlive the view it describes,
-/// which is the defect `work/view/projection-fault-has-no-sweeper.md`
-/// records against the field beside it.
+/// draw whether or not the viewport is one of them. So it needs no
+/// sweeper, which is the defect
+/// `work/view/projection-fault-has-no-sweeper.md` records against the
+/// field beside it.
+///
+/// **It outlives the view it describes by exactly one frame**, and no
+/// further. The toolbar draws BEFORE the panes, so on the frame the
+/// viewport stops drawing this badge paints the count the previous
+/// frame made, and the zero written after that frame's panes takes it
+/// on the next. That is the same one-frame lag `crate::app`'s field
+/// docs argue is benign, and it is a bounded lag rather than the
+/// unbounded staleness a latch with no sweeper has.
 ///
 /// [`Tone::Actionable`]: a reader can move the camera and get the
 /// datums back, which is exactly the difference from an
@@ -1820,7 +1830,7 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
     (vanished > 0).then(|| {
         // The noun agrees with the count: "1 datums" is the tell that
         // a sentence was assembled rather than written, and this one
-        // is read at a glance beside seven others.
+        // is read at a glance beside eight others.
         let noun = if vanished == 1 { "datum" } else { "datums" };
         Badge::read(
             Subject::Camera,

@@ -102,13 +102,48 @@ at all. The type change is what carries the fact: the count travels
 with the drawings and no caller can push the segments without having
 been handed it.
 
-**The property is "drew nothing", not "has no scale"**, and the row's
-own two live cases are why. An empty drawing is a datum whose every
-mark refused (the eye exactly on it) AND a datum whose marks were
-scaled and whose geometry came out no geometry (a ruling whose extent
-is lost to the datum's own magnitude). Both are a datum that is in the
-document and is not on the screen. A count named for the scale would
-have been a proxy for one of the two.
+**The property is "drew nothing", not "has no scale"**, and the
+reason is THREE independent refusals rather than the two this row
+supposed. Instrumented on a plane `z = 0` whose origin sits at
+`x = M`, with the camera at `(0, -0.15, 0.1)` looking at the world
+origin — an ordinary view, so the whole extremity is the datum's own
+coordinate:
+
+| `M` | scale at the patch centre | scale at the datum origin | ruled direction u | ruled direction v | vanished |
+|---|---|---|---|---|---|
+| `1e15` | `1.87e-4` | `1.04e12` | 25 lines | 27 lines | 0 |
+| `1e20` | `1.87e-4` | `1.04e17` | 1 line | extent lost | 0 |
+| `1e100` | `1.87e-4` | `1.04e97` | 1 line | extent lost | 0 |
+| `1e200` | `1.87e-4` | none | 1 line | extent lost | 0 |
+| `1e300` | `1.87e-4` | none | 1 line | extent lost | 0 |
+| `f64::MAX` | `1.87e-4` | none | bounds overflowed | extent lost | 1 |
+
+So: the patch centre has a scale at EVERY magnitude, because the
+centre is the looked-at point and the eye is a decimetre from it. The
+three mechanisms are a mark's point lending it no length, a ruling's
+`coordinate / pitch` overflowing past `rule_patch`'s finiteness guard,
+and a ruling keeping its scale and losing its EXTENT — and they switch
+on in different bands. A count named for the scale would have been the
+first mechanism wearing the name of the set.
+
+**The `f64::MAX` fixture is emptied by all three at once**, which is
+what makes it the wrong witness for any one of them, and the first
+draft of this section named it as the lost-extent case.
+`a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale`
+is the row that splits them: at `1e100` the origin still scales, the
+tick draws, one direction still loses its extent, and the plane has
+NOT vanished — which is the two predicates coming apart in one
+drawing. The eye-on-datum fixture is the clean member of the first
+mechanism: every point of every datum is at a depth of exactly zero.
+
+**The lost-extent arm is reachable through `datum_view`** and needs no
+pathological window: the table above was taken through the same
+formula the door uses, at a 1280x800 window with a 45° field. The
+ratio `half / cv` is NOT a magnitude-independent constant — that would
+hold only if the eye were about as far from the patch centre as the
+datum's origin is, and it is not, because the centre is where the
+camera is aimed. Measured, `half` is `0.26 m` against a `cv` that runs
+to `1e308`.
 
 **The shape pinned is the DIFFERENCE**, because "the segment list is
 empty" is true of a document with no datums as well.

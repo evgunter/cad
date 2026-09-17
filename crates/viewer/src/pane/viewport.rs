@@ -540,11 +540,18 @@ impl ViewerBehavior<'_> {
             // refuses below — a viewport dimension that is not finite,
             // or a viewport with no area — so every input that gets
             // here is one the matrix would decline a hundred lines
-            // down, with `UnusableBounds`'s "the framing request names
-            // no view" where this says which side was not a number of
-            // pixels. Held in the same field for the same reason: it
-            // is true of this camera and this pane on every frame
-            // until one of them changes, which is what a badge reads.
+            // down. `aspect()` has already answered `Some` above, so
+            // the arm that actually reaches this door is a dimension
+            // that is INFINITE, and the matrix declines those by two
+            // different names: an infinite width gives an aspect of
+            // `inf` and `NotFinite { what: "aspect" }`, an infinite
+            // height an aspect of `0.0` and `UnusableBounds`. Either
+            // way the badge names an argument nobody passed; what
+            // this writes names the side of the pane that was not a
+            // number of pixels. Held in the same field for the same
+            // reason: it is true of this camera and this pane on
+            // every frame until one of them changes, which is what a
+            // badge reads.
             let view = match datum_view(self.camera, viewport) {
                 Ok(view) => view,
                 Err(error) => {
