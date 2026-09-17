@@ -464,3 +464,24 @@ its record folded to main. The ruling row and the two rows parked on
 it closed; three rows filed (two EDIT, one VIEW); the MEET measurement
 retired to a dated record (closed ∧ INFORM stays: MEET loses 513 aims).
 
+## 2026-09-17 — fifth sitting: the fourth `[ev]` PR opened; wave 7 cut
+
+`[ev]` #2795 puts two questions to Ev with a recommendation each — a
+declared union's one-pass authoring path (does DM6 admit the `declare`
+edge, the one input that names the node's own space; recommended: a
+narrow `SetDeclare` and one sentence on DM6) and the pick tie-break's
+second key (recommended: the shape-only term breaks the tie, the full
+width keeps the enclosure and the order) — and carries the notice
+that EDIT-PICK3 amended two mechanisms of the pick ruling with the
+decision unchanged. Three rows ruled by the orchestrator and spec'd as
+wave 7, listed on that PR for objection: the mate head's kind refused
+at the edit door (`mate-head-entity-kind-is-decided-only-at-assembly`,
+middle), `ParamName`'s `Display` and the quoting rule
+(`quoted-parameter-name-in-error-prose-has-no-decision`, E-class), and
+the raw pick-target mint behind a `test-support` feature
+(`pick-face-raw-target-path-survives-only-for-rows`, middle). They
+dispatch as wave 6's slots free. Left standing for a later sitting:
+`carrier-radius-door-answers-none-for-chains…` (crosses WIRE's
+`eval::content_key`), `recorded-notation-makes-a-rust-author-count-step-indices`
+(PATHS-shaped: the recorder's own door), C6's remaining members, D366.
+
