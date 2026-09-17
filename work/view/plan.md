@@ -1331,6 +1331,38 @@ attached to a real finding, and the finding survives the reason's
 death: the fix was a new row isolating the arm at `1e100`, where the
 origin still scales.
 
+**A float-valued door has a THIRD cheapest failure, and it is the
+assertion shape the other two teach you to write.** The register says
+a suggested assertion most cheaply fails by being green on the broken
+tree, and next by being red on both. `a-clamp-is-not-a-bound-against-
+nan` found a third that only exists for a door answering a float. The
+lane wrote the share row in the same *differs from every legitimate
+answer* shape that is exactly right for the `u8` and the `usize` doors
+beside it — and for an `f32` it is **worthless**, because a `NaN`
+differs from everything including itself, so `Some(NaN)` — the broken
+door's own output — passes it. It surfaced only because a mutation
+reported an unexpected row.
+
+So: **`assert_ne!` against a float is not a distinguishability test.**
+A float-valued door needs the pair — *poisoned inputs answer the
+refusal* AND *every legitimate input answers a value* — and neither
+half says anything alone. Before writing a difference assertion, ask
+what the type's equality does to the value you are excluding.
+
+**And hunt the producer, not the input.** The same unit's row named
+three `NaN` inputs; the reachable defect had **no `NaN` input at all**.
+An authored bulge of `1e-320` on a horizontal chord gives
+`theta = 4e-320`, an apothem of `inf`, and a left normal of exactly
+`-0` — so `-0 * inf` puts a `NaN` in the arc's centre, and 256 points
+are emitted at `[NaN, NaN]`. Every value is finite at every guard;
+`Expr::literal` accepts `1e-320` because it is a number. Verified
+independently. **A value that is a number at every guard and stops
+being one downstream is invisible to any grep over comparison
+operators**, which is why the sweep that found the three inputs could
+not have found this one. Sweeping for the bad value finds the arm
+nobody reaches; sweeping for the arithmetic that MINTS it finds the
+arm anybody can.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
