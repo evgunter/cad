@@ -249,14 +249,11 @@ const LEDGER: &[Entry] = &[
                              // gate, code+literal view
     },
     Entry {
-        path: "crates/profile/tests/review_recourse_roster_r1_probes.rs",
-        disposition: Shared, // the roster reader's turbofish precondition, over the
-                             // crate's src, code+literal view
-    },
-    Entry {
         path: "crates/profile/tests/recourse_roster.rs",
-        disposition: Shared, // the recourse roster reads every decide site in
-                             // the crate's src, code+literal view
+        disposition: Shared, // the dispatch-order row reads path.rs's own match
+                             // patterns, code+literal view. The decide-site walk
+                             // it also runs is source::predicate_census, so that
+                             // half reads nothing here
     },
     Entry {
         path: "crates/profile/tests/seal.rs",
@@ -289,16 +286,6 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
-    },
-    Entry {
-        path: "crates/sweep/tests/review_recourse_roster_r1_probes.rs",
-        disposition: Shared, // the roster reader's turbofish precondition, over the
-                             // crate's src, code+literal view
-    },
-    Entry {
-        path: "crates/sweep/tests/recourse_roster.rs",
-        disposition: Shared, // the recourse roster reads every decide site in
-                             // the crate's src, code+literal view
     },
     Entry {
         path: "crates/sweep/tests/review_blend5_r5_probes.rs",

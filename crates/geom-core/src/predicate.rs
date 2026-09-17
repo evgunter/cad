@@ -1002,18 +1002,28 @@ pub const COINCIDENCE_RECOURSE: &str =
 /// `geom-core` alone, so a sentence held in either of them is out of
 /// reach of the other.
 ///
-/// The predicate is rendered as the `Option` the payload carries, so an
-/// escalation with no name at all says so rather than reading as a name.
+/// **It reports an absence, never a denial.** The refusal it tails has
+/// already rendered [`Indeterminate`]'s own Display, which ends in
+/// [`COINCIDENCE_RECOURSE`] — real advice. So this says the TABLE holds
+/// nothing further, not that the advice above is not advice; a door
+/// that has DECIDED a predicate needs nothing further says so itself
+/// rather than reaching this sentence.
+///
+/// The predicate is spelled the way [`IndeterminatePayload`] spells it
+/// in the same refusal — `'name'`, and a nameless decision named as
+/// one — so one refusal does not carry two spellings of one field.
 #[derive(Debug, Clone, Copy)]
 pub struct MissingRecourse<'a>(pub Option<&'a str>);
 
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "no recourse is recorded for predicate {:?}; this is a gap in the \
-             error table, not advice to act on",
-            self.0
+        match self.0 {
+            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded")?,
+            None => f.write_str("no recourse is recorded for this unnamed decision")?,
+        }
+        f.write_str(
+            ": the shared clause above is all this door can say about it, and that absence \
+             is a gap in the error table rather than a finding that nothing further applies",
         )
     }
 }

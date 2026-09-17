@@ -1,27 +1,42 @@
 //! **The roster: every predicate name this crate decides is routed to a
-//! recourse sentence, or listed here as carrying none and why.**
+//! recourse sentence, or listed in `validate::SHARED_CLAUSE_ONLY` as
+//! having nothing beyond the shared clause, with what it measures.**
 //!
 //! `PathError::Escalated`'s `Display` routes a recourse by matching the
 //! escalated predicate's NAME. A name no arm carries falls through, and
-//! the fall-through is the whole subject of this suite:
+//! the fall-through is the subject of this suite:
 //!
-//! - it must NAME the hole (`geom_core::MissingRecourse`) rather than
-//!   assert a category over a name nobody classified — "path junction
-//!   classification" is a true label for exactly two names and a false
-//!   one for the rest;
-//! - a name must not reach it by accident. The roster below is read out
-//!   of the crate's own `src`, so a gate added anywhere — in `sugar.rs`,
-//!   in `path/arc_fillet.rs`, in a `#[cfg(test)]` module — is as visible
-//!   to these rows as one added beside a name they already know, and a
+//! - a name the crate has DECIDED needs only the shared coincidence
+//!   clause renders with that clause and nothing about a gap — the
+//!   decision lives in `src`, beside the names, so the door can consult
+//!   it and a reader of a real refusal is not told the table is broken;
+//! - anything else renders `geom_core::MissingRecourse`, which names
+//!   the hole rather than asserting a category;
+//! - and a name cannot reach either by accident. The roster is read out
+//!   of the crate's own `src`, so a gate added anywhere — in
+//!   `sugar.rs`, in `path/arc_fillet.rs`, in a `#[cfg(test)]` module —
+//!   is as visible as one added beside a name it already knows, and a
 //!   gate RENAMED under a routed arm goes red the same way.
 //!
-//! **The reader is fail-loud about what it cannot read.** A `decide*`
-//! call whose first argument is not a plain string literal does not get
-//! skipped: its expression is recorded as an *indirect site* and must
-//! appear in [`INDIRECT`], which says what carries the name there. The
-//! carriers named there are then scanned for the literals they hold, so
-//! a name that reaches the funnel through a parameter, a const or a
-//! struct field is in the roster beside the ones written at the call.
+//! The reader is `test_utils::source::predicate_census`, the tree's one
+//! home for this walk. **What it cannot read it reports**: a spelling
+//! it does not know is `unreadable`, a name-bearing argument that is
+//! not a plain literal is `indirect` and its carrier must be declared
+//! below, and `include!`/`#[path]` — files it does not walk — come back
+//! in `unwalked`. Every one of those is a red row here, so the roster's
+//! completeness is a measurement rather than a claim.
+//!
+//! **The crate holds a second predicate-keyed table, and it is not a
+//! recourse table.** `ProfileError::Escalated`'s near-tangency addendum
+//! (`validate.rs`) appends a site NOTE for three carrier names at a
+//! segment pair and appends nothing otherwise; the levers themselves
+//! ride `{source}` for every name, so its default asserts nothing and
+//! it has no gap to name. Those three names also carry a sentence at
+//! `PathError`'s stored-form arm, and the two differ on purpose — the
+//! validator sees a segment pair the caller authored, the door a form
+//! it is about to store. Both sites say so;
+//! `review_recourse_roster_r2_probes::the_validator_door_appends_a_site_note_and_routes_nothing`
+//! pins the addendum's key, `fillet_recourse_followability` the other.
 //!
 //! Which arm answers a name is MEASURED — each name is put through the
 //! door's own error value and the rendered text read — never inferred
@@ -32,236 +47,46 @@
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use profile::PathError;
 use std::collections::BTreeSet;
+use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
 
-// ------------------------------------------------------------------ the reader
-
-/// The `decide*` calls whose first argument the reader cannot read at
-/// the site, and what carries the name there. Keyed `<file>: <expr>`,
-/// which is what [`funnel_calls`] reports.
+/// The carriers that hand a name to the funnel from somewhere other
+/// than the call, and the sites they answer for.
 ///
-/// An entry's carrier is scanned for the literals it holds, so this
-/// table is not a place a name can hide: it says WHERE to look, and the
-/// looking is [`carried_names`]'s.
-const INDIRECT: &[(&str, &str, &str)] = &[
+/// Declaring a carrier puts its own call sites in the census, so a name
+/// written at one of them is rostered. A call the reader cannot resolve
+/// to a literal stays in `indirect` until its carrier is declared here
+/// — which is what makes a wrapper around a carrier a red row rather
+/// than a silent hole.
+const CARRIERS: &[NameCarrier] = &[
+    // The corner window's advance and reach gates take the name from
+    // `FilletSide::travel`, which answers the straight carrier's name
+    // or the arc name its caller passes.
+    NameCarrier::Call("travel"),
+    // `gate_positive` meters any authored magnitude against zero under
+    // the name its caller supplies.
+    NameCarrier::Call("gate_positive"),
+    // `seg::coincident` answers point-coincidence questions under the
+    // name its caller supplies.
+    NameCarrier::Call("coincident"),
+];
+
+/// The `decide*` calls whose name the reader cannot read at the site,
+/// as `<file>: <expr>`, with what carries the name there.
+const INDIRECT: &[(&str, &str)] = &[
     (
         "path/arc_fillet.rs: name",
-        "travel",
-        "the corner window's advance and reach gates take the name from \
-         `FilletSide::travel`, which answers the straight carrier's name or the arc \
-         name its caller passes",
+        "the advance and reach gates' `travel` result (two calls, one key)",
     ),
-    (
-        "path/verbs.rs: name",
-        "gate_positive",
-        "`gate_positive` meters any authored magnitude against zero and reports under \
-         the name its caller supplies",
-    ),
-    (
-        "seg.rs: name",
-        "coincident",
-        "`seg::coincident` answers point-coincidence questions under the name its \
-         caller supplies",
-    ),
+    ("path/verbs.rs: name", "`gate_positive`'s own parameter"),
+    ("seg.rs: name", "`seg::coincident`'s own parameter"),
 ];
 
-/// Every name this crate's `src` decides, and every `decide*` call the
-/// reader could not read at the site.
-fn funnel_calls() -> (BTreeSet<String>, BTreeSet<String>) {
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut names = BTreeSet::new();
-    let mut indirect = BTreeSet::new();
-    for path in test_utils::source::rust_sources(&src) {
-        let text = std::fs::read_to_string(&path).expect("a readable source file");
-        // The code-and-literals view blanks comments in place, so prose
-        // that spells `decide (` is not a call site and the offsets
-        // still index the source byte for byte.
-        let code = test_utils::source::code_and_literals(&text);
-        let rel = path
-            .strip_prefix(&src)
-            .expect("a file under the crate's src")
-            .to_string_lossy()
-            .replace('\\', "/");
-        for open in call_sites(&code, "decide", true) {
-            let arg = code[open..].trim_start();
-            match plain_literal(arg) {
-                Some(name) => {
-                    names.insert(name.to_string());
-                }
-                None => {
-                    let expr: String = arg
-                        .chars()
-                        .take_while(|c| *c != ',' && *c != ')')
-                        .collect::<String>()
-                        .trim()
-                        .to_string();
-                    indirect.insert(format!("{rel}: {expr}"));
-                }
-            }
-        }
-        for (_, carrier, _) in INDIRECT {
-            for open in call_sites(&code, carrier, false) {
-                for literal in group_literals(&code, open) {
-                    names.insert(literal);
-                }
-            }
-        }
-    }
-    (names, indirect)
+fn census() -> PredicateCensus {
+    predicate_census(
+        &test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src"),
+        CARRIERS,
+    )
 }
-
-/// The byte offsets just past each `token(` or `token {` in `code`.
-///
-/// `suffixed` admits a token whose name carries a suffix — the funnel's
-/// `_flagged` and `_invariant` doors are `decide` calls too.
-fn call_sites(code: &str, token: &str, suffixed: bool) -> Vec<usize> {
-    let mut out = Vec::new();
-    let mut at = 0usize;
-    while let Some(hit) = code[at..].find(token) {
-        let start = at + hit;
-        at = start + token.len();
-        if start > 0
-            && code[..start]
-                .chars()
-                .next_back()
-                .is_some_and(|c| c == '_' || c.is_ascii_alphanumeric())
-        {
-            continue;
-        }
-        let rest = &code[at..];
-        let tail = rest.trim_start();
-        let skipped = rest.len() - tail.len();
-        if suffixed {
-            let suffix: String = rest.chars().take_while(|c| *c != '(').collect();
-            if !suffix
-                .chars()
-                .all(|c| c == '_' || c.is_ascii_alphanumeric())
-            {
-                continue;
-            }
-            if let Some(i) = rest.find('(') {
-                out.push(at + i + 1);
-                at += i + 1;
-            }
-            continue;
-        }
-        if tail.starts_with('(') || tail.starts_with('{') {
-            out.push(at + skipped + 1);
-        }
-    }
-    out
-}
-
-/// The plain string literals inside the bracket group whose contents
-/// start at `open` — the group that a [`Carrier::Call`] token opened.
-fn group_literals(code: &str, open: usize) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut depth = 0usize;
-    let bytes = code.as_bytes();
-    let mut i = open;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'(' | b'[' | b'{' => depth += 1,
-            b')' | b']' | b'}' => {
-                if depth == 0 {
-                    break;
-                }
-                depth -= 1;
-            }
-            b'"' => {
-                if let Some(name) = plain_literal(&code[i..]) {
-                    out.push(name.to_string());
-                    i += name.len() + 2;
-                    continue;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    out
-}
-
-/// The contents of a plain string literal at the head of `text`, if
-/// that is what it opens with. A literal carrying an escape is not
-/// plain and is not a predicate name.
-fn plain_literal(text: &str) -> Option<&str> {
-    let rest = text.strip_prefix('"')?;
-    let end = rest.find('"')?;
-    let body = &rest[..end];
-    (!body.contains('\\')).then_some(body)
-}
-
-// ------------------------------------------------------------------ the roster
-
-/// Every decided name with NO sentence of its own, and why it needs
-/// none. A name here renders the gap sentence: the refusal says the
-/// table records nothing for it, and the shared coincidence recourse
-/// that rides the escalation's own payload is the lever at the site.
-///
-/// A name leaves this list the moment an arm claims it, and a new gate
-/// joins it only by a hand that writes down the reason.
-const UNROUTED: &[(&str, &str)] = &[
-    // `seg.rs` — the segment and joint classifications. Eight of them
-    // reach this door through the stored-form read and are routed
-    // there; these six are decided for the validator, whose refusals
-    // are typed on `ProfileError`, and the path door has no lever to
-    // add at a segment coincidence.
-    ("arc_apex_identity", SEG),
-    ("arc_span", SEG),
-    ("collinear_overlap", SEG),
-    ("line_span", SEG),
-    ("ray_advance", SEG),
-    ("ray_side", SEG),
-    // `validate.rs` — loop-level classifications, decided for
-    // `ProfileError::Escalated` and its own Display.
-    ("canonical_order_x", LOOP_LEVEL),
-    ("canonical_order_y", LOOP_LEVEL),
-    ("contact_at_shared_vertex", LOOP_LEVEL),
-    ("loop_orientation", LOOP_LEVEL),
-    // Authored magnitudes metered against zero.
-    ("path_arc_center_radius", MAGNITUDE),
-    ("path_arc_chord", MAGNITUDE),
-    ("path_arc_sweep", MAGNITUDE),
-    ("path_circle_radius", MAGNITUDE),
-    ("path_director_norm", MAGNITUDE),
-    ("path_fillet_radius", MAGNITUDE),
-    // The carrier geometry the arc and fillet verbs solve against.
-    ("path_arc_bulge", CARRIER),
-    ("path_arc_center_equidistant", CARRIER),
-    ("path_arc_continue_on_carrier", CARRIER),
-    ("path_arc_via_offset", CARRIER),
-    ("path_carrier_identity", CARRIER),
-    ("path_carrier_meet", CARRIER),
-    ("path_collinear_target", CARRIER),
-    // Where the corner sits along a side's carrier.
-    ("path_corner_advance", CORNER_WINDOW),
-    ("path_corner_advance_arc", CORNER_WINDOW),
-    ("path_corner_reach_arc", CORNER_WINDOW),
-    ("path_corner_turn", CORNER_WINDOW),
-    // The lever the seam's own two gates are metered through.
-    (
-        "path_seam_arrival_lever",
-        "the magnitude the seam arrival's turn and side gates are levered by; those two \
-         gates carry the site's sentence and are routed above",
-    ),
-];
-
-const SEG: &str = "a `seg.rs` segment or joint classification, decided for the validator; the \
-                   eight of them the stored-form read re-runs are routed above, and at a \
-                   segment coincidence the shared recourse is the lever";
-const LOOP_LEVEL: &str = "a `validate.rs` loop-level classification, whose escalation is typed \
-                          on `ProfileError::Escalated` and rendered there";
-const MAGNITUDE: &str = "an authored magnitude metered against zero: the lever is the number \
-                         the caller supplied, which is what 'move the geometry' names here";
-const CARRIER: &str = "a carrier-geometry classification of the arc and fillet verbs — where \
-                       two carriers meet, whether they are the same one, which side of one \
-                       a point falls; the lever is the shared coincidence recourse";
-const CORNER_WINDOW: &str = "a corner-window gate: where the corner sits along a side's \
-                             carrier. A corner outside the window is reported as a fact \
-                             about the corner, and the in-band case has no lever beyond the \
-                             shared one";
-
-// ------------------------------------------------------------------ rows
 
 /// The run's band, and an escalation carrying `name` inside it.
 fn escalation(name: &'static str) -> Indeterminate {
@@ -281,60 +106,70 @@ fn rendered(name: &'static str) -> String {
     .to_string()
 }
 
-/// Whether the refusal for `name` is the fall-through — measured by
-/// reading the text, not by reading the match.
-fn falls_through(name: &'static str) -> bool {
+/// Whether the refusal for `name` carries the gap sentence — measured
+/// by reading the text, not by reading the match.
+fn names_a_gap(name: &'static str) -> bool {
     rendered(name).contains(&MissingRecourse(Some(name)).to_string())
 }
 
-/// **Every name the crate decides is routed to a sentence, or listed
-/// with the reason it carries none.**
+/// **Every name the crate decides is routed to a sentence, or listed in
+/// `src` as having nothing beyond the shared clause.**
 ///
 /// The two sides are read from different places and compared: the names
 /// out of the crate's `src`, the routing out of the rendered refusal.
-/// A gate added anywhere is unrouted and unlisted, so it reds here; a
-/// gate renamed under a routed arm stops being routed, so it reds here
-/// too; and a name struck off `UNROUTED` without a sentence reds as a
-/// stale entry.
+/// A gate added anywhere is neither routed nor listed, so it reds here;
+/// a gate renamed under a routed arm stops being routed, so it reds
+/// here too; a name struck off the src list without a sentence reds as
+/// a gap the door now names; and a stale entry — a listed name nothing
+/// decides any more — reds as well.
 #[test]
 fn every_decided_name_is_routed_or_listed_with_its_reason() {
-    let (names, _) = funnel_calls();
+    let census = census();
     assert!(
-        names.contains("path_junction_turn") && names.contains("fillet_corner_turn"),
-        "the reader found no funnel calls it should have: {names:?}"
+        census.names.contains("path_junction_turn") && census.names.contains("fillet_corner_turn"),
+        "the reader found no funnel calls it should have: {:?}",
+        census.names
     );
-    let listed: BTreeSet<&str> = UNROUTED.iter().map(|(n, _)| *n).collect();
+    let listed: BTreeSet<&str> = profile::SHARED_CLAUSE_ONLY
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
     assert_eq!(
         listed.len(),
-        UNROUTED.len(),
-        "a name is listed twice in UNROUTED"
+        profile::SHARED_CLAUSE_ONLY.len(),
+        "a name is listed twice in SHARED_CLAUSE_ONLY"
     );
-    for (name, _) in UNROUTED {
+    for (name, _) in profile::SHARED_CLAUSE_ONLY {
         assert!(
-            names.contains(*name),
-            "`{name}` is listed as carrying no recourse, but nothing in the crate's src \
-             decides it — a stale entry"
+            census.names.contains(*name),
+            "`{name}` is listed as needing nothing beyond the shared clause, but nothing in \
+             the crate's src decides it — a stale entry"
         );
     }
-    for name in &names {
+    for name in &census.names {
         let name: &'static str = Box::leak(name.clone().into_boxed_str());
-        let unrouted = falls_through(name);
-        assert_eq!(
-            unrouted,
-            listed.contains(name),
-            "`{name}` is {} by the door and {} in UNROUTED; the refusal reads: {}",
-            if unrouted { "unrouted" } else { "routed" },
-            if listed.contains(name) {
-                "listed"
-            } else {
-                "unlisted"
-            },
+        let gap = names_a_gap(name);
+        assert!(
+            !gap,
+            "`{name}` is decided by this crate and its refusal names a gap. Route it to a \
+             sentence, or add it to `validate::SHARED_CLAUSE_ONLY` with what its margin \
+             measures. It renders: {}",
             rendered(name)
         );
+        // A listed name must reach the door's shared-clause arm, not a
+        // routed sentence: the list is a claim about which arm answers.
+        if listed.contains(name) {
+            assert!(
+                rendered(name).starts_with("escalated at the path door:"),
+                "`{name}` is listed as shared-clause-only but a routed arm answers it: {}",
+                rendered(name)
+            );
+        }
     }
 }
 
-/// **A name no arm carries renders the gap sentence — and no category.**
+/// **A name no arm carries and `src` has not listed renders the gap
+/// sentence — and no category.**
 ///
 /// "path junction classification" is a claim about the two junction
 /// keys. This row constructs an escalation under a name the crate does
@@ -343,9 +178,9 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
 #[test]
 fn an_unknown_name_names_the_hole_and_asserts_nothing() {
     let unknown = "roster_unknown_probe";
-    let (names, _) = funnel_calls();
+    let census = census();
     assert!(
-        !names.contains(unknown),
+        !census.names.contains(unknown),
         "the probe name must be one the crate does not decide"
     );
     let text = rendered(unknown);
@@ -372,28 +207,37 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
     }
 }
 
-/// **The dispatch order is the one the site states, and no name sits in
-/// two layers.**
+/// **Each name is owned by exactly one layer of the dispatch.**
 ///
-/// The fillet family is asked first, through `fillet_recourse_for`.
-/// Every other layer is a literal in a match pattern in `path.rs`, and
-/// the compiler catches a name written into two of THOSE (an
-/// unreachable pattern) — what it cannot see is a name in the map AND
-/// in a pattern, where the map silently wins and the pattern arm is
-/// dead. That is what this row reads: the two sides, from their own
-/// sources, and their intersection is empty.
+/// The name says order because the order is what the ownership is FOR:
+/// the fillet map is asked first, so a name in the map and in a
+/// `path.rs` match pattern would render the map's sentence and leave
+/// the pattern arm dead. What the row measures is that no name is in
+/// both — disjointness, from the two sources themselves. The compiler
+/// catches a name written into two `path.rs` patterns (an unreachable
+/// pattern); it cannot see the map, which is the half this covers.
 #[test]
 fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
     let path_rs = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/path.rs");
     let text = std::fs::read_to_string(&path_rs).expect("the path module is readable");
     let code = test_utils::source::code_and_literals(&text);
     let mut patterned: BTreeSet<String> = BTreeSet::new();
-    for open in call_sites(&code, "Some", false) {
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find("Some(") {
+        let open = at + hit + "Some".len();
+        at = open + 1;
+        if !test_utils::source::boundary_before(&code, at - "Some(".len()) {
+            continue;
+        }
+        let Some(end) = test_utils::source::balanced_end(&code, open) else {
+            continue;
+        };
         // A pattern group is string literals and `|`; anything else
-        // (`Some(predicate)`, `Some(policy)`) is not one.
-        let group = group_literals(&code, open);
-        for name in group {
-            patterned.insert(name);
+        // (`Some(predicate)`, `Some(policy)`) holds no literal.
+        for piece in code[open + 1..end].split('|') {
+            if let Some(name) = test_utils::source::plain_string_literal(piece) {
+                patterned.insert(name.to_string());
+            }
         }
     }
     assert!(
@@ -407,12 +251,17 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
              `fillet_recourse_for`. The map is asked first, so the pattern arm is dead: \
              one of the two is the name's home, not both"
         );
+        assert!(
+            profile::shared_clause_only(name).is_none(),
+            "`{name}` is routed by a `path.rs` arm AND listed as shared-clause-only: the \
+             arm answers it, so the list entry is false"
+        );
     }
     // The other direction, driven: every name the map answers renders
     // the fillet arm's sentence, so the map really is asked first.
-    let (names, _) = funnel_calls();
+    let census = census();
     let mut answered: BTreeSet<&str> = BTreeSet::new();
-    for name in &names {
+    for name in &census.names {
         let name: &'static str = Box::leak(name.clone().into_boxed_str());
         let Some(sentence) = profile::fillet_recourse_for(name) else {
             continue;
@@ -424,7 +273,8 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
             "`{name}` is answered by the map but does not render its sentence: {text}"
         );
     }
-    let family: BTreeSet<&str> = names
+    let family: BTreeSet<&str> = census
+        .names
         .iter()
         .filter(|n| n.starts_with("fillet_"))
         .map(String::as_str)
@@ -436,24 +286,33 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
     );
 }
 
-/// **Every `decide*` call the reader cannot read at the site is
-/// declared, with what carries the name there.**
+/// **Nothing in the crate's `src` is invisible to the reader.**
 ///
 /// A name built somewhere other than the call — a parameter, a const, a
-/// struct field, a `concat!` — is exactly the name a census misses.
-/// This row makes missing one loud: the reader records the expression
-/// instead of skipping it, and an expression nobody has written down
-/// fails here rather than leaving a gate off the roster.
+/// struct field, a `concat!` — is exactly the name a census misses, and
+/// two hand-rolled readers were defeated that way before this one
+/// existed. So the reader reports rather than skips, and each kind of
+/// report is a red row here: an indirect site whose carrier nobody has
+/// declared, a spelling it cannot parse, and a file it does not walk.
 #[test]
-fn every_indirect_funnel_call_is_declared() {
-    let (_, indirect) = funnel_calls();
-    let declared: BTreeSet<String> = INDIRECT
-        .iter()
-        .map(|(site, _, _)| site.to_string())
-        .collect();
+fn nothing_in_src_is_invisible_to_the_reader() {
+    let census = census();
+    let declared: BTreeSet<String> = INDIRECT.iter().map(|(site, _)| site.to_string()).collect();
     assert_eq!(
-        indirect, declared,
+        census.indirect, declared,
         "the funnel calls whose name the reader cannot read at the site are not the ones \
          declared in INDIRECT"
+    );
+    assert!(
+        census.unreadable.is_empty(),
+        "a `decide*` call is spelled in a way the reader cannot parse, so the gate it names \
+         is outside the roster: {:?}",
+        census.unreadable
+    );
+    assert!(
+        census.unwalked.is_empty(),
+        "an `include!` or `#[path]` pulls source into this crate from a file the reader does \
+         not walk, so a gate there is outside the roster: {:?}",
+        census.unwalked
     );
 }

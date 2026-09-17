@@ -1,20 +1,13 @@
-//! **Two things the recourse roster does not pin: which sentence a
-//! routed name gets, and the spelling its reader can read.**
+//! **What the recourse roster does not pin: which sentence a routed
+//! name gets.**
 //!
 //! The roster asserts that every decided name is *routed or listed*. It
 //! measures that by asking whether the rendered refusal carries the gap
 //! sentence, so a name wired to ANOTHER layer's sentence is still
-//! "routed" and the roster stays green. The first row here pins the
+//! "routed" and the roster stays green. The row here pins the
 //! pairing: each layer of `PathError::Escalated`'s dispatch owns a
 //! sentence, and every name in that layer renders that sentence and no
 //! other layer's.
-//!
-//! The second row pins the roster reader's own precondition. Its
-//! `decide*` scan admits a token whose suffix is alphanumeric and skips
-//! everything else, so `decide::<f64>("…")` — an ordinary spelling of a
-//! generic call — is neither read as a name nor recorded as an indirect
-//! site. The reader is only fail-loud while nothing in `src` is spelled
-//! that way, and that is what this row measures.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -88,10 +81,19 @@ fn rendered(name: &'static str) -> String {
 /// The pairing is what a reader of the refusal actually depends on —
 /// the leg-extent lever is not the stored form's, and the fillet
 /// corner's is neither — so it is pinned here, name by name.
+///
+/// The table is also held COMPLETE against the crate's own decided
+/// names: a name the door routes that no layer here claims reds, so a
+/// gate cannot be given a sentence without being paired with one.
 #[test]
 fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
+    let mut paired: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     for (opening, names) in LAYERS {
         for name in *names {
+            assert!(
+                paired.insert(name),
+                "`{name}` is in two layers of the table"
+            );
             let text = rendered(name);
             assert!(
                 text.starts_with(opening),
@@ -105,31 +107,28 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
             }
         }
     }
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    for name in test_utils::source::predicate_census(&src, profile_carriers()).names {
+        let name: &'static str = Box::leak(name.into_boxed_str());
+        let routed = !rendered(name).starts_with("escalated at the path door:");
+        assert_eq!(
+            routed,
+            paired.contains(name),
+            "`{name}` is {} by the door and {} in this table; it renders: {}",
+            if routed { "routed" } else { "unrouted" },
+            if paired.contains(name) {
+                "paired"
+            } else {
+                "unpaired"
+            },
+            rendered(name)
+        );
+    }
 }
 
-/// **No `decide` call in this crate's `src` is spelled with a
-/// turbofish.**
-///
-/// `recourse_roster`'s reader scans for a `decide` token whose suffix up
-/// to the paren is alphanumeric. `decide::<f64>(…)` fails that test and
-/// the call is skipped entirely — neither a name nor an indirect site —
-/// so a gate spelled that way reaches the door's fall-through with no
-/// row going red. While this holds, the roster's completeness claim
-/// holds with it.
-#[test]
-fn no_decide_call_in_src_is_spelled_with_a_turbofish() {
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut found = Vec::new();
-    for path in test_utils::source::rust_sources(&src) {
-        let text = std::fs::read_to_string(&path).expect("a readable source file");
-        let code = test_utils::source::code_and_literals(&text);
-        if code.contains("decide::<") || code.contains("decide ::<") {
-            found.push(path.display().to_string());
-        }
-    }
-    assert!(
-        found.is_empty(),
-        "a `decide` call is spelled with a turbofish, which the recourse roster's reader \
-         skips without recording: {found:?}"
-    );
+/// The same carriers `recourse_roster` declares — the census is only
+/// complete over the crate if it resolves them.
+fn profile_carriers() -> &'static [test_utils::source::NameCarrier] {
+    use test_utils::source::NameCarrier::Call;
+    &[Call("travel"), Call("gate_positive"), Call("coincident")]
 }

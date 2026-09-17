@@ -1,12 +1,8 @@
-//! **The sweep half of the same two questions the profile probes ask.**
+//! **The sweep half of the question the profile probe asks.**
 //!
 //! `recourse_roster` measures routed-or-listed by looking for the gap
 //! sentence, so a `fillet3_*` name rewired to another arm's recourse is
-//! still "routed". The first row pins the pairing, name by name.
-//!
-//! The second row pins the reader's precondition: its `decide*` scan
-//! skips a call whose token suffix is not alphanumeric, so
-//! `decide::<f64>("…")` is read as neither a name nor an indirect site.
+//! still "routed". The row here pins the pairing, name by name.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,25 +60,4 @@ fn every_routed_name_renders_the_recourse_its_own_arm_owns() {
             );
         }
     }
-}
-
-/// **No `decide` call in this crate's `src` is spelled with a
-/// turbofish** — the spelling the roster's reader skips without
-/// recording it as a site it could not read.
-#[test]
-fn no_decide_call_in_src_is_spelled_with_a_turbofish() {
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut found = Vec::new();
-    for path in test_utils::source::rust_sources(&src) {
-        let text = std::fs::read_to_string(&path).expect("a readable source file");
-        let code = test_utils::source::code_and_literals(&text);
-        if code.contains("decide::<") || code.contains("decide ::<") {
-            found.push(path.display().to_string());
-        }
-    }
-    assert!(
-        found.is_empty(),
-        "a `decide` call is spelled with a turbofish, which the recourse roster's reader \
-         skips without recording: {found:?}"
-    );
 }

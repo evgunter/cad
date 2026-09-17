@@ -1871,36 +1871,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  seam is authored at the back by the verb that targets Start \
                  (PATHS-DESIGN §2's entry rule)"
             ),
-            // A recourse is routed by the escalated predicate's NAME,
-            // through four layers asked in this order:
+            // A recourse is routed by the escalated predicate's NAME.
+            // A name in two layers gets the EARLIER layer's sentence, so
+            // a `fillet_*` name written into a later arm is dead code
+            // rather than a silent override of its own sentence; the
+            // layers' name sets are disjoint today, and
+            // `recourse_roster::the_dispatch_order_owns_each_name_in_exactly_one_layer`
+            // is what measures that rather than assuming it.
             //
-            //  1. the `fillet_*` family, through `fillet_recourse_for` —
-            //     the crate's one name-to-sentence map;
-            //  2. the three `path_*` verbs whose margin is not a
-            //     coincidence (a declared continuation's lateral miss, a
-            //     declared seam arrival's direction, an authored leg
-            //     extent). Each composes its OWN recourse from
-            //     `source.payload()` (D4 (iv)): the shared
-            //     `COINCIDENCE_RECOURSE` tail the bare `Indeterminate`
-            //     Display carries says "declare the coincidence", and at
-            //     these sites the declaration IS the verb, or there is no
-            //     coincidence to declare and only a number to change;
-            //  3. the stored-form read's segment and joint
-            //     classifications;
-            //  4. the two junction keys, the names "path junction
-            //     classification" is a true label for.
-            //
-            // The four layers' name sets are disjoint, so the order
-            // resolves no conflict — it states which layer OWNS a name.
-            // What it decides is what a name in two layers would get, and
-            // that is the earlier layer's sentence: a `fillet_*` name
-            // added to a later arm is dead code, not a silent override of
-            // its own sentence. `recourse_roster::the_dispatch_order_…`
-            // is where that is measured rather than assumed.
-            //
-            // Every other name the funnel decides renders
-            // `geom_core::MissingRecourse`, which names the hole instead
-            // of asserting a category over a name no layer claims.
+            // A name no layer claims is not silently labelled: one the
+            // crate has DECIDED needs nothing beyond the shared clause is
+            // in `validate::SHARED_CLAUSE_ONLY` and renders with that
+            // clause alone; anything else renders
+            // `geom_core::MissingRecourse`, which names the hole.
             Self::Escalated { source } => {
                 if let Some(predicate) = source.predicate
                     && let Some(recourse) = fillet_recourse_for(predicate)
@@ -1954,7 +1937,15 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // the door minted the joint itself, so "declare the
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
-                    // form actually has. The class this arm leaves is
+                    // form actually has. Three of these names —
+                    // `carrier_line_circle` and the two
+                    // `carrier_circles_*` — also carry a note at
+                    // `ProfileError::Escalated`, and the two sentences
+                    // differ on purpose: THERE the segment pair is the
+                    // caller's own, so the declare lever is theirs and
+                    // the note says how to pull it; HERE the loop is one
+                    // this door is about to store. The class this arm
+                    // leaves is
                     // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
                     // — an escalation that renders the shared recourse
                     // before its own site's — and this is one instance
@@ -1992,16 +1983,27 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     Some("path_junction_turn" | "path_junction_side") => {
                         write!(f, "path junction classification: {source}")
                     }
-                    // Every other name this crate decides — and any name
-                    // a future gate adds — owes a sentence no arm above
-                    // carries. The refusal names that hole instead of
-                    // claiming a category it cannot know, through the one
-                    // home every recourse table's fall-through composes.
-                    _ => write!(
-                        f,
-                        "escalated: {source} — {}",
-                        geom_core::MissingRecourse(source.predicate)
-                    ),
+                    // A name no arm above claims. If the crate has
+                    // decided it needs nothing beyond the shared clause
+                    // `{source}` already ends in, it is in
+                    // `validate::SHARED_CLAUSE_ONLY` and the refusal
+                    // stops there; otherwise the refusal names the hole,
+                    // through the one home every recourse table's
+                    // fall-through composes. The door names ITSELF where
+                    // `BlendError::Escalated` names a site: this variant
+                    // carries no site field, and adding one would move a
+                    // `PathError` shape.
+                    _ => match source
+                        .predicate
+                        .and_then(crate::validate::shared_clause_only)
+                    {
+                        Some(_) => write!(f, "escalated at the path door: {source}"),
+                        None => write!(
+                            f,
+                            "escalated at the path door: {source} — {}",
+                            geom_core::MissingRecourse(source.predicate)
+                        ),
+                    },
                 }
             }
             Self::Band(e) => write!(f, "path tolerance band: {e}"),

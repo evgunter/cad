@@ -73,9 +73,13 @@ fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
             !path.contains("path junction classification"),
             "no category over an unknown name: {path}"
         );
+        // Both doors name where the escalation happened before the
+        // payload. `BlendError::Escalated` carries a site field and
+        // names it; `PathError::Escalated` carries none, so the door
+        // names itself.
         assert!(
-            path.starts_with("escalated: ") && blend.starts_with("escalated at "),
-            "each door keeps its own site prefix: {path} / {blend}"
+            path.starts_with("escalated at the path door: ") && blend.starts_with("escalated at "),
+            "each door names a site ahead of the payload: {path} / {blend}"
         );
     }
 }
