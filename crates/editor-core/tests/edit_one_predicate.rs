@@ -465,8 +465,8 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
 /// pins.
 fn retype_crossing(text: &str, instance: RecipeNodeId, side: &str, kind: EntityKind) -> String {
     doctored(text, |wire| {
-        let reference = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]
-            ["interface"]["crossings"][0]["Mate"][side];
+        let reference = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
+            ["crossings"][0]["Mate"][side];
         let mut keys: Vec<&str> = reference
             .as_object()
             .expect("a crossing reference is a bare name object")

@@ -1950,7 +1950,7 @@ pub fn inline(
 /// the kind is the type's rather than the rewrite's, and the two
 /// answers agree by construction.
 #[cfg(test)]
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {
     use super::{NodeMap, RemapMiss, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
