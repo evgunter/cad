@@ -8,16 +8,30 @@
 //! already reach `names::emit_fillet` from the registry — the corpus's
 //! `die_composed` and `die_composed_tour` carve LADDER rims at their pip
 //! cavities, and `blend5_rim_support` drives the ANNULUS arm — but no
-//! row anywhere reads what the four names CARRY. What
-//! `emit_blend::name_blend`'s `check_total` buys is that SOME name
-//! reaches every output entity; what it cannot see is a name whose
-//! argument is wrong. A `BandFoot` carrying the wrong source rim vertex,
-//! a `BandCross` carrying the neighbouring meridian, a `BandFace`
-//! carrying the other rim's edge set and a `BandSlit` carrying the
-//! other meridian all name real entities, pass totality, and pass every
-//! count in the tree —
+//! NAME's argument is read anywhere. What `emit_blend::name_blend`'s
+//! `check_total` buys is that SOME name reaches every output entity;
+//! what it cannot see is a name whose argument is wrong. A `BandFoot`
+//! carrying the wrong source rim vertex, a `BandCross` carrying the
+//! neighbouring meridian, a `BandFace` carrying the other rim's edge set
+//! and a `BandSlit` carrying the other meridian all name real entities,
+//! pass totality, and pass every count in the tree —
 //! [`the_totality_and_the_counts_read_no_argument_at_all`] is that
 //! statement, executed.
+//!
+//! **Where that is first for the SOURCE too, and where it is not.**
+//! Three of the four sources reach a reader for the first time here:
+//! nothing in the tree reads which rim vertex a foot was retracted from,
+//! which meridian a crossing split, or which meridian a slit ran along.
+//! `BandFace`'s source is the exception. The sweep crate reads
+//! `BlendNaming`'s `bands` channel by identity already — `rec.bands[0].1
+//! == vec![rim]` in `verbs_arms1_annulus`, and `naming.bands`'
+//! flattened edge sets against the rim's own two arcs in
+//! `verbs_arms3` — on the RECORD the surgery hands back. What is new
+//! for `BandFace` here is everything downstream of that record: the
+//! emitter's translation of an edge KEY set into a set of source edge
+//! NAMES, and the document-layer read of the name that comes out. A
+//! permutation planted in `emit_blend` is invisible to those two rows
+//! for exactly that reason — it happens after the record they read.
 //!
 //! # The walk this suite watches
 //!
@@ -59,26 +73,32 @@
 //! smallest document in which every one of the four permutations moves
 //! a name.
 //!
-//! The two holes differ in centre AND radius, so no row can pass by
-//! confusing one rim's geometry for the other's, and each hole's two
-//! profile vertices sit at opposite azimuths, so no row can pass by
-//! confusing a rim's two ends.
+//! The two holes stand at different CENTRES, which is what every row
+//! here tells one rim from the other by ([`HOLES`] says how), and each
+//! hole's two profile vertices sit at opposite azimuths, so no row can
+//! pass by confusing a rim's two ends.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 
 use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
-    NameRef, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CapEnd, EntityKey, EntityKind, Entry, EvalOptions, LoopProgram, NameRef, NameTable, Node,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StableName,
 };
-use fixture::len;
-use geom_core::{Point3, Tol};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
+// The name-table and body readers, and the name-authoring shorthands,
+// live in `fixture` — one home for what this suite and
+// `edit_ruled_carve` both read an evaluation with.
+use fixture::{
+    count, edge_of, ends, face_edges, face_of, face_vertices, len, minted, point, table, tol,
+    vertex_of,
+};
+use geom_core::Point3;
+use topo::Body;
 
 /// The plate's half-extent in the sketch plane, metres.
 const PLATE: f64 = 1.0;
@@ -88,29 +108,48 @@ const THICK: f64 = 1.0;
 /// the plate's thickness, so each band clears the far cap.
 const R: f64 = 0.05;
 
-/// One of the document's two round holes: the profile loop it is, and
-/// the circle it is in the sketch plane.
+/// One of the document's two round holes: the circle it is in the
+/// sketch plane, and the profile loop [`plate`] authors it as.
+#[derive(Clone, Copy)]
 struct Rim {
     loop_index: u32,
     centre: (f64, f64),
     radius: f64,
 }
 
-/// The two holes. Different centres and different radii, so a row that
-/// confused one rim for the other would have to agree with the wrong
-/// circle.
-const RIMS: [Rim; 2] = [
-    Rim {
-        loop_index: 1,
-        centre: (-0.45, 0.0),
-        radius: 0.25,
-    },
-    Rim {
-        loop_index: 2,
-        centre: (0.45, 0.0),
-        radius: 0.30,
-    },
-];
+/// The two holes, as `(centre x, centre y, radius)` in the sketch
+/// plane.
+///
+/// **What tells the two rims apart in every row here is the CENTRE.**
+/// Each hole's wall is generated straight along `+z` from its own
+/// circle, so a mint's position relative to the circle its name names
+/// is read entirely through that circle's centre — [`axis_distance`]
+/// and [`retracted`] take `centre` and nothing else — and the centres
+/// stand `0.9` apart while the rows' window is [`NEAR`]. The radii
+/// differ as well, so the two rims are not congruent and a row cannot
+/// pass by matching the wrong circle's shape; but no row's
+/// discrimination rests on that, and every one of them would still
+/// discriminate if the two radii were equal.
+const HOLES: [(f64, f64, f64); 2] = [(-0.45, 0.0, 0.25), (0.45, 0.0, 0.30)];
+
+/// The two holes with the profile loop each one IS.
+///
+/// **One statement of that correspondence.** The plate's outline is
+/// loop 0 and [`plate`] pushes the holes after it in [`HOLES`] order,
+/// so `HOLES[i]` is loop `i + 1`; the authoring reads this function and
+/// so does every row that decodes a name's `loop_index` back to a
+/// circle ([`rim_of`]). Neither writes a loop index of its own.
+fn rims() -> [Rim; 2] {
+    let mut i = 0u32;
+    HOLES.map(|(cx, cy, radius)| {
+        i += 1;
+        Rim {
+            loop_index: i,
+            centre: (cx, cy),
+            radius,
+        }
+    })
+}
 
 /// **The closest pair any row here has to tell apart**: a band foot and
 /// the source rim vertex it was retracted from, and a band crossing and
@@ -134,26 +173,29 @@ const CLOSEST: f64 = 0.05;
 /// report agreement the carve does not actually deliver.
 const NEAR: f64 = CLOSEST * 1e-7;
 
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
-        doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol(),
-    )
-}
+/// **How far apart the plate's two closest DISTINCT meridians stand**,
+/// and what the "and off every other meridian" arm of
+/// [`a_band_crossing_lies_on_the_meridian_its_name_carries`] is
+/// asserted against.
+///
+/// That arm rules a population OUT, which is a different measurement
+/// from the one [`NEAR`] licenses: [`NEAR`] is the window inside which
+/// a computed value may agree with a stored one, and using it as a
+/// separation floor would be asserting nothing more than that two
+/// meridians are not the same edge. What the arm actually claims is
+/// that no OTHER meridian could have been the one the crossing lies
+/// on, and the number that says so is the closest two of them stand —
+/// measured over the whole document and pinned by
+/// [`the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians`],
+/// the same way [`CLOSEST`] is.
+const APART: f64 = 0.35;
 
 // ---------------------------------------------------------------- //
 // The document
 // ---------------------------------------------------------------- //
 
 /// **The plate**: a square slab of side `2 * PLATE` and thickness
-/// [`THICK`], pierced by the two holes of [`RIMS`], with the `End`
+/// [`THICK`], pierced by the two holes of [`HOLES`], with the `End`
 /// cap's two hole rims filleted in ONE `Node::Fillet`.
 ///
 /// Each hole rim is a LADDER rim: it is a RING of the cap plane — the
@@ -171,8 +213,18 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-PLATE), len(PLATE)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    // Loop 0 is the outline and the holes follow it in order, which is
+    // the correspondence `rims` states and the only place it is made.
     let mut loops = vec![outline];
-    for r in &RIMS {
+    for r in rims() {
+        assert_eq!(
+            u32::try_from(loops.len()).expect("a two-hole plate"),
+            r.loop_index,
+            "the hole centred at {:?} is authored as profile loop {}, not the loop `rims` \
+             derives for it",
+            r.centre,
+            loops.len()
+        );
         loops.push(
             LoopProgram::circle(r.centre.0, r.centre.1, r.radius).expect("a finite hole circle"),
         );
@@ -185,9 +237,9 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(THICK),
         },
     );
-    let mut selection: Vec<StableName> = RIMS
-        .iter()
-        .flat_map(|r| (0..2).map(|s| rim_edge(block, r, s)))
+    let mut selection: Vec<StableName> = rims()
+        .into_iter()
+        .flat_map(|r| (0..2).map(move |s| rim_edge(block, r, s)))
         .collect();
     selection.sort();
     let (doc, fillet) = fixture::insert(
@@ -207,39 +259,34 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// One arc of a hole's rim on the filleted cap — a source rim edge, and
 /// what a [`RoleSeg::BandFace`] argument is a set of.
-fn rim_edge(block: RecipeNodeId, rim: &Rim, segment: u32) -> StableName {
-    fixture::ename(
+fn rim_edge(block: RecipeNodeId, rim: Rim, segment: u32) -> StableName {
+    fixture::rim_edge(
         block,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: rim.loop_index,
-                segment,
-            },
-        ),
+        CapEnd::End,
+        ProfileEdgeRef {
+            loop_index: rim.loop_index,
+            segment,
+        },
     )
 }
 
 /// A source rim VERTEX on the filleted cap — what a
 /// [`RoleSeg::BandFoot`] argument names.
-fn cap_vertex(block: RecipeNodeId, rim: &Rim, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node: block,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: rim.loop_index,
-                vertex,
-            },
-        )],
-    }
+fn cap_vertex(block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
+    fixture::cap_vertex(
+        block,
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: rim.loop_index,
+            vertex,
+        },
+    )
 }
 
 /// The MERIDIAN descending from a rim vertex into the hole's wall — the
 /// extrude's lateral edge at the same profile vertex, and what a
 /// [`RoleSeg::BandCross`] and a [`RoleSeg::BandSlit`] argument name.
-fn meridian(block: RecipeNodeId, rim: &Rim, vertex: u32) -> StableName {
+fn meridian(block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
     fixture::ename(
         block,
         RoleSeg::LateralEdge(ProfileVertexRef {
@@ -262,25 +309,17 @@ fn host_support(block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
     )
 }
 
-/// A name minted by `node` in the blend vocabulary.
-fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
-}
-
 /// The rim a source name belongs to, decoded from the name's own
 /// profile-loop anchoring — which is how a row keyed on an ARGUMENT
 /// finds the circle that argument sits on.
-fn rim_of(n: &StableName) -> &'static Rim {
+fn rim_of(n: &StableName) -> Rim {
     let l = match n.path.first() {
         Some(RoleSeg::LateralEdge(v) | RoleSeg::CapVertex(_, v)) => v.loop_index,
         Some(RoleSeg::RimEdge(_, e)) => e.loop_index,
         other => panic!("{other:?} is not anchored at a profile loop"),
     };
-    RIMS.iter()
+    rims()
+        .into_iter()
         .find(|r| r.loop_index == l)
         .unwrap_or_else(|| panic!("{n:?} names profile loop {l}, which no rim of this plate is"))
 }
@@ -289,104 +328,17 @@ fn rim_of(n: &StableName) -> &'static Rim {
 // Reading the document and its names
 // ---------------------------------------------------------------- //
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-/// The one entity a name answers to — the row's loud end when a mint is
-/// missing, misspelled or aliased.
-fn key_of(t: &NameTable, what: &str, n: &StableName) -> EntityKey {
-    match t.lookup(n) {
-        Some(Entry::Unique(r)) => r.key,
-        other => panic!("{what}: {n:?} is not uniquely named: {other:?}"),
-    }
-}
-
-fn edge_of(t: &NameTable, what: &str, n: &StableName) -> EdgeKey {
-    match key_of(t, what, n) {
-        EntityKey::Edge(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not an edge"),
-    }
-}
-
-fn vertex_of(t: &NameTable, what: &str, n: &StableName) -> VertexKey {
-    match key_of(t, what, n) {
-        EntityKey::Vertex(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not a vertex"),
-    }
-}
-
-fn face_of(t: &NameTable, what: &str, n: &StableName) -> FaceKey {
-    match key_of(t, what, n) {
-        EntityKey::Face(k) => k,
-        other => panic!("{what}: {n:?} names {other:?}, not a face"),
-    }
-}
-
-fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
-    topo::readback::vertex_point(body, v).expect("a live vertex")
-}
-
-/// An edge's two end vertices.
-fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let edge = body.get_edge(e).expect("a live edge");
-    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
-    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
-    [h.start, far]
-}
-
-/// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
-/// the body rather than inferred from the surface it is a region of.
-fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
-    let face = body.get_face(f).expect("a live face");
-    let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        match body.get_loop(lk).expect("a live loop").boundary {
-            LoopBoundary::Empty { vertex } => {
-                out.insert(vertex);
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).expect("a closed cycle") {
-                    out.insert(body.get_half_edge(he).expect("a live half-edge").start);
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Every edge on `f`'s boundary.
-fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
-    let face = body.get_face(f).expect("a live face");
-    let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        if let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary {
-            for he in body.loop_cycle(first).expect("a closed cycle") {
-                out.insert(body.get_half_edge(he).expect("a live half-edge").edge);
-            }
-        }
-    }
-    out
-}
-
-/// How many names in `t` take `seg`'s role.
-fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
-    t.iter().filter(|(n, _)| seg(&n.path[0])).count()
-}
-
 /// How far `p` stands from the axis of `rim`'s hole. The hole's wall is
 /// generated straight along `+z`, so this and the azimuth are the whole
 /// of `p`'s position relative to the circle an argument names.
-fn axis_distance(rim: &Rim, p: Point3<f64>) -> f64 {
+fn axis_distance(rim: Rim, p: Point3<f64>) -> f64 {
     (p.x - rim.centre.0).hypot(p.y - rim.centre.1)
 }
 
 /// The footprint of `p` moved `d` further out along its own ray from
 /// `rim`'s axis — where a mint retracted from the source entity at `p`,
 /// at that entity's own azimuth, has to stand.
-fn retracted(rim: &Rim, p: Point3<f64>, d: f64) -> (f64, f64) {
+fn retracted(rim: Rim, p: Point3<f64>, d: f64) -> (f64, f64) {
     let (dx, dy) = (p.x - rim.centre.0, p.y - rim.centre.1);
     let s = (d + dx.hypot(dy)) / dx.hypot(dy);
     (rim.centre.0 + s * dx, rim.centre.1 + s * dy)
@@ -400,7 +352,8 @@ fn all_rim_vertices(
     sbody: &Body<f64>,
     block: RecipeNodeId,
 ) -> Vec<(u32, Point3<f64>)> {
-    RIMS.iter()
+    rims()
+        .into_iter()
         .flat_map(|r| (0..2).map(move |j| (r.loop_index, cap_vertex(block, r, j))))
         .map(|(l, n)| (l, point(sbody, vertex_of(src, "a source rim vertex", &n))))
         .collect()
@@ -408,6 +361,48 @@ fn all_rim_vertices(
 
 fn dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
     ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt()
+}
+
+/// How far `p` stands from a meridian, given the two ends the source
+/// body stores for it: the distance between their FOOTPRINTS.
+///
+/// A lateral edge of an extruded loop runs straight along `+z`, so the
+/// meridian has ONE footprint and that distance is the whole of the
+/// separation. Both ends are read and required to agree, which is what
+/// makes that a measured property of this document rather than an
+/// assumption: a wall that was not straight would fail here, loudly,
+/// instead of having half of itself measured and the other half
+/// discarded.
+fn footprint_gap(p: Point3<f64>, ends: [Point3<f64>; 2]) -> f64 {
+    let [a, b] = ends;
+    let (da, db) = ((p.x - a.x).hypot(p.y - a.y), (p.x - b.x).hypot(p.y - b.y));
+    assert!(
+        (da - db).abs() < NEAR,
+        "the meridian between {a:?} and {b:?} does not run straight along +z: its two ends \
+         stand {da} and {db} from ({}, {})",
+        p.x,
+        p.y
+    );
+    da
+}
+
+/// Every meridian of the document, as the two ends the source body
+/// stores for it, keyed by the hole and the profile vertex it descends
+/// from — the population a row saying "the meridian its name carries,
+/// and not another" discriminates within.
+fn all_meridians(
+    src: &NameTable,
+    sbody: &Body<f64>,
+    block: RecipeNodeId,
+) -> Vec<(u32, u32, [Point3<f64>; 2])> {
+    rims()
+        .into_iter()
+        .flat_map(|r| (0..2).map(move |j| (r.loop_index, j, meridian(block, r, j))))
+        .map(|(l, j, n)| {
+            let [a, b] = ends(sbody, edge_of(src, "a source meridian", &n));
+            (l, j, [point(sbody, a), point(sbody, b)])
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------- //
@@ -439,12 +434,12 @@ fn dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
 #[test]
 fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex() {
     let (doc, block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let cap = face_of(t, "the host support", &host_support(block, fillet));
     let extent = face_vertices(body, cap);
-    for rim in &RIMS {
+    for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
             let source = cap_vertex(block, rim, j);
@@ -494,24 +489,22 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
 /// coordinates. A `BandCross` carrying its own hole's other meridian
 /// lands a diameter away; one carrying the other hole's lands on the
 /// wrong circle.
+///
+/// **The two arms are asserted against different numbers, because they
+/// are different measurements.** Lying ON the named meridian is a
+/// computed value agreeing with a stored one, so it is read through
+/// [`NEAR`]. Lying off every OTHER meridian is a population ruled out,
+/// so it is read through [`APART`] — how far the plate's closest two
+/// meridians actually stand, which is what makes "no other meridian
+/// could have been the one" a claim about this document.
 #[test]
 fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
     let (doc, block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    // Every meridian of the document, as the two ends the source body
-    // stores for it — the population the "and not its neighbour" arm
-    // rules out.
-    let all: Vec<(u32, u32, [Point3<f64>; 2])> = RIMS
-        .iter()
-        .flat_map(|r| (0..2).map(move |j| (r.loop_index, j, meridian(block, r, j))))
-        .map(|(l, j, n)| {
-            let [a, b] = ends(sbody, edge_of(src, "a source meridian", &n));
-            (l, j, [point(sbody, a), point(sbody, b)])
-        })
-        .collect();
-    for rim in &RIMS {
+    let all = all_meridians(src, sbody, block);
+    for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, meridian {j}", rim.loop_index);
             let source = meridian(block, rim, j);
@@ -525,29 +518,29 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                 ),
             );
             let p = point(body, cross);
-            for &(l, k, [a, b]) in &all {
-                // A lateral edge of an extruded loop runs straight along
-                // `+z`, so a point's distance from it is the distance
-                // between their footprints; both ends fix that
-                // footprint and both are read.
-                let d = (p.x - a.x)
-                    .hypot(p.y - a.y)
-                    .max((p.x - b.x).hypot(p.y - b.y));
+            for &(l, k, ends) in &all {
+                let d = footprint_gap(p, ends);
                 if (l, k) == (rim.loop_index, j) {
                     assert!(
                         d < NEAR,
                         "{what}: the crossing is {d} off the meridian its name carries"
                     );
                     assert!(
-                        dist(p, a) > NEAR && dist(p, b) > NEAR,
+                        dist(p, ends[0]) > NEAR && dist(p, ends[1]) > NEAR,
                         "{what}: the crossing sits at an END of the meridian its name \
                          carries, so nothing was split there"
                     );
                 } else {
+                    // The crossing stands within NEAR of its own
+                    // meridian, so its gap to any other is at least
+                    // that pair's separation less NEAR — and APART is
+                    // the smallest separation this plate has.
                     assert!(
-                        d > NEAR,
-                        "{what}: the crossing is {d} off hole {l}'s meridian {k} as well, so \
-                         lying on a meridian would not say WHICH"
+                        d > APART - NEAR,
+                        "{what}: the crossing is {d} off hole {l}'s meridian {k}, nearer than \
+                         the {APART} the plate's closest two meridians stand apart — so hole \
+                         {l}'s meridian {k} could have been the one it lies on, and lying on \
+                         a meridian would not say WHICH"
                     );
                 }
             }
@@ -573,14 +566,27 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
 /// `edge` argument travels in a different record channel from the
 /// band's, so a permutation of one leaves the other in place, and the
 /// second arm reads no name at all.
+///
+/// **Where a wrong set reds depends on what kind of wrong it is**, and
+/// only one of the two lands on the set equality below. The row asks
+/// the table for the band whose name carries the set it expects, so a
+/// mutation that PERMUTES the sets across the two rims hands back a
+/// real band — the other one — and the arms measure it. A mutation that
+/// makes a set no permutation at all, dropping a member or naming an
+/// edge the rim never had, reds one step earlier and louder: no name in
+/// the table carries that set, the lookup in [`fixture::face_of`]
+/// resolves nothing, and the row panics there rather than reaching the
+/// comparison. Both are failures of this row; they are not failures of
+/// the same assertion, and the set equality is the one that can only
+/// see the first.
 #[test]
 fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
     let (doc, block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let population = all_rim_vertices(src, sbody, block);
-    for rim in &RIMS {
+    for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
         let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(block, rim, s)).collect();
         set.sort();
@@ -652,7 +658,7 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
 #[test]
 fn a_slit_runs_along_the_meridian_it_was_slit_along() {
     let (doc, block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let mut served: Vec<u32> = Vec::new();
@@ -711,7 +717,7 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
     served.sort_unstable();
     assert_eq!(
         served,
-        RIMS.iter().map(|r| r.loop_index).collect::<Vec<_>>(),
+        rims().map(|r| r.loop_index).to_vec(),
         "one slit keeps each of the two bands ring-free, and no slit names a loop that is \
          not a rim of this plate"
     );
@@ -739,14 +745,26 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
 /// where it is said with the counts in hand.
 ///
 /// The runtime value that makes it false: the size of each role's slice
-/// of the table. A role that stopped emitting, or emitted twice, fails
-/// here.
+/// of the table. **This row can only red through TOTALITY, which is
+/// narrower than the six assertions make it look.** Drop a mint's name
+/// altogether and the emitter never reaches a table at all — the fillet
+/// node fails with `Naming(MissingUpstream)` and every row here reds at
+/// the lookup, this one included, which is totality refusing rather
+/// than a count noticing. So for a count to be wrong while the table is
+/// still TOTAL, one of exactly two things has to have happened: the
+/// SURGERY minted a different number of entities — a rim that stopped
+/// being carved, a second slit — and the naming followed it; or the
+/// EMITTER, still naming everything exactly once, routed a mint to a
+/// different ROLE, so one count falls as another rises. Nothing else
+/// moves a number here. In particular the whole subject of the rows
+/// above does not: the same entities, under the same roles, carrying
+/// different arguments, leave all six counts where they are.
 #[test]
 fn the_totality_and_the_counts_read_no_argument_at_all() {
     let (doc, _block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let t = table(&ev, fillet);
-    let n = RIMS.len();
+    let n = HOLES.len();
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandFace(_))),
         n,
@@ -782,10 +800,21 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
 /// **The closest pair a row must tell apart is a mint and the source
 /// entity it was made at**, and it measures [`CLOSEST`]: a foot from the
 /// rim vertex it was retracted from, and a crossing from the end of the
-/// meridian it split. Both supports meet the cap plane at a right angle
-/// here, so both separations are the blend radius — which is a
-/// statement about this plate's geometry rather than a constant to
-/// assume, so the row measures it.
+/// meridian it split.
+///
+/// **[`CLOSEST`] coincides with [`R`] on this plate, and is not written
+/// as it.** The hole walls are extruded straight along `+z` and the
+/// filleted rims lie in the cap plane, so every support here meets that
+/// plane at a right angle; the rolling ball then rests one radius back
+/// along each support, and both separations come out at the blend
+/// radius. That is a fact about THIS document's geometry, not about
+/// fillets: taper the hole walls and the same carve retracts by
+/// `R / tan(θ/2)` along the wall instead, which for a wall leaning out
+/// is strictly more than `R` and for one leaning in strictly less. A
+/// `CLOSEST` spelled `= R` would silently follow the wrong one of those
+/// and keep [`NEAR`] licensed by a number nothing had measured; spelled
+/// as a literal, this row reds and says what the separation actually
+/// became.
 ///
 /// The runtime value that makes it false: the minimum separation over
 /// both rims, both ends of each and both kinds of mint. This row is
@@ -794,11 +823,11 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
 #[test]
 fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
     let (doc, block, fillet) = plate();
-    let ev = run(&doc);
+    let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let mut min = f64::INFINITY;
-    for rim in &RIMS {
+    for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
             let v = cap_vertex(block, rim, j);
@@ -842,5 +871,44 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
         NEAR < min / 1e6,
         "NEAR = {NEAR} is not a decade-clear margin below the separation {min} it is \
          derived from"
+    );
+}
+
+/// **The neighbour arm is measured against the plate's closest two
+/// meridians**, and they stand [`APART`].
+///
+/// [`a_band_crossing_lies_on_the_meridian_its_name_carries`] rules out
+/// every meridian but the one its subject's name carries, and what
+/// licenses that is how far the closest two of them stand: a crossing
+/// within [`NEAR`] of its own meridian cannot also be within
+/// `APART - NEAR` of another. The minimum is over the four meridians
+/// this plate has — two per hole, and it is the two INNER ones, one
+/// from each hole, that are closest rather than either hole's own pair.
+/// Like [`CLOSEST`] it is a fact about this document, so it is measured
+/// rather than chosen: move a hole and this row says what the margin
+/// became.
+///
+/// The runtime value that makes it false: the minimum footprint
+/// separation over the six distinct pairs of meridians.
+#[test]
+fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
+    let (doc, block, _fillet) = plate();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    let (src, sbody) = (table(&ev, block), corpus::body_of(&ev, block));
+    let all = all_meridians(src, sbody, block);
+    let mut min = f64::INFINITY;
+    for (i, &(_, _, a)) in all.iter().enumerate() {
+        for &(_, _, b) in &all[i + 1..] {
+            min = min.min(footprint_gap(a[0], b));
+        }
+    }
+    assert!(
+        (min - APART).abs() < 1e-12,
+        "the plate's closest two meridians stand {min} apart, not APART = {APART}"
+    );
+    assert!(
+        NEAR < min / 1e6,
+        "NEAR = {NEAR} is not a decade-clear margin below the separation {min} the \
+         neighbour arm rules a meridian out by"
     );
 }
