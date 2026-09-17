@@ -2958,9 +2958,22 @@ MEMBERS_BOUND_AS = {
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
     # What an accepted edit did that the caller did not ask for, read
     # off `Doc.last_maintenance`: the four cluster-record acts, and the
-    # payload names a delete stranded.
+    # references a delete stranded — a payload name on its carrying
+    # node, an appearance key on the store.
+    #
+    # THE MEASUREMENT for the third of these, the same one this file
+    # makes at `SetAppearanceMeta`: a `stranded_appearance` needs a key
+    # in the appearance store, the only doors that write that store are
+    # `DocEdit::{SetAppearance, SetAppearanceMeta}`, and neither is
+    # bound because the facade leaves `Attr` and the record types out.
+    # So the arm is bound, tagged and readable, and no Python program
+    # can make one appear. Filed as
+    # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
+    # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
+    # selection and `DocEdit.delete_node` is bound.
     "Maintenance::Cluster": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
+    "Maintenance::StrandedAppearance": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated

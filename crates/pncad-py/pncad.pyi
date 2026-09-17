@@ -5211,7 +5211,7 @@ def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
 class Maintenance:
     """One act of automatic maintenance an accepted edit performed:
     what an ordinary edit's motion of the mate graph forced on the
-    placement registry, or a payload name its delete stranded.
+    placement registry, or a reference its delete stranded.
 
     It rides the accepted edit rather than being an edit of its own —
     deterministic from the edit, so a replay reproduces it and undo
@@ -5224,12 +5224,19 @@ class Maintenance:
     delete is legal; the name now resolves to nothing, and
     `DocEdit.rebind` is the repair.
 
+    A `stranded_appearance` is the same loss one carrier over: the
+    document's appearance store still holds an attachment under a name
+    whose minting node the delete removed. It carries no `node`,
+    because the store carries it and no node does; the attachment is
+    left exactly where it was, since the report never repairs.
+
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, `drop`, or `strand`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`, or
+        `stranded_appearance`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...

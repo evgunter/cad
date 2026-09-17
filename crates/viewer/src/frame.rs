@@ -172,10 +172,14 @@
 //! colour for at four call sites; and one draw at the toolbar consumes
 //! them all. The members are the at-rest verdict ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
-//! chose ([`delta_badge`]), the product fault ([`product_badge`]), and
-//! the three display seams that hold a refusal — the scene
-//! ([`scene_badge`]), the pick index ([`index_badge`]) and the
-//! projection ([`projection_badge`]).
+//! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
+//! store that keeps no preferences ([`prefs_badge`]), the datums this
+//! view draws nothing of ([`datums_badge`]), and the three display
+//! seams that hold a refusal — the scene ([`scene_badge`]), the pick
+//! index ([`index_badge`]) and the projection ([`projection_badge`]).
+//! The population is every function here returning `Option<Badge>`,
+//! which `frame_policy.rs` counts against the README rather than
+//! against this sentence.
 //!
 //! # Two rules that follow, one per channel
 //!
@@ -1773,6 +1777,64 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
         Badge::read(
             CameraError::SUBJECT,
             format!("projection: {error}"),
+            Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about datums this view draws nothing
+/// of**, and `None` when every datum the document holds is on screen
+/// — or when it holds none.
+///
+/// **The fact it exists to make sayable is a DIFFERENCE.** Every mark
+/// `crate::datums` draws refuses on its own scale, correctly, and a
+/// datum whose every mark refuses contributes no geometry: the
+/// viewport then shows exactly what a document with no datums in it
+/// shows. This is the read that tells the two apart, and it is the
+/// whole of what it claims — `n` datums are in the document and none
+/// of their marks reached the picture.
+///
+/// [`Subject::Camera`], and a badge rather than a sentence, for
+/// [`projection_badge`]'s reasons in both halves. The subject: what
+/// makes the count the wrong answer is the camera moving, which is
+/// also what a reader does about it. No population of causes is named
+/// here, because naming one is a claim and there is no sweep rule
+/// that produces it: what empties a drawing is `crate::datums`'
+/// business and it has at least three ways
+/// (`datums::DatumDraws::vanished` enumerates them), each in its own
+/// band of the datum's magnitude and the view's. The channel: the
+/// count is true on every frame until the view or the document
+/// changes, so it is a read of held state and not news.
+///
+/// **What it does not do is HOLD.** The three display seams above
+/// keep a refusal until the seam succeeds; this is a per-frame count
+/// its writer re-takes, zeroed by the frame entry point
+/// (`<crate::app::ViewerApp as eframe::App>::ui`) before the panes
+/// draw whether or not the viewport is one of them. So it needs no
+/// sweeper, which is the defect
+/// `work/view/projection-fault-has-no-sweeper.md` records against the
+/// field beside it.
+///
+/// **It outlives the view it describes by exactly one frame**, and no
+/// further. The toolbar draws BEFORE the panes, so on the frame the
+/// viewport stops drawing this badge paints the count the previous
+/// frame made, and the zero written after that frame's panes takes it
+/// on the next. That is the same one-frame lag `crate::app`'s field
+/// docs argue is benign, and it is a bounded lag rather than the
+/// unbounded staleness a latch with no sweeper has.
+///
+/// [`Tone::Actionable`]: a reader can move the camera and get the
+/// datums back, which is exactly the difference from an
+/// [`Tone::Advisory`] report about something nobody can change.
+pub fn datums_badge(vanished: usize) -> Option<Badge> {
+    (vanished > 0).then(|| {
+        // The noun agrees with the count: "1 datums" is the tell that
+        // a sentence was assembled rather than written, and this one
+        // is read at a glance beside eight others.
+        let noun = if vanished == 1 { "datum" } else { "datums" };
+        Badge::read(
+            Subject::Camera,
+            format!("datums: {vanished} {noun} this view draws nothing of"),
             Tone::Actionable,
         )
     })
