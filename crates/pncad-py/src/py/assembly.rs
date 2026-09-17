@@ -39,8 +39,7 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
-    assembly_error_tag, attribution_tag, entity_kind_tag, mint_refusal_tag, product_error_tag,
-    refused_ref_tag,
+    assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;

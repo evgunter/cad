@@ -302,7 +302,7 @@ pub enum RefusedRef {
     /// `NameTable::insert`'s own rule broken rather than a document
     /// this gate may refuse, so it is asserted in debug at the site
     /// and answered here with the silence rather than given a
-    /// vocabulary of its own — the same shape [`operand_answer`]'s
+    /// vocabulary of its own — the same shape `operand_answer`'s
     /// third rung takes for a root row the product should have
     /// carried.
     Vanished,

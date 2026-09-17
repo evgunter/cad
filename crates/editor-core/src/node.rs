@@ -1017,7 +1017,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
 /// **`Rebind` never moves a measure's `at`.** A measure's `at` is a
 /// DAG edge the author chose, and an edit that rewrote it would be
 /// re-pointing a dependency behind the author's back; only the NAME
-/// is repaired ([`Node::rebind_payload_names`]). [`SitedFace`]'s doc
+/// is repaired (`Node::rebind_payload_names`). [`SitedFace`]'s doc
 /// states the other half of that one repair.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
