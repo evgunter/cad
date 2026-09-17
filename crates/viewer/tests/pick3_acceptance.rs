@@ -287,12 +287,18 @@ fn tie_sweep(
     for (ray, reach) in tie_rays_for(index) {
         table.rays += 1;
         let exhaustive = winner(&every(&parts, &ray));
-        let door = index.pick(eval, &ray).expect("the index is of this evaluation");
+        let door = index
+            .pick(eval, &ray)
+            .expect("the index is of this evaluation");
         let same = match (door.as_ref(), exhaustive) {
             (None, None) => true,
             (Some(d), Some(e)) => {
                 (d.t.to_bits(), d.t_lo.to_bits(), d.t_hi.to_bits())
-                    == (e.span.t.to_bits(), e.span.t_lo.to_bits(), e.span.t_hi.to_bits())
+                    == (
+                        e.span.t.to_bits(),
+                        e.span.t_lo.to_bits(),
+                        e.span.t_hi.to_bits(),
+                    )
             }
             _ => false,
         };
@@ -350,7 +356,9 @@ fn wide_sweep(
                     };
                     table.rays += 1;
                     let main = by_rounded_t(&every(&parts, &ray));
-                    let here = index.pick(eval, &ray).expect("the index is of this evaluation");
+                    let here = index
+                        .pick(eval, &ray)
+                        .expect("the index is of this evaluation");
                     let aimed_main = main.is_some_and(|s| (s.span.t - reach).abs() < 1e-9);
                     let aimed_here = here.as_ref().is_some_and(|h| (h.t - reach).abs() < 1e-9);
                     table.aimed_main += usize::from(aimed_main);
@@ -367,12 +375,12 @@ fn wide_sweep(
                             ));
                         }
                     }
-                    if let (Some(m), Some(h)) = (main, here.as_ref()) {
-                        if m.span.t.to_bits() != h.t.to_bits() {
-                            table.moved += 1;
-                            if h.t > m.span.t {
-                                table.moved_farther += 1;
-                            }
+                    if let (Some(m), Some(h)) = (main, here.as_ref())
+                        && m.span.t.to_bits() != h.t.to_bits()
+                    {
+                        table.moved += 1;
+                        if h.t > m.span.t {
+                            table.moved_farther += 1;
                         }
                     }
                 }

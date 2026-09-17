@@ -40,11 +40,45 @@ it is reporting it, not owning it.
   poses, so a handful of local runs is a weak search — the hosted row
   draws four poses per shape per run across every PR, which is why it
   is the lane that found this.
-- **The failing pose is in the job log**, not here: the panic text sits
-  inline at test 1502/2362 of the job above, which is where whoever
-  picks this up should start. It was not copied into this row because
-  reading it costs a full-log fetch and the row's value is the
-  existence of the counterexample, not a transcription of it.
+- **The failing pose, copied out of the job log before it expires.**
+  An issue without its counterexample is not one, and a run's logs do
+  not outlive their retention. The row is a torus at `R = 1`,
+  `r = 0.9`; 20 rays drawn, 4 certified, 16 miss, 0
+  uncertain/escalated, 2 disagreements — both on ONE ray:
+
+  ```
+  [fuzz] boolean::solid_contain::r1_generic_poses:
+      seed=0x2ce3095461764e3a effort=1
+      (replay: CAD_FUZZ_SEED=0x2ce3095461764e3a CAD_FUZZ_EFFORT=1)
+
+  R1 root-count probe (generic poses): 20 rays, 4 certified,
+      16 miss, 0 uncertain/escalated, 2 disagreements
+
+  ROOT [generic] R=1 r=0.9
+    o = (0.6165109851873778, -0.4322368608327216, -1.7665919240171966)
+    d = (-0.7793351131793784, 3.340316168992811e-5, -0.6266073573218832)
+    code -9.322586888006783e-1 vs oracle -9.322557990412323e-1
+        (gap 6.11595378747298e-1)
+    code -3.206575305754397e-1 vs oracle -3.206604202939344e-1
+        (gap 6.11595378747298e-1)
+
+  panicked at crates/topo/src/boolean/solid_contain/r1_generic_poses.rs:72:5:
+  2 disagreements with the oracle at generic poses
+  ```
+
+  Two things to read off it. The ray is all but PERPENDICULAR to the
+  torus's axis of revolution — `d.y = 3.3e-5` against components of
+  order `1` — which is the pose where the quartic's two inner roots
+  approach each other. And the two roots disagree by `2.9e-6` and
+  `2.9e-6` while the reported `gap` is `0.61`: the roots agree to six
+  digits, and it is the row's own agreement criterion, whose window is
+  written in units of a band that narrows with `eps`, that calls
+  `2.9e-6` a disagreement at `eps = 1e-12` and would not at `1e-6`.
+  Whoever picks this up should decide which of the three is wrong
+  before touching `line_torus_roots`.
+
+  The `code` values are the roots `line_torus_roots` returns and
+  `oracle` the geometric probe's; the pose replays from the seed.
 - **Which half is wrong is open**: `line_torus_roots` and its `cbrt`
   chain (`crates/topo/src/boolean/solid_contain.rs`), the geometric
   oracle it is held against (`crates/topo/src/boolean/r1_probes.rs`),

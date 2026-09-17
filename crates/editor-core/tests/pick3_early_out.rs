@@ -17,7 +17,12 @@
 //! (`early_out_margin`) that closes the gap; the fixtures stay as the
 //! rows that hold it closed.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
@@ -30,7 +35,7 @@ use crate::fixture;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickTarget, PickHit, ProfileDoc,
+    CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickHit, PickTarget, ProfileDoc,
     RecipeNodeId, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
@@ -155,8 +160,7 @@ fn entry(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
 }
 
 fn span_of(ray: &Ray, tri: &[Point3<f64>; 3], what: &str) -> TSpan {
-    ray_triangle(ray, tri)
-        .unwrap_or_else(|| panic!("{what} is admitted: {:?}", crossing(ray, tri)))
+    ray_triangle(ray, tri).unwrap_or_else(|| panic!("{what} is admitted: {:?}", crossing(ray, tri)))
 }
 
 // ---------------------------------------------------------------

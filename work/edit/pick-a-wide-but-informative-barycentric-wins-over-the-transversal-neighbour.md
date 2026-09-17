@@ -2,9 +2,9 @@
 id: pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour
 kind: issue
 title: a near-coplanar candidate whose barycentrics are informative but wide wins on t over the transversal neighbour at the aimed vertex
-status: parked
+status: closed
 opened: 2026-09-16
-blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
+closed: 2026-09-16
 ---
 
 
@@ -119,5 +119,15 @@ long, answering in front of a vertex `0.031` away. Nothing in the
 derivation says that is wrong — the arithmetic vouches for the order —
 so what would close it is a bound that covers the MESH's own coordinate
 error, which `crossing`'s explicitly does not
-(`crossing`'s "What the bounds bound"). That is a different row from
-this one, and this one is now measured rather than open.
+(`crossing`'s "What the bounds bound"). That residue is scheduled as
+its own row,
+`pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`, with
+the ring's numbers carried onto it; nothing else of this row remains,
+so it closes at EDIT-PICK3's merge.
+
+The corrected count, from the fix pass's re-measurement (2026-09-16,
+`crates/viewer/tests/pick3_acceptance.rs`): the interval order moves
+**503** of the wide aim's 441 126 answers, every one farther, and gains
+3 aimed vertices while losing none. The `502` above was measured before
+the early-out carried its derived margin and before the clamp's `v`
+bound became exact.

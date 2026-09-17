@@ -169,9 +169,24 @@ fn dump_admitted_spans_for_the_exact_enclosure_check() {
             continue;
         };
         let f: Vec<String> = [
-            tri[0].x, tri[0].y, tri[0].z, tri[1].x, tri[1].y, tri[1].z, tri[2].x, tri[2].y,
-            tri[2].z, ray.origin.x, ray.origin.y, ray.origin.z, ray.dir.x, ray.dir.y, ray.dir.z,
-            span.t, span.t_lo, span.t_hi,
+            tri[0].x,
+            tri[0].y,
+            tri[0].z,
+            tri[1].x,
+            tri[1].y,
+            tri[1].z,
+            tri[2].x,
+            tri[2].y,
+            tri[2].z,
+            ray.origin.x,
+            ray.origin.y,
+            ray.origin.z,
+            ray.dir.x,
+            ray.dir.y,
+            ray.dir.z,
+            span.t,
+            span.t_lo,
+            span.t_hi,
         ]
         .iter()
         .map(|&x| hx(x))

@@ -136,6 +136,21 @@ class TestTheRayAnswersAName(unittest.TestCase):
         self.assertAlmostEqual(py.meters, 0.5, places=12)
         self.assertAlmostEqual(pz.meters, 1.0, places=12)
 
+    def test_the_interval_brackets_t_and_scales_with_the_direction(self):
+        # `t_lo <= t <= t_hi` off a real pick, read the way a consumer
+        # reads it. The interval is the ray's own parameter too, so
+        # doubling the direction halves all three ends together --
+        # a hit's three numbers are one claim, not three.
+        hit = self.ev.pick_face([self.pick], straight_down())
+        self.assertLessEqual(hit.t_lo, hit.t)
+        self.assertLessEqual(hit.t, hit.t_hi)
+        # A transversal pick on a well-conditioned cap is certified to
+        # far better than a part in a thousand of its own parameter.
+        self.assertLess(hit.t_hi - hit.t_lo, 1e-3 * hit.t)
+        doubled = self.ev.pick_face([self.pick], straight_down(scale=2.0))
+        self.assertAlmostEqual(doubled.t_lo, hit.t_lo / 2.0, places=12)
+        self.assertAlmostEqual(doubled.t_hi, hit.t_hi / 2.0, places=12)
+
     def test_t_is_in_units_of_the_rays_own_direction(self):
         # Twice the direction, half the parameter, same point — the
         # documented meaning of `t`, and the reason it is a bare float

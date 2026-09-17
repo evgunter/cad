@@ -9,7 +9,9 @@
 //! barycentrics certified to say something — a candidate whose
 //! rounding interval covers the whole admissible range is refused
 //! rather than answered from ([`ray_triangle`], [`crossing`]) →
-//! nearest hit by `t` with a total, documented tie-break
+//! the certified `t` INTERVAL each admitted candidate carries
+//! ([`TSpan`]), ordered by that interval with a total, documented
+//! tie-break on the candidates the geometry cannot order
 //! → the winning patch's [`mesh::FacePatch::face`] back-reference →
 //! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
@@ -237,8 +239,9 @@ impl core::error::Error for MeshPickError {}
 /// A pick is a function of the candidate SET: each candidate's exact
 /// test ([`ray_triangle`]) reads the ray and the triangle and nothing
 /// else, and the loop's early-out on the box entry prunes only
-/// candidates that could not win, up to the rounding of a near-tie
-/// ([`pick_face`]). What the order otherwise decides is the WORK —
+/// candidates the certified order already drops — exactly, on a
+/// derived margin, not up to a rounding ([`pick_face`],
+/// [`early_out_margin`]). What the order otherwise decides is the WORK —
 /// which candidates are tested before the early-out fires — so
 /// [`MeshPick::candidates`] reproduces the single-tree sequence
 /// verbatim, and the two-level index costs what one tree would:
@@ -1302,13 +1305,21 @@ pub struct PickHit {
     pub node: RecipeNodeId,
     /// The output body index within that node's value.
     pub body: u32,
-    /// The ray parameter of the hit (units of `|ray.dir|`), rounded.
+    /// The winning [`TSpan`], spelled out: `t` is the rounded
+    /// parameter of the hit along the ray, in units of `|ray.dir|`,
+    /// and `[t_lo, t_hi]` is the interval the arithmetic certifies
+    /// around it — what [`TSpan`] documents, not a second answer and
+    /// not a second rule. The three are fields rather than one `span`
+    /// because 43 call sites read them by name.
+    ///
+    /// **The parameter is of the ray this call was given.** A consumer
+    /// that carries a hit across a transform converts all three, or
+    /// none of them mean anything: the viewer's cross-part merge is
+    /// `work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`.
     pub t: f64,
-    /// The lower end of that parameter's certified interval
-    /// ([`TSpan`]): what the arithmetic can say about where along the
-    /// ray the crossing is, not a second answer.
+    /// See [`PickHit::t`].
     pub t_lo: f64,
-    /// The upper end of that interval.
+    /// See [`PickHit::t`].
     pub t_hi: f64,
     /// The hit point, `origin + t · dir`.
     pub point: Point3<f64>,
@@ -1516,7 +1527,7 @@ pub fn pick_face<T: Decide>(
 }
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
-/// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`
+/// `f64`): `Some(`[`TSpan`]`)` iff the ray meets the CLOSED triangle at `t ≥ 0`
 /// on a determinant certified non-zero ([`crossing`]),
 /// with `t` the parameter of the hit point `a + u·e1 + v·e2` along
 /// the ray rather than Möller–Trumbore's quotient `e2·q / det` — the
@@ -1530,8 +1541,9 @@ pub fn pick_face<T: Decide>(
 /// is a hit for EVERY incident triangle (the caller's tie-break
 /// disambiguates; watertight meshes never lose a graze to an open
 /// boundary) and the hit point `a + u·e1 + v·e2` is a point OF the
-/// closed triangle, which is what lets a caller stop its walk at a
-/// candidate box the nearest hit already precedes.
+/// closed triangle — exactly, after [`retract_to_simplex`], which is
+/// what lets a caller bound how far below its own box's entry a
+/// candidate's interval can reach ([`early_out_margin`]).
 ///
 /// A value inside those bounds is not enough. Each barycentric also
 /// carries the forward bound on its own rounding ([`crossing`], where
@@ -1800,8 +1812,8 @@ fn early_out_margin(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
     let m = (a.x.abs() + e1.x.abs() + e2.x.abs() + o.x.abs()) * d.x.abs()
         + (a.y.abs() + e1.y.abs() + e2.y.abs() + o.y.abs()) * d.y.abs()
         + (a.z.abs() + e1.z.abs() + e2.z.abs() + o.z.abs()) * d.z.abs();
-    let raw = 2.0 * ((e1.norm() + e2.norm()) / d.norm())
-        + EARLY_OUT_ERROR_UNITS * f64::EPSILON * m / dd;
+    let raw =
+        2.0 * ((e1.norm() + e2.norm()) / d.norm()) + EARLY_OUT_ERROR_UNITS * f64::EPSILON * m / dd;
     raw * (1.0 + EARLY_OUT_SLACK_UNITS * f64::EPSILON)
 }
 

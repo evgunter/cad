@@ -21,7 +21,12 @@
 //!    that crossing is on the closed triangle, and the clamped point's
 //!    own parameter always?
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 test_utils::gated_to!["crates/editor-core/src/resolve/", "crates/bvh/src/"];
 
@@ -291,7 +296,10 @@ impl Rng {
 fn snap(x: f64, bits: i32) -> f64 {
     let s = 2f64.powi(bits);
     let k = (x * s).round();
-    assert!(k.abs() < 2f64.powi(53), "snap: {x} at 2^-{bits} does not fit a mantissa");
+    assert!(
+        k.abs() < 2f64.powi(53),
+        "snap: {x} at 2^-{bits} does not fit a mantissa"
+    );
     k / s
 }
 fn snap3(p: Point3<f64>, bits: i32) -> Point3<f64> {
@@ -369,12 +377,16 @@ fn aimed(target: Point3<f64>, dir: Vec3<f64>, reach: f64, origin_bits: i32) -> R
 /// by `2^±40`, triangles `1e-6` across under far origins, and the
 /// `near_tangent` fixture at every `k` from `37` to `400` with the ray
 /// through `(1/2, 1/2)` and through a lattice of interior points.
+/// One family's draw: a fresh `(ray, triangle)` from the lane's own
+/// deterministic generator.
+type Draw = Box<dyn FnMut(&mut Rng) -> (Ray, [Point3<f64>; 3])>;
+
 #[test]
 fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
     let mut r = Rng(0x9E37_79B9_7F4A_7C15);
     let mut tallies: Vec<(&str, Tally)> = Vec::new();
 
-    let mut family = |name: &'static str, n: usize, mut draw: Box<dyn FnMut(&mut Rng) -> (Ray, [Point3<f64>; 3])>| {
+    let mut family = |name: &'static str, n: usize, mut draw: Draw| {
         let mut t = Tally::default();
         for _ in 0..n {
             let (ray, tri) = draw(&mut r);

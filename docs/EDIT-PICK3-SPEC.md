@@ -81,6 +81,70 @@ survives the clamp; if it does, it stays its own row and you say so.
 - No tolerance, anywhere: every width is the operation count's. A
   reviewer will grep for a chosen constant.
 
+## Amended at the fix pass (2026-09-16)
+
+Premise 5's inequality gained a derived margin. **The decision is
+unchanged**: the box enters only as the traversal's early-out, and the
+order is `precedes`, then width, then position.
+
+Two blinded reviewers read the frozen head `31cbee19f` and agreed on
+the same defect, each with a red probe on the REAL door: `pick3-r1`'s
+`the_early_out_prunes_a_candidate_of_the_certified_tie` and
+`pick3-r2`'s
+`the_certified_tie_is_decided_by_the_targets_order_through_the_early_out`.
+The break fired on `t_hi(best) < t_enter(cand)`, while membership of
+the certified tie is `t_lo(cand) ≤ t_hi(best)`. A candidate whose
+interval reaches back below its own box's entry is IN the tie by the
+door's own rule and was never tested — and when it is the narrower of
+the two, it is the answer. `pick3-r2` showed the consequence the
+determinism contract forbids outright: the same two triangles answer
+differently depending on which target was offered first.
+
+The inequality was the MECHANISM, not the decision, and it was sound
+for the rounded-`t` order the recommendation replaced. It is not sound
+for a width tie-break, because a wide candidate's interval can reach
+back arbitrarily far — as far as its own triangle is large.
+
+**The repair.** The scan may drop a candidate only when no interval of
+that candidate can have `t_lo ≤ lowest_hi`. `early_out_margin`
+(`crates/editor-core/src/resolve/pick.rs`, sited beside `t_span`)
+bounds `t_enter − t_lo` for every admitted candidate of one triangle,
+term by term and with no chosen factor: the box's own projection
+spread (`≤ (|e1| + |e2|)/|d|`, since the box is the exact hull of the
+three corners), the interval's half-width (`≤ (|e1| + |e2|)/|d|` again,
+because `admits` refuses `err ≥ 1` and correct rounding is monotone),
+twice `t_span`'s own `from_rounding`, and the outward `next_down`.
+`pick_face` drops a candidate when `lowest_hi < t_enter − margin`, and
+`Pruned == Every` is then a theorem — proved in four lines at
+`pick_face` and pinned through the real door by both reviewers' probes,
+now rows of the unit's suite (`crates/editor-core/tests/pick3_early_out.rs`).
+
+**The break became a skip.** `MeshPick::candidates` materialises and
+sorts the whole candidate list before the loop begins, so stopping the
+loop saves no traversal — only `ray_triangle` evaluations, which the
+per-candidate skip saves exactly where the break used to. The only
+bound valid for every LATER candidate that can be had without new
+per-tree state is the tree's root diagonal, a margin no scene clears,
+so a break would have been a branch that never fires. The skip is
+tighter than the break was, because it reads the candidate's own
+triangle.
+
+**Premise 4's word was wrong and is corrected.** The clamp is the
+per-coordinate RETRACTION onto the simplex, which fixes the simplex —
+all the width derivation needs — and is NOT the metric projection onto
+the closed triangle: `(u, v) = (1, 1)` retracts to the corner `(1, 0)`
+where the nearest point is `(0.5, 0.5)`. Both reviewers found the
+wording. `pick3-r2` also found that `fl(1 − u)` rounds up at
+`u ≤ 2⁻⁵⁴`, so the retraction's `v` bound could admit `u + v > 1` and
+place the answered point one ulp of `|e2|` off the triangle; the bound
+is now exact (`retract_to_simplex`), which is what makes "a point OF
+the closed triangle" true to the bit — the premise the early-out proof
+rests on.
+
+**The corpus fact is a MEASUREMENT, not the property.** `pruned_differs
+== 0` over 19 296 rays says the margin holds on the rays the corpus
+draws. What says it holds is the derivation.
+
 ## Protocol
 
 v6 dual: one implementer (this block's slot 2), two concurrent
