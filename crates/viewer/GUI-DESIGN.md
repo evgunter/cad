@@ -301,17 +301,6 @@ backend named in both halves: the `wasm_js` feature (the stanza in
 setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
-### Rustdoc posture
-
-How this crate's pages are BUILT and link-checked — the browser-target
-axis, the two host passes, the dated site readings and the
-private-nameability rule — is a record of what `scripts/doc-gate.sh`
-does to this tree as the tree moves, not a decision about the GUI. It
-is `crates/viewer/README.md`, *Rustdoc posture*, where it was written
-and where a re-taken reading can land without re-ratifying a design
-page. Ev's ruling of 2026-09-11, that the renderer-free half MAY link
-into the `app`-gated half, is stated there beside the pass that
-implements it.
 
 ## Banked post-v1
 
