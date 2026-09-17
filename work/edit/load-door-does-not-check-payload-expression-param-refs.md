@@ -4,6 +4,7 @@ kind: issue
 title: The load door asks the param-table rule of slot expressions only; a measure's or an assertion's payload expression is edit-door-only
 status: review
 opened: 2026-09-16
+pr: 2793
 branch: edit/load-door-payload-refs
 ---
 
