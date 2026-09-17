@@ -117,7 +117,14 @@ Also landed:
   through `PickIndex::pick` against an exhaustive walk over
   `ray_triangle` and `TSpan::best_of`, and the closed column's
   `aim_lost == 0` and aimed-vertex count. One corpus pass instead of
-  three: **10.6 s** where R1 measured 73 s.
+  three. Wall time, measured three ways because R1's 73 s and a
+  release build are not the same number: **9.7 cpu-s in CI**
+  (run `35165894343`, `test (eps = 1e-12, 2/2)`'s slowest-tests
+  table), **10.6 s** in a local release build, **67 s** in a local dev
+  build against R1's 73 s for the three-pass suite in the same
+  profile. Roughly flat, not the 7x the release figure alone suggests:
+  the pass that went away paid for `PickIndex::pick` resolving a name
+  on every one of 460 422 rays.
 
 ### The acceptance measurement, as of 2026-09-16
 
