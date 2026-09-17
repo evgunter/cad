@@ -1447,9 +1447,13 @@ mod threaded {
         /// machine that has been closed forgets its work quietly.
         #[test]
         fn a_closed_channel_is_forgotten_rather_than_announced() {
-            let mut seam =
-                Coalescing::<Nothing>::spawn(Worker::Evaluation, "viewer-test-close", (), |(), Nothing| {})
-                    .expect("the worker starts");
+            let mut seam = Coalescing::<Nothing>::spawn(
+                Worker::Evaluation,
+                "viewer-test-close",
+                (),
+                |(), Nothing| {},
+            )
+            .expect("the worker starts");
             seam.close();
             seam.submit(Nothing);
             assert!(
