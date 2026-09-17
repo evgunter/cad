@@ -12408,3 +12408,63 @@ the stack-half alone, and the `wanted`-half alone. Sites 1 and 2 took
 ordinary base-tree reds from a committed tree.
 
 Signed (VIEW implementer lane `view/clamp-nan`).
+
+### The review, and the three guards that were held by nothing
+
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything, and I reported a provenance receipt I had not taken.**
+The PR body named `07b41f6bf6` as the commit that wrote `theme.rs`'s
+clamp sentence. That SHA does not resolve in this repository. The real
+commit is `df8cc27873` (2026-08-30). Two things are worth keeping:
+this checkout is shallow — `.git/shallow` exists and history bottoms
+out at a grafted boundary — so a pickaxe over it reports an absence it
+has no standing to report; and the sentence spans a `///`
+continuation, which is the register's split-span trap and would have
+defeated the search even in a full clone. **The conclusion survived
+anyway** — `theme.rs` is in no companion table, so nothing was waiting
+for Ev — which is exactly what makes the class expensive: a receipt
+that is wrong about its own evidence and right about its answer passes
+every reading that stops at the answer.
+
+**Three of the guards I landed were held by nothing, and mutation is
+the only thing that said so.** The reviewer ran three and all three
+were green: undoing the theme refusal into the cap
+(`unwrap_or(255)`), deleting `flatten`'s `centre`/`start` filter, and
+replacing its `return Err` with `continue`. I reproduced all three
+before repairing any. The general shape is this program's own — *a
+typed refusal whose production is asserted nowhere* — and what it
+cost here is specific: I wrote a distinguishability row for the
+`usize` site that compared against the floor, the cap and an ordinary
+value, wrote one for the `u8` site that compared against the floor
+ALONE, and then wrote a PR body claiming both did the first thing. The
+sentence was true of one row and false of the other, and it read as
+true because the two rows sit in different files.
+
+**So: a claim about a POPULATION of rows is checked against each
+member, not against the row you wrote most recently.** The body's
+"both rows" is the same defect this register already records as *a
+universal in prose owes the sweep rule that produces its population*,
+scoped down to two.
+
+**The guard I argued for at greatest length was the one held by
+nothing, and my own account of why it exists was wrong.** The
+`centre`/`start` check: I wrote that it is earned by the denormal
+bulge. It is not — in that producer `radius` is `inf`, so `arc_points`
+refuses and `centre` never fires. It is earned by an arc whose radius
+is ORDINARY and whose midpoint overflows: two vertices near the top of
+the exponent range. Both cases are now rows and deleting the filter
+reds exactly one of them. A long argument attached to the wrong
+example is harder to catch than a short one, because the length reads
+as diligence.
+
+**And driving it through the real door moved a claim of mine.** I had
+written that the denormal bulge is a live producer and described it in
+a two-vertex loop. Through `preview` that loop never reaches the
+flattener at all — the seam reverses onto itself and the driver
+refuses it as an undeclared cusp two steps earlier. It takes a third
+vertex. The claim was right; the shape I stated it in was not, and the
+arithmetic I executed standalone could not tell me, because it was the
+flattener's arithmetic and not the door's. **Executing a function's
+arithmetic is not the same as reaching the function.**
+
+Signed (VIEW implementer lane `view/clamp-nan`, after review).

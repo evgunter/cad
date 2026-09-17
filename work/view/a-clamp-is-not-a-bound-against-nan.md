@@ -133,18 +133,56 @@ where the row's framing implies it could not.
 ## What the row did not name
 
 **An ordinary authored bulge reaches site 2's defect without any
-`NaN` input at all.** A bulge of `1e-320` on a horizontal chord gives
-`theta = 4e-320`, `tan(theta/2)` of the order of `2e-320`, an apothem
-of `inf`, and — because the chord's left normal has `nx == 0` there —
-a centre of `[NaN, inf]` out of `0 * inf`. `arc_points` then answered
-the CAP rather than the floor, and 256 points were emitted at
-`[NaN, NaN]`. The bulge is a literal a `Path` step authors through
-`widgets::named_scalar`, and `Expr::literal` accepts it because it is
-finite. That is why `flatten` checks `centre` and `start` as well as
-what `arc_points` answers.
+`NaN` input at all.** A bulge of `1e-320` gives `theta = 4e-320`,
+`sin(theta/2)` of the same order and a radius of `inf`; every point
+along such an arc is `±inf` or a `NaN`. The bulge is a literal a
+`Path` step authors through `widgets::named_scalar`, and
+`Expr::literal` accepts it because it is finite.
+`an_arc_whose_radius_is_not_a_number_refuses_at_the_preview` drives it
+through the public `preview` door.
+
+**It takes a third vertex.** The two-vertex shape this was first
+written down in — an arc straight across a chord and a closing leg
+back — never reaches the flattener: the seam reverses onto itself and
+the driver refuses it as an undeclared cusp two steps earlier. The
+claim was right and the shape it was stated in was not, which is what
+driving it through the door rather than through the arithmetic
+established.
+
+**The `centre` and `start` checks are earned by a DIFFERENT case, and
+conflating the two was this row's own error.** In the producer above
+`radius` is `inf`, so `arc_points` alone refuses and the `centre`
+check is never what fires. What the `centre` check exists for is an
+arc whose radius is an ordinary finite number and whose frame is not:
+two vertices near the top of the exponent range, where the chord's own
+MIDPOINT overflows on its way to a value that would have been
+representable. At `from.x = 1.6e308`, `to.x = 1.5e308`, bulge 1, the
+radius is `4.999e306` — finite — `arc_points` answers `Some(256)`, and
+`centre` is `[inf, −3.06e290]`. `radius` carries the apothem
+(`apothem = ±radius·cos(θ/2)`) and does not carry the midpoint the
+apothem is measured from.
+`an_arc_whose_centre_overflows_refuses_at_the_preview` is that row, and
+deleting the `centre` check reds it and only it.
 
 ## Residue
 
-Two rows, both filed on this slate by the sweep this unit owed:
+Six rows, all on this slate. Two from the sweep this unit owed:
 `a-count-slot-launders-a-typed-nan-into-zero` and
 `world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure`.
+Four from the review of #2798, which walked the blind spots this
+unit's sweep stated and one it did not:
+`the-shader-encodes-a-mark-strength-nothing-bounds` — **the paint
+path, which is the shader and not the door this unit fixed** —
+`a-nan-edge-distance-wins-its-boundary-rather-than-losing`,
+`finite-bounds-yield-an-infinite-scene-radius`, and
+`flatten-emits-every-vertex-before-it-judges-any-of-them`.
+
+## What held the guards, in the end
+
+Three of this unit's landed guards were held by nothing when the PR
+was first pushed, and the review's mutations are what said so. The
+rows that hold them now are
+`theme::a_channel_that_is_not_a_number_is_not_a_channel`,
+`path_authoring::an_arc_whose_centre_overflows_refuses_at_the_preview`,
+`path_authoring::an_arc_whose_radius_is_not_a_number_refuses_at_the_preview`
+and `path_authoring::an_undrawable_arc_is_refused_and_not_skipped`.
