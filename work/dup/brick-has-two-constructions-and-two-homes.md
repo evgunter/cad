@@ -296,6 +296,23 @@ watching the gate fire.
    and leaves the duplication behind at a second address. **Relocating
    a duplication is not a move, it is a second copy with a forwarding
    address.** This reconciles before or with the move.
+1b. **Unify `prism_z` and `cube_ops`** — inserted 2026-09-16 on link
+   1's full review, which hand-traced the two at `n = 4` and found
+   them one function: same `mvfs`, same `MevSite::Lone`, same `Fan`
+   chain, same reversed bottom corner list, same strut anchors
+   including the `f_bottom.he_plus` special case at `i == n-1`, same
+   four side planes, same `first_side_he_plus` closing.
+   **`prism_z`'s own doc has said so since `0765b4617`** — *"the
+   geometric_cube construction generalized to N corners"* — and
+   `cube_doors_agree.rs` now proves it by execution at four boxes.
+   Link 1's stated reason for keeping two cores does not survive:
+   *"`prism_z` can neither write into an existing body nor take a tilt
+   map"* describes a signature link 1 had just changed on the other
+   function, and three of the four direct `cube_into` call sites take
+   axis-aligned affine maps rather than tilts. **This runs before link
+   2**, so that the tolerance is threaded through one builder family
+   rather than two.
+
 2. **Thread the tolerance.** `scripts/gates/witness-not-ambient.sh`
    forbids `Tol::witness()` under `crates/*/src`, exempting only
    `#[cfg(test)]` — and `gate_test_only_mounts`' `GATE_CFG_TEST_NOT_RE`

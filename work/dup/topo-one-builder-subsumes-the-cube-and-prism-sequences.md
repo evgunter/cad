@@ -2,8 +2,9 @@
 id: topo-one-builder-subsumes-the-cube-and-prism-sequences
 kind: issue
 title: cube_ops and prism_z are one builder written twice; tprism is already the union of them
-status: open
+status: spec
 opened: 2026-09-16
+branch: dup/one-prism-builder
 ---
 
 
