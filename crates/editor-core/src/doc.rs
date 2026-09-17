@@ -664,6 +664,13 @@ impl DocParam {
 /// The document: recipe DAG (node map + insertion-ordered list) +
 /// document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
+///
+/// **A field added here that holds a [`StableName`] is placed in
+/// `Carrier` below**, which is the one enumeration of the document's
+/// name carriers: the delete door's DM7 report, the split door's
+/// containment check, `inline_part`'s classification and the snapshot
+/// validator all read it, so the carrier arrives at one edit rather
+/// than at four sites that each spell the list by hand.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 // The `with`-routed nodes field hides `P` from serde's bound
@@ -731,6 +738,77 @@ pub struct Doc<P> {
     /// semantics.
     #[serde(with = "crate::persist::pairs")]
     pub(crate) appearance: AppearanceMap,
+}
+
+/// **Which of the document's own fields hold a [`StableName`]** — one
+/// variant per field, iterated by [`Doc::name_carriers`].
+///
+/// [`Node::payload_names`] is the exhaustive answer to "which
+/// PAYLOADS carry a name". This is the wider question — which of
+/// [`Doc`]'s fields hold a name at all — and it has one answer here
+/// rather than a hand-written list at each walk that needs it.
+///
+/// **Exhaustive the way `persist::check`'s walk roster is.**
+/// [`Doc::carrier_names`] maps a carrier to the names behind it with
+/// no wildcard arm, so a variant added here does not compile until it
+/// says which field it reads; [`Carrier::ALL`] is what
+/// [`Doc::name_carriers`] iterates, so a variant missing from that
+/// array never walks — which `tests::the_carrier_roster_is_what_the_walk_iterates`
+/// reds on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Carrier {
+    /// The nodes' name-carrying payloads — a fillet or chamfer
+    /// selection, a `Declare` pair, a `Mate` head, a `Measure` ref —
+    /// by [`Node::payload_names`], which stays the one list of NODE
+    /// carriers (DM7).
+    Payloads,
+    /// The appearance store's keys: a `StableName` under Declare's N5
+    /// semantics (`DocEdit::SetAppearance`), held by the document
+    /// itself rather than by any node.
+    Appearance,
+}
+
+impl Carrier {
+    /// Every carrier, in the order [`Doc::name_carriers`] walks them
+    /// — which it walks them BY, so this is the order rather than a
+    /// description of one.
+    pub(crate) const ALL: [Carrier; 2] = [Carrier::Payloads, Carrier::Appearance];
+}
+
+/// **One [`StableName`] the document holds, and what holds it** — the
+/// element of [`Doc::name_carriers`].
+///
+/// The two carriers are not the same shape and this does not flatten
+/// them: a payload name has a carrying node, which is the node a
+/// report names and a containment check tests; a store key has none,
+/// because the store holds the attachment itself. That difference is
+/// why DM7's report has two arms (`Maintenance::Strand` and
+/// `Maintenance::StrandedAppearance`), and they map onto these two
+/// variants one to one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameCarrier<'a> {
+    /// A name in a live node's payload; that node carries it.
+    Payload {
+        /// The node whose payload holds the name.
+        node: RecipeNodeId,
+        /// The name.
+        name: &'a StableName,
+    },
+    /// A key of the appearance store. No node carries it.
+    Store {
+        /// The name.
+        name: &'a StableName,
+    },
+}
+
+impl<'a> NameCarrier<'a> {
+    /// The name, for the callers that ask one question of both
+    /// carriers.
+    pub(crate) fn name(self) -> &'a StableName {
+        match self {
+            Self::Payload { name, .. } | Self::Store { name } => name,
+        }
+    }
 }
 
 impl<P> Doc<P> {
@@ -906,6 +984,65 @@ impl<P> Doc<P> {
     /// One name's appearance record (attrs + D7 metadata), if any.
     pub fn appearance_of(&self, name: &StableName) -> Option<&AppearanceRecord> {
         self.appearance.get(name)
+    }
+
+    /// **Every [`StableName`] this document holds, with what holds
+    /// it** — the one answer to "which carriers hold a name",
+    /// enumerated rather than spelled out again at each walk that
+    /// needs it.
+    ///
+    /// Four walks used to spell this list by hand, each in its own
+    /// order: DM7's delete report, the split door's containment
+    /// check, `inline_part`'s foreign-name classification and the
+    /// snapshot validator. A field of this struct that began holding
+    /// a name reached none of them.
+    ///
+    /// **The order is a CONTRACT**, and it is [`Carrier::ALL`]'s:
+    /// every payload name first, in document order and within one
+    /// node in [`Node::payload_names`]' order, then every appearance
+    /// key, in the store's own `BTreeMap` order — which is
+    /// [`StableName`]'s, so nothing is sorted here. DM7's report is
+    /// this walk filtered, so the clause's payload-strands-then-store
+    /// -strands order is this order; `edit::tests` and
+    /// `dm7_delete_strands` hold it at the door.
+    ///
+    /// **Cost.** One pass over the payload names and one over the
+    /// store's keys, into one vector — the same two passes the
+    /// hand-written pairs made, with one allocation in place of one
+    /// per node.
+    pub(crate) fn name_carriers(&self) -> Vec<NameCarrier<'_>> {
+        Carrier::ALL
+            .into_iter()
+            .flat_map(|carrier| self.carrier_names(carrier))
+            .collect()
+    }
+
+    /// The names behind ONE carrier — the map from a [`Carrier`] to
+    /// the field it reads.
+    ///
+    /// Exhaustive with no wildcard arm, which is what makes
+    /// [`Carrier`] the enumeration rather than a comment beside one:
+    /// a field of this struct that starts holding a `StableName` is a
+    /// variant there, and it does not compile until it says what it
+    /// reads here.
+    fn carrier_names(&self, carrier: Carrier) -> Vec<NameCarrier<'_>> {
+        match carrier {
+            Carrier::Payloads => self
+                .order
+                .iter()
+                .filter_map(|&id| self.nodes.get(&id).map(|node| (id, node)))
+                .flat_map(|(id, node)| {
+                    node.payload_names()
+                        .into_iter()
+                        .map(move |name| NameCarrier::Payload { node: id, name })
+                })
+                .collect(),
+            Carrier::Appearance => self
+                .appearance
+                .keys()
+                .map(|name| NameCarrier::Store { name })
+                .collect(),
+        }
     }
 
     /// The expression subtree an [`ExprPath`] addresses, or `None` if
@@ -1109,4 +1246,132 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
 /// method would have nothing to be called on there.
 pub(crate) fn epsilon_admissible(eps: f64) -> bool {
     eps.is_finite() && eps > 0.0
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+
+    use super::{Carrier, Doc, NameCarrier};
+    use crate::appearance::AppearanceRecord;
+    use crate::mate::ContactClass;
+    use crate::names::{EntityKind, StableName};
+    use crate::node::{Node, RecipeNodeId};
+    use crate::program::ProfileDoc;
+    use geom_core::Tol;
+
+    test_utils::f6_variants! {
+        /// **The document's name carriers**, welded to [`Carrier`] by
+        /// the match the macro writes: a carrier added to the enum
+        /// leaves it non-exhaustive, and the census below compares
+        /// this roster against [`Carrier::ALL`] in both directions.
+        const CARRIER: Carrier = [Payloads, Appearance];
+    }
+
+    fn name(node: u64, kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path: Vec::new(),
+        }
+    }
+
+    /// **A carrier `Carrier::ALL` does not name never walks.**
+    ///
+    /// The other direction is the compiler's: a variant added to
+    /// [`Carrier`] does not compile until `Doc::carrier_names` places
+    /// it, and one DELETED from [`Carrier::ALL`] does not compile
+    /// either, because that array's length is its type. What neither
+    /// says is that a variant added to the enum reached the array —
+    /// the length is unchanged by an addition — so a new carrier
+    /// could be placed, be readable, and be walked by nobody. This is
+    /// that half.
+    #[test]
+    fn the_carrier_roster_is_what_the_walk_iterates() {
+        let walked: Vec<String> = Carrier::ALL
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let walked: Vec<&str> = walked.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            CARRIER.identifiers(),
+            &walked,
+            "the `Carrier` roster and `Carrier::ALL` disagree",
+            "in `Carrier::ALL` and absent from the roster",
+            "in the roster and absent from `Carrier::ALL`, which is what `Doc::name_carriers` \
+             iterates — so this carrier is never walked",
+        ) {
+            panic!("{report}");
+        }
+    }
+
+    /// **Both carriers, in the contracted order**: every payload name
+    /// in document order, then every store key in the store's own
+    /// order.
+    ///
+    /// The fixture makes both halves of that falsifiable. The two
+    /// nodes sit in the document in the REVERSE of their id order, so
+    /// a walk over the node map instead of `Doc::order` swaps the
+    /// first two rows; and both store keys are minted by a node that
+    /// sorts BEFORE either payload name, so a walk that merged the
+    /// two carriers into one sorted list — or ran the store first —
+    /// puts them at the front instead of the back.
+    ///
+    /// DM7's report is this walk filtered on the deleted node, so
+    /// this order is the clause's payload-strands-before-store-strands
+    /// order; `dm7_delete_strands` holds that end of it at the door.
+    #[test]
+    fn name_carriers_reads_the_payloads_then_the_store() {
+        let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
+        let first = name(9, EntityKind::Face);
+        let second = name(9, EntityKind::Edge);
+        let third = name(10, EntityKind::Face);
+        let painted_a = name(0, EntityKind::Face);
+        let painted_b = name(1, EntityKind::Face);
+
+        // Declared in id order, ordered in the document backwards.
+        doc.nodes.insert(
+            RecipeNodeId(0),
+            Node::Declare {
+                pairs: vec![((first.clone(), second.clone()), ContactClass::Rest)],
+            },
+        );
+        doc.nodes.insert(
+            RecipeNodeId(1),
+            Node::Declare {
+                pairs: vec![((third.clone(), third.clone()), ContactClass::Tangent)],
+            },
+        );
+        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        for key in [&painted_b, &painted_a] {
+            doc.appearance
+                .insert(key.clone(), AppearanceRecord::default());
+        }
+
+        assert_eq!(
+            doc.name_carriers(),
+            vec![
+                NameCarrier::Payload {
+                    node: RecipeNodeId(1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId(1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId(0),
+                    name: &first,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId(0),
+                    name: &second,
+                },
+                NameCarrier::Store { name: &painted_a },
+                NameCarrier::Store { name: &painted_b },
+            ],
+            "the walk is `Carrier::ALL`'s order: document order over the payloads, then the \
+             store's own key order"
+        );
+    }
 }

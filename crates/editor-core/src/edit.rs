@@ -7,7 +7,7 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, ParamName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, NameCarrier, ParamName,
     ParamRefFault, PlacementFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
@@ -1639,27 +1639,39 @@ impl core::fmt::Display for Maintenance {
     }
 }
 
-/// **DM7's report**: every payload name a `DeleteNode` just stranded —
-/// one row per `(carrier, name)` whose minting node is `deleted`.
+/// **DM7's report**: every reference the document still holds whose
+/// minting node the `DeleteNode` just removed — one row per stranded
+/// name, by carrier.
 ///
-/// `doc` is the document AFTER the removal, so the nodes walked are
-/// exactly the survivors and a name that left with its own carrier is
-/// not reported: nothing is stranded when nothing is left to carry it.
-/// Rows come in document order, and within one node in
-/// [`Node::payload_names`]' order, which is meaning for the ordered
-/// payloads (a shell's rim, a measure's arguments).
+/// The walk is [`Doc::name_carriers`], the document's one enumeration
+/// of which of its fields hold a `StableName`, so the clause's two
+/// arms are two arms of ONE pass rather than two functions a third
+/// carrier would have to be remembered into: a payload name becomes a
+/// [`Maintenance::Strand`] naming the node that carries it, a store
+/// key becomes a [`Maintenance::StrandedAppearance`], which names no
+/// node because the store holds the attachment itself.
 ///
-/// The walk is [`Node::payload_names`] — the same single answer to
-/// "which payloads carry a name" that the insert door checks with, so
-/// a payload kind cannot be live at one door and invisible at the
-/// other.
+/// `doc` is the document AFTER the removal, so the payloads walked
+/// are exactly the survivors and a name that left with its own
+/// carrier is not reported: nothing is stranded when nothing is left
+/// to carry it. The appearance store is not pruned by the delete —
+/// that is what makes a key STRANDED rather than gone — so the store
+/// half reads the same keys either way; it reads `doc` so that the
+/// one pass cannot disagree with itself about which nodes are gone.
+///
+/// Row order is the enumeration's, which is the order
+/// [`Applied::maintenance`] contracts for: payload strands in
+/// document order and within one node in [`Node::payload_names`]'
+/// order (meaning, for the ordered payloads — a shell's rim, a
+/// measure's arguments), then store keys in the store's own
+/// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
 /// [`Node::payload_read_sites`] — a mate's two operands — are NOT
 /// here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
 /// one is the solve's to refuse (A12), not this door's to report.
 ///
-/// **Cost.** One pass over the document's payload names per accepted
+/// **Cost.** One pass over the document's name carriers per accepted
 /// delete, so a cascade of `n` nodes pays `n` passes. That is the
 /// price of reporting at the door rather than once at the end, and it
 /// is what makes the rows TRUE of the document each step produced;
@@ -1667,49 +1679,17 @@ impl core::fmt::Display for Maintenance {
 /// caller who wants one number for the whole cascade computes it from
 /// the doomed set instead of from these rows (the transients cancel —
 /// `rv_a_cascade_reports_strands_on_carriers_it_then_deletes`).
-fn stranded_names<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
-    let mut out = Vec::new();
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            if name.node == deleted {
-                out.push(Maintenance::Strand {
-                    node: id,
-                    name: name.clone(),
-                });
-            }
-        }
-    }
-    out
-}
-
-/// **DM7's report, second carrier**: every appearance key a
-/// `DeleteNode` just stranded — one row per key in the document's
-/// appearance store whose minting node is `deleted`.
-///
-/// The store is the other thing the document holds a `StableName` in
-/// (`DocEdit::SetAppearance`, which gives the key Declare's N5
-/// semantics), so a delete that orphans one owes the same report a
-/// payload name gets. There is no carrier node in the row because
-/// there is no carrier node: the store holds the attachment.
-///
-/// `doc` is the document AFTER the removal, the same value
-/// [`stranded_names`] walks, so the two passes read ONE document and
-/// cannot disagree about which nodes are gone.
-///
-/// Rows come in the store's own key order, which is
-/// [`StableName`]'s: an appearance map is a `BTreeMap`, so the report
-/// is deterministic without sorting anything here.
-///
-/// **Cost.** One pass over the appearance store per accepted delete,
-/// beside [`stranded_names`]' pass over the payload names, so a
-/// cascade of `n` nodes pays `n` of each. Same trade as the payload
-/// walk's: the rows are TRUE of the document each step produced.
-fn stranded_appearance_keys<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
-    doc.appearance()
-        .keys()
-        .filter(|name| name.node == deleted)
-        .map(|name| Maintenance::StrandedAppearance { name: name.clone() })
+fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
+    doc.name_carriers()
+        .into_iter()
+        .filter(|carrier| carrier.name().node == deleted)
+        .map(|carrier| match carrier {
+            NameCarrier::Payload { node, name } => Maintenance::Strand {
+                node,
+                name: name.clone(),
+            },
+            NameCarrier::Store { name } => Maintenance::StrandedAppearance { name: name.clone() },
+        })
         .collect()
 }
 
@@ -1731,7 +1711,11 @@ pub struct Applied<P> {
     /// out of the document the edit had just produced, payload
     /// carriers before the appearance store, the two carriers in the
     /// order DM7 names them — and the cluster acts follow,
-    /// reconciling the registry against it afterwards. A consumer may
+    /// reconciling the registry against it afterwards. The strands'
+    /// own order is not restated here: it is the document's
+    /// name-carrier enumeration's (`Carrier::ALL` in `doc.rs`),
+    /// because the report is that walk filtered on the deleted
+    /// node. A consumer may
     /// rely on that, and each boundary is held by the row whose
     /// fixture actually produces the pair of kinds it separates:
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
@@ -2239,18 +2223,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             };
             let inputs = node.inputs();
             new.order.retain(|&n| n != *id);
-            // DM7: a payload name of this node is not a DAG edge, so
-            // the check above never saw one and the edit stands. What
-            // the door owes is the report — every surviving name whose
-            // minting node just left, read out of the document as it
-            // now stands.
-            strands = stranded_names(&new, *id);
-            // The store is DM7's second carrier: an appearance key is
-            // a `StableName` under N5 semantics too, and the delete
-            // leaves the attachment behind. Appended after the
-            // payload strands, which is the order `Applied::
-            // maintenance` contracts for.
-            strands.extend(stranded_appearance_keys(&new, *id));
+            // DM7: a name of this node is not a DAG edge, so the
+            // check above never saw one and the edit stands. What the
+            // door owes is the report — every surviving reference
+            // whose minting node just left, in both of the document's
+            // carriers, read out of the document as it now stands.
+            strands = stranded_references(&new, *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.

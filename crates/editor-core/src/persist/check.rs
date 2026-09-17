@@ -986,17 +986,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 return Err(SnapshotError::ForwardInput { node: id, input });
             }
         }
-        // Every name-carrying payload's references, by the one list of
-        // which payloads those are: an id past the counter inside a
-        // mate head or a fillet selection is as corrupt as one inside a
-        // Declare pair, and unrepairable by `Rebind` (whose source door
-        // refuses a never-minted id) if it loads.
-        for name in node.payload_names() {
-            for n in derivation_nodes(name) {
-                check_id(n)?;
-            }
-        }
-        // And every node a reference is READ AT that is not also an
+        // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
         // an id past the counter inside an operand is as corrupt as
         // one inside the name beside it, and as unrepairable.
@@ -1074,8 +1064,17 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::MateAlignment { node: id });
         }
     }
-    for name in doc.appearance.keys() {
-        for n in derivation_nodes(name) {
+    // Every `StableName` the document holds, in ONE pass over the
+    // carrier enumeration rather than a payload walk inside the node
+    // loop above and a store walk down here, hundreds of lines apart
+    // and neither reading as half of one list. An id past the counter
+    // inside a mate head, a fillet selection or an appearance key is
+    // as corrupt as one inside a `Declare` pair, and as unrepairable
+    // by `Rebind` (whose source door refuses a never-minted id) if it
+    // loads. A carrier added to `Carrier` is checked here without
+    // being remembered into this door.
+    for carrier in doc.name_carriers() {
+        for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }
     }
