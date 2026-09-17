@@ -1235,6 +1235,78 @@ fn a_step_with_several_radii_answers_no_radius() {
     );
 }
 
+/// **A `fillet(r)` is answered by the program and by NO edge**, and
+/// that gap is this unit's stated residue.
+///
+/// `fillet` is a tip-state binder: it holds the radius and emits no
+/// segment, and the arc it opens is emitted by the ARRIVAL step, which
+/// holds no radius of its own. So there is no step whose radius and
+/// whose segments can be paired, and the filleted corner's wall
+/// carries no parameter identity — while the radius's SPELLING does
+/// reach the content key, because `step_radii` is program-side and
+/// cannot see a span. That is the conservative side of the inclusion
+/// the key's feed rests on, and the row pins both halves of it so a
+/// widening has to move them together
+/// (`work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`).
+#[test]
+fn a_fillets_radius_is_a_program_answer_and_no_edges() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let radius = len(0.5);
+    let filleted = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::Toward {
+            dx: fixture::scl(-1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::Fillet(radius.clone()),
+        ProgramStep::Toward {
+            dx: fixture::scl(0.0),
+            dy: fixture::scl(1.0),
+        },
+        ProgramStep::FarEndTo(pt(1.0, 3.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    assert_eq!(
+        filleted.step_radii(),
+        vec![(4, &radius)],
+        "the program answers the fillet's radius at the step that holds it"
+    );
+    let doc = ProfileDoc::empty_derived("segment-radii-fillet", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![filleted],
+        }),
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert!(
+        r.structure.replay[0].steps[4].is_empty(),
+        "the fixture's fillet is the binder shape this row is about: it emitted \
+         {}",
+        r.structure.replay[0].steps[4]
+    );
+    assert_eq!(
+        program
+            .segment_radii(&r.structure, &pv.naming, 0)
+            .expect("the door answers")
+            .len(),
+        0,
+        "no edge is answered, because the step that holds the radius drew none of them"
+    );
+}
+
 /// **The per-edge door's refusals are the map's own**, unaltered.
 ///
 /// It composes [`ProfileProgram::profile_edges_of`] and adds no

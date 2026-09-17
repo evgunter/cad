@@ -1,7 +1,7 @@
 ---
 id: fused-arc-fillet-steps-have-no-per-segment-radius-address
 kind: issue
-title: A fused arc/fillet step's radii have no per-segment address, so neither the per-edge door nor the content key carries them
+title: A fillet arc's radius never reaches the wall it drew: the radius and the segments sit on different steps, and a fused step holds several
 status: open
 opened: 2026-09-17
 ---
@@ -13,41 +13,51 @@ per-edge radius door and left this shape outside it deliberately.
 
 `ProfileProgram::segment_radii` and `LoopProgram::step_radii`
 (`crates/editor-core/src/program.rs`) answer a radius per profile edge
-by reading the step's OWN radius arguments and the replay's record of
+by reading a step's OWN radius arguments and the replay's record of
 which segments that step emitted. A step that holds exactly one
-radius-bearing argument is unambiguous; a FUSED step is not.
+radius-bearing argument AND emitted exactly one segment is
+unambiguous. Every fillet shape fails one of those two, in one of two
+ways.
 
-`ProgramStep::FilletArc` and `ProgramStep::ArcFillet` each hold two
-radius arguments (`StepArg::Radius` plus a spec's `CarrierRadius` or
-`CarrierRadius2`), and `ProgramStep::ArcFilletArc` holds three. Each
-also emits several segments. The replay record
-(`profile::StepSpan`) says WHICH segments the step emitted and nothing
-about which of them each of its radii drew, so `radius_arg` answers
-`None` for all three and the whole step contributes no pair.
+**The radius and the segments are on different steps.**
+`ProgramStep::Fillet(r)` is a tip-state BINDER: it holds
+`StepArg::Radius` and emits no segment at all (`StepSpan` is empty for
+it — `edit_step_segments`'s attribution table classifies it `Binds`).
+The arc it opens is emitted by the ARRIVAL step, which carries no
+radius of its own. So there is no single step whose radius and whose
+segments can be paired, and the arc's wall carries nothing.
 
-The consequence is not a wrong answer, it is a missing one, at both
-ends and in the SAFE direction:
+**A fused step holds several radii.** `ProgramStep::FilletArc` and
+`ProgramStep::ArcFillet` each hold two (`StepArg::Radius` plus a
+spec's `CarrierRadius` or `CarrierRadius2`), `ProgramStep::ArcFilletArc`
+holds three, and each emits several segments. The record says WHICH
+segments the step emitted and nothing about which of them each radius
+drew, so `radius_arg` answers `None` and the step contributes no pair.
 
-- the walls swept from those arcs carry no parameter identity, so a
-  boolean germ over a fused fillet's wall reads `None` where a plain
-  `arc_to`'s reads `Declared`;
-- and their spellings do not enter the profile's content key, which is
-  consistent with the first point and is what keeps the stale-token
-  class closed (`eval::content_key`'s feed states the inclusion the
-  guard rests on).
+The consequence is not a wrong answer, it is a missing one, at the
+attach and in the SAFE direction: the walls swept from those arcs
+carry no parameter identity, so a boolean germ over a filleted
+corner's wall reads `None` where a plain `arc_to`'s reads `Declared`.
+The SPELLINGS of the one-radius shapes do enter the content key —
+`step_radii` is program-side and cannot see a span — which is the
+conservative side of the inclusion `eval::content_key`'s feed states,
+and costs a memo hit rather than a stale token.
 
 ## What a taker does
 
-Give the replay record a way to say which segment of a fused step's
-span is which — the fillet arc, the trimmed leg, the spec arcs — and
-then widen `radius_arg` from "exactly one radius" to a per-segment
-attribution. The natural home is beside `ReplayStructure::steps` in
+Give the replay record a way to say which segment a fillet's radius
+drew — which segment of an arrival's span is the fillet arc, and which
+of a fused step's span each of its radii produced — and then widen the
+rule from "one radius, one segment" to that attribution. The natural
+home is beside `ReplayStructure::steps` in
 `crates/profile/src/structure.rs`, which already records
 `FilletDecision`s and per-segment `SegmentShape`s (the latter in
-CANONICAL indices, which is why it is not usable here as it stands).
-Reading the shape back off the geometry is not an option: DM8 rules
-that this map reads the records the evaluation produced and never
-re-derives them.
+CANONICAL indices, which is why it is not usable here as it stands);
+`Core::fillet_arcs` already pairs each emitted fillet arc with the
+radius asked for, which is close to the missing fact but is not in the
+record. Reading the shape back off the geometry is not an option: DM8
+rules that this map reads the records the evaluation produced and
+never re-derives them.
 
 Both halves move together, as they did here: a radius that reaches a
 wall must have reached the key first.

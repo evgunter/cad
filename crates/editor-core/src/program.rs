@@ -1651,16 +1651,25 @@ impl ProfileProgram {
     /// ([`LoopProgram::carrier_radius`] says why), so the pairing is
     /// the step's radius on every edge of its span. A chain's step
     /// carries its own radius and the pairing is that step's span —
-    /// but a chain step can emit MORE than the arc its radius draws (a
-    /// fillet arrival emits its trimmed straight leg too), and the
-    /// span does not say which of them is the arc. So a chain step
-    /// answers only where it emitted exactly ONE segment, which is
-    /// then the arc that radius drew and nothing else.
+    /// but only where the span is exactly ONE segment, which is then
+    /// the arc that radius drew and nothing else.
+    ///
+    /// **What that condition excludes, measured on the vocabulary.**
+    /// An `arc_to` in a radius-carrying mode emits exactly its arc and
+    /// is answered. A `fillet(r)` is a BINDER and emits nothing at all:
+    /// the arc it opens is emitted by the ARRIVAL step, which carries
+    /// no radius of its own, so the radius and the segments it drew sit
+    /// on two different steps and nothing here pairs them. A fused
+    /// arrival carries several radii and is already excluded a step
+    /// earlier ([`LoopProgram::step_radii`]).
     ///
     /// Everything a step does not answer for is absent from the
     /// result, which is an answer and not a gap: nothing here claims
     /// an edge is drawn at a radius, so nothing downstream attaches a
-    /// spelling to an edge that is not.
+    /// spelling to an edge that is not. A fillet arc's wall therefore
+    /// carries no identity today, and the row that schedules the
+    /// record change it needs is
+    /// `work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`.
     ///
     /// The answer is in the numbering the published names carry, in
     /// program-step order, and is a SUBSET of

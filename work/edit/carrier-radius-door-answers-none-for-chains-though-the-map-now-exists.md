@@ -145,11 +145,16 @@ All four halves landed as one change.
 4. `carrier_radius` keeps its per-loop question and loses the
    obligation paragraph; DM8's consumers line names the built door.
 
-**Not built, and why.** A fused step (`fillet_arc`, `arc_fillet`,
-`arc_fillet_arc`) carries two or three radii and emits several
-segments, and the span does not say which radius drew which. Those
-steps answer nothing at either door, which leaves them exactly where
-they were — unattached and unkeyed — rather than guessing. Filed as
+**Not built, and why.** No fillet arc's radius reaches its wall. A
+`fillet(r)` binder holds the radius and emits no segment — the arc is
+the ARRIVAL step's, and that step holds no radius — and a fused step
+(`fillet_arc`, `arc_fillet`, `arc_fillet_arc`) holds two or three
+radii over several segments the span cannot tell apart. Both answer no
+edge, which leaves those walls exactly where they were rather than
+guessing; the one-radius shapes' spellings do enter the key, which is
+the conservative side. Pinned by
+`a_fillets_radius_is_a_program_answer_and_no_edges` and
+`a_step_with_several_radii_answers_no_radius`, filed as
 `fused-arc-fillet-steps-have-no-per-segment-radius-address`.
 
 **One spec premise corrected.** The RED row's spelling pair is
