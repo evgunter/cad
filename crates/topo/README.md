@@ -17,7 +17,7 @@ feeds a decision, every walk is bounded.
 
 | Area | Modules |
 |---|---|
-| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomSource`, a description's recipe identity), `src/live.rs` |
+| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomOrigin`, the one provenance row a body keeps per geometric description: `GeomSource`, a description's recipe identity, on its `Recipe` arm, and imported / kernel-direct / cleared-and-not-re-stamped on the other three), `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter (`Candidates` — the sweeps and the backstop examine only pairs whose padded boxes overlap, a cleared pair being decided apart by the box answer with pad ≥ escalate + 2·zero, so carrier-stage escalations and refusals about entities the boxes prove apart are not raised), the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
@@ -169,10 +169,13 @@ makes the disjointness/containment/extent gates skip the pair as a
 *recorded* verdict naming the declaration; assembly mass properties
 refuse by default with an explicit opt-in subtracting closed-form overlap
 volumes; booleans are unchanged; STEP export drops the declaration. Not
-implemented: the variant lands with its first consumer, and until then
-the nested-instance class (one instance's extent box inside another's)
-refuses at the backstop. Invariant: an undeclared interference is always
-a typed error; no blanket "disable interference checking" exists.
+implemented: the variant lands with its first consumer. Today the
+backstop's containment arm decides the nested-instance class by a
+material test — a nested placement sharing no material clears, an
+instance with a vertex inside another's material refuses typed
+(`ValidationError::InstanceInterference`) — and no declaration admits
+an interference. Invariant: an undeclared interference is always a
+typed error; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) an undeclared tangent pair refuses `CurvedBooleanUnsupported`;
@@ -245,7 +248,7 @@ backs; `SameSide` refuses naming the verdict and is the future
 declared-interpenetration hook (C6 consumes it as admission evidence, so
 no bool may stand there; today it reaches the refusal only as rendered
 witness text, not a typed field); `Undecided` escalates `CensusEscalated`.
-The side is read via `Face::sense_sign` and
+The side is read by handing both faces' `Face::sense` bits to
 `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
 sense-invariant.

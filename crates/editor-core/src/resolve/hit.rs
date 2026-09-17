@@ -39,6 +39,18 @@ pub enum HitTestError {
         /// The nearest failed ancestor.
         through: RecipeNodeId,
     },
+    /// The handed evaluation is of another document (DI3, A2a): the
+    /// door is a statement about a value of `expected`, and an
+    /// evaluation of `found` answers out of another document's name
+    /// tables. Node ids are minted per document, so a twin recipe's
+    /// evaluation answers every lookup — confidently, about other
+    /// geometry — and the refusal comes before any table is read.
+    EvaluationOfAnotherDocument {
+        /// The document the door is a statement about.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation is of.
+        found: crate::ident::DocumentId,
+    },
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — a naming-emission totality violation,
     /// surfaced loudly.
@@ -48,6 +60,21 @@ pub enum HitTestError {
         /// The unnamed entity.
         entity: EntityRef,
     },
+}
+
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for HitTestError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
 }
 
 // LIB-DOORS F6: the human-readable rendering a consumer prints instead
@@ -81,6 +108,12 @@ impl core::fmt::Display for HitTestError {
                  {}, so it has no name table to invert — the repair is \
                  upstream, at node {}",
                 node.0, through.0, through.0
+            ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "hit test: the evaluation is of document {found}, not \
+                 of document {expected} — the index and the tables it \
+                 is read against are of two documents"
             ),
             Self::Unnamed { node, entity } => write!(
                 f,

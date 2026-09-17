@@ -16,13 +16,15 @@
 //! LANE: a declared cylindrical `Rest` on an azimuth-SPLIT shared
 //! carrier is no longer refused by the reduction. That is strictly
 //! larger than the class that actually UNIONS. Several azimuth-split
-//! configurations get through the reduction and then refuse further
-//! downstream at the F7 coplanar-merge door, which takes planar
-//! declared surfaces only and is handed every surviving declared pair
-//! whatever its carrier — a partially engaged or floating peg leaves a
-//! cylindrical pair alive in the result and lands there. The probe
-//! suites beside this one carry those rows and pin them as typed
-//! refusals rather than silence.
+//! configurations get through the reduction and stop further
+//! downstream: a partially engaged or floating peg leaves a
+//! cylindrical declared pair alive in the result, the F7 merge door
+//! records it (`DeclaredCarrierUnsupported`, no curved declared rung)
+//! and ships the body, and the output stage's edge re-description
+//! then refuses the floating and mid-bore pegs at the zip's own seam
+//! chord (`work/curved/rest-zip-seam-chord-on-cylinder-wall`). The
+//! probe suites beside this one carry those rows
+//! (`curved_mergedoor`, `r1_probes_m9_3`) and pin each as what it is.
 //!
 //! **ε posture.** Every row runs at `Tol::witness()`, and the arm they
 //! exercise turns on a DEFINITE `Out` from the cylinder chart's trim:

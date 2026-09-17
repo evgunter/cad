@@ -19,7 +19,8 @@ files, so at most two run concurrently, staggered.
 ## Derived scope (stated before any code changed)
 
 `crates/pncad-py/tests/test_binding_census.py` charters `B-FACE-FRAME`
-in `FAMILIES` (DOCM-1, DOCM-REFERENCES-DESIGN DM1/DM1a/DM2) and
+in `FAMILIES` (DOCM-1, `crates/editor-core/REFERENCES.md`
+DM1/DM1a/DM2) and
 **exactly one** `NOT_BOUND` entry cites it: `face_carrier_kind`
 (`test_binding_census.py:1585`). Nothing else in the census names the
 id — the only other occurrences are the charter itself (`:723`) and

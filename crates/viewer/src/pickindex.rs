@@ -48,19 +48,21 @@
 //! by construction and offers no other constructor, so the pairing
 //! cannot drift as this structure grows a field. **Nothing here
 //! re-pairs a mesh with a node by hand, and this type offers no door
-//! through which it could** — said about `PickIndex` and about nothing
-//! else: whether the FAÇADE hands a consumer the raw-assembly lane is
-//! a separate question, answered in `pncad::select`'s own docs.
+//! through which it could** — and neither does anything below it: the
+//! raw mints are behind `editor-core`'s `test-support` feature, which
+//! no consumer's manifest enables, so this is the local half of a claim
+//! the whole stack now makes (`pncad::select`'s own docs).
 //!
-//! # Staleness is by generation, and it is a discard
+//! # Staleness is by picture, and it is a discard
 //!
-//! The key is [`crate::generation::Generation`] — the session's
-//! evaluation generation. A [`PickIndex`] built under one generation
-//! is never repaired against another: [`PickIndex::current_for`]
-//! answers whether the index still describes the run on screen, and a
-//! stale one is dropped and rebuilt whole. Re-pairing by hand is the
-//! failure #1098 exists to name. WHEN a rebuild is asked for, and what
-//! is done with the answer, is not this module's: that is
+//! The key is [`PictureKey`] — the session's evaluation generation and
+//! the δ the roots were tessellated at, as one value because it is one
+//! question. A [`PickIndex`] built for one picture is never repaired
+//! against another: [`PickIndex::current_for`] answers whether the
+//! index still describes the picture on screen, and a stale one is
+//! dropped and rebuilt whole. Re-pairing by hand is the failure #1098
+//! exists to name. WHEN a rebuild is asked for, and what is done with
+//! the answer, is not this module's: that is
 //! [`crate::pickcache::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
@@ -344,6 +346,20 @@ pub enum PickIndexError {
         /// The output body drawn twice.
         body: u32,
     },
+    /// A part's name doors refused the evaluation this index is being
+    /// built against — the pairing refusal, forwarded.
+    ///
+    /// Unreachable ON THIS PATH, and the condition is worth stating
+    /// rather than the conclusion: every part here is built from the
+    /// evaluation it is then read against, and the memo the build goes
+    /// through refuses a prior of another document (the row is
+    /// `editor_core`'s `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`),
+    /// so no part of another document can reach this loop. It is a
+    /// refusal rather than an assumption for
+    /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
+    /// caller that assembled parts elsewhere would otherwise get the
+    /// wrong document's names in window order.
+    Names(HitTestError),
 }
 
 impl core::fmt::Display for IdMapError {
@@ -385,6 +401,7 @@ impl core::fmt::Display for PickIndexError {
                 "body {} of node {} is drawn by two parts; one drawn body is one part",
                 body, node.0
             ),
+            Self::Names(error) => write!(f, "{error}"),
         }
     }
 }
@@ -417,7 +434,15 @@ trait DrawnKind {
     /// what say how long it is. Pairing the kind with its own name
     /// source here is also what stops a caller handing patch names to
     /// the edge window.
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>>;
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`] when the part is not of `eval`'s document —
+    /// the door's own pairing refusal, verbatim.
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -432,7 +457,10 @@ struct Patches;
 impl DrawnKind for Patches {
     type Id = u32;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.patch_names(eval)
     }
 
@@ -454,7 +482,10 @@ struct Edges;
 impl DrawnKind for Edges {
     type Id = EdgeId;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.boundary_names(eval)
     }
 
@@ -552,9 +583,11 @@ impl<K: DrawnKind> PartWindows<K> {
     /// # Errors
     ///
     /// [`PickIndexError::DrawnTwice`] when a part for that
-    /// (node, body) is already here.
+    /// (node, body) is already here; [`PickIndexError::Names`] when
+    /// the part is not of `eval`'s document.
     fn push(&mut self, part: &NodePick, eval: &Evaluation<f64>) -> Result<(), PickIndexError> {
-        self.push_names(part.node(), part.body(), K::names_of(part, eval))
+        let names = K::names_of(part, eval).map_err(PickIndexError::Names)?;
+        self.push_names(part.node(), part.body(), names)
     }
 
     /// [`Self::push`] over a name list directly — the seam a row can
@@ -695,6 +728,73 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **What a picture IS**: the landed generation an index describes and
+/// the δ its roots were tessellated at.
+///
+/// **One value because it is one question.** *Is this the same
+/// picture?* is asked at every step of an index's life — by the cache
+/// deciding whether to rebuild ([`crate::pickcache::PickCache::sync`]),
+/// by the seam deciding whether a waiting request supersedes the answer
+/// in hand, by the pane deciding whether the index it holds minted the
+/// ids on screen ([`PickIndex::current_for`]) — and each half alone
+/// answers a different question. A δ typed while the document stands
+/// rebuilds the index at the SAME generation over a different
+/// tessellation, so a generation-only comparison reads as co-identity
+/// while checking something else; and a δ is a tessellation OF a
+/// generation, so a δ-only comparison has no subject at all.
+///
+/// **The halves are compared together because there is no way to
+/// compare them apart.** [`PictureKey::of`] is the only door and takes
+/// both, `PartialEq` is over the pair, and every site that asks the
+/// question holds one of these rather than two fields — so the
+/// comparison a site means is the comparison it can write. Reading a
+/// half ([`PictureKey::generation`], [`PictureKey::delta`]) is for
+/// USING it: tessellating at the δ, naming the run. Neither read
+/// answers *the same picture?*, and the two sites in this crate that
+/// legitimately key on less than a picture do not go through this type
+/// at all.
+///
+/// **Two neighbours are NOT this key**, and both are worth naming here
+/// because a reader meeting them will see this shape:
+///
+/// - [`crate::evalseam::FitRequest`] carries `(generation, requested)`
+///   and is spelled identically. A fit's δ is the δ somebody ASKED for
+///   — the question the budget is being paid to answer — not the δ a
+///   picture was built at, so the two values mean different things and
+///   an answer for one is no answer for the other.
+/// - [`crate::idpass::IdSubject`] carries the scene revision and the
+///   index's generation, with no δ. That is not half of this key; it
+///   is a different key over a different pair, and its own doc holds
+///   the argument for both of its halves.
+///
+/// `PartialEq` and not `Eq`: [`DisplayTolerance`] is a float, so the
+/// pair inherits its equivalence and nothing here strengthens it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PictureKey {
+    generation: Generation,
+    delta: DisplayTolerance,
+}
+
+impl PictureKey {
+    /// The picture a run at `generation`, tessellated at `delta`, is.
+    #[must_use]
+    pub fn of(generation: Generation, delta: DisplayTolerance) -> Self {
+        Self { generation, delta }
+    }
+
+    /// The run half — what the index was built from.
+    #[must_use]
+    pub fn generation(self) -> Generation {
+        self.generation
+    }
+
+    /// The tessellation half — what the roots were built at.
+    #[must_use]
+    pub fn delta(self) -> DisplayTolerance {
+        self.delta
+    }
+}
+
 /// The pick index for one evaluation generation.
 ///
 /// Built from the document's roots, one [`NodePick`] per output body,
@@ -702,8 +802,7 @@ impl PartWindows<Patches> {
 /// parts both follow, so a reader of either can predict the other.
 #[derive(Debug)]
 pub struct PickIndex {
-    generation: Generation,
-    delta: DisplayTolerance,
+    key: PictureKey,
     parts: Vec<NodePick>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
@@ -735,12 +834,11 @@ impl PickIndex {
     pub fn build(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all(eval, node, delta.get(), tol)
+        Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all(eval, node, key.delta().get(), tol)
         })
     }
 
@@ -763,13 +861,12 @@ impl PickIndex {
     pub fn build_with(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all_with(eval, node, delta.get(), tol, memo)
+        let index = Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all_with(eval, node, key.delta().get(), tol, memo)
         });
         memo.end_picture();
         index
@@ -780,8 +877,7 @@ impl PickIndex {
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
@@ -804,8 +900,7 @@ impl PickIndex {
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
-            generation,
-            delta,
+            key,
             parts,
             ids,
             patches,
@@ -817,18 +912,25 @@ impl PickIndex {
     ///
     /// A `false` here means DISCARD: rebuild the index whole from the
     /// current evaluation. It never means repair.
-    pub fn current_for(&self, generation: Option<Generation>, delta: DisplayTolerance) -> bool {
-        Some(self.generation) == generation && self.delta == delta
+    pub fn current_for(&self, key: Option<PictureKey>) -> bool {
+        Some(self.key) == key
+    }
+
+    /// The picture this index describes — the whole key, and the value
+    /// anything asking whether two pictures are the same compares.
+    pub fn key(&self) -> PictureKey {
+        self.key
     }
 
     /// The generation this index was built under.
+    ///
+    /// **Half a key, and legitimately so**: the id query's subject
+    /// ([`crate::idpass::IdSubject`]) names the alphabet a GPU answer
+    /// was read through, which is the index's identity and not the
+    /// picture's. Anything asking whether two PICTURES are the same
+    /// wants [`PickIndex::key`].
     pub fn generation(&self) -> Generation {
-        self.generation
-    }
-
-    /// The δ this index was tessellated at.
-    pub fn delta(&self) -> DisplayTolerance {
-        self.delta
+        self.key.generation()
     }
 
     /// The drawn parts, in id order.
@@ -975,7 +1077,7 @@ impl PickIndex {
             // has. An empty document is a state, not a fault, and
             // [`SceneMesh::nothing`] is the picture of it.
             if self.parts.is_empty() {
-                return Ok(SceneMesh::nothing(self.delta));
+                return Ok(SceneMesh::nothing(self.key.delta()));
             }
             // Parts that exist but offer no point to bound is still a
             // refusal, and deliberately still this one: that is a
@@ -987,9 +1089,9 @@ impl PickIndex {
                     .flat_map(|part| part.mesh().positions.iter().copied()),
             )
             .ok_or(SceneError::EmptyMesh)?;
-            return Ok(SceneMesh::empty(bounds, self.delta));
+            return Ok(SceneMesh::empty(bounds, self.key.delta()));
         }
-        SceneMesh::build_parts_focused(&parts, self.delta, focus)
+        SceneMesh::build_parts_focused(&parts, self.key.delta(), focus)
     }
 
     /// The nearest face a ray meets, as a stable name.
@@ -1000,7 +1102,13 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — including
+    /// [`HitTestError::EvaluationOfAnotherDocument`] when `eval` is an
+    /// evaluation of a document this index's parts are not of, refused
+    /// before any triangle or any node's standing is read (A2a). The
+    /// parts carry the stamp of the evaluation they were built from,
+    /// so the caller that hands a different one is the caller this
+    /// arm is about.
     pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
         self.pick_for(eval, ray, &DisplayView::none())
     }
@@ -1023,7 +1131,9 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — the pairing arm
+    /// ([`PickIndex::pick`]) included, and refused for the whole call
+    /// before either batch is offered.
     pub fn pick_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1267,7 +1377,7 @@ impl PickIndex {
     /// would answer with — the ray path's own answer, un-narrowed.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::frame::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::disagreement`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority

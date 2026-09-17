@@ -402,7 +402,6 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
             len: 0.005,
         }),
         PathStep::TangentArcTo(PathTarget::Start),
-        PathStep::ArcContinue([0.002, 0.002]),
         PathStep::Fillet(0.001),
         PathStep::FilletArc {
             radius: 0.001,
@@ -468,13 +467,12 @@ fn ordinal(step: &PathStep) -> usize {
         PathStep::LineTo(_) => 7,
         PathStep::ArcTo(_) => 8,
         PathStep::TangentArcTo(_) => 9,
-        PathStep::ArcContinue(_) => 10,
-        PathStep::Fillet(_) => 11,
-        PathStep::FilletArc { .. } => 12,
-        PathStep::ArcFillet { .. } => 13,
-        PathStep::ArcFilletArc { .. } => 14,
-        PathStep::FarEndTo(_) => 15,
-        PathStep::CloseTo => 16,
+        PathStep::Fillet(_) => 10,
+        PathStep::FilletArc { .. } => 11,
+        PathStep::ArcFillet { .. } => 12,
+        PathStep::ArcFilletArc { .. } => 13,
+        PathStep::FarEndTo(_) => 14,
+        PathStep::CloseTo => 15,
     }
 }
 
@@ -494,4 +492,150 @@ fn a_non_finite_field_refuses_at_the_lowering() {
     )
     .expect_err("NaN is not a coordinate");
     assert!(matches!(refusal, PreviewError::Dimension(_)), "{refusal}",);
+}
+
+/// **An arc whose radius is not a number refuses, rather than being
+/// drawn at coordinates that are not numbers.**
+///
+/// A bulge of `1e-320` is a finite literal — `Expr::literal` accepts
+/// it, and `widgets::named_scalar` is an ordinary field a person types
+/// it into — so nothing upstream of the flattener has a reason to
+/// refuse. What it makes is `theta = 4e-320`, `sin(theta/2)` of the
+/// same order, and a radius of `inf`; every point along such an arc is
+/// `±inf` or a `NaN`. `arc_points` answers `None` for it and
+/// `sketch::flatten` turns that into this refusal.
+///
+/// **The two-vertex version of this loop never gets here**, which is
+/// worth the sentence because it is the shape the defect was first
+/// written down in: an arc straight across a chord and a closing leg
+/// back makes the seam reverse onto itself, and the driver refuses it
+/// as an undeclared cusp two steps earlier. It takes a third vertex
+/// for the arc to reach the flattener at all.
+#[test]
+fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            PathStep::At([0.0, 0.0]),
+            PathStep::ArcTo(ArcSpec::Bulge {
+                target: PathTarget::Point([0.01, 0.0]),
+                b: 1.0e-320,
+            }),
+            PathStep::LineTo(PathTarget::Point([0.005, 0.01])),
+            PathStep::LineTo(PathTarget::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("an arc of infinite radius has no drawable shape");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **An arc whose CENTRE overflows refuses too, and it is a different
+/// arm from the row above.**
+///
+/// Here the radius is an ordinary finite number — about `5e306` for
+/// this chord — so `arc_points` answers `Some(256)` and refuses
+/// nothing. What is not a number is the centre: the chord's own
+/// midpoint is `(1.6e308 + 1.5e308) / 2`, which overflows on its way
+/// to a value that would have been representable, and the arc's
+/// points are all `centre + radius·(cos, sin)`.
+///
+/// So `radius` does not carry the whole frame. It carries the
+/// apothem — `apothem = ±radius·cos(θ/2)` — but not the midpoint the
+/// apothem is measured from, and this row is the population that
+/// distinction produces. Deleting `flatten`'s `centre`/`start` check
+/// leaves the row above green and reds this one.
+#[test]
+fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            PathStep::At([1.6e308, 0.0]),
+            PathStep::ArcTo(ArcSpec::Bulge {
+                target: PathTarget::Point([1.5e308, 0.0]),
+                b: 1.0,
+            }),
+            PathStep::LineTo(PathTarget::Point([1.55e308, 1.0e307])),
+            PathStep::LineTo(PathTarget::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("an arc about a centre that is not a point has no drawable shape");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **The refusal is a refusal and not a shortened loop**, which is
+/// what `flatten`'s own doc claims and what nothing else here would
+/// notice. Skipping the segment instead would leave `preview`
+/// answering `Ok` with a loop drawn along a leg its author never
+/// wrote — a straight chord standing in for an arc — and every row
+/// above would stay green through it.
+#[test]
+fn an_undrawable_arc_is_refused_and_not_skipped() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            PathStep::At([0.0, 0.0]),
+            PathStep::ArcTo(ArcSpec::Bulge {
+                target: PathTarget::Point([0.01, 0.0]),
+                b: 1.0e-320,
+            }),
+            PathStep::LineTo(PathTarget::Point([0.005, 0.01])),
+            PathStep::LineTo(PathTarget::Start),
+        ],
+    };
+    let drawn = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    );
+    assert!(
+        drawn.is_err(),
+        "the preview drew a loop whose arc it could not flatten",
+    );
+}
+
+/// The refusal renders as a sentence naming the loop, the vertex and
+/// what has no answer — the vocabulary the other preview refusals use,
+/// so a form showing this one shows the same kind of thing it shows
+/// for an ill-typed walk.
+#[test]
+fn an_undrawable_arcs_refusal_says_which_vertex_and_why() {
+    let refusal = PreviewError::Unflattenable {
+        loop_: 2,
+        vertex: 7,
+    };
+    let sentence = refusal.to_string();
+    assert!(sentence.contains("loop 2"), "{sentence}");
+    assert!(sentence.contains("vertex 7"), "{sentence}");
+    assert!(sentence.contains("not a number"), "{sentence}");
 }

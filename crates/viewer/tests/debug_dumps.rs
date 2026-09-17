@@ -130,7 +130,7 @@ fn a_held_pick_index_renders_as_an_elision_around_its_generation() {
     let empty = format!("{cache:?}");
     assert!(empty.contains("index: None"), "index: None not in {empty}");
     assert_eq!(
-        cache.sync(session.index_inputs(), delta()),
+        cache.sync(session.index_inputs(), Some(delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);

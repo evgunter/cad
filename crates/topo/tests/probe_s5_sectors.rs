@@ -54,7 +54,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 
-use common::{prism, prism_z};
+use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Point3, Real, Vec3};
@@ -81,17 +81,7 @@ const SECTOR_PREDICATES: [&str; 3] = ["sector_arm", "sector_reflex", "sector_str
 
 fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> {
     let f = |v: f64| v * s;
-    prism_z::<Probe>(
-        &[
-            (f(x.0), f(y.0)),
-            (f(x.1), f(y.0)),
-            (f(x.1), f(y.1)),
-            (f(x.0), f(y.1)),
-        ],
-        f(z.0),
-        f(z.1),
-    )
-    .body
+    brick::<Probe>((f(x.0), f(x.1)), (f(y.0), f(y.1)), (f(z.0), f(z.1)))
 }
 
 fn plane_y(c: f64) -> SplitPlane<Probe> {

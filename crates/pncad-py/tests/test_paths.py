@@ -154,13 +154,17 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_arc_continue_mints_a_structural_subdivision_vertex(self):
-        # The same carrier, subdivided at the +y pole: a same-carrier
-        # identity, not a junction claim.
+    def test_two_arcs_on_one_carrier_meet_at_a_declared_tangent_joint(self):
+        # The half-disc equator's shape at the +y pole: the second arc
+        # leaves along the first's tangent (a DECLARED tangent joint —
+        # the sixth round's spelling for adjacent same-carrier arcs)
+        # and is derived from that tangent and its target. The verb
+        # `arc_continue` this shape used to need is removed (BOOL-10).
         loop = (
             Open.at((1 * m, 0 * m))
             .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
-            .arc_continue((-1 * m, 0 * m))
+            .tangent()
+            .tangent_arc_to((-1 * m, 0 * m))
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
@@ -382,14 +386,6 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .line_to((1 * m, 0 * m))
             .toward(0.0, 1.0)
             .fillet(0 * m),
-        )
-
-    def test_arc_continue_needs_an_arc_carrier(self):
-        self.refuses(
-            "arc_continue_needs_arc_carrier",
-            lambda: Open.at(ORIGIN)
-            .line_to((1 * m, 0 * m))
-            .arc_continue((2 * m, 0 * m)),
         )
 
     def test_coordinates_are_typed_quantities(self):

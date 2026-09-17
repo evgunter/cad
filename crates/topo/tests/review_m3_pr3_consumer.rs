@@ -7,7 +7,7 @@
 
 use crate::common;
 
-use common::prism;
+use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
@@ -175,18 +175,18 @@ fn in_band_section_escalates_typed_not_misclassified() {
 /// whole body on the other, and `plane_section` reports zero polygons.
 #[test]
 fn vertex_only_contact_is_typed_empty() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+    let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let s3 = 3.0f64.sqrt();
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
     };
-    let r = split(&fx.body, &plane, Tol::witness()).unwrap();
+    let r = split(&fx, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
-    assert_eq!(below.vertices().count(), fx.body.vertices().count());
-    let s = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
+    assert_eq!(below.vertices().count(), fx.vertices().count());
+    let s = plane_section(&fx, &plane, Tol::witness()).unwrap();
     assert!(s.polygons.is_empty());
     assert!(s.u_ref.is_none());
 }

@@ -54,6 +54,14 @@
 mod common;
 mod fixture;
 
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
+#[path = "bool4r1_probes.rs"]
+mod bool4r1_probes;
+#[path = "bool4r2_base_probe.rs"]
+mod bool4r2_base_probe;
+#[path = "bool4r2_probes.rs"]
+mod bool4r2_probes;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -64,8 +72,12 @@ mod corner_table;
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "cube_doors_agree.rs"]
+mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "geom_origin_rows.rs"]
+mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -78,6 +90,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "loop_reparenting_pcurve_rows.rs"]
+mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
 mod m3_pr1_surgery;
 #[path = "m3_pr2_reduce.rs"]
@@ -132,6 +146,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "props_sphere_cap_door.rs"]
+mod props_sphere_cap_door;
 #[path = "quad_lane_is_the_certified_lane.rs"]
 mod quad_lane_is_the_certified_lane;
 #[path = "r1_mate4a_probes.rs"]
@@ -212,19 +228,14 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "split_edge_pcurve_rows.rs"]
+mod split_edge_pcurve_rows;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 #[path = "f7d_delta_probes.rs"]
 mod f7d_delta_probes;
 #[path = "probe_census.rs"]

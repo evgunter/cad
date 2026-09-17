@@ -19,7 +19,7 @@ use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
 /// The run's ε as a bare `f64` — **the suites' door, and the reason
@@ -80,34 +80,25 @@ pub fn axis_y() -> RevolveAxis<f64> {
 
 /// L-prism: L-shaped hexagon (area 3) extruded to height 1.
 pub fn l_prism() -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
-    ]);
-    extrude(
-        &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+    sweep::test_support::prism(
+        sweep::test_support::corners(&[
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ]),
+        1.0,
         Tol::witness(),
     )
-    .unwrap()
-    .body
 }
 
 /// Holed prism: 3×3 square with a centered 1×1 square hole, height 1.
 pub fn holed_prism() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(0.0, 3.0)]);
     let hole = ProfileLoop::polygon([p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 2.0), p2(1.0, 2.0)]);
-    extrude(
-        &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
+    sweep::test_support::extruded(SketchPlane::xy(), vec![outer, hole], 1.0, Tol::witness())
 }
 
 /// Rounded-square prism: 2×2 square, corners rounded at radius
@@ -130,13 +121,7 @@ pub fn rounded_prism() -> Body<f64> {
     // (the #101 discipline).
     let n = lp.vertices().len();
     lp = lp.with_tangent_joints((0..n).collect());
-    extrude(
-        &validated(vec![lp]),
-        Extrusion::Distance(1.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
+    sweep::test_support::extruded(SketchPlane::xy(), vec![lp], 1.0, Tol::witness())
 }
 
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).

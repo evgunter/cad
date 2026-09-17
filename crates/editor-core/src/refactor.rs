@@ -6,8 +6,10 @@
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
-//! [`DocEdit`]s that produce them, and the cluster-record maintenance
-//! those edits performed — the input documents are untouched,
+//! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
+//! those edits performed — the cluster-record acts the mate graph's
+//! motion forced, and the payload names a departing cut node
+//! stranded. The input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -100,10 +102,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::doc::Doc;
+use crate::doc::{Doc, NameCarrier};
+use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::mate::ClusterMaintenance;
 use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
@@ -332,9 +334,9 @@ impl core::fmt::Display for SplitError {
                 kept_node,
             } => write!(
                 f,
-                "split: parameter {:?} is referenced by cut node {} and kept node {} — one \
+                "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                param.0, cut_node.0, kept_node.0
+                cut_node.0, kept_node.0
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
@@ -493,8 +495,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::ParamConflict { param } => write!(
                 f,
-                "inline: parameter {:?} is declared by both documents with different values",
-                param.0
+                "inline: parameter {param} is declared by both documents with different values"
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
@@ -528,7 +529,7 @@ impl core::error::Error for InlineError {}
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
 /// caller's id, the remainder's from the input document), and the
-/// cluster-record maintenance each edit list performed. Undo of the
+/// [`crate::Maintenance`] each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -540,29 +541,30 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `remainder_edits` performed, in
-    /// edit order: what the A11 registry did as the cut's names
+    /// The maintenance `remainder_edits` performed, in edit order
+    /// ([`Maintenance`]): what the A11 registry did as the cut's names
     /// re-anchored onto the instance (a kept mate that welded nothing
     /// while its far end was a local body welds the instance to its
     /// near end once the name is instance-qualified — a join) and as
     /// the cut nodes left (a cut cluster's mates and members going is
-    /// its splits and drops). An accepted edit travels whole, so the
+    /// its splits and drops), and every payload name a departing cut
+    /// node stranded behind it (DM7). An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
     /// caller holding a document with the maintenance of its last
     /// accepted edit swaps `remainder` and this in together.
-    pub remainder_maintenance: Vec<ClusterMaintenance>,
+    pub remainder_maintenance: Vec<Maintenance>,
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `part_edits` performed, in edit
-    /// order. The part is built by inserting the cut nodes, and a cut
+    /// The maintenance `part_edits` performed, in edit order
+    /// ([`Maintenance`]). The part is built by inserting the cut nodes, and a cut
     /// mate welds its two members as it lands, so a multi-member
     /// cluster cut whole re-forms in the part as one join per mate
     /// that welded two clusters still separate when it landed. That
     /// insert is the one part-side edit that moves a mate graph: the
     /// tolerance, parameter, witness, placement and root edits
     /// reconcile nothing.
-    pub part_maintenance: Vec<ClusterMaintenance>,
+    pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
     /// Cut-node ids → their part-document ids (minted in document
@@ -572,7 +574,7 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it and the cluster-record maintenance they performed.
+/// that produce it and the maintenance they performed.
 /// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
@@ -580,23 +582,24 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `edits` performed, in edit
-    /// order: the part's mates weld their spliced members as they
-    /// land, a wrapped name's re-anchoring moves what the instance
+    /// The maintenance `edits` performed, in edit order
+    /// ([`Maintenance`]): the part's mates weld their spliced members
+    /// as they land, a wrapped name's re-anchoring moves what the
+    /// instance
     /// welded onto the spliced node (a split, where the spliced node
     /// is no member), and the instance's delete drops or re-keys its
     /// cluster's row. An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
-    pub maintenance: Vec<ClusterMaintenance>,
+    pub maintenance: Vec<Maintenance>,
     /// Part-document node ids → their host ids (minted in the part's
     /// document order).
     pub node_map: NodeMap,
 }
 
 /// A document under reconstruction by recorded edits: the value so
-/// far, the edits that produce it, and the cluster-record maintenance
-/// those edits performed. The ONE place a refactoring takes an
+/// far, the edits that produce it, and the maintenance those edits
+/// performed. The ONE place a refactoring takes an
 /// accepted edit up, which is what keeps each [`apply`] result's
 /// document and maintenance together — the record's minted id goes
 /// back to the caller, and its `structural` bit is a fact of the edit
@@ -605,7 +608,7 @@ pub struct InlineOutcome {
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
-    maintenance: Vec<ClusterMaintenance>,
+    maintenance: Vec<Maintenance>,
 }
 
 impl Recording {
@@ -750,7 +753,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
             vertex: one(vertex)?,
             support: one(support)?,
         },
-        R::CornerArc { vertex, edge } => R::CornerArc {
+        R::EndArc { vertex, edge } => R::EndArc {
             vertex: one(vertex)?,
             edge: one(edge)?,
         },
@@ -829,6 +832,16 @@ fn remap_node(
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
+    // A mate head across the cut, through the same name door and back
+    // through the type's own constructor. `remap_name` rewrites the
+    // minting node ids embedded in a name and never its KIND, so the
+    // constructor answers `Ok` here; it is CALLED rather than
+    // bypassed because the invariant has one door, and a remap that
+    // ever did change a kind is a name this walk could not carry —
+    // which is what the miss it reports says.
+    let face = |n: &crate::names::FaceName| -> Result<crate::names::FaceName, RemapMiss> {
+        crate::names::FaceName::new(nm(n)?).map_err(|_| RemapMiss::Name(Box::new((**n).clone())))
+    };
     Ok(match node {
         // **An in-plane axis is not a leaf**: its frame is an input,
         // and a clone would carry the OTHER document's node number
@@ -1018,13 +1031,13 @@ fn remap_node(
             class,
             alignment,
         } => Node::Mate {
-            a: crate::node::SitedRef {
+            a: crate::node::SitedFace {
                 at: id(a.at)?,
-                name: nm(&a.name)?,
+                name: face(&a.name)?,
             },
-            b: crate::node::SitedRef {
+            b: crate::node::SitedFace {
                 at: id(b.at)?,
-                name: nm(&b.name)?,
+                name: face(&b.name)?,
             },
             class: *class,
             alignment: *alignment,
@@ -1268,19 +1281,29 @@ pub fn split(
         }
     }
     // Cut-side name references must lie wholly within the cut: the
-    // part document cannot name the remainder's entities.
-    for &id in doc.order() {
-        if !cut.contains(&id) {
-            continue;
-        }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            if !derivation_nodes(name).is_subset(cut) {
-                return Err(SplitError::PartNameReachesRemainder {
-                    node: id,
-                    name: Box::new(name.clone()),
-                });
+    // part document cannot name the remainder's entities. Read off
+    // the document's name-carrier enumeration, so a carrier added to
+    // `Carrier` is walked here without being remembered into this
+    // site — only its SIDE has to be decided, which is what the two
+    // arms below say.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if !cut.contains(&node) {
+                    continue;
+                }
+                if !derivation_nodes(name).is_subset(cut) {
+                    return Err(SplitError::PartNameReachesRemainder {
+                        node,
+                        name: Box::new(name.clone()),
+                    });
+                }
             }
+            // A store key is the document's, not either side's: no
+            // node carries it, so there is no cut-side instance of
+            // one to refuse. It is classified below instead, where
+            // the remainder's references are.
+            NameCarrier::Store { .. } => {}
         }
     }
     // Remainder-side references to cut entities re-anchor through the
@@ -1305,17 +1328,20 @@ pub fn split(
         rebinds.insert(name.clone());
         Ok(())
     };
-    for &id in doc.order() {
-        if cut.contains(&id) {
-            continue;
+    // Every name the document holds that is not carried by a cut
+    // node: the payload names of the kept nodes, then the store's
+    // keys, which no node carries and which therefore always
+    // classify.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if cut.contains(&node) {
+                    continue;
+                }
+                classify(name)?;
+            }
+            NameCarrier::Store { name } => classify(name)?,
         }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
     }
     // The deterministic id remap: cut nodes in document order mint
     // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
@@ -1477,7 +1503,7 @@ pub fn split(
     // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
     // document (N5) and its names rebind like any other; it simply
     // says nothing about the seam.
-    let is_mate_edge_end = |r: &crate::node::SitedRef| crate::mate::member_of(doc, r).is_some();
+    let is_mate_edge_end = |r: &crate::node::SitedFace| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1502,12 +1528,12 @@ pub fn split(
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
         let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
-            name: Box::new(inner.clone()),
+            name: Box::new((**inner).clone()),
         })?;
         crossings.push(InterfaceCrossing::Mate {
             mate: id,
             class: *class,
-            outer: outer.clone(),
+            outer: (**outer).clone(),
             inner,
         });
     }
@@ -1702,14 +1728,11 @@ pub fn inline(
             name: Box::new(name.clone()),
         })
     };
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
+    // Every name the host document holds, in both carriers — the
+    // classification is the same for each, so this asks the
+    // enumeration for the names and nothing else.
+    for carrier in doc.name_carriers() {
+        classify(carrier.name())?;
     }
     wrapped.sort();
     wrapped.dedup();

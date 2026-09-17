@@ -23,18 +23,31 @@
 //!   full-period self-loop edge, two-half-edge loop. An ENUMERATION,
 //!   not a fuzzer: the shapes are the whole content and nothing is
 //!   sampled.
-//! - The **torn-body sweep** CALLS every operator that reaches
-//!   `link_half_edges` at every key of a randomly torn body. A
-//!   counterexample search: varying seed, counts on `CAD_FUZZ_EFFORT`,
-//!   monotone in the safe direction.
+//! - The **torn-body sweep** CALLS the six operators `LINK_OPS` names —
+//!   `kef`, `kev`, `kemr`, `mev_line`, `mef_chord`, `split_edge` — at
+//!   every key of a randomly torn body, plus `mfkrh_plug`, which is
+//!   driven and printed as evidence and is **not** in the class (`OPS`
+//!   against `LINK_OPS` below). A counterexample search: varying seed,
+//!   counts on `CAD_FUZZ_EFFORT`, monotone in the safe direction.
 //!
-//!   **Calling is not reaching, and the two rows now say which they
-//!   did.** Both print an exposure per operator, and both floor on how
-//!   many of `LINK_OPS` entered a mutation phase — the only place a
-//!   row-4 arm can fire. Measured, `kemr` enters one in NEITHER row: its
-//!   plan phase refuses on every input either row produces, so the arms
-//!   below it are attacked by nothing here. That gap is **S161 / D107**,
-//!   not a claim this file makes.
+//!   **The driven set is not the whole class**, and this file claims
+//!   only the driven set. `mekr` reaches `link_half_edges` too, at every
+//!   one of its four site variants, and nothing here drives it; the site
+//!   tally and the grep it came from are on the row that owns the gap,
+//!   `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
+//!
+//!   **Calling is not reaching, and the two rows say which they did.**
+//!   Both print an exposure per operator and both ASSERT it, per
+//!   operator rather than in aggregate: the deterministic row pins every
+//!   operator's count exactly against `SPENT_GRAFT_EXPOSURE`, and the
+//!   sampling row floors EACH of `LINK_OPS` — a mutation phase being the
+//!   only place a row-4 arm can fire. `kemr` is the one that needed a
+//!   fixture: its plan phase wants the two halves of ONE edge in ONE
+//!   loop, which no cube and no torn cube presents, so the sweep hammers
+//!   [`crate::fixtures::ops_ring_bridge`] (the holed box with its hole
+//!   rim bridged back into the top face's outer loop, which reaches the
+//!   two-splice arm) and [`crate::fixtures::ops_strut_cube`] (a pendant
+//!   strut, which reaches the one-splice arm) beside the cube.
 //!
 //! # Why the sweep is release-only
 //!
@@ -61,8 +74,10 @@
 //! job, which selects rows BY NAME. Promoting a file means adding
 //! `review_d18` to that job's filter list and a `grep -q` line for
 //! [`torn_bodies_never_reach_a_row_four_unreachable`], or the sweep
-//! ships without ever running. The profile-independent rows above ride
-//! the standard matrix and need nothing.
+//! ships without ever running. The profile-independent rows above need
+//! nothing: they run on every job that runs this suite at all — which
+//! is not every job, since the whole module is `gated_to!` the six
+//! files named below and a PR touching none of them does not run it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -80,13 +95,30 @@ use geom_core::Point3;
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
-use crate::fixtures::{deep_snapshot, ops_cube};
+use crate::fixtures::{
+    deep_snapshot, ops_cube, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
+};
 use geom_core::Tol;
 #[cfg(not(debug_assertions))]
 use test_utils::vacuity::Exposure;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
+}
+
+/// The two halves of `edge` — the file's ONE spelling of the lookup
+/// every caller here needs, so the mate pair is read the same way in
+/// the hammer and in the rows.
+///
+/// It cannot miss and is not guarded: every caller collected `edge`
+/// from the arena of the very body it passes, and the operators run on
+/// clones, so nothing between the collection and the read can retire
+/// the key.
+fn mate_halves(body: &Body<f64>, edge: crate::entity::EdgeKey) -> (HalfEdgeKey, HalfEdgeKey) {
+    let d = body
+        .get_edge(edge)
+        .expect("the edge key was collected from this body");
+    (d.he_plus, d.he_minus)
 }
 
 /// A half-edge key that is guaranteed dead in `body`'s own arena —
@@ -496,6 +528,146 @@ fn link_half_edges_still_announces_rather_than_discards() {
     );
 }
 
+// =====================================================================
+// C1 coverage — that the hammer rows' `kemr` inputs exist at all, on
+// every job rather than only where the hammer runs. Not a falsification
+// of either C1 arm: a witness that the inputs C1's sweep needs are
+// present, and that the fixtures which do not present them cannot.
+// =====================================================================
+
+/// **The `kemr` coverage claim, wherever this suite runs** — which the
+/// two hammer rows are not: they are `cfg(not(debug_assertions))` and
+/// run in one job, and until this row the fact that `kemr` reaches a
+/// mutation phase at all was carried only by a printed exposure line
+/// that a passing test's captured stdout never shows. This states it in
+/// one call, profile-independently, and states its converse too.
+///
+/// The converse is the half that explains the gap: it is not that the
+/// sweep drew too few samples, it is that the closed fixtures have no
+/// input for `kemr` at all. Every mate pair of every edge of
+/// [`crate::fixtures::ops_cube`], [`crate::fixtures::ops_holed_box`]
+/// and [`crate::fixtures::ops_genus2`] — both argument orders — refuses
+/// at `NotSameLoop`, because in each of them every edge borders two
+/// distinct faces and its halves therefore sit in two loops. No amount
+/// of tearing adds an edge whose halves share a loop, which is why a
+/// sweep of torn cubes found nothing however many calls it made, and
+/// why one fixture does.
+#[test]
+fn kemr_splices_twice_on_the_ring_bridge_once_on_a_strut_and_never_on_a_closed_fixture_edge() {
+    let tol = Tol::witness();
+    let bridge = ops_ring_bridge(tol);
+    let edge = bridge.bridge.edge;
+    let outer = bridge.outer;
+    let mut body = bridge.body;
+    let (hp, hm) = mate_halves(&body, edge);
+    // The four neighbours the two splices must join, read BEFORE the
+    // op: `kemr` links prev(he2) → next(he1) to close the ring side and
+    // prev(he1) → next(he2) to close the old loop, and re-anchors each
+    // loop at the `next` it kept.
+    let (next_hp, prev_hp) = {
+        let d = body.get_half_edge(hp).unwrap();
+        (d.next, d.prev)
+    };
+    let (next_hm, prev_hm) = {
+        let d = body.get_half_edge(hm).unwrap();
+        (d.next, d.prev)
+    };
+    let out = body
+        .kemr(hp, hm)
+        .expect("the bridge edge's halves share a loop, so kemr's plan phase passes");
+    // BOTH splices, each named by the link it wrote. Both sides of the
+    // split were non-empty here, which is the arm that splices twice;
+    // the arm a strut kill reaches writes only the second of these and
+    // mints an `Empty` ring ([`crate::fixtures::ops_strut_cube`], driven
+    // through [`hammer`]).
+    assert_eq!(
+        body.get_half_edge(prev_hm).unwrap().next,
+        next_hp,
+        "the ring side's splice did not run: prev(he2) must close onto next(he1)"
+    );
+    assert_eq!(
+        body.get_half_edge(prev_hp).unwrap().next,
+        next_hm,
+        "the old loop's splice did not run: prev(he1) must close onto next(he2)"
+    );
+    // …and each side's anchor and closed cycle, so a splice that wrote
+    // the link but left the loop unreachable is caught too.
+    for (side, anchor, l) in [("ring", next_hp, out.ring), ("old loop", next_hm, outer)] {
+        assert_eq!(
+            body.get_loop(l).unwrap().boundary,
+            crate::LoopBoundary::Cycle { first: anchor },
+            "the {side} must be a cycle re-anchored at the half it kept"
+        );
+        let cycle = body
+            .loop_cycle(anchor)
+            .unwrap_or_else(|| panic!("the {side}'s cycle must close after the splice"));
+        for he in cycle {
+            assert_eq!(
+                body.get_half_edge(he).unwrap().parent_loop,
+                l,
+                "every member of the {side}'s cycle must belong to it"
+            );
+        }
+    }
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+
+    // THE OTHER ARM, on the fixture that presents it: when the two
+    // halves are adjacent the side strictly between them is empty, the
+    // ring loop is minted `Empty` at he2's start vertex, and only the
+    // old loop's splice runs. [`hammer`] reaches this arm too — it is
+    // what [`KEMR_EMPTY_RING`] counts — but that is release-only, and
+    // this is the arm `ops_holed_box`'s own builder depends on.
+    let strut = ops_strut_cube(tol);
+    let mut body = strut.body;
+    let (hp, hm) = (strut.strut.he_plus, strut.strut.he_minus);
+    let prev_hp = body.get_half_edge(hp).unwrap().prev;
+    let (next_hm, w) = {
+        let d = body.get_half_edge(hm).unwrap();
+        (d.next, d.start)
+    };
+    let out = body
+        .kemr(hp, hm)
+        .expect("the strut's halves share a loop, so kemr's plan phase passes");
+    assert_eq!(
+        body.get_loop(out.ring).unwrap().boundary,
+        crate::LoopBoundary::Empty { vertex: w },
+        "an adjacent pair leaves no ring side, so the ring loop is the empty one"
+    );
+    assert_eq!(
+        body.get_half_edge(prev_hp).unwrap().next,
+        next_hm,
+        "the old loop's splice — the only one this arm runs — did not run"
+    );
+    assert_eq!(
+        body.get_loop(strut.outer).unwrap().boundary,
+        crate::LoopBoundary::Cycle { first: next_hm },
+        "the old loop must stay a cycle re-anchored at the half it kept"
+    );
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+
+    for (name, body) in [
+        ("ops_cube", ops_cube(tol).body),
+        ("ops_holed_box", ops_holed_box(tol).body),
+        ("ops_genus2", ops_genus2(tol)),
+    ] {
+        let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        assert!(!edges.is_empty(), "fixture: {name} must present edges");
+        for e in edges {
+            let (hp, hm) = mate_halves(&body, e);
+            for (he1, he2) in [(hp, hm), (hm, hp)] {
+                assert_eq!(
+                    body.clone().kemr(he1, he2),
+                    Err(EulerOpError::NotSameLoop { he1, he2 }),
+                    "{name}: every edge's halves must lie in two faces' loops; if one \
+                     pair ever shares a loop the hammer's rows over this body stop \
+                     being vacuous for `kemr` and the ring-bridge fixture's reason \
+                     needs re-reading"
+                );
+            }
+        }
+    }
+}
+
 /// The kinds of tier-1 corruption the sweep plants. Each is a shape
 /// #720's review named as a way a key can be wrong: DANGLING (the
 /// lookup fails — the only shape that can reach a row-4 arm) and
@@ -583,19 +755,27 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
     }
 }
 
-/// The operators whose mutation phase **reaches
+/// The operators this pass drives whose mutation phase **reaches
 /// [`crate::Body::link_half_edges`]**, and therefore the row-4 arms
-/// under attack: `kef`/`kev`/`kemr` (`euler_kill.rs`, `euler_ring.rs`),
-/// `mev_line`/`mef_chord` (`euler.rs`) and `split_edge` (`split.rs`).
+/// under attack: `kef`/`kev` (`euler_kill.rs`), `kemr`
+/// (`euler_ring.rs`), `mev_line`/`mef_chord` (`euler.rs`) and
+/// `split_edge` (`split.rs`).
 ///
 /// **This is the list the floor counts over, and it is not the list the
 /// pass drives.** `mfkrh_plug` is driven and counted as evidence, but
-/// its mutation phase mints a face and touches no half-edge links, so a
-/// run that reached only it has reached none of the arms — which is
+/// its mutation phase mints a face surface, adds a face and touches
+/// `face`/`loop`/`shell` records — it calls `link_half_edges` NOWHERE,
+/// so a run that reached only it has reached none of the arms, which is
 /// exactly the run that made a floor on the total unfalsifiable here
 /// (`mfkrh`'s plan phase reads only `loop.face`, `face.outer`,
 /// `face.shell`, so it survives a fully nulled arena). An operator that
 /// cannot reach the arms cannot be evidence that the arms were reached.
+///
+/// **Nor is it the whole class**: `mekr` reaches the arms and this pass
+/// does not drive it (module docs, and
+/// `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
+/// Adding it here without driving it would floor over a category that
+/// can never be nonzero.
 #[cfg(not(debug_assertions))]
 const LINK_OPS: [&str; 6] = ["kef", "kev", "kemr", "mev_line", "mef_chord", "split_edge"];
 
@@ -613,31 +793,119 @@ const OPS: [&str; 7] = [
     "mfkrh_plug",
 ];
 
+/// `kemr`'s mutation phase has TWO arms, and the exposure counts them
+/// apart: it splices twice when both sides of the split are non-empty
+/// (the ring loop is minted as a cycle) and once when the ring side is
+/// empty (the ring loop is minted `Empty` and only the old loop's
+/// splice runs). A count of `kemr` alone cannot tell a sweep that
+/// reached both from one that reached either.
+#[cfg(not(debug_assertions))]
+const KEMR_CYCLE_RING: &str = "kemr: cycle ring side";
+
+/// The one-splice arm — see [`KEMR_CYCLE_RING`].
+#[cfg(not(debug_assertions))]
+const KEMR_EMPTY_RING: &str = "kemr: empty ring side";
+
+/// Every operator's exposure on the spent graft destination,
+/// **exactly**, because that row is deterministic end to end — one
+/// fixture, one tear, one graft, one hammer, no `Rng` and no effort
+/// dial. Asserted rather than written in a comment: the comment this
+/// replaced named a per-operator count that nothing held, and it had
+/// been wrong for the row's whole life.
+///
+/// A change that moves one of these is not a failure to be edited back
+/// into line; re-derive the row and say in the PR what moved and why it
+/// is right.
+#[cfg(not(debug_assertions))]
+const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
+    ("kef", 40),
+    ("kemr", 2),
+    (KEMR_CYCLE_RING, 2),
+    (KEMR_EMPTY_RING, 0),
+    ("kev", 50),
+    ("mef_chord", 90),
+    ("mev_line", 78),
+    ("mfkrh_plug", 7),
+    ("split_edge", 93),
+];
+
+/// Calls the spent-destination row makes, exactly — see
+/// [`SPENT_GRAFT_EXPOSURE`] for why an exact number and not a floor.
+#[cfg(not(debug_assertions))]
+const SPENT_GRAFT_CALLS: usize = 1_420;
+
+/// Calls one ROUND of the torn sweep makes — every [`FIXTURES`] entry
+/// hammered once — exactly.
+///
+/// The sweep's call count is a function of the key enumeration alone:
+/// [`plant`] rewrites fields and never adds or removes an entity, and
+/// [`hammer`] iterates collections it took before the first call, so
+/// the count is `trials × TEARS.len() ×` this and does not depend on
+/// the draw. Asserted rather than floored, for the reason
+/// [`SPENT_GRAFT_EXPOSURE`] gives.
+#[cfg(not(debug_assertions))]
+const TORN_SWEEP_CALLS_PER_ROUND: usize = 1_928;
+
 #[cfg(not(debug_assertions))]
 const CALLS: &str = "operator calls";
+
+/// The bodies the TORN SWEEP is run over, by name. (The spent-graft row
+/// builds its own destination directly and reads nothing here.)
+///
+/// **The cube alone cannot get `kemr` past its plan phase, and no
+/// amount of tearing changes that.** `kemr` wants the two halves of one
+/// edge lying in one loop; every edge of a closed cube borders two
+/// distinct faces, so its halves sit in two loops and the plan phase
+/// refuses at `NotSameLoop` — a structural fact about the fixture, not
+/// a sampling shortfall, which is why the gap survived every `kemr`
+/// call a sweep of torn cubes could make. The other two present the two
+/// shapes of its mutation phase: [`crate::fixtures::ops_ring_bridge`]
+/// (the holed box with its hole rim joined back into the top face's
+/// outer loop by one `mekr`) splits a non-empty side off a non-empty
+/// side and runs both splices, and [`crate::fixtures::ops_strut_cube`]
+/// (a pendant strut on that same loop) empties the ring side and runs
+/// one.
+///
+/// **Each is floored by name** ([`fixture_swept`]), the way the tear
+/// KINDS are: this is an enumerated dimension, and an aggregate over it
+/// would let a body silently leave the sweep while the others carried
+/// the floors.
+#[cfg(not(debug_assertions))]
+const FIXTURES: [(&str, fn(Tol) -> Body<f64>); 3] = [
+    ("ops_cube", |tol| ops_cube(tol).body),
+    ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
+    ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
+];
+
+/// A [`FIXTURES`] entry's exposure category: a body of that fixture the
+/// sweep actually hammered.
+#[cfg(not(debug_assertions))]
+fn fixture_swept(name: &str) -> String {
+    format!("fixture swept: {name}")
+}
 
 /// A [`Tear`] kind's exposure category: a planting of that kind that
 /// actually changed the body.
 ///
-/// **The floor the CALLS one cannot be.** An intact cube hammers to 438
-/// calls and reaches five operators, so 27 no-op plantings clear both
-/// other floors while sweeping nothing but intact cubes — a sweep with
-/// no corruption in it, which is the vacuity this row is most exposed
-/// to. Counted per KIND rather than per trial: a single draw may
-/// legitimately find no eligible entity for the kind it was asked to
-/// plant (measured, 26 of 27 trials land on a typical seed), so *every
-/// trial corrupted* is a claim about luck, while *every corruption
-/// shape was planted somewhere* is the claim the sweep's own docs make
-/// — [`TEARS`] is an enumeration, and every kind is meant to be
+/// **The floor the CALLS one cannot be.** The call count is a function
+/// of the key enumeration alone ([`TORN_SWEEP_CALLS_PER_ROUND`]) and is
+/// identical whether every planting landed or none did, so a sweep that
+/// corrupted nothing hits it exactly while hammering intact bodies —
+/// the vacuity this row is most exposed to. Counted per KIND rather
+/// than per trial: a single draw may legitimately find no eligible
+/// entity for the kind it was asked to plant, so *every trial
+/// corrupted* is a claim about luck, while *every corruption shape was
+/// planted somewhere* is the claim the sweep's own docs make —
+/// [`TEARS`] is an enumeration, and every kind is meant to be
 /// exercised on every run.
 #[cfg(not(debug_assertions))]
 fn tear_landed(tear: Tear) -> String {
     format!("tear landed: {tear:?}")
 }
 
-/// Calls every operator that reaches [`crate::Body::link_half_edges`]
-/// at every key of a torn body, and returns what the pass actually
-/// reached as an anti-vacuity exposure ([`test_utils::vacuity`]).
+/// Calls every operator [`OPS`] names at every key of a torn body, and
+/// returns what the pass actually reached as an anti-vacuity exposure
+/// ([`test_utils::vacuity`]).
 ///
 /// Nothing is caught: in this profile the postcondition is compiled out,
 /// so a panic escaping here is a row-4 arm and it should fail the test
@@ -652,10 +920,26 @@ fn tear_landed(tear: Tear) -> String {
 /// Per operator, because a total does not distinguish *six operators
 /// exercised* from *one exercised and five refused at the door* — and on
 /// this fixture family that is not hypothetical: null every arena field
-/// of the spent destination and `mfkrh_plug` still returns `Ok` six
-/// times, so a floor on the total is one almost nothing can break.
-/// [`LINK_OPS`] is therefore what the floor counts over, and
-/// `mfkrh_plug` is not in it.
+/// of the spent destination and `mfkrh_plug` still returns `Ok` at
+/// every loop it is handed — seven times on today's destination, which
+/// is the figure [`SPENT_GRAFT_EXPOSURE`] holds — so a floor on the
+/// total is one almost nothing can break. [`LINK_OPS`] is therefore
+/// what the floor counts over, and `mfkrh_plug` is not in it.
+///
+/// **Two enumerations per operator, because `kemr`'s arguments are not
+/// free.** Every other operator here takes keys that may be drawn
+/// independently, and the arbitrary pairs below are the adversarial
+/// half of the pass — they attack each plan phase with keys no caller
+/// would pass. `kemr` refuses all of them at `NotSameEdge` or
+/// `NotSameLoop` before it reads anything else, so the arbitrary pairs
+/// alone can never carry it past its plan phase however many bodies
+/// they are run over. The MATE pair — an edge's own two halves, both
+/// argument orders, since the order selects which side becomes the ring
+/// — is the enumeration that can, and it is added rather than
+/// substituted so the refusal paths keep their attack. Each mate call
+/// that lands is also counted by ARM ([`KEMR_CYCLE_RING`],
+/// [`KEMR_EMPTY_RING`]), because the two write a different number of
+/// splices.
 #[cfg(not(debug_assertions))]
 fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
@@ -666,6 +950,10 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     for op in OPS {
         census.add(op, 0);
     }
+    // The two arms of `kemr`'s mutation phase, tallied beside the
+    // closure below and folded in after it: `note` holds the census.
+    let mut cycle_ring = 0usize;
+    let mut empty_ring = 0usize;
     let mut note = |op: &str, ok: bool| {
         census.note(CALLS);
         if ok {
@@ -720,6 +1008,18 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
         for t in [0.25, 0.5, 0.75] {
             note("split_edge", body.clone().split_edge(edge, t, tol).is_ok());
         }
+        let (hp, hm) = mate_halves(body, edge);
+        for (he1, he2) in [(hp, hm), (hm, hp)] {
+            let mut trial = body.clone();
+            let out = trial.kemr(he1, he2);
+            note("kemr", out.is_ok());
+            if let Ok(out) = out {
+                match trial.get_loop(out.ring).map(|l| l.boundary) {
+                    Some(crate::LoopBoundary::Cycle { .. }) => cycle_ring += 1,
+                    _ => empty_ring += 1,
+                }
+            }
+        }
     }
     for &l in &loops {
         note(
@@ -736,6 +1036,8 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
         );
         note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
     }
+    census.add(KEMR_CYCLE_RING, cycle_ring);
+    census.add(KEMR_EMPTY_RING, empty_ring);
     census
 }
 
@@ -747,8 +1049,8 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 /// varying seed, counts on `CAD_FUZZ_EFFORT`, monotone in the safe
 /// direction — cutting the count loses detection power, never
 /// correctness. The tear KINDS are enumerated (every kind is planted on
-/// every trial); what varies is which entity each lands on and how many
-/// tears compound.
+/// every trial) and so are the BODIES ([`FIXTURES`]); what varies is
+/// which entity each tear lands on and how many tears compound.
 ///
 /// VALIDATED AGAINST ITS OWN NEGATIVE CONTROL at review time: with
 /// `kef`'s `[a, c, d]` reverted to `[c, d]` this row reds from `kef`,
@@ -756,6 +1058,20 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 /// `[hp_next]` it reds from `split_edge`. Both gaps are independently
 /// reachable, so the two checks D18 adds are load-bearing rather than
 /// belt-and-braces.
+///
+/// `kemr`'s coverage carries its own controls, each run against the
+/// others held fixed: point the mate-pair calls in [`hammer`] at a
+/// half's own key instead of its mate — the same number of calls — and
+/// `kemr` returns to 0 with both fixtures still swept, red at the named
+/// `kemr` floor; drop [`crate::fixtures::ops_ring_bridge`] or
+/// [`crate::fixtures::ops_strut_cube`] from [`FIXTURES`] and the arm
+/// only it reaches returns to 0, red at that arm's floor. So the
+/// enumeration and each fixture are necessary, and none is decoration
+/// on the others.
+///
+/// The fixture floor carries its own control too: leave a [`FIXTURES`]
+/// entry in place but never hammer it and this row reds by that
+/// fixture's name.
 #[test]
 #[cfg(not(debug_assertions))]
 fn torn_bodies_never_reach_a_row_four_unreachable() {
@@ -766,23 +1082,28 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     let mut census = Exposure::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
-            let cube = ops_cube(tol);
-            let mut body = cube.body;
-            let dead = recycled_dead_half_edge(&mut body, tol);
-            // Compound the tears: one on the first pass, more as the
-            // trial index rises, so single and multiple corruption both
-            // get exercised. Each planting is snapshotted individually,
-            // so the exposure says which KINDS landed rather than which
-            // trials did.
-            let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
-            for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
-                let before = deep_snapshot(&body);
-                plant(&mut body, kind, &mut rng, dead);
-                if deep_snapshot(&body) != before {
-                    census.note(&tear_landed(kind));
+            for (fixture, build) in FIXTURES {
+                let mut body = build(tol);
+                let dead = recycled_dead_half_edge(&mut body, tol);
+                // Compound the tears: one on the first pass, more as the
+                // trial index rises, so single and multiple corruption both
+                // get exercised. Each planting is snapshotted individually,
+                // so the exposure says which KINDS landed rather than which
+                // trials did.
+                let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
+                for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
+                    let before = deep_snapshot(&body);
+                    plant(&mut body, kind, &mut rng, dead);
+                    if deep_snapshot(&body) != before {
+                        census.note(&tear_landed(kind));
+                    }
                 }
+                let round = hammer(&body, tol);
+                // What this BODY put under the hammer, kept apart from
+                // the sweep's total so no other fixture can carry it.
+                census.add(&fixture_swept(fixture), round.count(CALLS));
+                census.merge(&round);
             }
-            census.merge(&hammer(&body, tol));
         }
     }
     census.report();
@@ -792,43 +1113,84 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     // written out, so the floor cannot drift from the enumeration.
     let landed: Vec<String> = TEARS.iter().map(|t| tear_landed(*t)).collect();
     let landed: Vec<&str> = landed.iter().map(String::as_str).collect();
-    census.require_nonzero_among(
+    census.require_each(
         &landed,
-        TEARS.len(),
+        1,
         &format!(
             "a corruption shape never landed on any body in the whole sweep, so the \
              hammer below ran on bodies that shape had not torn — {}",
             fuzz::replay()
         ),
     );
-    // The KEY ENUMERATION, and only that; the tear floor above carries
-    // the other half. Measured on an intact tree: 11907.
-    census.require(
-        CALLS,
-        1_001,
+    // AND EVERY BODY, by name, for the same reason and derived the same
+    // way. [`FIXTURES`] is an enumerated dimension too, and an aggregate
+    // over it would let one body go silent — the cube, say, on which
+    // every row in this file was written — while the others kept every
+    // other floor green.
+    //
+    // Derived from the enumeration, so it cannot drift from it; what
+    // that cannot see is an entry DELETED from [`FIXTURES`], since the
+    // floor list shrinks with it. The exact call identity below is what
+    // catches that: it is pinned to a constant rather than to the
+    // enumeration's length, so a body leaving the sweep reds it.
+    let swept: Vec<String> = FIXTURES.iter().map(|(n, _)| fixture_swept(n)).collect();
+    let swept: Vec<&str> = swept.iter().map(String::as_str).collect();
+    census.require_each(
+        &swept,
+        1,
         &format!(
-            "the key enumeration has collapsed — the bodies no longer present the \
-             half-edges, edges and loops this sweep hammers — {}",
+            "a fixture never reached the hammer, so the shapes only it presents were \
+             swept by nothing — {}",
             fuzz::replay()
         ),
     );
-    // 4 of the 6 link-reaching operators, against 5 measured on an
-    // intact tree (`kemr` reaches none — S161).
+    // The KEY ENUMERATION, and only that; the tear floor above carries
+    // the other half. EXACT rather than floored: the count is a function
+    // of the dial and the fixtures, never of the draw
+    // ([`TORN_SWEEP_CALLS_PER_ROUND`]).
+    assert_eq!(
+        census.count(CALLS),
+        trials * TEARS.len() * TORN_SWEEP_CALLS_PER_ROUND,
+        "the key enumeration has moved — the bodies no longer present the half-edges, \
+         edges and loops this sweep hammers, or the hammer no longer drives them all: \
+         {census} — {}",
+        fuzz::replay()
+    );
+    // EVERY link-reaching operator reaches a mutation phase here, and
+    // each is floored BY NAME. An aggregate with slack in it cannot see
+    // one operator go silent — which is not hypothetical: `kemr` sat at
+    // 0 for this row's whole life under an aggregate floor with slack in
+    // it, and the operators that did reach carried that floor.
     //
-    // THE ONE OPERATOR OF SLACK IS DELIBERATE AND IS NOT A ROUNDING
-    // ERROR. Do not "fix" it to 5. At 5 the floor would be a coverage
-    // TARGET pinned to today's measurement, and the next legitimate
-    // change to a plan-phase precondition reds a row that is still
-    // attacking the arms perfectly well. At 4 a genuine loss — a second
-    // operator joining `kemr` at the door — reds it, which is the
-    // behaviour the row exists for, while the exposure line above
-    // reports the drop from 5 to 4 on every run for anyone reading.
-    census.require_nonzero_among(
+    // The floor is 1 because the headroom is enormous, not because one
+    // is a lot: at the floor of the effort dial, across six seeds, the
+    // smallest of these was `kemr` at ~90 and every other was in the
+    // thousands (the exposure line prints the run's own figures).
+    //
+    // This is NOT a coverage target. When a legitimate plan-phase change
+    // takes an operator out of reach, the repair is to re-derive the
+    // list and say in the PR what moved and why the sweep is still
+    // attacking the arms — not to add slack back so the row cannot see
+    // it.
+    census.require_each(
         &LINK_OPS,
-        4,
+        1,
         &format!(
-            "too few operators reached a mutation phase, so most of the arms under \
-             attack were never in scope and this green says nothing about them — {}",
+            "an operator reached no mutation phase, so the arms under attack in it \
+             were never in scope and this green says nothing about them — {}",
+            fuzz::replay()
+        ),
+    );
+    // And `kemr`'s two arms apart, since they write a different number
+    // of splices: the bridge fixture reaches the two-splice one, the
+    // strut fixture the one-splice one, and a count of `kemr` alone
+    // cannot tell a sweep that lost one of them from one that did not.
+    census.require_each(
+        &[KEMR_CYCLE_RING, KEMR_EMPTY_RING],
+        1,
+        &format!(
+            "an arm of `kemr`'s mutation phase was never entered, so the splices only \
+             it runs are attacked by nothing — {}",
             fuzz::replay()
         ),
     );
@@ -853,7 +1215,11 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     let cube = ops_cube(tol);
     let mut src = cube.body;
     src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    let mut dst = ops_cube(tol).body;
+    // The DESTINATION carries the ring bridge, so the spent body still
+    // presents the one edge whose halves share a loop and `kemr` has an
+    // input here too; the source stays the cube, since what it has to be
+    // is torn enough to refuse mid-patch.
+    let mut dst = ops_ring_bridge(tol).body;
     let before = deep_snapshot(&dst);
     assert!(
         crate::graft_disjoint_all_keyed(&mut dst, &src, tol).is_err(),
@@ -867,27 +1233,36 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     );
     let census = hammer(&dst, tol);
     census.report();
-    census.require(
-        CALLS,
-        101,
-        "the spent destination no longer presents the keys this row hammers; measured \
-         on an intact tree: 876",
-    );
-    // THE FLOOR THIS ROW EXISTS BEHIND, and the one its twin already
-    // had. A spent graft destination is more structurally damaged than
-    // a randomly torn cube, so it is the likelier of the two to have
-    // its calls refuse in a plan phase — the run that proves nothing
-    // about the arms under attack while passing green.
+    // THE EXACT TALLY, which this row alone can carry and which is the
+    // whole floor here: the row is deterministic, so every operator's
+    // exposure is a fact about the tree rather than about a draw, and a
+    // per-operator number is the only form in which the module doc's
+    // coverage claim is checkable at all. It sees `kemr` falling from
+    // its 2 back to 0, and a change that quietly halves `mef_chord`.
     //
-    // 4 of the 6 link-reaching operators, against 5 measured on an
-    // intact tree (`kef` 24, `kev` 24, `mef_chord` 64, `mev_line` 60,
-    // `split_edge` 72; `kemr` 0 — S161). Not over the total, and not
-    // over `OPS`: see `LINK_OPS`. The one operator of slack is
-    // deliberate — see the twin row above for what it buys.
-    census.require_nonzero_among(
-        &LINK_OPS,
-        4,
-        "too few operators reached a mutation phase on the spent destination, so the \
-         arms under attack were never in scope and this green says nothing about them",
+    // No aggregate floor beside it: `require_nonzero_among(&LINK_OPS,
+    // …)` over the same census asserts strictly less than this loop
+    // does — every entry below is nonzero but `kemr`'s empty-ring arm,
+    // which no input on this destination reaches — so it would be a
+    // guard nothing could break alone.
+    //
+    // The floor a spent graft destination needs is a per-operator one
+    // for the reason the twin row gives: it is more structurally damaged
+    // than a randomly torn body, so it is the likelier of the two to
+    // have its calls refuse in a plan phase — the run that proves
+    // nothing about the arms under attack while passing green.
+    for (op, expected) in SPENT_GRAFT_EXPOSURE {
+        assert_eq!(
+            census.count(op),
+            expected,
+            "`{op}` reached {} mutation phases on the spent destination, against {expected} \
+             measured: {census}",
+            census.count(op)
+        );
+    }
+    assert_eq!(
+        census.count(CALLS),
+        SPENT_GRAFT_CALLS,
+        "the spent destination no longer presents the keys this row hammers: {census}"
     );
 }

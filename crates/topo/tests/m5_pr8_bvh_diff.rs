@@ -18,8 +18,7 @@ use crate::common;
 
 use std::collections::BTreeSet;
 
-use common::prism_z;
-use geom_core::Decide;
+use common::brick;
 use geom_core::Tol;
 use topo::{
     Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace, boolean_op_with,
@@ -27,10 +26,6 @@ use topo::{
 };
 
 type Pair = (topo::EdgeKey, topo::FaceKey);
-
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// The suite's superset comparator (pins 1 and 3): idealized-accepted
 /// pairs missing from the realized candidate set. Any entry is a lost

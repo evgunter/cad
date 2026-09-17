@@ -1129,3 +1129,90 @@ which survived; resumed from its transcript), and the CI watch on unit
 and unit 8's deltas had reported, unit 14's dual had concluded. Pairs
 unaffected; the two implementer lanes carry the interruption in their
 own records.
+
+**Outage (2026-09-13, ~14:45 UTC → ~21:40 UTC):** the session's usage
+limit (429) killed unit 14's delta re-verification (R1, mid-run, no
+report) and unit 15's implementer lane (mid Phase 2, its branch pushed
+at 8476909f7); the limit reset at 16:00 UTC but the orchestrator's
+check-in did not wake it until ~21:39 UTC. Both resumed from their
+transcripts. The delta is a re-verification, not a review arm: unit
+14's pair concluded before the outage and still counts; unit 15's
+dual has not been drawn. The dead time is the orchestrator's, not a
+lane's.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): a `tol: Tol` parameter threaded to
+`swept::register_rim_identity`, `register_span_identity`,
+`placed_segment_spec`, the extrude arc-wall registrant and the revolve
+builders in `crates/sweep/src/*`, passed from the nearest holder and
+never minted (`witness-not-ambient.sh` is the gate). The parameter and
+nothing else; what each registrant states is unchanged. Ev's D1 = (1)
+on `[ev]` #2552.
+
+## Re-homed from WIRE (2026-09-15): the band-slit name collision
+
+`blend-slit-name-collides-when-two-rims-share-a-meridian` moves onto
+BLEND's slate. It reached WIRE at DOCM's exit sweep (2026-09-13) on the
+boilerplate *"the file it names is WIRE's (`names/emit*.rs` … are in
+WIRE's paths)"* — a glob, where WIRE's path list names `emit.rs` and
+`emit_topo.rs` explicitly and no `emit_blend.rs`. WIRE owns none of the
+three files a fix touches; BLEND owns the kernel half
+(`crates/sweep/src/blend/naming.rs`, `rec.slits`), `emit_blend.rs` is
+unowned, and `role.rs` is EDIT's.
+
+**The finding, in one line:** `RoleSeg::BandSlit(NameRef)` is keyed on
+the source meridian alone, a band slits exactly one of its two supports'
+seam meridians, so two bands that slit the SAME meridian mint the same
+name and the document refuses `Naming(Duplicate)`. On the teapot lid the
+colliding pairs are `{1,2}` and `{5,0}`; `fillet_edges` rolls all three
+rims fine, the same three through `Node::Fillet` refuse.
+
+The row carries the full read: the precedent (`BandTrim`'s
+`RimSupport`), the withdrawn ruling call with the three ratified texts
+that withdraw it (`persist/mod.rs`'s no-schema-version ruling, N1's
+structural scope, V3's fillet-naming fence), and the one open design
+question — whether the band's identity has to come from the kernel
+record or can be derived from the `BandFace` row the emitter already
+mints. That question decides one crate or two and is deliberately left
+undetermined rather than guessed.
+
+Not urgent: the recourse (two `Node::Fillet` requests) builds the same
+three band tori bit for bit, so only the single-request spelling is
+unavailable.
+
+Signed (WIRE orchestrator).
+**MERGED — unit 14 (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509):
+the blend's contact edges carry the tangency rule; the item closed.
+Dual: bilateral headline at MAJOR (the new recourse's 'enlarge' clause
+false at sites the predicate fires), no tally candidate; the fix pass
+conditioned the recourse by site, pinned the reached `Chart` arm and
+routed it through the home, corrected the surgery header and the
+screening claims, and filed the residues. Delta by R1 on the fixed
+head: every item CONFIRMED by execution (the resumed arm, after the 429 outage cut its first attempt) — the corrected sentence read at the annulus rim and the slim wedge and true at both, its lever followed at the wedge (0.1× builds with four chart contact edges; 0.5× still in band; 2× builds intrinsic); mutant B reds exactly the wedge row and the followability row; mutant A reds the six verdict rows, plus the three K-count rows on the probe leg, with the census/definite/screened/mill/D-bore rows green; the rendered refusal names the requested edge's key; the bit-dump re-taken at the true merge base in its own target, 14 files / 1702 lines clean; the probe-suite census exits 0 at floors 5/6; 1382 passed / 0 failed / 8 ignored at three ε rows; fmt clean. Three NOTEs, none blocking: the three-clause sentence never says which site kind the caller is at though the arm holds the carrier and support kinds; the wedge clause is under-specified in both directions (a larger radius also builds at the wedge's pose, and hits the clearance screen at BLEND-4's); `rod_with_flat`'s bit-exact delegation rests on `ROD_L = 1.0` making `2·len` coincide with the old `len + 1.0` (a doc line added in the state-sync). Both MAJORs closed; verdict MERGEABLE.
+Sample #218 (a TOPO row took #186 on main first; main's order rules). Block BLEND-B3's slot 1;
+slot 2 (unit 15) is in its lane.
+
+**Unit 15 landed (2026-09-13, ~22:30 UTC; recorded 2026-09-17)** on PR
+[#2514](https://github.com/evgunter/cad/pull/2514), head `d94117f95`,
+full matrix green (run 34784659718). Phase 1 measured the roster: 51
+names decided in `profile`, 34 in `sweep`, no name in both; at the
+merge base `profile`'s fall-through asserted "path junction
+classification" for 30 names of which 28 are not junction
+classifications, while `sweep`'s already rendered the honest gap
+sentence for its 24 unrouted names. The gap sentence is homed once as
+`geom_core::MissingRecourse` (a `Display` newtype — the sentence
+interpolates the name mid-way — in the only crate both routers can
+see); both `Escalated` Displays answer an unknown name with it; a
+roster row per crate measures every decided name by RENDERING the
+door's error (routed, or listed unrouted with a reason), an `INDIRECT`
+table declares the nine `decide*` calls whose first argument is not a
+literal, and an order row pins that no name sits in two of
+`path.rs`'s layers. Four mutants red the rows they should; the
+170-render differential in two target dirs moves only the 62
+fall-through renders. Eight deviations stated, two of them fence
+crossings a red CI row demanded. The lane was interrupted twice (the
+container restart; the usage limit) and resumed each time. **Ordinal
+2908 claimed (this entry); the v6 dual dispatched concurrently on the
+frozen head** — byte 86 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
+digests on `blend/b3-block` before either ran. The unit's log entry
+waits for the dual.
