@@ -28,12 +28,13 @@
 //! word arrives as a token only the door can mint.
 //!
 //! **The declaration routing.** A union's declared face pairs are
-//! authored against its MEMBERS and consumed by a fold of pairwise
-//! booleans, so something must decide which step of the fold each pair
-//! belongs to, and what a pair that reaches no step is told. That is
-//! [`DeclSite`], [`route_declarations`], [`look_through_merges`],
-//! [`step_diagnosis`] and the refusal menu beneath them, in a
-//! vocabulary of their own (arrivals, buckets, look-through). No
+//! SITED at its members and consumed by a fold of pairwise booleans,
+//! so something must decide which step of the fold each pair belongs
+//! to and which side of that step each of its two sites takes. That is
+//! [`side_by_operand`] for the pair boolean, [`route_declarations`]
+//! and [`look_through_merges`] for the union, and the refusal menu
+//! beneath them, in a vocabulary of their own (buckets, sides,
+//! look-through). No
 //! kernel op is behind any of it: the kernel takes a
 //! [`BooleanDeclarations`] already resolved to operands and entity
 //! keys, and every decision about which authored pair resolves where
