@@ -12,9 +12,9 @@
 //!    centers, down all 12 edges, into all 8 corners, and from the
 //!    interior, on dyadic geometry where every winning computation is
 //!    exact — asserting hit `t`, the resolved face (via public
-//!    `resolve`), and the documented tie-break among the exactly-tied
-//!    (the narrower `t` interval, then the earliest flat patch-major
-//!    triangle) on every case.
+//!    `resolve`), and the door's set rule over the exactly-tied — one
+//!    face is one answer, several are the refusal, and no second key
+//!    separates them — on every case.
 //! 2. `coplanar_cross_target_tie_...` (static): two touching bodies
 //!    whose faces meet the ray at the SAME exact `t` — a certified tie
 //!    the door breaks by the narrower interval, so the answer is a

@@ -1405,10 +1405,13 @@ impl PickIndex {
     /// hides is rejected rather than selected through the solid.
     ///
     /// Determinism: the candidates within the radius are ordered by
-    /// `(pixel distance, boundary position, segment position)` — the
-    /// same shape of total tie-break `pick_face` documents, so two
-    /// edges meeting at the cursor answer the earlier one every time —
-    /// and the answer is the first of them the solid does not hide.
+    /// `(pixel distance, boundary position, segment position)` — a
+    /// TOTAL order over pixels, which is this door's own and not the
+    /// kernel's, so two edges meeting at the cursor answer the earlier
+    /// one every time — and the answer is the first of them the solid
+    /// does not hide. The face pick has no such key: where its
+    /// candidates tie it refuses, and an edge is what a cursor on a
+    /// shared edge means anyway (below).
     ///
     /// **A certified tie between faces does not refuse here.** The
     /// seed is a depth ([`PickIndex::front_of`]), and the cursors
@@ -1510,13 +1513,10 @@ impl PickIndex {
             Err(HitTestError::Ambiguous { hits }) => {
                 // `min_by` keeps the FIRST of equal parameters, so a
                 // tie inside the tie falls to the list's order, which
-                // is the door's own.
-                let nearest = hits
-                    .iter()
-                    .min_by(|left, right| left.t.total_cmp(&right.t))
-                    .expect("a refusal carries at least two hits")
-                    .clone();
-                Ok(Some(Front {
+                // is the door's own. An empty list is not a refusal
+                // the kernel raises, and is a miss if one ever is.
+                let nearest = hits.iter().min_by(|left, right| left.t.total_cmp(&right.t));
+                Ok(nearest.cloned().map(|nearest| Front {
                     nearest,
                     tied: hits,
                 }))

@@ -504,8 +504,8 @@ impl FlatReference {
 /// the midpoint of its first segment (a point on the shared edge) —
 /// along the six axis directions from outside the picture. A hit
 /// there is a hit for every incident triangle at one `t`, across
-/// patches and, where bodies touch, across parts: the case only the
-/// tie-break decides.
+/// patches and, where bodies touch, across parts: the case the door's
+/// set rule is about, and the one it refuses on.
 fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
     let mut ext = 0.0f64;
     let mut targets = Vec::new();
@@ -1252,8 +1252,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// triangles are `0.016` on a side, so an interval that says almost
 /// nothing about WHERE on the triangle the ray crossed still says the
 /// crossing is within `0.015` of `1.4488` — wholly before the vertex
-/// `0.031` further on. The wide candidate PRECEDES the narrow one, the
-/// tie-break never runs, and the answer is `1.4488` as before.
+/// `0.031` further on. The wide candidate PRECEDES the narrow one, so
+/// they are not tied at all, and the answer is `1.4488` as before.
 ///
 /// **That is what this row now records, and it is not what the `t`
 /// ruling predicted for it.** The certified width is relative to the
@@ -1385,7 +1385,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     assert!(
         wide.precedes(&narrow),
         "and the wide candidate's whole interval is still in front of it, so the geometry \
-         ORDERS them and the tie-break never runs: wide {wide:?}, narrow {narrow:?}"
+         ORDERS them and nothing is tied: wide {wide:?}, narrow {narrow:?}"
     );
     assert!(
         wide.width() < reach - wide.t,

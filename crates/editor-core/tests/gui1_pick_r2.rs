@@ -230,10 +230,10 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
                     fuzz::replay()
                 );
                 // Which face: only asserted where the oracle's winner
-                // is not in a near-tie with another face, since the
-                // documented tie-break is lexicographic on positions
-                // the two implementations enumerate identically but
-                // whose `t`s are separately rounded.
+                // is not in a near-tie with another face, since a
+                // near-tie is where the two implementations' separately
+                // rounded `t`s decide whether the door answers or
+                // refuses.
                 let mut rivals = 0;
                 for m in meshes {
                     let mut flat = 0usize;

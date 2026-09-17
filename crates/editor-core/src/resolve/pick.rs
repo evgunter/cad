@@ -271,7 +271,7 @@ impl core::error::Error for MeshPickError {}
 /// So the loop in [`pick_face`] sees the sequence one tree over all
 /// the triangles would give it, and answers bit-identically — the
 /// invariant `viewer`'s `index_memo` differential pins against a
-/// single-level reference that tests every candidate, tie-break row
+/// single-level reference that tests every candidate, the tied rows
 /// included.
 ///
 /// # The two doors, and why they answer the same index
@@ -1586,26 +1586,27 @@ pub fn pick_face<T: Decide>(
     // the documented order of the LIST, which decides nothing.
     groups.sort_by_key(|group| (undecided[group.first].target_pos, group.face.2));
 
-    let hit_of = |group: &FaceAnswer<(RecipeNodeId, u32, FaceKey)>| -> Result<PickHit, HitTestError> {
-        let (node, body, face) = group.face;
-        let name = entity_name(
-            eval,
-            node,
-            EntityRef {
+    let hit_of =
+        |group: &FaceAnswer<(RecipeNodeId, u32, FaceKey)>| -> Result<PickHit, HitTestError> {
+            let (node, body, face) = group.face;
+            let name = entity_name(
+                eval,
+                node,
+                EntityRef {
+                    body,
+                    key: EntityKey::Face(face),
+                },
+            )?;
+            Ok(PickHit {
+                name: name.clone(),
+                node,
                 body,
-                key: EntityKey::Face(face),
-            },
-        )?;
-        Ok(PickHit {
-            name: name.clone(),
-            node,
-            body,
-            t: group.span.t,
-            t_lo: group.span.t_lo,
-            t_hi: group.span.t_hi,
-            point: ray.origin + ray.dir * group.span.t,
-        })
-    };
+                t: group.span.t,
+                t_lo: group.span.t_lo,
+                t_hi: group.span.t_hi,
+                point: ray.origin + ray.dir * group.span.t,
+            })
+        };
 
     let [only] = &groups[..] else {
         // More than one face, and nothing left to order them by: the
@@ -1631,9 +1632,10 @@ pub fn pick_face<T: Decide>(
 ///
 /// Boundary semantics: `u ∈ [0, 1]`, `v ∈ [0, 1]`, `u + v ∈ [0, 1]`,
 /// `t ≥ 0` — all closed, so a hit exactly on a shared edge or vertex
-/// is a hit for EVERY incident triangle (the caller's tie-break
-/// disambiguates; watertight meshes never lose a graze to an open
-/// boundary) and the hit point `a + u·e1 + v·e2` is a point OF the
+/// is a hit for EVERY incident triangle (what the caller does with
+/// several is [`pick_face`]'s set rule — one face is one answer,
+/// several are refused; watertight meshes never lose a graze to an
+/// open boundary) and the hit point `a + u·e1 + v·e2` is a point OF the
 /// closed triangle — exactly, after [`retract_to_simplex`], which is
 /// what lets a caller bound how far below its own box's entry a
 /// candidate's interval can reach ([`early_out_margin`]).
@@ -1890,10 +1892,10 @@ pub fn answer_of<K: Clone + PartialEq>(candidates: &[(TSpan, K)]) -> Answer<K> {
             }),
         }
     }
-    match groups.len() {
-        0 => Answer::Miss,
-        1 => Answer::One(groups.pop().expect("one group")),
-        _ => Answer::Ambiguous(groups),
+    match <[FaceAnswer<K>; 1]>::try_from(groups) {
+        Ok([only]) => Answer::One(only),
+        Err(groups) if groups.is_empty() => Answer::Miss,
+        Err(groups) => Answer::Ambiguous(groups),
     }
 }
 

@@ -421,7 +421,7 @@ fn the_certified_tie_is_decided_by_the_candidates_and_not_the_targets_order() {
 }
 
 // ---------------------------------------------------------------
-// The bound the early-out compares, and the last tie-break key.
+// The bound the early-out compares.
 // ---------------------------------------------------------------
 
 /// **The early-out's bound is the interval's UPPER end.** Two

@@ -164,7 +164,7 @@ class TestTheRayAnswersAName(unittest.TestCase):
         again = self.ev.pick_face([self.pick], straight_down())
         self.assertEqual(first.name, again.name)
         # Bit-identical, not merely close: the whole chain is fixed
-        # iteration order with a total tie-break and no hashing.
+        # iteration order over a set-valued rule, with no hashing.
         self.assertEqual(first.t, again.t)
 
     def test_a_side_face_answers_a_different_name(self):

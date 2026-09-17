@@ -1,7 +1,7 @@
 //! GUI-1 Part B: the hit-test service (`resolve::pick`) end-to-end
 //! through the public doors — every face of a real tessellated box
 //! picks to a distinct resolvable `StableName`; a ray down a shared
-//! edge resolves by the documented tie-break; a miss is the typed
+//! edge refuses with both the faces it belongs to; a miss is the typed
 //! miss; unusable nodes surface their typed `HitTestError`; two-body
 //! occlusion orders by `t` regardless of target order; and the whole
 //! thing is deterministic.
