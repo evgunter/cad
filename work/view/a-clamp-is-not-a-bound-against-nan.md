@@ -2,8 +2,10 @@
 id: a-clamp-is-not-a-bound-against-nan
 kind: issue
 title: Three clamps in the viewer pass NaN through and hand back a value the arithmetic did not compute
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
+branch: view/clamp-nan
 ---
 
 
@@ -88,3 +90,60 @@ what is asserted is that the guard at each site does not answer it.
 
 `crates/viewer/src/{theme.rs, sketch.rs, app.rs}` — VIEW's, with
 `app.rs` the standing double claim with CHROME.
+
+## Closed — #PRNUM, 2026-09-17
+
+Each site was re-executed before it was changed; all three of the row's
+claims held. Three different repairs, because the three doors are
+different doors.
+
+**`theme::channel_to_srgb8`.** Answers `Option<u8>`, `None` for a
+channel that is not a number, and `from_linear` and `Mark::over` carry
+that up as `Option<Rgba8>`. The test is `is_nan` and NOT `is_finite`,
+which is the argument this site turns on: an infinity is ORDERED and
+sits above the whole gamut, so the clamp bounds it correctly; a `NaN`
+has no order, so there is no bound to put it under. The row's claim
+that this is a paint path is **wrong** — see below.
+
+**`sketch::arc_points`.** Answers `Option<usize>`, `None` when the
+radius, the swept angle or the chord tolerance is not a finite number;
+`flatten` turns that into `PreviewError::Unflattenable { loop_, vertex }`
+and `preview` reports it. `is_finite` here rather than `is_nan`,
+because an infinite radius emits `NaN` points just as surely.
+
+**`ViewerApp::fit_features_share`.** The share arithmetic is
+`features_fraction(wanted, stack) -> Option<f32>`, refusing both
+measurements unless they are numbers. The caller's `stack <= 0.0` arm
+stays what it was and means what it said — the very first frame,
+before either tile has a rectangle — and the new arm is written apart
+from it because they are different facts.
+
+## What the row was wrong about
+
+**Site 1 is not a paint path.** `Mark::over` and `from_linear` have
+exactly one caller between them and it is `crates/viewer/tests/theme.rs`
+— the colourblind check. The shader does its own mixing in WGSL. So
+the consequence is not "a poisoned colour arrives on screen as black";
+it is that the SAFETY MEASUREMENT would have taken pure black — the far
+end of every distance it computes — as the composited colour, and
+certified the palette on it. The door could therefore refuse outright,
+where the row's framing implies it could not.
+
+## What the row did not name
+
+**An ordinary authored bulge reaches site 2's defect without any
+`NaN` input at all.** A bulge of `1e-320` on a horizontal chord gives
+`theta = 4e-320`, `tan(theta/2)` of the order of `2e-320`, an apothem
+of `inf`, and — because the chord's left normal has `nx == 0` there —
+a centre of `[NaN, inf]` out of `0 * inf`. `arc_points` then answered
+the CAP rather than the floor, and 256 points were emitted at
+`[NaN, NaN]`. The bulge is a literal a `Path` step authors through
+`widgets::named_scalar`, and `Expr::literal` accepts it because it is
+finite. That is why `flatten` checks `centre` and `start` as well as
+what `arc_points` answers.
+
+## Residue
+
+Two rows, both filed on this slate by the sweep this unit owed:
+`a-count-slot-launders-a-typed-nan-into-zero` and
+`world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure`.
