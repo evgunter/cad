@@ -5380,4 +5380,41 @@ mod route_tests {
             "{refused:?}",
         );
     }
+
+    /// Review probe (decl-r1): `sited_member` is `member_name`'s
+    /// inverse, round-tripped over rows of every kind and over a
+    /// member whose names are minted elsewhere (a transform).
+    #[test]
+    fn r1_sited_member_inverts_member_name_over_every_row_kind() {
+        let (_doc, union, ms) = doc_with_members(3);
+        let (member, proto) = (ms[1], ms[2]);
+        let rows = vec![
+            StableName {
+                kind: EntityKind::Face,
+                node: proto,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            },
+            StableName {
+                kind: EntityKind::Edge,
+                node: member,
+                path: vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::Start)],
+            },
+            StableName {
+                kind: EntityKind::Vertex,
+                node: proto,
+                path: vec![RoleSeg::OutputBody],
+            },
+            StableName {
+                kind: EntityKind::Body,
+                node: member,
+                path: vec![RoleSeg::OutputBody],
+            },
+        ];
+        for row in rows {
+            let keyed = crate::names::member_name(union, member, &row);
+            let back = super::sited_member(union, &keyed);
+            assert_eq!(back, Some(SitedRef::new(member, row.clone())), "{row}");
+            assert_eq!(back.unwrap().name.kind, row.kind);
+        }
+    }
 }
