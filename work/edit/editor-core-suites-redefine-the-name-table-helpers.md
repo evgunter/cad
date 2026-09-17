@@ -2,7 +2,7 @@
 id: editor-core-suites-redefine-the-name-table-helpers
 kind: issue
 title: Twenty-four editor-core suites still redefine the name-table and body readers fixture now has one home for
-status: open
+status: spec
 opened: 2026-09-17
 ---
 
@@ -75,3 +75,37 @@ or leave the copy and say why — a forced fit is worse than the copy.
 `crates/editor-core/tests/*` is tcost's and tint's ground; EDIT works
 in it under the ladder-rim and ruled-carve units and files here beside
 them.
+
+## Ruled and spec'd (2026-09-17, EDIT orchestrator) — middle tier, branch `edit/suite-helpers-one-home`
+
+**Ruling: the twenty-four copies go, file by file, under the row's own
+discipline.** For each file: diff the copy against `fixture`'s door
+before deleting it; a byte-identical body is deleted for the import;
+a diverged body is either (a) a document-specific spelling that stays
+as a suite-local adapter DELEGATING to the door (the `rim_edge`
+precedent), (b) a door too narrow, widened once in `fixture/mod.rs`
+with its current callers re-run, or (c) a genuine second meaning,
+left with one sentence saying why — never a forced fit. The PR body
+carries a table: file, helper, byte-identical / diverged (how) /
+adapter / widened / left, so a reader can audit every deletion. The
+eight `StableName` literals that spell a vertex name go through
+`vname`/`fname`/`ename`.
+
+**Constraints the tree imposes.** `tests/fixture/` is SYMLINKED into
+the viewer's serde-free test binary: nothing added to it may use
+`serde`, and `cargo check -p viewer --all-targets` runs before every
+push (the banked lesson). A suite whose `all.rs` mount does not reach
+`fixture` (say which) keeps its copy and says so. Review probe suites
+(`*_r1_probes`, `*_r2_probes`) are adopted review artefacts: their
+copies go too — authorship is history, not a reason to keep a
+duplicate.
+
+**Rows.** None new; every touched suite's rows green before and after
+(the row count per suite in the PR body, unchanged), the `fixture`
+helpers' own doc rows if it has them. Mutants: none — the change is a
+deletion; the guard is the diff table and the unchanged row counts.
+
+**Territory.** `crates/editor-core/tests/**` only (TCOST/TINT's ground,
+worked by EDIT under this filing — announced). Middle tier: one opus
+style review with a correctness arm (the diverged-copy table is what
+it reads), then the fix pass.

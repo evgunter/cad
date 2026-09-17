@@ -1181,3 +1181,85 @@ three band tori bit for bit, so only the single-request spelling is
 unavailable.
 
 Signed (WIRE orchestrator).
+**MERGED — unit 14 (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509):
+the blend's contact edges carry the tangency rule; the item closed.
+Dual: bilateral headline at MAJOR (the new recourse's 'enlarge' clause
+false at sites the predicate fires), no tally candidate; the fix pass
+conditioned the recourse by site, pinned the reached `Chart` arm and
+routed it through the home, corrected the surgery header and the
+screening claims, and filed the residues. Delta by R1 on the fixed
+head: every item CONFIRMED by execution (the resumed arm, after the 429 outage cut its first attempt) — the corrected sentence read at the annulus rim and the slim wedge and true at both, its lever followed at the wedge (0.1× builds with four chart contact edges; 0.5× still in band; 2× builds intrinsic); mutant B reds exactly the wedge row and the followability row; mutant A reds the six verdict rows, plus the three K-count rows on the probe leg, with the census/definite/screened/mill/D-bore rows green; the rendered refusal names the requested edge's key; the bit-dump re-taken at the true merge base in its own target, 14 files / 1702 lines clean; the probe-suite census exits 0 at floors 5/6; 1382 passed / 0 failed / 8 ignored at three ε rows; fmt clean. Three NOTEs, none blocking: the three-clause sentence never says which site kind the caller is at though the arm holds the carrier and support kinds; the wedge clause is under-specified in both directions (a larger radius also builds at the wedge's pose, and hits the clearance screen at BLEND-4's); `rod_with_flat`'s bit-exact delegation rests on `ROD_L = 1.0` making `2·len` coincide with the old `len + 1.0` (a doc line added in the state-sync). Both MAJORs closed; verdict MERGEABLE.
+Sample #218 (a TOPO row took #186 on main first; main's order rules). Block BLEND-B3's slot 1;
+slot 2 (unit 15) is in its lane.
+
+**Unit 15 landed (2026-09-13, ~22:30 UTC; recorded 2026-09-17)** on PR
+[#2514](https://github.com/evgunter/cad/pull/2514), head `d94117f95`,
+full matrix green (run 34784659718). Phase 1 measured the roster: 51
+names decided in `profile`, 34 in `sweep`, no name in both; at the
+merge base `profile`'s fall-through asserted "path junction
+classification" for 30 names of which 28 are not junction
+classifications, while `sweep`'s already rendered the honest gap
+sentence for its 24 unrouted names. The gap sentence is homed once as
+`geom_core::MissingRecourse` (a `Display` newtype — the sentence
+interpolates the name mid-way — in the only crate both routers can
+see); both `Escalated` Displays answer an unknown name with it; a
+roster row per crate measures every decided name by RENDERING the
+door's error (routed, or listed unrouted with a reason), an `INDIRECT`
+table declares the nine `decide*` calls whose first argument is not a
+literal, and an order row pins that no name sits in two of
+`path.rs`'s layers. Four mutants red the rows they should; the
+170-render differential in two target dirs moves only the 62
+fall-through renders. Eight deviations stated, two of them fence
+crossings a red CI row demanded. The lane was interrupted twice (the
+container restart; the usage limit) and resumed each time. **Ordinal
+2908 claimed (this entry); the v6 dual dispatched concurrently on the
+frozen head** — byte 86 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
+digests on `blend/b3-block` before either ran. The unit's log entry
+waits for the dual.
+
+**Unit 15's dual concluded (2026-09-17, ~08:35 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/5/5, rubric 3/2/4; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 1/3/5, rubric 3/4/4. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The doors, the gap sentence's home and the
+differential are right by both instruments: each reproduced the
+170-render differential in two trees and two targets and checked the
+fall-through clause per render (R2 also shimmed all thirteen `Display`
+impls and dumped every refusal both suites emit at both SHAs — four
+profile strings changed, all the fall-through, none in `sweep`); each
+confirmed the gap sentence at both doors for a named and a nameless
+unknown with no category and no third mouth; each reproduced mutants
+C and D. Headline BILATERAL by execution at MAJOR: the roster reader
+has silent holes on ordinary spellings — R1 by a turbofish
+`decide::<f64>(…)` (the suffix branch drops the site before reading
+its argument), R2 by a one-line wrapper around a declared carrier and
+a const-built `CosurfaceNames` (the carrier scan is one level deep) —
+every row green while the door renders the gap sentence for the new
+name; C2 falsified by both, so the unit's clause (b) guarantee does
+not hold as shipped. R1's second MAJOR — `validate.rs`'s
+near-tangency addendum is a third Display selecting prose by predicate
+name with a silent default, and the spec's "one name, two sentences"
+list is empty only because it was measured across crates — is a
+classification by reading that R2 explicitly adjudicated the other way
+("not this class") and pinned with a probe row: unilateral, by
+reading, doc/contract class ⇒ EXCLUDED under 3(d), recorded as a
+genuine split for calibration; the facts both agree on (the three
+names carry a different sentence at the stored-form arm) go to the fix
+pass as a Phase 1 re-measurement within each crate. Converged: the
+rows prove routed-or-listed, never paired (R1 rewired a name into the
+wrong arm and 448 rows stayed green; R2 Q3); the gap sentence false at
+the names the roster lists as deliberately unrouted and self-
+contradicting after D4's advice; the `UNROUTED` reasons false for some
+names under them and guarded by nothing; a gate outside `src`
+invisible; the reader copied twice beside a third pre-existing copy —
+the trap the style lane names, sprung. Unique R2: the enum-keyed
+`CornerConfig` tables whose `_ =>` asserts a recourse; `flush.rs`
+inventing a name for a nameless escalation; two spellings of one
+`Option<&str>` in `geom-core`; the lane's "a pure re-ordering changes
+no text" corrected (the natural move reds two rows). Unique R1: the
+turbofish and `include!` shapes; sweep has no order row; the brief's
+"eight deviations" against the body's seven (the orchestrator's
+error). Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-15-brief.md`); both probe branches
+adopted; the `test-utils` seam for the one homed reader announced to
+S-TINT and S-TCOST; delta by R1.

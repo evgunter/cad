@@ -12613,3 +12613,103 @@ This program is not closed. There is no exit walk, no
 open and parked on a ruling. Eight rows stay on this slate and the
 successors' `plan.md` §Inbound names where each of the six in `review`
 goes when its PR merges.
+---
+
+## 2026-09-17 — a crashed seam worker panics; the badge vocabulary is deleted
+
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state` closed a second
+time, on a different ruling. The first (2026-09-16: badge it,
+`Tone::Actionable`, and the fit seam refuses the index build) was made
+on a description of the cost that was **wrong**, and Ev replaced it
+rather than amending it: *"isn't a worker dying an infra thing that
+should show up as a panic?"*, then *"panic on crash is good"*.
+
+**What the review found, and why it inverted the justification.** The
+fit refusal does not cost picking. `settled_delta` answers `None`
+forever once the fitter is gone, `PickCache::sync` forgets and returns
+`CacheStep::Nothing`, and `sync_scene` returns on that step BEFORE the
+scene rebuild — and `self.scene` has exactly one writer. On a fresh
+open, where the first landing is what fires the fit, the document never
+draws. Ev's own justification for refusing was *a frozen window is
+worse than a dead one*; the true cost was a dead one.
+
+**The gating fact, established before anything was built.** The
+announcement is a panic on the UI thread, raised inside
+`<ViewerApp as eframe::App>::ui` — so if anything up the toolkit stack
+caught it, the loudest thing this crate does would be a lie. It does
+not: `egui`, `eframe`, `egui-winit` and `egui-wgpu` 0.36.1 contain no
+`catch_unwind` at all (eframe's only panic machinery is
+`web/panic_handler.rs`, a `set_hook` on the wasm build), and `winit`
+0.30.13 has none on the linux backends — it catches on macOS and
+Windows only, and both re-raise (`macos/event_loop.rs:307` and `:374`,
+`windows/event_loop.rs:425`). The layer nearest the panic is
+**executed** rather than read:
+`a_panic_inside_an_egui_frame_is_not_swallowed` plants one inside
+`Context::run_ui` — eframe's own per-frame call, at
+`epi_integration.rs:288` — and asserts the unwind escapes with its
+payload intact.
+
+**The discriminator is exact, and that is the whole fix.**
+`Coalescing::close` takes the request channel and is called from `Drop`
+and nowhere else, so on a running application a detection that still
+holds the channel is a crash and nothing else. The two endings used to
+be answered by the same three lines, which is what made a crashed seam
+report exactly what an idle one reports — the item's defect, one layer
+below where the item looked for it.
+
+**What could not be tested the way the dispatch asked, and why.** The
+three shipped handles cannot be crashed from outside: a worker dies
+only by panicking inside its own job, and the job is `build_index`,
+`run_fit` or `run_once` behind a private closure. A row through
+`ThreadIndexer` would have to make the kernel panic on an input, which
+is what D9 says cannot happen. The rows therefore drive `Coalescing`
+itself — the shipped machine every handle delegates to, not a mirror of
+it — and say so.
+
+**And one of the two arms is not sequence-reachable.** `dispatch`'s
+failed send needs `running` false with a dead worker; after a crash
+`running` stays true until a `poll` clears it, and that poll takes the
+other arm. The redispatch entry needs a buffered answer AND a dead
+worker at once, which the worker loop cannot produce: it sends an
+answer only when `answer` RETURNED, and a worker that returned is one
+that went back to `recv` and can only die on a job it was then handed,
+for which no answer is ever sent. The arm stays — the condition means
+what it means — and its row clears `running` by hand and claims the
+arm's behaviour and nothing about reachability.
+
+**Four mutations, each redding only its own row**, and the first is the
+base tree's own behaviour: `poll` forgetting instead of announcing
+(the reachable row), `dispatch` forgetting instead of announcing (the
+arm row), an orderly close treated as a crash (the discriminator row,
+which nothing else covers), and removing the planted panic from the
+egui row.
+
+**Deleted, not kept:** `WorkerGone` and its three sentences,
+`worker_gone` on the three seam traits and all six implementations,
+`evalseam::settled_delta`, `frame::dead_seam_badge` with
+`EVALUATION_SEAM`, `DocSession::eval_worker_gone`,
+`PickCache::worker_gone`, the disabled Re-evaluate control, and the
+README's badge-population and seam clauses. A badge reachable only
+through a test fake is a badge family held up by its own tests. The
+first ruling's residue row — `the-canceled-label-names-a-cause-a-dead-worker-did-not-have`
+— was deleted rather than carried, because its premise was a dead
+evaluator reaching `Progress::Canceled`, which the ruling makes
+unreachable.
+
+**Surfaced rather than overridden.** This is the workspace's first
+non-test `panic!`: every existing `allow(clippy::panic)` in `crates/`
+sits on a `#[cfg(test)]` module. D9's family is scoped to INPUT and a
+worker thread is reachable from none, so the site takes an `expect`
+with that reason written at it — but PIPE's `work/pipe/S14` is open,
+`needs_ev: true`, and carries Ev's own 2026-08-18 reframe, *"no panic
+on any reachable state, yes panic on things that can only indicate
+bugs"*, which S14 records as an **amendment** to D9 rather than a
+clarification. This unit lands on that ground while it is unruled.
+Read, not edited — S14 is PIPE's.
+
+Residue filed:
+`the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer`
+and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`.
+
+Signed (VIEW implementer lane `view/dead-seam-badge`, after Ev's
+second ruling).
