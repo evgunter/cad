@@ -2,8 +2,9 @@
 id: quoted-parameter-name-in-error-prose-has-no-decision
 kind: issue
 title: editor-core quotes a parameter name in error prose at some doors and not at others, and nothing decides which
-status: review
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 branch: edit/param-name-display
 pr: 2800
 ---
@@ -168,3 +169,23 @@ was HANDED rather than a name the document holds: the reading
 the census can type, so a re-type to a structured key reds it. No row
 filed; if a future reader wants that written beside each door rather
 than argued here, it is a wording unit and not a decision.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2800 (E-class: green CI and the orchestrator's
+read). `ParamName` has one `Display`, bare; the twenty-four framing
+sites in eight files render through it (including PROPS's
+`analysis.rs` and `stackup.rs`, which the residue table had
+undercounted — placeholder-only edits, crossed by announcement, since
+the rule must hold at every door for the guard row to be true); the
+parse door alone keeps `{:?}` and says its quotes mean the exact bytes
+the author typed; two guard rows in `display_contract.rs` hold eleven
+doors plus the parse exception and the interval-only doors. Two
+premises corrected by the lane: `ParseError::UnknownParam` carries a
+`String`, not a `ParamName`; the prose census already typed the
+positional sites as `Prose`. No F6 row moved — two hand-written
+assertions that asserted the quotes did. Two CI lessons banked for
+every lane (interval-feature additivity; a conflicted PR gets no run).
+The remaining `{:?}`-over-`String` class (metadata keys, unit symbols,
+a raw header line) is quoted at every site and is text a door was
+handed, so no second spelling exists to decide.
