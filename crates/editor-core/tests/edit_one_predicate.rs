@@ -33,6 +33,7 @@
 
 use crate::fixture;
 
+use crate::wire::doctored;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocumentId, EditError,
     EntityKind, Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, ParamName, PersistError,
@@ -40,7 +41,7 @@ use editor_core::{
     load, save,
 };
 use fixture::resolver::{PART_BODY, PartStore};
-use fixture::{doctored, insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The assertion's bound ----

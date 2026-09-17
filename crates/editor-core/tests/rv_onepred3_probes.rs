@@ -17,11 +17,12 @@
 
 use crate::fixture;
 
+use crate::wire::doctored;
 use editor_core::{
     Dimension, DocEdit, EditError, Expr, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
     SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{doctored, insert, len, on_frame_keeping, scl, square};
+use fixture::{insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
 
 /// An extrude, patterned linearly — the pattern's `count` is a

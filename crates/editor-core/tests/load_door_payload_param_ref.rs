@@ -27,11 +27,12 @@
 
 use crate::fixture;
 
+use crate::wire::doctored;
 use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PersistError,
     ProfileDoc, RecipeNodeId, SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{doctored, insert, len, on_frame, square};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 
 /// A frame, a profile, an extrude and a LENGTH document parameter

@@ -53,6 +53,10 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod corpus;
 mod fixture;
+// The wire-surgery helper, editor-core's alone — `tests/fixture/` and
+// `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
+// one is not, because its subject is `serde_json`.
+mod wire;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;

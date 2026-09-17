@@ -31,11 +31,12 @@
 
 use crate::fixture;
 
+use crate::wire::doctored;
 use editor_core::{
     Axis3, Dimension, DocEdit, EditError, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, apply, load, save,
 };
-use fixture::{ang, doctored, len, on_frame_keeping, square};
+use fixture::{ang, len, on_frame_keeping, square};
 use geom_core::Tol;
 
 /// A one-extrude document on an explicit frame: the frame's origin
