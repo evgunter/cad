@@ -1933,6 +1933,7 @@ pub fn inline(
 /// name-bearing segment — which is what makes [`remap_face`]'s
 /// `unreachable!` arm unreachable.
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod rv_review_remap_kind {
     use super::{NodeMap, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
