@@ -112,6 +112,9 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
