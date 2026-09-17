@@ -31,3 +31,16 @@ profile fillet door), one on SYM, one on TOPO and one on META;
 `work/blend/log.md`'s cut entry carries the table and the charters.
 
 Nothing dispatches until the opening sitting writes the unit order.
+
+## BLEND closed (2026-09-17)
+
+BLEND's exit walk (PR #2826, "merged!" from Ev in chat) closed the
+parent the day this program opened; the sweep (
+sweep 17) deleted . Four rows arrived with the walk —
+ (BLEND's unit 13, blocked on PROPS' ),
+,
+ and
+ — so
+the slate is twenty-five rows. Every path in  is this program's
+alone now; the "BLEND stays open" clause left .
+
