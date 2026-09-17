@@ -1363,6 +1363,29 @@ not have found this one. Sweeping for the bad value finds the arm
 nobody reaches; sweeping for the arithmetic that MINTS it finds the
 arm anybody can.
 
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything.** CLAUDE.md tells every agent to run the pickaxe before
+waiting on Ev, and this repo is worked through ephemeral worktrees
+whose clones are shallow — `.git/shallow` exists and `git blame`
+bottoms out at a boundary commit (`^cf2164600f` today). A pickaxe over
+a truncated history reports an absence it has no standing to report.
+The `view/clamp-nan` lane cited `07b41f6bf6` as the commit that wrote
+a `theme.rs` sentence; **that SHA does not resolve at all**, here or on
+GitHub. The real commit is `df8cc27873` (2026-08-30). Two things
+conspired: the shallow history, and the register's own split-span trap
+— the sentence spans a `///` continuation, so the whole-phrase pickaxe
+returned nothing even where the history reached.
+
+So a provenance receipt owes three things, not one: **the SHA must
+resolve** (`git cat-file -t` it, or look it up on GitHub when the clone
+is shallow), the search must be a **fragment short enough to survive a
+line wrap**, and a nil result must say **"not found in a shallow
+clone"** rather than "no such commit". The conclusion can still be
+right while the receipt is worthless — it was here, because `theme.rs`
+is in no companion table and no ratified text was touched either way.
+A ratification check that concludes correctly from a SHA that does not
+exist has not checked anything.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
