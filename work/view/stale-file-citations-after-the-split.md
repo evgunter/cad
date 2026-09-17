@@ -411,3 +411,27 @@ they are named here rather than left to be re-found:
 tracker sweep is *open vs closed*, not *true vs false*. A closed row
 can be false and still be the right record, and a sweep that does not
 say which boundary it used has not stated its population.
+
+## Six more members, from the band census `view/clamp-nan` owed (2026-09-17)
+
+That branch changed `app.rs`, `sketch.rs` and `theme.rs`, so it owed
+the census of every open row citing into the bands its diff moved. Six
+of the citations it read are wrong about their SUBJECT at its merge
+base — that is, wrong before the diff, so repointing them by its shift
+would be the
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` defect.
+Each was checked by `sed -n Np` on `origin/main`, not by arithmetic.
+
+| Row | Citation | The subject it names | Where the subject is on `origin/main` |
+|---|---|---|---|
+| `work/view/wasm-theme-choice-is-offered-and-silently-not-kept.md:23,31,32,33,78` | `app.rs:1014-1025`, `:1015-1017`, `:1022`, `:1023` | `ViewerApp::remember_theme` and its `store.usable()` early return | `fn remember_theme` is at `app.rs:1156`; lines 1014-1025 are `fit_features_share`'s stack arithmetic, a different function about a different thing |
+| `crates/viewer/GUI-DESIGN.md:358` | `sketch.rs:939` | an intra-doc link into `pncad` | line 939 is blank; the link `` [`ProfileVertex`](pncad::profile::ProfileVertex) `` is at `sketch.rs:943` |
+| `work/chrome/doc-comment-merge-scars-row-is-one-third-discharged-and-one-third-relocated.md:50` | `sketch.rs:1015` | `tip_mark`'s self-spliced summary | line 1015 is inside `arc_points`; `pub fn tip_mark` is at `sketch.rs:1028`. CHROME's row, reported and not edited |
+
+The first is this program's own and the largest: four citations in one
+row, all naming a function 130-odd lines away, and the row reads
+perfectly well because the prose carries the argument and the numbers
+are decoration. **A citation nobody follows cannot go stale
+visibly**, which is why the population here is found by a census and
+never by a reader.
+
