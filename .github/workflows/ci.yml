@@ -1264,9 +1264,18 @@ jobs:
       # is missing or not "1". Delete the line and the job reds naming
       # it; flip it to "0" and the job reds naming it; ruff runs required
       # either way. `check-python-lint.py --selftest` plants both edits.
+      # THE SELFTEST CARRIES THE DECLARATION TOO, and it is not decoration
+      # here either. `check-python-lint.py` reads GITHUB_ACTIONS to decide a
+      # skip is forbidden AND fails if this line is missing — in `--selftest`
+      # mode as much as in the check, because the marker it is keeping honest
+      # is the one in THIS file. Splitting the old combined row and leaving the
+      # `env:` on the check alone reddened the job (`#9269`) with exactly that
+      # diagnosis, which is the guard doing its job.
       - name: python lint (selftest)
         if: steps.reach.outputs.selftests == 'true'
         run: python3 scripts/check-python-lint.py --selftest
+        env:
+          REQUIRE_RUFF: "1"
       - name: python lint (ruff, every tracked .py and .pyi)
         run: python3 scripts/check-python-lint.py
         env:
