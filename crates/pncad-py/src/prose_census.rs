@@ -1798,15 +1798,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/geom-core/src/predicate.rs",
-        "MissingRecourse",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over the `Option<&str>` this newtype wraps: the gap\
-         sentence renders the predicate as the OPTION it is, so an escalation\
-         carrying no name at all reads as absent rather than as a name",
-    ),
-    (
         "crates/profile/src/path/program.rs",
         "ReplayError",
         "verb",
