@@ -1050,21 +1050,23 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
     );
 }
 
-/// **REVIEW PROBE (lane `pickrefuse-rv`): where the face pick ties,
-/// the EDGE pick dies with it.**
+/// **A cursor the FACE pick ties on still picks the edge.**
 ///
-/// `hovered_for` seeds on `PickIndex::seed`, which is `pick_for`, and
-/// propagates its error with `?` before `edge_near` is ever asked. So
-/// at a cursor whose ray meets two faces the arithmetic cannot order —
-/// which is what a cursor ON a shared edge is — the whole pick refuses
-/// and the edge under the cursor cannot be hovered or clicked either,
-/// however far the priority rule would have carried it.
+/// A cursor on a shared edge is the pixel a user aims an edge with,
+/// and it is also where the face pick ties — the ray meets both faces
+/// the edge belongs to and the arithmetic orders neither. Seeding the
+/// edge search on the face ANSWER therefore refuses the edge pick
+/// exactly where an edge is what the cursor means; the seed is a
+/// depth instead (`PickIndex::front_of`), and only the face answer
+/// refuses.
 ///
-/// This row sweeps the plate's own drawn edges for such a cursor and
-/// reports what the two doors say there. It is a probe, not a
-/// verdict: if the plate has no such cursor it says so and passes.
+/// The fixture is the shipped plate's own drawn edges, swept at every
+/// segment midpoint: the sweep both finds the tied cursors and pins
+/// the edge door over all of them. The premise is asserted, so a
+/// plate that stopped producing tied cursors reds here rather than
+/// passing vacuously.
 #[test]
-fn review_probe_a_tied_cursor_refuses_the_edge_pick_too() {
+fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
     let index = index_of(&session);
@@ -1073,6 +1075,7 @@ fn review_probe_a_tied_cursor_refuses_the_edge_pick_too() {
     let eval = eval_of(&session);
     let mut tied_cursors = 0usize;
     let mut edge_refused = 0usize;
+    let mut edge_missed = 0usize;
     let mut cursors = 0usize;
     let mut edges_hit = std::collections::BTreeSet::new();
     let mut edges_all = 0usize;
@@ -1096,9 +1099,15 @@ fn review_probe_a_tied_cursor_refuses_the_edge_pick_too() {
             tied_cursors += 1;
             edges_hit.insert(format!("{id:?}"));
             match index.edge_at_for(eval, &camera, pane(), cursor, &DisplayView::none()) {
-                Ok(pick) => {
+                Ok(Some(pick)) => {
                     if example.is_empty() {
                         example = format!("tied at {cursor:?}, edge pick answered {pick:?}");
+                    }
+                }
+                Ok(None) => {
+                    edge_missed += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered NOTHING");
                     }
                 }
                 Err(error) => {
@@ -1111,12 +1120,22 @@ fn review_probe_a_tied_cursor_refuses_the_edge_pick_too() {
         }
     }
     println!(
-        "# REVIEW PROBE {tied_cursors} tied cursors of {cursors} on {} of {edges_all} drawn \
-         edges; the edge pick refuses at {edge_refused} of them; {example}",
+        "# tied cursors {tied_cursors} of {cursors}, on {} of {edges_all} drawn edges; the \
+         edge pick refuses at {edge_refused} of them and answers nothing at {edge_missed}; \
+         {example}",
         edges_hit.len()
+    );
+    assert!(
+        tied_cursors > 0,
+        "the row's premise: the plate's drawn edges produce cursors the face pick ties on \
+         ({cursors} cursors over {edges_all} edges)"
     );
     assert_eq!(
         edge_refused, 0,
         "a cursor the face pick ties on takes the EDGE pick down with it: {example}"
+    );
+    assert_eq!(
+        edge_missed, 0,
+        "the cursor is on a drawn edge's own midpoint, so the edge door answers it: {example}"
     );
 }

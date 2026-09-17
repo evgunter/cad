@@ -14,7 +14,12 @@
 //! file still render a payload through `Debug`, each for a stated
 //! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
 //! forecloses writing a `Display` for) and `Disagreement` (a role path,
-//! whose `RoleSeg` has none). `PreviewError::Transition` is not one of
+//! whose `RoleSeg` has none). One message door that is not a `Display`
+//! renders one too, for `Disagreement`'s reason: `frame::pick_refusal`
+//! writes the certified tie's faces with their role paths, because a
+//! sentence about two answers that cannot be told apart cannot render
+//! them as the same words (`frame_policy.rs`,
+//! `the_status_line_renders_two_tied_faces_as_two_different_phrases`). `PreviewError::Transition` is not one of
 //! them and is not covered here either: it needs a replayed chain to
 //! carry a verb at all, so its prose row sits beside the chain that
 //! produces it (`tests/path_authoring.rs`,

@@ -147,16 +147,9 @@ impl core::fmt::Display for HitTestError {
                     "hit test: the ray is tied between {} faces the arithmetic cannot order — ",
                     hits.len()
                 )?;
-                // **Numbered, and by name alone.** Two faces of one
-                // node render identically through [`StableName`]'s
-                // `Display`, which omits the role path on purpose —
-                // so the ordinal is what ties each phrase to its
-                // entry in `hits`, where the path IS carried. The
-                // path itself stays out of the prose: it renders
-                // through `Debug`, and a `Debug` struct dump in a
-                // refusal's message is what the Display contract
-                // forbids and what the binding's prose check refuses
-                // outright.
+                // The ordinal is what ties each phrase to its entry
+                // in `hits`, where the role path two faces of one node
+                // differ by IS carried.
                 for (i, hit) in hits.iter().enumerate() {
                     if i > 0 {
                         f.write_str(", ")?;

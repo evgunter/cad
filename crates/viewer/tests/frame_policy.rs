@@ -1412,6 +1412,76 @@ fn answer(serial: u32, id: u32) -> u64 {
     u64::from(serial) << 32 | u64::from(id)
 }
 
+/// **The status line tells two tied faces apart.**
+///
+/// A refusal whose whole subject is that two answers cannot be
+/// separated cannot render them as the same words. The kernel's own
+/// message numbers its faces by name alone — `StableName`'s `Display`
+/// omits the role path on purpose, so two faces of ONE node come out
+/// as one phrase twice, and the ordinal is all a reader has. That is
+/// right for the kernel, whose typed payload carries the path; it is
+/// not enough on a status line, where there is no payload to open.
+///
+/// So `frame::pick_refusal` renders each tied face the way
+/// `idpass::Disagreement` does — kind and minting node, then the role
+/// path. The premise is asserted first: these two names really do
+/// render identically through `Display` alone.
+#[test]
+fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    let index = index_of(&session);
+    let eval = session.evaluation().expect("landed");
+    let names: Vec<StableName> = index
+        .ids()
+        .ids()
+        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .cloned()
+        .collect();
+    let first = names.first().expect("the plate draws a face").clone();
+    let second = names
+        .iter()
+        .find(|name| name.path != first.path && name.to_string() == first.to_string())
+        .expect("the plate draws two faces of one node, which render as one phrase")
+        .clone();
+    let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
+        name,
+        node: index.parts().first().expect("a part").node(),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
+    let refusal = pickindex::PickError::HitTest(pncad::select::HitTestError::Ambiguous {
+        hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
+    });
+    let _ = eval;
+
+    // The premise: by name alone the two faces are one phrase.
+    assert_eq!(
+        first.to_string(),
+        second.to_string(),
+        "the two faces render identically through `Display` alone"
+    );
+
+    let text = frame::pick_refusal(&refusal).text().to_owned();
+    let rendered = |name: &StableName| format!("{name} ({:?})", name.path);
+    assert!(
+        text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
+        "each tied face is rendered with its role path: {text}"
+    );
+    assert_ne!(
+        rendered(&first),
+        rendered(&second),
+        "and the two renderings differ, which is the whole point"
+    );
+    assert!(
+        !text.contains("PickHit"),
+        "a refusal's message is prose, not a struct dump: {text}"
+    );
+}
+
 #[test]
 fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let tol = Tol::witness();
@@ -1546,16 +1616,21 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         })
         .expect("some drawn edge of the plate is hoverable from its own midpoint");
 
+    // One face under an ordinary edge cursor, the two faces the edge
+    // divides where the cursor is on their shared pixels — the ray
+    // path's whole answer either way, which is what the id buffer's
+    // cross-check is compared against.
     let faces = index
         .faces_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
         .expect("the cursor un-projects");
-    let [face] = &faces[..] else {
-        panic!("an edge is only reachable where its body is, so one face is under it too");
-    };
+    let face = faces
+        .first()
+        .expect("an edge is only reachable where its body is, so a face is under it too");
     let id = *index
         .ids_of_target(face)
         .first()
         .expect("the face under the cursor is drawn");
+    let named: Vec<StableName> = faces.iter().map(|face| face.name.clone()).collect();
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
@@ -1570,12 +1645,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(
-            &index,
-            answer(7, id),
-            Some(7),
-            std::slice::from_ref(&face.name)
-        ),
+        idpass::disagreement(&index, answer(7, id), Some(7), &named),
         None,
         "the face under the cursor is what the id buffer named"
     );
