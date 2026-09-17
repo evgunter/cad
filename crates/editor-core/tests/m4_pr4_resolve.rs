@@ -21,8 +21,9 @@ use editor_core::eval::WitnessSlot;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
-    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
+    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
+    resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -374,7 +375,13 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    let (doc, _decl) = insert(doc, Node::declare_rest(vec![(cap_a, cap_b.clone())]));
+    let (doc, _decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::at_mint(cap_a),
+            SitedRef::at_mint(cap_b.clone()),
+        )]),
+    );
     // b has no DAG dependents (Declare names are refs, not edges):
     // deletion is allowed and strands cap_b — N5's ratified dangling
     // semantics.
@@ -753,7 +760,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(cap_a.clone(), cap_b.clone())])
+                node: Node::declare_rest(vec![(
+                    SitedRef::at_mint(cap_a.clone()),
+                    SitedRef::at_mint(cap_b.clone()),
+                )])
             },
             &ev,
             Tol::witness(),
@@ -772,7 +782,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(cap_a.clone(), bogus.clone())]),
+            node: Node::declare_rest(vec![(
+                SitedRef::at_mint(cap_a.clone()),
+                SitedRef::at_mint(bogus.clone()),
+            )]),
         },
         &ev,
         Tol::witness(),
@@ -791,7 +804,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc2,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(cap_a, cap_c)])
+                node: Node::declare_rest(vec![(
+                    SitedRef::at_mint(cap_a),
+                    SitedRef::at_mint(cap_c),
+                )])
             },
             &ev,
             Tol::witness(),

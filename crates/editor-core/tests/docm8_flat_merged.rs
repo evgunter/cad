@@ -13,7 +13,10 @@ use crate::docm7_union_declare::{
 use crate::fixture;
 use crate::fixture::{Recorder, fname, insert, len, wall};
 
-use editor_core::{BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve};
+use editor_core::{
+    BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve,
+};
 use geom_core::Tol;
 
 /// The four flush families two x-offset blocks share: both y-walls

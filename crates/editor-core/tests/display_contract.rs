@@ -1138,7 +1138,6 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         ),
         "a vanished name is one neither table answers to: {shown:?}"
     );
-
 }
 
 /// The WHY clause of a mate-reference refusal says what the gate

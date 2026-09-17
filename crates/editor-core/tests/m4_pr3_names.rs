@@ -5,7 +5,12 @@
 
 use crate::fixture;
 
-use editor_core::{CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram, MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, StableName, band, band_rim, evaluate, meridian_vertex};
+use editor_core::{
+    CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
+    MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf,
+    StableName, band, band_rim, evaluate, meridian_vertex,
+};
 use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
 

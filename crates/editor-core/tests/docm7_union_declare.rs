@@ -11,8 +11,8 @@ use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
     EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    ValuePayload, evaluate,
+    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
+    evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
 use geom_core::Tol;
@@ -363,8 +363,7 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, union, _) =
-        declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
     let ev = run(&doc);
     let t = table(&ev, union);
     // Four merged faces: the two y-walls and the two caps.
@@ -986,6 +985,14 @@ fn a_declared_unions_document_replays_in_document_order() {
     }
     assert_eq!(replay.order().len(), doc.order().len());
     let ev = run(&replay);
-    let rebuilt = replay.order()[doc.order().iter().position(|n| *n == union).expect("the union")];
-    assert!(failure(&ev, rebuilt).is_none(), "{:?}", failure(&ev, rebuilt));
+    let rebuilt = replay.order()[doc
+        .order()
+        .iter()
+        .position(|n| *n == union)
+        .expect("the union")];
+    assert!(
+        failure(&ev, rebuilt).is_none(),
+        "{:?}",
+        failure(&ev, rebuilt)
+    );
 }

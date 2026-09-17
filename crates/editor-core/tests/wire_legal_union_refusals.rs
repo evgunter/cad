@@ -11,10 +11,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
+use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{fname, wall};
 
-use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RimShare, SitedRef, StableName};
+use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RimShare, SitedRef};
 use geom_core::Tol;
 
 /// The sentence `NamingError::Emission` opens with, written out because
