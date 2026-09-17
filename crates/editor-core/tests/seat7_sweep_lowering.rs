@@ -1067,11 +1067,11 @@ fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed
         "two-arc chain document:\n{}",
         bad.join("\n")
     );
-    // REVIEW PROBE (review/chainradius-rv): the fixture's own premise.
-    // The reversed row is the only one that can see a canonical-order
-    // token list, and nothing here said the fixture IS reversed — a
-    // later change to `two_arc_chain` that made both windings identity
-    // would leave the row green and the mutant invisible again.
+    // The fixture's own premise, asserted before anything is asserted
+    // about the attach. A canonical-order token list is visible only on
+    // a loop whose anchor hop is NOT the identity, so a row written to
+    // be the reversed case and silently canonicalized to the identity
+    // one would pass while proving nothing.
     let editor_core::ValuePayload::Profile(pv) = &ev
         .value(profile_node)
         .expect("the profile evaluates")
@@ -1256,32 +1256,3 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
     );
 }
 
-// ------------------------------------------------------------------
-// REVIEW PROBE (review/chainradius-rv) — not part of the PR.
-//
-// Dumps every corpus document's per-node content key so the same probe
-// can be run at the merge base and the two dumps diffed: which
-// documents' keys the per-edge radius feed moved, and which carrier
-// documents it left byte-identical.
-// ------------------------------------------------------------------
-
-/// Writes `<name> <node-index> <content-key>` for every corpus node to
-/// `/home/user/chainradius-rv-scratch/keys-<rev>.txt`.
-#[test]
-fn probe_dump_corpus_content_keys() {
-    use std::fmt::Write as _;
-    let mut out = String::new();
-    for d in corpus::documents() {
-        let ev = eval::<f64>(&d.doc);
-        for (i, &id) in d.doc.order().iter().enumerate() {
-            let k = ev.value(id).map(|v| v.content_key.0);
-            writeln!(out, "{} {i} {k:?}", d.name).unwrap();
-        }
-    }
-    let rev = std::env::var("PROBE_REV").unwrap_or_else(|_| "head".into());
-    std::fs::write(
-        format!("/home/user/chainradius-rv-scratch/keys-{rev}.txt"),
-        out,
-    )
-    .unwrap();
-}

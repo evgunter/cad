@@ -340,8 +340,9 @@ pub enum ValuePayload<T: Decide> {
     /// values; directions normalized, degenerate refused).
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
-    /// through the driver, then the profile crate's validation door)
-    /// plus its program-anchor naming map ([`ProfileValue`]).
+    /// through the driver, then the profile crate's validation door),
+    /// its program-anchor naming map, and the radius expression each
+    /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, placed union, instantiate,

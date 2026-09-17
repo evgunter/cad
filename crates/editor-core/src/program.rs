@@ -827,15 +827,10 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
 /// **The one radius-bearing role a step holds**, `None` where it holds
 /// none or more than one.
 ///
-/// The radius roles are the three the argument vocabulary spells as
-/// radii — `StepArg::Radius` (a fillet's, and the carrier forms'),
-/// `StepArg::CarrierRadius` and the arrival spec's twin
-/// `CarrierRadius2`. They are filtered out of the step's OWN slot
-/// enumeration rather than matched per verb, so a verb that gains a
-/// radius argument is covered by the enumeration it already extends.
-/// Every one of them is a `Dimension::Length`, as a radius must be
-/// (`StepArg::dimension`); the other Length roles are coordinates and
-/// lengths, which no segment is drawn AT.
+/// Which roles are radii is [`StepArg::is_radius`]'s answer, and the
+/// step's own slot enumeration is where they are looked for, so a verb
+/// that gains a radius argument and a role that is a radius are each
+/// covered by the door that already has to be extended for them.
 ///
 /// **More than one answers `None`, and that is the honest answer.** A
 /// fused step carries up to three (`arc_fillet_arc`: the incoming
@@ -846,12 +841,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
 fn radius_arg(step: &ProgramStep) -> Option<StepArg> {
     let mut args = Vec::new();
     step_slots(step, &mut args);
-    args.retain(|a| {
-        matches!(
-            a,
-            StepArg::Radius | StepArg::CarrierRadius | StepArg::CarrierRadius2
-        )
-    });
+    args.retain(|a| a.is_radius());
     match args[..] {
         [only] => Some(only),
         _ => None,
@@ -1698,9 +1688,14 @@ impl ProfileProgram {
             .ok_or(StepSegmentsError::NoSuchLoop {
                 loops: self.loops.len(),
             })?;
-        // The carrier forms are the loops whose whole boundary is one
-        // arc carrier, and the per-loop door is the statement of that.
-        let whole_loop = program.carrier_radius().is_some();
+        // Carrier against chain, in the one spelling
+        // [`LoopProgram::step_radii`] uses: a carrier form's whole
+        // boundary is one arc carrier, so its step's radius is every
+        // edge's; a chain's step drew the segments it drew.
+        let whole_loop = match program {
+            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => true,
+            LoopProgram::Chain(_) => false,
+        };
         let mut out = Vec::new();
         for (step, expr) in program.step_radii() {
             let edges = self.profile_edges_of(structure, naming, loop_, step)?;

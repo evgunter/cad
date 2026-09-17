@@ -550,25 +550,11 @@ pub(crate) fn attach_shell<T: Real>(
 /// canonical segment so it lines up position-for-position with the
 /// walls a sweep's record exports.
 ///
-/// It sits here rather than in the lowering because it is one of the
-/// two expression-side halves this module owns: [`flow_bearing`] and
-/// [`attach_blend`] answer for a verb's own slot, this and
-/// [`attach_swept`] for an expression the OPERAND holds.
-///
-/// **The address is the profile edge, and the value carries it.** The
-/// profile node answered "which radius is this edge drawn at" where
-/// its records live (`ProfileValue::edge_radii`,
-/// `ProfileProgram::segment_radii`); all that is left here is the
-/// lowering, which is scope-relative and so belongs to the ATTACHING
-/// evaluation. A carrier loop answers its one radius at every one of
-/// its segments, which is the same stamp per loop it has always been;
-/// a chain loop answers per arc step.
-///
-/// `None` at a segment is an answer, not a gap: a straight edge, an
-/// arc the program does not author a radius for, or one of several
-/// segments a fused step emitted. Nothing is attached there, which is
-/// what keeps a wall from carrying the identity of an expression it is
-/// not drawn from.
+/// The profile's own value answered WHICH radius each edge is drawn at
+/// (`ProfileValue::edge_radii`), `None` where it is drawn at none.
+/// What is left here is the lowering, and it is here because lowering
+/// is scope-relative: the scope is the ATTACHING evaluation's descent
+/// chain, which the profile node cannot see.
 pub(crate) fn profile_radius_tokens<T: Real>(
     profile: &crate::eval::ProfileValue<T>,
     scope: ParamScope,
@@ -617,6 +603,11 @@ pub(crate) fn profile_radius_tokens<T: Real>(
 /// `body` a moment earlier with no mutation between, and every field
 /// came out of `belongs_to` — so a refusal is a broken invariant of
 /// this function, surfaced typed rather than discarded.
+///
+/// # Panics
+///
+/// Where `tokens` and `walls` do not have one shape, which is the
+/// evaluation contradicting itself about the profile it just swept.
 pub(crate) fn attach_swept<T: Real>(
     body: &mut Body<T>,
     flow: &[ParamFlow],
@@ -627,6 +618,29 @@ pub(crate) fn attach_swept<T: Real>(
     let Some(row) = flow.iter().find(|row| row.source == source) else {
         return Ok(());
     };
+    // **The two lists must have one shape, and a disagreement is this
+    // evaluation contradicting itself.** They are one run's two views
+    // of one profile — the walls the verb's record exported and the
+    // tokens the operand's value carried — both indexed by canonical
+    // loop and then canonical segment, and both derived from that one
+    // program by the same pre-pass. So a length that differs is not a
+    // wall to skip: every stamp after it would be off by the
+    // difference, silently, on a body nothing downstream re-checks.
+    // Observed rather than refused typed, because `ParamAttachError`
+    // is the KERNEL attach door's vocabulary — a stale key, a field
+    // the carrier does not store — and no document can reach this.
+    // That is `unreachable!`'s own case (D9's D2 addendum), and the
+    // same one `eval::wire::edge_radii` asserts on at the other end of
+    // this pair of lists.
+    if tokens.len() != walls.len() || tokens.iter().zip(walls).any(|(t, w)| t.len() != w.len()) {
+        unreachable!(
+            "a sweep's walls and its operand's radius tokens describe the same \
+             profile's canonical loops and segments, so their shapes cannot \
+             differ: walls {:?}, tokens {:?}",
+            walls.iter().map(Vec::len).collect::<Vec<_>>(),
+            tokens.iter().map(Vec::len).collect::<Vec<_>>(),
+        );
+    }
     let mut stamps: Vec<(topo::SurfaceKey, SurfaceField, ParamSource)> = Vec::new();
     for &role in row.fields {
         // The role's family is the walls, and the walls are what the
@@ -637,15 +651,13 @@ pub(crate) fn attach_swept<T: Real>(
         if role.family() != RoleFamily::SweptWalls {
             continue;
         }
-        for (loop_index, faces) in walls.iter().enumerate() {
-            for (segment, &wall) in faces.iter().enumerate() {
+        for (faces, loop_tokens) in walls.iter().zip(tokens) {
+            for (&wall, token) in faces.iter().zip(loop_tokens) {
                 // A segment that minted no wall, and an edge with no
                 // radius of its own, are the same answer read from the
                 // two aligned lists: nothing to attach, and nothing to
                 // attach it to.
-                let (Some(face), Some(Some(token))) =
-                    (wall, tokens.get(loop_index).and_then(|l| l.get(segment)))
-                else {
+                let (Some(face), Some(token)) = (wall, token.as_ref()) else {
                     continue;
                 };
                 // Loud for the reason the doc gives: the walls came out

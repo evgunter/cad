@@ -71,7 +71,7 @@ use topo::{
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
-use crate::names::{self, NameTable, SplitHalf};
+use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
 use crate::node::{Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 
@@ -1718,16 +1718,22 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
                 .unwrap_or_else(|e| {
                     unreachable!(
-                        "the profile's own structure record does not describe program loop {}: {e}",
+                        "this profile's structure record and its naming anchor were \
+                         minted from this one program by one pre-pass, so every loop \
+                         the anchor names is a loop the record describes — program \
+                         loop {} is not: {e}",
                         anchor.program_loop
                     )
                 });
             (0..anchor.len)
                 .map(|k| {
-                    let seg = anchor.segment(k);
+                    let want = ProfileEdgeRef {
+                        loop_index: anchor.program_loop,
+                        segment: anchor.segment(k),
+                    };
                     by_program_segment
                         .iter()
-                        .find(|(e, _)| e.segment == seg)
+                        .find(|(e, _)| *e == want)
                         .map(|(_, expr)| (*expr).clone())
                 })
                 .collect()
