@@ -8,6 +8,15 @@ The optional path is opened at startup through the same typed `Open`
 operation the dialog feeds — and it is the only way to open a document
 on a system with no file-chooser backend (below).
 
+**Two documents share this page.** Everything down to *Architecture* is
+about RUNNING the viewer — mouse bindings, the file-chooser and font
+prerequisites a Linux or WSL desktop needs, headless operation, the
+browser spike — and it is the tenth of the page a user wants.
+*Architecture* and everything after it is the crate's implementation
+record: what the code does and why it is arranged this way, for changing
+it rather than using it. The ratified plan that record answers to is
+[`GUI-DESIGN.md`](GUI-DESIGN.md) beside it.
+
 ## Mouse bindings
 
 | Gesture | Action |
