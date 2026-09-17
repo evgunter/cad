@@ -1217,3 +1217,32 @@ fn rv_r2_a_name_the_other_operand_carries_is_not_read_there() {
         "a name read in the operand its site does not name: {said}"
     );
 }
+
+/// What the bare-name serde refusal actually SAYS — typed, and does it
+/// name the pair?
+#[test]
+fn rv_r2_the_bare_side_refusal_is_reported() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("rv_r2_bare_side", tol);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let split = text.find('{').expect("the JSON body follows the header");
+    let (header, body) = text.split_at(split);
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+    let bare = side["name"].clone();
+    *side = bare;
+    let doctored = format!("{header}{wire}");
+    let err = editor_core::persist::load(&doctored, tol).expect_err("must refuse");
+    eprintln!("RV-R2 bare side, typed error: {err:?}");
+    eprintln!("RV-R2 bare side, display: {err}");
+    // An EXTRA field is the other half of the shape the census claims.
+    let mut wire2: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let side2 = &mut wire2["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+    side2["surprise"] = serde_json::Value::from(1);
+    let doctored2 = format!("{header}{wire2}");
+    let err2 = editor_core::persist::load(&doctored2, tol);
+    eprintln!("RV-R2 unknown field on a site: {:?}", err2.err().map(|e| format!("{e}")));
+}
