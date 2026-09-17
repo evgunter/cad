@@ -61,7 +61,10 @@ posture under §Process.
    doc-param precedent; LIB's Python half unparked at that merge).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
-   **spec'd**, middle tier (wave 6).
+   **merged** (PR #2793, middle tier). DM8's residue
+   `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
+   is **spec'd**, middle tier (wave 8; crosses WIRE's `eval::content_key`
+   by announcement).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
