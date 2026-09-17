@@ -2,8 +2,9 @@
 id: the-shader-encodes-a-mark-strength-nothing-bounds
 kind: issue
 title: The paint path a NaN actually reaches is the shader, and the Rust/WGSL parity row compares constants only
-status: open
+status: closed
 opened: 2026-09-17
+closed: 2026-09-17
 ---
 
 Found by the review of #2798, which asked the question that PR's own
@@ -69,3 +70,44 @@ part of it.
 
 `crates/viewer/src/gpu.rs` — VIEW's, the standing double claim with
 CHROME.
+
+## Closed
+
+**The guard went on the type, not at `mark_lane` and not in the
+WGSL.** `Mark::strength` and `Theme::ambient` are
+`theme::MixFraction`s: `[0, 1]` is a property of every value of that
+type rather than a claim in a doc comment, so `mark_lane` and
+`ViewportCallback::block` read `.get()` and need no door of their own,
+and the shader receives a weight it can mix with because no other kind
+exists. `MixFraction::new` refuses a caller at run time;
+`MixFraction::literal` asserts in a `const` context, so a registry
+palette outside the range fails the BUILD.
+
+`ambient` was not in this item and is the same defect: a `pub f32` on
+the same `pub` struct, written into `base_color`'s `w` lane raw, and
+consumed by `ambient + (1 - ambient) * lambert`, which has no more
+standing against a weight that is not a number than the mix does. One
+type closed both.
+
+**What this item was wrong about**, in one place: it says
+`Mark::strength` goes to the uniform "with no door between the field
+and the GPU", which was true, and implies that is where a NaN would
+come from. **No producer of one exists.** Every `Theme` that reaches
+`ViewportCallback` comes from `Theme::ALL`; `mark.strength` is read
+everywhere and computed nowhere; and no public door admits a foreign
+`Theme` — `gpu` is a private module and `ViewerApp::theme` is private,
+so the crate's API lets a consumer BUILD a poisoned `Mark` and gives
+it nowhere to put one. The defect was latent, and the base-tree red
+that proves it is a probe through `mark_lane` rather than a route a
+user has.
+
+**The parity row's sentence is corrected, and the row is widened.** It
+no longer says the constants are what a divergence would be made of:
+it names the divergence that is made of a guard (#2798's NaN refusal,
+which `to_display` has no counterpart for) and says why the shader
+needs none. The widening is separate and was a real hole — the row
+read only `SHADER` and never the Rust half, so on the base tree
+rounding `channel_to_srgb8`'s exponent to 2.2 left it **green**.
+
+The rest of the boundary sweep is
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`.
