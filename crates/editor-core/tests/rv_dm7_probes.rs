@@ -218,10 +218,19 @@ fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
             .count();
         doc = applied.doc;
     }
+    // RE-BASELINED with the sited payload: the count used to be eight.
+    // A declaration named entities in the UNION's own space, so every
+    // pair of the doomed `Declare` was about a doomed node and the
+    // door reported it on the way past — noise, because nothing that
+    // survived carried any of it. A sited pair names entities in the
+    // MEMBERS, which this cascade does not touch, so the doomed set
+    // strands nothing and the door's count agrees with the survivors'.
     assert_eq!(
-        reported, 8,
-        "the door reports eight strands about a Declare the cascade then deletes"
+        reported, survivor_carried,
+        "a sited declaration names entities outside the doomed set, so the door's \
+         count and a pre-click count built from the survivors agree"
     );
+    assert_eq!(reported, 0);
 }
 
 /// **A reported key survives the save/load boundary as a stranded

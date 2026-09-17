@@ -98,8 +98,10 @@ where
         },
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
-    // recipe intent; the retired bit rung no longer infers them).
-    let (doc, decl) = super::declare_x_offset_flush(doc, a, b0);
+    // recipe intent; the retired bit rung no longer infers them). The
+    // B side is read at the TRANSFORM, which is the boolean's operand
+    // and carries `b0`'s names verbatim (N1).
+    let (doc, decl) = super::declare_x_offset_flush_at(doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {

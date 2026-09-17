@@ -1320,8 +1320,11 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     };
     let (part_doc, _) = insert(
         part_doc,
+        // Both sides are READ at the surviving body; the stranded
+        // side's NAME is the extra node's, which is what the delete
+        // below strands.
         Node::declare_rest(vec![(
-            SitedRef::at_mint(stranded.clone()),
+            SitedRef::new(anchor.node, stranded.clone()),
             SitedRef::at_mint(anchor),
         )]),
     );

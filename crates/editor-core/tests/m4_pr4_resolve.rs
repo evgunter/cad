@@ -87,7 +87,6 @@ fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, transform) = insert(
         doc,
         Node::Transform {
@@ -97,6 +96,10 @@ fn slide_union(tx: f64) -> Slide {
             rotation_angle: ang(0.0),
         },
     );
+    // The B side is read at the TRANSFORM — the boolean's operand —
+    // and named in `b0`'s vocabulary, which the transform carries
+    // verbatim (N1).
+    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Boolean {

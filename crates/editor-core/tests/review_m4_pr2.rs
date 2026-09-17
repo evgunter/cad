@@ -712,12 +712,13 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             },
         );
         // M4 PR 5: the pip's outer cap lies ON the cube's top —
-        // declared (the rotational variant maps the SAME names).
+        // declared (the rotational variant maps the SAME names). The
+        // B side is read at the TRANSFORM, the subtract's operand.
         let (doc, decl) = insert(
             doc,
             Node::declare_rest(vec![(
                 SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::new(pip, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
+                SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
             )]),
         );
         let (doc, sub) = insert(

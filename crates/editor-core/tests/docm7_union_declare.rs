@@ -596,32 +596,25 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
     let doc = ProfileDoc::empty_derived("docm7_bare_side", tol);
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, _union, _) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    let mut file: serde_json::Value = serde_json::from_str(&text).expect("the file is JSON");
-    // Find the Declare's first pair and replace its `a` side — a
-    // `{at, name}` object — with the bare name it holds.
-    let pairs = declare_pairs_mut(&mut file).expect("the file holds a Declare");
-    let bare = pairs[0][0][0]["name"].clone();
-    assert!(!bare.is_null(), "a sited side carries its name");
-    pairs[0][0][0] = bare;
-    let edited = serde_json::to_string(&file).expect("the edit re-serializes");
-    let refused = editor_core::persist::load(&edited, tol);
+    // Doctored BY PATH, through the wire's own structure, so a field
+    // rename breaks the probe instead of silently moving it.
+    let split = text.find('{').expect("the JSON body follows the header");
+    let (header, body) = text.split_at(split);
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+    let bare = side["name"].clone();
     assert!(
-        refused.is_err(),
-        "a bare declared side loaded: {:?}",
-        refused.map(|l| l.doc.order().len())
+        !bare.is_null(),
+        "a sited side carries a name beside its site"
     );
-}
-
-/// The `pairs` array of the first `Declare` node in a saved document.
-fn declare_pairs_mut(file: &mut serde_json::Value) -> Option<&mut Vec<serde_json::Value>> {
-    file.get_mut("snapshot")?
-        .get_mut("nodes")?
-        .as_array_mut()?
-        .iter_mut()
-        .find_map(|entry| entry.pointer_mut("/1/Declare/pairs"))?
-        .as_array_mut()
+    *side = bare;
+    let doctored = format!("{header}{wire}");
+    assert!(
+        editor_core::persist::load(&doctored, tol).is_err(),
+        "a declared side without its site loaded"
+    );
 }
 
 /// **The edit door refuses a `declare` input that is not a `Declare`**

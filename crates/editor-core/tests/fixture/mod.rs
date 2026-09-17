@@ -788,8 +788,22 @@ pub fn declare_x_offset_flush(
     a_ext: RecipeNodeId,
     b_ext: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    // Each name is sited at the operand whose table holds it — the
-    // two extrudes, which are the consuming boolean's `a` and `b`.
+    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
+}
+
+/// The same, when the consuming boolean's OPERAND is not the extrude
+/// that minted the names — a transform of it, which contributes no
+/// role segment (N1) and so carries the extrude's names verbatim.
+///
+/// The site is the operand, always: it is what says which side of the
+/// boolean the name is read on.
+pub fn declare_x_offset_flush_at(
+    doc: ProfileDoc,
+    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
+    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
+) -> (ProfileDoc, RecipeNodeId) {
+    // Each name is sited at the OPERAND whose table holds it, which
+    // is what says which side of the boolean it is read on.
     let pairs = [
         wall(0),
         wall(2),
@@ -799,8 +813,8 @@ pub fn declare_x_offset_flush(
     .into_iter()
     .map(|seg| {
         (
-            SitedRef::new(a_ext, fname(a_ext, seg.clone())),
-            SitedRef::new(b_ext, fname(b_ext, seg)),
+            SitedRef::new(a_at, fname(a_ext, seg.clone())),
+            SitedRef::new(b_at, fname(b_ext, seg)),
         )
     })
     .collect();
