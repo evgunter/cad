@@ -1644,15 +1644,8 @@ pub fn rod_with_flat_at(
     tol: Tol,
 ) -> Result<Body<f64>, String> {
     let disc =
-        profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
-    let rod = extruded(SketchPlane::xy(), vec![disc.into()], ROD_L, tol);
         profile::circle(Point2::new(0.0, 0.0), big_r, tol).expect("the rod's disc is a valid loop");
-    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol)
-        .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(len), tol)
-        .expect("the rod extrudes")
-        .body;
+    let rod = extruded(SketchPlane::xy(), vec![disc.into()], len, tol);
     let square = ProfileLoop::new(
         [
             (flat, -cutter_half),
@@ -1664,16 +1657,7 @@ pub fn rod_with_flat_at(
         .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
         .collect(),
     );
-    let cutter = extruded(sketch_at(-0.5), vec![square], ROD_L + 1.0, tol);
-    topo::subtract(&rod, &cutter, tol)
-        .expect("the flat mills")
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5 * len)));
-    let cutter = Profile::new(plane, vec![square])
-        .validate(tol)
-        .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(2.0 * len), tol)
-        .expect("the cutter extrudes")
-        .body;
+    let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
     Ok(topo::subtract(&rod, &cutter, tol)
         .map_err(|e| format!("the flat does not mill: {e:?}"))?
         .body()
