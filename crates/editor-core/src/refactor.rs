@@ -1925,3 +1925,75 @@ pub fn inline(
         node_map,
     })
 }
+
+// ---- REVIEW PROBE (review/crossing-rv) ----
+
+/// Claim 2's probe: [`remap_name`] carries a name's KIND through
+/// unchanged, for every [`crate::EntityKind`] and through a nested
+/// name-bearing segment — which is what makes [`remap_face`]'s
+/// `unreachable!` arm unreachable.
+#[cfg(test)]
+mod rv_review_remap_kind {
+    use super::{NodeMap, remap_face, remap_name};
+    use crate::names::{FaceName, NameRef, RoleSeg, StableName};
+    use crate::node::RecipeNodeId;
+    use crate::{CapEnd, EntityKind};
+
+    fn map() -> NodeMap {
+        [
+            (RecipeNodeId(0), RecipeNodeId(10)),
+            (RecipeNodeId(1), RecipeNodeId(11)),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    fn name(kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(0),
+            path: vec![
+                RoleSeg::Cap(CapEnd::End),
+                RoleSeg::FromA(NameRef::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(1),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                })),
+            ],
+        }
+    }
+
+    #[test]
+    fn rv_review_remap_name_keeps_every_kind() {
+        for kind in [
+            EntityKind::Body,
+            EntityKind::Face,
+            EntityKind::Edge,
+            EntityKind::Vertex,
+        ] {
+            let out = remap_name(&name(kind), &map()).expect("the map covers both ids");
+            assert_eq!(out.kind, kind, "remap_name must carry the kind through");
+            assert_eq!(out.node, RecipeNodeId(10), "and renumber the mint");
+            assert_eq!(
+                FaceName::new(out).is_ok(),
+                kind == EntityKind::Face,
+                "so the re-wrap's verdict is decided by the INPUT kind alone"
+            );
+        }
+    }
+
+    #[test]
+    fn rv_review_remap_face_is_total_on_a_covered_map() {
+        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
+        let out = remap_face(&face, &map()).expect("the map covers both ids");
+        assert_eq!(out.node, RecipeNodeId(10));
+        assert_eq!(out.kind, EntityKind::Face);
+    }
+
+    #[test]
+    fn rv_review_remap_face_reports_the_missing_id_not_a_panic() {
+        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
+        let empty = NodeMap::new();
+        assert_eq!(remap_face(&face, &empty), Err(RecipeNodeId(0)));
+    }
+}
