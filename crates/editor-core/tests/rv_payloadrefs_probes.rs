@@ -244,3 +244,32 @@ fn rv_the_payload_dimension_refusal_names_the_node_it_addresses() {
          address is the NODE; the dimension arm must render it: {rendered}"
     );
 }
+
+/// **PROBE 4, MEASURED — the payload refusals call an ASSERTION's
+/// bound a "measurement payload".** Both arms render one sentence for
+/// both payload expressions, and the noun that sentence uses is the
+/// measure's. An assertion node whose BOUND reads an undeclared
+/// parameter is reported as "node N: its measurement payload reads …",
+/// which is the wrong noun for the only other expression the walk can
+/// be looking at: `Node::Assertion`'s bound is a bound, and the edit
+/// door's twin (`EditError::UnknownPayloadParam`) says "payload"
+/// without claiming which kind.
+///
+/// This row records what the prose says today and reds if the wording
+/// is repaired, which is the point — nothing else reads these words
+/// for an assertion, because the F6 case in `display_contract.rs`
+/// builds the arm directly and never reaches an assertion fixture.
+#[test]
+fn rv_the_payload_refusal_calls_an_assertion_bound_a_measurement() {
+    let rendered = format!(
+        "{}",
+        SnapshotError::PayloadUnknownDocParam {
+            node: RecipeNodeId(7),
+            name: ParamName::new("depth"),
+        }
+    );
+    assert!(
+        rendered.contains("its measurement payload reads"),
+        "MEASURED: one sentence serves both payload expressions: {rendered}"
+    );
+}
