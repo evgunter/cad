@@ -116,18 +116,41 @@ impl MixFraction {
     /// than a clamp: a weight outside `[0, 1]` is a caller's mistake
     /// about what this value means, and the nearest legal weight is
     /// a different picture rather than a repair.
-    pub fn new(fraction: f32) -> Option<Self> {
-        (0.0..=1.0).contains(&fraction).then_some(Self(fraction))
+    ///
+    /// **`const`, so that a consumer can state a palette the way this
+    /// module states one.** `Theme` and `Mark` are built as `const`
+    /// items here; without this a downstream `const Theme` could not
+    /// name a weight at all, and the private [`MixFraction::literal`]
+    /// would be a `const` door the crate kept for itself.
+    #[allow(
+        clippy::manual_range_contains,
+        reason = "a `const fn` cannot call `RangeInclusive::contains`"
+    )]
+    pub const fn new(fraction: f32) -> Option<Self> {
+        if fraction >= 0.0 && fraction <= 1.0 {
+            Some(Self(fraction))
+        } else {
+            None
+        }
     }
 
     /// A mix fraction written as a literal in this module's registry.
     ///
-    /// **The argument is a literal, never an input**: every call sits
-    /// in a `const` item below, so the assertion is evaluated by the
-    /// compiler and a palette stating a weight outside `[0, 1]` — a
-    /// `NaN` included — fails the build with this message. That is
-    /// what makes a checked constructor affordable in a `const`,
-    /// where a `Result` cannot be unwrapped.
+    /// **Every call sits in a `const` item below**, so the assertion
+    /// is evaluated by the compiler and a palette stating a weight
+    /// outside `[0, 1]` — a `NaN` included — fails the BUILD with this
+    /// message. That is what makes a checked constructor affordable in
+    /// a `const`, where a `Result` cannot be unwrapped.
+    ///
+    /// **Nothing enforces that sentence, and the failure it allows is
+    /// the one this type exists against.** A `const fn` is callable at
+    /// run time too, so a later non-`const` call inside this module
+    /// compiles and turns the advertised build error into a panic —
+    /// which is what `MixFraction::new` is for, and why this door is
+    /// private and stays private. The usual mechanical guard, a
+    /// `compile_fail` doctest, cannot reach a private item, so what
+    /// holds this is the reviewer and the fact that its only callers
+    /// are the three constants below it.
     const fn literal(fraction: f32) -> Self {
         assert!(
             fraction >= 0.0 && fraction <= 1.0,

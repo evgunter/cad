@@ -176,11 +176,14 @@ struct Uniforms {
 /// value rather than something this function could check and the
 /// shader could not. That matters because the shader cannot refuse:
 /// `mix(base, mark.xyz, mark.w)` spreads a weight that is not a
-/// number over the whole colour, and `to_display`'s `clamp` does not
-/// take it back — WGSL specifies `clamp` as `min(max(e1, e2), e3)`,
-/// which makes no promise about an unordered operand. A guard added
-/// in the WGSL would also be a second spelling of a rule the palette
-/// already states, held together by nothing.
+/// number over the whole colour, and nothing downstream takes it
+/// back. On a gamma-space surface `to_display`'s `clamp` does not —
+/// WGSL specifies `clamp` as `min(max(e1, e2), e3)`, which makes no
+/// promise about an unordered operand — and on an `*Srgb` one the
+/// `ENCODE_SRGB` early return sits ABOVE that line, so the pass runs
+/// no clamp at all. A guard added in the WGSL would also be a second
+/// spelling of a rule the palette already states, held together by
+/// nothing.
 fn mark_lane(mark: Mark) -> [f32; 4] {
     let [r, g, b] = crate::theme::linear(mark.tint);
     [r, g, b, mark.strength.get()]
@@ -1573,16 +1576,41 @@ mod tests {
     /// enforced rather than here: every number `to_display` receives
     /// is one. The tints reach it through `theme::linear`, total over
     /// `u8`; both weights are [`crate::theme::MixFraction`]s, bounded
-    /// by their type at [`mark_lane`] and at [`ViewportCallback::block`];
-    /// and the shading term's normal is `scene::triangle_normal`'s,
-    /// which answers a unit vector or `[0, 0, 1]` and never a zero to
-    /// `normalize`.
+    /// by their type at [`mark_lane`] and at
+    /// [`ViewportCallback::block`]; and `fs_main`'s shading term takes
+    /// its normal from a vertex attribute `scene::triangle_normal`
+    /// writes, which is a unit vector or `[0, 0, 1]` and never a zero.
+    ///
+    /// **That last leg argues about the WRITER, not about what the
+    /// fragment stage receives.** `VertexOut::normal` carries no
+    /// `@interpolate(flat)`, unlike `id` and `flag`, so `normalize`
+    /// reads an INTERPOLATED value. It is non-zero today only because
+    /// `scene`'s build loop pushes one face normal at all three
+    /// corners, which makes the interpolation an identity; a
+    /// per-vertex normal would end that without touching this row or
+    /// any other. Stated here because it is the one leg of the
+    /// argument above that rests on a caller rather than on a type.
     #[test]
     fn the_shaders_srgb_curve_states_the_same_constants_the_palette_does() {
-        // The Rust half read as CODE: the same five numbers appear in
-        // `theme.rs`'s prose about the curve, and a row that counted
-        // those would stay green over an edit to the encoder itself.
+        // **The Rust half read as the ENCODER'S BODY, not as the
+        // file.** Two narrowings, and the second is the one a
+        // file-scoped read gets wrong. `code_only` drops the prose,
+        // where all five numbers are discussed; `item_body` drops
+        // `channel_to_linear`, the DECODER twenty lines above, which
+        // spells `12.92`, `1.055` and `0.055` for the inverse curve.
+        // Three of these five are not unique to the function this row
+        // is about, so a read over the file is answered by the wrong
+        // half of the palette and reports it under the encoder's name.
         let palette = test_utils::source::code_only(include_str!("theme.rs"));
+        let head = palette
+            .find("fn channel_to_srgb8")
+            .expect("theme.rs still defines `channel_to_srgb8`");
+        let test_utils::source::ItemBody::Body(body) =
+            test_utils::source::item_body(&palette, head)
+        else {
+            panic!("`channel_to_srgb8` is a definition with a body");
+        };
+        let encoder = &palette[body];
         for (shader, rust) in [
             ("12.92", "12.92"),
             ("1.055", "1.055"),
@@ -1596,7 +1624,7 @@ mod tests {
                  `theme::channel_to_srgb8` is the other half of this curve",
             );
             assert!(
-                palette.contains(rust),
+                encoder.contains(rust),
                 "`theme::channel_to_srgb8` no longer spells {rust}; \
                  the shader's `to_display` is the other half of this curve",
             );

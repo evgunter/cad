@@ -141,14 +141,18 @@ fn default_is_registered() {
 
 /// Strengths and the ambient term are mix fractions.
 ///
-/// **A measurement of the three shipped palettes, not the bound.**
-/// The bound is [`MixFraction`]'s: a weight outside `[0, 1]` cannot
-/// be built through `MixFraction::new` and cannot be written as a
-/// literal in the registry either, because `theme.rs`'s own
-/// constructor asserts in a `const` context and the compiler refuses
-/// the build. What this row still says is that the numbers these
-/// three palettes state are the numbers their prose says they are —
-/// a claim about the registry, which a type cannot make.
+/// **The BACKSTOP for the registry's own door, which is the only part
+/// of [`MixFraction`]'s bound that nothing else holds.** Every
+/// fraction a caller outside `theme.rs` can build comes through
+/// `MixFraction::new` and is refused there, with its own two rows
+/// above. The registry's twelve strengths and three ambients are
+/// written as literals through a private `const fn` whose `assert!`
+/// the compiler evaluates, so a bad one fails the build — and
+/// **nothing reds if that `assert!` is deleted**: measured, 18 of 18
+/// rows here stay green. This row is what turns the combined edit —
+/// the assertion removed *and* a bad literal written — back into a
+/// failure. It says nothing about the assertion on its own, and
+/// nothing about the palettes' prose, which it does not read.
 #[test]
 fn mix_fractions_are_in_range() {
     for theme in Theme::ALL {
