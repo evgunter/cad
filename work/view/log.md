@@ -12305,3 +12305,48 @@ the `0` was a measurement of the pipeline's last stage. Redirect to a
 file and read `$?` off the command itself; a pipeline's `$?` is never
 the receipt you think you are taking. All three forms re-run this way:
 `--selftest` 0, bare 0, `--skip-viewer-toolkit` 0.
+
+**Second addendum: the review's central correction was itself wrong,
+and finding that out corrected me too.** The review reported that at
+`f64::MAX` every mark refuses for want of a scale and `rule_patch`'s
+lost-extent arm is never reached, so the unit's justification for
+counting "drew nothing" rather than "has no scale" rested on an
+unreachable case. Instrumenting `grid` and `rule_patch` and running the
+fixture says otherwise: **the patch centre has a scale at every
+magnitude** — `Some(1.87e-4)` — because the centre is the point the
+camera is aimed at and the eye is a decimetre from it, so `rule_patch`
+is entered and the lost-extent arm fires. The review's probe read the
+scale at the datum's ORIGIN, which is where the normal tick is scaled;
+the module's own doc says the two marks are scaled at two different
+points, and that is the distinction the probe collapsed. Its ratio
+argument (`half / cv ≈ 1.46`, magnitude-independent) assumes the eye is
+about as far from the centre as the datum's origin is; measured, `half`
+is `0.26 m` against a `cv` running to `1e308`.
+
+**But the complaint under the wrong evidence was right.** The prose
+named `f64::MAX` as THE lost-extent case when it is three refusals at
+once — the tick's depth overflowing to `inf`, one ruled direction's
+`cv / pitch` overflowing past the finiteness guard, and the other
+losing its extent — and no row split them. The measured band is in the
+closed row's resolution as a table, and
+`a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale`
+is the row that splits them: at `1e100` the origin still scales, the
+tick draws, one direction still loses its extent, and the plane has NOT
+vanished. It reds under a `rule_patch` that emits its collapse.
+
+**Generalises, and it is the register's proxy rule with the reviewer
+holding the proxy.** *Scale* is not one quantity in this module — it is
+one per mark, at one point per mark, which the module says in as many
+words. A probe that samples it at a single point and reports
+`has_scale` has already chosen an answer. The check is the one this
+register states: name the property first and the instrument second,
+then ask what a member could look like that the instrument cannot see.
+
+**`git checkout <file>` took an uncommitted doc rewrite, again.**
+Reverting the mutation that certified the new row also discarded the
+`vanished()` doc edit made an hour earlier in the same file, and only
+`git status` showing `datums.rs` unmodified caught it. Third instance
+this program has recorded; the rule is already written (*commit before
+you mutate*) and I did not follow it for an edit made after the commit.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
