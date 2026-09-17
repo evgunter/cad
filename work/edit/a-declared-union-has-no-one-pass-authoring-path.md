@@ -2,9 +2,11 @@
 id: a-declared-union-has-no-one-pass-authoring-path
 kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
-status: spec
+status: review
 opened: 2026-09-06
 refs: [2028, 2028]
+pr: 0
+branch: edit/sited-declarations
 ---
 
 
@@ -154,3 +156,53 @@ re-authored (no migration — the format is unversioned and nothing
 outside the tree declares), the façades follow mechanically (LIB's,
 announced), DM6 untouched. Pre-draw fields at the block record
 (`edit/b2-block`): difficulty **M**, task-class **STRUCTURAL**.
+
+
+## Built (2026-09-17) — `edit/sited-declarations`
+
+**A declared pair names two SITED entities.** `Node::Declare`'s payload
+is `Vec<((SitedRef, SitedRef), ContactClass)>`: `SitedRef { at, name }`,
+`at` the operand the entity is read at (a member, for a union) and
+`name` the entity in that node's own table. `SitedRef` is reused —
+no twin was minted. A declaration therefore names only what exists
+BEFORE its consumer, and `declared_union` is two edits: the `Declare`,
+then the union carrying its edge. The fixture's first union, its
+`Rebind` loop and its delete are gone.
+
+**The site is the side.** `side_by_operand` maps a pair boolean's two
+sites to operands (`at == a` → A, `at == b` → B, anything else
+`NodeErrorKind::DeclareSiteNotAnOperand { at }`); `route_declarations`
+maps a union's to the member index, and to the side that index takes
+at its step. `declare_landing` reads ONE table — the one the site
+picked — so `DeclareBothOperands` retires and the pair boolean now
+declares between two placements of one prototype.
+
+**The union routes by site.** Bucket `max(i, j) − 1`, the joining
+member operand B and the accumulation operand A; each pair is rewritten
+into the node's member space by `names::member_name` (one definition of
+the member-keying rule, shared with `member_view`) before the pair
+boolean's own resolver runs, so `look_through_merges` and DOCM-8's
+rows are unchanged in meaning. Every sited pair has a step, so
+`UnionDeclareStep` and `step_diagnosis` are gone with the class they
+answered for; `DeclSite`, `declared_bucket` and `latest_member` went
+with them.
+
+**Fold-minted rows are unrepresentable.** The four DOCM-7 rows that
+pinned that class retired, replaced by
+`a_declared_pair_side_that_is_a_bare_name_does_not_load` (a serde
+refusal on the persisted form) and by the type itself.
+
+**The doors follow.** `payload_names` yields the two names,
+`payload_read_sites` the two sites; `Rebind` rewrites a name and leaves
+its site; `refactor`'s remap moves both halves. The persisted pair
+codec moves with no migration (the format is unversioned and nothing
+outside the tree declares); six corpus documents' persisted-text pins
+moved and every name-table pin held.
+
+**Not built, and why**: nothing the spec asked for was left. Three
+premises were corrected against the tree and are argued on the PR —
+`persist/pairs.rs` is the appearance-store codec and not the declare
+one; `pncad::select`'s declare doors are re-exports of `editor-core`'s
+and needed no change; `FlushFinding`'s pair became sited, because
+`declare_node(&findings)` holds no consumer context and could not have
+sited a same-operand carried finding at all.
