@@ -4974,6 +4974,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
             "placement_improper",
             "placement_non_finite",
             "placement_not_gauge",

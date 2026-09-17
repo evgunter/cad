@@ -1687,6 +1687,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
         SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
+        SnapshotError::PayloadUnknownDocParam { .. } => "payload_unknown_doc_param",
+        SnapshotError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit
