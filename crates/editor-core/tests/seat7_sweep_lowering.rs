@@ -1025,7 +1025,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
 /// wall at `Q` the other way round.
 #[test]
 fn each_arc_of_a_chain_carries_its_own_steps_radius() {
-    assert_two_arcs_declare_apart("seat7-chain-two-arcs", profile::ArcSide::Left);
+    assert_two_arcs_declare_apart("seat7-chain-two-arcs", profile::ArcSide::Left, false);
 }
 
 /// **The same claim on a chain canonicalization REVERSED**, which is
@@ -1041,13 +1041,13 @@ fn each_arc_of_a_chain_carries_its_own_steps_radius() {
 /// expression — or with a plane's nothing.
 #[test]
 fn each_arc_of_a_reversed_chain_carries_its_own_steps_radius() {
-    assert_two_arcs_declare_apart("seat7-chain-two-arcs-cw", profile::ArcSide::Right);
+    assert_two_arcs_declare_apart("seat7-chain-two-arcs-cw", profile::ArcSide::Right, true);
 }
 
 /// The shared body of the two rows above: a two-arc chain at `r` and
 /// `q`, and a peg extruded from a circle at each, with every arc wall
 /// required to declare against its own step's peg and against no other.
-fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide) {
+fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed: bool) {
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
@@ -1056,7 +1056,8 @@ fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide) {
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );
-    let (doc, _, chain) = extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
+    let (doc, profile_node, chain) =
+        extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
     let (doc, _, peg_r) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
     let (doc, _, peg_q) = extruded(doc, 20.0, vec![circle_loop(param("q"))]);
     let ev = eval::<f64>(&doc);
@@ -1065,6 +1066,23 @@ fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide) {
         bad.is_empty(),
         "two-arc chain document:\n{}",
         bad.join("\n")
+    );
+    // REVIEW PROBE (review/chainradius-rv): the fixture's own premise.
+    // The reversed row is the only one that can see a canonical-order
+    // token list, and nothing here said the fixture IS reversed — a
+    // later change to `two_arc_chain` that made both windings identity
+    // would leave the row green and the mutant invisible again.
+    let editor_core::ValuePayload::Profile(pv) = &ev
+        .value(profile_node)
+        .expect("the profile evaluates")
+        .payload
+    else {
+        panic!("{id}: the profile node carries a profile");
+    };
+    assert_eq!(
+        pv.naming.loops[0].reversed, want_reversed,
+        "{id}: the fixture is written to be the {} case",
+        if want_reversed { "reversed" } else { "identity" }
     );
     let (chain, peg_r, peg_q) = (
         body_of(&ev, chain),
