@@ -78,6 +78,10 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// to. The wrapped form is what the remainder's mate now reads, and
 /// re-wrapping is the split's own rebind, so storing it twice would be
 /// storing a derivable fact.
+///
+/// Both are FACE names — a crossing is written out of the two heads of
+/// a mate, and each head names a face — so the kind is fixed by the
+/// record's type and neither getter can answer anything else.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);

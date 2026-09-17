@@ -3439,8 +3439,17 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 #[test]
 fn asm_r2b_child_crossing_probe() {
     use pncad::document::{DocEdit, Node};
+    use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    let face = |cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node: WS_PART_BODY,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
+    };
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
@@ -3455,16 +3464,8 @@ fn asm_r2b_child_crossing_probe() {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             mate: ids[0],
             class: ContactClass::Rest,
-            outer: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            inner: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            },
+            outer: face(CapEnd::End),
+            inner: face(CapEnd::Start),
         }],
     };
     let doc = pncad::document::apply(

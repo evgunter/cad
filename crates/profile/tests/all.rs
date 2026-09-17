@@ -124,6 +124,8 @@ mod r2_bool11_review_probes;
 mod r2_bool9_review_probes;
 #[path = "raw_door_census.rs"]
 mod raw_door_census;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_fillet_recourse_arm_r2_probes.rs"]
 mod review_fillet_recourse_arm_r2_probes;
 
@@ -172,3 +174,6 @@ test_utils::every_suite_file_is_aggregated!();
 mod review_fillet_e2_probes;
 #[path = "review_fillet_stored_tangency_r2_probes.rs"]
 mod review_fillet_stored_tangency_r2_probes;
+
+#[path = "review_recourse_roster_r1_probes.rs"]
+mod review_recourse_roster_r1_probes;

@@ -1,9 +1,12 @@
 ---
 id: interface-crossing-heads-are-bare-stable-names
 kind: issue
-title: An interface crossing's two heads are bare StableNames, not FaceNames
-status: spec
+title: An interface crossing's two references are bare StableNames, not FaceNames
+status: closed
+pr: 2814
+branch: edit/crossing-face-heads
 opened: 2026-09-17
+closed: 2026-09-17
 refs: [mate-head-entity-kind-is-decided-only-at-assembly]
 ---
 
@@ -88,3 +91,100 @@ check (does not compile — say so).
 persist/*}` (EDIT); `crates/editor-core/tests/*` (TCOST/TINT);
 `crates/pncad-py/src/py/refactor.rs` (LIB, mechanical). Middle tier:
 one opus style review with a correctness arm, then the fix pass.
+
+## Built (2026-09-17)
+
+`InterfaceCrossing::Mate`'s `outer` and `inner` are `FaceName`s
+(`crates/editor-core/src/node.rs`). `Deserialize` goes through
+`FaceName::new` as a head's does, so a file whose crossing names an
+edge refuses at the wire door as `PersistError::Unreadable`;
+`Node::instantiate_part_with` takes the typed record, so one cannot be
+built in memory either. The split's crossing walk (`refactor.rs`)
+writes the heads' own face names through.
+
+**Premise corrected.** The ruling above says the remainder's rebind
+re-wraps through the typed head. It does not: the remainder's rebind
+runs over the DOCUMENT's own names and never touches the record. The
+re-wrap the ruling describes is the PART-SIDE remap in the crossing
+walk (`refactor::split`, the `inner` that moves into the part's id
+space) and `inline`'s dissolve check, which re-derives the same
+reference to prove it lands on a spliced local name. One call at the
+record's boundary either way; the site is not the one named.
+
+`FaceName::map_derivation` (`names/role.rs`, crate-private) is the one
+door a face name is re-derived at inside the crate. It is handed a
+name's DERIVATION — the minting node and the role path — and keeps the
+kind itself, so a rewrite cannot change a kind and no arm exists for
+the case where one did. Its three callers are `refactor::remap_face`
+(the split's crossing walk and `inline`'s dissolve check),
+`remap_node`'s head arm, and `Node::rebind_payload_names`' mate arm;
+the `unreachable!`, the `debug_assert!` and the third `FaceName::new`
+they used to spell are gone. `remap_face` answers `RemapMiss::Name`,
+and the id miss is its only miss. Where a `FaceName` comes from is one
+census in one home (`FaceName`'s doc): three boundaries that turn DATA
+into one — the wire, the Python binding's name-from-text door, the
+viewer's picked face — plus that one in-crate re-derivation.
+`SitedFace`'s copy is a pointer.
+
+Rows. `rv_matehead_probes`'s
+`probe_an_edge_headed_interface_crossing_inserts_saves_and_loads` is
+deleted and replaced, beside the mate-head load row in
+`edit_one_predicate`, by
+`a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door`
+(both fields, all three non-face kinds), its round-trip control
+`a_face_referenced_crossing_round_trips`, and
+`a_crossings_references_are_bare_names_on_the_wire`, which pins a
+serialized crossing against a JSON literal. `refactor.rs`'s
+`remap_keeps_the_kind` module — the reviewer's probe, merged with its
+authorship and re-headed to the invariant — pins that a remap carries
+every kind through and that the face remap agrees with the bare one.
+`InterfaceCrossing`'s doc carries the `quantity::units` twin: a
+`compile_fail,E0308` block feeding EDGE names, as its mate-head twin
+does, and a RUNNING twin differing only in the two `FaceName::new`
+calls. Measured red first: with the fields reverted to `StableName` the
+load row answers `Ok(Loaded { … outer: StableName { kind: Body, … } })`.
+`fix_pattern_mate_crossing`'s rows are unchanged and green.
+
+Wire bytes unchanged — `FaceName` is `#[serde(transparent)]` — and the
+receipt for that is the two rows above, not `wire_rv_bytes`, whose
+variant pins carry no interface record and never see a crossing.
+`crates/pncad-py`'s crossing payload needed no code change: its getters
+reach the name through `Deref`, so what followed there is prose, in
+`py/refactor.rs` and by hand in `pncad.pyi` (the stub a Python caller
+reads; `py/path.rs` says the two are kept in step by hand). Vocabulary:
+a crossing has REFERENCES, a mate has HEADS — the record's own word,
+applied to the code and the title here; the id is identity and does not
+move.
+
+Filed, not built:
+`work/edit/instantiate-part-crossings-are-names-payload-names-does-not-list.md`
+— `InstantiatePart` is `name_free_node!()` while its crossings carry
+two names each.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2814 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `InterfaceCrossing::Mate`'s
+`outer` and `inner` are `FaceName`s: the record says what the split
+guarantees, `Deserialize` goes through the constructor (a file whose
+crossing names an edge refuses at the load door, the six field×kind
+cases pinned independently), `Node::instantiate_part_with` takes the
+typed record so an edge-referenced crossing cannot be built in memory
+(the `compile_fail` twin, fed an edge like its mate-head sibling), and
+the wire bytes are unchanged (`serde(transparent)`, pinned against a
+JSON literal). One premise corrected: the re-wrap site is the
+part-side remap in the crossing walk plus `inline`'s dissolve check,
+not the remainder's rebind. The review (0 MAJOR, 2 MINOR, 3 NOTE)
+found the unit had minted a third divergent answer to "this face-name
+remap cannot fail"; the fix pass replaced all three with one door,
+`FaceName::map_derivation`, which keeps the kind by signature so no
+impossible arm exists — the `unreachable!`, the `debug_assert!` and
+the third `FaceName::new` are gone, and the callers census lives once
+on `FaceName`. Vocabulary: a crossing's fields are REFERENCES, a mate's
+`SitedFace`s are heads (the title moved; the id did not). Filed:
+`instantiate-part-crossings-are-names-payload-names-does-not-list`
+(`payload_names`' single-answer claim is false for the variant;
+`Rebind` never reaches `outer`; the insert door's liveness check sees
+neither reference). Territory crossed by announcement: WIRE (one
+token), FIX (`refactor.rs`), TCOST/TINT suites, LIB (`pncad.pyi` and
+the crossing pyclass doc, one fixture).

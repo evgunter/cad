@@ -439,7 +439,7 @@ where
             return Err(NodeErrorKind::CrossingUnverified {
                 instance: id,
                 mate: *mate,
-                name: Box::new(inner.clone()),
+                name: Box::new((**inner).clone()),
             });
         }
     }

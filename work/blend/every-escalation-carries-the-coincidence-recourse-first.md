@@ -115,3 +115,15 @@ census over the nine names read out of `sugar.rs`'s source.
 What stays open here is unchanged: the fallback arm itself, and every
 other escalation that reaches it — the junction keys keep the shared
 sentence on purpose, because `.tangent()` is a door their caller has.
+
+## The fallback arm's spelling moved (BLEND-15, 2026-09-13)
+
+The arm described above no longer writes `"path junction
+classification: {source}"` for every unkeyed name — that label is now a
+named arm for the two junction keys, and every other unkeyed name
+renders `"escalated: {source} — {geom_core::MissingRecourse}"`.
+
+The class this item is about is unchanged: the fallback still renders
+`{source}` whole, so `COINCIDENCE_RECOURSE` still arrives first, ahead
+of whatever the site's own levers are. Only the sentence that follows
+it has changed, from a false category to a named gap.
