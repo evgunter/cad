@@ -30,6 +30,29 @@ impl ParamName {
     }
 }
 
+/// The name, bare — one home for the spelling every refusal that FRAMES
+/// a parameter name in a sentence of its own uses ("parameter width is
+/// declared length").
+///
+/// A `{:?}` over this newtype renders the name plus `Debug`'s quotes,
+/// which is prose carrying a delimiter the sentence did not ask for,
+/// and it is `Debug`'s prose only for as long as the payload stays a
+/// `String`: the day it grows a field the sentence starts dumping
+/// braces with no edit to the wording. Rendering through here is what
+/// makes that a compile-time question rather than a wording accident.
+///
+/// **One door quotes, deliberately.**
+/// [`crate::ParseError::UnknownParam`] echoes the bytes an author
+/// typed, which may be a typo, so its quotes delimit what was read
+/// rather than decorating a name the document holds. Nothing else
+/// decides this per call site; the row is
+/// `display_contract::a_parameter_name_renders_unquoted_at_every_door_but_parse`.
+impl core::fmt::Display for ParamName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// A document-level named parameter's declared dimension and exact
 /// stored value (spec D2/D4: `f64` bit-exact for continuous, `i64`
 /// for Count — bit-identical replay is trivial by representation).
