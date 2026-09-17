@@ -989,3 +989,260 @@ fn a_declared_unions_document_replays_in_document_order() {
         failure(&ev, rebuilt)
     );
 }
+
+// ---------------------------------------------------------------------
+// Review probes (lane decl-r2). Not part of the unit's own rows.
+// ---------------------------------------------------------------------
+
+/// **A union's undeclared contact ON A MERGED ROW has no site**, so
+/// the refusal is not an `UndeclaredContact` a caller can declare —
+/// it is the emission-bug arm.
+#[test]
+fn rv_r2_a_merged_row_in_a_union_refusal_has_no_site() {
+    let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m1) = placed(doc, proto, 0.0);
+    let (doc, m2) = placed(doc, proto, 0.5);
+    // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
+    let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
+    let (doc, union, _) =
+        declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
+    let ev = run(&doc);
+    let what = failure(&ev, union);
+    eprintln!("RV-R2 merged-row refusal: {what:?}");
+    assert!(
+        matches!(what, Some(NodeErrorKind::UndeclaredContact { .. })),
+        "the refusal a caller can act on, got {what:?}"
+    );
+}
+
+/// **The site is the OPERAND, not the minting node** — through a
+/// pass-through `Transform` (N1), and the name resolves in the
+/// transform's table.
+#[test]
+fn rv_r2_a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
+    let build = |site_at_extrude: bool| {
+        let doc = ProfileDoc::empty_derived("rv_r2_passthrough", Tol::witness());
+        let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, m1) = placed(doc, proto, 0.0);
+        let (doc, m2) = placed(doc, proto, 0.5);
+        let (a_at, b_at) = if site_at_extrude { (proto, proto) } else { (m1, m2) };
+        let pairs: Vec<(SitedRef, SitedRef)> = [
+            wall(0),
+            wall(2),
+            RoleSeg::Cap(CapEnd::Start),
+            RoleSeg::Cap(CapEnd::End),
+        ]
+        .into_iter()
+        .map(|seg| {
+            (
+                SitedRef::new(a_at, fname(proto, seg.clone())),
+                SitedRef::new(b_at, fname(proto, seg)),
+            )
+        })
+        .collect();
+        let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+        let (doc, pair) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: m1,
+                b: m2,
+                declare: Some(decl),
+            },
+        );
+        (doc, pair, proto)
+    };
+    let (doc, pair, _) = build(false);
+    let ev = run(&doc);
+    assert!(failure(&ev, pair).is_none(), "{:?}", failure(&ev, pair));
+    let (doc, pair, proto) = build(true);
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, pair),
+            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == proto
+        ),
+        "expected the site refusal, got {:?}",
+        failure(&ev, pair)
+    );
+}
+
+/// **A name the sited operand does not carry refuses `Vanished`, and
+/// a dead minting node outranks it** — rungs 3 and 1 of N5.
+#[test]
+fn rv_r2_a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
+    let doc = ProfileDoc::empty_derived("rv_r2_rungs", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(b, fname(spare, wall(0))),
+        )]),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    let said = format!("{:?}", failure(&ev, pair));
+    eprintln!("RV-R2 vanished arm: {said}");
+    assert!(said.contains("Vanished"), "expected rung 3, got {said}");
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeleteNode { id: spare },
+    );
+    let ev = run(&doc);
+    let said = format!("{:?}", failure(&ev, pair));
+    eprintln!("RV-R2 node-gone arm: {said}");
+    assert!(said.contains("NodeGone"), "expected rung 1, got {said}");
+}
+
+/// **A deleted SITE is refused at the next evaluation**, and with which
+/// arm.
+#[test]
+fn rv_r2_a_deleted_site_refuses_at_the_next_evaluation() {
+    let doc = ProfileDoc::empty_derived("rv_r2_deleted_site", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![a, far],
+        },
+    );
+    let ev = run(&doc);
+    eprintln!("RV-R2 site left the list: {:?}", failure(&ev, union));
+    let applied = doc.apply(
+        &DocEdit::DeleteNode { id: b },
+        Tol::witness(),
+    );
+    match applied {
+        Ok(applied) => {
+            eprintln!(
+                "RV-R2 delete of a site: maintenance {:?}",
+                applied.maintenance
+            );
+            let ev = run(&applied.doc);
+            eprintln!("RV-R2 site deleted: {:?}", failure(&ev, union));
+            assert!(failure(&ev, union).is_some(), "the evaluation must refuse");
+        }
+        Err(e) => panic!("deleting a site refused at the edit: {e:?}"),
+    }
+}
+
+/// **`Rebind` a declared name onto a name minted elsewhere while the
+/// site stays** — what refuses, and where.
+#[test]
+fn rv_r2_rebind_moves_the_name_and_leaves_the_site() {
+    let doc = ProfileDoc::empty_derived("rv_r2_rebind", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let from = fname(a, wall(0));
+    let to = fname(spare, wall(0));
+    let applied = doc
+        .apply(
+            &DocEdit::Rebind {
+                from: from.clone(),
+                to: to.clone(),
+            },
+            Tol::witness(),
+        )
+        .expect("the rebind applies");
+    let Some(Node::Declare { pairs }) = applied.doc.node(decl) else {
+        panic!("the Declare survived as something else")
+    };
+    let moved = pairs
+        .iter()
+        .flat_map(|((x, y), _)| [x, y])
+        .find(|r| r.name == to)
+        .expect("the name moved");
+    assert_eq!(moved.at, a, "the site stayed where it was authored");
+    let ev = run(&applied.doc);
+    let said = format!("{:?}", failure(&ev, union));
+    eprintln!("RV-R2 rebound name, unchanged site: {said}");
+    assert!(said.contains("Vanished"), "expected rung 3, got {said}");
+}
+
+/// **The site is the side, in the one direction that can tell**: a name
+/// the SITED operand does not carry, which the OTHER operand does,
+/// refuses `Vanished` — it is not silently read in the other table.
+///
+/// Every existing row sites each name at the operand whose table holds
+/// it, so a resolver that ignored the site and fell back to the other
+/// table would pass them all.
+#[test]
+fn rv_r2_a_name_the_other_operand_carries_is_not_read_there() {
+    let doc = ProfileDoc::empty_derived("rv_r2_wrong_side", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    // Both sides name entities of `b`; the first is SITED at `a`,
+    // whose table does not carry it.
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fname(b, wall(0))),
+            SitedRef::new(b, fname(b, wall(2))),
+        )]),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    let said = format!("{:?}", failure(&ev, pair));
+    eprintln!("RV-R2 wrong-side name: {said}");
+    assert!(
+        said.contains("Vanished"),
+        "a name read in the operand its site does not name: {said}"
+    );
+}
+
+/// What the bare-name serde refusal actually SAYS — typed, and does it
+/// name the pair?
+#[test]
+fn rv_r2_the_bare_side_refusal_is_reported() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("rv_r2_bare_side", tol);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let split = text.find('{').expect("the JSON body follows the header");
+    let (header, body) = text.split_at(split);
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+    let bare = side["name"].clone();
+    *side = bare;
+    let doctored = format!("{header}{wire}");
+    let err = editor_core::persist::load(&doctored, tol).expect_err("must refuse");
+    eprintln!("RV-R2 bare side, typed error: {err:?}");
+    eprintln!("RV-R2 bare side, display: {err}");
+    // An EXTRA field is the other half of the shape the census claims.
+    let mut wire2: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let side2 = &mut wire2["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+    side2["surprise"] = serde_json::Value::from(1);
+    let doctored2 = format!("{header}{wire2}");
+    let err2 = editor_core::persist::load(&doctored2, tol);
+    eprintln!("RV-R2 unknown field on a site: {:?}", err2.err().map(|e| format!("{e}")));
+}
