@@ -2251,44 +2251,64 @@ mod tests {
     use crate::session::SessionOp;
     use eframe::egui;
 
-    /// **A share that could not be computed is not a share of zero,
-    /// and not a share of the cap either.**
+    /// **A share that could not be computed is not a share.**
     ///
     /// `f32::clamp` returns `self` when `self` is a `NaN`, so both of
-    /// this door's measurements used to arrive at `set_share` looking
-    /// like numbers the layout had produced. What the row holds is
-    /// that DISTINCTION: the poisoned answer is compared against each
-    /// legitimate answer the door gives — the floor, the cap, and an
-    /// ordinary fraction between them — because an assertion that
-    /// only said "the answer is not a NaN" would pin neither.
+    /// this door's measurements used to arrive at `set_share` in a
+    /// field shaped like a number the layout had produced.
     ///
-    /// Both arguments are poisoned in turn: a `NaN` in either one
-    /// reaches the division, and a row that poisoned only the
+    /// The shape this pins is DISTINGUISHABILITY, and for an `f32`
+    /// answer that takes two rows rather than one. Asserting only that
+    /// the poisoned answer differs from every legitimate one passes
+    /// over a `Some(NaN)` for free — a `NaN` is unequal to everything,
+    /// including itself — which is the broken door's own answer wearing
+    /// the test's approval. So: the poisoned inputs answer `None`, and
+    /// the row below holds that every legitimate input answers a share.
+    /// Neither row alone says anything.
+    ///
+    /// Both arguments are poisoned in turn, because a `NaN` in either
+    /// one reaches the division and a row that poisoned only the
     /// denominator would have chosen its answer.
     #[test]
     fn a_share_that_could_not_be_measured_is_no_share() {
-        let floor = features_fraction(0.0, 500.0);
-        let cap = features_fraction(5_000.0, 500.0);
-        let ordinary = features_fraction(100.0, 500.0);
-        let legitimate = [floor, cap, ordinary];
         for (what, wanted, stack) in [
             ("a content height", f32::NAN, 500.0),
             ("a stack height", 100.0, f32::NAN),
             ("an unbounded stack", 100.0, f32::INFINITY),
             ("an unbounded content height", f32::INFINITY, 500.0),
         ] {
-            let answer = features_fraction(wanted, stack);
-            assert!(
-                !legitimate.contains(&answer),
-                "{what} that is not a number answered {answer:?}",
+            assert_eq!(
+                features_fraction(wanted, stack),
+                None,
+                "{what} that is not a number",
             );
         }
     }
 
-    /// The three legitimate answers are three different answers, which
-    /// is what makes the row above a test of anything: a door that
-    /// answered one value for everything would pass a comparison
-    /// against a set whose members had collapsed.
+    /// **Every answer this door does give is a share**: a number, at
+    /// or above nothing, at or below the cap. The row above is a claim
+    /// about `None` and this one is what makes it mean anything — a
+    /// door that answered `None` for everything would satisfy the
+    /// first and fail this.
+    #[test]
+    fn every_share_it_gives_is_a_share() {
+        for (what, wanted, stack) in [
+            ("a tree that wants nothing", 0.0, 500.0),
+            ("a tree taller than the stack", 5_000.0, 500.0),
+            ("an ordinary tree", 100.0, 500.0),
+        ] {
+            let answer = features_fraction(wanted, stack);
+            assert!(
+                matches!(answer, Some(share)
+                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                "{what} answered {answer:?}",
+            );
+        }
+    }
+
+    /// The door's answers are not one answer, which is what makes the
+    /// two rows above a test of anything: a function returning the cap
+    /// for every input satisfies both.
     #[test]
     fn the_legitimate_shares_are_distinct() {
         let floor = features_fraction(0.0, 500.0);
