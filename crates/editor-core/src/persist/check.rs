@@ -1653,4 +1653,82 @@ mod tests {
             other => panic!("a non-finite placement must refuse at save, got {other:?}"),
         }
     }
+
+    // ---- review probes (lane `carriers-rv`, PR #2797) ----
+
+    /// A name minted by `node`, with no role path.
+    fn rv_name(node: u64, kind: crate::names::EntityKind) -> crate::names::StableName {
+        crate::names::StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path: Vec::new(),
+        }
+    }
+
+    /// **The row `work/edit/load-door-appearance-key-id-check-is-pinned-by-no-row`
+    /// asks for**: a document whose ONLY fault is an appearance key
+    /// minted by a node past the mint counter refuses typed.
+    ///
+    /// The store half of the validator's name pass is held by nothing
+    /// — the unit's own M6 measured 0 red across the whole `all`
+    /// binary. The corruption needs `pub(crate)` reach: no edit door
+    /// mints a key past the counter, and `SetAppearance` is the one
+    /// name-carrying edit the insert door deliberately does not check.
+    #[test]
+    fn rv_an_appearance_key_past_the_mint_counter_refuses_typed() {
+        let mut doc = ProfileDoc::empty_derived("rv-store-id", Tol::witness());
+        assert_eq!(doc.next_id, 0, "the empty document has minted nothing");
+        doc.appearance.insert(
+            rv_name(7, crate::names::EntityKind::Face),
+            crate::appearance::AppearanceRecord::default(),
+        );
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id })) => {
+                assert_eq!(id, RecipeNodeId(7));
+                assert_eq!(next_id, 0);
+            }
+            other => panic!("an appearance key past the counter must refuse, got {other:?}"),
+        }
+    }
+
+    /// **The validator's name pass answers in DOCUMENT order, not id
+    /// order.** Two payload names are corrupt at once, and the
+    /// document orders their carrying nodes in the REVERSE of their id
+    /// order, so the two walks name different offending ids.
+    ///
+    /// Before PR #2797 the payload-name check ran inside the per-node
+    /// loop over `doc.nodes` (a `BTreeMap`, id order) and this
+    /// document refused with id 50. It is now one pass over
+    /// `Doc::name_carriers`, which walks `doc.order()`, and the same
+    /// document refuses with id 60.
+    #[test]
+    fn rv_the_name_pass_refuses_in_document_order() {
+        let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());
+        doc.next_id = 2;
+        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            doc.nodes.insert(
+                RecipeNodeId(id),
+                Node::Declare {
+                    pairs: vec![(
+                        (
+                            rv_name(derived, crate::names::EntityKind::Face),
+                            rv_name(derived, crate::names::EntityKind::Face),
+                        ),
+                        crate::mate::ContactClass::Rest,
+                    )],
+                },
+            );
+        }
+        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, .. })) => {
+                assert_eq!(
+                    id,
+                    RecipeNodeId(60),
+                    "the name pass walks `Doc::order`, so the document's FIRST node answers"
+                );
+            }
+            other => panic!("a corrupt payload name must refuse, got {other:?}"),
+        }
+    }
 }
