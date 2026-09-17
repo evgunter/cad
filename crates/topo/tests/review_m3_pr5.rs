@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations, prism_z};
 use geom_core::Tol;
 use geom_core::{Band, Decide, Point3};
 use topo::{
@@ -21,10 +21,6 @@ use topo::{
     mass_properties, point_in_solid, subtract, subtract_with, union_with, validate,
     validate_closed,
 };
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// The R2/R3 U-slab (nonconvex caps, two prongs).
 fn uslab() -> Body<f64> {

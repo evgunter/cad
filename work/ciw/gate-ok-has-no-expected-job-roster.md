@@ -88,3 +88,79 @@ standing conclusion is *"the run record is the instrument; the workflow
 source is not."* This row is the fourth face and the worst-sited: the
 instrument reads the run record faithfully and cannot tell a run that had
 twenty jobs from one that should have had twenty-one.
+
+## The same population read, in the opposite direction: a FALSE RED (WIRE, 2026-09-13)
+
+Run `34749650737` (WIRE PR 2501, head `bfabc3d7d`). Every job in the run
+concluded **success** — twelve `test (…)`, all five `k-lint (gate, …)`,
+the python suite, rustdoc, the render lanes. `gate ok` failed anyway:
+
+    FAILED: these jobs had not finished when this gate ran:
+      k-lint (gate, release-default) (in_progress)
+
+The timings say what happened. `k-lint (gate, release-default)`
+completed at **09:51:02**; `gate ok` started at **09:51:05** and read
+that job as `in_progress` at **09:51:11**. `needs:` had been satisfied —
+which is what released `gate ok` to start — and the **jobs API was still
+serving a snapshot nine seconds stale**.
+
+This is the same root as the row above, read the other way. The script
+derives its population and its verdict from one API response and trusts
+that response as the state of the run: an absent job reads green, and a
+concluded job the API has not caught up on reads red. `needs:` already
+carries the "has it finished" answer and is authoritative — the workflow
+would not have started this job otherwise — so the `completed` test adds
+no information the scheduler did not already give, and costs a false red
+whenever the API lags. A roster fixes the green direction; **the red
+direction wants the `completed` check to stop being read off the API at
+all**, or to be retried until the API agrees with `needs:`.
+
+Cost here: a re-run of the required check on a run that was already
+green in every job, plus the reading time to establish that nothing in
+the diff was implicated.
+
+## A second false red, two days later (CENSUS, 2026-09-15)
+
+Run `34949096444` (CENSUS PR 2634, head `c306e32b`). Same shape as the
+WIRE instance above, same job, and **tighter**:
+
+| event | time |
+|---|---|
+| `k-lint (gate, release-default)` completed | 09:28:10 |
+| `gate ok` started | 09:28:12 |
+| `gate ok` read that job as `in_progress` | 09:28:21 |
+| `gate ok` failed | 09:28:23 |
+
+39 jobs: **35 success, 3 skipped, 1 failure — and the failure is the gate
+itself.** Twelve `test (…)`, all five `k-lint (gate, …)`, the python
+suite, rustdoc and every render lane concluded success.
+
+Two things this instance adds to the row:
+
+- **It is not rare and it is not tied to one branch.** Two occurrences in
+  three days, both on the same matrix row (`release-default`, the
+  longest-running k-lint row at 27 minutes here), both within seconds of
+  that row concluding. The window is entered whenever the last job to
+  finish is the one that releases `gate ok` — which is the normal case,
+  not an unlucky one, so the rate is governed by how often the API lag
+  exceeds the gate's own startup time.
+- **The gate's diagnostic misdiagnoses it.** The failure text says
+  *"a job that is still going is one this gate did not wait for — add it
+  to `needs:`"*. `k-lint` **is** in `gate-ok`'s `needs:`, and the WIRE
+  instance was the same. So the message sends a reader to check a list
+  that is already correct, which is where the reading time named in this
+  row's cost paragraph goes. Whatever fixes the red direction should also
+  stop the script asserting a cause it has not established: it cannot
+  distinguish "you forgot a `needs:` entry" from "the API has not caught
+  up with a `needs:` you have", and it states the first as fact.
+
+**Cost here:** the required check is red on a run green in every job, on
+a PR whose author cannot re-run it (`rerun-failed-jobs` → `403 Resource
+not accessible by integration`), so the false red is not self-clearing
+from the lane that hits it. That is the sharper version of the cost the
+WIRE entry recorded: there, a re-run was available.
+
+Added by the CENSUS orchestrator per `docs/prompts/implementer-discipline.md`
+§6 — evidence onto the row that already covers it rather than a second
+file. Nothing in CENSUS PR 2634's diff touches `ci.yml` or
+`scripts/check-run-jobs.py`.

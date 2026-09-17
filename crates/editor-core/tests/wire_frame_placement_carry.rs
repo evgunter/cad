@@ -27,7 +27,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, DocParam, EvalOptions, Expr,
     FramePlacement, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
-use geom_core::Tol;
+use geom_core::{OrthoFrame, Tol};
 
 fn eval(
     doc: &ProfileDoc,
@@ -216,11 +216,7 @@ fn an_authored_frames_value_carries_its_f64_placement() {
 /// by hand: the oracle for a frame whose origin is a PARAMETER, which
 /// `fixture::plane_of` (literals only) cannot read.
 fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
-    profile::SketchPlane::from_frame(
-        geom_core::Point3::new(2.0, -3.0, lift),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
-    )
+    profile::SketchPlane::from_frame(OrthoFrame::axes_yz(geom_core::Point3::new(2.0, -3.0, lift)))
 }
 
 /// Row 2 — the carry follows the parameter that drives the frame, and
@@ -426,11 +422,9 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     let ev = eval(&doc, None);
     assert_same_plane(
         &authored(&ev, frame),
-        &profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        ),
+        &profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            0.0, 0.0, 0.0,
+        ))),
         "v yields its component along u",
     );
 }
@@ -533,13 +527,40 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::DegenerateDirection { role }
-                        if *role == "datum frame x axis"
+                    editor_core::NodeErrorKind::FrameDirection { profile: reader, frame: named, refusal }
+                        if *reader == profile
+                            && *named == frame
+                            && refusal.role == "datum frame x axis"
                 )
         ),
         "the profile is the reader that needed the nominal placement, so the \
-         refusal is raised there, naming the axis: {:?}",
+         refusal is raised there, naming the axis AND the frame that refused: {:?}",
         ev.result(profile)
+    );
+    // The id is not decoration: it is the half a reader on this node
+    // cannot recover, because the role word is the same for every
+    // frame in the document.
+    let shown = ev
+        .node_error(profile)
+        .expect("the profile refused")
+        .kind
+        .to_string();
+    assert!(
+        shown.contains(&format!("datum frame node {}", frame.0))
+            && shown.contains(&format!("profile node {}", profile.0)),
+        "the sentence the user reads names both nodes by id: {shown}"
+    );
+    // The ids come BEFORE the fact: three of the four facts end in a
+    // remedy clause, and the escalation's runs to hundreds of
+    // characters, so a locator at the tail is one nobody reads.
+    let at = |needle: &str| shown.find(needle).expect(needle);
+    assert!(
+        at(&format!("datum frame node {}", frame.0)) < at("zero length"),
+        "the locator trails the fact it qualifies: {shown}"
+    );
+    assert!(
+        shown.contains("datum frame x axis") && shown.contains("zero length"),
+        "and the fact the frame's own node states survives the carry: {shown}"
     );
 }
 
@@ -610,11 +631,13 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::DegenerateDirection { role }
-                        if *role == "datum frame y axis"
+                    editor_core::NodeErrorKind::FrameDirection { profile: reader, frame: named, refusal }
+                        if *reader == profile
+                            && *named == frame
+                            && refusal.role == "datum frame y axis"
                 )
         ),
-        "and the profile reads the same axis back: {:?}",
+        "and the profile reads the same axis back, off the same frame: {:?}",
         ev.result(profile)
     );
 }

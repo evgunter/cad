@@ -111,6 +111,32 @@ pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
+/// The K funnel name this suite's authored frame axes are decided
+/// under. One name for both, because which axis a refusal names is the
+/// refusal's own field.
+pub const FRAME_AXIS_SITE: &str = "profile_test_frame_axis";
+
+/// A frame witness from an authored pair — the mint every plane in
+/// this suite goes through, spelled once.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if the pair spans no plane.
+pub fn frame_of(
+    o: geom_core::Point3<f64>,
+    u: geom_core::Vec3<f64>,
+    v: geom_core::Vec3<f64>,
+) -> geom_core::OrthoFrame<f64> {
+    geom_core::OrthoFrame::gram_schmidt(
+        o,
+        u,
+        v,
+        FRAME_AXIS_SITE,
+        geom_core::Band::linear(tol()).expect("the witness band"),
+    )
+    .expect("the pair spans a plane")
+}
+
 pub fn tol() -> Tol {
     Tol::witness()
 }
@@ -314,7 +340,55 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);
+    assert_spans_partition(&closed);
     closed.loop_
+}
+
+/// **The per-step segment span partitions the loop**: one span per
+/// authored step, in program order, the spans meeting end-to-start and
+/// covering every segment exactly once.
+///
+/// Rides the same blanket funnel as the differential above, so it holds
+/// over every typed chain the suites author rather than a sampled few.
+///
+/// **What it can and cannot catch, measured.** On a CHAIN the three
+/// clauses are what `Core::step_spans` makes true by construction: it
+/// derives every boundary from one non-decreasing `step_starts` vector
+/// and ends the last span at the closed chain's own length, so
+/// contiguity, the cover and the count hold however wrong the
+/// boundaries themselves are. A mutant that shifts every boundary one
+/// step later — a step credited with its NEIGHBOUR's segments — passes
+/// all three, and the row that reds on it is
+/// `editor-core/tests/edit_step_segments.rs`'s attribution section,
+/// which reads each step's own authored endpoint. What this DOES catch
+/// is a span minted outside that arithmetic against a loop it does not
+/// describe: `ReplayStructure::carrier(n)` is built from the carrier
+/// kernel's own vertex count at a different site from the loop this
+/// compares against, and a re-shaped `step_spans` that broke the
+/// partition would land here on the whole corpus rather than on
+/// whichever suite noticed.
+pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
+    let spans = &closed.structure.steps;
+    assert_eq!(
+        spans.len(),
+        closed.program.len(),
+        "one span per authored step"
+    );
+    let n = closed.loop_.vertices().len();
+    let mut next = 0;
+    for (j, span) in spans.iter().enumerate() {
+        assert_eq!(
+            span.start(),
+            next,
+            "step {j}'s span starts where step {} left off",
+            j.wrapping_sub(1)
+        );
+        next = span.end();
+    }
+    assert_eq!(
+        next, n,
+        "the spans cover every segment of the {n}-segment loop"
+    );
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
@@ -488,7 +562,9 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
-    // 6. The declared-subdivision step on an arc carrier.
+    // 6. Two quarter arcs on one carrier — the half-disc equator —
+    //    the second through the lattice's own declared-joint
+    //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(p2(0.0, -0.5))
         .arc_to(
@@ -499,7 +575,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .tangent()
+        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -692,34 +769,6 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         circle,
         split,
     ]
-}
-
-/// **The one home for the `EscalationSite::Fillet` value the kernel
-/// does not build.**
-///
-/// Six recourse sentences are written by a single `Display` arm —
-/// `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
-/// dispatched on the escalation's predicate name — and nothing in the
-/// kernel constructs that value
-/// (`work/fillet/fillet-escalation-site-has-no-producer.md`). Two
-/// suites therefore hand-build it to pin the render rule, and they had
-/// hand-built it twice; when a producer lands, the thing to delete is
-/// this function and its callers, and one home is what makes that a
-/// single edit.
-///
-/// Returns what a caller would read: the arm rendered at an in-band
-/// margin for `predicate`.
-pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) -> String {
-    let eps = tol.eps();
-    profile::ProfileError::Escalated {
-        site: profile::EscalationSite::Fillet,
-        source: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Value(-5.0 * eps),
-            band: geom_core::Band::linear(tol).expect("the run's band forms"),
-            predicate: Some(predicate),
-        },
-    }
-    .to_string()
 }
 
 // ------------------------------------------------------------------

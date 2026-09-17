@@ -563,6 +563,32 @@ impl fmt::Display for CornerConfig {
 /// only a fillet caller ever reads this sentence.
 pub const FILLET3_RADIUS_RECOURSE: &str =
     "reduce the fillet radius, or blend a support with more curvature headroom";
+/// The recourse for a contact edge whose second-order separation the
+/// must-carry rule finds in band (`tangent_second_order` at the
+/// surgery's description pass). The margin the rule meters is
+/// `|κ_rel|·arm²/2` with `arm = min(curvature arm of either surface,
+/// the edge's extent)`, so the blend radius levers it three ways, and
+/// the sentence names all three because a recourse must be true at
+/// every site its tag can fire (README A3-2): on a plane support the
+/// arm is `r` and the margin `r/2`, growing with the radius; on a
+/// support of curvature radius `R` curving the band's own way it is
+/// `(1 − r/R)·r/2`, which peaks at `r = R/2` — and every ratio the
+/// clearance screen admits on a cylinder sits PAST that peak, so there
+/// only a smaller radius raises it; on a slim corner arc the arm is
+/// the arc's extent `r·θ`, the margin `≈ θ²·r/2`, and a smaller radius
+/// drops it under ε, where the rule stores the conventional
+/// description and the body builds. Measured, one row per site kind:
+/// `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`,
+/// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
+/// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
+/// Ball language kept: only a fillet mints a tangential contact.
+pub const FILLET3_CONTACT_RECOURSE: &str = "the contact's second-order separation is levered by the blend radius, in a \
+     direction the site fixes: on a plane support it grows with the radius; on a \
+     support curving the band's own way it peaks at half the support's radius of \
+     curvature, and past that peak only a smaller radius raises it; on a slim corner \
+     arc the arc's own extent is the lever, and a smaller radius leaves the join \
+     under-determined and builds it conventionally — move the radius that way, blend \
+     a larger feature, or lower the tolerance";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -1388,23 +1414,31 @@ impl fmt::Display for BlendError {
                     // neither line nor circle is the canal family
                     // either way.
                     Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
+                    // The must-carry rule's in-band verdict over a
+                    // contact edge (the surgery's description pass):
+                    // the lever is the blend radius, in a direction
+                    // the site fixes, and the sentence says which.
+                    Some("tangent_second_order") => FILLET3_CONTACT_RECOURSE,
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.
                     Some("fillet3_corner_independence" | "fillet3_cap_transverse") => {
                         FILLET3_CORNER_RECOURSE
                     }
-                    // Fix pass F6: an escalation from a predicate this
-                    // match does not know is a MISSING recourse, and
-                    // saying so is the honest answer — emitting the
-                    // radius sentence would hand the user an action
-                    // that has nothing to do with what escalated.
+                    // An escalation from a predicate this match does not
+                    // know is a MISSING recourse, and saying so is the
+                    // honest answer — emitting the radius sentence would
+                    // hand the user an action that has nothing to do
+                    // with what escalated. The sentence is
+                    // `geom_core::MissingRecourse`, the one home every
+                    // recourse table's fall-through composes, so the two
+                    // tables that route by predicate name cannot answer
+                    // an unknown name differently.
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source} — no recourse is recorded for \
-                             predicate {other:?}; this is a gap in the error table, not \
-                             advice to act on"
+                            "escalated at {site}: {source} — {}",
+                            geom_core::MissingRecourse(other)
                         );
                     }
                 };
@@ -1475,8 +1509,9 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 15] = [
+pub const ALL_RECOURSES: [(&str, &str); 16] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
+    ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("tangential", FILLET3_TANGENTIAL_RECOURSE),
@@ -1720,6 +1755,16 @@ mod recourse_tests {
                     margin: MarginDiag::Value(0.0),
                     band,
                     predicate: Some("fillet3_chain_g1"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Link {
+                    edge: EdgeKey::default(),
+                },
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("tangent_second_order"),
                 },
             },
             BlendError::RepeatedEdge {

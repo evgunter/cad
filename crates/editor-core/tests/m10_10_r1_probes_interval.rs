@@ -303,17 +303,7 @@ fn r1_the_segment_bosss_per_predicate_split_at_the_nominal() {
     ] {
         let t = Instant::now();
         let (shapes, refusal, counts) = replay(&doc, &nominal, rules, tol);
-        let mut by: std::collections::BTreeMap<&str, [usize; 4]> = Default::default();
-        for s in &shapes {
-            let e = by.entry(s.predicate).or_default();
-            let slot = match s.outcome {
-                ShapeOutcome::Theorem => 0,
-                ShapeOutcome::SignGated => 1,
-                ShapeOutcome::Registered => 2,
-                _ => 3,
-            };
-            e[slot] += 1;
-        }
+        let by = crate::m10_8_harness::split(&shapes);
         println!(
             "== NOMINAL {label} ({:.1}s): refusal {refusal:?}\n   {counts:?}",
             t.elapsed().as_secs_f64()

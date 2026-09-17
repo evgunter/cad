@@ -2,8 +2,11 @@
 id: index-reads-without-the-evaluation-co-guard
 kind: issue
 title: Two viewport reads of the pick index lack the evaluation co-guard the pick path has, and one of them writes a false diagnosis
-status: open
+status: closed
 opened: 2026-09-05
+branch: view/index-co-guard
+pr: 2615
+closed: 2026-09-15
 ---
 
 
@@ -58,3 +61,32 @@ the evaluation with it or states why it does not need to. The two
 sites above are the instances known today; the fix is the rule, and
 `crates/viewer/README.md`'s picking section is where it would be
 stated if it is worth stating there.
+
+## What the sweep found, and where the framing moved
+
+**The population is eight uses, not six, and it is not one file.**
+`ViewerBehavior::index` is taken at four bindings — three in
+`pane::viewport`, one in `pane::create` (`all_edges_row`, which already
+takes it with the evaluation) — and those bindings fan out to eight
+uses. The two this item does not enumerate are `marks::highlight` and
+`marks::edge_overlay`, both ungated and both picture-side: a highlight
+is an id the shader compares against the drawn corners' ids, and an edge
+overlay is world-space geometry drawn over them. A fix guided by this
+item's list alone would have repaired two of five.
+
+**And the guard the harm site wants is not the evaluation.**
+`frame::disagreement` resolves an id the id pass produced through an id
+map. An id is a word of the alphabet of the index that MINTED the
+picture's corners, so what the comparison needs is that the scene and
+the index are one build — `(generation, δ)`, because a δ typed while the
+document stands rebuilds the index at the same generation over a
+different tessellation. Adding the evaluation to that tuple would have
+read as co-identity while checking something else, which is the shape
+this program keeps finding rather than one to re-mint. The rule as
+landed is in `crates/viewer/README.md`, *A pick id is one index's word*.
+
+**Residue, each with its own file**:
+`id-query-is-keyed-on-the-generation-not-on-the-picture` (a second
+producer of the same false sentence, which no co-guard closes) and
+`a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`
+(the product question the rule's document-side half leaves open).

@@ -98,14 +98,20 @@
 //!
 //! The battery already judged every margin (the C8 ordering contract —
 //! [`super::build::fillet_edges`] runs it first and hands the verdict
-//! in). The surgery adds exactly ONE new numeric decision, the ring
-//! carry-through honesty check: **`fillet3_ring_clearance`**, a Q1
+//! in). The surgery adds TWO numeric decisions of its own. The ring
+//! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled. Positive carries the ring
 //! through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
-//! recourse (two-tolerance, D4 ¶1 addendum). Everything else in this
+//! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
+//! over every contact edge at the description pass (`attach_contact`,
+//! through [`geom_brep::must_carry_over_edge`]):
+//! **`tangent_second_order`** at the certification schedule's seven
+//! interior stations — jet-determinate stores the intrinsic tangency,
+//! under-determined the conventional chart image, in-band refuses
+//! [`BlendError::Escalated`] at the link. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -164,7 +170,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
@@ -752,8 +760,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         body.set_face_sense(fk, rim.chain.first().convexity.blend_sense())
             .map_err(|e| op("band face sense", e))?;
     }
-    for (edge, carrier) in described {
-        attach_contact(&mut body, edge, carrier, tol)?;
+    for (edge, carrier, link) in described {
+        attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
     topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
         site: "pcurve re-mint after surgery",
@@ -769,6 +777,38 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         "surgery postcondition: the result is not tier-2 valid (kernel bug)",
     );
 
+    // **A retirement names a SOURCE key, in BOTH arenas** —
+    // [`Retired`](super::naming::Retired)'s whole meaning, and the one
+    // direction of the birth records no output-side walk can see: a key
+    // this carve minted and then killed is absent from the result, so a
+    // `dead` row naming one is invisible everywhere except against the
+    // body the caller handed in. The postcondition is here, at the one
+    // place that still holds both bodies.
+    //
+    // `test_support::assert_naming_totality`'s direction (b) opens with
+    // the same predicate, and this is deliberately not its deletion:
+    // that walk runs on the fixtures that call it, this one on EVERY
+    // carve a debug build takes, the callers no suite reaches included.
+    // The walk's second half — a retired edge does not survive — has no
+    // twin here, being a question about the OUTPUT that the output-side
+    // walk is the right home for.
+    #[cfg(debug_assertions)]
+    {
+        for e in &rec.dead.edges {
+            assert!(
+                source.get_edge(*e).is_some(),
+                "surgery postcondition: a retirement names {e:?}, which the source body \
+                 does not carry (kernel bug)",
+            );
+        }
+        for v in &rec.dead.vertices {
+            assert!(
+                source.get_vertex(*v).is_some(),
+                "surgery postcondition: a retirement names {v:?}, which the source body \
+                 does not carry (kernel bug)",
+            );
+        }
+    }
     rec.dead.edges.sort_unstable();
     rec.dead.edges.dedup();
     rec.dead.vertices.sort_unstable();
@@ -2286,7 +2326,10 @@ pub(super) enum ContactCarrier<T: Real> {
     SeamArc { center: Point3<T>, radius: T },
 }
 
-pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
+/// The third element is the REQUESTED link the contact edge belongs
+/// to — the site a refusal at the description pass names, since the
+/// contact edge's own key is one no caller holds.
+pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>, EdgeKey)>;
 
 // ------------------------------------------------------------------
 // The rim phase: one torus band per closed chain, in place.
@@ -2510,6 +2553,99 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
     ))
 }
 
+/// The two pieces a band's split leaves on a source edge, with the
+/// source key they are both fragments of.
+pub(super) struct SplitFragments {
+    /// The piece still touching the vertex the split was taken beside:
+    /// a cap rim's dying remnant, a ladder meridian's UPPER remnant.
+    pub(super) near: EdgeKey,
+    /// The ORIGINAL source edge both pieces are fragments of — the key
+    /// the caller handed in, not the key that was split.
+    pub(super) source: EdgeKey,
+    /// The split's new vertex.
+    pub(super) vertex: VertexKey,
+}
+
+/// **Split a source edge beside `vertex`, recording the far piece as a
+/// fragment of the ORIGINAL source** — the one home of the band
+/// surgery's split provenance, for the ruled band's cap rims and the
+/// ladder rim phase's meridians alike.
+///
+/// **The edge may already be a fragment.** Two creases on one cap share
+/// the rim between them (the rod's two creases share the flat's chord),
+/// so the second carve splits a piece the first one left — a key that
+/// is either the SOURCE's or a fresh one, and in either case already
+/// carrying a `meridian_remnants` row. Provenance is read off that row:
+/// the surviving piece is recorded as a fragment of the ORIGINAL
+/// source and the stale fragment row is retired, so the records name
+/// one piece once and name it after a key the caller can resolve.
+/// Without this the second split recorded the survivor twice, which the
+/// document layer's emitter refuses as "the surgery recorded one entity
+/// twice".
+///
+/// **That arm carries no assertion, and cannot.** It is reachable by
+/// construction — the ruled band takes it whenever one cap carries two
+/// creases, and a rim phase would take it the day one call carves two
+/// rims off one cap seam — so a guard that it is never taken would
+/// assert away the generality the lookup exists for. Which callers take
+/// it is a measurement, not an invariant: over every carve the `sweep`
+/// suite runs, the ruled band's cap-rim split meets an existing row and
+/// the two rim phases' seam splits do not. A caller that wants its own
+/// arm pinned pins it with a body, not here.
+///
+/// **Which piece is `near` is the split's own answer, not the caller's
+/// guess.** [`Body::split_edge`] hands the parent key to the child
+/// carrying `start(he_plus)`, so the piece touching `vertex` is the
+/// source key when the edge's `he_plus` starts there and a FRESH key
+/// when it ends there. Both orientations are ordinary revolve and
+/// boolean outputs, which is why neither is read off the key and why
+/// [`retire_fragment`] exists.
+pub(super) fn split_fragment<T: Decide>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    vertex: VertexKey,
+    t: T,
+    rec: &mut BlendNaming,
+    site: &'static str,
+    tol: Tol,
+) -> Result<SplitFragments, BlendError> {
+    let created = body.split_edge(edge, t, tol).map_err(|e| op(site, e))?;
+    let (near, far) = if edge_touches(body, edge, vertex) {
+        (edge, created.new_edge)
+    } else {
+        (created.new_edge, edge)
+    };
+    let source = rec
+        .meridian_remnants
+        .iter()
+        .find(|(piece, _)| *piece == edge)
+        .map_or(edge, |(_, source)| *source);
+    rec.meridian_remnants.retain(|(piece, _)| *piece != edge);
+    rec.meridian_remnants.push((far, source));
+    Ok(SplitFragments {
+        near,
+        source,
+        vertex: created.vertex,
+    })
+}
+
+/// **Record the death of a split fragment**: only a SOURCE key is a
+/// retirement, because [`Retired`](super::naming::Retired) names what
+/// the blend took from the body the caller handed in. A piece this
+/// carve minted and then killed reaches neither the output nor the
+/// source and owes a row in neither direction — and a STRUT, which is
+/// not a source key either, is the same case, which is why a strut's
+/// death reaches no caller of this function.
+///
+/// The one home of that rule for all three band carves: the ladder's
+/// meridian splits, the annulus's seam splits and the ruled band's cap
+/// rims.
+pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: EdgeKey) {
+    if dying == source {
+        rec.dead.edges.push(source);
+    }
+}
+
 /// **The band's STRUT foot on a host support** — the `mev` from a rim
 /// vertex out to that support's trimline, and the ONE home of the move
 /// for both closed-rim phases: the ladder struts at every vertex of its
@@ -2621,28 +2757,24 @@ fn rim_phase<T: Decide + Bounds>(
         let (tb_curve, tb_t0, _) = scaled(&rc, cb, sb, rc.plus_on_host);
         let target = tb_curve.eval(tb_t0);
         let t_split = seam_split_param(body, m, e, target)?;
-        let created = body
-            .split_edge(m, t_split, tol)
-            .map_err(|e| op("meridian split", e))?;
-        // The upper remnant is whichever piece still ends at the rim
-        // vertex.
-        let touches_v = |body: &Body<T>, e: EdgeKey| -> bool {
-            halves_of(body, e).is_some_and(|(hp, hm)| {
-                body.get_half_edge(hp).map(|h| h.start) == Some(v)
-                    || body.get_half_edge(hm).map(|h| h.start) == Some(v)
-            })
-        };
-        let upper = if touches_v(body, m) {
-            m
-        } else {
-            created.new_edge
-        };
-        // Birth data: the split vertex and the LOWER (surviving)
-        // piece are both fragments of this source meridian.
-        rec.meridian_splits.push((created.vertex, m));
-        let lower = if upper == m { created.new_edge } else { m };
-        rec.meridian_remnants.push((lower, m));
-        remnants.push((v, upper, m));
+        // The UPPER remnant is the piece still touching the rim vertex;
+        // the LOWER one survives as a fragment of the source. Which of
+        // the two keeps the source key is `split_edge`'s to say, so
+        // both the fragment row and step (6)'s retirement read the
+        // source off [`split_fragment`] rather than off `m`.
+        //
+        // The split vertex is named after the edge that was SPLIT, not
+        // after that edge's own source. The two differ only where `m`
+        // is itself a fragment — which for a rim vertex's meridian
+        // means an earlier band in this call split the same cap seam,
+        // an arm `split_fragment` handles and no body in the tree
+        // reaches — so naming the original there would be an unpinned
+        // choice, while a minted key in this row refuses loudly at the
+        // document layer rather than resolving to another entity's
+        // name.
+        let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
+        rec.meridian_splits.push((frag.vertex, m));
+        remnants.push((v, frag.near, frag.source));
     }
 
     // ---- (3) The plane side: struts to the widened trim circle and
@@ -2693,7 +2825,11 @@ fn rim_phase<T: Decide + Bounds>(
         rec.rim_trims
             .push((created.edge, plane_walk[i].2, RimSide::Host));
         let (curve, t0, t1) = ta_carriers[i].clone();
-        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        described.push((
+            created.edge,
+            ContactCarrier::Exact(curve, t0, t1),
+            plane_walk[i].2,
+        ));
     }
 
     // ---- (4) The MATE side: one trim chord per half-cap, hung
@@ -2747,7 +2883,7 @@ fn rim_phase<T: Decide + Bounds>(
             )
             .map_err(|e| op("rim mate trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_host);
-        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1), e));
         rec.rim_trims.push((created.edge, e, RimSide::Mate));
         tb_edges.push(created.edge);
     }
@@ -2842,6 +2978,7 @@ fn rim_phase<T: Decide + Bounds>(
                     center: tc + radial * tmaj,
                     radius: tmin,
                 },
+                plane_walk[idx].2,
             ));
             band_surface = Some(Surface::Torus {
                 center: tc,
@@ -2863,7 +3000,7 @@ fn rim_phase<T: Decide + Bounds>(
                 shp
             };
             body.kev(dying).map_err(|e| op("rim kev", e))?;
-            rec.dead.edges.push(mr);
+            retire_fragment(rec, mr, msrc);
         }
     }
 
@@ -3588,7 +3725,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         ));
     }
 
-    for (i, _) in rim.chain.links().enumerate() {
+    let link_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    for (i, link) in link_edges.iter().enumerate() {
         described.push((
             host_trims[i].edge,
             ContactCarrier::Exact(
@@ -3596,9 +3734,10 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 arcs[i].host_window.0,
                 arcs[i].host_window.1,
             ),
+            *link,
         ));
     }
-    for (i, _) in rim.chain.links().enumerate() {
+    for (i, link) in link_edges.iter().enumerate() {
         described.push((
             mate_trims[i].edge,
             ContactCarrier::Exact(
@@ -3606,14 +3745,18 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 arcs[i].mate_window.0,
                 arcs[i].mate_window.1,
             ),
+            *link,
         ));
     }
+    // The slit is the band's own seam; the arc the closure crossing
+    // starts is the link it belongs to.
     described.push((
         mate_feet[ann.closure].1,
         ContactCarrier::SeamArc {
             center: tc + radial * tmaj,
             radius: tmin,
         },
+        link_edges[closure_arc],
     ));
 
     // Birth data. A host foot is the band's foot on the host support; a
@@ -3651,31 +3794,29 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         rec.dead.edges.push(l.edge);
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        // Only a SOURCE key can be retired: when the split handed the
-        // rim-side piece the new edge, the source seam survives as the
-        // far piece and nothing of it died. Under a seam refresh this
-        // plan-key comparison and the live-key one COINCIDE today, and
-        // structurally: `split_edge` keeps the parent key for the
-        // `[t0, t]` child, a seam meridian's two ends are its wall's
-        // two latitude rims, so a refreshed live key differs from the
-        // plan's exactly when the earlier band sat at the seam's t0
-        // end — which puts THIS band at the t1 end, where the dying
-        // rim-side piece is always the FRESH key and neither spelling
-        // fires. The plan-key spelling is kept because it states the
-        // invariant directly (retire source keys only) instead of
-        // deriving it from the split's retention direction, which
-        // could change under it without a fixture noticing.
+        // The dying piece against the seam it came from, through
+        // [`retire_fragment`] — the one spelling of "only a SOURCE key
+        // is a retirement", shared with the ladder's meridian splits
+        // and the ruled band's cap rims.
         //
-        // A STRUT never appears here for the same reason it owes no
-        // birth row: it is not a source key, so its death is not a
-        // retirement of anything the caller handed in.
+        // The seam keys here are the PLAN's, and that is what keeps a
+        // source key a source key: the plan is read off the body the
+        // caller handed in, while the key this band SPLIT is the live
+        // one, which an earlier band on a shared wall may already have
+        // moved onto a piece THIS call minted. So the comparison is a
+        // live-derived dying piece against a plan key, and where the
+        // refresh has moved the seam the two cannot be equal — which is
+        // sound rather than lucky: `split_edge` keeps the parent key
+        // for the `[t0, t]` child and a seam meridian's two ends are
+        // its wall's two latitude rims, so a moved live key puts THIS
+        // band at the seam's t1 end, where the dying rim-side piece is
+        // the fresh one and no retirement is owed.
         if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-            && *rim_side == *seam
         {
-            rec.dead.edges.push(*seam);
+            retire_fragment(rec, *rim_side, *seam);
         }
-        if ix != ann.closure && mate_feet[ix].1 == c.mate_seam {
-            rec.dead.edges.push(c.mate_seam);
+        if ix != ann.closure {
+            retire_fragment(rec, mate_feet[ix].1, c.mate_seam);
         }
         rec.dead.vertices.push(c.vertex);
     }
@@ -3800,9 +3941,10 @@ impl SourceFaces {
 }
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
-/// carrier and describe it as the tangential contact locus of its two
-/// adjacent faces' surfaces — over the rim arcs' stored carriers as
-/// well as over the straight trimlines.
+/// carrier and describe it — over the rim arcs' stored carriers as
+/// well as over the straight trimlines — as the geometry IS: a seam, a
+/// transverse intersection, or a tangential contact locus whose
+/// description the must-carry rule decides over the whole edge.
 ///
 /// **A blend trimline is BORN with its intrinsic description**, never a
 /// `MappedCurve` pushforward of the construction that happened to
@@ -3816,6 +3958,8 @@ fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
+    link: EdgeKey,
+    band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
     let ed = body
@@ -3915,21 +4059,64 @@ fn attach_contact<T: Decide + Bounds>(
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         // The band meets its support tangentially along the contact
-        // locus, so the intrinsic description one order up is the one
-        // the geometry has.
-        //
-        // **The description is chosen STRUCTURALLY here, not by the
-        // must-carry rule** (`geom_brep::must_carry_over_edge`, the
-        // one home the sweep verbs' smooth arms route through): no
-        // lane gate, no station walk, no in-band escalation. The
-        // second-order margin is `|1/r_band ∓ κ_support|·r_band²/2`,
-        // which the measured corpus reads seven orders above K·ε —
-        // and which collapses for a concave band osculating its
-        // support. The reading, the closed form and the disposition
-        // are
-        // `work/blend/blend-contact-edges-mint-the-intrinsic-description-without-the-rule.md`.
+        // locus, and the corner ball meets the band the same way: a
+        // definitely-smooth join, whose description is the must-carry
+        // rule's to decide over the whole edge
+        // (`geom_brep::must_carry_over_edge` — the lane gate, the
+        // certification schedule's interior stations and the three-way
+        // answer, in their one home). The rule decides; this site does
+        // not argue. Jet-determinate stores the intrinsic tangency,
+        // under-determined the conventional chart image, in-band
+        // refuses typed at the door (D4 ¶3) — never silently either
+        // side.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        let verdict = {
+            let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+                return Err(not_intact(
+                    EntityId::Edge(edge),
+                    "a described edge's two surfaces",
+                ));
+            };
+            let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
+            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+        };
+        match verdict {
+            MustCarryVerdict::JetDeterminate => {
+                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+            }
+            // The surfaces under-determine the locus, so the
+            // description stays CONVENTIONAL: an image in a chart,
+            // derived by the certification door from the exact carrier
+            // above. `he_plus`'s chart: the locus lies exactly in both
+            // surfaces, so either is a legitimate home — the argument
+            // is the extrude strut arm's (`sweep_loop`, the `k_prev`
+            // paragraph), stated once there — and the edge's own
+            // orientation names this one. Not `Body::describe_at_rest`:
+            // that restates the STORED carrier, and what the `mef`
+            // stored is the chord scaffold, which for an arc is not the
+            // locus.
+            //
+            // Reached where the jet is under-determined on a pair the
+            // lane admits: a corner arc on a slim wedge, whose extent
+            // is the folded lever arm, or any band under a run with
+            // `K < 2`. A pair the lane REFUSES lands here too, and the
+            // derived image covers the carriers the lane admits, so
+            // such a pair would fall to the certification door's own
+            // refusal inside `op("surgery contact edge")`; no arm the
+            // battery admits mints one.
+            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
+            // In-band: a separation certifiable as neither positive nor
+            // zero — a band a few K·ε in radius, or a corner arc whose
+            // extent is the lever — escalated typed with the deciding
+            // station's own reading, at the link the contact edge
+            // belongs to.
+            MustCarryVerdict::InBand(source) => {
+                return Err(BlendError::Escalated {
+                    site: BlendSite::Link { edge: link },
+                    source,
+                });
+            }
+        }
     };
     body.set_edge_curve(
         edge,

@@ -92,3 +92,38 @@ which asserts the sentence does NOT contain "declare the coincidence".
 
 What stays open here: the fallback arm itself, and every other
 escalation that reaches it.
+
+## A second instance, repaired at the site (BLEND-12, 2026-09-13)
+
+The same arm, the other family. The nine `fillet_*` gates the
+construction sugar decides (`crates/profile/src/sugar.rs`) reached the
+fallback arm too, so every in-band fillet verdict told its reader to
+declare a coincidence at a joint the caller never authored — while the
+six `FILLET_*_RECOURSE` sentences written for exactly those gates were
+rendered only by a `ProfileError::Escalated { site:
+EscalationSite::Fillet, .. }` arm that nothing constructed.
+
+Repaired by giving the nine names their own arm, ahead of BLEND-10's
+eight and of the junction keys: it names the site ("resolving the fillet
+at this corner") and appends the gate's own sentence, selected by
+`validate::fillet_recourse_for` — the crate's one name-to-sentence map —
+and does not render `{source}` whole. `EscalationSite::Fillet` was
+retired with its arm. The rows are in
+`crates/profile/tests/fillet_recourse_followability.rs`, including a
+census over the nine names read out of `sugar.rs`'s source.
+
+What stays open here is unchanged: the fallback arm itself, and every
+other escalation that reaches it — the junction keys keep the shared
+sentence on purpose, because `.tangent()` is a door their caller has.
+
+## The fallback arm's spelling moved (BLEND-15, 2026-09-13)
+
+The arm described above no longer writes `"path junction
+classification: {source}"` for every unkeyed name — that label is now a
+named arm for the two junction keys, and every other unkeyed name
+renders `"escalated: {source} — {geom_core::MissingRecourse}"`.
+
+The class this item is about is unchanged: the fallback still renders
+`{source}` whole, so `COINCIDENCE_RECOURSE` still arrives first, ahead
+of whatever the site's own levers are. Only the sentence that follows
+it has changed, from a false category to a named gap.

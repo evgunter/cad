@@ -42,7 +42,7 @@ from pncad import (
     CurveKind,
     CheckFinding,
     ClassAdmission,
-    ClusterMaintenance,
+    Maintenance,
     Datum,
     DocParam,
     Denotation,
@@ -558,7 +558,7 @@ cluster_frame: Frame = doc.placement(instance)
 registry: dict[NodeId, Frame] = doc.placements()
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
-after_edit: list[ClusterMaintenance] = doc.last_maintenance
+after_edit: list[Maintenance] = doc.last_maintenance
 
 # The authored mate datum: two frames, a primitive, an axis sense, and
 # an optional clocking rider.

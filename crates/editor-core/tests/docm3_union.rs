@@ -6,9 +6,10 @@
 
 use crate::fixture;
 
+use crate::corpus::body_of;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EditError, EntityKind, EvalOptions, Evaluation,
-    Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload, all_faces, evaluate,
+    BooleanOp, CancelToken, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Node,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, all_faces, evaluate,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
@@ -65,14 +66,6 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
         },
     );
     (doc, boxes, u)
-}
-
-fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
-        other => panic!("expected a body, got {other:?}"),
-    }
 }
 
 /// The member a union-minted name came from, or `None` for a name that
@@ -200,18 +193,18 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        surfaces(&folded),
-        surfaces(&chained),
+        surfaces(folded),
+        surfaces(chained),
         "the fold's surfaces are not the chain's, description for description"
     );
     assert_eq!(
-        curves(&folded),
-        curves(&chained),
+        curves(folded),
+        curves(chained),
         "the fold's curves are not the chain's, description for description"
     );
     assert_eq!(
-        points(&folded),
-        points(&chained),
+        points(folded),
+        points(chained),
         "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved: the chain's are two descents deep
@@ -784,18 +777,18 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        surfaces(&folded),
-        surfaces(&chained),
+        surfaces(folded),
+        surfaces(chained),
         "the fold's surfaces are not the chain's, description for description"
     );
     assert_eq!(
-        curves(&folded),
-        curves(&chained),
+        curves(folded),
+        curves(chained),
         "the fold's curves are not the chain's, description for description"
     );
     assert_eq!(
-        points(&folded),
-        points(&chained),
+        points(folded),
+        points(chained),
         "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved. The chain's LAST member is one

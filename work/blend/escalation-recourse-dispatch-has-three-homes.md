@@ -1,9 +1,12 @@
 ---
 id: escalation-recourse-dispatch-has-three-homes
-kind: issue
-title: blend: three Display impls dispatch a recourse by predicate name, with three different answers on an unknown name
-status: open
+kind: unit
+title: blend: two Display impls dispatch a recourse by predicate name, with two different answers on an unknown name
+status: closed
+closed: 2026-09-17
 opened: 2026-09-08
+branch: blend/15-recourse-roster
+pr: 2514
 ---
 
 
@@ -61,3 +64,67 @@ Not obvious, and the choice is a design statement, not a cleanup:
 (2) is cheap and closes the silent arms; (1) closes the duplication
 and is the larger change. Either needs a ruling on whether
 `geom-core` should carry user-facing recourse prose at all.
+
+## Two homes now (BLEND-12, 2026-09-13)
+
+The third home is gone. `EscalationSite::Fillet` had no producer, so its
+`match source.predicate` under `ProfileError::Escalated` rendered for
+nobody; unit 12 retired the variant and the arm together and moved the
+nine `fillet_*` names to `validate::fillet_recourse_for`, a single
+`&str -> Option<&'static str>` function that the second home
+(`PathError::Escalated`'s `Display`) calls.
+
+What that changes for this item:
+
+- the count is two implementations, not three, and the retired one's
+  silent `_ => {}` failure mode is gone with it;
+- the surviving `profile` home now has a census:
+  `crates/profile/tests/fillet_recourse_followability.rs`'s
+  `every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one`
+  reads the `fillet_*` names out of `sugar.rs`'s own source and fails if
+  one has no sentence. That is the enforcement this item says nothing has
+  — for the fillet family only. The `path_*` keys and `sweep`'s blend
+  table still have none, and `path.rs`'s `_ =>` arm still ASSERTS "path
+  junction classification" for any unknown name.
+
+## Landed (BLEND-15)
+
+Two homes still, because the sentences stay with the crates that own
+them — disposition (2), with the fall-through made one decision instead
+of two.
+
+- **The gap sentence has one home**: `geom_core::MissingRecourse`, beside
+  `COINCIDENCE_RECOURSE` in the predicate vocabulary. `geom-core` is the
+  only crate both routers can see (`sweep` depends on `profile`,
+  `profile` on `geom-core` alone). Both fall-throughs compose it, so
+  "no recourse is recorded for predicate …; this is a gap in the error
+  table, not advice to act on" is one sentence in one place.
+- **`PathError::Escalated` no longer asserts a category on an unknown
+  name.** The two junction keys are a named arm — the label is a claim
+  about them and about nothing else — and every other unknown name
+  renders the gap sentence.
+- **A roster row per crate** (`crates/profile/tests/recourse_roster.rs`,
+  `crates/sweep/tests/recourse_roster.rs`): every name the crate's `src`
+  decides is routed to a sentence or listed with the reason it carries
+  none, measured by rendering the door's own refusal. A `decide*` call
+  whose name the reader cannot read at the site is declared with what
+  carries it, so a name reaching the funnel through a parameter, a const
+  or a struct field is on the roster too.
+- **The dispatch order is pinned**: no name sits in both
+  `fillet_recourse_for` and a `path.rs` match pattern, where the map wins
+  silently and the pattern arm is dead.
+
+## Closed (2026-09-17, PR 2514)
+
+One fall-through: both `Escalated` Displays answer an unknown name
+with `geom_core::MissingRecourse`'s gap sentence and never a category;
+the path door renders the shared clause alone for the names its
+`SHARED_CLAUSE_ONLY` roster lists as deliberately unrouted. One reader
+(`test_utils::source::predicate_census`) rosters every decided name in
+both crates by rendering the door's error, reports what it cannot read
+as red, and a pairing row per door pins which sentence each routed
+name renders. The item's third home, `validate.rs`'s near-tangency
+addendum, stays as the crate's second predicate-keyed table with its
+reason at the site. Residues on the slate from this unit: the
+enum-keyed `CornerConfig` defaults; `flush.rs`'s invented name
+(`work/issues/`).

@@ -91,6 +91,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::interval::Interval;
+use geom_core::sym;
 use geom_core::{MarginDiag, Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
@@ -149,6 +150,25 @@ pub struct DriveConfig {
     /// run; the verdict is bit-identical either way, which is what the
     /// differential row pins.
     pub parallel: bool,
+    /// **Whether the drive's leaves share one plain-form memo**
+    /// (`geom_core::sym::DriveMemo`) — on by default, and a
+    /// PERFORMANCE dial only.
+    ///
+    /// A node's plain form is a function of its content-hashed id, the
+    /// budget and the tier's dials, so a form one leaf built is the
+    /// form every other leaf of this drive would build; the memo hands
+    /// it back instead of rebuilding it, which on the M10-3 slab is a
+    /// walk the tier otherwise repeats once per leaf. Every verdict and
+    /// every decision count is the same either way, and the receipt's
+    /// `frozen` column means the same thing either way — the DISTINCT
+    /// nodes frozen over the drive, which the memo counts whether or
+    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
+    /// the column).
+    ///
+    /// Off is the differential lane the pins compare against, in
+    /// `parallel`'s own mould: a dial whose effect on a document is a
+    /// measurement rather than an assumption.
+    pub plain_memo: bool,
     /// Whether certified leaves are additionally replayed at the
     /// K-telemetry recording scalar, so driver-path predicate margins
     /// reach the `k_stats` funnel (E6's T6 obligation). Off by default:
@@ -230,9 +250,13 @@ pub struct DriveConfig {
 ///
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
-/// never has its form built at all (`geom_core::sym`'s `Decide` impl —
+/// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
 /// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents. And
+/// contradict), which is most margins on most documents; the form is
+/// still BUILT for it wherever debug assertions are on (dev, test and
+/// this workspace's release profile), by the contradiction assertion
+/// at that site — a tenth of the slab's plain forms, measured
+/// (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -360,6 +384,7 @@ impl Default for DriveConfig {
             max_depth: DEFAULT_MAX_DEPTH,
             max_leaves: DEFAULT_MAX_LEAVES,
             parallel: false,
+            plain_memo: true,
             #[cfg(feature = "probe")]
             k_probe: KProbe::Off,
             symbolic: SymbolicDials::default(),
@@ -661,6 +686,7 @@ pub struct ParamBoxVerdict {
     receipt: Receipt,
     decisions: SymCounts,
     symbolic: SymbolicDials,
+    memo: sym::MemoSize,
     witness_vector: Arc<VerdictVector>,
     root: ParamBox,
 }
@@ -681,6 +707,25 @@ impl ParamBoxVerdict {
         &self.accounting
     }
 
+    /// **What the drive's plain memo came to** at its end
+    /// (`DriveConfig::plain_memo`): the forms and atoms it held and an
+    /// estimate of the heap they occupied.
+    ///
+    /// With the dial OFF the memo serves no form, so `forms` and
+    /// `atoms` are zero — but `frozen` is not, and neither is
+    /// `bytes_estimate`: the off lane still collects the drive's
+    /// distinct freezes, which is what keeps the receipt's `frozen`
+    /// column the same column in both lanes (the plate reads
+    /// `frozen: 1044, bytes_estimate: 16704` there). The growth guard
+    /// is a reading of the lane that holds forms.
+    ///
+    /// Not part of the receipt: it is the memo's SIZE, a cost, and the
+    /// verdict reports it so a guard can be written against it rather
+    /// than re-derived by instrumenting the tier.
+    pub fn plain_memo(&self) -> sym::MemoSize {
+        self.memo
+    }
+
     /// The counting receipt.
     pub fn receipt(&self) -> Receipt {
         self.receipt
@@ -689,6 +734,11 @@ impl ParamBoxVerdict {
     /// **The E12 receipt**: how this drive's predicate decisions were
     /// answered, summed over every leaf — `symbolic_zero` against
     /// `numeric`, with `frozen` beside them.
+    ///
+    /// **`frozen` is the odd one out**: the decision columns are sums
+    /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
+    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
+    /// is where the column's two meanings are argued.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
@@ -1142,6 +1192,25 @@ pub fn drive(
     let mut refused: Vec<RefusedLeaf> = Vec::new();
     let mut splits = 0usize;
     let mut decisions = SymCounts::default();
+    // **The drive's plain-form memo**, created before the level loop and
+    // dropped after it, so it holds nothing of the next drive. Shared
+    // across the rayon workers rather than one per worker: the `frozen`
+    // column it answers is the distinct nodes frozen over the DRIVE, and
+    // a per-worker memo would make that a function of the schedule.
+    // With the dial off it serves no form and only counts the freezes,
+    // so the column is the same column in both lanes.
+    //
+    // Built even with the tier OFF or at a zero-term budget, where no
+    // session is installed and nothing ever reaches it: an empty
+    // `RwLock` and two empty maps cost one allocation per drive, and the
+    // alternative is an `Option` that every call site below would have
+    // to open for a case that is already answered by `symbolic.enabled`
+    // three lines down.
+    let memo = Arc::new(if config.plain_memo {
+        sym::DriveMemo::new(config.symbolic.budget(), config.symbolic.rules)
+    } else {
+        sym::DriveMemo::counting_only(config.symbolic.budget(), config.symbolic.rules)
+    });
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -1177,6 +1246,7 @@ pub fn drive(
                 &witness_vector,
                 witness_key,
                 config.symbolic,
+                &memo,
                 tol,
             )
         };
@@ -1273,6 +1343,12 @@ pub fn drive(
         receipt.holds(),
         "receipt identity broken: {receipt:?} — a box escaped its bucket"
     );
+    // **The drive's `frozen` column**, and the one place it is written:
+    // the DISTINCT nodes frozen over the drive (`SymCounts::frozen`
+    // argues the column; `SymCounts::absorb` is why it is not a sum).
+    if config.symbolic.enabled {
+        decisions.frozen = memo.frozen();
+    }
     let accounting = account(analyzed, &root, &certified, &refused);
     Ok(ParamBoxVerdict {
         certified,
@@ -1281,6 +1357,7 @@ pub fn drive(
         receipt,
         decisions,
         symbolic: config.symbolic,
+        memo: memo.size(),
         witness_vector,
         root,
     })
@@ -1367,13 +1444,22 @@ enum LeafVerdict {
 /// dropped with the leaf; under the parallel schedule each leaf runs
 /// wholly on one rayon thread, and the session is thread-local, so no
 /// table is ever shared. Node ids are content hashes, so the two
-/// schedules build identical DAGs anyway (D9).
+/// schedules build identical DAGs anyway (D9). The one piece of state
+/// that does cross the leaf is `memo`, the drive's plain forms, and it
+/// is shared across the workers rather than per worker for exactly that
+/// reason (`DriveConfig::plain_memo`, `geom_core::sym::DriveMemo`).
 ///
 /// **The f64 witness pass is untouched.** A point residual is tight, so
 /// the witness still catches a constructor that does not build what it
 /// claims — which is exactly the failure the symbolic tier could
 /// otherwise hide, since an expression that is identically zero on
 /// paper says nothing about whether the code computed it.
+// One parameter per named input the leaf replay needs: the document,
+// the box, the witness build and its vector, the tier's dials and the
+// drive's plain memo. Nothing here is state to thread — every one is
+// read by the leaf and none is written — so a bundle would be a struct
+// that exists to satisfy a count.
+#[allow(clippy::too_many_arguments)]
 fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
@@ -1381,6 +1467,7 @@ fn classify(
     witness_vector: &VerdictVector,
     witness_key: VerdictVectorKey,
     symbolic: SymbolicDials,
+    memo: &Arc<sym::DriveMemo>,
     tol: Tol,
 ) -> (LeafVerdict, SymCounts) {
     let opts = EvalOptions {
@@ -1389,7 +1476,7 @@ fn classify(
     };
     if symbolic.enabled {
         let (leaf, counts) =
-            geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
+            sym::with_session_memo(symbolic.budget(), symbolic.rules, memo, || {
                 let leaf: Evaluation<Sym<Interval>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);
                 leaf

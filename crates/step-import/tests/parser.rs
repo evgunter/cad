@@ -295,3 +295,76 @@ fn eps_in_declared_and_overridable() {
         StepImportError::InvalidEpsOverride { value } if value == 0.0
     ));
 }
+
+/// The Part 21 basic alphabet the reader admits inside a string
+/// literal, with **both bounds pinned** and the two characters just
+/// outside them.
+///
+/// The verdict is read off the refusal's own `expected` word rather
+/// than off the import succeeding, so the row says which rule
+/// refused: a file that stops for some other reason is a panic here,
+/// not a silent pass.
+///
+/// This band is a disclosed copy of `step_export`'s `quoted`
+/// (`string_body`'s docs say why the two are stated separately); the
+/// mirror row is `export::part21_basic_alphabet_bounds` in
+/// `step-export`. The identical band in `stl`'s `SolidName` is an
+/// INDEPENDENT rule that must not move with these two, and its own
+/// row is `crates/stl/tests/export.rs`'s
+/// `the_acceptance_exports_agree_are_honest_and_are_byte_identical`.
+#[test]
+fn part21_basic_alphabet_bounds_on_the_read_path() {
+    // The exported cube, with the one character under test spliced
+    // into the product name a `PRODUCT` record already carries.
+    let base = fixture("cube", "step");
+    assert!(
+        base.contains("PRODUCT('cube', 'cube', '', ("),
+        "the fixture carries the product name this row substitutes into"
+    );
+    let admits = |ch: char| -> bool {
+        let text = base.replacen(
+            "PRODUCT('cube', 'cube'",
+            &format!("PRODUCT('cube{ch}', 'cube{ch}'"),
+            1,
+        );
+        match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+            Ok(_) => true,
+            Err(StepImportError::Syntax {
+                expected: "a Part 21 basic-alphabet string character (0x20..=0x7E)",
+                ..
+            }) => false,
+            Err(other) => panic!(
+                "{ch:?} must either import or refuse as the basic-alphabet syntax row, got {other}"
+            ),
+        }
+    };
+    for (ch, admissible) in [
+        // The bounds themselves: 0x20 and 0x7E.
+        (' ', true),
+        ('~', true),
+        // The two characters immediately outside them.
+        ('\u{1f}', false),
+        ('\u{7f}', false),
+        // Everything non-ASCII enters as a lead byte outside the
+        // band, so the refusal is on the first byte of the sequence.
+        ('\u{fc}', false),
+        ('\u{2014}', false),
+        ('\u{1f600}', false),
+    ] {
+        assert_eq!(
+            admits(ch),
+            admissible,
+            "{ch:?} must be {} inside a Part 21 string literal",
+            if admissible { "read" } else { "refused" }
+        );
+    }
+    // `\n` is the one byte below the band that is NOT refused: the
+    // reader splices out a writer's physical column fold
+    // (`string_body`'s docs), so this asymmetry with the writer —
+    // which refuses `\n` — is deliberate and is pinned here rather
+    // than left to be read as an oversight.
+    assert!(
+        admits('\n'),
+        "a raw newline inside a literal is the ST-Developer fold, spliced out"
+    );
+}

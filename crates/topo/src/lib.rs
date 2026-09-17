@@ -153,7 +153,7 @@ pub mod euler_ring;
 // because its consumers now span both halves and the shared sector
 // walk; its own docs carry the argument. Non-doc comment for the same
 // rustdoc reason as the sector modules below.
-pub(crate) mod face_normal;
+pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
 pub mod flush;
@@ -283,12 +283,12 @@ pub use boolean::{
     ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
     NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
     PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
-    SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
-    point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
-    union_with,
+    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
+    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -337,7 +337,9 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
     graft_disjoint_all_onto_keyed,
 };
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
+pub use merge_faces::{
+    MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
+};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
@@ -355,16 +357,16 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
-    SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
+    SEL_DATUM_DISTANCE, SurfaceKindSet,
 };
 pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::RevertError;
+pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,

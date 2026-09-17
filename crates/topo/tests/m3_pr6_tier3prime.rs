@@ -12,7 +12,7 @@
 
 use crate::common;
 
-use common::{mapped_cube, prism_z};
+use common::{brick, mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
 use topo::{
@@ -20,14 +20,6 @@ use topo::{
     intersect_with, mass_properties, subtract_with, union, union_with, validate_geometric,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
-    x: (f64, f64),
-    y: (f64, f64),
-    z: (f64, f64),
-) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 type BoolOp<T> = fn(
     &Body<T>,

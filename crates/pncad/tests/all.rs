@@ -452,7 +452,7 @@ fn stale_declaration_and_ring_contact_are_matchable(
 /// The profile refusals' payloads — what `ProfileError`,
 /// `CornerReason` and `PathError` say beyond their arm names.
 ///
-/// `EscalationSite` is where the rung under it shows: two of its four
+/// `EscalationSite` is where the rung under it shows: two of its three
 /// arms hand back a `SegmentRef`, and reading the site's loop and
 /// segment indices is the whole point of binding one.
 fn profile_payloads_are_matchable(
@@ -488,7 +488,6 @@ fn profile_payloads_are_matchable(
             named::<usize>(loop_index);
             "loop"
         }
-        EscalationSite::Fillet => "fillet",
     };
     let leg = match leg {
         FilletLeg::Incoming => "incoming",
@@ -682,6 +681,46 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             },
         ),
         ("patch", "edge")
+    );
+}
+
+/// **A tube is minted AND built from prelude names alone.** The frame
+/// witness made the tube doors take a type instead of three vectors,
+/// and the facade's claim is that this costs a modeller no module hop:
+/// `OrthoFrame::from_axis_and_reference` takes the two RAW directions
+/// a program actually holds - there is no `UnitVec3` step to import -
+/// and `Band`, `Tol`, `Point3`, `Vec3`, `OrthoFrame`, `TubeWindow` and
+/// `tube_along_arc` are all bare prelude names. Nothing below reaches
+/// through a module path, and adding one is the regression this row
+/// catches.
+#[test]
+fn a_tube_is_minted_and_built_from_prelude_names_alone() {
+    let tol = Tol::witness();
+    let frame = OrthoFrame::from_axis_and_reference(
+        p3::<f64>(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 3.0),
+        Vec3::new(2.0, 0.0, 1.0),
+        "pncad_prelude_tube_axis",
+        Band::linear(tol).expect("the witness tolerance forms a band"),
+    )
+    .expect("the spine axis has a direction and the reference radial is off it");
+    // The axis is kept as the frame's `w` and the reference yields to
+    // it: the raw `(0, 0, 3)` comes back as exactly the unit z axis,
+    // and the raw reference's on-axis component is gone.
+    let xyz = |v: Vec3<f64>| [v.x, v.y, v.z];
+    assert_eq!(xyz(frame.w().get()), [0.0, 0.0, 1.0]);
+    assert_eq!(xyz(frame.u().get()), [1.0, 0.0, 0.0]);
+    let major = 1.0;
+    let minor = 0.25;
+    let built =
+        tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
+    let props = mass_properties(&built.body, tol).expect("mass properties");
+    // Pappus: V = 2 pi^2 R r^2.
+    let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;
+    assert!(
+        (props.volume - want).abs() <= 1e-6 * want,
+        "the prelude-built torus has the closed-form volume: {} vs {want}",
+        props.volume
     );
 }
 
@@ -1346,11 +1385,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .and_then(|t| t.line_to(p2(x.0, y.1), Tol::witness()))
             .and_then(|t| t.line_to(Start, Tol::witness()))
             .expect("the slab rectangle authors");
-        let plane = SketchPlane::from_frame(
-            p3::<f64>(0.0, 0.0, z.0),
-            v3(1.0, 0.0, 0.0),
-            v3(0.0, 1.0, 0.0),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         extrude(
             &profile,
@@ -3289,11 +3324,18 @@ fn asm_r2a_mated_assembly(
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
+    // A mate head is a `SitedFace`: the fixture's claim that the name
+    // it just built is a face is made where the name is built.
+    let face_head = |name: pncad::prelude::StableName| {
+        pncad::document::SitedFace::at_mint(
+            pncad::document::FaceName::new(name).expect("the fixture names a face"),
+        )
+    };
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: pncad::document::SitedRef::at_mint(name(ids[0])),
-            b: pncad::document::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),
@@ -4209,18 +4251,16 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   cannot serve that one — a caller who cannot name `Product`
 ///   cannot hold one.
 ///
-///   **`MintRefusal` is not part of that carry**, and the split is
-///   the point: it is the GATHER's row for a mate whose declaration
-///   could not be minted, reached through `Product`, which is itself
-///   interior. What a façade consumer asks is what the A5 gate
-///   ANSWERED, and they get that whole — `AssemblyError::Reference`
-///   and `AssemblyError::NoAtRestRecord` are exactly these two
-///   refusals, raised by the door that is carried.
-///   **`CarriedRefusal` is out for the same reason and reads the
-///   same way**: it is the gather's row for a mate a document BELOW
-///   this one could not mint, and `AssemblyError::CarriedMintRefusal`
-///   is that fact raised whole by the gate. `CarriedDeclaration`,
-///   `CarriedDeclarations`, `Route` and `Relation` ARE carried,
+///   **`MintRefusal` and `CarriedRefusal` came with them**, and the
+///   reason is what the gate's two mint arms now answer with: each
+///   raises EVERY row it holds, so `AssemblyError::Mint` is a
+///   `Vec<MintRefusal>` and `AssemblyError::CarriedMintRefusal` a
+///   `Vec<CarriedRefusal>`. They were held out while each arm was one
+///   refusal flattened into the enum's own fields — the gate's answer
+///   then named no row type, so a consumer matching it never had to,
+///   and a consumer who cannot name a row cannot read the answer.
+///   `CarriedDeclaration`, `CarriedDeclarations`, `Route` and
+///   `Relation` ARE carried,
 ///   because nothing else states them: the first is what
 ///   `Product::carried` and `Assembly::carried` hold, and the last two
 ///   are fields of `Attribution::Carried`, which a consumer matching
@@ -4237,14 +4277,21 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` stays, and that is what closes the raw-target lane
-///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
-///   with the index unnameable here, the target whose contract warns
-///   of a confidently wrong name has no constructor a façade consumer
-///   can reach, and `NodePick` is not merely the preferred door but
-///   the only one. `PickTarget` is carried because `pick_face`'s
-///   signature names it, not because it can be built.
+///   **`MeshPick` stays, and the raw-target lane is now closed on
+///   both sides of the seal.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and leaving it unnameable here means no
+///   façade consumer can hold one. The kernel closed the same lane at
+///   the API: both raw mints (`MeshPick::build` and
+///   `PickTarget::new`) live behind `editor-core`'s `test-support`
+///   feature, which no consumer's manifest wires onto an edge of its
+///   own — the claim `scripts/gates/test-features-dev-only.sh` holds
+///   across every manifest in the repository, and the strongest one a
+///   feature carries, because a build COMMAND may always ask for a
+///   feature by name (that gate's header retracted the absolute this
+///   stanza used to make). `NodePick` is not
+///   merely the preferred door but the only one, and `PickTarget` is
+///   carried because `pick_face`'s signature names it, not because it
+///   can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
 ///   above is untouched by that.** An index is BUILT and a refusal is
@@ -4294,22 +4341,34 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 84] = [
+///
+///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
+///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
+///   `RangeSide`, `certified_range`). It is the on-demand answer to
+///   "how far can this field move before the build stops being this
+///   build" — the proof the sampling probe stands in for — and the
+///   Python door for it is FILED and not built, which is the whole of
+///   why these are here rather than in `crate::analysis`. The row is
+///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   family is part of what it schedules; a promise made only in this
+///   comment would be gone the moment someone edited it.
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "BracketEnd",
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
+    "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
-    "CarriedRefusal",
+    "CertifiedRange",
     "ContentKey",
     "Coset",
+    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -4319,6 +4378,7 @@ const NOT_CARRIED: [&str; 84] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
+    "FlipSource",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4327,7 +4387,6 @@ const NOT_CARRIED: [&str; 84] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
-    "MintRefusal",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -4337,12 +4396,18 @@ const NOT_CARRIED: [&str; 84] = [
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
+    "RangeField",
+    "RangeRefusal",
+    "RangeSeed",
+    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SHADOW_EXEC_MAX_PAIRS",
     "SectionScalar",
     "SeedScalar",
+    "ShadowExecRefusal",
     "ShellLane",
     "SideVerdict",
     "StructureFlip",
@@ -4363,6 +4428,7 @@ const NOT_CARRIED: [&str; 84] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
+    "certified_range",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
@@ -4495,8 +4561,8 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 ///    the hole is an accounting one — public names growing with
 ///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
-///    rather than re-exported. That root declares 32 `pub mod` at
-///    column 0, four of them behind `#[cfg(feature = "interval")]`,
+///    rather than re-exported. That root declares 34 `pub mod` at
+///    column 0, five of them behind `#[cfg(feature = "interval")]`,
 ///    and no `pub` item of any other kind — so nothing type-like
 ///    escapes this scan today, held shut by the root's shape rather
 ///    than by a rule. [`root_declared_pub_names`] is the mechanism
@@ -5813,5 +5879,138 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
             assert_eq!(param, ParamName::new("plate_t"));
         }
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
+    }
+}
+
+/// A user's program through the façade, holding the unit-vector
+/// witness: datum nodes evaluate, their `DatumValue` fields ARE the
+/// witnesses, and the doors that take or mint the type are reached
+/// without naming a second crate.
+mod unit_vector_witness_through_the_facade {
+    use pncad::document::{
+        CancelToken, Datum, DatumValue, Dimension, Doc, DocEdit, EvalOptions, Expr, Node,
+        NodeResult, ProfileProgram, RecipeNodeId, ValuePayload, evaluate,
+    };
+    use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
+    use pncad::geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
+    use pncad::topo::DATUM_UNIT_NORM;
+
+    type ProfileDoc = Doc<ProfileProgram>;
+
+    fn len(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Length).unwrap()
+    }
+    fn scl(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Scalar).unwrap()
+    }
+    fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let applied = doc
+            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .unwrap();
+        (applied.doc, applied.record.minted.unwrap())
+    }
+    fn datum_of(doc: &ProfileDoc, node: RecipeNodeId) -> DatumValue<f64> {
+        let ev = evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
+            panic!("the datum evaluated: {:?}", ev.nodes.get(&node));
+        };
+        let ValuePayload::Datum(d) = &v.payload else {
+            panic!("a datum payload");
+        };
+        d.clone()
+    }
+    fn bits(v: Vec3<f64>) -> [u64; 3] {
+        [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+    }
+
+    /// The witnesses a datum frame evaluates to are the normalized
+    /// values, they reach the witness doors as the type, and the frame
+    /// doors that still take a bare vector decide the same direction a
+    /// second time to the same bits.
+    #[test]
+    fn a_users_datum_frame_hands_its_witnesses_to_the_doors() {
+        let doc = ProfileDoc::empty_derived("unit_vector_witness_e2e", Tol::witness());
+        // An UNNORMALIZED plane normal and axis direction, as a user
+        // types them.
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(1.0), len(2.0), len(3.0)],
+                normal: [scl(0.0), scl(0.0), scl(2.5)],
+            }),
+        );
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [scl(3.0), scl(4.0), scl(0.0)],
+            }),
+        );
+        let DatumValue::Plane { origin, normal } = datum_of(&doc, plane) else {
+            panic!("a plane datum");
+        };
+        let DatumValue::Axis { origin: ao, dir } = datum_of(&doc, axis) else {
+            panic!("an axis datum");
+        };
+        assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
+        assert_eq!(bits(dir.get()), bits(Vec3::new(0.6, 0.8, 0.0)));
+
+        // The witness door to the basis: no `.get()`, no precondition
+        // prose; negation stays a witness.
+        let (b1, b2) = normal.orthonormal_basis();
+        assert!((b1.dot(b2)).abs() < 1e-15 && (b1.dot(normal.get())).abs() < 1e-15);
+        let down = -normal;
+        let (d1, _) = down.orthonormal_basis();
+        assert!((d1.dot(down.get())).abs() < 1e-15);
+        // The frame doors take a bare `Vec3` and decide again: a caller
+        // holding a witness pays a second decision and a `.get()`, and
+        // the second decision lands on the same bits.
+        let frame = point_at(
+            origin,
+            origin + normal.get(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        )
+        .unwrap();
+        assert_eq!(bits(frame.linear * Vec3::unit_z()), bits(normal.get()));
+        let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
+        assert_eq!(bits(start.linear * Vec3::unit_z()), bits(dir.get()));
+        let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
+        let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
+        assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
+    }
+
+    /// The funnel-site name is the caller's: a direction minted under
+    /// ANY name builds a `DatumValue`, so "a datum's direction is
+    /// decided under `datum_unit_norm`" is `editor-core`'s convention
+    /// at its `datum_unit` door, not a property of the type. The
+    /// refusals under the datum name are the constructor's typed ones.
+    #[test]
+    fn any_site_name_mints_a_datum_direction() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = UnitVec3::new(
+            Vec3::new(0.0, 0.0, 2.0),
+            "facade_probe_not_a_registered_site",
+            band,
+        )
+        .unwrap();
+        let d = DatumValue::<f64>::Plane {
+            origin: Point3::origin(),
+            normal: n,
+        };
+        let DatumValue::Plane { normal, .. } = d else {
+            panic!("a plane datum");
+        };
+        assert_eq!(bits(normal.get()), bits(Vec3::new(0.0, 0.0, 1.0)));
+        assert_eq!(
+            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), DATUM_UNIT_NORM, band).err(),
+            Some(UnitVec3Error::Degenerate)
+        );
     }
 }

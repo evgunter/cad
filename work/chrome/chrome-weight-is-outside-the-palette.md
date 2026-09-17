@@ -2,9 +2,10 @@
 id: chrome-weight-is-outside-the-palette
 kind: issue
 title: The tree's badge WEIGHT carries meaning no palette can tune, and no test sees any badge's colour
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1769, 1463]
+blocked_on: [tone-is-a-value-in-frame-and-a-comment-in-two-panes]
 ---
 
 Found by CHROME's style lane on PR 1769; judged a class question by the
@@ -47,3 +48,24 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Parked on VIEW's tone row, 2026-09-15
+
+`theme.rs` and `pane/features.rs` are ceded to VIEW under the carve-out,
+and VIEW's `tone-is-a-value-in-frame-and-a-comment-in-two-panes` is on
+the same two sites — it proposes `tree::RowStatus` grow a `tone()`,
+which is the pure `RowStatus -> paint` function this row's second
+decision asks for. Any CHROME fix here collides with that row's shape.
+
+**This row's census is dead and must be re-derived by subject before
+anyone acts.** It says `ui.weak` is spelled 49 times in `app.rs` against
+8 `colored_label`s. Measured 2026-09-15: `app.rs` has **3** and no
+`colored_label` at all; the population moved to `pane/create.rs` (23),
+`pane/properties.rs` (19), `pane/features.rs` (3) and `pane/view.rs`
+(2). The crate-wide habit claim survives; the file claim does not. The
+row also cites the drawing at an `app.rs` band that no longer exists,
+for a badge that is now in `pane/features.rs`.
+
+Half-dissolved since filing: `frame::Tone` is a typed value and
+`crates/viewer/tests/frame_policy.rs` asserts `badge.tone()`, so the
+POLICY is seen by a test. Only the paint is not.

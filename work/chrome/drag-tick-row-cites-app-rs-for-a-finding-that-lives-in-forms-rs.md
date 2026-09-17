@@ -2,8 +2,9 @@
 id: drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs
 kind: issue
 title: drag-tick-has-three-homes cites app.rs throughout for a finding that lives entirely in forms.rs, and its own reproduction command now returns nothing
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-15
 ---
 
 
@@ -39,6 +40,16 @@ name, not by shifting a number:
 | `UNIT_DRAG_SPEED` | `app.rs:1075` | `forms.rs:373` |
 | `COUNT_DRAG_SPEED` | `app.rs:1079` | `forms.rs:377` |
 | `FieldWriting::of` | `app.rs:1121-1166` | `forms.rs:437`, in the `impl` at `:432` |
+
+*(2026-09-15: the `forms.rs` numbers in the right-hand column are as of
+`104f1445b`, this report's own read, and have since rotted — `forms.rs`
+has grown above them and all six are now wrong by exactly +76, the
+`impl` line included — `drag_tick` is at `:467`, the four constants at
+`:430`/`:439`/`:449`/`:453`, `FieldWriting::of` at `:513`. They
+are left as written because this report is closed and a closed row's
+body is a record of what was read when. The live citations are in
+`work/chrome/drag-tick-has-three-homes.md`, which carries no line
+numbers at all. Noted so the next reader does not re-discover it.)*
 
 **`crates/viewer/src/app.rs` holds none of them.** The module split
 moved the whole subject to `forms.rs` and the row was not re-pointed.
@@ -89,3 +100,40 @@ returning nothing; each was read at `104f1445b`. `likely` on the
 41 → 45 reading, which is a `grep -c` of `_DRAG_SPEED,` and not a
 count of hand-picked arguments — the row's own distinction between a
 call-site argument and any other mention is what would settle it.
+
+## Closed — the row is re-pointed, and both of this report's shapes are taken (2026-09-15, `chrome/citation-repoint`)
+
+`work/chrome/drag-tick-has-three-homes.md` now cites every one of the
+six subjects by NAME and file, with no line number anywhere in it
+(`docs/prompts/implementer-discipline.md` §7). Both shapes this report
+asked for are done:
+
+**Shape 1 — re-pointed by subject.** The *"three places in `app.rs`"*
+framing is gone; the sentence that replaced it names the three homes
+across `forms.rs`, `pane/properties.rs` and the three call-site files.
+The dead reproduction command is replaced with
+`git grep -c '_DRAG_SPEED,' -- crates/viewer/src`, which the row also
+states the blind spot of.
+
+**Shape 2 — the population re-derived, and this report's `likely`
+settled.** This report carried `likely` on the 41 → 45 reading,
+correctly noting that a `grep -c` of `_DRAG_SPEED,` is not a count of
+hand-picked arguments. It is not: of the 45, **eight are not call
+sites** (the four `drag_tick` match arms and four `use` lines), and the
+grep **misses one real call site** — the pattern form's
+`number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)`, which
+has no trailing comma and is the very site the row's count
+disagreement is about. The hand-picked population is **38 across three
+files**. The repointed row carries the derivation and both commands.
+
+**One claim of this report is off by a re-export path, and it does not
+matter.** *"`crates/viewer/src/app.rs` holds none of them"* — `app.rs`
+does still carry `pub use crate::forms::FieldWriting;`, so
+`FieldWriting::of` is reachable as `viewer::app::FieldWriting::of`. But
+the report's table is a table of where each subject IS, and a
+re-export is a path to a definition, not a home for one: none of the
+six is defined in `app.rs`, which is what the sentence claims and what
+made the row's citations wrong. No thread is left open by it — the
+re-pointed row states the re-export explicitly so nobody re-discovers
+it as a discrepancy — so this is recorded here rather than given its
+own file.

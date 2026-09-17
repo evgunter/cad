@@ -59,14 +59,17 @@ pub mod display;
 pub mod docio;
 pub mod evalseam;
 pub mod frame;
+pub mod g1;
 pub mod generation;
 pub mod history;
+pub mod idpass;
 pub mod input;
 pub mod marks;
 pub mod matetool;
 pub mod parts;
 pub mod pickcache;
 pub mod pickindex;
+pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
@@ -135,7 +138,8 @@ pub use evalseam::{
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
 pub use display::{
-    DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn, free_move_check, mates_naming,
+    AdmissionFault, DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn,
+    free_move_check, mates_naming,
 };
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};

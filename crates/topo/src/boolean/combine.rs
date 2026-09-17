@@ -166,19 +166,30 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     for (k, p) in src.points.iter() {
         let dk = dst.points.insert(*p);
         points.insert(k, dk);
-        // GeomSource rows ride every graft (N6: identity carried with
-        // the description, exactly like provenance).
-        if let Some(gs) = src.point_sources.get(k) {
-            dst.point_sources.insert(dk, gs.clone());
-        }
+        // The description's provenance row rides every graft: a
+        // transplanted description came from where it came from, which
+        // no graft changes, and N6's recipe identity is that row's
+        // `Recipe` arm (`crate::GeomOrigin`, which states the carry
+        // obligation and the totality this reads).
+        let Some(origin) = src.point_origins.get(k) else {
+            unreachable!(
+                "grafted point {k:?} is live in the source body and carries no origin row: \
+                 the origin map is total over live keys (kernel bug)"
+            )
+        };
+        dst.point_origins.insert(dk, origin.clone());
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, sfc) in src.surfaces.iter() {
         let dk = dst.surfaces.insert(sfc.clone());
         surfaces.insert(k, dk);
-        if let Some(gs) = src.surface_sources.get(k) {
-            dst.surface_sources.insert(dk, gs.clone());
-        }
+        let Some(origin) = src.surface_origins.get(k) else {
+            unreachable!(
+                "grafted surface {k:?} is live in the source body and carries no origin row: \
+                 the origin map is total over live keys (kernel bug)"
+            )
+        };
+        dst.surface_origins.insert(dk, origin.clone());
         // The per-FIELD ParamSource rows ride the graft for the same
         // reason and by the same rule: a description's parameter
         // identity is carried with the description, never re-derived
@@ -215,9 +226,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         };
         let dk = dst.curves.insert(mapped);
         curves.insert(k, dk);
-        if let Some(gs) = src.curve_sources.get(k) {
-            dst.curve_sources.insert(dk, gs.clone());
-        }
+        let Some(origin) = src.curve_origins.get(k) else {
+            unreachable!(
+                "grafted curve {k:?} is live in the source body and carries no origin row: \
+                 the origin map is total over live keys (kernel bug)"
+            )
+        };
+        dst.curve_origins.insert(dk, origin.clone());
     }
     let mut half_edges: SecondaryMap<HalfEdgeKey, HalfEdgeKey> = SecondaryMap::new();
     for (k, he) in src.half_edges.iter() {

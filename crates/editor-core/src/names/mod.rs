@@ -6,9 +6,9 @@
 //! Names contain no floats, no arena keys, no bare enumeration
 //! indices — geometry enters only as margined predicate VERDICTS
 //! recorded in [`Qualifier`]s (N2), and the only integer payloads are
-//! recipe-structural data (pattern `Instance(i)`) or the profile
-//! crate's own canonical combinatorial identities (locators — see
-//! [`role`](self)).
+//! recipe-structural data (pattern `Instance(i)`) or a profile's own
+//! combinatorial identities (locators — see [`role`](self), which
+//! says which anchoring a published locator carries).
 //!
 //! The per-node [`NameTable`] (N4) is emitted EAGERLY by the wire
 //! layer during evaluation — a mechanical, linear pass over each op's
@@ -40,8 +40,9 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub use emit::NamingError;
+pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, shadow_side_of};
 pub(crate) use emit::name_in_part;
+pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
 };
@@ -61,16 +62,16 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
-    vertex_position,
+    Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
+    face_frame, vertex_position,
 };
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub(crate) use role::never_in_a_boolean_table;
 pub use role::{
-    CapEnd, EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, Qualifier,
-    RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName, band, band_pi, band_rim,
-    carried, meridian_vertex,
+    CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
+    band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

@@ -48,10 +48,10 @@
 
 use std::collections::BTreeMap;
 
-use quantity::{UnitDef, UnitQuantity, unit_by_symbol};
+use quantity::{UnitDef, unit_by_symbol};
 
 use crate::doc::ParamName;
-use crate::expr::{Dimension, DimensionError, Expr};
+use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
 
 /// Typed refusal from the text door. Positions are byte offsets into
 /// the source string.
@@ -163,6 +163,15 @@ pub enum ParseError {
 // smart constructor's own refusal rather than re-stating it, because
 // the constructors are the only door and their words are the ones that
 // hold.
+//
+// **The quotes are this door's, and they mean "the exact bytes you
+// wrote".** Every `{:?}` below renders a `String` lifted verbatim out
+// of the author's text — a character, a token, a number, a unit
+// symbol, a parameter name — and the delimiter is what says where that
+// text began and ended, which matters most when the reason it failed
+// is a typo or a stray space. A parameter name is bare everywhere else
+// in this crate (`ParamName`'s `Display`), because every other door
+// names a parameter the DOCUMENT holds rather than bytes it was handed.
 impl core::fmt::Display for ParseError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -547,17 +556,19 @@ impl Parser<'_> {
                 pos,
                 text: text.to_string(),
             })?;
-            let dim = match unit.quantity() {
-                UnitQuantity::Length => Dimension::Length,
-                UnitQuantity::Angle => Dimension::Angle,
-                // Unreachable through this path: the dimensionless row's
-                // symbol is the EMPTY string, and a suffix here is a
-                // parsed IDENTIFIER, which is never empty. A bare number
-                // takes the no-suffix path below and is dimensionless
-                // there — which is the same answer, reached without a
-                // lookup.
-                UnitQuantity::Scalar => Dimension::Scalar,
-            };
+            // What the suffix MEASURES is one fact, asked once
+            // (`UnitSym::measures`) rather than re-laddered here: the
+            // literal door re-derives it from the same unit to check
+            // the pairing, so a second ladder could only ever agree
+            // with the first or make the check refuse a literal the
+            // parser had already decided was well-dimensioned.
+            //
+            // The dimensionless row cannot come back through THIS
+            // path — its symbol is the EMPTY string and a suffix here
+            // is a parsed IDENTIFIER, never empty — so `Scalar` is an
+            // answer only the bare-number path below produces, which
+            // reaches it without a lookup.
+            let dim = UnitSym::from_def(&unit).measures();
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display
             // unit stored as presentation metadata for the formatter.

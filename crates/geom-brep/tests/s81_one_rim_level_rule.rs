@@ -118,8 +118,8 @@ fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
     let band = band();
     let (va, vb) = (0.2, 0.7);
     let (s, edges) = gasket_band(va, vb, 0.5 * band.zero() / MINOR);
-    let got =
-        curved_face(&s, &edges, 1.0, band).expect("a rim wobbled half an epsilon is still one rim");
+    let got = curved_face(&s, &edges, true, band)
+        .expect("a rim wobbled half an epsilon is still one rim");
     let exact = exact_area(va, vb);
     let rel = (got.area - exact).abs() / exact;
     assert!(
@@ -144,7 +144,7 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
     let (s, edges) = gasket_band(0.2, 0.7, 10.0 * band.escalate() / MINOR);
     assert!(
         matches!(
-            curved_face(&s, &edges, 1.0, band),
+            curved_face(&s, &edges, true, band),
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level"
             })
@@ -159,7 +159,7 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
 fn the_unwobbled_split_rim_measures_exactly() {
     let (va, vb) = (0.2, 0.7);
     let (s, edges) = gasket_band(va, vb, 0.0);
-    let got = curved_face(&s, &edges, 1.0, band()).expect("computes");
+    let got = curved_face(&s, &edges, true, band()).expect("computes");
     let exact = exact_area(va, vb);
     assert!((got.area - exact).abs() / exact < 1e-12);
 }

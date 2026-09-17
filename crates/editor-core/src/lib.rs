@@ -62,6 +62,16 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+/// The certified locally-valid range of ONE field — the on-demand
+/// query whose answer is meant to REPLACE the sampling probe's
+/// reading, in a consumer nothing in this tree has built yet
+/// (`work/chrome/certify-affordance-on-the-bounds-panel`,
+/// `work/lib/certified-range-has-no-python-door`). Gated on `interval`
+/// for [`mod@drive`]'s reason: the certificate IS a drive's leaves,
+/// and a query that fell back to `f64` would be the sampler it exists
+/// to improve on.
+#[cfg(feature = "interval")]
+pub mod range;
 pub mod refactor;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
@@ -106,20 +116,29 @@ pub use checks::{
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
-pub use doc::{Doc, DocParam, DocParamValue, ParamName};
+pub use doc::{
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamField, DocParamValue, ParamName,
+};
 #[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
+pub use edit::{
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, apply,
+    cascade_delete_order,
+};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
     EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,
     NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar,
-    SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    SplitSide, ValuePayload, VerbKind, evaluate,
 };
+// The entity door's token: a field of four `NodeErrorKind` variants, so
+// a reader that matches one needs to be able to name it here rather
+// than through the module path.
+pub use eval::entity_door::Found;
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
@@ -146,19 +165,19 @@ pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
-    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
-    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
-    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
-    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_frame,
-    face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
-    vertex_position,
+    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
+    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
+    NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node,
+    denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedRef, SlotId, StepArg,
-    TubeWindow, VectorSlot,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedFace, SitedRef, SlotId,
+    StepArg, TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -175,7 +194,12 @@ pub use product::{
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
+    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepSegmentsError,
+    resolve_loops,
+};
+#[cfg(feature = "interval")]
+pub use range::{
+    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 #[cfg(feature = "interval")]
@@ -183,12 +207,13 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
-    RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
-    RunCtx, RunStatus, TieWitness, Tombstone, VerdictFlip, appearance_rebind_suggestions,
-    apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
-    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
-    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+    Diagnosis, FlipSet, FlipSource, HitTestError, MeshPatchKey, NodeVerdictDelta,
+    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
+    ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS, ShadowExecRefusal,
+    TieWitness, Tombstone, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
+    derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
+    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
+    resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

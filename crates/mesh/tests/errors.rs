@@ -8,6 +8,7 @@ use crate::common;
 use common::*;
 use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
+use test_utils::f6::assert_f6_every_variant;
 
 #[test]
 fn zero_delta_is_refused() {
@@ -81,6 +82,62 @@ fn absurdly_fine_delta_overflows_typed() {
         other => panic!("expected ResolutionOverflow, got {:?}", other.map(|_| ())),
     }
 }
+
+test_utils::f6_variants! {
+    /// `TessellateError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling; adding it here is
+    /// also adding it to the roster, so it then reds until it has a
+    /// case. The mechanism and what it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const TESSELLATE_ERROR: TessellateError = [
+        InvalidChordalTolerance,
+        UnsupportedSurface,
+        UnsupportedNurbsFace,
+        UnsupportedCurve,
+        NullScaffoldEdge,
+        RingOnCurvedFace,
+        EmptyLoop,
+        MissingEntity,
+        ResolutionOverflow,
+        CertificateExceeded,
+        Triangulation,
+        SelfTouchingTrimLoop,
+        UnsupportedCurvedDomain,
+        UnsupportedCurvedShape,
+        Band,
+    ];
+}
+
+/// Every `Debug` field name `TessellateError`'s payloads carry, as the
+/// punctuation a dump would print — the whole payload vocabulary, not
+/// the subset one row happens to construct.
+///
+/// **What this roster is worth, stated honestly.** It is NOT what
+/// catches an arm that starts printing `{self:?}`: every variant of
+/// this enum is a struct variant, so a full dump carries `{`, which
+/// [`test_utils::f6::assert_f6`] bans unconditionally, and it equals
+/// the value's own `Debug`, which the same helper refuses. What these
+/// entries buy over that is exactly one thing — a BRACE-FREE field
+/// token in an otherwise prose sentence, `write!(f, "face: {face}")` —
+/// and they are unwelded to the enum, so a payload field added to an
+/// existing variant leaves them short in silence.
+const TESSELLATE_ERROR_FIELDS: &[&str] = &[
+    "value:",
+    "face:",
+    "note:",
+    "edge:",
+    "what:",
+    "count:",
+    "bound:",
+    "requested:",
+    "off_bbox:",
+    "first_uv:",
+    "max_distance:",
+    "source:",
+    "error:",
+];
 
 /// The Display contract (#1111): a façade consumer renders a
 /// `TessellateError` through the tessellator's own words, so every arm
@@ -183,44 +240,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["band", "tolerance"],
         ),
     ];
-    // The variant identifiers, spelled out: a rendering that leaks one
-    // is a struct dump wearing a sentence's clothes.
-    let dumps = [
-        "InvalidChordalTolerance",
-        "UnsupportedSurface",
-        "UnsupportedNurbsFace",
-        "UnsupportedCurve",
-        "NullScaffoldEdge",
-        "RingOnCurvedFace",
-        "EmptyLoop",
-        "MissingEntity",
-        "ResolutionOverflow",
-        "CertificateExceeded",
-        "Triangulation",
-        "SelfTouchingTrimLoop",
-        "UnsupportedCurvedDomain",
-        "UnsupportedCurvedShape",
-    ];
-    for (err, wants) in cases {
-        let shown = err.to_string();
-        for want in wants {
-            assert!(
-                shown.contains(want),
-                "{err:?} renders as {shown:?}, missing {want:?}"
-            );
-        }
-        for dump in dumps {
-            assert!(
-                !shown.contains(dump),
-                "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-            );
-        }
-        assert!(
-            !shown.contains('{') && !shown.contains("face:") && !shown.contains("note:"),
-            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-        );
-        assert_ne!(shown, format!("{err:?}"));
-    }
+    assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
 }
 
 /// **The failure path's order is ARENA order, not the map's.**

@@ -44,8 +44,8 @@ is the board and `work/README.md` its contract.
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `docs/DOCM-REFERENCES-DESIGN.md` | Ratified; running as DOCM | What a recipe reference may be, DM1–DM6: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers` (DM4 shipped; DM1–DM3 in spec) |
-| `docs/DOCM-IDENTITY-DESIGN.md` | Ratified; running as DOCM | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
+| `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04); DOCM closed 2026-09-13 | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and the greps-vs-lints evaluation `S13` commissioned — `dylint`, `clippy::disallowed_*`, a proc-macro and a `syn` binary against the four grep gates. The four stay greps and the compound-bound-through-alias gap stays registered where it is disclosed. **The first design page outside `crates/<crate>/README.md`**: it sits beside the code it governs, which for these invariants is `scripts/gates/` and not a crate |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, clauses `CC1`–`CC5`: where a check owed on what a file says belongs, and in which voice it speaks. The subject is the **reading boundary** — Ev's scope ruling at ratification — of which the cross-column admission is the largest instance: `tess-lint` and `k-lint` both police a CSV column by column, and a property spanning two columns has no entry to live in; the class had eight instances in the tree and no statement. `CC1` (the check goes at the reading boundary and only there) and `CC5` (the harness voice, and the owed-test forwarded to `tess_lint::Report` and on to its module docs — the forwarding is what licenses a citation across cargo roots) are stated over readings generally; `CC2`, `CC3` and `CC4` are labelled as the per-column admissions table's own and do not generalise past it, `CC4` being that a producer-side entailment is **not** a disposition — this page once stated its opposite, and the row proving it wrong is now a test. **The second design page outside `crates/<crate>/README.md`**, and the first governing two sibling crates rather than one directory of scripts |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with prerequisites, and the "present today" inventory. The register never schedules |
@@ -159,7 +159,8 @@ derivations live in `crates/topo/src/entity.rs`.
 
 **Face orientation sense.** A face carries `Face::sense: bool`: `true`
 iff the face's material side agrees with its surface's chart normal, so
-the outward normal at a point is `sense_sign · n(u, v)`. The analytic
+the outward normal at a point is `n(u, v)` where `sense` is `true` and
+`−n(u, v)` where it is `false`. The analytic
 chart normals admit no reversal by reparameterization (cylinder, cone
 and torus normals are odd in the radius; the sphere's is even and
 outward under the `radius > 0` convention — a negative-radius sphere is
@@ -168,11 +169,15 @@ representation of reversal. Normative consequences:
 - The interior-left rule is stated against the sense-signed chart
   normal.
 - Orientation reversal is **exact structure**, never a numeric decide:
-  `revert` flips `sense` on every face carried by a non-plane surface
-  and negates the stored normal of `Plane`-carried faces. The two
-  encodings are exclusive by surface kind, so every outward normal is
-  negated exactly once and `revert ∘ revert` is bit-identical at every
-  scalar backend.
+  `revert` flips `sense` on every face carried by a non-plane surface,
+  negates the stored normal of `Plane`-carried faces, and moves every
+  loop's cycle anchor to its source predecessor (the anchor is where a
+  periodic chart's loop wrap is reported, and a reversed cycle keeps it
+  at the closure only if the anchor moves with the direction —
+  `topo`'s `LoopBoundary::Cycle`). The two normal encodings are
+  exclusive by surface kind, so every outward normal is negated exactly
+  once, the anchor move is a key swap, and `revert ∘ revert` is
+  bit-identical at every scalar backend.
 - A face **fragment** inherits its parent's `sense`: `mef` and `mfkrh`
   mint `true` for a new or foreign surface, but a face landing on the
   old face's surface key takes that face's bit. Key equality, never a
@@ -1007,7 +1012,7 @@ Each layer depends only on the layers below it.
 
 | Crate | Contents |
 |---|---|
-| `test-utils` | The shared fuzz/property harness (seed + effort dial), a dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
+| `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
 | `interval-transcendentals` | The `interval` feature's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
