@@ -174,8 +174,10 @@ fn every(parts: &[FlatPart], ray: &Ray) -> Vec<Seen> {
 /// what `Pruned == Every` is now a claim about.
 ///
 /// The FACES, not the triangles: several triangles of one face are
-/// one answer, so this collapses each face to its smallest rounded
-/// `t` — the member the door reports.
+/// one answer, so this collapses each face to the HULL of its
+/// members' intervals at the smallest rounded `t` among them — the
+/// three numbers the door reports for it. `part`/`item` stay the
+/// min-`t` member's, which is the triangle the point comes from.
 fn winners(parts: &[FlatPart], seen: &[Seen]) -> Vec<Seen> {
     let spans: Vec<TSpan> = seen.iter().map(|s| s.span).collect();
     let mut per_face: Vec<Seen> = Vec::new();
@@ -186,8 +188,22 @@ fn winners(parts: &[FlatPart], seen: &[Seen]) -> Vec<Seen> {
             .iter_mut()
             .find(|kept| (kept.part, parts[kept.part].face[kept.item]) == (hit.part, face))
         {
-            Some(kept) if hit.span.t < kept.span.t => *kept = hit,
-            Some(_) => {}
+            Some(kept) => {
+                let hull = TSpan {
+                    t: if hit.span.t < kept.span.t {
+                        hit.span.t
+                    } else {
+                        kept.span.t
+                    },
+                    t_lo: kept.span.t_lo.min(hit.span.t_lo),
+                    t_hi: kept.span.t_hi.max(hit.span.t_hi),
+                };
+                if hit.span.t < kept.span.t {
+                    kept.part = hit.part;
+                    kept.item = hit.item;
+                }
+                kept.span = hull;
+            }
             None => per_face.push(hit),
         }
     }

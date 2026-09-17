@@ -459,7 +459,8 @@ impl FlatReference {
     /// offered to [`TSpan::survivors`] in `(part, flat position)`
     /// order, and that function is the door's own. What is restated is
     /// only what the door does with the survivors: group them by face,
-    /// and take each face's smallest rounded `t`.
+    /// and answer each face with the HULL of its members' intervals at
+    /// the smallest rounded `t` among them.
     fn pick(&self, ray: &Ray) -> (Vec<FlatHit>, usize) {
         let mut hits: Vec<FlatHit> = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
@@ -488,8 +489,21 @@ impl FlatReference {
                 .iter_mut()
                 .find(|kept| (kept.part, kept.patch) == (hit.part, hit.patch))
             {
-                Some(kept) if hit.t() < kept.t() => *kept = hit,
-                Some(_) => {}
+                Some(kept) => {
+                    let hull = TSpan {
+                        t: if hit.t() < kept.t() {
+                            hit.t()
+                        } else {
+                            kept.t()
+                        },
+                        t_lo: kept.span.t_lo.min(hit.span.t_lo),
+                        t_hi: kept.span.t_hi.max(hit.span.t_hi),
+                    };
+                    if hit.t() < kept.t() {
+                        kept.item = hit.item;
+                    }
+                    kept.span = hull;
+                }
                 None => per_face.push(hit),
             }
         }

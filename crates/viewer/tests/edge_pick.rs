@@ -26,7 +26,7 @@ use crate::common;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{HitTestError, Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
@@ -81,6 +81,27 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 }
 
 /// Every drawn edge of the plate, with the polyline it is drawn as.
+/// How far along `ray` the nearest drawn surface sits, or `None` for
+/// a miss.
+///
+/// The door answers one face, nothing, or a certified TIE between
+/// several — and a tie is still a surface: the tied answers pairwise
+/// overlap, so the smallest of their parameters is what "is anything
+/// in front" reads.
+fn nearest_surface(
+    index: &PickIndex,
+    eval: &Evaluation<f64>,
+    ray: &pncad::select::Ray,
+) -> Option<f64> {
+    match index.pick_for(eval, ray, &DisplayView::none()) {
+        Ok(hit) => hit.map(|hit| hit.t),
+        Err(HitTestError::Ambiguous { hits }) => {
+            hits.iter().map(|hit| hit.t).min_by(f64::total_cmp)
+        }
+        Err(other) => panic!("no refusal: {other}"),
+    }
+}
+
 fn drawn_edges(index: &PickIndex, node: RecipeNodeId) -> Vec<(EdgeId, Vec<Point3<f64>>)> {
     index
         .edges_in(node, 0)
@@ -427,10 +448,14 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
             Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5),
         );
         let ray = camera.ray_through(cursor, pane()).expect("un-projects");
-        let Some(front) = index
-            .pick_for(eval, &ray, &DisplayView::none())
-            .expect("no refusal")
-        else {
+        // **A certified tie is still a surface in front.** The ray
+        // through an edge's own pixel lands ON that edge, so it very
+        // often meets both faces sharing it and the door names both
+        // rather than choosing. The question this row asks is how near
+        // the nearest surface is, and every tied answer answers it —
+        // so the nearest of them is read, which is what the viewer's
+        // own occlusion probe does.
+        let Some(front) = nearest_surface(&index, eval, &ray) else {
             continue;
         };
         // How far along the ray the edge's own midpoint sits.
@@ -443,7 +468,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         // number is the point: it says the two populations this row
         // sorts are far enough apart that any sane threshold separates
         // them.
-        if front.t >= depth * (1.0 - 1.0e-6) {
+        if front >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
         }
         checked += 1;
@@ -453,8 +478,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         assert_ne!(
             picked.as_ref().map(viewer::pickindex::EdgePick::id),
             Some(id),
-            "an edge {depth} deep behind a surface at {} was picked through the solid",
-            front.t
+            "an edge {depth} deep behind a surface at {front} was picked through the solid"
         );
     }
     assert!(
