@@ -793,11 +793,16 @@ and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
-fault, the budget's δ, the store that keeps no preferences, and the
-three display seams that hold a refusal (scene, pick index,
-projection) — each a function of the typed value it reads, so each
-one's SILENCE is a row a test can write. **The population is every
-`frame` function returning `Option<Badge>`** — eight — and that rule
+fault, the budget's δ, the store that keeps no preferences, the datums
+this view draws nothing of, and the three display seams that hold a
+refusal (scene, pick index, projection) — each a function of the typed
+value it reads, so each one's SILENCE is a row a test can write. The
+datums count is the one member that HOLDS nothing: its writer re-takes
+it every frame and the application zeroes it whether or not the
+viewport drew, so it says what the last frame found. The toolbar draws
+before the panes, so it trails the view it describes by one frame and
+no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
+`frame` function returning `Option<Badge>`** — nine — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
