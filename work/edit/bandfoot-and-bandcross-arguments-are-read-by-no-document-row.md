@@ -2,10 +2,11 @@
 id: bandfoot-and-bandcross-arguments-are-read-by-no-document-row
 kind: issue
 title: No document row reads a BandFoot's, BandCross's, BandFace's or BandSlit's argument — four blend mints ride check_total and a count alone
-status: review
+status: closed
 pr: 2794
 branch: edit/ladder-rim-fixture
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -296,3 +297,25 @@ M1–M9. No other behavioural row in the tree moved under any of the ten.
 twenty-four `crates/editor-core/tests/` files still define their own
 copy of the readers `fixture/mod.rs` now holds one home for. Only the
 two `edit_*` suites were re-pointed here.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2794 after one opus style review (MERGEABLE:
+0 MAJOR, 2 MINOR, 3 NOTE, 7 style — every one taken in the fix pass).
+A plate with two round holes, both cap rims filleted in one
+`Node::Fillet`, is the smallest document in which all four
+permutations move a name; four rows read `BandFoot`, `BandCross`,
+`BandFace` and `BandSlit` arguments against the runtime entity each
+name resolves to, ten mutants each red on its row with `check_total`
+and every count green, and the two across-rim swaps are seen by
+nothing else in the tree. The review's corrections stand in the
+record: `BandFace`'s source set already has two readers in the sweep
+crate's rows (the emitter-side translation is what is new for it), and
+`m6_5_downstream` carries no arm over these roles. The eleven helpers
+the suite had copied from `edit_ruled_carve.rs` now have one home in
+`tests/fixture/mod.rs` (two of the copies had diverged), with `vname`
+beside `fname`/`ename`; the class across the other twenty-four suites
+is filed as `editor-core-suites-redefine-the-name-table-helpers`.
+The orchestrator's rulings on the lane's three questions: the carve
+branch was already merged, so no conflict; `face_edges` moves with its
+twin; the tight neighbour-arm bound stays.
