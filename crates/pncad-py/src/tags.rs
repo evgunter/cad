@@ -868,9 +868,8 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::ParamSourceAttach(_) => "param_source_attach",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
-        NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
-        NodeErrorKind::UnionDeclareStep { .. } => "union_declare_step",
+        NodeErrorKind::DeclareSiteNotAnOperand { .. } => "declare_site_not_an_operand",
         // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
@@ -1023,8 +1022,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
         NodeErrorKind::DeclareResolve { error } => Some(resolve_error_tag(error)),
-        NodeErrorKind::DeclareBothOperands { .. } => None,
-        NodeErrorKind::UnionDeclareStep { .. } => None,
+        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
         // The candidate declaration crosses whole, as the `finding`
         // attribute; the refusing predicate's diagnostic is a margin.
