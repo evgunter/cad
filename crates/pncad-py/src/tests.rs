@@ -4499,6 +4499,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_conflict",
             "transform",
             "tube",
+            "undeclarable_contact",
             "undeclared_contact",
             "underflowed_direction",
             "unschedulable_cycle",

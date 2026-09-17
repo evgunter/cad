@@ -11,24 +11,13 @@ use crate::docm7_union_declare::{
     block, declared_union, failure, flush_pairs, member_face, run, table,
 };
 use crate::fixture;
-use crate::fixture::{Recorder, fname, insert, len, wall};
+use crate::fixture::{Recorder, flush_segs, fname, insert, len, wall};
 
 use editor_core::{
     BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve,
 };
 use geom_core::Tol;
-
-/// The four flush families two x-offset blocks share: both y-walls
-/// and both caps.
-fn flush_segs() -> [RoleSeg; 4] {
-    [
-        wall(0),
-        wall(2),
-        RoleSeg::Cap(CapEnd::Start),
-        RoleSeg::Cap(CapEnd::End),
-    ]
-}
 
 /// Every ordering of `items`.
 fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
@@ -653,4 +642,58 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
             assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
         }
     }
+}
+
+/// **A union's undeclared contact against a row its own FOLD minted
+/// refuses `UndeclarableContact`, typed** — the arm that exists
+/// because a sited declaration cannot name such a row.
+///
+/// `s` pokes through `a`'s end cap, so folding it in FRAGMENTS that
+/// cap: the accumulation's rows for it are `[FromMember(a), Fragment]`
+/// pairs, which the member-keying rule does not collapse to a member's
+/// entity and no merge retired. `d` then rests flush on one of those
+/// fragments, undeclared. There is no `SitedRef` for that side, so the
+/// refusal says so in its own arm rather than degrading to an emission
+/// bug — which would blame this crate for a document a user wrote.
+///
+/// **Only the fragment case is reachable for a FACE.** The other two
+/// fold-minted shapes a contact refusal could in principle name are
+/// not faces: `RoleSeg::Seam` mints edges (face × face) and vertices
+/// (edge × face), never a face, and `RoleSeg::OutputBody` names the
+/// body. A contact refusal resolves a FACE key pair through the two
+/// operand tables (`wire.rs`'s `face_name`), so a seam row and the
+/// body row cannot reach it at all.
+#[test]
+fn a_contact_against_a_fold_minted_fragment_is_undeclarable() {
+    let doc = ProfileDoc::empty_derived("docm8_fragment_refusal", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, d) = block(doc, (0.5, 0.9), (0.2, 0.8), 1.0, 0.4);
+    // `a` and `s` share both y-walls; declare them so the fold reaches
+    // the step that matters.
+    let mut pairs = Vec::new();
+    for seg in [wall(0), wall(2)] {
+        pairs.push((
+            SitedRef::new(a, fname(a, seg.clone())),
+            SitedRef::new(s, fname(s, seg)),
+        ));
+    }
+    let (doc, union, _) = declared_union(doc, &[a, s, d], pairs);
+    let ev = run(&doc);
+    let what = failure(&ev, union);
+    let Some(NodeErrorKind::UndeclarableContact { row, .. }) = what else {
+        panic!("expected the undeclarable arm, got {what:?}")
+    };
+    // The row is a fragment of `a`'s end cap, in the union's own
+    // published space: the member edge is there, and a `Fragment`
+    // segment after it, which is what makes it the fold's and not a
+    // member's.
+    assert_eq!(row.node, union, "{row}");
+    assert!(
+        matches!(
+            row.path.as_slice(),
+            [RoleSeg::FromMember { member, .. }, RoleSeg::Fragment(_)] if *member == a
+        ),
+        "{row}"
+    );
 }

@@ -169,15 +169,29 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     );
 }
 
-/// **A cascade reports strands about carriers the same cascade is
-/// about to delete.** Cascading the `Declare` of a declared union
-/// deletes the union first (it consumes the `Declare`), which strands
-/// every pair of the `Declare` — and then deletes the `Declare`. The
-/// rows are true of the document between the two steps and are about
-/// nothing that survives the cascade, which is the count the CHROME
-/// row's "strand count beside the dependent count" has to define.
+/// **A sited declaration strands nothing inside a cascade**, so the
+/// door's count and a pre-click count built from the survivors agree.
+///
+/// The class this row measured has MOVED rather than vanished, and
+/// where it moved to is worth stating. Noise needs a DOOMED carrier
+/// that names a node the same cascade deletes BEFORE it. A cascade
+/// deletes dependents first, and a payload name points at a producer
+/// upstream of its carrier, so a doomed carrier is always deleted
+/// before the node it names — with one exception, which was this
+/// row's: a `Declare` naming entities in its own CONSUMER's space.
+/// The consumer is a dependent, so it went first, and the door
+/// reported eight strands about a `Declare` it deleted next. A sited
+/// pair names entities that exist BEFORE the consumer, so no payload
+/// points downstream any more and the exception is closed by type.
+///
+/// No carrier in the vocabulary reopens it: a blend's selection names
+/// its own target, a mate head's name is read at an operand, an
+/// appearance key names an upstream row — every one of them upstream
+/// of the carrier. The door still reports a REAL strand, on a carrier
+/// that survives its subject; that half is
+/// `dm7_delete_strands::deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing`.
 #[test]
-fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
+fn rv_a_sited_declaration_strands_nothing_inside_a_cascade() {
     use crate::docm7_union_declare::{declared_union, flush_pairs};
     use editor_core::cascade_delete_order;
 
@@ -218,12 +232,9 @@ fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
         doc = applied.doc;
     }
     // RE-BASELINED with the sited payload: the count used to be eight.
-    // A declaration named entities in the UNION's own space, so every
-    // pair of the doomed `Declare` was about a doomed node and the
-    // door reported it on the way past — noise, because nothing that
-    // survived carried any of it. A sited pair names entities in the
-    // MEMBERS, which this cascade does not touch, so the doomed set
-    // strands nothing and the door's count agrees with the survivors'.
+    // A sited pair names entities in the MEMBERS, which this cascade
+    // does not touch, so the doomed set strands nothing and the
+    // door's count agrees with the survivors'.
     assert_eq!(
         reported, survivor_carried,
         "a sited declaration names entities outside the doomed set, so the door's \

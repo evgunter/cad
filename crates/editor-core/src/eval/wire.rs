@@ -2541,7 +2541,17 @@ mod ladder {
     /// disagree about WHICH name they are answering for: the tie width
     /// in an `Ambiguous` payload is measured on the same name the
     /// payload is built from, by construction.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub(super) struct Live<'n>(&'n StableName);
+
+    impl<'n> Live<'n> {
+        /// The name rung 1 was paid on. Copying the token copies the
+        /// proof, which is sound because the proof is about a name
+        /// that cannot change under it.
+        pub(super) fn name(self) -> &'n StableName {
+            self.0
+        }
+    }
 
     /// Reads one table for the live name (N4: resolution IS this read).
     pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
@@ -3236,7 +3246,7 @@ fn wire_boolean<
     let kernel_decls = match declare {
         None => BooleanDeclarations::none(),
         Some(d) => {
-            let sided = side_by_operand(declared_pairs(results, d)?, a, b)?;
+            let sided = side_by_operand(declared_pairs(results, d)?, a, b, doc)?;
             resolve_declarations(&sided, doc, &a_table, &b_table)?
         }
     };
@@ -3307,13 +3317,15 @@ fn wire_boolean<
 /// — the fold's own tables record join depth, and `names::name_union`
 /// rewrites the last one into member-keyed names.
 ///
-/// **Declarations are routed, not positioned** (DM4 as amended). The
-/// node's optional `Declare` input names entities in this node's own
-/// space, and [`route_declarations`] sends each pair to the one step
-/// that joins the two things it names — derived from the member ids
-/// the names carry. A step's bucket is resolved by the pair boolean's
-/// own [`resolve_declarations`] against that step's two tables, so the
-/// union adds the routing and reuses the door.
+/// **Declarations are routed, not positioned** (DM4 as re-ruled). The
+/// node's optional `Declare` input names SITED entities — a member
+/// and that member's own name for the entity — and
+/// [`route_declarations`] sends each pair to the one step that joins
+/// its two sites, derived from where those members sit in the list. A
+/// step's bucket is rewritten into this node's member space and
+/// resolved by the pair boolean's own [`resolve_declarations`]
+/// against that step's two tables, so the union adds the routing and
+/// reuses the door.
 ///
 /// **Nothing ∅-absorbing is invented** (D3, "wire, don't invent"). A
 /// member that evaluates to an empty boolean refuses `EmptyOperand`
@@ -3363,7 +3375,7 @@ fn wire_union<
     // the member ids its names carry (`route_declarations`). One bucket
     // per step, so a step with no declared pair runs exactly as it did
     // without the input.
-    let buckets: Vec<Vec<SidedPair>> = match declare {
+    let buckets: Vec<Vec<SidedPair<'static>>> = match declare {
         None => vec![Vec::new(); rest.len()],
         Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
     };
@@ -3402,7 +3414,7 @@ fn wire_union<
         };
         match (verb.build)(BooleanOp::Union, decls)
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
-            .map_err(|err| union_refusal(id, &acc_table, &member_table, err))?
+            .map_err(|err| union_refusal(id, members, &acc_table, &member_table, err))?
         {
             // A union of two REAL bodies cannot be empty, and both
             // operands here are real: `body_operand` refuses a member
@@ -3512,11 +3524,71 @@ type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
 /// ([`route_declarations`]). What arrives at [`resolve_declarations`]
 /// is the same shape either way, so "resolve a declared name at its
 /// site" has one definition.
-type SidedPair = (
-    (topo::Operand, names::StableName),
-    (topo::Operand, names::StableName),
+type SidedPair<'n> = (
+    (topo::Operand, SidedName<'n>),
+    (topo::Operand, SidedName<'n>),
     ContactClass,
 );
+
+/// One side's name on its way to the shared resolver, and whether
+/// rung 1 is already paid on it.
+///
+/// The two doors differ here and nowhere else. A pair boolean's
+/// operand tables are the OPERANDS' own, so the authored name travels
+/// unchanged and the rung-1 check [`site_operand`] paid to rank
+/// `NodeGone` above the site question is the same check the landing
+/// needs — carried, not paid twice. A union's operand tables are
+/// member-keyed views, so [`route_declarations`] mints a NEW name
+/// ([`names::member_name`]) and [`look_through_merges`] may mint
+/// another; rung 1 on the AUTHORED name is paid at the routing door,
+/// and the minted name pays its own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SidedName<'n> {
+    /// The authored name, rung 1 paid.
+    Live(ladder::Live<'n>),
+    /// A name a union's door minted from the authored one.
+    Rewritten(names::StableName),
+}
+
+impl SidedName<'_> {
+    /// The name itself, whichever way it got here.
+    fn name(&self) -> &names::StableName {
+        match self {
+            Self::Live(live) => live.name(),
+            Self::Rewritten(name) => name,
+        }
+    }
+}
+
+/// **Which operand a declared side's SITE names** — one answer for
+/// both declaring doors, with rung 1 paid before it is given.
+///
+/// The site question is a question about which TABLE a name is read
+/// in, so it ranks below rung 1 exactly as a landing does: a name
+/// whose minting node is gone says THAT, whatever its site, at both
+/// doors. Writing the order once is what keeps the two doors from
+/// disagreeing about it, which is what they did.
+///
+/// What the two doors do NOT share is the refusal noun, and that is
+/// the caller's: a pair boolean's operands are two named nodes, so a
+/// site that is neither is a site fault
+/// ([`NodeErrorKind::DeclareSiteNotAnOperand`]); a union's operands
+/// are its member LIST, which `SetMembers` rewrites, so a site that
+/// left it is the vanished name DM4 says it is. `absent` is handed
+/// the rung-1 token so the union can mint that payload.
+fn site_operand<'n>(
+    r: &'n SitedRef,
+    operands: &[RecipeNodeId],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    absent: impl FnOnce(&ladder::Live<'n>) -> NodeErrorKind,
+) -> Result<(usize, ladder::Live<'n>), NodeErrorKind> {
+    let live = ladder::live(&r.name, doc)
+        .map_err(|error| NodeErrorKind::DeclareResolve { error })?;
+    match operands.iter().position(|m| *m == r.at) {
+        Some(i) => Ok((i, live)),
+        None => Err(absent(&live)),
+    }
+}
 
 /// **A pair boolean's declared pairs, sided by their sites** — `at ==
 /// a` is operand A, `at == b` is operand B, and anything else refuses
@@ -3524,22 +3596,25 @@ type SidedPair = (
 ///
 /// The names travel unchanged: a pair boolean's operand tables are the
 /// operands' own, so a declared name is already spelled in the table
-/// its site designates. The union's door has to rewrite, because its
+/// its site designates, and the rung-1 token [`site_operand`] mints
+/// travels with it. The union's door has to rewrite, because its
 /// operand tables are member-keyed views.
-fn side_by_operand(
-    pairs: &[DeclaredPair],
+fn side_by_operand<'n>(
+    pairs: &'n [DeclaredPair],
     a: RecipeNodeId,
     b: RecipeNodeId,
-) -> Result<Vec<SidedPair>, NodeErrorKind> {
-    let side = |r: &SitedRef| -> Result<(topo::Operand, names::StableName), NodeErrorKind> {
-        let op = if r.at == a {
+    doc: &crate::doc::Doc<ProfileProgram>,
+) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
+    let side = |r: &'n SitedRef| -> Result<(topo::Operand, SidedName<'n>), NodeErrorKind> {
+        let (i, live) = site_operand(r, &[a, b], doc, |_| NodeErrorKind::DeclareSiteNotAnOperand {
+            at: r.at,
+        })?;
+        let op = if i == 0 {
             topo::Operand::A
-        } else if r.at == b {
-            topo::Operand::B
         } else {
-            return Err(NodeErrorKind::DeclareSiteNotAnOperand { at: r.at });
+            topo::Operand::B
         };
-        Ok((op, r.name.clone()))
+        Ok((op, SidedName::Live(live)))
     };
     pairs
         .iter()
@@ -3572,66 +3647,33 @@ fn declared_pairs<T: Decide>(
     )
 }
 
-/// **Routing a union's declared pairs to their fold steps** (DM4 as
-/// re-ruled): one bucket per step, filled from the two SITES the pair
-/// names and from nothing else.
+/// **Routing a union's declared pairs to their fold steps** (DM4, the
+/// declaration channel): one bucket per step, filled from the two
+/// SITES the pair names and from nothing else.
 ///
-/// No fold position is read and none is recorded. A pair says "this
-/// entity of member `m` meets that entity of member `n`"; which step
-/// joins the two is a consequence of where `m` and `n` sit in the
-/// list. Member `i` is the joining operand at step `i - 1` and is
-/// inside the accumulation at every step after, so the step that has
-/// both is the LATER member's: bucket `max(i, j) - 1`, and a pair
-/// whose two sites are ONE member is that member's CARRIED contact at
-/// its own step. Member 0 is where the accumulation starts, so a pair
-/// sited entirely at it is carried into step 0 on the accumulation
-/// side — which is why the subtraction saturates rather than
-/// underflowing.
+/// Member `i` is the joining operand at step `i - 1` and is inside the
+/// accumulation at every step after, so the step that has both sites
+/// is the LATER member's: bucket `max(i, j) - 1`, the joining member
+/// operand B and everything already accumulated operand A. A pair
+/// whose two sites are ONE member is that member's carried contact at
+/// its own step; member 0 is where the accumulation starts, which is
+/// why the subtraction saturates rather than underflowing.
 ///
 /// **Every sited pair has a step.** `max(i, j)` is at most
-/// `members.len() - 1`, so the bucket is at most `steps - 1`: a pair
-/// the routing accepts is always fed somewhere, and the only refusals
-/// here are about the sites themselves. That rests on the node's own
-/// arity contract — two members or more, which [`wire_union`] refuses
-/// before it calls this — and a one-member list would index past the
-/// end rather than routing anything. That is the shape change the
-/// sited payload buys — a union's own fold rows are no longer
-/// declaration subjects, because the only entities a declaration can
-/// name are ones that exist BEFORE the union.
+/// `members.len() - 1`, so the bucket is at most `steps - 1` and the
+/// only refusals here are about the sites themselves. That rests on
+/// the node's arity contract — two members or more, which
+/// [`wire_union`] refuses before it calls this — and a one-member list
+/// would index past the end rather than routing anything.
 ///
 /// Each bucket's pair is rewritten into the node's member space
-/// ([`names::member_name`], `member_view`'s one segment) and sided:
-/// the joining member is operand B and every earlier member is inside
-/// the accumulation, operand A. So the pair boolean's own resolver
-/// runs on the union's pairs exactly as it runs on its own.
-///
-/// # A member-space declaration resolves through the fold's MERGES
-///
-/// A declaration is routed, so a pair outlives any reordering or
-/// dropping of the list: the two member ids still say which step joins
-/// them, wherever they sit. And it resolves at that step through the
-/// merges the fold has performed by then: a declared merge consumes
-/// the two faces it joins and publishes a `Merged` row in their place,
-/// and a member-space name that is no longer an operand row because of
-/// one is rewritten to the accumulation's `Merged` row whose flat
-/// constituent set holds it ([`look_through_merges`]) before the door
-/// runs. The set is flat (N3), so the row is the same whatever order
-/// the merges happened in: with `a` touching `c` and `c` touching `d`,
-/// every order of the three fuses, and the cap row is
-/// `Merged({a, c, d})` in each.
-///
-/// That is the bound, and it is the merges alone. A member face the
-/// fold consumed some other way is not looked through: one SPLIT by a
-/// later member (its fragments are rows, the face is not), one
-/// consumed by CONTAINMENT (inside another member, no row anywhere),
-/// or one inside a merged row that was later FRAGMENTED (`[Merged(set),
-/// Fragment(q)]` is a fragment, not a merge, and no set is searched
-/// through it). A pair naming such a face resolves in the orders that
-/// reach it while it is still a row and refuses `Vanished` in the
-/// others — measured by `docm8_flat_merged`'s
-/// `a_member_face_split_by_a_later_member_is_still_order_shaped`, filed
-/// as
-/// `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
+/// ([`names::member_name`], `member_view`'s one segment) and sided, so
+/// the pair boolean's own resolver runs on a union's pairs exactly as
+/// it runs on its own. A member face the fold has MERGED away is
+/// rewritten again, at the step it is fed to, by
+/// [`look_through_merges`]; the bound on that — splits, containment
+/// and fragmented merges are not looked through — is DM4's and is
+/// stated there.
 ///
 /// A site the member list does not hold — the state `SetMembers`
 /// creates by removing a declared member — refuses through the N5
@@ -3641,29 +3683,21 @@ fn route_declarations(
     members: &[RecipeNodeId],
     pairs: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-) -> Result<Vec<Vec<SidedPair>>, NodeErrorKind> {
+) -> Result<Vec<Vec<SidedPair<'static>>>, NodeErrorKind> {
     let steps = members.len().saturating_sub(1);
-    let mut buckets: Vec<Vec<SidedPair>> = vec![Vec::new(); steps];
+    // Every side a union routes is a name this door MINTED, so no
+    // bucket borrows the payload it was built from.
+    let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
     for ((r1, r2), class) in pairs {
+        // Rung 1 first, as at both doors ([`site_operand`] is where
+        // that order is written): a name whose minting node is gone
+        // says THAT, before anything is said about which step it
+        // would have belonged to.
         let member_of = |r: &SitedRef| -> Result<usize, NodeErrorKind> {
-            // Rung 1 first, as at every other door: a name whose
-            // minting node is gone says THAT, before anything is said
-            // about which step it would have belonged to.
-            //
-            // [`resolve_declarations`] pays rung 1 again, per bucket,
-            // when the step it was routed to runs. That is two calls
-            // for one name, and deliberately: this is the ROUTING
-            // door, which must rank `NodeGone` above a site that left
-            // the list, and that one is the pair boolean's own door,
-            // which cannot assume a caller routed anything.
-            let live = ladder::live(&r.name, doc)
-                .map_err(|error| NodeErrorKind::DeclareResolve { error })?;
-            members
-                .iter()
-                .position(|m| *m == r.at)
-                .ok_or_else(|| NodeErrorKind::DeclareResolve {
-                    error: ladder::vanished(&live),
-                })
+            site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
+                error: ladder::vanished(live),
+            })
+            .map(|(i, _)| i)
         };
         let (i, j) = (member_of(r1)?, member_of(r2)?);
         // The bucket, and the side each name takes in it: the joining
@@ -3677,7 +3711,10 @@ fn route_declarations(
             } else {
                 topo::Operand::A
             };
-            (op, names::member_name(id, r.at, &r.name))
+            // The rung-1 token is not carried past here: the name
+            // this mints is a NEW one, minted under the union, and
+            // the landing pays rung 1 on the name it actually reads.
+            (op, SidedName::Rewritten(names::member_name(id, r.at, &r.name)))
         };
         buckets[bucket].push((sided(i, r1), sided(j, r2), *class));
     }
@@ -3710,15 +3747,16 @@ fn route_declarations(
 /// mint — a merged face's constituents retire, and a merge over it
 /// lists them in the new row's set and drops the old row — so meeting
 /// one is refused as the emission bug it would be.
-fn look_through_merges(
-    bucket: &[SidedPair],
+fn look_through_merges<'n>(
+    bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
-) -> Result<Vec<SidedPair>, NodeErrorKind> {
+) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
     use crate::names::RoleSeg;
-    let merged_row_of = |(op, name): &(topo::Operand, names::StableName)| -> Result<
+    let merged_row_of = |(op, sided): &(topo::Operand, SidedName<'n>)| -> Result<
         Option<names::StableName>,
         NodeErrorKind,
     > {
+        let name = sided.name();
         if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
             return Ok(None);
         }
@@ -3739,9 +3777,13 @@ fn look_through_merges(
     bucket
         .iter()
         .map(|(s1, s2, class)| {
-            let r1 = merged_row_of(s1)?.unwrap_or_else(|| s1.1.clone());
-            let r2 = merged_row_of(s2)?.unwrap_or_else(|| s2.1.clone());
-            Ok(((s1.0, r1), (s2.0, r2), *class))
+            let rewritten = |s: &(topo::Operand, SidedName<'n>)| {
+                Ok(match merged_row_of(s)? {
+                    Some(row) => (s.0, SidedName::Rewritten(row)),
+                    None => (s.0, s.1.clone()),
+                })
+            };
+            Ok((rewritten(s1)?, rewritten(s2)?, *class))
         })
         .collect()
 }
@@ -3777,17 +3819,34 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 ///
 /// The recourse a caller whose members touch has is the pair boolean's,
 /// on this node: wire a `Declare` naming the two entities to the
-/// union's own `declare` input. The names it carries are the ones this
-/// refusal carries — member-space rows of this node — and the step the
-/// pair is fed at is derived from them ([`route_declarations`]).
+/// union's own `declare` input, each side SITED at the member that
+/// carries it ([`sited_member`] reads the site off the published row).
+/// A member's own face is handed back verbatim; a face the fold MERGED
+/// is handed back as a constituent of that merge, which declares the
+/// same contact because a declaration resolves through the fold's
+/// merges ([`look_through_merges`]); and a row the fold minted that no
+/// member stands for is refused
+/// [`NodeErrorKind::UndeclarableContact`] — typed, because a sited
+/// declaration cannot name a row that does not exist before the union.
+///
+/// So this door never degrades a user's undeclared contact into an
+/// emission bug. The emission arm below is reached only when the
+/// COLLAPSE itself refuses, which is the fold's own table being
+/// malformed.
 fn union_refusal<T: crate::verbs::shell::ShellLane>(
     id: RecipeNodeId,
+    members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
     err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let refused = refusal_menu((id, a_table), (id, b_table), err);
-    let NodeErrorKind::UndeclaredContact { finding, diag } = refused else {
+    let NodeErrorKind::UndeclaredContact {
+        finding,
+        merged: _,
+        diag,
+    } = refused
+    else {
         return refused;
     };
     let names::FlushFinding {
@@ -3795,43 +3854,131 @@ fn union_refusal<T: crate::verbs::shell::ShellLane>(
         class,
         evidence,
     } = *finding;
-    let (Some(a), Some(b)) = (sited_member(id, &a.name), sited_member(id, &b.name)) else {
+    let (Ok(a), Ok(b)) = (
+        sited_member(id, members, &a.name),
+        sited_member(id, members, &b.name),
+    ) else {
+        return NodeErrorKind::Naming(names::NamingError::Emission {
+            what: UNION_REFUSAL_FOREIGN,
+        });
+    };
+    // A fold-minted row is answered for FIRST, and the A side before
+    // the B side: a refusal that has one has no pair to offer at all,
+    // so there is nothing for the sited arm below to carry.
+    for subject in [&a, &b] {
+        if let DeclarationSubject::FoldMinted(row) = subject {
+            return NodeErrorKind::UndeclarableContact {
+                row: Box::new(row.clone()),
+                diag,
+            };
+        }
+    }
+    let (sa, ca) = a.declarable();
+    let (sb, cb) = b.declarable();
+    let (Some(sa), Some(sb)) = (sa, sb) else {
+        // Unreachable: the loop above returned for every `FoldMinted`,
+        // and the other two arms both have a site. Raised rather than
+        // asserted, in the one channel this door has.
         return NodeErrorKind::Naming(names::NamingError::Emission {
             what: UNION_REFUSAL_FOREIGN,
         });
     };
     NodeErrorKind::UndeclaredContact {
         finding: Box::new(names::FlushFinding {
-            pair: (a, b),
+            pair: (sa, sb),
             class,
             evidence,
         }),
+        merged: Box::new((ca, cb)),
         diag,
     }
 }
 
-/// **One row of a union's fold space as the MEMBER entity it is** —
-/// the member-keyed collapse, then the member edge read back off it.
+/// **What one row of a union's fold space is, as a DECLARATION
+/// SUBJECT** — [`sited_member`]'s answer, total over the rows a
+/// refusal can name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeclarationSubject {
+    /// A member's own entity: declarable verbatim, sited at that
+    /// member.
+    Member(SitedRef),
+    /// A face the fold MERGED. The row itself has no site — the union
+    /// minted it — but every CONSTITUENT of its flat set (N3) is a
+    /// member's entity, and a declaration written at any one of them
+    /// resolves back to this row through [`look_through_merges`]. The
+    /// set is ordered by the constituent's member in the union's own
+    /// MEMBER ORDER (D9), so taking the first is a deterministic
+    /// choice rather than an arbitrary one.
+    Merged(Vec<SitedRef>),
+    /// A row the fold minted that no member's entity stands for: a
+    /// fragment, the union's own body, a merge none of whose
+    /// constituents is a member's row. Carries the row itself, in the
+    /// node's published space, because that is all a refusal about it
+    /// can say.
+    FoldMinted(names::StableName),
+}
+
+impl DeclarationSubject {
+    /// The side a refusal carries and the merged set it came from:
+    /// `(None, _)` only for [`DeclarationSubject::FoldMinted`], which
+    /// has no site.
+    fn declarable(&self) -> (Option<SitedRef>, Vec<SitedRef>) {
+        match self {
+            Self::Member(r) => (Some(r.clone()), Vec::new()),
+            Self::Merged(set) => (set.first().cloned(), set.clone()),
+            Self::FoldMinted(_) => (None, Vec::new()),
+        }
+    }
+}
+
+/// **One row of a union's fold space as the MEMBER entity it stands
+/// for** — the member-keyed collapse, then the member edge read back
+/// off it.
 ///
-/// This is [`names::member_name`]'s inverse, and it is what lets a
-/// union's refusal hand back a pair a caller can declare: the
-/// refusal's names are rows of the fold's internal space, the
-/// collapse puts them in this node's published space, and a published
-/// row of a MEMBER's own entity is exactly one `FromMember` segment,
-/// which says the site and the name at once.
+/// This is [`names::member_name`]'s inverse where one exists, and it
+/// is what lets a union's refusal hand back a pair a caller can
+/// declare: the refusal's names are rows of the fold's internal
+/// space, the collapse puts them in this node's published space, and
+/// a published row of a MEMBER's own entity is exactly one
+/// `FromMember` segment, which says the site and the name at once.
 ///
-/// `None` for a row the collapse refuses — the emission bug
-/// [`union_refusal`] raises — and for a published row that is the
-/// fold's OWN (a seam, a merge, a fragment, the output body), which
-/// no declaration can name: such a row does not exist before the
-/// union, so there is no site to read it at.
-fn sited_member(id: RecipeNodeId, name: &names::StableName) -> Option<SitedRef> {
+/// It is TOTAL over the rows that collapse: a row with no member
+/// entity behind it is [`DeclarationSubject::FoldMinted`] and the
+/// caller must answer for it, rather than a `None` that reads like an
+/// invariant break. The error case is the COLLAPSE's alone.
+fn sited_member(
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    name: &names::StableName,
+) -> Result<DeclarationSubject, names::NamingError> {
     use crate::names::RoleSeg;
-    let collapsed = names::collapse_name(id, name).ok()?;
-    match collapsed.path.as_slice() {
+    let collapsed = names::collapse_name(id, name)?;
+    let member_of = |n: &names::StableName| match n.path.as_slice() {
         [RoleSeg::FromMember { member, of }] => Some(SitedRef::new(*member, of.name().clone())),
         _ => None,
+    };
+    if let Some(r) = member_of(&collapsed) {
+        return Ok(DeclarationSubject::Member(r));
     }
+    Ok(match collapsed.path.as_slice() {
+        [RoleSeg::Merged(set)] => {
+            let mut sited: Vec<(usize, SitedRef)> = set
+                .iter()
+                .filter_map(member_of)
+                .map(|r| (members.iter().position(|m| *m == r.at).unwrap_or(usize::MAX), r))
+                .collect();
+            // Member order (D9) is the union's list order, which is
+            // data the node carries; a constituent whose member has
+            // left the list sorts last and still declares the row.
+            sited.sort_by(|(i, x), (j, y)| i.cmp(j).then_with(|| x.name.cmp(&y.name)));
+            if sited.is_empty() {
+                DeclarationSubject::FoldMinted(collapsed)
+            } else {
+                DeclarationSubject::Merged(sited.into_iter().map(|(_, r)| r).collect())
+            }
+        }
+        _ => DeclarationSubject::FoldMinted(collapsed),
+    })
 }
 
 /// A union's refusal named a row its own fold table cannot collapse.
@@ -3905,6 +4052,10 @@ fn refusal_menu<T: crate::verbs::shell::ShellLane>(
         });
     };
     NodeErrorKind::UndeclaredContact {
+        // A pair boolean's operands are NODES, so both rows are their
+        // own and neither is a merge this door minted. The union's
+        // door ([`union_refusal`]) is the one that fills this.
+        merged: Box::new((Vec::new(), Vec::new())),
         finding: Box::new(names::FlushFinding {
             pair: (na, nb),
             class: names::ContactClass::Rest,
@@ -3981,8 +4132,8 @@ fn face_name(
 /// and no name that lands in both operands: two placements of one
 /// prototype carry identical tables and are still told apart, because
 /// the pair says which member it means.
-fn resolve_declarations(
-    pairs: &[SidedPair],
+fn resolve_declarations<'n>(
+    pairs: &'n [SidedPair<'n>],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
@@ -4010,6 +4161,7 @@ fn resolve_declarations(
         };
         let (live1, l1) = declare_landing(n1, doc, table_of(o1))?;
         let (live2, l2) = declare_landing(n2, doc, table_of(o2))?;
+        let (n1, n2) = (n1.name(), n2.name());
         // KIND BEFORE MULTIPLICITY, the order [`resolve_face`] asks
         // in: a pair the vocabulary has no step for is unsupported
         // however many entities answer to either name, so WHAT the
@@ -4295,13 +4447,19 @@ fn declared_step(
 /// Rung 1's `NodeGone` and rung 3's `Vanished`, both through
 /// [`NodeErrorKind::DeclareResolve`].
 fn declare_landing<'n>(
-    name: &'n names::StableName,
+    sided: &'n SidedName<'n>,
     doc: &crate::doc::Doc<ProfileProgram>,
     table: &NameTable,
 ) -> Result<(ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
     use ladder::Landing;
     let refused = |error| NodeErrorKind::DeclareResolve { error };
-    let live = ladder::live(name, doc).map_err(refused)?;
+    // Rung 1, paid ONCE per name: the pair boolean's door paid it to
+    // answer the site question and hands the token on; a union's
+    // minted name has none, and pays here.
+    let live = match sided {
+        SidedName::Live(live) => *live,
+        SidedName::Rewritten(name) => ladder::live(name, doc).map_err(refused)?,
+    };
     let landing = ladder::landing(&live, table);
     if matches!(landing, Landing::Absent) {
         return Err(refused(ladder::vanished(&live)));
@@ -4953,7 +5111,7 @@ mod route_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{
-        NodeErrorKind, RecipeNodeId, SidedPair, SitedRef, look_through_merges,
+        NodeErrorKind, RecipeNodeId, SidedName, SidedPair, SitedRef, look_through_merges,
         resolve_declarations, route_declarations,
     };
     use crate::names::{CapEnd, EntityKey, EntityKind, EntityRef, NameTable, RoleSeg, StableName};
@@ -5008,8 +5166,57 @@ mod route_tests {
         crate::names::member_name(union, member, &at(member, end).name)
     }
 
+    /// The same entity, but MINTED somewhere other than the member it
+    /// is read at — the pass-through case (N1: a transform adds no
+    /// segment, so its table is its input's verbatim). It is the one
+    /// shape that tells a routing by SITE from a routing by the name's
+    /// minting node.
+    fn at_minted_at(member: RecipeNodeId, mint: RecipeNodeId, end: CapEnd) -> SitedRef {
+        SitedRef::new(
+            member,
+            StableName {
+                kind: EntityKind::Face,
+                node: mint,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
+    }
+
     fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), ContactClass) {
         ((a, b), ContactClass::Rest)
+    }
+
+    /// **The routing reads the SITE, not the name's minting node.**
+    /// Both sides here name entities minted at a node that is in no
+    /// member list; their sites are members 1 and 3, so the pair lands
+    /// in step 2 and each side is rewritten under its own member.
+    #[test]
+    fn a_pair_routes_by_its_site_and_not_by_the_names_minting_node() {
+        let (doc, union, ms) = doc_with_members(5);
+        let (members, proto) = (&ms[..4], ms[4]);
+        let p = pair(
+            at_minted_at(members[1], proto, CapEnd::Start),
+            at_minted_at(members[3], proto, CapEnd::End),
+        );
+        let buckets = route_declarations(union, members, std::slice::from_ref(&p), &doc)
+            .expect("the sites are both members");
+        let filled: Vec<usize> = buckets
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.is_empty())
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(filled, vec![2]);
+        let ((o1, n1), (o2, n2), _) = &buckets[2][0];
+        assert_eq!((*o1, *o2), (Operand::A, Operand::B));
+        assert_eq!(
+            *n1.name(),
+            crate::names::member_name(union, members[1], &at_minted_at(members[1], proto, CapEnd::Start).name)
+        );
+        assert_eq!(
+            *n2.name(),
+            crate::names::member_name(union, members[3], &at_minted_at(members[3], proto, CapEnd::End).name)
+        );
     }
 
     /// The bucket of each pair on a FOUR-member document, read out of
@@ -5108,8 +5315,8 @@ mod route_tests {
         let ((o1, n1), (o2, n2), _) = sided(pair(at(ms[1], CapEnd::Start), at(ms[3], CapEnd::End)));
         assert_eq!(o1, Operand::A);
         assert_eq!(o2, Operand::B);
-        assert_eq!(n1, member_face(union, ms[1], CapEnd::Start));
-        assert_eq!(n2, member_face(union, ms[3], CapEnd::End));
+        assert_eq!(*n1.name(), member_face(union, ms[1], CapEnd::Start));
+        assert_eq!(*n2.name(), member_face(union, ms[3], CapEnd::End));
         // The same pair written the other way round: the SITES decide,
         // not the order the author wrote them in.
         let ((o1, _), (o2, _), _) = sided(pair(at(ms[3], CapEnd::End), at(ms[1], CapEnd::Start)));
@@ -5200,8 +5407,12 @@ mod route_tests {
 
     /// A routed pair, as the bucket carries it: the two names already
     /// in the union's member space, each with the side its site took.
-    fn routed(a: (Operand, StableName), b: (Operand, StableName)) -> SidedPair {
-        (a, b, ContactClass::Rest)
+    fn routed(a: (Operand, StableName), b: (Operand, StableName)) -> SidedPair<'static> {
+        (
+            (a.0, SidedName::Rewritten(a.1)),
+            (b.0, SidedName::Rewritten(b.1)),
+            ContactClass::Rest,
+        )
     }
 
     /// A merged row over member faces, as a fold step mints it: flat,
@@ -5270,7 +5481,7 @@ mod route_tests {
             ),
         ];
         let out = look_through_merges(&bucket, &acc).unwrap();
-        assert_eq!(out[0].0, (Operand::A, wide));
+        assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide)));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
     }
@@ -5381,11 +5592,11 @@ mod route_tests {
         );
     }
 
-    /// Review probe (decl-r1): `sited_member` is `member_name`'s
-    /// inverse, round-tripped over rows of every kind and over a
+    /// **`sited_member` is `member_name`'s inverse** on a member's own
+    /// row, round-tripped over rows of every entity kind and over a
     /// member whose names are minted elsewhere (a transform).
     #[test]
-    fn r1_sited_member_inverts_member_name_over_every_row_kind() {
+    fn sited_member_inverts_member_name_over_every_row_kind() {
         let (_doc, union, ms) = doc_with_members(3);
         let (member, proto) = (ms[1], ms[2]);
         let rows = vec![
@@ -5412,9 +5623,12 @@ mod route_tests {
         ];
         for row in rows {
             let keyed = crate::names::member_name(union, member, &row);
-            let back = super::sited_member(union, &keyed);
-            assert_eq!(back, Some(SitedRef::new(member, row.clone())), "{row}");
-            assert_eq!(back.unwrap().name.kind, row.kind);
+            let back = super::sited_member(union, &ms, &keyed).expect("the row collapses");
+            assert_eq!(
+                back,
+                super::DeclarationSubject::Member(SitedRef::new(member, row.clone())),
+                "{row}"
+            );
         }
     }
 }

@@ -2036,8 +2036,12 @@ pub enum Node<P> {
     ///
     /// It records no fold position either: the step each pair is fed
     /// at is DERIVED from where its two sites sit in `members`, so
-    /// reordering or dropping a member re-derives the routing rather
-    /// than invalidating the declaration. And the SITE is the side —
+    /// REORDERING the list re-derives the routing rather than
+    /// invalidating the declaration. Dropping a declared member is
+    /// the other case and is not silent: its site is no longer in the
+    /// list, and the next evaluation refuses that pair as a vanished
+    /// name (N5), since `SetMembers` leaves `declare` as it was. And
+    /// the SITE is the side —
     /// the later member is the joining operand, the earlier is inside
     /// the accumulation — so two members that are transforms of one
     /// body, whose tables are identical (N1), are told apart by the
@@ -2195,6 +2199,61 @@ pub enum Node<P> {
     /// second. The site is also the SIDE — a name carried by both
     /// operands says which one it means — so nothing about a
     /// declaration depends on the consumer's own name space.
+    ///
+    /// **A union's own fold rows are therefore UNREPRESENTABLE here,
+    /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the
+    /// output body of the union is minted by the union's evaluation
+    /// and has no node it is read at. A pair of bare [`StableName`]s,
+    /// which is the only spelling that could have named one, does not
+    /// typecheck:
+    ///
+    /// ```compile_fail,E0308
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(named(), named())]);
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// **What that row proves, and what it does not.** Stable rustdoc
+    /// checks only that the block FAILS to build; the `,E0308` beside
+    /// it is not enforced, so a typo or a missing import would pass it
+    /// just as well. The twin below is the same body with the ONE
+    /// difference this claim is about — each side wrapped in a
+    /// [`SitedRef`] — and it RUNS, so a defect anywhere but the side's
+    /// type reddens here instead of satisfying the block above for the
+    /// wrong reason. (The idiom is `quantity::units`'; the mate head
+    /// above states it too.)
+    ///
+    /// ```
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(sited(), sited())]);
+    ///
+    /// fn sited() -> editor_core::SitedRef {
+    ///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+    /// }
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// The persisted form is the other door the class could have come
+    /// in through, and it refuses there instead of loading: the
+    /// `Unreadable` detail is serde's own missing-field message, and
+    /// the crate adds no constructor sentence to it — there is no
+    /// analogue of the mate head's constructor refusal for a side
+    /// whose SHAPE is wrong rather than whose kind is
+    /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
         /// The declared contact pairs, each with the CLASS it asserts
         /// (CONTACT-DESIGN C4).

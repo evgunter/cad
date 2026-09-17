@@ -1307,12 +1307,11 @@ pub(crate) use name_free_seg;
 /// PATTERN rather than a predicate.
 ///
 /// A union's value is a fold of the pair verb, so a fold table is a
-/// boolean table and this is the same list for both. Three matches
+/// boolean table and this is the same list for both. Two matches
 /// classify segments by it and each does something different with the
 /// half it does recognize — the rewrite descends a name's head
-/// (`emit_union`'s `collapse`), rebuilds its tail, and the routing
-/// walk (`eval::wire`'s `latest_member`) reads member ids out of it.
-/// Only the negative answer is common, so only the negative answer is
+/// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
+/// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
 /// [`name_free_seg`] is: none of the three loses its exhaustiveness,
 /// so a variant added to [`RoleSeg`] and not added here still stops

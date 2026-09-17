@@ -1,14 +1,24 @@
-//! Review probes for EDIT-DECL (PR #2809), lane `decl-r1`. Each row
-//! falsifies one claim of the PR body or of DM4 by execution; the
-//! outcome each records is what the frozen head does, not what the
-//! claim says.
+//! **Rows adopted from EDIT-DECL's first blinded review** — kept in
+//! their author's file and re-headed to the invariant each pins.
+//!
+//! What is NOT here, because one row is enough and it lives beside the
+//! claim it is about: the swapped-site row (the site is the side) is
+//! `docm7_union_declare`'s
+//! `a_name_the_other_operand_carries_is_not_read_at_its_site`; the
+//! second dead site of an insert is that suite's
+//! `the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live`,
+//! which now exercises both sides; the rebind and the `SetMembers`
+//! drop are `rebind_moves_the_name_and_leaves_the_site` and
+//! `a_declared_member_removed_by_set_members_refuses`; and the bare
+//! persisted side is `a_declared_pair_side_that_is_a_bare_name_does_not_load`,
+//! which asserts what the refusal says.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run, table};
+use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{ang, fname, insert, len, scl, step, wall};
 use editor_core::{
-    BooleanOp, CapEnd, DocEdit, EditError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    BooleanOp, CapEnd, DocEdit, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
     ResolveError, RoleSeg, SitedRef, find_flush_candidates,
 };
 use geom_core::Tol;
@@ -32,17 +42,18 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 }
 
 // ---------------------------------------------------------------------
-// Claim 3 — what does a union's refusal name when the contact is
-// against a MERGED row of the accumulation?
+// A union's refusal against a MERGED row of the accumulation.
 // ---------------------------------------------------------------------
 
-/// `a` and `c` fuse at step 1 (declared), so the accumulation's top is
-/// one `Merged({a.capEnd, c.capEnd})` row. `d` rests on that merged
-/// row at step 2 and is undeclared. The PR says `union_refusal` hands
-/// back a pair the caller can declare verbatim ("total by
-/// construction"); this row records what it actually hands back.
+/// **A contact against a merged CAP is refused sited at a
+/// constituent.** `a` and `c` fuse at step 1 (declared), so the
+/// accumulation's top is one `Merged({a.capEnd, c.capEnd})` row; `d`
+/// rests on that merged row at step 2, undeclared. The merged row is
+/// the fold's own and has no site, so the refusal takes the
+/// constituent whose member comes first in the list and carries the
+/// whole set beside it.
 #[test]
-fn r1_a_union_refusal_against_a_merged_row() {
+fn a_union_refusal_against_a_merged_cap_is_sited_at_a_constituent() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -50,18 +61,29 @@ fn r1_a_union_refusal_against_a_merged_row() {
     let (doc, union, _) = declared_union(doc, &[a, c, d], flush_pairs((a, a), (c, c)));
     let ev = run(&doc);
     let got = failure(&ev, union);
-    eprintln!("R1 merged-row refusal: {got:?}");
-    assert!(
-        matches!(got, Some(NodeErrorKind::UndeclaredContact { .. })),
-        "a user's undeclared contact against a merged row is not reported as an \
-         UndeclaredContact finding: {got:?}"
+    let Some(NodeErrorKind::UndeclaredContact {
+        finding, merged, ..
+    }) = got
+    else {
+        panic!(
+            "a user's undeclared contact against a merged row is not reported as an \
+             UndeclaredContact finding: {got:?}"
+        )
+    };
+    assert_eq!(
+        merged.0.iter().map(|r| r.at).collect::<Vec<_>>(),
+        vec![a, c],
+        "the constituents, in member order"
     );
+    assert_eq!(finding.pair.0, merged.0[0]);
+    assert_eq!(finding.pair.1.at, d);
 }
 
-/// The honest shape: declaring the contact through a CONSTITUENT of the
-/// merged row, sited at its member, resolves through the look-through.
+/// **Declaring the contact through a CONSTITUENT of the merged row,
+/// sited at its member, resolves through the look-through** — which
+/// is what makes the refusal above actionable.
 #[test]
-fn r1_a_merged_row_contact_is_declared_through_a_constituent() {
+fn a_merged_row_contact_is_declared_through_a_constituent() {
     let doc = ProfileDoc::empty_derived("r1_merged_declared", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -86,7 +108,7 @@ fn r1_a_merged_row_contact_is_declared_through_a_constituent() {
 /// is a transform of it: `DeclareSiteNotAnOperand`. Sited at the
 /// transform but naming a row it does not carry: `Vanished`.
 #[test]
-fn r1_pair_boolean_site_at_the_minting_node_and_absent_row() {
+fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() {
     let base = ProfileDoc::empty_derived("r1_site_mint", Tol::witness());
     let (base, a) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, b0) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
@@ -137,11 +159,13 @@ fn r1_pair_boolean_site_at_the_minting_node_and_absent_row() {
     );
 }
 
-/// At the PAIR boolean, does rung 1 (`NodeGone`) outrank a site that
-/// is not an operand? The union's door checks `live` before the site;
-/// this row asks the pair boolean's door the same question.
+/// **Rung 1 outranks the site question at the PAIR boolean too** — a
+/// name whose minting node is gone says `NodeGone`, even when its
+/// site is also not an operand. Both declaring doors ask the question
+/// through one function (`wire.rs`'s `site_operand`), which is where
+/// that order is written.
 #[test]
-fn r1_pair_boolean_dead_name_versus_foreign_site() {
+fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let doc = ProfileDoc::empty_derived("r1_rung1_pair", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
@@ -167,7 +191,6 @@ fn r1_pair_boolean_dead_name_versus_foreign_site() {
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: c });
     let ev = run(&doc);
     let got = failure(&ev, u);
-    eprintln!("R1 pair-boolean dead name vs foreign site: {got:?}");
     assert!(
         matches!(got, Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::NodeGone { .. })),
         "rung 1 does not outrank the site question at the pair boolean: {got:?}"
@@ -178,40 +201,20 @@ fn r1_pair_boolean_dead_name_versus_foreign_site() {
 // Claim 5 — deleting a site; rebinding a name away from its site.
 // ---------------------------------------------------------------------
 
-/// `SetMembers` dropping a site: the arm is `Vanished` (DM4: "as a
-/// vanished name does").
-#[test]
-fn r1_set_members_dropping_a_site_refuses_vanished() {
-    let doc = ProfileDoc::empty_derived("r1_dropped_arm", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetMembers {
-            node: union,
-            members: vec![a, far],
-        },
-    );
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })
-        ),
-        "{:?}",
-        failure(&ev, union)
-    );
-}
 
-/// `DeleteNode` of a site (a transform member) cascades the union
-/// away, so there is no consumer left to refuse: the `Declare`
-/// survives with a dangling site AND a dangling name, and the next
-/// evaluation refuses nothing. What DM7 reports at the delete is
-/// recorded.
+/// **A `Declare` orphaned by a cascade is silent.** `DeleteNode` of a
+/// site (a transform member) cascades the union away, so no consumer
+/// is left to refuse: the `Declare` survives, the delete reports no
+/// strand (its names are the prototype's, which lives; a site is not
+/// a name), and the next evaluation says nothing about it.
+///
+/// That the document is left carrying a declaration nothing will ever
+/// read is filed as
+/// `work/edit/a-declare-orphaned-by-a-cascade-is-never-reported.md`;
+/// this row is what that file cites, and it pins the behaviour as it
+/// stands so the fix has a baseline to move.
 #[test]
-fn r1_delete_node_of_a_site_cascades_and_nothing_refuses() {
+fn a_declare_orphaned_by_a_cascade_refuses_nothing() {
     let doc = ProfileDoc::empty_derived("r1_delete_site", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
@@ -228,7 +231,6 @@ fn r1_delete_node_of_a_site_cascades_and_nothing_refuses() {
         maintenance.extend(applied.maintenance);
         doc = applied.doc;
     }
-    eprintln!("R1 delete-site maintenance: {maintenance:?}");
     assert!(doc.node(union).is_none(), "the union cascaded");
     assert!(doc.node(decl).is_some(), "the Declare survives");
     let ev = run(&doc);
@@ -242,76 +244,15 @@ fn r1_delete_node_of_a_site_cascades_and_nothing_refuses() {
     assert_eq!(strands, 0);
 }
 
-/// `Rebind` a pair's name onto a name minted elsewhere while the site
-/// stays: the evaluation refuses `Vanished` (the name is not in the
-/// site's table), and the site is untouched.
-#[test]
-fn r1_rebind_a_name_away_from_its_site_refuses_vanished() {
-    let doc = ProfileDoc::empty_derived("r1_rebind", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
-    let applied = doc
-        .apply(
-            &DocEdit::Rebind {
-                from: fname(a, wall(0)),
-                to: fname(far, wall(0)),
-            },
-            Tol::witness(),
-        )
-        .expect("the rebind applies");
-    let doc = applied.doc;
-    let Some(Node::Declare { pairs }) = doc.node(decl) else {
-        panic!("the Declare survives")
-    };
-    let moved: Vec<&SitedRef> = pairs
-        .iter()
-        .flat_map(|((x, y), _)| [x, y])
-        .filter(|r| r.name.node == far)
-        .collect();
-    assert_eq!(moved.len(), 1);
-    assert_eq!(moved[0].at, a, "the site stays");
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })
-        ),
-        "{:?}",
-        failure(&ev, union)
-    );
-}
 
-// ---------------------------------------------------------------------
-// Claim 6 — the persisted form.
-// ---------------------------------------------------------------------
 
-/// The bare-name refusal: what error is it, and does it name the pair?
+/// **Every corpus document that declares replays in document order**:
+/// the `Declare` precedes its consumer in `order()`, every name and
+/// every site points BACKWARD, and re-inserting the nodes edit by
+/// edit is accepted. The one-pass claim, measured over the whole
+/// corpus rather than over one fixture.
 #[test]
-fn r1_bare_name_load_refusal_shape() {
-    let tol = Tol::witness();
-    let doc = ProfileDoc::empty_derived("r1_bare", tol);
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
-    let text = editor_core::persist::save(&doc, &[], tol).expect("saves");
-    let split = text.find('{').expect("body");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("parses");
-    let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
-    let bare = side["name"].clone();
-    *side = bare;
-    let err = editor_core::persist::load(&format!("{header}{wire}"), tol).expect_err("refuses");
-    eprintln!("R1 bare-name load refusal Debug: {err:?}");
-    eprintln!("R1 bare-name load refusal Display: {err}");
-}
-
-/// Every corpus document that declares: the `Declare` precedes its
-/// consumer in `order()`, names and sites point backward, and
-/// re-inserting the nodes in document order is accepted.
-#[test]
-fn r1_every_declaring_corpus_document_replays_in_document_order() {
+fn every_declaring_corpus_document_replays_in_document_order() {
     let mut declaring = 0;
     for d in crate::corpus::documents() {
         let doc = &d.doc;
@@ -358,45 +299,24 @@ fn r1_every_declaring_corpus_document_replays_in_document_order() {
         }
         assert_eq!(replay.order(), doc.order(), "{}: the replay is the document", d.name);
     }
-    eprintln!("R1 declaring corpus documents: {declaring}");
-    assert!(declaring >= 6, "{declaring}");
+    // Six: `kiss_carry`, `slots`, `part_select`, `corner_table`,
+    // `kitchen_sink` and `die`. Exact, so a document that stops
+    // declaring is not silently dropped from this row's reach.
+    assert_eq!(declaring, 6, "the declaring corpus documents");
 }
 
+
 // ---------------------------------------------------------------------
-// Claim 8 — my mutant: `payload_read_sites` yielding only the FIRST
-// site of each pair. This row is the one that would catch it: the
-// suite's insert-door row puts the dead site FIRST.
+// The DM4 headline through the flush door: findings of two placements
+// of one prototype, declared verbatim, consumed by a union in one pass.
 // ---------------------------------------------------------------------
 
+/// **A union's own refusal is declarable verbatim**, one finding at a
+/// time: `declare_all` over the detector's findings fuses the pair,
+/// and declaring the union's refusal itself leaves the remaining
+/// contacts refusing — each one a finding of the same shape.
 #[test]
-fn r1_the_insert_door_checks_the_second_site_too() {
-    let doc = ProfileDoc::empty_derived("r1_second_site", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let future = RecipeNodeId(doc.order().last().expect("a node").0 + 1);
-    let refused = doc.apply(
-        &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(
-                SitedRef::new(a, fname(a, wall(0))),
-                SitedRef::new(future, fname(b, wall(0))),
-            )]),
-        },
-        Tol::witness(),
-    );
-    assert!(
-        matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
-        "{refused:?}"
-    );
-}
-
-// ---------------------------------------------------------------------
-// Claim 10 (kernel half) — the DM4 headline through the flush door:
-// findings of two placements of one prototype, declared verbatim,
-// consumed by a union in one pass.
-// ---------------------------------------------------------------------
-
-#[test]
-fn r1_flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
+fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let doc = ProfileDoc::empty_derived("r1_flush_union", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
@@ -442,44 +362,14 @@ fn r1_flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
         },
     );
     let ev = run(&doc2);
-    // One pair declared of four: the other three contacts still refuse
-    // — recorded, whichever way it goes.
-    eprintln!("R1 one refusal declared verbatim: {:?}", failure(&ev, union2));
-    let _ = table(&ev, m1);
-}
-
-// ---------------------------------------------------------------------
-// The row the suite lacks for mutant M1 ("resolve regardless of site"):
-// a name ABSENT at its site but PRESENT in the other operand's table
-// must refuse `Vanished`; a resolver that falls back to the other table
-// would fuse instead.
-// ---------------------------------------------------------------------
-
-#[test]
-fn r1_a_name_absent_at_its_site_but_present_at_the_other_operand_refuses() {
-    let doc = ProfileDoc::empty_derived("r1_swapped_sites", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    // Each name sited at the OTHER operand: `a`'s rows are not in `b`'s
-    // table and vice versa.
-    let pairs: Vec<(SitedRef, SitedRef)> = flush_pairs((b, a), (a, b));
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
-    let (doc, u) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Some(decl),
-        },
-    );
-    let ev = run(&doc);
+    // One pair declared of four: the union refuses the NEXT undeclared
+    // contact, which is a finding of the same shape — so the loop
+    // "declare what it names, evaluate again" terminates rather than
+    // changing character.
+    let next = failure(&ev, union2);
     assert!(
-        matches!(
-            failure(&ev, u),
-            Some(NodeErrorKind::DeclareResolve { error }) if matches!(**error, ResolveError::Vanished { .. })
-        ),
-        "{:?}",
-        failure(&ev, u)
+        matches!(next, Some(NodeErrorKind::UndeclaredContact { .. })),
+        "{next:?}"
     );
 }
+

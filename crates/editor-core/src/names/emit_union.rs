@@ -38,8 +38,10 @@
 //! so a published row is told apart by its whole path and not by its
 //! head — a member's row is a one-segment `FromMember` path, and
 //! anything longer is a row the fold minted. That is the shape
-//! `eval::wire`'s `decl_site` reads, and it is the reason the two
-//! questions are asked in two places rather than shared.
+//! `eval::wire`'s `sited_member` reads to say whether a refusal's row
+//! is a member's entity, a merge of member entities, or a row no
+//! declaration can name, and it is the reason the two questions are
+//! asked in two places rather than shared.
 
 use std::sync::Arc;
 
