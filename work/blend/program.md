@@ -2,7 +2,8 @@
 id: blend
 kind: program
 title: BLEND — the blend kernel and the profile fillet door
-status: open
+status: closed
+closed: 2026-09-17
 opened: 2026-09-06
 area: kernel
 prefix: blend/
