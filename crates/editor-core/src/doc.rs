@@ -944,10 +944,18 @@ impl<P> Doc<P> {
     /// **The param-table rule, asked of one expression** — the first
     /// reference it makes that the table cannot answer, or `None`.
     ///
-    /// One home for the question (spec D6), read by the edit doors
-    /// over a node's slots and its payload expressions alike and by
-    /// the load door's slot walk, each naming the answer in its own
-    /// vocabulary.
+    /// One home for the question (spec D6), with FOUR callers — the
+    /// two doors' two walks each, one over a node's SLOT expressions
+    /// and one over the PAYLOAD expressions no slot addresses
+    /// (`crate::node::payload_exprs`):
+    ///
+    /// - the edit door's `edit::check_param_refs` (slots) and the
+    ///   payload arm of `edit::check_node_slots`;
+    /// - the load door's `persist::check::first_slot_param_ref_fault`
+    ///   and `first_payload_param_ref_fault`.
+    ///
+    /// Each names this one answer in its own vocabulary; none of them
+    /// re-states the rule.
     pub(crate) fn param_ref_fault(&self, expr: &Expr) -> Option<ParamRefFault> {
         let mut refs = Vec::new();
         expr.param_refs(&mut refs);
