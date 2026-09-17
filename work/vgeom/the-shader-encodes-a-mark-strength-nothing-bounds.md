@@ -110,4 +110,9 @@ read only `SHADER` and never the Rust half, so on the base tree
 rounding `channel_to_srgb8`'s exponent to 2.2 left it **green**.
 
 The rest of the boundary sweep is
-`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`.
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, filed on
+this program's slate — the cut opened VGEOM and carried this row here
+while the branch was in flight, and the residue followed it.
+
+The item's `## Fence` above still says VIEW's; it was true when the
+row was written and the directory is what says who owns it now.

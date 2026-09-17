@@ -12469,89 +12469,148 @@ arithmetic is not the same as reaching the function.**
 
 Signed (VIEW implementer lane `view/clamp-nan`, after review).
 
----
+## 2026-09-17 — the cut: four successors opened, 86 rows re-homed, VIEW not closed
 
-## 2026-09-17 — `view/shader-mark-strength`
+Ev, in chat: *"you can self merge the cut pr. moving existing items is
+low risk."* This entry records what moved and, first, the verification
+the whole cut rests on.
 
-`the-shader-encodes-a-mark-strength-nothing-bounds`, filed by the
-review of #2798, said the paint path a NaN reaches is the shader and
-that `mark_lane` hands `Mark::strength` to the uniform raw. Both true.
-The brief's ruling was to guard on the Rust side, at or before
-`mark_lane`, and to say what "guard" means. It means the TYPE.
+### The Order's six units, re-derived against the tree
 
-**Where the guard went, and why not the two places it could have
-gone.** In the WGSL it would be a second spelling of a bound the
-palette already states, in the one language whose spelling nothing in
-this repo compares — and the row beside it compares constants, so it
-is blind to a divergence made of a guard by construction. At
-`mark_lane` it would be a refusal with nowhere to go: `prepare` writes
-a uniform and cannot decline to paint, so the only thing it could do
-with a poisoned weight is substitute one, and a substitution at the
-last door is the emergent kind wearing a name. `theme::MixFraction`
-removes the question: `Mark::strength` and `Theme::ambient` are
-values of a type that has no member outside `[0, 1]`, so `mark_lane`
-and `block` read `.get()`, the shader gets a weight because no other
-kind exists, and there is nothing left to refuse.
+The exit shape above reads *"every item above has landed or been ruled
+out"*, where **above** is the `Order`'s six numbered units and not the
+open slate. Each was checked against the tree and the tracker rather
+than against this file, because this file's own standing hazard is a
+claim going stale rather than a number:
 
-**Two doors because the registry is `const`.** `MixFraction::new`
-answers a caller and refuses what it cannot weight;
-`MixFraction::literal` is private, takes only literals in `theme.rs`'s
-own registry, and `assert!`s — which in a `const` context is a BUILD
-error, so a palette stating a weight outside the range does not
-compile. A `Result` cannot be unwrapped in a `const`, and that is the
-whole reason there are two.
+1. **`viewer-session-god-module-split` — DONE**, four PRs on `main`
+   (#1801, #1816, #1830, #1832). Its two named residues are rows:
+   `session-shims-and-test-imports` (live, now VDOC's) and
+   `tool-kind-all-and-ordinal-have-no-production-reader` (closed).
+2. **`pick-priority-filter-vocabulary` — DEFERRED**, status `deferred`
+   in the file, ratified by `crates/viewer/GUI-DESIGN.md` GQ7. Not
+   work, and not dispatchable by the tracker's own vocabulary.
+3. **`camera-fold-clears-status-line` — DONE**, #1849. Both residues
+   closed (#1957, #2026). The eighteenth status-line writer has its own
+   row, `startup-notices-need-holding-to-badge`, which stays here.
+4. **`focus-marking-is-per-node-not-per-segment` — HANDED OFF.** Its
+   blocker was the authored-step to canonical-segment map, whose
+   siting question is `authored-step-to-canonical-segment-map-has-no-home`
+   — **now CLOSED on EDIT's slate at PR #2759, 2026-09-16**, with DM8's
+   follow-through merged at #2785. So the blocker has fired, the map
+   exists, and both halves of the ground are EDIT's. The row goes to
+   EDIT with its `refs` intact.
+5. **`layer3-recipenodeid-aliases-across-rewinds` — HANDED OFF**, and
+   it was never this program's to clear: it is `parked` on
+   `next-id-has-no-layer3-door`, a door in `crates/editor-core/src/doc.rs`
+   that was DOCM's and is EDIT's since DOCM exited (`docs/DOC-LEDGER.md`
+   sweep 14). Both rows go to EDIT together, so the trigger and the
+   row it gates land on one slate.
+6. **`pick-index-built-on-ui-thread` — DONE**, #1888. 6a ruled by Ev at
+   #1843, 6c collapsed into 6b. Seven residues filed as items; the one
+   still open, `ui-thread-work-after-the-index-seam`, is VSEAM's.
 
-**`ambient` was not in the item and is the same defect.** A `pub f32`
-on the same `pub` struct, into `base_color`'s `w` lane raw, consumed
-by `ambient + (1 - ambient) * lambert`. The register's rule that a
-signature change makes the compiler the sweep is what made taking both
-cheaper than taking one and filing the other.
+**So the reading holds: none of the six is open VIEW work.** Three
+landed, one is ratified not-now, and two are blocked on doors in
+another program's crate — which is a hand-off, not a slate.
 
-**Reachability, and it is a negative result.** No producer of a
-non-number strength exists in this tree. Every `Theme` reaching
-`ViewportCallback` comes from `Theme::ALL`; `strength` is read
-everywhere and computed nowhere; and no public door admits a foreign
-`Theme` — `gpu` is private, `ViewerApp::theme` is private, and
-`ViewerApp::new`/`run` take no palette. So the crate's API lets a
-consumer BUILD a poisoned `Mark` and gives it nowhere to put one. The
-defect was latent. Saying so is the point: the item implied a live
-paint-path hole, and a lane that reported it as one would have been
-repeating the mistake the previous unit's review named.
+### What the slate actually was
 
-**The base-tree red is a probe, not a route.** On `origin/main`, a
-`Mark { strength: f32::NAN }` — constructible through the public API —
-puts a `NaN` in the uniform's `w` lane, and a row asserting the lane
-is a weight reds there. On the fixed tree that row cannot be WRITTEN,
-because the `Mark` is unconstructible; the base red and the fix are
-therefore not two states of one row, and the certification is seven
-mutations on the fixed tree, each redding a named row.
+**Ninety-four live rows**, not the seventy-eight a triage taken on
+2026-09-16 recorded: five of that triage's rows had closed
+(`a-supersession-outlives-its-own-frame` and the four `datums.rs`
+rows), and **twenty-one new rows had been filed since**, sixteen of
+them by the six units that merged in between. The triage's own counts
+were stale by construction and are not carried forward; every count in
+this entry was re-derived with `scripts/work.py status --program view`
+on the branch's merge base.
 
-**The float-door pair, taken from the register.** `assert_ne!` against
-a float is not a distinguishability test, so the door has two rows:
-`nothing_outside_the_unit_interval_is_a_mix_fraction` and
-`every_weight_in_range_is_a_mix_fraction`. Neither says anything
-alone — a door refusing everything passes the first, a door admitting
-everything passes the second — and the mutation that shows the pair
-earning its keep is `is_finite()`, the register's own *a guard that
-admits everything finite is not a bound*, which reds the first and
-leaves the second green.
+### Where they went
 
-**The parity row was one-sided and nobody had measured it.** Its own
-name says it compares the constants *the palette does*, and its body
-only ever read `SHADER`. Measured on the base tree: rounding
-`channel_to_srgb8`'s exponent to `1.0 / 2.2` leaves
-`the_shaders_srgb_curve_states_the_same_constants_the_palette_does`
-**green, exit 0**. It reads `theme.rs` as code now and that mutation
-reds. Separately, its sentence — *"the constants are what a divergence
-would be made of"* — is deleted: #2798 made one out of a guard, and
-the row now names that divergence and says where the reason it is
-harmless is enforced instead of restating it.
+| destination | rows |
+|---|---|
+| `vnews` | 14 |
+| `vgeom` | 21 |
+| `vseam` | 14 |
+| `vdoc` | 22 |
+| `guard`, `ciw`, `edit` | 3 each |
+| `suite`, `meta` | 2 each |
+| `dup`, `chrome` | 1 each |
+| stayed here | 8 |
 
-**The sweep's residue is a file.** `gpu` is the crate's only `wgpu`
-module, so its two `Uniforms` constructions and six buffer fills are
-every write this crate makes to a device; the float lanes that remain
-are doored by their producers or not at all, and the `f64 → f32`
-narrowing is doored nowhere —
-`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`.
+Eighty-six moves, each a `git mv` with the body, the id and the history
+unchanged. **No row's prose was edited on the way past** — and the item
+schema carries no `program:` field at all (`scripts/work.py`'s `SCHEMA`;
+ownership is read from the directory and nowhere else), so a re-home is
+the move and nothing else. `refs`, `blocked_on` and `rides_with`
+resolve by id and are unaffected.
 
-Signed (VIEW implementer lane `view/shader-mark-strength`).
+### The four charters, and the test they were held to
+
+Each track's charter is the sentence that is true of its rows and false
+of the other three tracks' rows — this program's own rule about splits,
+applied to itself. In one line each:
+
+- **`vnews`** — a defect in the vocabulary a fact travels in on its way
+  to a reader, never in the fact; the fix changes a type or a door and
+  nothing it touches survives its frame.
+- **`vgeom`** — a value: a non-finite, out-of-range or under-precise
+  number crossing a door whose prose says it refuses such a thing, or a
+  control that never reaches the transform it names; the fix changes
+  what the viewer SHOWS.
+- **`vseam`** — something the viewer holds on behalf of the document
+  that outlives the frame that made it, with no named boundary owning
+  it; the fix names one.
+- **`vdoc`** — a claim the tree makes about itself; apply any fix on
+  that slate and nothing a person could observe has changed.
+
+**One row was placed by elimination and its plan says so**:
+`adjacent-same-typed-arguments-are-the-same-swap` is on VSEAM's slate
+because its two worst instances are that program's authoring doors and
+because the other three charters are each false of it, not because the
+charter fits.
+
+### Sequencing, and why `vdoc` is last
+
+`vnews`, `vgeom` and `vseam` are file-disjoint except at the shared
+files their `keep_out`s name on both sides, and all three dispatch from
+their opening day. **`vdoc` does not.** Its spine is
+`stale-file-citations-after-the-split` and every unit the other three
+land invalidates more of it; the register's own rule is that an
+out-of-fence citation table expires the moment another diff touches the
+same file. That is written into `work/vdoc/plan.md` §Order as the
+program's opening condition, with two named exceptions whose subject
+does not move with the code.
+
+### Territory
+
+`work.py lint` went **18 warnings → 24**, all six new ones one-sided
+pairs whose other half is in a file this program may not edit: four
+against CHROME and two (via `vdoc`'s `crates/viewer/tests/*`) against
+S-TCOST and S-TINT. The six pairs *inside* the new family are silent,
+because both sides were written in this commit. This program's own
+`keep_out` was extended to name the four successors, which is why the
+`view` pairs do not appear. The CHROME half is filed as
+`work/chrome/the-four-view-successors-are-a-one-sided-double-claim`;
+the tests half is the standing case in
+`work/meta/double-claim-lint-rule-waits-on-the-tests-seam`.
+
+### The register
+
+The six hundred lines of rule register in `work/view/plan.md` bind
+lanes in all four successors and are **inherited by reference, not
+copied** — four copies of a register re-derived every wave give four
+divergent copies inside a week, which is this program's own
+count-fixed-in-one-place defect turned on its own discipline. The cost
+is stated rather than hidden: the file dies with this directory. Filed
+as `the-lane-register-has-no-home-after-views-directory-goes`, and it
+is a **precondition of the exit walk**, not a follow-up to it.
+
+### What this entry does NOT record
+
+This program is not closed. There is no exit walk, no
+`docs/DOC-LEDGER.md` entry, and no directory sweep; PR #2762 is still
+open and parked on a ruling. Eight rows stay on this slate and the
+successors' `plan.md` §Inbound names where each of the six in `review`
+goes when its PR merges.
+

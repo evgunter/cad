@@ -67,5 +67,7 @@ and the first is one place where the second is five.
 
 ## Fence
 
-`crates/viewer/src/gpu.rs`, `src/input.rs`, `src/scene.rs`,
-`src/app.rs` — VIEW's, the standing double claim with CHROME.
+`crates/viewer/src/gpu.rs`, `src/input.rs`, `src/scene.rs` — VGEOM's,
+under the standing double claims with VIEW and CHROME. `src/app.rs`'s
+`to_f32` is VSEAM's: the narrowing there is named above and a fix that
+reaches it is announced, not assumed.
