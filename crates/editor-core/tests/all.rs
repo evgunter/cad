@@ -169,6 +169,9 @@ mod fix_pattern_mate_crossing;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
+
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]

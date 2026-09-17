@@ -90,8 +90,8 @@
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
-    MateFrame, MatePrimitive, MateSide, Member, ProfileProgram, RecipeNodeId, SitedRef,
-    class_admission, member_of, solve_document,
+    MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, RecipeNodeId,
+    SitedFace, class_admission, member_of, solve_document,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -170,13 +170,14 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 ///
 /// # Errors
 ///
-/// [`MateToolError::NotAnInstancePick`], for everything outside that
-/// vocabulary.
+/// [`MateToolError::PickIsNotAFace`] when the selection does not name
+/// a face, and [`MateToolError::NotAnInstancePick`] for everything
+/// outside the member vocabulary.
 fn picked_member(
     doc: &Doc<ProfileProgram>,
     side: MateSide,
     pick: &FaceSelection,
-) -> Result<(SitedRef, Member, StableName), MateToolError> {
+) -> Result<(SitedFace, Member, StableName), MateToolError> {
     let refused = || MateToolError::NotAnInstancePick {
         side,
         node: pick.node,
@@ -184,7 +185,19 @@ fn picked_member(
     // The pick's own operand: the node the ray met, which is the node
     // whose body was drawn and therefore the geometry the author is
     // pointing at.
-    let reference = SitedRef::new(pick.node, pick.name.clone());
+    // A head is a `FaceName`, and this is the boundary that makes one
+    // out of a selection. The picking door refuses
+    // `SelectionRefusal::NotAFace` before a selection exists, so a
+    // caller that went through it never meets this refusal — but
+    // `FaceSelection`'s fields are public and its name is a bare
+    // `StableName`, so the rule is the DOOR's and not the value's, and
+    // a value that arrives another way is refused in every build
+    // rather than asserted against in one. The refusal is the
+    // constructor's own sentence, carried: what this tool knows about
+    // the mistake is exactly what the constructor said.
+    let name = editor_core::FaceName::new(pick.name.clone())
+        .map_err(|refusal| MateToolError::PickIsNotAFace { side, refusal })?;
+    let reference = SitedFace::new(pick.node, name);
     let member = member_of(doc, &reference).ok_or_else(refused)?;
     // A copy reads its MASTER's entity: the name inside the
     // `Instance(i)` qualifier, one qualifier per pattern level the
@@ -211,6 +224,22 @@ fn picked_member(
 pub enum MateToolError {
     /// The tool does not hold two picks yet.
     NotTwoPicks,
+    /// The pick does not name a FACE, so there is no mate head to
+    /// make out of it: a mate is a face-pair contact and a head is a
+    /// `FaceName`. The picking door refuses a non-face before a
+    /// selection exists, so this answers a `FaceSelection` that
+    /// reached the tool some other way — its fields are public and
+    /// its name is a bare `StableName`, so the rule it carries is its
+    /// door's rather than its type's
+    /// (`work/view/face-selection-carries-a-bare-stable-name`: the
+    /// name becomes a `FaceName` and this arm goes away with it).
+    PickIsNotAFace {
+        /// Which pick.
+        side: MateSide,
+        /// The head constructor's own refusal, carried rather than
+        /// restated.
+        refusal: NotAFaceName,
+    },
     /// The pick's reference is outside A11's member vocabulary, so
     /// there is no member to mate: the walk from the node the ray met
     /// down to the name's head runs through something that is not a
@@ -270,6 +299,11 @@ impl core::fmt::Display for MateToolError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotTwoPicks => write!(f, "the mate tool needs two face picks"),
+            Self::PickIsNotAFace { side, refusal } => write!(
+                f,
+                "pick {} does not name a face, so it is no mate head: {refusal}",
+                side.name()
+            ),
             Self::NotAnInstancePick { side, node } => write!(
                 f,
                 "pick {} is on node {}, which is not a part instance or a copy of one",
@@ -381,9 +415,9 @@ pub struct MateChoice {
 pub struct MateProposal {
     /// The `a` reference: the picked name, read at the node the ray
     /// met.
-    pub a: SitedRef,
+    pub a: SitedFace,
     /// The `b` reference.
-    pub b: SitedRef,
+    pub b: SitedFace,
     /// The declared class.
     pub class: ContactClass,
     /// The derived alignment.

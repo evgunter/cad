@@ -103,9 +103,16 @@ pub use editor_core::{
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
 // reason and never read it.
+// `SitedFace` is a mate's head — a `SitedRef` whose name is a
+// `FaceName`, so a mate whose head names an edge does not compile —
+// and `FaceName`/`NotAFaceName` are the type that makes that true and
+// the refusal its one constructor answers with. A caller authoring a
+// mate needs all three: the constructor is the door, and its refusal
+// is what a caller who read a name out of a file has to handle.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceRefusal, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceRefusal, NotAFaceName, SitedFace, SitedRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.
