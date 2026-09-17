@@ -368,13 +368,39 @@ asked for, so a build already destined to be discarded
 (`IndexLanding::Stale`) does not light the indicator and a build nobody
 is answering stops lighting it; and the fit's two reads in `app` are
 `FitService::busy` directly, with no second record to consult. What the
-rule is for is a worker that has gone: all three handles clear their
-own flags when the channel disconnects, and each says at that arm that
-the indicator must not stay lit for an answer that is not coming. A
-consumer answering from its own bookkeeping instead promises one
-anyway — a spinner for the life of the window, a repaint every frame to
-collect a result nobody will send, and every click refused with *the
-picture is still being indexed*.
+rule is for is a build already destined to be discarded: the cache's
+own record says which picture was asked for, and asking the seam is
+what keeps a consumer from promising an answer out of its own
+bookkeeping — a spinner for the life of the window, a repaint every
+frame to collect a result nobody will send, and every click refused
+with *the picture is still being indexed*.
+
+**A worker that CRASHED is no longer one of the states this rule
+covers, and the change is deliberate** (Ev, in-chat, 2026-09-17:
+*"isn't a worker dying an infra thing that should show up as a
+panic?"*, then *"panic on crash is good"*). A seam's two endings used
+to be answered identically — a failed `send` and a `Disconnected`
+receive both just cleared the flags — so a crashed seam and an idle one
+became indistinguishable everywhere above the boundary, permanently and
+in silence. They are told apart now by the one thing that separates
+them: `Coalescing::close` takes the request channel and is called from
+`Drop` alone, so a detection that still holds the channel is a crash
+and nothing else. Shutdown forgets its work quietly; a crash panics on
+the UI thread, at the point of detection, naming the seam.
+
+That panic is not a hole in D9. The workspace's no-panic family is
+scoped to INPUT, and nothing a document contains and nothing a reader
+does can stop a worker; this is the bug-the-code-observes class that
+clause already hands to `unreachable!`, taking `panic!` instead
+because it is genuinely reachable. What makes the announcement worth
+anything is that it terminates: `egui`, `eframe`, `egui-winit` and
+`egui-wgpu` 0.36.1 contain no `catch_unwind`, and `winit` 0.30.13 has
+none on the linux backends, catching only on macOS and Windows where
+both paths re-raise. `tests/eval_seam.rs`'s
+`a_panic_inside_an_egui_frame_is_not_swallowed` executes the layer
+nearest the panic against eframe's own per-frame door, so a toolkit
+upgrade that added a catch would red rather than quietly make the
+loudest thing this crate does a no-op.
 
 ### What the session knows because of the document is one value
 

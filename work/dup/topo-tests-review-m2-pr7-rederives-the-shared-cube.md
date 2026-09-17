@@ -2,8 +2,11 @@
 id: topo-tests-review-m2-pr7-rederives-the-shared-cube
 kind: issue
 title: review_m2_pr7 declares a private mapped_cube whose doc says it is common::geometric_cube's op sequence
-status: open
+status: closed
 opened: 2026-09-16
+branch: dup/cube-sequence-reconcile
+closed: 2026-09-16
+pr: 2727
 ---
 
 ## Finding
@@ -40,3 +43,23 @@ construction sweep (it does not use the builder at all). What finds it
 in seconds is the PROSE: `rg 'op sequence of|verbatim' crates/topo/tests/`.
 A wider prose census is its own row,
 `topo-tests-self-declared-fixture-copies-census`.
+
+## Closed (2026-09-16, PR #2727)
+
+`review_m2_pr7.rs`'s private `mapped_cube` is deleted. Its six call
+sites name `common::mapped_cube`, with each `|p| …` map respelled as
+the `(x, y, z)` arity `common`'s door takes.
+
+**Equality proved by execution at four maps, not one.** Both doors were
+run and dumped as `format!("{body:#?}")` — `Body`'s DERIVED `Debug`, so
+every arena, key, slot version and `free_head` is in the comparison —
+and the dumps are byte-identical at the identity, at the `x` reflection,
+at the 1e6-scaled reflection and at the `10ε` inverted slab. The
+identity case additionally lands in the same six-door group as
+`brick`, `prism`, `prism_z`, `mapped_cube` and `cube_into`.
+
+The one thing the private door's doc carried that the shared sequence
+does not — that under a reflection the same loop traversals become
+inward-CCW, so every Newell plane flips and the body's only defect is
+global orientation — moved to the suite's module doc, where it is about
+what the suite attacks rather than about a builder.

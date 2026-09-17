@@ -144,12 +144,21 @@ the table.
   carve re-reads each later rim's crossing seam keys against the
   partially-carved body immediately before that rim's own phase —
   identity only, every decision still made in the plan against the
-  source — and the one-call result is pinned equal to the sequential
-  composition (`sweep/tests/blend_tworims.rs`: one-edge and seam-split
-  wall pairs and chained sharing, to the bit at the fixture radii;
-  `sweep/tests/blend2_r2_probes.rs`: cap pairs, a four-rim sharing
-  CYCLE, and the measured off-radius boundary where the equality is
-  one integrator summation ulp). A LADDER
+  source — and the one-call result is pinned against the sequential
+  composition, bit-equal where measured so and one integrator
+  summation ulp off where not: wall pairs (one-edge and seam-split)
+  and chained sharing to the bit at the fixture radii
+  (`blend_tworims`); the four-rim sharing CYCLE to the bit on two
+  sequential orders
+  (`blend2_r2_probes::r2_p4_four_rims_in_a_sharing_cycle_compose_in_one_call`);
+  a CAP pair landing ON one sequential order and one summation ulp
+  off the other at the fixture radius
+  (`blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`);
+  and the wall pair's own equality one summation ulp off in one order
+  at an off-fixture radius
+  (`blend2_r2_probes::r2_p1_zone_pair_equality_off_the_fixture_radius`).
+  The bit-level claim is a per-fixture measurement, not a door
+  property. A LADDER
   rim sharing a support with an annulus rim still refuses typed at the
   upfront gate, naming the sequential recourse — nothing proves a
   ladder plan across an annulus carve, and the shape is measured

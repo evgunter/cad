@@ -2658,16 +2658,22 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 /// A worker that takes one request and panics inside it, over the two
 /// channel ends a seam handle keeps.
 ///
-/// **A real panic on a real thread, which is the only way this state is
-/// reachable.** `ThreadIndexer` and `ThreadEvaluator` own their
+/// **A hand-written mirror of the shipped bookkeeping, and it no longer
+/// agrees with it.** `ThreadIndexer` and `ThreadEvaluator` own their
 /// worker's entry point — the loop is a private function with no door
 /// to inject a failure through — so nothing above the seam can make a
-/// shipped worker die, and the state is reachable only by a panic
-/// inside a build. What a test can stand up instead is the same pair of
-/// channels behind a worker that really panicked: the request sender
-/// whose receiver went down with the thread, and the result receiver
-/// that will only ever report `Disconnected`. Both handles' arms for
-/// that are mirrored below.
+/// shipped worker die, and a test stands up the same pair of channels
+/// behind a worker that really panicked instead.
+///
+/// What the mirror below now models is a seam that goes QUIET: it
+/// clears its flag on a failed `send` and on a `Disconnected` receive
+/// and says nothing, which is what the shipped handles used to do. They
+/// do not any more — a request channel still in hand at either arm is a
+/// crash, and the shipped machine panics (`evalseam`). So these fakes
+/// certify the consumers against a seam implementation that exists
+/// nowhere in `src/`, which is worth exactly what it is worth and no
+/// more. `work/view/the-dying-seam-fakes-mirror-a-machine-they-do-not-share.md`
+/// carries the repair.
 ///
 /// The worker prints one `thread '…' panicked` line to stderr when a
 /// row lets it die. That line is what the rows are about, not a
@@ -2784,9 +2790,9 @@ impl EvalService for DyingEvaluator {
 
 /// **A promise nobody is left to keep, withdrawn.**
 ///
-/// The seam notices a worker that has gone; what this holds is that the
-/// CONSUMER asks. `PickCache::outstanding` is cleared by an answer, so
-/// a build whose worker panicked leaves it set for the life of the
+/// The seam reports that nobody will answer; what this holds is that
+/// the CONSUMER asks. `PickCache::outstanding` is cleared by an answer,
+/// so a build nobody will answer leaves it set for the life of the
 /// window — and reporting it alone spun `indexing…` forever, repainted
 /// every frame to collect a result nobody would send, and refused every
 /// click with *the picture is still being indexed*, of a picture nobody
@@ -2794,8 +2800,21 @@ impl EvalService for DyingEvaluator {
 ///
 /// The three reads the chrome actually makes are all here: the toolbar's
 /// progress state, the pick refusal's sentence, and the indicator itself.
+///
+/// **NO SHIPPED SEAM REACHES THIS STATE ANY MORE**, and the row is
+/// named for what it drives rather than for what it used to model. A
+/// `ThreadIndexer` whose worker crashes now panics on the UI thread at
+/// the point of detection (`evalseam`'s `Coalescing::crashed`, and the
+/// rows beside it), so the quiet-seam state below belongs to an
+/// `IndexService` implementation that goes quiet without crashing —
+/// which `DyingIndexer` is and nothing in `src/` is. What the row still
+/// covers is `PickCache`'s own contract against an arbitrary
+/// implementation of the trait it is handed; what it no longer is, is
+/// evidence about a worker panic.
+/// `work/view/the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer.md`
+/// carries the consequence.
 #[test]
-fn a_build_whose_worker_panicked_stops_promising_an_answer() {
+fn a_seam_that_goes_quiet_stops_promising_an_answer() {
     let tol = Tol::witness();
     let (session, _extrude) = plate_session(tol);
     let (seam, worker) = DyingIndexer::new();
@@ -2854,16 +2873,20 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
     assert!(!cache.indexing());
 }
 
-/// The same worker under the EVALUATION seam, which already asks.
+/// The same fake under the EVALUATION seam, which already asks.
 ///
 /// `DocSession::busy` is about the picture — is it older than the
 /// document — and stays true, correctly, because it is. What answers
 /// *is anyone doing something about it* is `DocSession::running`, which
 /// is the seam's own `busy`, and the two are folded into `Outstanding`
-/// before any chrome sees them. So a panicked evaluator lands on
+/// before any chrome sees them. So a quiet evaluator lands on
 /// `Canceled` and its recourse rather than on a permanent `evaluating…`.
+///
+/// Renamed with its sibling above and for its reason: a shipped
+/// `ThreadEvaluator` whose worker crashes takes the process down
+/// instead of arriving here.
 #[test]
-fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
+fn a_quiet_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
     let tol = Tol::witness();
     let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let (seam, worker) = DyingEvaluator::new();
