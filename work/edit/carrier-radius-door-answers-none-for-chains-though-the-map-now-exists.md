@@ -2,8 +2,9 @@
 id: carrier-radius-door-answers-none-for-chains-though-the-map-now-exists
 kind: issue
 title: LoopProgram::carrier_radius answers None for chain loops though the step-to-profile-edge map now exists: the widening waits on the content-key attach
-status: spec
+status: review
 opened: 2026-09-16
+branch: edit/chain-radius-attach
 ---
 
 Disclosed by the DM8 unit

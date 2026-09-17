@@ -824,6 +824,40 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     }
 }
 
+/// **The one radius-bearing role a step holds**, `None` where it holds
+/// none or more than one.
+///
+/// The radius roles are the three the argument vocabulary spells as
+/// radii — `StepArg::Radius` (a fillet's, and the carrier forms'),
+/// `StepArg::CarrierRadius` and the arrival spec's twin
+/// `CarrierRadius2`. They are filtered out of the step's OWN slot
+/// enumeration rather than matched per verb, so a verb that gains a
+/// radius argument is covered by the enumeration it already extends.
+/// Every one of them is a `Dimension::Length`, as a radius must be
+/// (`StepArg::dimension`); the other Length roles are coordinates and
+/// lengths, which no segment is drawn AT.
+///
+/// **More than one answers `None`, and that is the honest answer.** A
+/// fused step carries up to three (`arc_fillet_arc`: the incoming
+/// spec's, the fillet's, the arrival spec's) and emits several
+/// segments, and its recorded span says only WHICH segments it emitted
+/// — not which of its radii draws which. Picking one would be exactly
+/// the guess [`ProfileProgram::profile_edges_of`] exists to not make.
+fn radius_arg(step: &ProgramStep) -> Option<StepArg> {
+    let mut args = Vec::new();
+    step_slots(step, &mut args);
+    args.retain(|a| {
+        matches!(
+            a,
+            StepArg::Radius | StepArg::CarrierRadius | StepArg::CarrierRadius2
+        )
+    });
+    match args[..] {
+        [only] => Some(only),
+        _ => None,
+    }
+}
+
 /// Shared shape of the spec accessors — one table, two borrows.
 /// `second` mirrors [`spec_slots`]'s role-twin selection.
 macro_rules! spec_arg_access {
@@ -965,26 +999,12 @@ impl LoopProgram {
     /// needs.
     ///
     /// A CHAIN loop answers `None`, and that is a scope statement, not
-    /// an omission: a chain's arc steps carry their own radii
-    /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
-    /// addressing one segment. Pairing those with swept walls is
-    /// [`ProfileProgram::profile_edges_of`]'s answer; what keeps this
-    /// door per-loop is the attach obligation below.
-    ///
-    /// **The obligation that `None` carries.** The memo's guard on
-    /// this channel is scoped at the ATTACH, not at the key: the
-    /// content key writes a carrier radius's spelling whenever ANY
-    /// migrated verb declares the profile edge's radius into a field
-    /// (`param_source::operand_flow_bearing`), which is already true,
-    /// so it cannot notice that chain radii are un-attached. Widen
-    /// this door to answer per segment and the stale-token class
-    /// reopens silently for exactly those loops — a chain radius
-    /// re-spelled value-preservingly would be attached to a wall
-    /// while its key still says the value alone. So chain radii enter
-    /// the key in the same change that attaches them, and the feed at
-    /// `eval::content_key` carries the same sentence. That is why the
-    /// map existing does not widen this door: the two are separate
-    /// changes and only the second one is safe on its own.
+    /// an omission: a chain's arc steps carry their own radii, each
+    /// addressing its own segments, so there is no per-loop answer to
+    /// give. [`LoopProgram::step_radii`] is the per-STEP question and
+    /// [`ProfileProgram::segment_radii`] the per-EDGE one; both answer
+    /// for a carrier form too, so a caller that wants one rule for
+    /// both shapes asks them rather than this.
     ///
     /// The address is the loop's `Radius` slot
     /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
@@ -997,6 +1017,43 @@ impl LoopProgram {
                 Some(radius)
             }
             LoopProgram::Chain(_) => None,
+        }
+    }
+
+    /// **Each step's own radius expression**, in program-step order —
+    /// the per-STEP question [`LoopProgram::carrier_radius`] is the
+    /// per-LOOP one.
+    ///
+    /// A CARRIER form answers its one radius at step 0, the step that
+    /// replays to the whole loop, so one entry here means one radius
+    /// on every edge. A CHAIN answers one entry per step that holds
+    /// exactly one radius-bearing argument ([`radius_arg`]), which is
+    /// an `arc_to` in a radius-carrying mode or a `fillet`; a straight
+    /// step holds none and answers nothing.
+    ///
+    /// **This is the PROGRAM-side question and nothing else asks it.**
+    /// It reads no record, so it cannot say which segment a step's
+    /// radius draws — that is [`ProfileProgram::segment_radii`], whose
+    /// answer is a SUBSET of this one, dropped where the record says a
+    /// step emitted more than the one segment its radius is the radius
+    /// of. The direction of that inclusion is the invariant the memo's
+    /// stale-token guard rests on: the content key feeds this answer,
+    /// the attach stamps that one, and a spelling that reaches a wall
+    /// has therefore always reached the key.
+    #[must_use]
+    pub fn step_radii(&self) -> Vec<(u32, &Expr)> {
+        match self {
+            LoopProgram::Chain(steps) => steps
+                .iter()
+                .enumerate()
+                .filter_map(|(i, step)| {
+                    let arg = radius_arg(step)?;
+                    Some((i as u32, step_expr(step, arg)?))
+                })
+                .collect(),
+            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
+                vec![(0, radius)]
+            }
         }
     }
 
@@ -1577,6 +1634,74 @@ impl ProfileProgram {
                 segment: s as u32,
             })
             .collect())
+    }
+
+    /// **Which radius each of a loop's profile edges is drawn at.**
+    ///
+    /// The per-EDGE reading of [`LoopProgram::step_radii`]: each step's
+    /// radius expression paired with the [`ProfileEdgeRef`]s that
+    /// step's segments were named with, through
+    /// [`ProfileProgram::profile_edges_of`]. One door for both loop
+    /// shapes, which is what lets a consumer attach a per-edge scalar
+    /// without asking first which shape it is holding.
+    ///
+    /// **The two shapes, and why the carrier form is not a special
+    /// case here.** A carrier form's one step replays to the whole
+    /// loop and every segment of it is an arc of that one radius
+    /// ([`LoopProgram::carrier_radius`] says why), so the pairing is
+    /// the step's radius on every edge of its span. A chain's step
+    /// carries its own radius and the pairing is that step's span —
+    /// but a chain step can emit MORE than the arc its radius draws (a
+    /// fillet arrival emits its trimmed straight leg too), and the
+    /// span does not say which of them is the arc. So a chain step
+    /// answers only where it emitted exactly ONE segment, which is
+    /// then the arc that radius drew and nothing else.
+    ///
+    /// Everything a step does not answer for is absent from the
+    /// result, which is an answer and not a gap: nothing here claims
+    /// an edge is drawn at a radius, so nothing downstream attaches a
+    /// spelling to an edge that is not.
+    ///
+    /// The answer is in the numbering the published names carry, in
+    /// program-step order, and is a SUBSET of
+    /// [`LoopProgram::step_radii`]'s — the inclusion the content key's
+    /// stale-token guard rests on, stated at that feed too.
+    ///
+    /// # Errors
+    ///
+    /// [`StepSegmentsError`], the map's own refusals unaltered: a loop
+    /// this program does not have, or a record that does not describe
+    /// it.
+    ///
+    /// # Panics
+    ///
+    /// Where [`ProfileProgram::profile_edges_of`] does — the two
+    /// records describing different permutations of the loop.
+    pub fn segment_radii(
+        &self,
+        structure: &profile::ProfileStructure,
+        naming: &ProfileNaming,
+        loop_: u32,
+    ) -> Result<Vec<(ProfileEdgeRef, &Expr)>, StepSegmentsError> {
+        let program = self
+            .loops
+            .get(loop_ as usize)
+            .ok_or(StepSegmentsError::NoSuchLoop {
+                loops: self.loops.len(),
+            })?;
+        // The carrier forms are the loops whose whole boundary is one
+        // arc carrier, and the per-loop door is the statement of that.
+        let whole_loop = program.carrier_radius().is_some();
+        let mut out = Vec::new();
+        for (step, expr) in program.step_radii() {
+            let edges = self.profile_edges_of(structure, naming, loop_, step)?;
+            match (whole_loop, &edges[..]) {
+                (true, _) => out.extend(edges.into_iter().map(|e| (e, expr))),
+                (false, &[one]) => out.push((one, expr)),
+                (false, _) => {}
+            }
+        }
+        Ok(out)
     }
 
     /// The authoring-time check's body (VQ9): resolve under `env`,

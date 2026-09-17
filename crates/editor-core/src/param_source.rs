@@ -545,70 +545,66 @@ pub(crate) fn attach_shell<T: Real>(
     Ok(())
 }
 
-/// **Each canonical profile loop's carrier radius, lowered** — the
-/// operand-carried flow source's expression side, indexed by CANONICAL
-/// loop so it lines up with the walls a sweep's record exports.
+/// **Each profile EDGE's radius, lowered** — the operand-carried flow
+/// source's expression side, indexed by canonical loop and then by
+/// canonical segment so it lines up position-for-position with the
+/// walls a sweep's record exports.
 ///
 /// It sits here rather than in the lowering because it is one of the
 /// two expression-side halves this module owns: [`flow_bearing`] and
 /// [`attach_blend`] answer for a verb's own slot, this and
 /// [`attach_swept`] for an expression the OPERAND holds.
 ///
-/// **The anchor is what makes the two line up, and it is the whole of
-/// the address.** A canonical loop names the PROGRAM loop it was
-/// canonicalized from (`LoopAnchor::program_loop`), and the program
-/// loop is where the authored expression lives — canonicalization
-/// reorders loops (the outer goes first, whatever the author wrote)
-/// and may reverse them, so reading `program.loops[i]` for canonical
-/// `i` would hand a holed profile its hole's radius. No segment
-/// address is needed beyond that: a carrier loop is drawn at ONE
-/// radius, so every wall swept from it carries that one expression.
+/// **The address is the profile edge, and the value carries it.** The
+/// profile node answered "which radius is this edge drawn at" where
+/// its records live (`ProfileValue::edge_radii`,
+/// `ProfileProgram::segment_radii`); all that is left here is the
+/// lowering, which is scope-relative and so belongs to the ATTACHING
+/// evaluation. A carrier loop answers its one radius at every one of
+/// its segments, which is the same stamp per loop it has always been;
+/// a chain loop answers per arc step.
 ///
-/// `None` at a loop is an answer: a chain loop holds no single radius
-/// ([`LoopProgram::carrier_radius`](crate::program::LoopProgram::carrier_radius)
-/// says why). The empty vector for a node that is not a profile is
-/// unreachable — the caller has already refused a non-profile operand
-/// typed — and is the shape a `Vec` return has for a case that cannot
-/// arise.
-pub(crate) fn profile_radius_tokens(
-    doc: &crate::doc::Doc<crate::program::ProfileProgram>,
-    profile: crate::node::RecipeNodeId,
-    naming: &crate::eval::ProfileNaming,
+/// `None` at a segment is an answer, not a gap: a straight edge, an
+/// arc the program does not author a radius for, or one of several
+/// segments a fused step emitted. Nothing is attached there, which is
+/// what keeps a wall from carrying the identity of an expression it is
+/// not drawn from.
+pub(crate) fn profile_radius_tokens<T: Real>(
+    profile: &crate::eval::ProfileValue<T>,
     scope: ParamScope,
-) -> Vec<Option<ParamSource>> {
-    let Some(crate::node::Node::Profile(program)) = doc.node(profile) else {
-        return Vec::new();
-    };
-    naming
-        .loops
+) -> Vec<Vec<Option<ParamSource>>> {
+    profile
+        .edge_radii
         .iter()
-        .map(|anchor| {
-            program
-                .loops
-                .get(anchor.program_loop as usize)
-                .and_then(crate::program::LoopProgram::carrier_radius)
-                .map(|expr| lower(scope, expr))
+        .map(|loop_| {
+            loop_
+                .iter()
+                .map(|expr| expr.as_ref().map(|e| lower(scope, e)))
+                .collect()
         })
         .collect()
 }
 
 /// **Attach-at-mint for a per-edge flow source**: stamp each profile
-/// loop's own token on the walls swept from that loop.
+/// EDGE's own token on the wall swept from that edge.
 ///
 /// The blend's attach ([`attach_blend`]) carries ONE token, because a
 /// verb scalar is one expression however many carriers it reaches. A
 /// per-edge source is the other shape: the value differs per profile
-/// loop, so what comes in is one token per CANONICAL loop — `None`
-/// where that loop carries no such scalar at all (a polygon has no
-/// radius; only the carrier loop forms hold one), which is an answer
-/// and not a gap.
+/// edge, so what comes in is one token per canonical SEGMENT of each
+/// canonical loop — `None` where that edge carries no such scalar at
+/// all (a straight edge has no radius; a polygon has none anywhere),
+/// which is an answer and not a gap.
 ///
-/// `walls[i]` is the faces swept from canonical loop `i`, as the
-/// verb's own record exported them, and `tokens[i]` is that loop's
-/// lowered radius. The two are indexed by the same canonical loop
-/// index, which is what makes "this wall carries THIS radius" a fact
-/// about the record rather than a guess: a wall in loop `i`'s list was
-/// swept from an edge of loop `i` and from no other.
+/// `walls[i][j]` is the face swept from canonical loop `i`'s canonical
+/// segment `j`, as the verb's own record exported it, and
+/// `tokens[i][j]` is that edge's lowered radius. The two carry the
+/// same two indices, which is what makes "this wall carries THIS
+/// radius" a fact about the record rather than a guess: the wall at
+/// `(i, j)` was swept from the profile edge at `(i, j)` and from no
+/// other. A `None` wall is a segment that minted no face — a revolve's
+/// on-axis edge — and holds its position so that the alignment
+/// survives it.
 ///
 /// A flow with no per-edge row attaches nothing, which is the
 /// declaration being obeyed rather than a case being skipped — the
@@ -625,8 +621,8 @@ pub(crate) fn attach_swept<T: Real>(
     body: &mut Body<T>,
     flow: &[ParamFlow],
     source: FlowSource,
-    tokens: &[Option<ParamSource>],
-    walls: &[Vec<FaceKey>],
+    tokens: &[Vec<Option<ParamSource>>],
+    walls: &[Vec<Option<FaceKey>>],
 ) -> Result<(), ParamAttachError> {
     let Some(row) = flow.iter().find(|row| row.source == source) else {
         return Ok(());
@@ -642,10 +638,16 @@ pub(crate) fn attach_swept<T: Real>(
             continue;
         }
         for (loop_index, faces) in walls.iter().enumerate() {
-            let Some(Some(token)) = tokens.get(loop_index) else {
-                continue;
-            };
-            for &face in faces {
+            for (segment, &wall) in faces.iter().enumerate() {
+                // A segment that minted no wall, and an edge with no
+                // radius of its own, are the same answer read from the
+                // two aligned lists: nothing to attach, and nothing to
+                // attach it to.
+                let (Some(face), Some(Some(token))) =
+                    (wall, tokens.get(loop_index).and_then(|l| l.get(segment)))
+                else {
+                    continue;
+                };
                 // Loud for the reason the doc gives: the walls came out
                 // of this run's own record, so a face key that does not
                 // resolve — or a carrier that does not — is the broken

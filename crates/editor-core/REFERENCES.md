@@ -341,8 +341,9 @@ persisted. For a loft the published anchoring is section 0's
 - **Why not `crates/profile` alone.** It has no vocabulary for an
   authored step and would grow one for a consumer two layers up.
 - Consumers: the viewer's per-segment focus marking (VIEW's row), and
-  the chain-loop radius door in `program.rs`, which answers `None` for
-  chains today for want of exactly this map.
+  the per-edge radius door in `program.rs` (`segment_radii`), which
+  pairs each authored step's radius with the edges that step swept and
+  is what a sweep's per-edge parameter-identity attach reads.
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`authored-step-to-canonical-segment-map-has-no-home`); the

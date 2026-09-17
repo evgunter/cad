@@ -30,6 +30,13 @@
 //! segments the door credited it with are the ones that geometry
 //! describes. A mutant that shifts every step's attribution one step
 //! along passes §1 and §2 and reds here.
+//!
+//! **3. The PAIRING** (§5), for the door's one built consumer:
+//! `ProfileProgram::segment_radii` reads the map for one argument role
+//! and answers which radius each EDGE is drawn at. That is a third
+//! thing that can be wrong independently — the refs can be right and
+//! the expression beside one of them belong to another step — so it
+//! has its own rows.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -42,9 +49,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, RecipeNodeId, RoleSeg, StableName, StepSegmentsError,
-    ValuePayload, eval::ProfileNaming, evaluate,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StableName, StepSegmentsError, ValuePayload, eval::ProfileNaming,
+    evaluate,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point2, Tol};
@@ -77,12 +85,14 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// Measured: nothing public carries it. The pre-pass's
 /// `profile::ProfileStructure` lives on `eval::anchor::ProfilePre`,
 /// which is `pub(crate)`; `ProfileValue` — the payload a `Profile`
-/// node's value carries — holds `validated` and `naming` and no
-/// structure, so from outside the crate there is no path to the record
-/// the geometry was actually made from. That is exactly the gap
+/// node's value carries — holds the validated profile, the naming
+/// anchor and the per-edge radii derived from the record, but not the
+/// record, so from outside the crate there is no path to the one the
+/// geometry was actually made from. That is exactly the gap
 /// `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
 /// records, and the same one that keeps the door from having a caller
-/// outside these rows. So these rows pair a rebuilt structure with the
+/// outside these rows and the in-crate one that reads those radii. So
+/// these rows pair a rebuilt structure with the
 /// evaluation's REAL `naming`, and the door's own two-record check is
 /// what holds that pairing honest: a rebuild that had drifted from the
 /// evaluation would disagree with the published anchor's permutation
@@ -938,5 +948,338 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
             end: n + 1,
             segments: n,
         })
+    );
+}
+
+// ------------------------------------------------------------------
+// 5. The per-edge radius door
+//
+// `ProfileProgram::segment_radii` is `profile_edges_of` read for one
+// argument role: which radius each of a loop's edges is drawn at. The
+// rows here are about the PAIRING — that the expression handed back
+// with a ref is the one the wall that ref names is drawn from — which
+// §2 and §3 say nothing about, because neither reads a step's radius.
+//
+// Measured against the extruded solid: an answered ref's wall must be a
+// CYLINDER at the answered expression's own radius, and every wall the
+// door did not answer for must not be one. A door that paired the
+// loop's first radius with every edge, or that answered in canonical
+// indices, names a plane on the reversed and two-arc fixtures and reds
+// here without any index arithmetic being re-done.
+// ------------------------------------------------------------------
+
+/// A chain of straight-then-arc legs, closed back to its start, on the
+/// xy plane and extruded 1 unit. Answers the authored radius
+/// expressions alongside, in program-step order.
+///
+/// `side` is what makes a fixture's winding: `Left` turns the chain
+/// counterclockwise and canonicalization leaves it alone, `Right` turns
+/// it clockwise and canonicalization reverses it. `radii` is one
+/// quarter-turn arc apiece, each after a straight leg.
+fn arc_prism(
+    id: &str,
+    side: profile::ArcSide,
+    radii: &[f64],
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Vec<Expr>) {
+    let mut exprs = Vec::new();
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: fixture::scl(1.0),
+            dy: fixture::scl(0.0),
+        },
+    ];
+    for (i, &r) in radii.iter().enumerate() {
+        if i > 0 {
+            steps.push(ProgramStep::Tangent);
+        }
+        steps.push(ProgramStep::Line(len(if i == 0 { 4.0 } else { 2.0 })));
+        steps.push(ProgramStep::Tangent);
+        let expr = len(r);
+        exprs.push(expr.clone());
+        steps.push(ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r: expr,
+            side,
+            angle: fixture::ang(core::f64::consts::FRAC_PI_2),
+        }));
+    }
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    (doc, profile, ext, exprs)
+}
+
+/// The radius the wall named by `e` stores, `None` where that wall is
+/// not a cylinder at all.
+fn wall_radius(ev: &Evaluation<f64>, ext: RecipeNodeId, e: ProfileEdgeRef) -> Option<f64> {
+    let face = lateral(ev, ext, e)?;
+    let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
+        return None;
+    };
+    match body.get_surface(body.get_face(face)?.surface)? {
+        geom::Surface::Cylinder { radius, .. } => Some(*radius),
+        _ => None,
+    }
+}
+
+/// **Every edge the door answered for is an arc at the answered
+/// radius, and every edge it did not answer for is not an arc's.**
+///
+/// The shared body of the chain rows. The answer is checked to hold one
+/// pair per authored arc, each carrying that arc's own expression and
+/// naming a cylindrical wall at that expression's radius; the walls
+/// left over are checked not to be cylinders, which is the half that
+/// catches a door answering too widely.
+fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], want_reversed: bool) {
+    let (doc, profile, ext, exprs) = arc_prism(id, side, radii);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{id}: the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("{id}: the profile node carries a profile");
+    };
+    let r = records(&doc, program);
+    assert_eq!(
+        r.structure.canonical.loops[0].reversed,
+        want_reversed,
+        "{id}: the fixture is written to be the {} case",
+        if want_reversed {
+            "reversed"
+        } else {
+            "identity"
+        }
+    );
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
+    assert_eq!(
+        answer.len(),
+        radii.len(),
+        "{id}: one arc step, one answer — got {answer:?}"
+    );
+    let mut answered = BTreeSet::new();
+    for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
+        assert_eq!(
+            *expr, want,
+            "{id}: the edges are answered in program-step order, so pair {k} carries \
+             arc {k}'s own expression"
+        );
+        let got = wall_radius(&ev, ext, *e).unwrap_or_else(|| {
+            panic!("{id}: {e:?} names no cylindrical wall, so it is not an arc's edge")
+        });
+        assert!(
+            (got - radii[k]).abs() < 1e-9,
+            "{id}: {e:?} was paired with the radius {} and its wall stores {got}",
+            radii[k]
+        );
+        answered.insert(e.segment);
+    }
+    let n = r.verts[0].len();
+    for segment in 0..n as u32 {
+        if answered.contains(&segment) {
+            continue;
+        }
+        let e = ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        };
+        assert_eq!(
+            wall_radius(&ev, ext, e),
+            None,
+            "{id}: {e:?} was answered for by nobody, so its wall must not be an arc's"
+        );
+    }
+}
+
+/// **Two arcs of one chain are answered with two different radii, each
+/// on the edge its own step drew.**
+///
+/// The mutant this reds is a door that hands every edge the loop's
+/// FIRST radius — the shape the carrier forms' one-radius-per-loop rule
+/// invites. It reds twice over: the second pair carries the wrong
+/// expression, and the wall it names stores the wrong radius.
+#[test]
+fn each_arc_step_is_answered_with_the_edge_it_drew() {
+    assert_arcs_are_answered(
+        "segment-radii-two-arcs",
+        profile::ArcSide::Left,
+        &[1.0, 0.25],
+        false,
+    );
+}
+
+/// **The answer is in PROGRAM indices, on a loop canonicalization
+/// REVERSED.**
+///
+/// Authored clockwise, so canonicalization reverses the chain to reach
+/// the outer role's winding and canonical segment `k` is a different
+/// segment from program segment `k`. A door that answered in canonical
+/// indices — or a consumer that paired the program's radii with
+/// canonical positions — names the wrong wall here and reds, while
+/// every identity-permutation row above still passes.
+#[test]
+fn a_reversed_chains_arcs_are_answered_in_program_indices() {
+    assert_arcs_are_answered(
+        "segment-radii-reversed",
+        profile::ArcSide::Right,
+        &[1.0, 0.25],
+        true,
+    );
+}
+
+/// **A carrier loop answers its one radius on EVERY edge**, which is
+/// what makes one door serve both loop shapes.
+///
+/// `circle_split` at n = 3 is the fixture, because a plain `circle`'s
+/// two segments cannot tell "every edge" from "the first two". The
+/// carrier form's single step replays to the whole loop, so the answer
+/// is that step's radius repeated — not one pair, which is what a door
+/// that treated every loop as a chain would give.
+#[test]
+fn a_carrier_loop_is_answered_at_every_edge() {
+    let doc = ProfileDoc::empty_derived("segment-radii-carrier", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let radius = len(0.5);
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::CircleSplit {
+                centre: [len(0.0), len(0.0)],
+                radius: radius.clone(),
+                n: 3,
+                phase: fixture::ang(0.3),
+            }],
+        }),
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let segments: Vec<u32> = answer.iter().map(|(e, _)| e.segment).collect();
+    assert_eq!(
+        segments,
+        vec![0, 1, 2],
+        "a split carrier's every edge is drawn at the loop's one radius"
+    );
+    for (_, expr) in &answer {
+        assert_eq!(
+            **expr, radius,
+            "every edge carries the loop's own expression"
+        );
+    }
+}
+
+/// **A step carrying more than one radius answers NOTHING**, and a
+/// straight step answers nothing either.
+///
+/// Read off the program alone, because that is where the rule lives:
+/// `arc_fillet_arc` authors three radii — the incoming spec's, the
+/// fillet's, the arrival spec's — and the record says only which
+/// segments the step emitted, never which of its radii drew which. A
+/// door that answered the first would stamp two of those walls with an
+/// expression they are not drawn from, and no per-edge row over a
+/// single-radius chain can see it.
+///
+/// The program is never replayed here, so the fused step's arguments
+/// need not be a geometry that closes: what is under test is which
+/// arguments the enumeration calls radii.
+#[test]
+fn a_step_with_several_radii_answers_no_radius() {
+    let spec = || ProgramArcData::Radius {
+        r: len(1.0),
+        side: profile::ArcSide::Left,
+    };
+    let fused = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::ArcFilletArc {
+            spec: spec(),
+            radius: len(0.5),
+            spec2: spec(),
+        },
+    ]);
+    assert!(
+        fused.step_radii().is_empty(),
+        "a step with three radii says which segment none of them drew, and the \
+         straight leg beside it has none at all"
+    );
+    let one = LoopProgram::Chain(vec![ProgramStep::ArcTo(spec())]);
+    assert_eq!(
+        one.step_radii().len(),
+        1,
+        "the same spec ALONE carries exactly one radius and is answered, or the row \
+         above is passing because the shape was never reached"
+    );
+}
+
+/// **The per-edge door's refusals are the map's own**, unaltered.
+///
+/// It composes [`ProfileProgram::profile_edges_of`] and adds no
+/// question of its own, so it owes no refusal of its own either: a loop
+/// this program does not have, and a record that does not describe it,
+/// come back exactly as the map states them. The row pins that the
+/// composition does not swallow one into an EMPTY answer, which is the
+/// failure that would leave a caller attaching nothing and calling it a
+/// profile with no radii.
+#[test]
+fn the_per_edge_door_refuses_where_the_map_does() {
+    let (doc, profile, _, _) = arc_prism("segment-radii-refusal", profile::ArcSide::Left, &[1.0]);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert_eq!(
+        program.segment_radii(&r.structure, &pv.naming, 1),
+        Err(StepSegmentsError::NoSuchLoop { loops: 1 })
+    );
+    let empty = ProfileStructure {
+        replay: Vec::new(),
+        canonical: CanonicalStructure { loops: Vec::new() },
+    };
+    assert_eq!(
+        program.segment_radii(&empty, &pv.naming, 0),
+        Err(StepSegmentsError::NoRecord { loop_: 0 })
+    );
+    let mut short = r.structure.clone();
+    let authored = short.replay[0].steps.len();
+    short.replay[0].steps.pop();
+    assert_eq!(
+        program.segment_radii(&short, &pv.naming, 0),
+        Err(StepSegmentsError::RecordShape {
+            loop_: 0,
+            authored,
+            recorded: authored - 1,
+        })
+    );
+    assert_eq!(
+        program.segment_radii(&r.structure, &ProfileNaming::default(), 0),
+        Err(StepSegmentsError::NoAnchor { loop_: 0 })
     );
 }
