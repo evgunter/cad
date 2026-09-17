@@ -3045,6 +3045,7 @@ MEMBERS_BOUND_AS = {
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
+    "EditError::MateHeadWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",
     "EditError::AppearanceNotSet": "EditError.variant",
     "EditError::InvalidTolerance": "EditError.variant",

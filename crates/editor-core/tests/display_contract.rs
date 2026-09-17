@@ -823,6 +823,7 @@ test_utils::f6_variants! {
         InputList,
         AssertionTarget,
         AssertionBound,
+        MateHeadWrongKind,
         MetadataUnversioned,
     ];
 }
@@ -986,6 +987,18 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 bound: Dimension::Angle,
             },
             vec!["bounds a length measure", "with an angle expression"],
+        ),
+        (
+            SnapshotError::MateHeadWrongKind {
+                node,
+                side: editor_core::MateSide::B,
+                name: StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(2),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                },
+            },
+            vec!["mate node 5", "b head", "edge name minted by node 2", "two faces"],
         ),
         (
             SnapshotError::MetadataUnversioned {

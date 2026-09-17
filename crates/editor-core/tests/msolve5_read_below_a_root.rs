@@ -13,6 +13,16 @@
 //! Nothing is admitted here that was refused: every row that refused
 //! before refuses still, and the control (the same document read AT
 //! the pattern, with the instance spelling) holds as it did.
+//!
+//! **Where the kind question is decided.** A head's kind is data on
+//! the name, so the EDIT door answers it (`Node::mate_head_fault`,
+//! `EditError::MateHeadWrongKind`) and the load door asks the same
+//! predicate: a mate whose head names a body or an edge never enters a
+//! document. The rows below that used to read `RefusedRef::NotAFace`
+//! off the gate read the edit door's refusal instead — the same fact,
+//! one door earlier — and what is left for the gate's ladder is what
+//! needs a PRODUCT: which entity a head resolves to (`Vanished`), how
+//! many (`Ambiguous`), and where it is rooted (`ReadBelowARoot`).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -22,10 +32,11 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
+    DocumentId, EditError, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame,
+    MatePrimitive,
     MateRole, MateSide, MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind,
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef,
-    StableName, ValuePayload, product, solve_document,
+    StableName, ValuePayload, apply, product, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
@@ -263,6 +274,20 @@ fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNode
     (doc, id.expect("the mate mints"))
 }
 
+/// The EDIT door's answer to a mate this scene builds — which head it
+/// refused and what that head names — or a panic naming what the door
+/// said instead.
+///
+/// The kind rule is decided one door before the gate
+/// (`Node::mate_head_fault`), so a non-face head never reaches a
+/// document and the rows below read the refusal where it is made.
+fn refused_head(doc: &ProfileDoc, mate: Node<ProfileProgram>) -> (MateSide, StableName) {
+    match apply(doc, &DocEdit::InsertNode { node: mate }, Tol::witness()) {
+        Err(EditError::MateHeadWrongKind { side, name }) => (side, name),
+        other => panic!("a non-face mate head must refuse at the edit door, got {other:?}"),
+    }
+}
+
 /// The `Reference` refusal's three fields, or a panic naming what the
 /// gate said instead.
 fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRef) {
@@ -412,14 +437,17 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
 
 // ---- what it is precedes where it is rooted ----
 
-/// A mate naming a root's BODY refuses `NotAFace { found: Body }`. The
-/// product's table is silent on it — the product's own body is
-/// nobody's root body, so body rows do not carry — and the operand's
-/// own table answers with a body: a non-face never mints anywhere,
-/// so the gate says what the name IS before asking where it is
-/// rooted. (On main this row refused `Vanished`; it still refuses.)
+/// A mate naming a root's BODY never reaches the gate: the EDIT door
+/// refuses the head, because what a name denotes is data on the name
+/// and a mate declares a face-pair contact.
+///
+/// The row still builds the body the scene really spells — the root's
+/// own table answers to it — so what is refused is a genuine entity
+/// of the document and not a typo, and the refusal is about its KIND.
+/// The gate's `NotAFace` says the same thing for a document assembled
+/// in-crate; no document a caller can build carries this head.
 #[test]
-fn a_mate_naming_a_roots_body_refuses_not_a_face() {
+fn a_mate_naming_a_roots_body_refuses_at_the_edit_door() {
     let s = scene("msolve5-body-row");
     let body = StableName {
         kind: EntityKind::Body,
@@ -431,8 +459,7 @@ fn a_mate_naming_a_roots_body_refuses_not_a_face() {
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
     );
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
+    let ev = run(&s.doc, &s.opts);
     let Some(editor_core::NodeResult::Ok(value)) = ev.result(s.base) else {
         panic!("the base evaluates");
     };
@@ -440,24 +467,20 @@ fn a_mate_naming_a_roots_body_refuses_not_a_face() {
         value.name_table.lookup(&body).is_some(),
         "the root's own table spells its body"
     );
-    assert!(doc.roots().contains(&s.base));
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::A));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            found: EntityKind::Body
-        }
-    );
+    assert!(s.doc.roots().contains(&s.base));
+    let (side, refused) = refused_head(&s.doc, seat(a, b));
+    assert_eq!(side, MateSide::A);
+    assert_eq!(refused.kind, EntityKind::Body);
 }
 
 /// The same body read BELOW a root — `T(top)`'s body, read at `T`
-/// under the pattern — refuses `NotAFace { found: Body }` too, not
-/// `ReadBelowARoot`: the kind question is asked before the root
-/// question, so a non-face is a non-face wherever it is read.
+/// under the pattern — refuses in the same word and at the same door.
+/// The edit door knows nothing about where the head is read: it has
+/// no product and consults no table, so "what it is" is decided
+/// without the root question being asked at all, which is the
+/// strongest form of the ordering the gate's own ladder states.
 #[test]
-fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
+fn a_body_read_below_a_root_refuses_at_the_edit_door_whatever_it_is_read_at() {
     let s = scene("msolve5-body-below");
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
     let body = StableName {
@@ -474,18 +497,10 @@ fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
         "the transform's own table spells the instance's body"
     );
     let b = SitedRef::new(s.xf, body);
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    assert!(!doc.roots().contains(&s.xf));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            found: EntityKind::Body
-        }
-    );
+    assert!(!s.doc.roots().contains(&s.xf));
+    let (side, refused) = refused_head(&s.doc, seat(a, b));
+    assert_eq!(side, MateSide::B);
+    assert_eq!(refused.kind, EntityKind::Body);
 }
 
 // ---- ties: unique or tied, the kind question comes first ----
@@ -525,45 +540,38 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!(*why, RefusedRef::Ambiguous { width });
 }
 
-/// A TIED EDGE refuses `NotAFace { found: Edge }` wherever it is read:
-/// the kind question is asked before the root question and before the
-/// tie, for a tied entry exactly as for a unique one — the name's kind
-/// is every candidate's kind, so a tie answers it as readily. Read
-/// below the pattern the operand's table answers; read AT the pattern
-/// the product's own table does; an edge is not a face in either, so
-/// the word does not depend on which table was asked.
+/// A TIED EDGE refuses at the EDIT door wherever it is read: the kind
+/// question is decided before any table is consulted, so neither the
+/// tie nor the root question is reached. The row keeps the TIE in the
+/// scene, because what it measures is that a tie changes nothing — a
+/// door that read the kind off a resolved entry rather than off the
+/// name would have two entries to choose between here.
 ///
-/// The contrast is the tied-FACE row above: there the kind question
-/// passes and the tie is the refusal, so a tie AMONG FACES at the
-/// pattern is `Ambiguous { width }`.
+/// The contrast is the tied-FACE row above: there the kind passes at
+/// the edit door, the mate enters the document, and the tie is the
+/// gate's refusal — `Ambiguous { width }` at the pattern,
+/// `ReadBelowARoot` below it. That is what is left for the gate to
+/// decide once the kind is decided one door earlier.
 #[test]
-fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
+fn a_tied_edge_refuses_at_the_edit_door_at_the_root_and_below_it() {
     let s = scene_with("msolve5-tied-edge", u_split_part("msolve5-tied-edge-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Edge);
     assert_eq!(width, 2, "the row is a TIE, which is what it is here to be");
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let not_a_face = RefusedRef::NotAFace {
-        found: EntityKind::Edge,
-    };
 
     let b = SitedRef::new(s.xf, tied.clone());
-    let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("an edge never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, not_a_face);
+    let (side, refused) = refused_head(&s.doc, seat(a.clone(), b));
+    assert_eq!(side, MateSide::B);
+    assert_eq!(refused.kind, EntityKind::Edge);
 
     let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("an edge never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
+    let (side, refused) = refused_head(&s.doc, seat(a, b));
+    assert_eq!(side, MateSide::B);
     assert_eq!(
-        *why, not_a_face,
-        "the product's own rows ask kind before the tie, as the operand's do"
+        refused.kind,
+        EntityKind::Edge,
+        "the instance spelling is refused for the same fact, one door before any table"
     );
 }
 
