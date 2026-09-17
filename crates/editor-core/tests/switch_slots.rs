@@ -17,7 +17,7 @@ use editor_core::{
     ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
     NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfilePayload,
     ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SitedRef, SlotId, SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
+    RoleSeg, SlotId, SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -737,8 +737,8 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         },
         Node::Mate {
-            a: SitedRef::at_mint(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
-            b: SitedRef::at_mint(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
+            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame {

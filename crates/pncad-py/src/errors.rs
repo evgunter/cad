@@ -766,6 +766,14 @@ pub enum BoundaryEdit<'a> {
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
+    /// A mate head that is not a FACE. `Node.mate` takes names as
+    /// TEXT, so this boundary is one of the three that turn data into
+    /// names, and it is the door where `FaceName::new` is called: the
+    /// kernel expresses the rule in the TYPE of a head, which a
+    /// dynamically-typed caller cannot be held to by the compiler, so
+    /// the binding holds it here and answers with the constructor's
+    /// own refusal.
+    MateHead(&'a pncad::document::NotAFaceName),
 }
 
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has

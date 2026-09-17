@@ -355,6 +355,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::NameSerialize => "name_serialize",
         BoundaryEdit::Declare(err) => declare_error_tag(err),
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
+        BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
     }
 }
 
@@ -2063,7 +2064,6 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
         RefusedRef::Vanished => "ref_vanished",
         RefusedRef::ReadBelowARoot { .. } => "ref_read_below_a_root",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
-        RefusedRef::NotAFace { .. } => "ref_not_a_face",
     }
 }
 

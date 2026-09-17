@@ -660,11 +660,16 @@ pub use stl::{
 // argument of `LoopProgram::from_recorded_with_notation`: a prelude user
 // holding the lift door but not the notation can only lift a recording
 // with the unit its author wrote thrown away.
+// `SitedFace` is a mate's head and `FaceName` is the name in it, whose
+// one constructor answers `NotAFaceName`: a prelude user who can spell
+// `Node::Mate` can spell its two heads, and handle the refusal a name
+// read out of a file gets.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
-    RecordedProgramError, SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
+    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName, ParseError,
+    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
+    apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 

@@ -488,8 +488,8 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: SitedRef::at_mint(head_a.clone()),
-            b: SitedRef::at_mint(instance_face(ib, part_body)),
+            a: crate::fixture::head(head_a.clone()),
+            b: crate::fixture::head(instance_face(ib, part_body)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),
@@ -706,8 +706,8 @@ fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: SitedRef::at_mint(head_a.clone()),
-            b: SitedRef::at_mint(instance_face(ib, part_body)),
+            a: crate::fixture::head(head_a.clone()),
+            b: crate::fixture::head(instance_face(ib, part_body)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),

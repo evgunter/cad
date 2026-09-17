@@ -2,7 +2,8 @@
 id: assembly-recourse-omits-the-transverse-cap-open-chain
 kind: issue
 title: FILLET3_ASSEMBLY_RECOURSE's open clause omits the transverse-cap chain its sibling endorses
-status: review
+status: closed
+closed: 2026-09-17
 opened: 2026-09-08
 pr: 2141
 branch: blend/3-spine-recourse
@@ -97,3 +98,13 @@ The sibling disagreement this item reported — `FILLET3_CORNER_RECOURSE`
 endorsing the transverse-cap termination that `FILLET3_ASSEMBLY_RECOURSE`
 withheld — is therefore gone by the assembly sentence widening to meet
 the corner one, not by the corner one narrowing.
+
+## Closed (2026-09-17)
+
+PR 2141 (unit 3) rewrote `FILLET3_ASSEMBLY_RECOURSE` to name both
+terminations — trivalent corners over plane–plane supports, and
+transverse caps for a ruling shared by a cylinder and a plane or
+cylinder — on either material side (`crates/sweep/src/blend/mod.rs`,
+the constant's first sentence). The item's status was left at `review`
+when that PR merged on 2026-09-08; closed in place now, per Ev
+(2026-09-17): a docs item finishes in BLEND.

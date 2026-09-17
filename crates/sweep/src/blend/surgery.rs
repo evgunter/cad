@@ -98,14 +98,20 @@
 //!
 //! The battery already judged every margin (the C8 ordering contract —
 //! [`super::build::fillet_edges`] runs it first and hands the verdict
-//! in). The surgery adds exactly ONE new numeric decision, the ring
-//! carry-through honesty check: **`fillet3_ring_clearance`**, a Q1
+//! in). The surgery adds TWO numeric decisions of its own. The ring
+//! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled. Positive carries the ring
 //! through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
-//! recourse (two-tolerance, D4 ¶1 addendum). Everything else in this
+//! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
+//! over every contact edge at the description pass (`attach_contact`,
+//! through [`geom_brep::must_carry_over_edge`]):
+//! **`tangent_second_order`** at the certification schedule's seven
+//! interior stations — jet-determinate stores the intrinsic tangency,
+//! under-determined the conventional chart image, in-band refuses
+//! [`BlendError::Escalated`] at the link. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -164,7 +170,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
@@ -752,8 +760,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         body.set_face_sense(fk, rim.chain.first().convexity.blend_sense())
             .map_err(|e| op("band face sense", e))?;
     }
-    for (edge, carrier) in described {
-        attach_contact(&mut body, edge, carrier, tol)?;
+    for (edge, carrier, link) in described {
+        attach_contact(&mut body, edge, carrier, link, band, tol)?;
     }
     topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
         site: "pcurve re-mint after surgery",
@@ -2318,7 +2326,10 @@ pub(super) enum ContactCarrier<T: Real> {
     SeamArc { center: Point3<T>, radius: T },
 }
 
-pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
+/// The third element is the REQUESTED link the contact edge belongs
+/// to — the site a refusal at the description pass names, since the
+/// contact edge's own key is one no caller holds.
+pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>, EdgeKey)>;
 
 // ------------------------------------------------------------------
 // The rim phase: one torus band per closed chain, in place.
@@ -2814,7 +2825,11 @@ fn rim_phase<T: Decide + Bounds>(
         rec.rim_trims
             .push((created.edge, plane_walk[i].2, RimSide::Host));
         let (curve, t0, t1) = ta_carriers[i].clone();
-        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        described.push((
+            created.edge,
+            ContactCarrier::Exact(curve, t0, t1),
+            plane_walk[i].2,
+        ));
     }
 
     // ---- (4) The MATE side: one trim chord per half-cap, hung
@@ -2868,7 +2883,7 @@ fn rim_phase<T: Decide + Bounds>(
             )
             .map_err(|e| op("rim mate trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_host);
-        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
+        described.push((created.edge, ContactCarrier::Exact(curve, t0, t1), e));
         rec.rim_trims.push((created.edge, e, RimSide::Mate));
         tb_edges.push(created.edge);
     }
@@ -2963,6 +2978,7 @@ fn rim_phase<T: Decide + Bounds>(
                     center: tc + radial * tmaj,
                     radius: tmin,
                 },
+                plane_walk[idx].2,
             ));
             band_surface = Some(Surface::Torus {
                 center: tc,
@@ -3709,7 +3725,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         ));
     }
 
-    for (i, _) in rim.chain.links().enumerate() {
+    let link_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    for (i, link) in link_edges.iter().enumerate() {
         described.push((
             host_trims[i].edge,
             ContactCarrier::Exact(
@@ -3717,9 +3734,10 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 arcs[i].host_window.0,
                 arcs[i].host_window.1,
             ),
+            *link,
         ));
     }
-    for (i, _) in rim.chain.links().enumerate() {
+    for (i, link) in link_edges.iter().enumerate() {
         described.push((
             mate_trims[i].edge,
             ContactCarrier::Exact(
@@ -3727,14 +3745,18 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 arcs[i].mate_window.0,
                 arcs[i].mate_window.1,
             ),
+            *link,
         ));
     }
+    // The slit is the band's own seam; the arc the closure crossing
+    // starts is the link it belongs to.
     described.push((
         mate_feet[ann.closure].1,
         ContactCarrier::SeamArc {
             center: tc + radial * tmaj,
             radius: tmin,
         },
+        link_edges[closure_arc],
     ));
 
     // Birth data. A host foot is the band's foot on the host support; a
@@ -3919,9 +3941,10 @@ impl SourceFaces {
 }
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
-/// carrier and describe it as the tangential contact locus of its two
-/// adjacent faces' surfaces — over the rim arcs' stored carriers as
-/// well as over the straight trimlines.
+/// carrier and describe it — over the rim arcs' stored carriers as
+/// well as over the straight trimlines — as the geometry IS: a seam, a
+/// transverse intersection, or a tangential contact locus whose
+/// description the must-carry rule decides over the whole edge.
 ///
 /// **A blend trimline is BORN with its intrinsic description**, never a
 /// `MappedCurve` pushforward of the construction that happened to
@@ -3935,6 +3958,8 @@ fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
+    link: EdgeKey,
+    band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
     let ed = body
@@ -4034,21 +4059,64 @@ fn attach_contact<T: Decide + Bounds>(
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         // The band meets its support tangentially along the contact
-        // locus, so the intrinsic description one order up is the one
-        // the geometry has.
-        //
-        // **The description is chosen STRUCTURALLY here, not by the
-        // must-carry rule** (`geom_brep::must_carry_over_edge`, the
-        // one home the sweep verbs' smooth arms route through): no
-        // lane gate, no station walk, no in-band escalation. The
-        // second-order margin is `|1/r_band ∓ κ_support|·r_band²/2`,
-        // which the measured corpus reads seven orders above K·ε —
-        // and which collapses for a concave band osculating its
-        // support. The reading, the closed form and the disposition
-        // are
-        // `work/blend/blend-contact-edges-mint-the-intrinsic-description-without-the-rule.md`.
+        // locus, and the corner ball meets the band the same way: a
+        // definitely-smooth join, whose description is the must-carry
+        // rule's to decide over the whole edge
+        // (`geom_brep::must_carry_over_edge` — the lane gate, the
+        // certification schedule's interior stations and the three-way
+        // answer, in their one home). The rule decides; this site does
+        // not argue. Jet-determinate stores the intrinsic tangency,
+        // under-determined the conventional chart image, in-band
+        // refuses typed at the door (D4 ¶3) — never silently either
+        // side.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        let verdict = {
+            let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+                return Err(not_intact(
+                    EntityId::Edge(edge),
+                    "a described edge's two surfaces",
+                ));
+            };
+            let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
+            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+        };
+        match verdict {
+            MustCarryVerdict::JetDeterminate => {
+                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+            }
+            // The surfaces under-determine the locus, so the
+            // description stays CONVENTIONAL: an image in a chart,
+            // derived by the certification door from the exact carrier
+            // above. `he_plus`'s chart: the locus lies exactly in both
+            // surfaces, so either is a legitimate home — the argument
+            // is the extrude strut arm's (`sweep_loop`, the `k_prev`
+            // paragraph), stated once there — and the edge's own
+            // orientation names this one. Not `Body::describe_at_rest`:
+            // that restates the STORED carrier, and what the `mef`
+            // stored is the chord scaffold, which for an arc is not the
+            // locus.
+            //
+            // Reached where the jet is under-determined on a pair the
+            // lane admits: a corner arc on a slim wedge, whose extent
+            // is the folded lever arm, or any band under a run with
+            // `K < 2`. A pair the lane REFUSES lands here too, and the
+            // derived image covers the carriers the lane admits, so
+            // such a pair would fall to the certification door's own
+            // refusal inside `op("surgery contact edge")`; no arm the
+            // battery admits mints one.
+            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
+            // In-band: a separation certifiable as neither positive nor
+            // zero — a band a few K·ε in radius, or a corner arc whose
+            // extent is the lever — escalated typed with the deciding
+            // station's own reading, at the link the contact edge
+            // belongs to.
+            MustCarryVerdict::InBand(source) => {
+                return Err(BlendError::Escalated {
+                    site: BlendSite::Link { edge: link },
+                    source,
+                });
+            }
+        }
     };
     body.set_edge_curve(
         edge,

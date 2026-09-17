@@ -115,7 +115,7 @@ cover, can.
 | `mass-properties-bit-comparison-has-thirty-spellings` | **full** | ~110 sites that disagree about whether the pads are in the comparison; unifying them decides 31 suites' coverage. Likely more than one unit |
 | `editor-core-raw-twin-planes-unreconciled` | **full** | the rows assert two spellings reach the same body; the fix decides whether that equality is enforced or merely restated |
 | `brick-has-two-constructions-and-two-homes` | **full** | measured 2026-09-16: one fixture, not two. Now **parked** as the third of three links — reconcile the cube sequence, thread `tol: Tol` through the family, then move and unify |
-| `topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice` | **full** | claimed 2026-09-16 as the first of those three links: ninety lines written twice, and `geometric_cube`'s rows assert on the one step that differs |
+| `topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice` | **full** | claimed 2026-09-16 as the first of what are now **four** links: ninety lines written twice, and `geometric_cube`'s rows assert on the one step that differs |
 
 Two rows on the opening slate are **not this program's** and stay with
 S-TINT: `mate6r1-shared-has-eleven-tests-and-no-assertions` (a coverage

@@ -68,6 +68,28 @@ pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError>
     assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
+/// A mate head over a name this fixture built as a face, read at its
+/// own mint.
+///
+/// A head is an `editor_core::SitedFace`, so the kind is the type's
+/// and a fixture that names an edge does not compile. The `expect` in
+/// [`face`] is the fixture's own claim that the name it just made is a
+/// face — if it is not, the fixture is wrong and says so where it is
+/// built.
+pub fn head(name: StableName) -> editor_core::SitedFace {
+    editor_core::SitedFace::at_mint(face(name))
+}
+
+/// The same head read at `at` rather than at its mint.
+pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
+    editor_core::SitedFace::new(at, face(name))
+}
+
+/// A fixture's name as an `editor_core::FaceName`.
+pub fn face(name: StableName) -> editor_core::FaceName {
+    editor_core::FaceName::new(name).expect("the fixture names a face")
+}
+
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
 /// wrapper, the segment a pattern's table puts round every master
 /// name it emits. Nest the calls for a nested copy.

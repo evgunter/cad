@@ -20,8 +20,7 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
     Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance, MateFrame,
-    MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    solve_document,
+    MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, solve_document,
 };
 use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
@@ -138,8 +137,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: SitedRef::at_mint(instance_face(ia, part_body)),
-            b: SitedRef::new(placed, head_b),
+            a: crate::fixture::head(instance_face(ia, part_body)),
+            b: crate::fixture::head_at(placed, head_b),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),

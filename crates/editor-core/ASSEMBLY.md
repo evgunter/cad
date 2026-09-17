@@ -119,21 +119,25 @@ pick index's doors as by the rest — because a pairing is about
 identity and never about a version (DI3); whether anything may be
 reused across such a run is the content keys' business.
 
-The pick doors' stamp does not reach a HAND-ASSEMBLED target, in any
-half. A `PickTarget`'s fields are private and it has exactly two
-mints — `NodePick::target`, where the document, the node, the body and
-the mesh all come from one tessellation, and `PickTarget::new`, where
-the caller declares them over a mesh index of its own. A minted target
-cannot be taken apart and re-stamped, so what the door checks is a
-claim a raw caller made: the node half cannot be checked even in
-principle (arena keys collide numerically across sibling nodes of one
-document, so the wrong node of the right document still answers a
-plausible wrong name), and the document half is checked against the
-handed evaluation, which catches every honestly-stamped target paired
-with the wrong run and not a caller who declared another document's
-mesh. That is `PickTarget`'s stated contract and issue #1098's residual
-raw-assembly class, and `NodePick`, whose `(document, node, body)` ↔
-mesh pairing is true by construction, is the door that closes it.
+At the pick doors the stamp reaches EVERY target a consumer can hold.
+A `PickTarget`'s fields are private and `NodePick::target` is its only
+reachable mint: the document, the node, the body and the mesh index all
+come from the one tessellation `NodePick::build` performed, so a caller
+declares none of them and the door's check is a statement about the
+type. The hand-assembled mint — `PickTarget::new`, and `MeshPick::build`
+the index it needs — is behind `editor-core`'s `test-support` cargo
+feature, which this crate's own dev-dependency enables and which no
+consumer's manifest wires onto an edge of its own —
+`scripts/gates/test-features-dev-only.sh` holds that across every
+manifest in the repository, and its header says why that is the claim a
+feature carries rather than a stronger one: a build COMMAND may ask for
+any feature by name. That closes issue #1098's
+residual raw-assembly class at the API: the class now lives exactly
+where the feature does, in the rows that measure it (a raw target's
+declaration is taken at its word in the document half as in the node
+half, which is unprovable in principle — arena keys collide numerically
+across sibling nodes of one document) and in the rows that need an
+index no tessellation produced or a node `NodePick::build` refuses.
 
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying` — do NOT check it today; `assembly::mint` is
@@ -147,8 +151,10 @@ the move.
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface }` has no placement field
 (A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
-`a`/`b` are `SitedRef`s — an instance-qualified stable name plus the
-operand node it is read at; `class` is the kernel
+`a`/`b` are `SitedFace`s — an instance-qualified FACE name
+(`names::FaceName`, whose one constructor is the only way a face name
+is made) plus the operand node it is read at, so a mate naming an edge
+is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
 part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
@@ -164,8 +170,8 @@ recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
-**A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
-— a name, and the OPERAND node it is read at — and each contributes a
+**A12 — Mate edges and roots.** A mate's two references are `SitedFace`s
+— a face name, and the OPERAND node it is read at — and each contributes a
 *reading edge* to the member that operand resolves to — the walk's
 minting instance, whatever the depth of the copy chain above it —
 recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
@@ -238,9 +244,10 @@ reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
 `RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
 `RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. The operand's entry decides its kind first: a non-face
-entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
-face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
+reads it. The gate asks no KIND question at all: a head is a
+`SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
+by the type, and the refusal vocabulary here has three arms and no
+kind arm. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the

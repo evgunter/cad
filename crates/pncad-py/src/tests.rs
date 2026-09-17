@@ -3990,7 +3990,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "boundary_edit_tag",
-        values: &["name_serialize"],
+        values: &["mate_head_not_a_face", "name_serialize"],
         delegates: &["declare_error_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
@@ -4761,12 +4761,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &[
-            "ref_ambiguous",
-            "ref_not_a_face",
-            "ref_read_below_a_root",
-            "ref_vanished",
-        ],
+        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {
