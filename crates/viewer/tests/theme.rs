@@ -407,10 +407,13 @@ mod cvd {
             // put pure black into every distance below, which is the
             // most legible answer there is and would certify the
             // palette on a value nothing computed.
-            let composited = mark
-                .over(theme.body)
-                .unwrap_or_else(|| panic!("{}: {label} does not composite", theme.name));
-            out.push((label, scale(linear(composited))));
+            let composited = mark.over(theme.body);
+            assert!(
+                composited.is_some(),
+                "{}: {label} does not composite",
+                theme.name,
+            );
+            out.extend(composited.map(|c| (label, scale(linear(c)))));
         }
         out
     }
