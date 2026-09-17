@@ -117,13 +117,12 @@ fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
 }
 
 /// The four flush pairs of two blocks that share their y-range and
-/// z-range and differ along x only, in one union's member space: the
+/// z-range and differ along x only, SITED at the two members: the
 /// y-walls and both caps — `declare_x_offset_flush`'s pairs, lifted.
 pub(crate) fn flush_pairs(
-    union: RecipeNodeId,
     (m1, e1): (RecipeNodeId, RecipeNodeId),
     (m2, e2): (RecipeNodeId, RecipeNodeId),
-) -> Vec<(StableName, StableName)> {
+) -> Vec<(SitedRef, SitedRef)> {
     let mut out = Vec::new();
     for seg in [
         wall(0),
@@ -132,39 +131,25 @@ pub(crate) fn flush_pairs(
         RoleSeg::Cap(CapEnd::End),
     ] {
         out.push((
-            member_face(union, m1, fname(e1, seg.clone())),
-            member_face(union, m2, fname(e2, seg)),
+            SitedRef::new(m1, fname(e1, seg.clone())),
+            SitedRef::new(m2, fname(e2, seg)),
         ));
     }
     out
 }
 
-/// **A union carrying a declaration, built through the doors that
-/// exist.**
+/// **A union carrying a declaration, in the two edits it takes.**
 ///
-/// A member-space name carries the UNION's own node id, so the
-/// `Declare` that names one cannot be inserted before the union it
-/// names: the insert door admits a payload name only when its node is
-/// already live (`EditError::DeclareNamesMissingNode`, pinned by
-/// [`a_declare_cannot_name_a_union_that_does_not_exist_yet`]). And no
-/// edit rewires a live node's inputs (DM6). So the order that works is
-/// a FIRST union, whose space the declaration is written in, the
-/// second union carrying the edge, one `Rebind` per name onto it, and
-/// the first deleted. `pairs` is asked for its names twice — once in
-/// each union's space — because that is what the rebinds move.
+/// A declared pair names SITED entities — the face IN the member, with
+/// the member beside it — so it names only what exists BEFORE the
+/// union. The `Declare` goes in first and the union carrying its edge
+/// second; nothing is rebound and no intermediate union is built.
 pub(crate) fn declared_union(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    pairs: impl Fn(RecipeNodeId) -> Vec<(StableName, StableName)>,
+    pairs: Vec<(SitedRef, SitedRef)>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, first) = insert(
-        doc,
-        Node::Union {
-            members: members.to_vec(),
-            declare: None,
-        },
-    );
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs(first)));
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -172,23 +157,6 @@ pub(crate) fn declared_union(
             declare: Some(decl),
         },
     );
-    let mut doc = doc;
-    // One rebind per DISTINCT name. A name can appear in more than one
-    // pair — a chain of contacts declares the middle member's faces
-    // twice — and the second `Rebind` of one name would refuse
-    // `RebindNoReferences`, the first having already moved every
-    // reference to it.
-    let mut moved: Vec<StableName> = Vec::new();
-    for ((fa, fb), (ta, tb)) in pairs(first).into_iter().zip(pairs(union)) {
-        for (from, to) in [(fa, ta), (fb, tb)] {
-            if moved.contains(&from) {
-                continue;
-            }
-            moved.push(from.clone());
-            doc = step(doc, DocEdit::Rebind { from, to }).0;
-        }
-    }
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: first });
     (doc, union, decl)
 }
 
@@ -223,19 +191,14 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
             failure(&ev, plain)
         );
     };
-    let member_of = |n: &StableName| match n.path.first() {
-        Some(RoleSeg::FromMember { member, .. }) => Some(*member),
-        _ => None,
-    };
-    let named: Vec<Option<RecipeNodeId>> =
-        vec![member_of(&finding.pair.0), member_of(&finding.pair.1)];
+    let named: Vec<RecipeNodeId> = vec![finding.pair.0.at, finding.pair.1.at];
     assert!(
-        named.contains(&Some(m1)) && named.contains(&Some(m2)),
+        named.contains(&m1) && named.contains(&m2),
         "the refusal names both members: {named:?}"
     );
-    // Declared in member space: the same two placements fuse.
-    let (doc, union, _) =
-        declared_union(doc, &[m1, m2], |u| flush_pairs(u, (m1, proto), (m2, proto)));
+    // Declared at the members: the same two placements fuse, in two
+    // edits — the `Declare` and the union that consumes it.
+    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
     let ev = run(&doc);
     assert!(
         failure(&ev, union).is_none(),
