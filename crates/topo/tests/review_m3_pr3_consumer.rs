@@ -281,105 +281,11 @@ fn plane_section_winding_is_consistent() {
     );
 }
 
-/// A unit 2×2×1-ish quad prism (x offset by `x0`, spanning y ∈ [0, 2])
-/// added as a NEW solid of `body` — reassembly's builder,
-/// body-parameterized (public ops only).
+/// A 2×2×1 quad prism (x offset by `x0`, spanning y ∈ [0, 2]) added as
+/// a NEW solid of `body`: [`common::prism_ops`] into an existing body,
+/// **without** the description step — which is what makes this the
+/// single-solid gate's operand rather than a `prism`.
 fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
-    use topo::{EdgeCurveSpec, FaceSurface, MefSite, MevSite};
     let profile = [(x0, 0.0), (x0 + 2.0, 0.0), (x0 + 2.0, 2.0), (x0, 2.0)];
-    let c = |&(x, y): &(f64, f64), z: f64| Point3::new(x, y, z);
-    let bot: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 0.0)).collect();
-    let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 1.0)).collect();
-    let n = 4;
-    let line = EdgeCurveSpec::line_between;
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let plane = |corners: &[Point3<f64>]| geom_brep::newell_plane(corners, band).unwrap();
-    let seed = body.mvfs(bot[0]).unwrap();
-    let mut chain = vec![
-        body.mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            bot[1],
-            line(bot[0], bot[1]),
-            Tol::witness(),
-        )
-        .unwrap(),
-    ];
-    for i in 2..n {
-        let at = chain[i - 2].he_minus;
-        chain.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                bot[i],
-                line(bot[i - 1], bot[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    let bottom: Vec<_> = core::iter::once(seed.vertex)
-        .chain(chain.iter().map(|m| m.vertex))
-        .collect();
-    let he_last = body
-        .find_half_edge(seed.face, bottom[n - 1], bottom[n - 2])
-        .unwrap();
-    let rev: Vec<Point3<f64>> = core::iter::once(bot[0])
-        .chain(bot[1..].iter().rev().copied())
-        .collect();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_last,
-                he2: chain[0].he_plus,
-            },
-            line(bot[n - 1], bot[0]),
-            FaceSurface::New(plane(&rev)),
-            Tol::witness(),
-        )
-        .unwrap();
-    let mut struts = Vec::new();
-    for i in 0..n {
-        let at = if i == 0 {
-            chain[0].he_plus
-        } else if i < n - 1 {
-            chain[i].he_plus
-        } else {
-            f_bottom.he_plus
-        };
-        struts.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                top[i],
-                line(bot[i], top[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    let mut first_side_he_plus = None;
-    for i in 0..n {
-        let j = (i + 1) % n;
-        let he2 = if i < n - 1 {
-            struts[j].he_minus
-        } else {
-            first_side_he_plus.unwrap()
-        };
-        let f = body
-            .mef(
-                MefSite::Chords {
-                    he1: struts[i].he_minus,
-                    he2,
-                },
-                line(top[i], top[j]),
-                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
-                Tol::witness(),
-            )
-            .unwrap();
-        if i == 0 {
-            first_side_he_plus = Some(f.he_plus);
-        }
-    }
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
-        .unwrap();
+    crate::common::prism_ops(body, &profile, (0.0, 1.0), Point3::new);
 }
