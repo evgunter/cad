@@ -694,11 +694,12 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest. A declaration written in these names keeps
-    /// that identity through the fold's MERGES: a member's face that a
-    /// declared merge has consumed resolves, at the step its pair is
-    /// fed to, to the accumulation's `Merged` row whose flat
-    /// constituent set holds it. A face consumed any other way — by a
+    /// renaming the rest. A declaration, which names a member's entity
+    /// SITED at that member and is rewritten into this wrapper at the
+    /// routing door, keeps that identity through the fold's MERGES: a
+    /// member's face that a declared merge has consumed resolves, at
+    /// the step its pair is fed to, to the accumulation's `Merged` row
+    /// whose flat constituent set holds it. A face consumed any other way — by a
     /// split, by containment, or inside a merged row later fragmented
     /// — is not looked through, and a pair naming it is order-shaped
     /// ([`crate::Node::Union`] states the bound).
