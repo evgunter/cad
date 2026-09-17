@@ -246,10 +246,15 @@
 //! each, four days of `crates/` drift folded in by the same cut. This
 //! census reads totals — triangles, the four cell columns and the two
 //! factors — so all seven are invisible to it, and so is any future
-//! set like them. `work/meter/tess-lint-ungated-columns-fold-silently`
-//! is the row for that, and until it lands the fourth category is a
-//! thing a reader has to verify by diffing the file, not a thing this
-//! census can certify.
+//! set like them. **The row that would have closed this
+//! (`tess-lint-ungated-columns-fold-silently`) has landed and did not
+//! close it**, which is the thing to read carefully: what landed is
+//! `parse` REFUSING what those columns may not say, and what this
+//! census needs is a COMPARISON of them across two cuts, which does
+//! not exist. `work/instr/tess-lint-re-cut-folds-uncompared-columns`
+//! is the row for that. Until it lands the fourth category is a thing
+//! a reader has to verify by diffing the file, not a thing this census
+//! can certify.
 //!
 //! ## The retired vocabulary, which is what actually mis-reads
 //!

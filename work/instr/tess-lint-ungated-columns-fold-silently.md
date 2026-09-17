@@ -109,20 +109,33 @@ row of the committed baseline with `muu` set to `banana`, linted as the
 fresh file against that same baseline, parsed clean and printed
 *"clean — no scene grew and no face's sizing got wastefuller"* at exit
 0. `parse` now reads `muu`, `muv`, `mvv`, `mu1` and `mv1` through a
-`BOUND_COLUMNS` table under one `Admissible::Sup` (finite and
-non-negative, which is what a sup of a norm is, and which `tess_meter`'s
-own `split_scan` asserts before it optimizes over the bound), and
-`cells` through the `usize` read `dev_samples` and `triangles` take.
+`BOUND_COLUMNS` table under one `Admissible::NonNegative` — finite and
+non-negative, which is what a sup of a norm is; `mesh::nurbs_cert`'s
+`nurbs_cell_grid` refuses a face whose bound is non-finite in any of
+the five, and `tess_meter::split_scan` asserts the sign for the three
+Hessian sups — and `cells` through the `usize` read `dev_samples` and
+`triangles` take.
 The values are DROPPED after they are admitted: no rule reads them, and
 storing a number no rule reads is arm 2's defect rather than a cure for
 it. The same `banana` row is now harness breakage naming the column, at
 exit 1.
 
 Zero is admitted in all six, deliberately and per `CC5`: a ruled
-direction's `sup ‖S_uu‖` is zero, and `cells` is the length of a `Vec`
-`tess_meter` can build empty. The argument that `cells` cannot be zero
-runs through `span_opt_cells`' accumulator, which is a fact about the
-producer and not about a row — `CC4`.
+direction's `sup ‖S_uu‖` is zero, and `mu1 = 0` is a 3-D-degenerate
+direction `nurbs_cert` handles rather than refuses. For `cells` the
+warrant is narrower and is stated as such at the constant — no
+producer path that leaves the `Vec` empty was found and the baseline's
+minimum is one, so zero is admitted not because it was observed but
+because every argument for refusing it runs through the producer's
+code, which `CC4` refuses to lean on.
+
+The admissions table was also collapsed: `Certificate`, `Count` and
+the `Sup` this unit first added were three spellings of
+`finite && >= 0.0`, permutable among themselves with the whole suite
+green, and `Target`/`Aspect` were two spellings of
+`finite && > 0.0`. They are now `NonNegative(what)` and
+`Positive(what)` — one variant per policy, the quantity's name as
+data — and every harness message is byte-identical to before.
 
 **The class is closed too, not just the instance.** The six columns
 were invisible to the bracket assertions, each of which says its own

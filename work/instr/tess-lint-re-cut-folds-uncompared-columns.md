@@ -15,19 +15,19 @@ nothing COMPARES, which is a different fix and a bigger one.
 
 ## What
 
-`tess-lint` reads every column of `EXPECTED_HEADER`, and what happens
-to each after that is three different things — the roster is in the
+`tess-lint` reads every column of `EXPECTED_HEADER`, and what becomes
+of each after that is four different things — the roster is in the
 crate's module docs (`tools/tess-lint/src/lib.rs`, *"Every column of
 `EXPECTED_HEADER` is read at that boundary"*), which is its home now
-that the parent row is closing. The middle tier is this row: `delta`
+that the parent row is closing. The second bucket is this row: `delta`
 and `worst_dev` reach the report's `total` factor, `patch_cells` and
 `opt_cells` reach the printed cell totals, and the indicator block
 reaches the constraint-activity line. Each is printed on the run that
 reads it and held against no other run.
 
-`worst_cert` is worse than that and belongs here too: it is parsed,
-policed and stored in `Nurbs`, and read by nothing at all — not a rule,
-not the report.
+`worst_cert` is worse than that and belongs here too — it is the
+roster's fourth bucket by itself: parsed, policed, stored in `Nurbs`,
+and read by nothing at all, not a rule and not the report.
 
 **The hazard is not that they move; it is that a re-cut is the only
 event that reads them across two trees, and it does not report.** A
