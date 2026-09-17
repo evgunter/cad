@@ -12469,6 +12469,150 @@ arithmetic is not the same as reaching the function.**
 
 Signed (VIEW implementer lane `view/clamp-nan`, after review).
 
+## 2026-09-17 — the cut: four successors opened, 86 rows re-homed, VIEW not closed
+
+Ev, in chat: *"you can self merge the cut pr. moving existing items is
+low risk."* This entry records what moved and, first, the verification
+the whole cut rests on.
+
+### The Order's six units, re-derived against the tree
+
+The exit shape above reads *"every item above has landed or been ruled
+out"*, where **above** is the `Order`'s six numbered units and not the
+open slate. Each was checked against the tree and the tracker rather
+than against this file, because this file's own standing hazard is a
+claim going stale rather than a number:
+
+1. **`viewer-session-god-module-split` — DONE**, four PRs on `main`
+   (#1801, #1816, #1830, #1832). Its two named residues are rows:
+   `session-shims-and-test-imports` (live, now VDOC's) and
+   `tool-kind-all-and-ordinal-have-no-production-reader` (closed).
+2. **`pick-priority-filter-vocabulary` — DEFERRED**, status `deferred`
+   in the file, ratified by `crates/viewer/GUI-DESIGN.md` GQ7. Not
+   work, and not dispatchable by the tracker's own vocabulary.
+3. **`camera-fold-clears-status-line` — DONE**, #1849. Both residues
+   closed (#1957, #2026). The eighteenth status-line writer has its own
+   row, `startup-notices-need-holding-to-badge`, which stays here.
+4. **`focus-marking-is-per-node-not-per-segment` — HANDED OFF.** Its
+   blocker was the authored-step to canonical-segment map, whose
+   siting question is `authored-step-to-canonical-segment-map-has-no-home`
+   — **now CLOSED on EDIT's slate at PR #2759, 2026-09-16**, with DM8's
+   follow-through merged at #2785. So the blocker has fired, the map
+   exists, and both halves of the ground are EDIT's. The row goes to
+   EDIT with its `refs` intact.
+5. **`layer3-recipenodeid-aliases-across-rewinds` — HANDED OFF**, and
+   it was never this program's to clear: it is `parked` on
+   `next-id-has-no-layer3-door`, a door in `crates/editor-core/src/doc.rs`
+   that was DOCM's and is EDIT's since DOCM exited (`docs/DOC-LEDGER.md`
+   sweep 14). Both rows go to EDIT together, so the trigger and the
+   row it gates land on one slate.
+6. **`pick-index-built-on-ui-thread` — DONE**, #1888. 6a ruled by Ev at
+   #1843, 6c collapsed into 6b. Seven residues filed as items; the one
+   still open, `ui-thread-work-after-the-index-seam`, is VSEAM's.
+
+**So the reading holds: none of the six is open VIEW work.** Three
+landed, one is ratified not-now, and two are blocked on doors in
+another program's crate — which is a hand-off, not a slate.
+
+### What the slate actually was
+
+**Ninety-four live rows**, not the seventy-eight a triage taken on
+2026-09-16 recorded: five of that triage's rows had closed
+(`a-supersession-outlives-its-own-frame` and the four `datums.rs`
+rows), and **twenty-one new rows had been filed since**, sixteen of
+them by the six units that merged in between. The triage's own counts
+were stale by construction and are not carried forward; every count in
+this entry was re-derived with `scripts/work.py status --program view`
+on the branch's merge base.
+
+### Where they went
+
+| destination | rows |
+|---|---|
+| `vnews` | 14 |
+| `vgeom` | 21 |
+| `vseam` | 14 |
+| `vdoc` | 22 |
+| `guard`, `ciw`, `edit` | 3 each |
+| `suite`, `meta` | 2 each |
+| `dup`, `chrome` | 1 each |
+| stayed here | 8 |
+
+Eighty-six moves, each a `git mv` with the body, the id and the history
+unchanged. **No row's prose was edited on the way past** — and the item
+schema carries no `program:` field at all (`scripts/work.py`'s `SCHEMA`;
+ownership is read from the directory and nowhere else), so a re-home is
+the move and nothing else. `refs`, `blocked_on` and `rides_with`
+resolve by id and are unaffected.
+
+### The four charters, and the test they were held to
+
+Each track's charter is the sentence that is true of its rows and false
+of the other three tracks' rows — this program's own rule about splits,
+applied to itself. In one line each:
+
+- **`vnews`** — a defect in the vocabulary a fact travels in on its way
+  to a reader, never in the fact; the fix changes a type or a door and
+  nothing it touches survives its frame.
+- **`vgeom`** — a value: a non-finite, out-of-range or under-precise
+  number crossing a door whose prose says it refuses such a thing, or a
+  control that never reaches the transform it names; the fix changes
+  what the viewer SHOWS.
+- **`vseam`** — something the viewer holds on behalf of the document
+  that outlives the frame that made it, with no named boundary owning
+  it; the fix names one.
+- **`vdoc`** — a claim the tree makes about itself; apply any fix on
+  that slate and nothing a person could observe has changed.
+
+**One row was placed by elimination and its plan says so**:
+`adjacent-same-typed-arguments-are-the-same-swap` is on VSEAM's slate
+because its two worst instances are that program's authoring doors and
+because the other three charters are each false of it, not because the
+charter fits.
+
+### Sequencing, and why `vdoc` is last
+
+`vnews`, `vgeom` and `vseam` are file-disjoint except at the shared
+files their `keep_out`s name on both sides, and all three dispatch from
+their opening day. **`vdoc` does not.** Its spine is
+`stale-file-citations-after-the-split` and every unit the other three
+land invalidates more of it; the register's own rule is that an
+out-of-fence citation table expires the moment another diff touches the
+same file. That is written into `work/vdoc/plan.md` §Order as the
+program's opening condition, with two named exceptions whose subject
+does not move with the code.
+
+### Territory
+
+`work.py lint` went **18 warnings → 24**, all six new ones one-sided
+pairs whose other half is in a file this program may not edit: four
+against CHROME and two (via `vdoc`'s `crates/viewer/tests/*`) against
+S-TCOST and S-TINT. The six pairs *inside* the new family are silent,
+because both sides were written in this commit. This program's own
+`keep_out` was extended to name the four successors, which is why the
+`view` pairs do not appear. The CHROME half is filed as
+`work/chrome/the-four-view-successors-are-a-one-sided-double-claim`;
+the tests half is the standing case in
+`work/meta/double-claim-lint-rule-waits-on-the-tests-seam`.
+
+### The register
+
+The six hundred lines of rule register in `work/view/plan.md` bind
+lanes in all four successors and are **inherited by reference, not
+copied** — four copies of a register re-derived every wave give four
+divergent copies inside a week, which is this program's own
+count-fixed-in-one-place defect turned on its own discipline. The cost
+is stated rather than hidden: the file dies with this directory. Filed
+as `the-lane-register-has-no-home-after-views-directory-goes`, and it
+is a **precondition of the exit walk**, not a follow-up to it.
+
+### What this entry does NOT record
+
+This program is not closed. There is no exit walk, no
+`docs/DOC-LEDGER.md` entry, and no directory sweep; PR #2762 is still
+open and parked on a ruling. Eight rows stay on this slate and the
+successors' `plan.md` §Inbound names where each of the six in `review`
+goes when its PR merges.
 ---
 
 ## 2026-09-17 — a crashed seam worker panics; the badge vocabulary is deleted

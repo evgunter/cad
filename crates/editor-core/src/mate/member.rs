@@ -162,9 +162,9 @@ pub(super) struct Walk {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, RecipeNodeId> {
+pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
-    let mut name = &r.name;
+    let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
     // The `Part` the walk last passed with nothing pose-bearing since
     // — the one standing DIRECTLY above whatever node comes next, and
@@ -277,7 +277,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, R
 /// does not weld would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Member> {
+pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> {
     walk(doc, r).ok().map(|w| w.member)
 }
 
@@ -301,7 +301,7 @@ pub(super) fn walk_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    r: &crate::node::SitedRef,
+    r: &crate::node::SitedFace,
 ) -> Result<Walk, MateFault> {
     walk(doc, r).map_err(|head| MateFault::DanglingHead { mate, side, head })
 }

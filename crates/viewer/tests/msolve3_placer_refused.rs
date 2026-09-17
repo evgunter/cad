@@ -17,7 +17,7 @@ use crate::fixture;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
     Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, Expr, MateFrame, MatePrimitive,
-    Node, PatternKind, ProfileDoc, ProfileProgram, SitedRef, evaluate,
+    Node, PatternKind, ProfileDoc, ProfileProgram, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -75,7 +75,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: SitedRef::at_mint(StableName {
+                a: common::head(StableName {
                     kind: EntityKind::Face,
                     node: pattern,
                     path: vec![RoleSeg::Instance {
@@ -83,7 +83,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                         of: in_part(legs, CapEnd::End).into(),
                     }],
                 }),
-                b: SitedRef::at_mint(in_part(cap, CapEnd::Start)),
+                b: common::head(in_part(cap, CapEnd::Start)),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
