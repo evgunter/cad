@@ -2,10 +2,11 @@
 id: mate-head-entity-kind-is-decided-only-at-assembly
 kind: issue
 title: A mate head's EntityKind is decided at assembly and never at the edit door
-status: review
+status: closed
 pr: 2799
 branch: edit/mate-head-kind
 opened: 2026-09-16
+closed: 2026-09-17
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
 
@@ -217,3 +218,30 @@ claim that has nothing left to order). Updated:
 is wider than a file) and
 `work/view/face-selection-carries-a-bare-stable-name` (what the tool
 does now, and what the constructor would remove).
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2799 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). Ev's re-scope on the
+fourth `[ev]` PR is what landed: a mate head is a `SitedFace` over a
+`FaceName` — a `StableName` whose kind is `Face` by construction, one
+checked constructor, `Deserialize` through it — so a non-face head
+does not typecheck, and the three boundaries that make names from
+data (the wire, the Python binding, the viewer's pick) call the
+constructor and refuse typed. The spec's edit-door arm and load `Walk`
+arm were never built: the type replaced both. The review (0 MAJOR,
+5 MINOR, 4 NOTE) measured `RefusedRef::NotAFace` unreachable from any
+seatable table state and it is deleted with its tag, F6 case and
+Python getter; the viewer's `debug_assert` became a typed
+`PickIsNotAFace`; the `compile_fail` row carries a running twin so it
+can red for the right reason only; the `SitedRef<N>` alternative was
+measured (24 call sites or a gratuitous public impl) and the two
+structs stay. Three rows filed: `interface-crossing-heads-are-bare-stable-names`
+(EDIT's, widened by the review — no file is needed to reach the hole),
+`work/view/face-selection-carries-a-bare-stable-name` (VIEW's), and
+MSOLVE's `msolve5-read-below-a-root-rows-replaced-by-face-typed-rows`
+(three rows that built unwritable documents, deleted with their
+replacements named). Territory crossed by announcement: 57 paths
+outside EDIT's, all one type change reaching its callers. The
+fix-pass lane was lost to a container restart after its last push;
+the PR body is its record.
