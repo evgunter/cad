@@ -45,3 +45,12 @@ Track M — the scalar and certification traits. **Fence:** `crates/geom-core/sr
 ## Claimed by BLEND (2026-09-06)
 
 Moved from `work/code-quality/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track M's row on BLEND's files (`blend/{build,battery,surgery}.rs`); `cert` disclaimed it at its exit and FILLET said coordinate. It stays blocked in fact on the lane-trait split `H5` names; BLEND carries it so the per-read classification it owes has an owner.
+
+## Re-homed at BLEND's exit (2026-09-17)
+
+BLEND's unit 13, walked as blocked on PROPS' `H5` (the lane-trait
+split) at BLEND's exit walk. Carried here because the blend seam's
+three doors are `crates/sweep/src/blend/*`, CARVE's ground. What BLEND
+owed and did not deliver, now this row's first step: the per-read
+classification of the nineteen bracket reads, so that the day `H5`
+lands the tightening to `CertifiedBounds` is one PR.

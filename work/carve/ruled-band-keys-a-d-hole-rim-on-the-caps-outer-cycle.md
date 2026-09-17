@@ -50,3 +50,7 @@ Not this unit: BLEND-14 routes `attach_contact` through the must-carry
 rule and touches neither the ruled plan nor `chord_site`. The fixture is
 three loops in a test (`block` square, D ring, `extrude`); the row is the
 refusal's VARIANT and site, not its existence.
+
+## Re-homed at BLEND's exit (2026-09-17)
+
+Filed by BLEND unit 14's implementation pass and merged with that unit on 2026-09-17, after the cut branch was drawn; moved here at BLEND's exit walk. The ruled band's walk is `crates/sweep/src/blend/open/ruled.rs`, CARVE's ground.

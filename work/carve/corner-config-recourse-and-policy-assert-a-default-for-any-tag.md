@@ -39,3 +39,9 @@ the escalation's.
 
 Found by unit 15's v6 review (R2 NOTE-3). Filed on `work/blend/`
 because `work/carve/` does not exist on main at the time of filing.
+
+## Re-homed at BLEND's exit (2026-09-17)
+
+Filed by BLEND unit 15's fix pass after the cut branch was drawn, so it
+missed the cut; moved here at BLEND's exit walk. `crates/sweep/src/blend/mod.rs`
+is CARVE's ground.

@@ -42,3 +42,7 @@ transverse arms.
 Open on BLEND's slate for the program to decide; not this unit. The
 smooth arm is metered as of BLEND-14; what is unmetered is the CHOICE
 between arms.
+
+## Re-homed at BLEND's exit (2026-09-17)
+
+Filed by BLEND unit 14's fix pass (a program decision, not acted on) and merged with that unit on 2026-09-17, after the cut branch was drawn; moved here at BLEND's exit walk. `attach_contact` is `crates/sweep/src/blend/surgery.rs`, CARVE's ground, and the walk's evidence names this row as the description rule's remaining structural decision.
