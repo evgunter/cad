@@ -488,8 +488,14 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
 /// `PickTarget` and never enters this lane — which is the outcome
 /// #1098 asked for, and is why the row still cannot be gated: gating
 /// it would mean checking a pairing the keys do not carry, and
-/// deleting it would erase the record of what raw assembly still
-/// costs a consumer who reaches for it.
+/// deleting it would erase the record of what raw assembly costs.
+///
+/// **What a consumer can reach is now smaller than what this row
+/// measures.** `PickTarget::new` and `MeshPick::build` are behind
+/// `editor-core`'s `test-support` feature, so the lane below exists in
+/// this binary and in no shipped build; the row is the standing
+/// witness of what the TEST-SUPPORT door costs, and the node half of
+/// the class it documents is unprovable in principle either way.
 #[test]
 #[ignore = "R2 review finding: raw PickTarget provenance is by construction unverifiable; NodePick is the checked door — this row documents the residual raw-assembly class"]
 fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {

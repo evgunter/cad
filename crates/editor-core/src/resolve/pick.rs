@@ -31,8 +31,10 @@
 //!
 //! # Where the acceleration state lives, and when it dies
 //!
-//! [`MeshPick`] is per-mesh state the CONSUMER holds: built once per
-//! tessellated mesh — by [`MeshPick::build`], or by the memoised door
+//! [`MeshPick`] is per-mesh state, built once per tessellated mesh and
+//! held inside the [`NodePick`] that built it: a consumer reaches an
+//! index only by holding that `NodePick`, because a `MeshPick` is
+//! minted only inside [`NodePick::build`] — or by the memoised door
 //! [`MeshPick::build_with`], which serves each patch's table whole
 //! from [`PickMemo`] where the tessellation reused that patch and
 //! builds it where it did not — self-contained (it copies the
@@ -40,7 +42,7 @@
 //! as the mesh it was built from is the one being displayed. A static
 //! scene therefore never rebuilds per query. The obvious invalidator
 //! is the evaluation epoch: a new [`Evaluation`] means new meshes,
-//! so a consumer keys its `MeshPick` cache by
+//! so a consumer keys its `NodePick` cache by
 //! ([`Evaluation::epoch`], node, body) and drops entries whose epoch
 //! is stale — exactly the staleness discipline the epoch exists for.
 //! That keying is a CONSUMER obligation this module cannot check;
@@ -58,9 +60,17 @@
 //! output-body indexing the name tables key by), tessellates and
 //! indexes in one call, and hands back the mesh alongside — so the
 //! pairing is established by construction and the display mesh and
-//! the pick index are the same tessellation. Raw [`PickTarget`]
-//! assembly remains for consumers that already hold a mesh, and
-//! carries the loud contract.
+//! the pick index are the same tessellation.
+//!
+//! **It is the only door a consumer has.** Raw assembly — a
+//! [`MeshPick`] of one's own, declared to be of a document, a node and
+//! a body — is the move that makes both halves a claim, so both of its
+//! constructors (`MeshPick::build` and `PickTarget::new`) sit behind
+//! this crate's `test-support` cargo feature and exist in no build that
+//! does not ask for them. What the rows behind that feature measure is
+//! written at [`PickTarget`]; what a consumer can hold is a target
+//! whose document half [`pick_face`] checks and whose node, body and
+//! mesh came from one tessellation.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -179,7 +189,9 @@ impl PickTable {
     }
 }
 
-/// Typed failure of [`MeshPick::build`] (closed; no silent lanes).
+/// Typed failure of the index build ([`MeshPick::build_every_table`]),
+/// reached by a consumer as [`NodePickError::Index`] (closed; no
+/// silent lanes).
 ///
 /// Deliberately arena-key-free: the offending site is named by patch
 /// position and triangle position within the mesh value, which is the
@@ -273,7 +285,7 @@ impl core::error::Error for MeshPickError {}
 ///
 /// # The two doors, and why they answer the same index
 ///
-/// [`MeshPick::build`] builds every patch's [`PickTable`];
+/// [`MeshPick::build_every_table`] builds every patch's [`PickTable`];
 /// [`MeshPick::build_with`] serves the tables [`PickMemo`] holds for
 /// the patches this tessellation reused and builds the rest. The
 /// second answers table for table and tree for tree what the first
@@ -304,23 +316,63 @@ struct Candidate {
     tri: usize,
 }
 
+/// The raw index door — **test support**, absent from every build that
+/// does not ask for `editor-core`'s `test-support` feature.
+///
+/// A `MeshPick` is the pairing's other half: the index a
+/// [`PickTarget`] is built over. A consumer reaches one through
+/// [`NodePick`], which tessellates and indexes in one call so that the
+/// index and the `(document, node, body)` it is offered under come
+/// from one evaluation. Building one BY HAND is the move that makes a
+/// target's declaration a claim, so it is a fixture door: under this
+/// feature it is `pub`, under its negation it does not exist and
+/// [`MeshPick::build_every_table`] — the same body, crate-private — is
+/// what [`NodePick::build`] calls.
+///
+/// # Errors
+///
+/// [`MeshPickError::PositionOutOfRange`] when a triangle indexes
+/// outside [`Mesh::positions`] — corrupt input, never skipped.
+#[cfg(any(test, feature = "test-support"))]
 impl MeshPick {
     /// Builds the index from a tessellated mesh: a [`PickTable`] per
     /// patch — corners, per-triangle boxes, tree, hull — and the
     /// top-level tree over the patches' hulls. Every table is built
     /// here; the memoised form is [`MeshPick::build_with`].
     ///
+    /// Test support (the `impl` block's own docs): a shipped build has
+    /// no route to a hand-built index.
+    ///
+    /// # Errors
+    ///
+    /// As [`MeshPick::build_every_table`].
+    pub fn build(mesh: &Mesh) -> Result<Self, MeshPickError> {
+        Self::build_every_table(mesh)
+    }
+}
+
+impl MeshPick {
+    /// Builds the index from a tessellated mesh: a [`PickTable`] per
+    /// patch — corners, per-triangle boxes, tree, hull — and the
+    /// top-level tree over the patches' hulls. Every table is built
+    /// here; the memoised form is [`MeshPick::build_with`].
+    ///
+    /// Crate-private in every build: [`NodePick::build`] calls it
+    /// after tessellating, which is how a consumer reaches an index
+    /// without ever holding one. `MeshPick::build` is the same body
+    /// under the `test-support` feature.
+    ///
     /// # Errors
     ///
     /// [`MeshPickError::PositionOutOfRange`] when a triangle indexes
     /// outside [`Mesh::positions`] — corrupt input, never skipped.
-    pub fn build(mesh: &Mesh) -> Result<Self, MeshPickError> {
+    pub(crate) fn build_every_table(mesh: &Mesh) -> Result<Self, MeshPickError> {
         Self::assemble(mesh, |pi, patch| {
             Ok(Arc::new(PickTable::build(mesh, pi, patch)?))
         })
     }
 
-    /// [`MeshPick::build`] over `memo`'s per-patch tables: the patch at
+    /// [`MeshPick::build_every_table`] over `memo`'s per-patch tables: the patch at
     /// position `i` is served the table the memo holds under the memo
     /// entry `keys` reports for it, and builds (and stores) one
     /// otherwise. Nothing per triangle runs on a served patch — no
@@ -328,7 +380,7 @@ impl MeshPick {
     /// the placed corners are the stored ones' bit for bit
     /// ([`mesh::StoredPatchId`]). The top-level
     /// tree is built every time. The index is the same, table for
-    /// table and tree for tree, as [`MeshPick::build`]'s
+    /// table and tree for tree, as [`MeshPick::build_every_table`]'s
     /// ([`PickMemo`]'s table level).
     ///
     /// `keys` is the tessellation's, one row per patch in the same
@@ -339,7 +391,7 @@ impl MeshPick {
     ///
     /// # Errors
     ///
-    /// As [`MeshPick::build`].
+    /// As [`MeshPick::build_every_table`].
     pub(crate) fn build_with(
         mesh: &Mesh,
         keys: &PatchKeys,
@@ -424,47 +476,50 @@ impl MeshPick {
 /// One displayed mesh offered to a pick: which document and which
 /// node/body the mesh renders, and its prebuilt index.
 ///
-/// # The document half is CHECKED AT THE DOOR (DI3, A2a)
+/// # EVERY half is true by construction (DI3, A2a)
 ///
-/// The document is the one the evaluation passed to [`PickTarget::new`]
-/// (or held by the [`NodePick`] that minted this) was of, and
-/// [`pick_face`] refuses an evaluation of any OTHER document before it
-/// reads a triangle — the one predicate every pairing door shares. It
-/// is stamped rather than inferred because node ids are minted per
-/// document: a twin recipe's evaluation satisfies every standing check
-/// and answers every name lookup, about other geometry.
+/// [`NodePick::target`] is the only mint a consumer can reach, and it
+/// takes nothing: the document, the node, the body and the mesh index
+/// all come from the one tessellation [`NodePick::build`] performed, so
+/// there is nothing for a caller to declare and nothing to declare
+/// wrongly. The stamp matters because node ids are minted per document:
+/// a twin recipe's evaluation satisfies every standing check and
+/// answers every name lookup, about other geometry. So [`pick_face`]
+/// refuses an evaluation of any OTHER document before it reads a
+/// triangle — the one predicate every pairing door shares — and that
+/// refusal is a statement about the TYPE, because every target it can
+/// be handed carries a stamp it did not choose.
 ///
-/// # Every half is a contract on the RAW path (loud, unenforceable here)
+/// The fields are private, so a minted target cannot be taken apart and
+/// re-stamped, and neither [`NodePick`] nor this type hands its
+/// `MeshPick` out; a forged half would need a mesh index the forger
+/// built, and the door that builds one is test support (below).
 ///
-/// The fields are private and there are exactly two mints:
-/// [`NodePick::target`], where all three of `(document, node, body)`
-/// and the mesh come from one tessellation and the pairing is true by
-/// construction; and [`PickTarget::new`], where the caller declares
-/// them. **A minted target cannot be taken apart and re-stamped** —
-/// neither [`NodePick`] nor this type hands its `MeshPick` out — so a
-/// forged document half needs a mesh the forger tessellated, which is
-/// the raw path and its contract, below.
+/// # The raw mint is TEST SUPPORT
 ///
-/// On the raw path, **`(document, node, body)` MUST be what `pick`'s
-/// mesh was tessellated from**, and this module can verify none of it.
-/// The node half cannot be checked even in principle: arena keys
-/// collide numerically across sibling nodes OF ONE DOCUMENT, so a
-/// mismatched pairing inside the handed document does not error —
+/// `PickTarget::new` — the caller supplies a [`MeshPick`] of its own
+/// and DECLARES which document, node and body it is of — exists only
+/// under this crate's `test-support` feature, on a dev-dependency edge
+/// no consumer's build graph carries. On that path every half is a
+/// claim: the node half cannot be checked even in principle (arena keys
+/// collide numerically across sibling nodes OF ONE DOCUMENT, so
 /// [`pick_face`] resolves the hit triangle's face key against the wrong
-/// node's table and answers a **plausible, confidently wrong name**
-/// (the failure a selection consumer cannot detect; same convention
-/// family as [`super::MeshPatchKey`]). The document half is checked
-/// against the evaluation at the door, which catches every target that
-/// declared it honestly and is handed the wrong evaluation — the class
-/// that reaches a live consumer — and not a caller who declares a mesh
-/// of one document to be of another. Assemble raw targets only from
-/// state that carries the pairing — e.g. a cache keyed by
-/// ([`Evaluation::epoch`], node, body) holding the mesh and its index
-/// together — or use [`NodePick`], which establishes every half by
-/// construction and cannot be mis-assembled.
+/// node's table and answers a **plausible, confidently wrong name** —
+/// the failure a selection consumer cannot detect, same convention
+/// family as [`super::MeshPatchKey`]), and the document half is checked
+/// against the handed evaluation rather than against the mesh, so a
+/// caller that declares one document's mesh to be of another is taken
+/// at its word. That is the whole of issue #1098's raw-assembly class,
+/// and it is now closed AT THE API rather than documented: the class
+/// lives where the feature does, which is the rows that measure it
+/// (`edit_pair_apply_names::a_raw_target_is_a_claim_in_every_half` for
+/// the document half, the ignored witness
+/// `gui1_pick_r2::a_mesh_paired_with_the_wrong_node_does_not_answer_a_name`
+/// for the node half) and the rows that need a mesh no tessellation
+/// produces or a node [`NodePick::build`] refuses.
 ///
 /// Re-stamping a minted target is a compile error, which is what makes
-/// the paragraph above a statement about the type rather than about
+/// the paragraphs above a statement about the type rather than about
 /// its callers:
 ///
 /// ```compile_fail,E0451
@@ -487,25 +542,29 @@ pub struct PickTarget<'a> {
     node: RecipeNodeId,
     /// The output body index within that node's value.
     body: u32,
-    /// The body's mesh index ([`MeshPick::build`]).
+    /// The body's mesh index ([`MeshPick::build_every_table`]).
     pick: &'a MeshPick,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl<'a> PickTarget<'a> {
-    /// A target assembled BY HAND from a mesh index the caller built:
-    /// the raw path, whose contract is this type's docs.
+    /// A target assembled BY HAND from a mesh index the caller built —
+    /// **test support**, absent from every build that does not ask for
+    /// this crate's `test-support` feature, and the reason the rest of
+    /// this type's contract is a statement about the type.
     ///
     /// The document half is not an argument — it is read off `eval`,
     /// the evaluation `pick`'s mesh is claimed to have been
-    /// tessellated from — so no caller can name a document it has no
-    /// evaluation of, and a target minted by [`NodePick::target`]
-    /// cannot be re-stamped with another (its mesh index never leaves
-    /// the index).
+    /// tessellated from — so not even a row can name a document it has
+    /// no evaluation of. Everything else is the caller's word: which
+    /// node, which body, and which mesh the index was built over. What
+    /// that is worth is this type's docs.
     ///
-    /// Prefer [`NodePick`]: it is the door that establishes every half
-    /// by construction. This exists for a caller that already holds a
-    /// [`MeshPick`] over a mesh of its own — a display cache, or a row
-    /// measuring [`pick_face`] over a mesh no tessellation produces.
+    /// What it exists for is the rows [`NodePick`] cannot express: a
+    /// mesh scaled by hand so a ray oracle runs in exact integers, a
+    /// target naming a node whose value failed or is absent (which
+    /// [`NodePick::build`] refuses, and so mints nothing for), and the
+    /// two witnesses of the raw-assembly class itself.
     pub fn new<T: Decide>(
         eval: &Evaluation<T>,
         node: RecipeNodeId,
@@ -993,7 +1052,7 @@ impl NodePick {
             return Err(NodePickError::NoSuchBody { node, body });
         };
         let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
-        let pick = MeshPick::build(&mesh).map_err(NodePickError::Index)?;
+        let pick = MeshPick::build_every_table(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
             document: eval.document,
             node,
@@ -1072,7 +1131,9 @@ impl NodePick {
     }
 
     /// The pick target this index answers for — pre-paired in both
-    /// halves ([`PickTarget`]), ready for [`pick_face`].
+    /// halves ([`PickTarget`]), ready for [`pick_face`], and the only
+    /// mint of a target a consumer can reach (the raw one is test
+    /// support).
     pub fn target(&self) -> PickTarget<'_> {
         PickTarget {
             document: self.document,

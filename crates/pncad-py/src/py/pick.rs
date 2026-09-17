@@ -17,16 +17,18 @@
 //! confidently wrong name** (issue #1098). The kernel closes that lane
 //! with a type — `NodePick` fetches the body from the evaluation
 //! payload itself, tessellates and indexes in one call, so the pairing
-//! is true by construction — and leaves raw `PickTarget` assembly for
-//! consumers that already hold a mesh index.
+//! is true by construction — and puts raw `PickTarget` assembly
+//! behind `editor-core`'s `test-support` feature, so it exists only in
+//! that crate's own test builds.
 //!
-//! **Python has no such consumer, by a decision already taken.**
-//! `MeshPick` and `MeshPickError` are DECIDED absent from the façade
-//! (CUR3; `crates/pncad/src/select.rs`), and `PickTarget::pick` is a
-//! `&MeshPick` — so through `pncad` a raw target has no constructor at
-//! all. The Python door therefore takes `NodePick`s directly and makes
-//! their targets itself: the type that cannot be mis-assembled is not
-//! merely the one to prefer here, it is the only one that exists.
+//! **Python has no raw target, twice over.** `MeshPick` is DECIDED
+//! absent from the façade (CUR3; `crates/pncad/src/select.rs`, which
+//! carries `MeshPickError` alone), so a raw index is not even
+//! nameable here; and the mints that would build one are behind a
+//! feature no edge in this crate's build graph enables. The Python
+//! door therefore takes `NodePick`s directly and makes their targets
+//! itself: the type that cannot be mis-assembled is not merely the one
+//! to prefer here, it is the only one that exists.
 //!
 //! # Dimensioned
 //!

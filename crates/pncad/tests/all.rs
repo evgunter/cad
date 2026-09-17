@@ -4270,15 +4270,17 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` stays, and that is what closes the raw-target lane
-///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget`'s raw mint
-///   (`PickTarget::new`) takes a `&MeshPick` — so with the index
-///   unnameable here, the target whose contract warns of a
-///   confidently wrong name has no constructor a façade consumer can
-///   reach, and `NodePick` is not merely the preferred door but the
-///   only one. `PickTarget` is carried because `pick_face`'s
-///   signature names it, not because it can be built.
+///   **`MeshPick` stays, and the raw-target lane is now closed on
+///   both sides of the seal.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and leaving it unnameable here means no
+///   façade consumer can hold one. The kernel closed the same lane at
+///   the API: both raw mints (`MeshPick::build` and
+///   `PickTarget::new`) live behind `editor-core`'s `test-support`
+///   feature, which nothing in this crate's build graph enables, so
+///   neither exists in a build of this façade. `NodePick` is not
+///   merely the preferred door but the only one, and `PickTarget` is
+///   carried because `pick_face`'s signature names it, not because it
+///   can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
 ///   above is untouched by that.** An index is BUILT and a refusal is

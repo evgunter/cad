@@ -2,9 +2,11 @@
 id: pick-face-raw-target-path-survives-only-for-rows
 kind: issue
 title: pick_face's raw PickTarget path has no non-test consumer, and its document half is a claim
-status: spec
+status: review
 opened: 2026-09-16
 refs: [2773, 1098]
+pr: 0
+branch: edit/raw-target-test-support
 ---
 
 ## What
@@ -108,3 +110,46 @@ about the test-support door).
 door moved, not a new decision — say so in the PR body and cite the
 CLAUDE.md test) (EDIT); `crates/editor-core/tests/*`,
 `crates/pncad/tests/all.rs` (TCOST/TINT/LIB — mechanical). Middle tier.
+
+## Built (2026-09-17, lane `rawtarget`)
+
+**Landed.** `editor-core` gains a `test-support` feature (`[features]`,
+enabled by a self dev-dependency — the pattern `profile` and `topo`
+already take; nothing in the workspace uses `[[test]]
+required-features`). Both raw mints are behind it: `PickTarget::new`
+and `MeshPick::build`, each in a `#[cfg(any(test, feature =
+"test-support"))] impl` block, so in a build that does not ask for the
+feature neither EXISTS. `MeshPick::build`'s body moved to
+`MeshPick::build_every_table`, `pub(crate)` in both arms, which is what
+`NodePick::build` calls — so a consumer reaches an index only by
+holding the `NodePick` that built it. Neither mint is
+`#[doc(hidden)]`: both are documented as the test-support door.
+`PickTarget`'s docs, the module header, `ASSEMBLY.md` A2a, the façade
+curation comment (`pncad/src/select.rs`), the `pncad` roster's
+reasoning and `pncad-py`'s `py/pick.rs` all now say the same thing —
+every half of every reachable target is true by construction, and
+#1098's raw-assembly class lives where the feature does. The
+`compile_fail,E0451` row on the private fields is untouched.
+
+**The four rows are unchanged** and green: they live in
+`editor-core`'s own test binary, which the self dev-dependency compiles
+with the feature on.
+
+**Not landed as specified: the unreachability row.** A `compile_fail`
+doctest cannot carry this claim in this workspace — `cargo test --doc
+--workspace` selects `editor-core`, which activates its own
+dev-dependency, so the feature is unified ON for every doctest in the
+run and the row would fail for the wrong reason. The honest instrument
+is the `cargo check` of a consumer, and CI already runs two: `cargo
+nextest run -p viewer --features app` and the wheel build both compile
+`editor-core` with the feature off. Measured locally on this branch: a
+line naming `editor_core::MeshPick::build` in `crates/pncad/src`
+fails `cargo check -p pncad` with `E0599`. Residue, stated not filed
+(it is a property of the repo's test-support convention, not of this
+change): a workspace TEST file could still name a mint, because
+`--workspace` unifies the feature on.
+
+**Premise correction.** No `pncad` test uses the raw mint — the spec's
+"the one `pncad` test that uses it" has no referent on this tree.
+`crates/pncad/tests/all.rs` carries only the curation ARGUMENT about
+it, which is re-worded here.
