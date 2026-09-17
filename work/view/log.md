@@ -12613,4 +12613,3 @@ This program is not closed. There is no exit walk, no
 open and parked on a ruling. Eight rows stay on this slate and the
 successors' `plan.md` §Inbound names where each of the six in `review`
 goes when its PR merges.
-
