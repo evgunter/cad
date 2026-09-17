@@ -2,7 +2,9 @@
 id: interface-crossing-heads-are-bare-stable-names
 kind: issue
 title: An interface crossing's two heads are bare StableNames, not FaceNames
-status: spec
+status: review
+pr: 2814
+branch: edit/crossing-face-heads
 opened: 2026-09-17
 refs: [mate-head-entity-kind-is-decided-only-at-assembly]
 ---
@@ -88,3 +90,37 @@ check (does not compile — say so).
 persist/*}` (EDIT); `crates/editor-core/tests/*` (TCOST/TINT);
 `crates/pncad-py/src/py/refactor.rs` (LIB, mechanical). Middle tier:
 one opus style review with a correctness arm, then the fix pass.
+
+## Built (2026-09-17)
+
+`InterfaceCrossing::Mate`'s `outer` and `inner` are `FaceName`s
+(`crates/editor-core/src/node.rs`). `Deserialize` goes through
+`FaceName::new` as a head's does, so a file whose crossing names an
+edge refuses at the wire door as `PersistError::Unreadable`;
+`Node::instantiate_part_with` takes the typed record, so one cannot be
+built in memory either. The split's crossing walk (`refactor.rs`)
+writes the heads' own face names through, and the part-side remap and
+`inline`'s dissolve check go through a new `remap_face` — one re-wrap
+at the record's boundary, `unreachable!` on the arm a remap bug would
+reach, since `remap_name` carries `kind` through unchanged.
+
+Rows. `rv_matehead_probes`'s
+`probe_an_edge_headed_interface_crossing_inserts_saves_and_loads` is
+deleted and replaced, beside the mate-head load row in
+`edit_one_predicate`, by
+`a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door`
+(both fields, all three non-face kinds) and its round-trip control
+`a_face_headed_crossing_round_trips`. `InterfaceCrossing`'s doc carries
+the `quantity::units` twin: a `compile_fail,E0308` block over bare
+names and a RUNNING twin differing only in the two `FaceName::new`
+calls. Measured red first: with the fields reverted to `StableName` the
+load row answers `Ok(Loaded { … outer: StableName { kind: Body, … } })`.
+`fix_pattern_mate_crossing`'s rows are unchanged and green.
+
+Wire bytes unchanged — `FaceName` is `#[serde(transparent)]`, and
+`wire_rv_the_bytes_of_every_variant_are_pinned` is green with no
+re-baseline. `crates/pncad-py`'s crossing payload needed no code
+change: its getters reach the name through `Deref`, so what followed
+there is prose. Vocabulary note: the item calls the two fields "heads";
+the record's own prose calls them REFERENCES, and the new rows keep
+that word, reserving "head" for the mate's `SitedFace`.
