@@ -3344,7 +3344,7 @@ fn wire_union<
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let resolved = look_through_merges(&buckets[step], &acc_view, &member_table)?;
+            let resolved = look_through_merges(&buckets[step], &acc_view)?;
             resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)
@@ -3538,7 +3538,10 @@ fn declared_pairs<T: Decide>(
 /// **Every sited pair has a step.** `max(i, j)` is at most
 /// `members.len() - 1`, so the bucket is at most `steps - 1`: a pair
 /// the routing accepts is always fed somewhere, and the only refusals
-/// here are about the sites themselves. That is the shape change the
+/// here are about the sites themselves. That rests on the node's own
+/// arity contract — two members or more, which [`wire_union`] refuses
+/// before it calls this — and a one-member list would index past the
+/// end rather than routing anything. That is the shape change the
 /// sited payload buys — a union's own fold rows are no longer
 /// declaration subjects, because the only entities a declaration can
 /// name are ones that exist BEFORE the union.
@@ -3644,10 +3647,11 @@ fn route_declarations(
 /// name it is. And a pair whose two names land on ONE row is handed to
 /// the door as such, and refuses there by the door's own rule.
 ///
-/// Only the ACCUMULATION side looks through. The joining member's
-/// table is the member's own, and no merge the fold has performed
+/// Only the ACCUMULATION side looks through, which is why the joining
+/// member's table is not a parameter: no merge the fold has performed
 /// could have consumed a face of a member that has not joined yet, so
-/// a B-side name absent from it is the vanished name it looks like.
+/// a B-side name absent from that table is the vanished name it looks
+/// like and the door below says so.
 ///
 /// A face in the set of TWO merged rows cannot happen under the flat
 /// mint — a merged face's constituents retire, and a merge over it
@@ -3656,18 +3660,13 @@ fn route_declarations(
 fn look_through_merges(
     bucket: &[SidedPair],
     acc_table: &NameTable,
-    member_table: &NameTable,
 ) -> Result<Vec<SidedPair>, NodeErrorKind> {
     use crate::names::RoleSeg;
     let merged_row_of = |(op, name): &(topo::Operand, names::StableName)| -> Result<
         Option<names::StableName>,
         NodeErrorKind,
     > {
-        let table = match op {
-            topo::Operand::A => acc_table,
-            topo::Operand::B => member_table,
-        };
-        if *op == topo::Operand::B || table.lookup(name).is_some() {
+        if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
             return Ok(None);
         }
         let mut rows = acc_table
@@ -5217,7 +5216,7 @@ mod route_tests {
                 (Operand::B, f(ms[3], CapEnd::Start)),
             ),
         ];
-        let out = look_through_merges(&bucket, &acc, &member).unwrap();
+        let out = look_through_merges(&bucket, &acc).unwrap();
         assert_eq!(out[0].0, (Operand::A, wide));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
@@ -5236,12 +5235,11 @@ mod route_tests {
         };
         let mut acc = NameTable::new();
         acc.insert(row, face_ref(a_face_key())).unwrap();
-        let member = NameTable::new();
         let p = routed(
             (Operand::A, f(ms[1], CapEnd::End)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let out = look_through_merges(std::slice::from_ref(&p), &acc, &member).unwrap();
+        let out = look_through_merges(std::slice::from_ref(&p), &acc).unwrap();
         assert_eq!(out[0], p);
     }
 
@@ -5275,12 +5273,11 @@ mod route_tests {
             },
         )
         .unwrap();
-        let member = NameTable::new();
         let p = routed(
             (Operand::A, f(ms[0], CapEnd::Start)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let refused = look_through_merges(std::slice::from_ref(&p), &acc, &member);
+        let refused = look_through_merges(std::slice::from_ref(&p), &acc);
         assert!(
             matches!(
                 refused,
