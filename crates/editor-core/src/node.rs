@@ -1765,23 +1765,35 @@ pub enum Node<P> {
     ///
     /// Members that touch refuse `UndeclaredContact` exactly as a pair
     /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
-    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
-    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
-    /// node minted at an earlier fold step for an entity of the
-    /// accumulation. A declaration therefore says "this face of member
-    /// `m` meets that face of member `n`" and records no fold position:
-    /// the step each pair is fed at is DERIVED from the member ids its
-    /// two names carry, so reordering or dropping a member re-derives
-    /// the routing rather than invalidating the declaration.
+    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
+    /// with that member beside it. A declaration therefore says "this
+    /// face of member `m` meets that face of member `n`" while naming
+    /// nothing of this node's own, which is what lets it be authored
+    /// BEFORE the union: the `Declare` goes in first and the union
+    /// carrying its edge second, in two edits.
     ///
-    /// Two names in ONE member are that member's own CARRIED contact,
-    /// fed at the step that member joins at — member 0's at step 1,
-    /// where it is operand A — which is the pair chain's rule for a
-    /// carried contact, on a member instead of an operand.
+    /// It records no fold position either: the step each pair is fed
+    /// at is DERIVED from where its two sites sit in `members`, so
+    /// reordering or dropping a member re-derives the routing rather
+    /// than invalidating the declaration. And the SITE is the side —
+    /// the later member is the joining operand, the earlier is inside
+    /// the accumulation — so two members that are transforms of one
+    /// body, whose tables are identical (N1), are told apart by the
+    /// pair itself.
     ///
-    /// A member-space declaration resolves at its step through the
-    /// MERGES the fold has performed. A declared merge consumes the
+    /// Two sites in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at the first
+    /// step, where it is operand A — which is the pair chain's rule for
+    /// a carried contact, on a member instead of an operand.
+    ///
+    /// A row the FOLD mints (a `Seam`, a `Merged`, a `Fragment`, the
+    /// output body) is not a declaration subject at all: it exists
+    /// only in this node's own evaluation, after the `Declare` that
+    /// would name it, so there is no node to site it at.
+    ///
+    /// A declared pair resolves at its step through the MERGES the
+    /// fold has performed. A declared merge consumes the
     /// two faces it joins and publishes a `Merged` row in their place,
     /// and a member's face that is inside such a row by the time its
     /// pair's step runs resolves TO that row — the one whose flat
