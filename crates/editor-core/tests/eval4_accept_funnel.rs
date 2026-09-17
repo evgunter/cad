@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocRef, DocumentId,
     EntityKind, Frame, Maintenance, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, StableName, clusters, inline, split,
+    RoleSeg, StableName, clusters, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
@@ -88,8 +88,8 @@ fn z_up() -> MateFrame {
 /// at its own mint.
 fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: z_up(),

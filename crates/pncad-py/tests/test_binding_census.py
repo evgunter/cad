@@ -2565,6 +2565,21 @@ NOT_BOUND = {
     # and this is the same sentence the entry already carried, now
     # true of both doors.
     "SitedRef": SHAPE,
+    # `SitedFace` is a mate head: the same two halves with the name's
+    # KIND fixed by the type, and it is handed across for the same
+    # reason `SitedRef` is not — `Node.mate` takes each side as a node
+    # and a name, so the pair never crosses as a value.
+    "SitedFace": SHAPE,
+    # `FaceName` is the type that makes a head's kind a compile-time
+    # fact, and `NotAFaceName` is what its one constructor refuses
+    # with. A Python caller holds names as opaque text (the ordinal-28
+    # contract), so neither type crosses: the binding calls the
+    # constructor at the boundary `Node.mate` reads its names at and
+    # publishes the refusal as `EditError.variant ==
+    # "mate_head_not_a_face"`, which is where a Python caller meets the
+    # rule.
+    "FaceName": SHAPE,
+    "NotAFaceName": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`
@@ -3178,7 +3193,6 @@ MEMBERS_BOUND_AS = {
     "RefusedRef::Vanished": "RefusedRef.variant",
     "RefusedRef::ReadBelowARoot": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
-    "RefusedRef::NotAFace": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in

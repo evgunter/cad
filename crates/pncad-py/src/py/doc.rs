@@ -656,6 +656,29 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
     })
 }
 
+/// Read a MATE HEAD back from text — [`name_from_text`] and then the
+/// kernel's own [`FaceName`](pncad::document::FaceName) constructor.
+///
+/// A mate declares a face-pair contact, and the kernel says so in the
+/// TYPE of a head, which is a promise the compiler keeps for a Rust
+/// caller and cannot keep for a Python one. So this is where it is
+/// kept: the constructor is called at the boundary, and its refusal is
+/// published under the boundary's own word rather than discovered at
+/// some later door.
+pub(crate) fn face_name_from_text(
+    py: Python<'_>,
+    text: &str,
+) -> PyResult<pncad::document::FaceName> {
+    let name = name_from_text(text)?;
+    pncad::document::FaceName::new(name).map_err(|refusal| {
+        boundary_edit_err(
+            py,
+            BoundaryEdit::MateHead(&refusal),
+            format!("a mate head must name a face: {refusal}"),
+        )
+    })
+}
+
 /// Read a named slot back from the word `EditError.slot` answers in.
 ///
 /// A slot is a NAME, never an index (spec D5), and the name is the
@@ -2595,6 +2618,13 @@ impl Node {
     /// and `b` name (issue #944), so a mate can solve cleanly and
     /// still be refuted at the gate.
     ///
+    /// **A head must name a FACE, and that is refused here.** A mate
+    /// declares a face-pair contact; the kernel says so in the type of
+    /// a head, and this door calls that type's constructor, so
+    /// `a`/`b` naming an edge raises `EditError` with
+    /// `variant == "mate_head_not_a_face"` at this call rather than
+    /// reaching a document.
+    ///
     /// A dangling reference is not refused here: the solve refuses
     /// typed naming its head (`MateFault`, `mate_dangling_head`),
     /// which is the ratified dangling-reference semantics — or, where
@@ -2613,8 +2643,8 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Mate {
-                a: d::SitedRef::new(a_at.0, name_from_text(a)?),
-                b: d::SitedRef::new(b_at.0, name_from_text(b)?),
+                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
+                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
                 class: class_.to_kernel(py)?,
                 alignment: alignment.0,
             },

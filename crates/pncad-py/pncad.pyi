@@ -2290,6 +2290,13 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
+        A head must name a FACE, and that IS refused here: a mate
+        declares a face-pair contact, the kernel says so in the type of
+        a head, and this door calls that type's constructor — so `a` or
+        `b` naming an edge raises `EditError` with `variant ==
+        "mate_head_not_a_face"` at this call rather than reaching a
+        document.
+
         A dangling reference is not refused here: the solve refuses
         typed naming its head (`mate_dangling_head`) — or, where the
         head resolves and a pattern or transform placing it could not
@@ -5290,12 +5297,14 @@ class RefusedRef:
     The gate asks two tables in order: the product's, then — when it
     is silent — the operand's own. `ref_vanished` is a name neither
     spells; `ref_read_below_a_root` is a name the operand spells at a
-    node the product does not list as a root."""
+    node the product does not list as a root. A head's KIND is not
+    among the questions: a mate head is a face by its type, refused
+    where the name is made (`mate_head_not_a_face`)."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_read_below_a_root`, `ref_ambiguous`,
-        or `ref_not_a_face`."""
+        """`ref_vanished`, `ref_read_below_a_root`, or
+        `ref_ambiguous`."""
 
     @property
     def at(self) -> Optional[NodeId]:
@@ -5307,10 +5316,6 @@ class RefusedRef:
     def width(self) -> Optional[int]:
         """How many entities a tie holds. A mate declaration must name
         ONE face, and a tie is never broken by picking."""
-
-    @property
-    def kind(self) -> Optional[str]:
-        """What a non-face reference did name."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.

@@ -710,12 +710,12 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
+    EditError,
     EntityKind,
     Expr,
     Frame,
     MateFrame,
     MatePrimitive,
-    MateSide,
     NamePat,
     Node,
     ProductError,
@@ -828,13 +828,15 @@ except AssemblyError as refusal:
     assert row.mate == mate
     assert row.class_ == ContactClass.Tangent
 
-# 3. A REFERENCE THAT IS NOT A FACE. A mate declares a FACE PAIR; an
-#    edge is a different statement, refused rather than widened — and
-#    the refusal says which side, and what the name did denote.
+# 3. A HEAD THAT IS NOT A FACE — refused where the mate is BUILT, not
+#    at the gate. A mate declares a FACE PAIR, and the kernel says so
+#    in the TYPE of a head, so a Rust caller cannot write this mate at
+#    all. Python holds names as opaque text, so `Node.mate` asks the
+#    same constructor on your behalf and refuses at the call.
 doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
-mate = doc.insert(
+try:
     Node.mate(
         post_i, edge,
         shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
@@ -842,18 +844,10 @@ mate = doc.insert(
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
     )
-)
-try:
-    assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
-except AssemblyError as refusal:
-    assert refusal.variant == "unminted_mates"
-    (row,) = refusal.refusals
-    assert row.variant == "mate_reference_refused"
-    assert row.mate == mate and row.side == MateSide.A
-    assert row.why.variant == "ref_not_a_face"
-    assert row.why.kind == "edge"
-    assert row.why.width is None          # a tie would carry one
+except EditError as refusal:
+    assert refusal.variant == "mate_head_not_a_face"
+    assert "edge" in str(refusal)
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
 #    produced no body, so the GATHER refuses before the gate runs —
