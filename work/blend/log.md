@@ -1276,3 +1276,65 @@ Sample #219 (main's order rules). Block BLEND-B3's last slot;
 its CONCLUDED record folds into main from `blend/b3-block`. The
 program's unit order is done but for 13 (blocked); the exit walk
 follows the cut.
+## The cut (2026-09-17)
+
+Ev, in chat 2026-09-17: the program is very large with many open rows;
+cut it into successors, leaving a few units in BLEND itself; the two
+docs rows finish here rather than opening a docs successor. Done on
+VIEW's 2026-09-17 precedent (a live re-scope: the parent stays open,
+the rows move by `git mv`, each track's charter is the sentence that is
+true of its rows and false of the others'), applying `work/README.md`'s
+closing-program clause to a live one as VIEW did.
+
+### Where they went
+
+| destination | rows |
+|---|---|
+| `carve` (opened here; band 5600–5699) | 21 |
+| `paths` | 8 |
+| `sym`, `topo`, `meta` | 1 each |
+| closed in place (docs rows) | 2 |
+| stayed here | 3 units: 13 (blocked), 14 (at its gate), 15 (in its dual) |
+
+Thirty-two moves, each a `git mv` with the body, the id and the history
+unchanged; no row's prose was edited on the way past.
+
+### The charters, and the test they were held to
+
+- **`carve`** — a body a sweep verb builds or a description it stores
+  for one; the fix changes what is built, what is stored, or the module
+  that builds it, in `crates/sweep/src`. The blend surgery's phases and
+  records (7), the description rule's minting sites (6), the loft's
+  parameterisation and section checks (6), the fixtures the suites
+  build from (2).
+- **`paths`** — the profile fillet door: a 2-D lattice refusal or the
+  sentence it renders, in `crates/profile`, which is PATHS' ground since
+  S-BOOL's exit. The anchor-fit refusal's metric, the arc-arc shallow
+  legs, the dropped tolerance lever, the guided-replay mouth, the six
+  refusals before a pad builds, the fuzzed radius at 1e-6, the quarter
+  of the fillet subsystem `validate.rs` hosts, and the Fillet step's
+  unregisterable tangency (which waits on SYM's door and lands in
+  `profile`).
+- **`sym`** — `revolve-carriers-state-only-the-rim`: the registration
+  door is SYM's.
+- **`topo`** — `rim-of-refuses-extruded-multi-arc-rims`:
+  `topo/src/query.rs` is unowned and TOPO edits it as its own ground.
+- **`meta`** — `unit-numbered-test-suite-prefixes-collide-across-program-generations`:
+  a naming rule for suites across programs, placed by elimination (it
+  is a process rule, not a defect in any crate) and this entry says so.
+
+**One row was placed by reading its second half:**
+`every-escalation-carries-the-coincidence-recourse-first` names both
+crates' doors; it sits on CARVE for the blend doors' half, and PATHS
+reads it for the path door's half when the tolerance-lever row is
+worked.
+
+### What this program still does
+
+Nothing new dispatches. Unit 14 is at its merge gate, unit 15 is in its
+v6 dual, unit 13 stays blocked on PROPS' H5 and is walked as such; the
+two docs rows close in place (orchestrator PR of the same day). The
+exit walk follows the last merge as an `[ev]` PR; `docs/DOC-LEDGER.md`
+records the sweep when it happens. CARVE's opening sitting writes its
+own unit order; it dispatches nothing that touches a file one of the
+three open units is landing on until that unit merges.
