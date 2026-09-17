@@ -538,6 +538,122 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
     );
 }
 
+/// **A revolve whose profile has an ON-AXIS edge attaches by POSITION,
+/// not by order.**
+///
+/// A segment lying on the axis of revolution sweeps nothing: the record
+/// exports `None` at its position, and the positions after it are still
+/// their own segments' walls. So a reader that closed that hole —
+/// dropping the `None` and handing back a shorter list — would hand the
+/// arc's radius token to the wall of a different edge, and every wall
+/// after the gap would be off by one. The chain here puts the on-axis
+/// edge FIRST, so the whole rest of the loop is displaced by such a
+/// reader.
+///
+/// Read through the carriers rather than through the record: the one
+/// toroidal wall is the arc's, and it is the only face of the body that
+/// carries any field source at all.
+#[test]
+fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
+    let doc = doc_with_r("seat7-revolve-on-axis");
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    // Negative y is the door's half-plane about the +x axis, and the
+    // first leg runs ALONG that axis from the origin.
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Line(len(4.0)),
+        ProgramStep::Toward {
+            dx: scl(0.0),
+            dy: scl(-1.0),
+        },
+        ProgramStep::Line(len(2.0)),
+    ];
+    steps.extend(tangent_arc(param("r"), profile::ArcSide::Right));
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
+    let (doc, solid) = insert(
+        doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(2.0 * PI),
+        },
+    );
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "on-axis revolve document:\n{}",
+        bad.join("\n")
+    );
+    // The fixture's own premise: FOUR segments, and one of them minted
+    // no wall. A full revolution splits each wall at its seam, so the
+    // three that did mint one are six faces; a fourth wall — a
+    // degenerate one from the on-axis edge — would be eight.
+    let editor_core::ValuePayload::Profile(pv) =
+        &ev.value(profile).expect("the profile evaluates").payload
+    else {
+        panic!("the profile node carries a profile");
+    };
+    assert_eq!(
+        pv.edge_radii[0].len(),
+        4,
+        "the chain replays to four segments, one of them the on-axis leg"
+    );
+    let body = body_of(&ev, solid);
+    assert_eq!(
+        topo::query::all_faces(body).len(),
+        6,
+        "three of the four segments minted a wall, each split at the seam"
+    );
+    let mut tori = 0;
+    for face in topo::query::all_faces(body) {
+        let carrier = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .expect("a live face on a carrier");
+        let is_torus = matches!(carrier, geom::Surface::Torus { .. });
+        for &field in SurfaceField::ALL {
+            // The arc is the only edge of this loop drawn at a radius,
+            // and a torus is the only carrier its wall can have.
+            let want = is_torus && field == SurfaceField::TorusMinorRadius;
+            assert_eq!(
+                sourced(body, face, field),
+                want,
+                "{face:?} on a {} carrier: {field:?}",
+                if is_torus {
+                    "toroidal"
+                } else {
+                    "straight edge's"
+                }
+            );
+        }
+        tori += usize::from(is_torus);
+    }
+    assert!(
+        tori > 0,
+        "the fixture's arc minted a wall at all, or the row above is vacuous"
+    );
+}
+
 /// **The extents attach nothing**, which is what their declaredly empty
 /// rows say, asserted over bodies that really ran.
 ///
@@ -1080,9 +1196,14 @@ fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed
         panic!("{id}: the profile node carries a profile");
     };
     assert_eq!(
-        pv.naming.loops[0].reversed, want_reversed,
+        pv.naming.loops[0].reversed,
+        want_reversed,
         "{id}: the fixture is written to be the {} case",
-        if want_reversed { "reversed" } else { "identity" }
+        if want_reversed {
+            "reversed"
+        } else {
+            "identity"
+        }
     );
     let (chain, peg_r, peg_q) = (
         body_of(&ev, chain),
@@ -1255,4 +1376,3 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         "a hand-built pair declares nothing, whatever its radii read"
     );
 }
-
