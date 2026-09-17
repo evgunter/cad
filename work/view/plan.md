@@ -1297,6 +1297,40 @@ wrong number. Where a count is guarded by a `matches(…).count()`
 sweep, the sweep is the thing that is right; the literal beside it is
 the thing to re-derive at merge, never to carry across.
 
+**A probe that samples a per-point quantity once has already chosen
+its answer.** The review of #2788 measured the datum fixture's scale,
+found it absent at `f64::MAX`, and concluded the unit's whole design
+argument rested on an unreachable case. The lane re-derived it under
+instrumentation and the conclusion inverted: `View::metres_per_pixel_at`
+takes a POINT, and `datums.rs` scales its two marks at two DIFFERENT
+points — the ruling at the patch centre (`view.half_patch_at(centre,
+…)`, `view.metres_per_pixel_at(centre)`), the normal tick at the datum
+origin (`view.screen_metres_at(origin, NORMAL_TICK_PX)`). The probe
+read the origin. At `M = 1e100` the centre still scales at `1.87e-4`
+while the origin is at `1.04e97`, so the ruling IS entered and the
+lost-extent arm DOES fire — with an ordinary 1280x800 window and an
+ordinary camera, only the datum extreme. The review's magnitude-
+independent ratio (`half/cv ≈ 1.46`) assumed the eye is about as far
+from the centre as from the origin, and it is not: the centre is what
+the camera is aimed at.
+
+This is **this program's own proxy rule with the reviewer holding the
+proxy** — a single `has_scale` column is a classifier standing in for
+a property that does not have one value. So: before believing any
+measurement of a per-point or per-mark quantity, **ask what point it
+was taken at, and check that against what the code samples at each
+site.** A one-column table over a quantity the module computes per
+mark is a summary of an assumption, not a measurement.
+
+**And the complaint under the wrong evidence was still right.** The
+lane's prose had named `f64::MAX` as *the* lost-extent case when it is
+three refusals at once — the tick's depth overflowing, one direction's
+`cv/pitch` overflowing past the finiteness guard, and the other losing
+its extent — with no row splitting them. A wrong reason can arrive
+attached to a real finding, and the finding survives the reason's
+death: the fix was a new row isolating the arm at `1e100`, where the
+origin still scales.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
