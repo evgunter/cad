@@ -5,7 +5,7 @@ title: A seam whose worker has died is indistinguishable, in the chrome, from on
 status: closed
 opened: 2026-09-15
 refs: [2637]
-closed: 2026-09-16
+closed: 2026-09-17
 branch: view/dead-seam-badge
 pr: 2762
 ---
@@ -66,25 +66,51 @@ Nothing is known about how often a seam worker dies — the parent item
 says the same, and it is still true: this is filed because the state is
 silent and permanent, not because it is frequent.
 
+## SUPERSEDED (Ev, in-chat, 2026-09-17): a crashed worker panics
+
+The ruling above was made on a description of the cost that was wrong,
+and Ev replaced it rather than amending it.
+
+**What moved.** The review of #2762 found that the fit refusal does not
+cost picking, it costs the picture: `settled_delta` answers `None`
+forever once the fitter is gone, `PickCache::sync` then forgets and
+returns `CacheStep::Nothing`, and `ViewerApp::sync_scene` returns on
+that step BEFORE the scene rebuild — and `self.scene` has one writer.
+On a fresh open, where the first landing is what fires the fit, the
+document never draws at all. So the justification the refusal rested on
+— *a frozen window is worse than a dead one* — pointed the other way
+once the true cost was on the table.
+
+**The ruling.** *"isn't a worker dying an infra thing that should show
+up as a panic?"*, then *"panic on crash is good."* A crashed worker is
+not a state the application may be in, so it is not described, badged
+or worked around: the process ends at the point of detection.
+
 ## Closed
 
-Taken as ruled. The seams publish `worker_gone()` beside `busy()` —
-a second QUESTION rather than a third value of the first, because the
-worker-gone reset clears exactly the fields `busy()` is computed from
-and that is right for the indicator. `Coalescing` records the fact at
-both arms that notice a worker has gone; the three consumers pass it
-through (`DocSession::eval_worker_gone`, `PickCache::worker_gone`, the
-fit handle directly).
+Closed by the panic, not by the badge.
 
-Three badges, one door (`frame::dead_seam_badge`), `Tone::Actionable`,
-the restart in each badge's own text; the fit badge names the picking
-it costs as well as the budget. `evalseam::settled_delta` refuses the
-index build for a dead fitter rather than taking the un-budgeted δ. The
-Re-evaluate control is disabled by the fact and says the seam's own
-words, the `CancelDoor` posture.
+`Coalescing` now tells its two endings apart — `close` takes the
+request channel and is called from `Drop` alone, so a detection that
+still holds the channel is a crash and nothing else. Shutdown forgets
+quietly (`forget_worker`); a crash panics on the UI thread naming the
+seam (`crashed`), and the message says it is a bug and offers no
+recourse, because the process is already going down.
+
+The whole vocabulary the first ruling asked for is deleted — the badge
+family member, the typed `WorkerGone`, `worker_gone` on the three seam
+traits, `settled_delta` and the fit refusal, the disabled Re-evaluate
+control. None of it described a state anything can now be in.
 
 Residue, filed rather than left in this prose:
-`the-canceled-label-names-a-cause-a-dead-worker-did-not-have` — the
-toolbar still draws the literal *canceled — showing an older result*
-over a state no cancel produced, and making that honest is a
-`frame::Progress` vocabulary decision rather than a wording change.
+
+- `the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer` —
+  `IndexService::busy`'s half of `PickCache::indexing`, and
+  `Coalescing::forget_worker`, lost their producers to the ruling.
+- `the-dying-seam-fakes-mirror-a-machine-they-do-not-share` — the two
+  `Dying*` fakes are hand-written mirrors of `Coalescing`'s bookkeeping
+  and no longer agree with it.
+
+The earlier residue row, `the-canceled-label-names-a-cause-a-dead-worker-did-not-have`,
+was **deleted rather than carried**: its premise was a dead evaluator
+reaching `Progress::Canceled`, which the ruling makes unreachable.
