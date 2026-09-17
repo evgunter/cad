@@ -2,10 +2,11 @@
 id: interface-crossing-heads-are-bare-stable-names
 kind: issue
 title: An interface crossing's two references are bare StableNames, not FaceNames
-status: review
+status: closed
 pr: 2814
 branch: edit/crossing-face-heads
 opened: 2026-09-17
+closed: 2026-09-17
 refs: [mate-head-entity-kind-is-decided-only-at-assembly]
 ---
 
@@ -159,3 +160,31 @@ Filed, not built:
 `work/edit/instantiate-part-crossings-are-names-payload-names-does-not-list.md`
 — `InstantiatePart` is `name_free_node!()` while its crossings carry
 two names each.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2814 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `InterfaceCrossing::Mate`'s
+`outer` and `inner` are `FaceName`s: the record says what the split
+guarantees, `Deserialize` goes through the constructor (a file whose
+crossing names an edge refuses at the load door, the six field×kind
+cases pinned independently), `Node::instantiate_part_with` takes the
+typed record so an edge-referenced crossing cannot be built in memory
+(the `compile_fail` twin, fed an edge like its mate-head sibling), and
+the wire bytes are unchanged (`serde(transparent)`, pinned against a
+JSON literal). One premise corrected: the re-wrap site is the
+part-side remap in the crossing walk plus `inline`'s dissolve check,
+not the remainder's rebind. The review (0 MAJOR, 2 MINOR, 3 NOTE)
+found the unit had minted a third divergent answer to "this face-name
+remap cannot fail"; the fix pass replaced all three with one door,
+`FaceName::map_derivation`, which keeps the kind by signature so no
+impossible arm exists — the `unreachable!`, the `debug_assert!` and
+the third `FaceName::new` are gone, and the callers census lives once
+on `FaceName`. Vocabulary: a crossing's fields are REFERENCES, a mate's
+`SitedFace`s are heads (the title moved; the id did not). Filed:
+`instantiate-part-crossings-are-names-payload-names-does-not-list`
+(`payload_names`' single-answer claim is false for the variant;
+`Rebind` never reaches `outer`; the insert door's liveness check sees
+neither reference). Territory crossed by announcement: WIRE (one
+token), FIX (`refactor.rs`), TCOST/TINT suites, LIB (`pncad.pyi` and
+the crossing pyclass doc, one fixture).
