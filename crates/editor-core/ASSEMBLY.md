@@ -119,21 +119,25 @@ pick index's doors as by the rest — because a pairing is about
 identity and never about a version (DI3); whether anything may be
 reused across such a run is the content keys' business.
 
-The pick doors' stamp does not reach a HAND-ASSEMBLED target, in any
-half. A `PickTarget`'s fields are private and it has exactly two
-mints — `NodePick::target`, where the document, the node, the body and
-the mesh all come from one tessellation, and `PickTarget::new`, where
-the caller declares them over a mesh index of its own. A minted target
-cannot be taken apart and re-stamped, so what the door checks is a
-claim a raw caller made: the node half cannot be checked even in
-principle (arena keys collide numerically across sibling nodes of one
-document, so the wrong node of the right document still answers a
-plausible wrong name), and the document half is checked against the
-handed evaluation, which catches every honestly-stamped target paired
-with the wrong run and not a caller who declared another document's
-mesh. That is `PickTarget`'s stated contract and issue #1098's residual
-raw-assembly class, and `NodePick`, whose `(document, node, body)` ↔
-mesh pairing is true by construction, is the door that closes it.
+At the pick doors the stamp reaches EVERY target a consumer can hold.
+A `PickTarget`'s fields are private and `NodePick::target` is its only
+reachable mint: the document, the node, the body and the mesh index all
+come from the one tessellation `NodePick::build` performed, so a caller
+declares none of them and the door's check is a statement about the
+type. The hand-assembled mint — `PickTarget::new`, and `MeshPick::build`
+the index it needs — is behind `editor-core`'s `test-support` cargo
+feature, which this crate's own dev-dependency enables and which no
+consumer's manifest wires onto an edge of its own —
+`scripts/gates/test-features-dev-only.sh` holds that across every
+manifest in the repository, and its header says why that is the claim a
+feature carries rather than a stronger one: a build COMMAND may ask for
+any feature by name. That closes issue #1098's
+residual raw-assembly class at the API: the class now lives exactly
+where the feature does, in the rows that measure it (a raw target's
+declaration is taken at its word in the document half as in the node
+half, which is unprovable in principle — arena keys collide numerically
+across sibling nodes of one document) and in the rows that need an
+index no tessellation produced or a node `NodePick::build` refuses.
 
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying` — do NOT check it today; `assembly::mint` is

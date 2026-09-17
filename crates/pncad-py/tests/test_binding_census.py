@@ -634,9 +634,9 @@ BOUND_AS = {
     # NOT a narrowing. Rust's `pick_face` takes a slice of them;
     # Python's takes a list of `NodePick`s and makes each target
     # itself — because CUR3 recorded `MeshPick` DECIDED absent from the
-    # façade and `PickTarget`'s raw mint (`PickTarget::new`) takes a
-    # `&MeshPick`, so through `pncad` a raw target has no constructor
-    # in EITHER language. The
+    # façade, and `PickTarget`'s raw mint (`PickTarget::new`) is behind
+    # `editor-core`'s `test-support` feature, so through `pncad` a raw
+    # target has no constructor in EITHER language. The
     # value that plays the target's role is the `NodePick`, whose
     # pairing cannot be mis-asserted. The carrier-projection rule reads
     # out the same way it did for `DanglingRef` above: a payload's
