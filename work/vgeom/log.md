@@ -150,3 +150,72 @@ narrowing is doored nowhere —
 
 PR #2808. Signed (VIEW implementer lane `view/shader-mark-strength`,
 landing on VGEOM's slate).
+
+### What the review of #2808 moved (fix pass, same branch)
+
+**The repaired parity row minted a fresh instance of the defect it
+closed, one layer down.** The widening read `theme.rs` as a FILE, and
+`channel_to_linear` — the decoder, twenty lines above the encoder —
+spells `12.92`, `1.055` and `0.055` for the inverse curve. Three of
+five constants were answered by a function the row is not about, under
+a message naming `channel_to_srgb8`. Executed: with the encoder at
+`1.06 * c.powf(1.0 / 2.4) - 0.06` and `12.0 * c`, the file-scoped row
+is **green, exit 0**. `test_utils::source::item_body` was already in
+the tree and scopes the read to the encoder; the same mutation reds it
+now. Generalises past this row: **a row that widens a read owes the
+question of what ELSE answers it**, and in a language with one file per
+module the second answer is usually a sibling function rather than a
+second file. The unit's own finding, re-minted by the unit's own fix.
+
+**A claim asserted at length in doc comments is not asserted.**
+`MixFraction`'s build-error half — `literal`'s `assert!` in a `const`
+context — is argued in three doc comments and the PR body, and
+deleting that `assert!` with the registry untouched reds **no row**
+(18/18 green, exit 0). What exists is a backstop for the COMBINED edit
+(assert removed *and* a bad literal written: six rows red). It cannot
+be guarded the usual way — a `compile_fail` doctest cannot reach a
+private item — so the honest move is to say so at the claim site, which
+`## Closed` and the row's own doc now do. Q6 at the claim site, not in
+a PR body.
+
+**A test's doc promised a reading the test does not take.**
+`mix_fractions_are_in_range`'s new doc said it holds *"the numbers
+these three palettes state are the numbers their prose says they
+are"*. It reads no prose. Its real role is the backstop above.
+
+**A witness has to be a value the lane can hold.** The residue row
+named `1.0e308` as the viewport dimension that narrows to `inf`. The
+arithmetic is right in isolation and the witness is unreachable:
+`f64::from(rect.width()) * pixels_per_point` is two `f32`-derived
+numbers, so the lane tops out near `1.158e77`. The threshold is
+`f32::MAX`, and the witness is `f64::from(f32::MAX) * 2.0 =
+6.805646932770577e38` — finite, inside the lane, `aspect == 1.0`,
+`as f32` is `inf`. Corrected in place with the correction recorded,
+because a reader who re-derives an unreachable witness distrusts the
+whole finding.
+
+**Two shader claims rested on a caller rather than on a type, and both
+now say so.** `to_display`'s `clamp` is discussed as if unconditional;
+`ENCODE_SRGB`'s early return sits ABOVE it, so on an `*Srgb` surface
+the pass runs no clamp at all — which strengthens the argument and was
+stated wrongly. And `fs_main`'s `normalize(in.normal)` reads a
+**perspective-interpolated** normal (`@location(0)` carries no
+`@interpolate(flat)`, unlike `id` and `flag`), so "never a zero to
+`normalize`" is an argument about the vertex WRITER; it holds only
+because `scene`'s build loop pushes one face normal at all three
+corners. A per-vertex normal would end that without redding anything.
+
+**`MixFraction::new` is `const` now**, which is more than the review
+asked for and is said here rather than landed quietly. The review's
+point was that *"nothing constructible and legal stopped being either"*
+is false — an outside consumer's `const Theme` could no longer name a
+weight (E0015), because `new` was not `const` and `literal` is private.
+Correcting the sentence would have left the crate with a `const` door
+it kept for itself; making `new` `const` closes it, and an external
+`const Mark` through `MixFraction::new` was executed as a probe and
+compiles. The range test is spelled as two comparisons because a
+`const fn` cannot call `RangeInclusive::contains`, with the `allow`
+carrying that reason.
+
+Signed (VIEW implementer lane `view/shader-mark-strength`, fix pass
+after review).

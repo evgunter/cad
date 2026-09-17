@@ -37,15 +37,29 @@ float lanes were the unit's: `Mark::strength` and `Theme::ambient` are
   `EDGE_MARK_HALF_WIDTH_POINTS * pixels_per_point`, the toolkit's own
   `Context::pixels_per_point` as `f32`. Doored nowhere in this crate.
 - **The `f64 → f32` narrowing itself**, which is the lane no guard
-  above reaches. `1.0e308_f64 as f32` is `inf` (verified), so a pair
-  of *finite* viewport dimensions at that magnitude gives
-  `aspect == 1.0` — through both doors — and writes `inf` into
-  `edge.xy`. `vs_edge` then forms `offset = normal * side * edge.z /
-  half_viewport`, which is `0` for an infinite half viewport and a
-  `NaN` if `edge.z` is infinite too. The same narrowing has no door in
-  `app::to_f32` (the view-projection) or at `scene.rs`'s
-  `p.x as f32` (every scene position), and `EdgeOverlay`'s
-  `pub Vec<[f32; 3]>` positions arrive already narrowed.
+  above reaches. The threshold is `f32::MAX`, and the witness has to
+  be a value the lane can hold: `viewport_ui` forms
+  `f64::from(rect.width()) * pixels_per_point` from two `f32`-derived
+  numbers, so the lane tops out near `f32::MAX * f32::MAX`
+  ≈ `1.158e77` and a witness above that names a value the producer
+  cannot make. **`f64::from(f32::MAX) * 2.0` is
+  `6.805646932770577e38`** — finite, inside the lane, gives
+  `aspect == 1.0` through both doors above, and narrows to `inf`
+  (each figure executed). `vs_edge` then forms
+  `offset = normal * side * edge.z / half_viewport`, which is `0` for
+  an infinite half viewport and a `NaN` if `edge.z` is infinite too.
+  The same narrowing has no door in `app::to_f32` (the
+  view-projection) or at `scene.rs`'s `p.x as f32` (every scene
+  position), and `EdgeOverlay`'s `pub Vec<[f32; 3]>` positions arrive
+  already narrowed.
+
+  **This row first named `1.0e308` and the review of #2808 corrected
+  it.** The arithmetic was right in isolation — `1.0e308_f64 as f32`
+  is `inf` — and wrong about the witness, because that value cannot
+  appear in the lane the row is about. A reader re-deriving it would
+  have found a producer that cannot reach it and distrusted the
+  finding. Recorded rather than silently repointed: the defect and the
+  threshold are what survived.
 
 ## Reachability, stated as a negative result
 
