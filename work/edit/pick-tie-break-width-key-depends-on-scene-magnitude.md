@@ -279,6 +279,17 @@ reference loop; `m4_pr4_hit`'s `HitTestError` census and Display case;
 `index_memo`'s reference and its two `tube_arc`/ring probes;
 `pick3_acceptance`'s reference, both sweeps and its assertions.
 
+**The refusal's prose.** The message numbers each tied face — "(1)
+face name minted by node 2, (2) face name minted by node 2" — and does
+NOT carry the role path. Two faces of one node render identically
+through `StableName`'s `Display`, which omits the path on purpose; the
+path is a `Debug` derivation, and a `Debug` struct dump in a refusal's
+message is what the Display contract forbids and what the binding's
+own `reads_as_prose` check refuses at the raise. The ordinal is what
+ties each phrase to its entry in `hits`, where the path IS carried.
+`idpass::Disagreement` renders the path because it has no typed
+payload at all; this arm does.
+
 **Not built, and why**: the spec named "the width rows of the two
 PICK3 review-probe suites (`review_pick3_r1_probes`,
 `review_pick3_r2_probes`)". Those suites carry no width-ORDER row —
