@@ -126,9 +126,10 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
     }
 }
 
-/// The same carriers `recourse_roster` declares — the census is only
-/// complete over the crate if it resolves them.
+/// The carriers `recourse_roster` declares — read from that one home,
+/// so the completeness half of the pairing row and the roster can never
+/// cover different name sets (the delta re-verification found this
+/// list spelled twice).
 fn profile_carriers() -> &'static [test_utils::source::NameCarrier] {
-    use test_utils::source::NameCarrier::Call;
-    &[Call("travel"), Call("gate_positive"), Call("coincident")]
+    crate::recourse_roster::CARRIERS
 }

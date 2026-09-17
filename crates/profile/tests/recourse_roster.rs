@@ -57,7 +57,7 @@ use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
 /// to a literal stays in `indirect` until its carrier is declared here
 /// — which is what makes a wrapper around a carrier a red row rather
 /// than a silent hole.
-const CARRIERS: &[NameCarrier] = &[
+pub(crate) const CARRIERS: &[NameCarrier] = &[
     // The corner window's advance and reach gates take the name from
     // `FilletSide::travel`, which answers the straight carrier's name
     // or the arc name its caller passes.

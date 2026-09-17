@@ -2,7 +2,8 @@
 id: escalation-recourse-dispatch-has-three-homes
 kind: unit
 title: blend: two Display impls dispatch a recourse by predicate name, with two different answers on an unknown name
-status: review
+status: closed
+closed: 2026-09-17
 opened: 2026-09-08
 branch: blend/15-recourse-roster
 pr: 2514
@@ -112,3 +113,18 @@ of two.
 - **The dispatch order is pinned**: no name sits in both
   `fillet_recourse_for` and a `path.rs` match pattern, where the map wins
   silently and the pattern arm is dead.
+
+## Closed (2026-09-17, PR 2514)
+
+One fall-through: both `Escalated` Displays answer an unknown name
+with `geom_core::MissingRecourse`'s gap sentence and never a category;
+the path door renders the shared clause alone for the names its
+`SHARED_CLAUSE_ONLY` roster lists as deliberately unrouted. One reader
+(`test_utils::source::predicate_census`) rosters every decided name in
+both crates by rendering the door's error, reports what it cannot read
+as red, and a pairing row per door pins which sentence each routed
+name renders. The item's third home, `validate.rs`'s near-tangency
+addendum, stays as the crate's second predicate-keyed table with its
+reason at the site. Residues on the slate from this unit: the
+enum-keyed `CornerConfig` defaults; `flush.rs`'s invented name
+(`work/issues/`).
