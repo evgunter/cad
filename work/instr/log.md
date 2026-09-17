@@ -464,3 +464,76 @@ was the open question and the lane answered it with the reason.
 And the lane declined to write the count of unguarded tracker rows into
 the prose, because *"that count is exactly the kind of figure this unit
 exists to remove, and F1 is what putting it there looks like."*
+
+## Unit 5 closes: a garbage value reached the gate and the gate reported clean (2026-09-17)
+
+`tess-lint-ungated-columns-fold-silently` is CLOSED, arm by arm.
+
+**The constructed case is stronger than the row claimed, and the lane
+built it before writing anything.** One sized row of the committed
+baseline with `muu=banana`, linted as the fresh file against that same
+baseline: `0 finding(s)`, *"clean — no scene grew and no face's sizing
+got wastefuller"*, **exit 0**. The gate did not merely ignore the
+column — it read the file, compared it, and reported clean. After the
+fix: `malformed budget row (harness breakage)`, exit 1. The reviewer
+reproduced both directions against the real gate.
+
+**Arm 1 fixed** at the parse boundary; **arm 2** (`name` parsed and
+read by nothing) ruled unit 18's, since what it lacks is a rule that
+reads it and that is `C15`'s job; **arm 3** split out as
+`tess-lint-re-cut-folds-uncompared-columns`, carrying a sharper first
+move than "build the diff": `tess-lint` cannot today tell a re-cut from
+a gate run — both arrive as `<fresh> --baseline <committed>` — so a
+diff beside the verdict would print on every green run over what the
+row's own table says is mostly last-digit noise. Settling who the diff
+is for comes first.
+
+**The style review produced this program's first DEMONSTRATED finding
+rather than an argued one.** `Certificate`, `Sup` and `Count` were
+three spellings of `finite && >= 0.0`; the reviewer scrambled
+`BOUND_COLUMNS` across them and the whole suite stayed green, 59 + 31.
+Nothing in the crate could tell them apart. **The fix pass then found
+it was worse**: `Target`/`Aspect` were two more spellings of
+`finite && > 0.0`, which neither the review nor the orchestrator had
+named. The predicate is now the variant and the quantity is data —
+`NonNegative(&str)` / `Positive(&str)` — with messages verified
+byte-identical through the CLI, and the mutation's surviving
+cross-policy form now reds four tests.
+
+**The census asserted completeness it did not have.** Its failure
+message claimed a *claimed* column does not reach the gate carrying
+whatever the file says — false for `name`, which it claimed, `parse`
+stores and no rule reads: arm 2, the arm the unit declined to fix. A
+hand-maintained list asserting completeness about a hand-maintained
+list, failing open. Now split into `Claim::Read` / `Claim::Carried`
+with `assert_eq!(carried, ["name"])`, which fails in both directions.
+
+The lane declined one design call and said so rather than taking it
+silently: making the census REFUSE to claim a carried column collapses
+the gap check into the read check, and the gap check must cover every
+header column — including one nothing reads — or it stops being a
+cover. Adjudicated as correct.
+
+**Two more homes for "what the gate reads", filed on CIW.** The sweep
+script's copy went stale *because of this diff*, and `ci.yml` asserts
+the roster lives in `tools/tess-lint`'s module docs *"AND NOWHERE ELSE,
+this file included"* and then states a copy in that same file — a
+sentence false in its own file, which is the sharper half.
+`work/ciw/gate-reads-roster-has-two-copies-in-ciw-files`, filed after
+grepping 114 CIW rows and finding the nearest neighbours are the same
+shape on the cut line.
+
+**On the orchestrator's instruction about `C15.md`**: the note said
+both "you were right not to edit another unit's file" and "check the
+note lands where a unit-18 lane looks". The lane resolved the
+contradiction by appending a dated, additive section that does none of
+unit 18's work and leaves the re-pointing undone, and offered to revert
+it. Kept — the instruction was ambiguous and this reading is the useful
+one.
+
+**Posture note.** `plan.md` names the census-asserting-completeness
+shape as the reason unit 15 gets a full falsification lane; unit 5 was
+ruled style-only and the style lane caught it anyway. That is the
+second time a style review has caught something the full lane was
+reserved for. Not a reason to reopen the posture, recorded as evidence
+if it is ever revisited.

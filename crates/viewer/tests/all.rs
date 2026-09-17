@@ -124,6 +124,8 @@ mod panel_display;
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick3_acceptance.rs"]
+mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
 #[path = "prefs.rs"]

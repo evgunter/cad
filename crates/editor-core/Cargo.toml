@@ -97,6 +97,8 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# Review lane pick3-r2's exact-rational probe of the t interval.
+num-bigint = { workspace = true }
 # `profile` again, with `test-support` ON. The crate is an ordinary
 # dependency above; naming it a second time here adds the feature for
 # TEST builds only — cargo unions the two entries for this package's
