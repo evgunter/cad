@@ -112,20 +112,30 @@ of its placeholders, and its `Display` header now says what the quotes
 mean: every one of them renders text lifted verbatim out of the
 author's input.
 
-**Twenty-two placeholders moved** across eight files: `edit.rs` (12,
+**Twenty-four placeholders moved** across eight files: `edit.rs` (12,
 `.0` -> `Display`, same bytes out), `persist/mod.rs` (2),
-`persist/check.rs` (4), `range.rs` (2), `expr.rs` (2), `refactor.rs`
+`persist/check.rs` (6), `range.rs` (2), `expr.rs` (2), `refactor.rs`
 (2, FIX's, mechanical), `analysis.rs` (6) and `stackup.rs` (4) — the
 last two PROPS's, mechanical, and **a correction to this row's own
-table**, which did not list them.
+table**, which did not list them. Two of `persist/check.rs`'s six
+arrived mid-unit: `SnapshotError::PayloadUnknownDocParam` and
+`PayloadDocParamDimension` landed on main with
+`load-door-does-not-check-payload-expression-param-refs` (PR #2793) and
+were caught by the re-sweep at this branch's merge, not by the sweep at
+its base.
 
 **The row.**
 `display_contract::a_parameter_name_renders_unquoted_at_every_door_but_parse`:
 thirteen doors, one arm each, asserting the rendered sentence names the
 parameter and does not quote it, plus the parse door asserting it does.
 Verified red before the change (`PersistError::DisplayUnit` first).
-The range and stackup doors ride a `#[cfg(feature = "interval")]` arm,
-since those modules compile in that lane only.
+The certified-range and stackup doors are a SECOND row of their own,
+`…_at_the_interval_only_doors`, because those modules compile in the
+interval build alone and `check-interval-cfg-additive` refuses a
+feature cfg over a block inside a shared test: the interval legs run
+only the tests the feature adds, so a test present in both builds must
+run identical code in both. Both rows call one predicate, so the two
+lanes cannot drift into asking different questions.
 
 **Two expectations re-baselined**, both asserting the quotes:
 `tests/lib_doors_node_result.rs`'s `EvalError::UnknownParam` case
