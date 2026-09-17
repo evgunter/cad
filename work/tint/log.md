@@ -1073,3 +1073,17 @@ discipline observation 2 adopted — a spec names the measurement that
 would show its mechanism cannot work, and the lane takes it first — has
 now been improved on by taking the measurement BEFORE the spec exists,
 three times running.
+
+**Seam announced by BLEND (2026-09-17, at unit 15's fix pass):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, PR #2514) adds ONE source reader to
+`crates/test-utils/src/source.rs` — the `decide*` call-site roster
+reader its two `recourse_roster.rs` suites and `profile`'s
+`fillet_recourse_followability.rs` census currently carry as three
+hand-rolled copies, which both v6 reviewers defeated by mutation (a
+turbofish, a wrapped carrier) — beside `plain_string_literal` and
+`balanced_end`, which it uses. No test mechanism changes; the
+`reader_census.rs` ledger gains the lines the gate demands. Announced
+here and in `work/tcost/log.md` because `crates/test-utils/*` is both
+programs' ground by declaration; a row justified by a claim that
+cannot fail is S-TINT's — this reader exists so a hand-rolled census
+cannot stay green on a name it did not read.
