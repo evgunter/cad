@@ -1237,3 +1237,33 @@ fn one_declared_radius_reaches_the_germ_from_a_document() {
         "a hand-built pair declares nothing, whatever its radii read"
     );
 }
+
+// ------------------------------------------------------------------
+// REVIEW PROBE (review/chainradius-rv) — not part of the PR.
+//
+// Dumps every corpus document's per-node content key so the same probe
+// can be run at the merge base and the two dumps diffed: which
+// documents' keys the per-edge radius feed moved, and which carrier
+// documents it left byte-identical.
+// ------------------------------------------------------------------
+
+/// Writes `<name> <node-index> <content-key>` for every corpus node to
+/// `/home/user/chainradius-rv-scratch/keys-<rev>.txt`.
+#[test]
+fn probe_dump_corpus_content_keys() {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    for d in corpus::documents() {
+        let ev = eval::<f64>(&d.doc);
+        for (i, &id) in d.doc.order().iter().enumerate() {
+            let k = ev.value(id).map(|v| v.content_key.0);
+            writeln!(out, "{} {i} {k:?}", d.name).unwrap();
+        }
+    }
+    let rev = std::env::var("PROBE_REV").unwrap_or_else(|_| "head".into());
+    std::fs::write(
+        format!("/home/user/chainradius-rv-scratch/keys-{rev}.txt"),
+        out,
+    )
+    .unwrap();
+}
