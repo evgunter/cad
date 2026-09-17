@@ -1386,6 +1386,39 @@ is in no companion table and no ratified text was touched either way.
 A ratification check that concludes correctly from a SHA that does not
 exist has not checked anything.
 
+**Overturning a claim about WHERE a defect lives is half the work; the
+other half is finding where it actually lives.** The `view/clamp-nan`
+lane correctly overturned the orchestrator's framing — `theme.rs`'s
+`channel_to_srgb8` is not a paint path, its only consumers are the
+colourblind safety rows — and then stopped. The next question was one
+step away and unasked: **then which door does a NaN actually reach?**
+The answer was `gpu.rs`'s `mark_lane`, which hands raw `Mark::strength`
+to the uniform, and a WGSL `clamp` that does not bound a NaN either. So
+the unit hardened the measurement path and left the painting one, and
+the PR disclosed that the shader half was unswept without filing
+anything for it.
+
+The lane diagnosed this itself, and its framing is the right one: this
+was **one** failure, not the four findings it produced. A correction
+that removes a location without supplying one leaves the defect
+unlocated, and a body that then says "this half was not swept" has
+turned a live defect into a sentence. So when a re-derivation moves a
+defect off the site an item named: **say where it went before you say
+it is not here**, and if you cannot, that is the row — not a line in a
+PR body. `docs/prompts/implementer-discipline.md` §5/§6 already says a
+PR body is not a slate; this is the shape that keeps evading it,
+because the disclosure feels like diligence.
+
+**Sibling, from the same unit: drive a guard through the PUBLIC door.**
+The lane's rows for two new guards were written against a private
+helper and proved nothing about reachability; rewritten through
+`preview`, they immediately showed that its own worked producer was a
+**two-vertex** loop the flattener never sees — the driver refuses it as
+an undeclared cusp two steps earlier, and it takes a third vertex. The
+arithmetic was right and the shape was untested, which is this
+program's *a test can pin the wrong SHAPE and still pass* rule reached
+from the other end.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
