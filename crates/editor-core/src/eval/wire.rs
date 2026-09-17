@@ -72,7 +72,9 @@ use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, SplitHalf};
-use crate::node::{Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{
+    Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
+};
 use crate::program::ProfileProgram;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
@@ -2410,8 +2412,7 @@ fn resolve_open_faces(
 ///    including a door's own, and the [`ladder::Live`] token enforces
 ///    that rather than asking for it: reading a table needs the token,
 ///    so no refusal ABOUT the tables — the ladder's own rungs, or a
-///    door's, like the declare door's both-operands — can be reached
-///    before this one has passed.
+///    door's own — can be reached before this one has passed.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`. The tie row IS the
 ///    ambiguity (N5), so the tied set expressed in names is the name
 ///    itself, and the witness carries the multiplicity and the
@@ -3172,15 +3173,24 @@ fn wire_boolean<
     // they are taken once here rather than re-fetched per reader.
     let a_table = Arc::clone(&value_of(results, a)?.name_table);
     let b_table = Arc::clone(&value_of(results, b)?.name_table);
+    // **The site is the side.** Each declared entity names the
+    // operand it is read at, so each name is resolved in the ONE table
+    // that site designates and a name carried by both operands is no
+    // longer ambiguous — two placements of one prototype are
+    // declarable through this door. A site that is neither operand
+    // refuses typed.
     let kernel_decls = match declare {
         None => BooleanDeclarations::none(),
-        Some(d) => resolve_declarations(declared_pairs(results, d)?, doc, &a_table, &b_table)?,
+        Some(d) => {
+            let sided = side_by_operand(declared_pairs(results, d)?, a, b)?;
+            resolve_declarations(&sided, doc, &a_table, &b_table)?
+        }
     };
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu(&a_table, &b_table, err))?
+        .map_err(|err| refusal_menu((a, &a_table), (b, &b_table), err))?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -3299,7 +3309,7 @@ fn wire_union<
     // the member ids its names carry (`route_declarations`). One bucket
     // per step, so a step with no declared pair runs exactly as it did
     // without the input.
-    let buckets: Vec<Vec<DeclaredPair>> = match declare {
+    let buckets: Vec<Vec<SidedPair>> = match declare {
         None => vec![Vec::new(); rest.len()],
         Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
     };
@@ -3333,9 +3343,8 @@ fn wire_union<
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let resolved = look_through_merges(id, &buckets[step], &acc_view, &member_table)?;
-            resolve_declarations(&resolved, doc, &acc_view, &member_table)
-                .map_err(|err| step_diagnosis(err, id, members, &buckets[step], &acc_view))?
+            let resolved = look_through_merges(&buckets[step], &acc_view, &member_table)?;
+            resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
@@ -3434,9 +3443,55 @@ fn wire_union<
     ))
 }
 
-/// One declared pair as the recipe carries it: the two names and the
-/// contact class the author claimed for them.
-type DeclaredPair = ((names::StableName, names::StableName), ContactClass);
+/// One declared pair as the recipe carries it: the two SITED
+/// entities and the contact class the author claimed for them.
+type DeclaredPair = ((SitedRef, SitedRef), ContactClass);
+
+/// One declared pair as the shared resolver takes it: each side's
+/// name in the table of the operand its SITE picked, and the class.
+///
+/// The two doors build it differently and that is the whole of the
+/// difference between them. [`wire_boolean`] reads each name as
+/// authored, in the operand's own table ([`side_by_operand`]);
+/// [`wire_union`] rewrites each into the node's member space and
+/// picks the side from the member's position in the list
+/// ([`route_declarations`]). What arrives at [`resolve_declarations`]
+/// is the same shape either way, so "resolve a declared name at its
+/// site" has one definition.
+type SidedPair = (
+    (topo::Operand, names::StableName),
+    (topo::Operand, names::StableName),
+    ContactClass,
+);
+
+/// **A pair boolean's declared pairs, sided by their sites** — `at ==
+/// a` is operand A, `at == b` is operand B, and anything else refuses
+/// typed.
+///
+/// The names travel unchanged: a pair boolean's operand tables are the
+/// operands' own, so a declared name is already spelled in the table
+/// its site designates. The union's door has to rewrite, because its
+/// operand tables are member-keyed views.
+fn side_by_operand(
+    pairs: &[DeclaredPair],
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> Result<Vec<SidedPair>, NodeErrorKind> {
+    let side = |r: &SitedRef| -> Result<(topo::Operand, names::StableName), NodeErrorKind> {
+        let op = if r.at == a {
+            topo::Operand::A
+        } else if r.at == b {
+            topo::Operand::B
+        } else {
+            return Err(NodeErrorKind::DeclareSiteNotAnOperand { at: r.at });
+        };
+        Ok((op, r.name.clone()))
+    };
+    pairs
+        .iter()
+        .map(|((r1, r2), class)| Ok((side(r1)?, side(r2)?, *class)))
+        .collect()
+}
 
 /// The pairs a `Declare` input carries, or the typed refusal for a
 /// node wired at a declare seat that is not a `Declare`.
@@ -3463,211 +3518,50 @@ fn declared_pairs<T: Decide>(
     )
 }
 
-/// **Where one declared name sits in a union's own name space.**
-///
-/// The two cases are told apart by SHAPE, not by a stored position:
-/// `member_view` mints exactly one segment, so a one-segment
-/// `FromMember` row is a member's own entity and anything else in this
-/// node's space is a row some fold step produced.
-#[derive(Clone, Copy)]
-enum DeclSite {
-    /// A member's own entity, by its index in the member list.
-    Member(usize),
-    /// A row the fold minted (a seam, a merge, a fragment), by the
-    /// index of the LATEST member it mentions — which bounds the step
-    /// that could first have produced it.
-    Accumulated(usize),
-    /// A row of this node's space that names NO member: the
-    /// accumulated body's own [`names::RoleSeg::OutputBody`] row, or a
-    /// name discriminated only by an ordinal fragment rank.
-    ///
-    /// Its own case, and not folded into "denotes nothing here",
-    /// because the two answers are different and a caller acts on
-    /// them differently: such a row IS in this node's published space
-    /// (the finished table carries it), it is simply a row no fold
-    /// step has as one of its two OPERANDS — a step's output body is
-    /// not one of that step's inputs.
-    Unkeyed,
-}
-
-impl DeclSite {
-    /// The first fold step (as a bucket index) at which this name is a
-    /// row of one of the step's two operand tables, or `None` for a
-    /// name that is a row of neither operand at any step.
-    ///
-    /// Member 0 is operand A of step 1 and member `i` is operand B of
-    /// step `i`, so a member arrives at bucket `i - 1` and member 0 at
-    /// bucket 0. A fold row is PRODUCED by a step, so the earliest it
-    /// can be an operand is the step after — bucket 1 at the earliest,
-    /// whichever member it mentions.
-    fn arrival(self) -> Option<usize> {
-        match self {
-            DeclSite::Member(i) => Some(i.saturating_sub(1)),
-            DeclSite::Accumulated(d) => Some(d.max(1)),
-            DeclSite::Unkeyed => None,
-        }
-    }
-}
-
-/// **The step a declared pair is fed at**, as a bucket index — the
-/// bucket rule, in one place.
-///
-/// The rule is the LATER of the two names' arrivals: both have to be
-/// operand rows for the step to be able to join them, and each is one
-/// from its arrival on. What arrival alone cannot say is the one
-/// asymmetry between the two kinds of name — a member is the JOINING
-/// operand at exactly its own step and is inside the ACCUMULATION at
-/// every step after, so a member paired with a fold row minted later
-/// than the member's own step is two rows of one operand there, which
-/// is a different claim (a carried contact, not a contact between the
-/// two things the step joins). That pair has no step, and says so
-/// rather than being re-read as the other claim.
-///
-/// `None` means no step has both names as its two operands.
-fn declared_bucket(s1: DeclSite, s2: DeclSite) -> Option<usize> {
-    let bucket = s1.arrival()?.max(s2.arrival()?);
-    for (site, other) in [(s1, s2), (s2, s1)] {
-        if let (DeclSite::Member(n), DeclSite::Accumulated(_)) = (site, other) {
-            // Member 0 is never the joining operand — it is where the
-            // accumulation starts — so it is never the counterpart of
-            // a fold row.
-            if n == 0 || n - 1 != bucket {
-                return None;
-            }
-        }
-    }
-    Some(bucket)
-}
-
-/// The index of the LATEST member of `members` this path mentions,
-/// `Some(None)` for a path that mentions no member at all, and `None`
-/// for a path that is not in this node's published space: one naming a
-/// node the member list no longer holds — the state `SetMembers`
-/// creates by removing a declared member — or one carrying a segment
-/// the member-keying rule never mints.
-fn latest_member(members: &[RecipeNodeId], path: &[names::RoleSeg]) -> Option<Option<usize>> {
-    use crate::names::{Qualifier, RoleSeg};
-    let mut best: Option<usize> = None;
-    for seg in path {
-        let here = match seg {
-            // The member EDGE answers, and the name it wraps is NOT
-            // walked: that name is in the member's own space, so a
-            // member which is itself a union carries `FromMember`
-            // segments naming ITS members, which are not this node's.
-            RoleSeg::FromMember { member, .. } => Some(members.iter().position(|m| m == member)?),
-            // The embedded names of a fold row are in this node's own
-            // space — that is what the member-keying rule guarantees —
-            // so they are walked by this same rule.
-            RoleSeg::Seam { a, b } => {
-                latest_member(members, &a.path)?.max(latest_member(members, &b.path)?)
-            }
-            RoleSeg::Merged(constituents) => {
-                let mut acc = None;
-                for c in constituents {
-                    acc = acc.max(latest_member(members, &c.path)?);
-                }
-                acc
-            }
-            RoleSeg::Fragment(Qualifier::SideOf(partners)) => {
-                let mut acc = None;
-                for (n, _) in partners {
-                    acc = acc.max(latest_member(members, &n.path)?);
-                }
-                acc
-            }
-            // The two segments this node's space carries that name no
-            // member: the accumulated body's own row, and the ordinal
-            // fragment discriminator, whose ranks are numbers.
-            RoleSeg::OutputBody | RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => None,
-            // `FromA`/`FromB` are the fold's INTERNAL space — exactly
-            // what `collapse` takes out — and everything after them is
-            // a segment the boolean emitter never mints at all. A name
-            // carrying either is not in this node's published space
-            // and denotes nothing here. The long half is
-            // [`names::never_in_a_boolean_table`], the one place a new
-            // `RoleSeg` is classified; this match still stops the
-            // compiler if one is added and not classified there.
-            RoleSeg::FromA(_) | RoleSeg::FromB(_) | names::never_in_a_boolean_table!() => {
-                return None;
-            }
-        };
-        // `Option::max` IS "the later of two, either of which may be
-        // absent": `None` orders below every `Some`.
-        best = best.max(here);
-    }
-    Some(best)
-}
-
-/// Which of [`DeclSite`]'s three cases a declared name is, or `None`
-/// if it is none of them — a name from another node's space, or one
-/// naming a member the list no longer holds.
-///
-/// The `None` answer and [`DeclSite::Unkeyed`] are kept apart on
-/// purpose: `None` is a name this node does not denote at all, which
-/// is the vanished class, and `Unkeyed` is a name this node DOES
-/// denote that no step has as an operand, which is the unroutable
-/// class. Flattening the two would answer a caller's "why" with the
-/// wrong sentence.
-fn decl_site(
-    id: RecipeNodeId,
-    members: &[RecipeNodeId],
-    name: &names::StableName,
-) -> Option<DeclSite> {
-    use crate::names::RoleSeg;
-    // Every row of every operand table this node presents is minted
-    // under this node (`member_view`, and the fold's own tables), so a
-    // name minted elsewhere denotes nothing here.
-    if name.node != id {
-        return None;
-    }
-    if let [RoleSeg::FromMember { member, .. }] = name.path.as_slice() {
-        return members
-            .iter()
-            .position(|m| m == member)
-            .map(DeclSite::Member);
-    }
-    Some(match latest_member(members, &name.path)? {
-        Some(d) => DeclSite::Accumulated(d),
-        None => DeclSite::Unkeyed,
-    })
-}
-
 /// **Routing a union's declared pairs to their fold steps** (DM4 as
-/// amended): one bucket per step, filled from the MEMBER IDS the two
-/// names carry and from nothing else.
+/// re-ruled): one bucket per step, filled from the two SITES the pair
+/// names and from nothing else.
 ///
 /// No fold position is read and none is recorded. A pair says "this
-/// entity meets that one"; which step joins the two is a consequence
-/// of where their members sit in the list, and [`declared_bucket`] is
-/// that consequence.
+/// entity of member `m` meets that entity of member `n`"; which step
+/// joins the two is a consequence of where `m` and `n` sit in the
+/// list. Member `i` is the joining operand at step `i - 1` and is
+/// inside the accumulation at every step after, so the step that has
+/// both is the LATER member's: bucket `max(i, j) - 1`, and a pair
+/// whose two sites are ONE member is that member's CARRIED contact at
+/// its own step. Member 0 is where the accumulation starts, so a pair
+/// sited entirely at it is carried into step 0 on the accumulation
+/// side — which is why the subtraction saturates rather than
+/// underflowing.
 ///
-/// - Two names in ONE member are that member's CARRIED contact, at its
-///   own step — operand B's carry there, or operand A's for the first
-///   member, whose step is step 1.
-/// - Two names in members `m` and `n` meet at the LATER one's step,
-///   where the earlier is inside the accumulation and the later is the
-///   joining member.
-/// - A name the fold minted meets a member at that member's step,
-///   provided the member joins after the row was minted; the same pair
-///   one step earlier would be two rows of ONE operand, which is a
-///   different claim, so it refuses rather than being re-read as one.
-/// - Two fold rows are the accumulation's own carried contact, at the
-///   first step that has both.
+/// **Every sited pair has a step.** `max(i, j)` is at most
+/// `members.len() - 1`, so the bucket is at most `steps - 1`: a pair
+/// the routing accepts is always fed somewhere, and the only refusals
+/// here are about the sites themselves. That is the shape change the
+/// sited payload buys — a union's own fold rows are no longer
+/// declaration subjects, because the only entities a declaration can
+/// name are ones that exist BEFORE the union.
+///
+/// Each bucket's pair is rewritten into the node's member space
+/// ([`names::member_name`], `member_view`'s one segment) and sided:
+/// the joining member is operand B and every earlier member is inside
+/// the accumulation, operand A. So the pair boolean's own resolver
+/// runs on the union's pairs exactly as it runs on its own.
 ///
 /// # A member-space declaration resolves through the fold's MERGES
 ///
-/// A declaration is routed, so a pair of MEMBER names outlives any
-/// reordering or dropping of the list: the two ids still say which
-/// step joins them, wherever they sit. And it resolves at that step
-/// through the merges the fold has performed by then: a declared
-/// merge consumes the two faces it joins and publishes a `Merged` row
-/// in their place, and a member-space name that is no longer an
-/// operand row because of one is rewritten to the accumulation's
-/// `Merged` row whose flat constituent set holds it
-/// ([`look_through_merges`]) before the door runs. The set is flat
-/// (N3), so the row is the same whatever order the merges happened
-/// in: with `a` touching `c` and `c` touching `d`, every order of the
-/// three fuses, and the cap row is `Merged({a, c, d})` in each.
+/// A declaration is routed, so a pair outlives any reordering or
+/// dropping of the list: the two member ids still say which step joins
+/// them, wherever they sit. And it resolves at that step through the
+/// merges the fold has performed by then: a declared merge consumes
+/// the two faces it joins and publishes a `Merged` row in their place,
+/// and a member-space name that is no longer an operand row because of
+/// one is rewritten to the accumulation's `Merged` row whose flat
+/// constituent set holds it ([`look_through_merges`]) before the door
+/// runs. The set is flat (N3), so the row is the same whatever order
+/// the merges happened in: with `a` touching `c` and `c` touching `d`,
+/// every order of the three fuses, and the cap row is
+/// `Merged({a, c, d})` in each.
 ///
 /// That is the bound, and it is the merges alone. A member face the
 /// fold consumed some other way is not looked through: one SPLIT by a
@@ -3682,20 +3576,19 @@ fn decl_site(
 /// as
 /// `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
 ///
-/// Every name this node does not denote at all refuses through the N5
-/// ladder as a vanished name does — a member the list no longer holds,
-/// a name from another node's space — and nothing is dropped.
+/// A site the member list does not hold — the state `SetMembers`
+/// creates by removing a declared member — refuses through the N5
+/// ladder as a vanished name does, and nothing is dropped.
 fn route_declarations(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     pairs: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-) -> Result<Vec<Vec<DeclaredPair>>, NodeErrorKind> {
+) -> Result<Vec<Vec<SidedPair>>, NodeErrorKind> {
     let steps = members.len().saturating_sub(1);
-    let mut buckets: Vec<Vec<DeclaredPair>> = vec![Vec::new(); steps];
-    for pair in pairs {
-        let ((n1, n2), _) = pair;
-        let site = |name: &names::StableName| -> Result<DeclSite, NodeErrorKind> {
+    let mut buckets: Vec<Vec<SidedPair>> = vec![Vec::new(); steps];
+    for ((r1, r2), class) in pairs {
+        let member_of = |r: &SitedRef| -> Result<usize, NodeErrorKind> {
             // Rung 1 first, as at every other door: a name whose
             // minting node is gone says THAT, before anything is said
             // about which step it would have belonged to.
@@ -3703,29 +3596,33 @@ fn route_declarations(
             // [`resolve_declarations`] pays rung 1 again, per bucket,
             // when the step it was routed to runs. That is two calls
             // for one name, and deliberately: this is the ROUTING
-            // door, which must rank `NodeGone` above "no step joins
-            // these", and that one is the pair boolean's own door,
-            // which cannot assume a caller routed anything. Neither
-            // can be dropped without one of them answering a name it
-            // has not checked; the cost is a document lookup on a path
-            // that already refuses.
-            let live =
-                ladder::live(name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
-            decl_site(id, members, name).ok_or_else(|| NodeErrorKind::DeclareResolve {
-                error: ladder::vanished(&live),
-            })
+            // door, which must rank `NodeGone` above a site that left
+            // the list, and that one is the pair boolean's own door,
+            // which cannot assume a caller routed anything.
+            let live = ladder::live(&r.name, doc)
+                .map_err(|error| NodeErrorKind::DeclareResolve { error })?;
+            members
+                .iter()
+                .position(|m| *m == r.at)
+                .ok_or_else(|| NodeErrorKind::DeclareResolve {
+                    error: ladder::vanished(&live),
+                })
         };
-        let (s1, s2) = (site(n1)?, site(n2)?);
-        let unroutable = || NodeErrorKind::UnionDeclareStep {
-            pair: Box::new((n1.clone(), n2.clone())),
+        let (i, j) = (member_of(r1)?, member_of(r2)?);
+        // The bucket, and the side each name takes in it: the joining
+        // member is operand B, and everything the fold has already
+        // accumulated is operand A.
+        let bucket = i.max(j).saturating_sub(1);
+        let joining = bucket + 1;
+        let sided = |index: usize, r: &SitedRef| {
+            let op = if index == joining {
+                topo::Operand::B
+            } else {
+                topo::Operand::A
+            };
+            (op, names::member_name(id, r.at, &r.name))
         };
-        // One rule, one home ([`declared_bucket`]) — and a step past
-        // the last one is no step at all: the fold is over before both
-        // names are operands together.
-        let Some(bucket) = declared_bucket(s1, s2).filter(|b| *b < steps) else {
-            return Err(unroutable());
-        };
-        buckets[bucket].push(pair.clone());
+        buckets[bucket].push((sided(i, r1), sided(j, r2), *class));
     }
     Ok(buckets)
 }
@@ -3741,59 +3638,57 @@ fn route_declarations(
 /// membership (`names::merged::covers`), one face being in one row's
 /// flat set. The rewrite reads the step's two tables and nothing else.
 ///
-/// Three things it does not do. Only a MEMBER-SPACE name looks
-/// through; an accumulation-entity name (`Seam`, `Merged`, `Fragment`,
-/// `OutputBody`) is its own row or nothing. A member-space name in no
-/// table and in no merged row's set is left alone, and the door
-/// refuses it as the vanished name it is. And a pair whose two names
-/// land on ONE row is handed to the door as such, and refuses there
-/// by the door's own same-operand rule.
+/// Two things it does not do. A name in no table and in no merged
+/// row's set is left alone, and the door refuses it as the vanished
+/// name it is. And a pair whose two names land on ONE row is handed to
+/// the door as such, and refuses there by the door's own rule.
+///
+/// Only the ACCUMULATION side looks through. The joining member's
+/// table is the member's own, and no merge the fold has performed
+/// could have consumed a face of a member that has not joined yet, so
+/// a B-side name absent from it is the vanished name it looks like.
 ///
 /// A face in the set of TWO merged rows cannot happen under the flat
 /// mint — a merged face's constituents retire, and a merge over it
 /// lists them in the new row's set and drops the old row — so meeting
 /// one is refused as the emission bug it would be.
 fn look_through_merges(
-    id: RecipeNodeId,
-    bucket: &[DeclaredPair],
+    bucket: &[SidedPair],
     acc_table: &NameTable,
     member_table: &NameTable,
-) -> Result<Vec<DeclaredPair>, NodeErrorKind> {
+) -> Result<Vec<SidedPair>, NodeErrorKind> {
     use crate::names::RoleSeg;
-    let merged_row_of =
-        |name: &names::StableName| -> Result<Option<names::StableName>, NodeErrorKind> {
-            // Only a MEMBER's own face looks through. The guard is
-            // not redundant: a fragment of a member face
-            // (`[FromMember, Fragment]`) or of a merged face is a
-            // legitimate constituent of a later merge, and a declared
-            // name of that shape is an accumulation entity — its own
-            // row or nothing.
-            if name.node != id || !matches!(name.path.as_slice(), [RoleSeg::FromMember { .. }]) {
-                return Ok(None);
-            }
-            if acc_table.lookup(name).is_some() || member_table.lookup(name).is_some() {
-                return Ok(None);
-            }
-            let mut rows = acc_table
-                .iter()
-                .filter_map(|(row, _)| match row.path.as_slice() {
-                    [RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row),
-                    _ => None,
-                });
-            match (rows.next(), rows.next()) {
-                (None, _) => Ok(None),
-                (Some(row), None) => Ok(Some(row.clone())),
-                (Some(_), Some(_)) => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: MEMBER_FACE_IN_TWO_MERGES,
-                })),
-            }
+    let merged_row_of = |(op, name): &(topo::Operand, names::StableName)| -> Result<
+        Option<names::StableName>,
+        NodeErrorKind,
+    > {
+        let table = match op {
+            topo::Operand::A => acc_table,
+            topo::Operand::B => member_table,
         };
+        if *op == topo::Operand::B || table.lookup(name).is_some() {
+            return Ok(None);
+        }
+        let mut rows = acc_table
+            .iter()
+            .filter_map(|(row, _)| match row.path.as_slice() {
+                [RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row),
+                _ => None,
+            });
+        match (rows.next(), rows.next()) {
+            (None, _) => Ok(None),
+            (Some(row), None) => Ok(Some(row.clone())),
+            (Some(_), Some(_)) => Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: MEMBER_FACE_IN_TWO_MERGES,
+            })),
+        }
+    };
     bucket
         .iter()
-        .map(|((n1, n2), class)| {
-            let r1 = merged_row_of(n1)?.unwrap_or_else(|| n1.clone());
-            let r2 = merged_row_of(n2)?.unwrap_or_else(|| n2.clone());
-            Ok(((r1, r2), *class))
+        .map(|(s1, s2, class)| {
+            let r1 = merged_row_of(s1)?.unwrap_or_else(|| s1.1.clone());
+            let r2 = merged_row_of(s2)?.unwrap_or_else(|| s2.1.clone());
+            Ok(((s1.0, r1), (s2.0, r2), *class))
         })
         .collect()
 }
@@ -3802,68 +3697,6 @@ fn look_through_merges(
 /// sets of two merged rows, which the flat mint cannot produce.
 const MEMBER_FACE_IN_TWO_MERGES: &str =
     "a union's accumulation holds one member face in two merged rows' constituent sets";
-
-/// **A routed FOLD ROW that is not an operand row at the step it was
-/// sent to** — said as the routing failure it is.
-///
-/// [`resolve_declarations`] answers for the pair boolean too, where a
-/// name absent from both operand tables has genuinely vanished: no
-/// table in the evaluation derives it any more. Under a union that
-/// reading survives for a MEMBER's own row — its absence is the
-/// member's table not deriving it (a name written against an entity
-/// the member does not have), or the fold having consumed it, which is
-/// the vanished class either way and is diagnosed as one.
-///
-/// A row the FOLD minted is different. Its bucket is bounded by the
-/// latest member it mentions, and that bound is not tight: a row can be
-/// minted at a step LATER than the member index alone implies, in which
-/// case the step it was routed to does not have it. Nothing vanished
-/// there — the name is this node's, and the fold does mint it — the
-/// pair simply has no step that holds both its names, which is
-/// [`NodeErrorKind::UnionDeclareStep`] and is what the author acts on.
-///
-/// Only the vanished rung is re-said. `NodeGone` cannot occur here —
-/// routing paid rung 1 already — and a tie
-/// ([`crate::resolve::ResolveError::Ambiguous`]),
-/// `DeclareBothOperands` and `DeclareUnsupportedPair` are answers about
-/// the name itself that a step index would not improve.
-///
-/// A fold row that a LATER merge absorbed is not re-said either: it
-/// is covered by the accumulation's merged row that lists its faces
-/// (`names::merged::covers`), which is N3's offer for it — the name
-/// vanished into a merge, and the vanished rung with that offer is
-/// the true answer, not a routing failure.
-fn step_diagnosis(
-    err: NodeErrorKind,
-    id: RecipeNodeId,
-    members: &[RecipeNodeId],
-    bucket: &[DeclaredPair],
-    acc_table: &NameTable,
-) -> NodeErrorKind {
-    use crate::names::RoleSeg;
-    let NodeErrorKind::DeclareResolve { error } = &err else {
-        return err;
-    };
-    let crate::resolve::ResolveError::Vanished { name, .. } = &**error else {
-        return err;
-    };
-    if !matches!(decl_site(id, members, name), Some(DeclSite::Accumulated(_))) {
-        return err;
-    }
-    let absorbed = acc_table.iter().any(|(row, _)| match row.path.as_slice() {
-        [RoleSeg::Merged(set)] => names::merged::covers(set, name),
-        _ => false,
-    });
-    if absorbed {
-        return err;
-    }
-    let Some(((n1, n2), _)) = bucket.iter().find(|((a, b), _)| a == name || b == name) else {
-        return err;
-    };
-    NodeErrorKind::UnionDeclareStep {
-        pair: Box::new((n1.clone(), n2.clone())),
-    }
-}
 
 /// A union fold step returned the typed empty from two real bodies.
 /// Unreachable (see the arm that raises it); surfaced typed.
@@ -3900,7 +3733,7 @@ fn union_refusal<T: crate::verbs::shell::ShellLane>(
     b_table: &crate::names::NameTable,
     err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
-    let refused = refusal_menu(a_table, b_table, err);
+    let refused = refusal_menu((id, a_table), (id, b_table), err);
     let NodeErrorKind::UndeclaredContact { finding, diag } = refused else {
         return refused;
     };
@@ -3909,7 +3742,7 @@ fn union_refusal<T: crate::verbs::shell::ShellLane>(
         class,
         evidence,
     } = *finding;
-    let (Ok(a), Ok(b)) = (names::collapse_name(id, &a), names::collapse_name(id, &b)) else {
+    let (Some(a), Some(b)) = (sited_member(id, &a.name), sited_member(id, &b.name)) else {
         return NodeErrorKind::Naming(names::NamingError::Emission {
             what: UNION_REFUSAL_FOREIGN,
         });
@@ -3921,6 +3754,30 @@ fn union_refusal<T: crate::verbs::shell::ShellLane>(
             evidence,
         }),
         diag,
+    }
+}
+
+/// **One row of a union's fold space as the MEMBER entity it is** —
+/// the member-keyed collapse, then the member edge read back off it.
+///
+/// This is [`names::member_name`]'s inverse, and it is what lets a
+/// union's refusal hand back a pair a caller can declare: the
+/// refusal's names are rows of the fold's internal space, the
+/// collapse puts them in this node's published space, and a published
+/// row of a MEMBER's own entity is exactly one `FromMember` segment,
+/// which says the site and the name at once.
+///
+/// `None` for a row the collapse refuses — the emission bug
+/// [`union_refusal`] raises — and for a published row that is the
+/// fold's OWN (a seam, a merge, a fragment, the output body), which
+/// no declaration can name: such a row does not exist before the
+/// union, so there is no site to read it at.
+fn sited_member(id: RecipeNodeId, name: &names::StableName) -> Option<SitedRef> {
+    use crate::names::RoleSeg;
+    let collapsed = names::collapse_name(id, name).ok()?;
+    match collapsed.path.as_slice() {
+        [RoleSeg::FromMember { member, of }] => Some(SitedRef::new(*member, of.name().clone())),
+        _ => None,
     }
 }
 
@@ -3952,8 +3809,8 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
 fn refusal_menu<T: crate::verbs::shell::ShellLane>(
-    a_table: &crate::names::NameTable,
-    b_table: &crate::names::NameTable,
+    a: (RecipeNodeId, &crate::names::NameTable),
+    b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -3974,12 +3831,18 @@ fn refusal_menu<T: crate::verbs::shell::ShellLane>(
     } else {
         pair
     };
+    // A finding is SITED: the name says which entity, and the
+    // operand it was raised on says where that name is read. The pair
+    // a caller declares back is therefore buildable from the refusal
+    // alone — including a SAME-operand pair, whose two names are both
+    // that one operand's and which no downstream door could have
+    // sided from the names.
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
-        let table = match operand {
-            topo::Operand::A => a_table,
-            topo::Operand::B => b_table,
+        let (at, table) = match operand {
+            topo::Operand::A => a,
+            topo::Operand::B => b,
         };
-        face_name(table, face)
+        face_name(table, face).map(|name| crate::node::SitedRef::new(at, name))
     };
     let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -4059,19 +3922,21 @@ fn face_name(
 ///
 /// **Twinned with [`resolve_selection`]** (M6-5): the fillet's
 /// selection resolves through the same [`ladder`], which owns rung
-/// order and payload shapes. What stays here is this door's arity —
-/// TWO operand tables, so a name carried by both is unresolvable
-/// (`DeclareBothOperands`, ranked below the ladder's first rung) —
-/// and its pair vocabulary.
+/// order and payload shapes. What stays here is its pair vocabulary,
+/// and the fact that each name is read in exactly ONE table — the one
+/// its SITE picked, before this door ran. There is no side to guess
+/// and no name that lands in both operands: two placements of one
+/// prototype carry identical tables and are still told apart, because
+/// the pair says which member it means.
 fn resolve_declarations(
-    pairs: &[((names::StableName, names::StableName), ContactClass)],
+    pairs: &[SidedPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     a_table: &NameTable,
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     let mut out = BooleanDeclarations::none();
-    for ((n1, n2), class) in pairs {
-        let class = *class;
+    for ((o1, n1), (o2, n2), class) in pairs {
+        let (o1, o2, class) = (*o1, *o2, *class);
         let refused = |error| NodeErrorKind::DeclareResolve { error };
         // BOTH names walk their own rungs before EITHER tie is
         // raised, which is the cross-name half of the order below and
@@ -4081,13 +3946,17 @@ fn resolve_declarations(
         // TIE is the one per-name refusal the PAIR question outranks,
         // and a pair question cannot be asked before both names have
         // landed. So every per-name fault that is not the tie —
-        // `NodeGone`, `Vanished`, both-operands — is raised for
+        // `NodeGone` and `Vanished` — is raised for
         // whichever name carries it, and a tie on the first name
         // waits behind them: an author with a second name that does
         // not resolve at all has a repair to make either way, and
         // narrowing the first would not reach it.
-        let (o1, live1, l1) = declare_landing(n1, doc, a_table, b_table)?;
-        let (o2, live2, l2) = declare_landing(n2, doc, a_table, b_table)?;
+        let table_of = |op| match op {
+            topo::Operand::A => a_table,
+            topo::Operand::B => b_table,
+        };
+        let (live1, l1) = declare_landing(n1, doc, table_of(o1))?;
+        let (live2, l2) = declare_landing(n2, doc, table_of(o2))?;
         // KIND BEFORE MULTIPLICITY, the order [`resolve_face`] asks
         // in: a pair the vocabulary has no step for is unsupported
         // however many entities answer to either name, so WHAT the
@@ -4343,24 +4212,27 @@ fn declared_step(
     }
 }
 
-/// **Which operand a declared name lands in, and where in that
-/// operand's table** — rungs 1 and 3 of the declare door's walk,
-/// stopped short of rung 2 so [`resolve_declarations`] can ask the
-/// PAIR's kind question in between.
+/// **Where a declared name lands in the ONE table its site picked** —
+/// rungs 1 and 3 of the declare door's walk, stopped short of rung 2
+/// so [`resolve_declarations`] can ask the PAIR's kind question in
+/// between.
 ///
-/// Rung 1 first, and not by convention: reading either table needs
-/// the token [`ladder::live`] returns, so a dead minting node refuses
-/// `NodeGone` before the side-picking below can run.
+/// Rung 1 first, and not by convention: reading the table needs the
+/// token [`ladder::live`] returns, so a dead minting node refuses
+/// `NodeGone` before anything is said about where the name landed.
 /// [`route_declarations`] has already paid this for a union's names,
 /// one bucket earlier; it stays here because this door is also the
 /// pair boolean's, where nothing routed first.
 ///
-/// Side-picking is this door's own. A name PRESENT in both operands
-/// (unique or tied, either counts as present) is not an N5 failure —
-/// it is this door declining to guess a side.
+/// **There is no side to pick.** The site is the side (DM4): a
+/// declared entity names the operand it is read at, so a name carried
+/// by BOTH operands — two placements of one prototype, whose tables
+/// are identical because a transform contributes no segment (N1) — is
+/// resolved in the one the author named, and the pair boolean declares
+/// between them like any other.
 ///
 /// Rung 3 is here rather than with rung 2 because a name that names
-/// nothing in the operand it was routed to says THAT: the pair's
+/// nothing in the table its site picked says THAT: the pair's
 /// vocabulary is not an answer about a name that is not there. Only
 /// rung 2 — the tie — is left for the caller, which is the one
 /// refusal the kind question outranks.
@@ -4368,49 +4240,20 @@ fn declared_step(
 /// # Errors
 ///
 /// Rung 1's `NodeGone` and rung 3's `Vanished`, both through
-/// [`NodeErrorKind::DeclareResolve`], and
-/// [`NodeErrorKind::DeclareBothOperands`].
+/// [`NodeErrorKind::DeclareResolve`].
 fn declare_landing<'n>(
     name: &'n names::StableName,
     doc: &crate::doc::Doc<ProfileProgram>,
-    a_table: &NameTable,
-    b_table: &NameTable,
-) -> Result<(topo::Operand, ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
+    table: &NameTable,
+) -> Result<(ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
     use ladder::Landing;
-    use topo::Operand;
     let refused = |error| NodeErrorKind::DeclareResolve { error };
     let live = ladder::live(name, doc).map_err(refused)?;
-    let (op, landing) = match (
-        ladder::landing(&live, a_table),
-        ladder::landing(&live, b_table),
-    ) {
-        // In neither table: the side is arbitrary, and rung 3 refuses
-        // Vanished on the `Absent` carried through.
-        (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
-        (Landing::Absent, b) => (Operand::B, b),
-        (a, Landing::Absent) => (Operand::A, a),
-        // BOTH-OPERANDS ABOVE THE PAIR'S KIND QUESTION, and for the
-        // opposite reason to the tie's. `DeclareUnsupportedPair`
-        // carries `cross_operand`, which is a fact about WHICH
-        // operands the two names landed in, so the kind refusal
-        // cannot be BUILT over a name that landed in both: a field of
-        // it has no value. A tie leaves no field empty — every
-        // candidate carries the name's kind and the name landed in
-        // one operand — so the kind refusal is fully answerable over
-        // a tie, and the tie waits. This is the side pick and not a
-        // multiplicity count: `Unique` and `Tied` both read as
-        // PRESENT here, and a name in two operands is refused whether
-        // either landing is a tie or not.
-        _ => {
-            return Err(NodeErrorKind::DeclareBothOperands {
-                name: Box::new(name.clone()),
-            });
-        }
-    };
+    let landing = ladder::landing(&live, table);
     if matches!(landing, Landing::Absent) {
         return Err(refused(ladder::vanished(&live)));
     }
-    Ok((op, live, landing))
+    Ok((live, landing))
 }
 
 /// The role word a transform's rotation axis is normalized under —

@@ -1003,10 +1003,22 @@ fn remap_node(
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
         },
+        // A declared pair's two halves remap like a mate's: the
+        // NAME through the name door and the SITE through the id
+        // door, because a site is a node id. Either one the cut
+        // severed makes the remap MISS loudly.
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
                 .iter()
-                .map(|((a, b), class)| Ok(((nm(a)?, nm(b)?), *class)))
+                .map(|((a, b), class)| {
+                    Ok((
+                        (
+                            crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
+                            crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
+                        ),
+                        *class,
+                    ))
+                })
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),

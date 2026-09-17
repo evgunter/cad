@@ -54,7 +54,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
-use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SitedRef, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -385,7 +385,7 @@ pub enum ValuePayload<T: Decide> {
     /// `declare` input). The class travels WITH its pair from
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((StableName, StableName), ContactClass)>),
+    Declarations(Vec<((SitedRef, SitedRef), ContactClass)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips
@@ -1293,33 +1293,19 @@ pub enum NodeErrorKind {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
-    /// A `Declare` name resolves in BOTH operands' tables (the same
-    /// body value feeding both sides) — the declaration cannot pick a
-    /// side; refused, never guessed.
-    DeclareBothOperands {
-        /// The ambiguous name.
-        name: Box<crate::names::StableName>,
-    },
-    /// A `Declare` pair wired to a [`crate::Node::Union`] names two
-    /// entities that are never the two sides of ONE fold step: an
-    /// entity of the accumulation paired with a member the fold had
-    /// already joined when that entity was minted, two accumulation
-    /// entities with no step left after them, a row this node publishes
-    /// that is the output of a step rather than an input to one (its
-    /// own body), or a face a step consumed — a declared merge
-    /// publishes a `Merged` row in place of the two faces it joins, so
-    /// a later pair naming one of them has no step.
+    /// A declared entity is SITED at a node that is not one of the
+    /// consumer's operands — not a member of the union, nor `a` or
+    /// `b` of the pair boolean.
     ///
-    /// The step a pair is fed at is DERIVED from the member ids its two
-    /// names carry (no fold position is recorded anywhere), so when
-    /// that derivation has no answer the declaration is refused — never
-    /// fed to a step where one of its names does not denote, and never
-    /// dropped. This is the refusal for a name this node DOES denote:
-    /// one it does not denote at all is
-    /// [`Self::DeclareResolve`]'s vanished rung.
-    UnionDeclareStep {
-        /// The pair, as the recipe carries it.
-        pair: Box<(crate::names::StableName, crate::names::StableName)>,
+    /// The site IS the side (DM4), so a site the consumer does not
+    /// have is a declaration the consumer cannot read: there is no
+    /// table to resolve the name in. It is the EVALUATION's refusal
+    /// and not the insert door's, because a `Declare` may exist
+    /// unconsumed and the insert door checks only that the site is a
+    /// live node ([`crate::Node::payload_read_sites`]).
+    DeclareSiteNotAnOperand {
+        /// The site the pair named.
+        at: crate::node::RecipeNodeId,
     },
     /// A `Declare` pair outside the v1 threading vocabulary, which is
     /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
@@ -1965,20 +1951,12 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
-            // Forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase; the pin
-            // builds its expectation from the impl.
-            Self::DeclareBothOperands { name } => write!(
+            Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "the declared {name} resolves in BOTH operands — the declaration cannot \
-                 pick a side"
-            ),
-            Self::UnionDeclareStep { pair } => write!(
-                f,
-                "the declared pair ({}, {}) names two entities of this union that no single \
-                 fold step has as its two operands — declare the pair at a step that does: \
-                 one member against the accumulation of the members before it in the list",
-                pair.0, pair.1
+                "a declared entity is sited at node {}, which is not an operand of this \
+                 node — site each side at the member (or the boolean operand) whose table \
+                 holds it",
+                at.0
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -4087,8 +4065,19 @@ where
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
             for ((a, b), class) in pairs {
-                feed_stable_name(&mut h, a);
-                feed_stable_name(&mut h, b);
+                // BOTH halves of each side, as a measure's reference
+                // feeds both: the name says which entity and the SITE
+                // says which operand's table it is read in, so two
+                // declarations differing only in a site declare
+                // contacts between different members. The site is a
+                // node id, which content keys otherwise exclude (D8);
+                // it is fed for the measure's reason — it is RECIPE
+                // PAYLOAD selecting a reading, not a Merkle link to an
+                // input, and this node has no inputs at all.
+                for r in [a, b] {
+                    h.write_u64(r.at.0);
+                    feed_stable_name(&mut h, &r.name);
+                }
                 // The CLASS is part of the node's identity: two
                 // declarations of the same pair under different
                 // classes are different nodes, and a memo keyed
