@@ -413,8 +413,8 @@ fn first_slot_param_ref_fault(
 /// predicate the edit doors ask ([`crate::Doc::param_ref_fault`]).
 ///
 /// The expressions no slot addresses ([`crate::node::payload_exprs`]):
-/// a [`Node::Measure`](crate::Node::Measure)'s measured expression
-/// leaves and a [`Node::Assertion`](crate::Node::Assertion)'s bound.
+/// a [`crate::Node::Measure`]'s measured expression leaves and a
+/// [`crate::Node::Assertion`]'s bound.
 /// The address reported is the NODE, because that is the address the
 /// expression has — which is why this is its own pair of refusal arms
 /// rather than a wider domain for the slot walk's.
