@@ -119,8 +119,10 @@ expressions as well as its slots.
 `persist::check::first_payload_param_ref_fault` walks
 `node::payload_exprs` of every node and asks the same
 `Doc::param_ref_fault` the edit door asks — one spelling of the rule,
-three callers still. Its answer is named by two `SnapshotError` arms
-whose address is the NODE, `PayloadUnknownDocParam` and
+now with FOUR callers: the two doors' two walks each, which is what
+the predicate's own doc names. Its answer is named by two
+`SnapshotError` arms whose address is the NODE,
+`PayloadUnknownDocParam` and
 `PayloadDocParamDimension`, placed on a new walk
 `Walk::PayloadParamRef` that runs after `Walk::SlotParamRef`: a
 document broken in both a slot and a payload is diagnosed at the slot.
@@ -141,3 +143,51 @@ renaming `Walk::SlotParamRef` to `Walk::ParamRef` and placing both
 pairs on it was not taken — slot and payload are two walks because
 their refusals carry different addresses, and the order between them
 is a contract a single walk could not state.
+
+## After the review (2026-09-17)
+
+One opus style review, APPROVE-WITH-FIXES (0 MAJOR, 3 MINOR, 6 NOTE,
+10 style). Every finding taken; what each became is in PR #2793's
+**After the review** section, and this is the tracker's half.
+
+**The census moved onto the code, properly this time.** The module
+doc's hand-written "Its walks:" list is gone — it had undercounted by
+the walk this very PR added, the third round in a row the same list
+has been wrong. `Walk` is the roster, `Walk::ORDER` the order, and
+`Walk::run` the map; each walk's coverage and its snapshot-only reason
+now live on its own variant, and the module doc keeps only what no
+roster can carry.
+
+**The order is stated as a contract per adjacency.** `validate_document`
+now says which three adjacencies are load-bearing and names the row for
+each, and which three are free. A new row measures the last one: an
+assertion whose bound reads an undeclared parameter AND whose target is
+not a measure reads the PAYLOAD refusal, not `Walk::Snapshot`'s
+`AssertionTarget`.
+
+**One mapper over an address.** `slot_param_ref_refusal` and
+`payload_param_ref_refusal` are one `param_ref_refusal` over
+`ParamRefAddress::Slot(SlotId) | ::Payload`. The edit door's two
+destructurings stay two — they feed a different error type with a
+different subject, the same shape the slot-dimension and assertion
+pairs have at both doors.
+
+**The payload refusals' noun is repaired at both doors**: an
+assertion's bound is not a "measurement payload", so both doors now say
+"payload expression". The reviewer's fourth probe, which pinned the
+defective wording, is rewritten to pin the repaired one and to hold the
+two doors to the same word.
+
+**The wire surgery is one body.** `fn doctored` — five byte-identical
+copies, measured identical by diff before the move — lives in
+`tests/fixture/mod.rs` and is read by all five suites.
+
+**Filed:** `param-ref-refusals-spell-two-facts-four-ways` (EDIT), the
+eight names for two facts under four conventions, with the rosters that
+ride the names and would have to move in the same PR. Not renamed here.
+
+**Not filed:** no Python row. Both new arms reach the bindings through
+`snapshot_error_tag` and the committed tag inventory, which is the
+round-three precedent for a load-door arm: the tag words are carried
+mechanically and the Python suite's census is what reds if they are
+not.
