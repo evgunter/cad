@@ -967,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 8, "the badge family");
+    assert_eq!(badge_doors, 9, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
+        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1024,6 +1024,51 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         frame::prefs_badge(None),
         None,
         "a store that keeps preferences says nothing about keeping them"
+    );
+    assert_eq!(
+        frame::datums_badge(0),
+        None,
+        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
+    );
+}
+
+/// **The datums badge says how many, and says it in agreeing
+/// words.**
+///
+/// The count is the whole content: the picture already shows nothing,
+/// and what a reader cannot get from it is that there was something
+/// to show. The noun agreeing with the number is not a flourish —
+/// "1 datums" reads as a sentence nobody wrote, beside eight badges
+/// that were.
+#[test]
+fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
+    let one = frame::datums_badge(1).expect("one vanished datum badges");
+    assert_eq!(
+        one.label(),
+        "datums: 1 datum this view draws nothing of",
+        "the singular"
+    );
+    assert_eq!(
+        one.tone(),
+        frame::Tone::Actionable,
+        "a reader can move the camera and get them back"
+    );
+    assert_eq!(
+        one.subject(),
+        frame::Subject::Camera,
+        "what makes the count the wrong answer is the camera moving"
+    );
+    assert_eq!(
+        one.affordance(),
+        frame::Affordance::Read,
+        "there is no window of findings behind it"
+    );
+    assert_eq!(
+        frame::datums_badge(4)
+            .expect("four vanished datums badge")
+            .label(),
+        "datums: 4 datums this view draws nothing of",
+        "the plural"
     );
 }
 
