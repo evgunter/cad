@@ -331,6 +331,90 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
     }
 }
 
+// ---- The mate head's entity kind ----
+
+/// A two-instance document carrying one FACE-TO-FACE mate, saved and
+/// loaded once — the control the rows below corrupt, and the round
+/// trip in its own right.
+fn saved_mate(label: &str) -> (String, RecipeNodeId) {
+    let (doc, ids) = instances_of_a_stored_part(label, 2);
+    let (doc, id) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("a face-to-face mate round trips");
+    (text, id)
+}
+
+/// Retypes one head of a saved mate — its KIND and nothing else.
+fn retype_head(text: &str, mate: RecipeNodeId, side: &str, kind: EntityKind) -> String {
+    doctored(text, |wire| {
+        let field =
+            &mut wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side]["name"]["kind"];
+        assert_eq!(
+            *field,
+            serde_json::json!("Face"),
+            "the surgery is aimed at a face head"
+        );
+        *field = serde_json::json!(format!("{kind:?}"));
+    })
+}
+
+/// **A saved mate head that is not a face refuses at the load door.**
+///
+/// There is no edit-door twin to pair this with, and that is the
+/// shape rather than a gap: a head is an `editor_core::SitedFace`
+/// over a `FaceName`, so a mate naming an edge is a program that does
+/// not compile (`SitedFace`'s own `compile_fail` row). What a FILE
+/// can still carry is an edge head spelled in bytes, and the rule is
+/// asked there by the same one constructor — `FaceName`'s
+/// `Deserialize` — so the refusal is the load door's own
+/// `Unreadable`: the reader accepted the bytes and this build's TYPES
+/// rejected them, which is exactly what that arm says.
+///
+/// Both heads and all three non-face kinds, because the type fixes
+/// one question and both heads ask it.
+#[test]
+fn a_saved_mate_head_that_is_not_a_face_refuses_at_the_load_door() {
+    for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
+        for side in ["a", "b"] {
+            let (text, mate) = saved_mate("onepred-matehead");
+            let corrupt = retype_head(&text, mate, side, kind);
+            match load(&corrupt, Tol::witness()) {
+                Err(PersistError::Unreadable { detail, .. }) => {
+                    assert!(
+                        detail.contains(kind_noun(kind)),
+                        "the refusal names what the head denoted, got {detail:?}"
+                    );
+                }
+                other => panic!("a {kind:?} mate head must refuse typed at load, got {other:?}"),
+            }
+        }
+    }
+}
+
+/// The kind's prose noun, as the head constructor's refusal spells it.
+fn kind_noun(kind: EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Body => "body",
+        EntityKind::Face => "face",
+        EntityKind::Edge => "edge",
+        EntityKind::Vertex => "vertex",
+    }
+}
+
+/// **The control**: the same document with both heads naming faces
+/// saves, loads and keeps its mate — so the rows above measure the
+/// kind and not the fixture.
+#[test]
+fn a_face_to_face_mate_round_trips() {
+    let (text, mate) = saved_mate("onepred-matehead-ok");
+    let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
+    let Some(Node::Mate { a, b, .. }) = loaded.doc.node(mate) else {
+        panic!("the mate survives the round trip");
+    };
+    assert_eq!(a.name.kind, EntityKind::Face);
+    assert_eq!(b.name.kind, EntityKind::Face);
+}
+
 // ---- The A11 placement registry ----
 
 /// **A placement on a node that instantiates nothing — both doors.**

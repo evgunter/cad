@@ -1070,6 +1070,57 @@ impl SitedRef {
 /// answer its refusal in their own vocabulary. `at` is the A12 reading
 /// edge, exactly as it is on a [`SitedRef`]; everything [`SitedRef`]'s
 /// docs say about it holds here.
+///
+/// **A mate cannot be built from a bare name**, which is the whole
+/// claim, pinned where a claim about types belongs:
+///
+/// ```compile_fail,E0308
+/// use editor_core::{EntityKind, Node, ProfileProgram, RecipeNodeId, SitedRef, StableName};
+/// let edge = StableName {
+///     kind: EntityKind::Edge,
+///     node: RecipeNodeId(0),
+///     path: Vec::new(),
+/// };
+/// let node: Node<ProfileProgram> = Node::Mate {
+///     a: SitedRef::at_mint(edge.clone()),
+///     b: SitedRef::at_mint(edge),
+///     class: editor_core::ContactClass::Rest,
+///     alignment: alignment(),
+/// };
+///
+/// fn alignment() -> editor_core::Alignment {
+///     let frame = editor_core::MateFrame {
+///         origin: [0.0, 0.0, 0.0],
+///         axis: [0.0, 0.0, 1.0],
+///         reference: [1.0, 0.0, 0.0],
+///     };
+///     editor_core::Alignment {
+///         a: frame,
+///         b: frame,
+///         primitive: editor_core::MatePrimitive::FrameCoincidence,
+///         sense: editor_core::AxisSense::Aligned,
+///         clocking: None,
+///     }
+/// }
+/// ```
+///
+/// The head is made by asking, and the answer is a value or a typed
+/// refusal — never a face name that is not one:
+///
+/// ```
+/// use editor_core::{EntityKind, FaceName, RecipeNodeId, SitedFace, StableName};
+/// let name = |kind| StableName {
+///     kind,
+///     node: RecipeNodeId(0),
+///     path: Vec::new(),
+/// };
+/// let head = FaceName::new(name(EntityKind::Face)).expect("a face name is a face");
+/// assert_eq!(SitedFace::at_mint(head).at, RecipeNodeId(0));
+/// assert_eq!(
+///     FaceName::new(name(EntityKind::Edge)).unwrap_err().found,
+///     EntityKind::Edge
+/// );
+/// ```
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]

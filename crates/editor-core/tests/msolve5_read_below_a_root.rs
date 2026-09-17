@@ -13,6 +13,24 @@
 //! Nothing is admitted here that was refused: every row that refused
 //! before refuses still, and the control (the same document read AT
 //! the pattern, with the instance spelling) holds as it did.
+//!
+//! **The kind question is not asked here any more, and no row for it
+//! belongs here.** A mate head is a `SitedFace` over a `FaceName`, so
+//! "what does this name denote" is decided by the head's TYPE: the
+//! three rows this file used to carry — a root's body, the same body
+//! read below a root, a tied edge at the pattern and below it — each
+//! built a document that cannot be written now, and a row measuring a
+//! state nothing can reach measures nothing. What replaced them is
+//! `SitedFace`'s own `compile_fail` row (a `Node::Mate` will not take
+//! a bare `StableName`), `edit_one_predicate`'s load-door row (a file
+//! whose head is retyped on the wire refuses at the constructor the
+//! wire calls), and `test_assembly_author.py`'s (the binding calls the
+//! same constructor where a Python caller builds the mate).
+//!
+//! The ladder's remaining rungs are the ones that need a PRODUCT, and
+//! they are what this file measures: which entity a head resolves to
+//! (`Vanished`), how many (`Ambiguous`), and where it is rooted
+//! (`ReadBelowARoot`).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -21,11 +39,11 @@
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
-    MateRole, MateSide, MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind,
-    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace,
-    StableName, ValuePayload, product, solve_document,
+    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
+    EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, MateSide,
+    MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind, ProductError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName, ValuePayload,
+    product, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
@@ -103,43 +121,6 @@ fn slotted_part(label: &str) -> ProfileDoc {
             a: PART_BODY,
             b,
             declare: None,
-        },
-    );
-    doc
-}
-
-/// A U-shaped prism split by the plane `x = 4`, which cuts both arms
-/// of the U: the split's rows tie the fragments of each cut edge
-/// under one name, so the part's product holds TIED EDGE rows.
-fn u_split_part(label: &str) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![U_OUTLINE.to_vec()],
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: p,
-            distance: len(2.0),
-        },
-    );
-    assert_eq!(body, PART_BODY);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(4.0), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(0.0)],
-        }),
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Split {
-            target: body,
-            tool: plane,
         },
     );
     doc
@@ -410,89 +391,10 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     assert_eq!(*why, RefusedRef::Vanished);
 }
 
-// ---- what it is precedes where it is rooted ----
-
-/// A mate naming a root's BODY refuses `NotAFace { found: Body }`. The
-/// product's table is silent on it — the product's own body is
-/// nobody's root body, so body rows do not carry — and the operand's
-/// own table answers with a body: a non-face never mints anywhere,
-/// so the gate says what the name IS before asking where it is
-/// rooted. (On main this row refused `Vanished`; it still refuses.)
-#[test]
-fn a_mate_naming_a_roots_body_refuses_not_a_face() {
-    let s = scene("msolve5-body-row");
-    let body = StableName {
-        kind: EntityKind::Body,
-        node: s.base,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let a = crate::fixture::head(body.clone());
-    let b = crate::fixture::head_at(
-        s.pattern,
-        in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
-    );
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    let Some(editor_core::NodeResult::Ok(value)) = ev.result(s.base) else {
-        panic!("the base evaluates");
-    };
-    assert!(
-        value.name_table.lookup(&body).is_some(),
-        "the root's own table spells its body"
-    );
-    assert!(doc.roots().contains(&s.base));
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::A));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            found: EntityKind::Body
-        }
-    );
-}
-
-/// The same body read BELOW a root — `T(top)`'s body, read at `T`
-/// under the pattern — refuses `NotAFace { found: Body }` too, not
-/// `ReadBelowARoot`: the kind question is asked before the root
-/// question, so a non-face is a non-face wherever it is read.
-#[test]
-fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
-    let s = scene("msolve5-body-below");
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
-    let body = StableName {
-        kind: EntityKind::Body,
-        node: s.top,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let ev0 = run(&s.doc, &s.opts);
-    let Some(editor_core::NodeResult::Ok(value)) = ev0.result(s.xf) else {
-        panic!("the transform evaluates");
-    };
-    assert!(
-        value.name_table.lookup(&body).is_some(),
-        "the transform's own table spells the instance's body"
-    );
-    let b = crate::fixture::head_at(s.xf, body);
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    assert!(!doc.roots().contains(&s.xf));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            found: EntityKind::Body
-        }
-    );
-}
-
-// ---- ties: unique or tied, the kind question comes first ----
+// ---- ties: the product decides its own ----
 
 /// A TIED face read at `T` below the pattern refuses `ReadBelowARoot
-/// { at: T }` — the kind question passes (these ARE faces), and a tie
-/// among faces below a root is still read below a root. The same tie
+/// { at: T }` — a tie below a root is still read below a root. The same tie
 /// read AT the pattern with the instance spelling is the product's own
 /// row, and the product decides its own ties: `Ambiguous { width: 2 }`.
 #[test]
@@ -523,48 +425,6 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
     assert_eq!(*why, RefusedRef::Ambiguous { width });
-}
-
-/// A TIED EDGE refuses `NotAFace { found: Edge }` wherever it is read:
-/// the kind question is asked before the root question and before the
-/// tie, for a tied entry exactly as for a unique one — the name's kind
-/// is every candidate's kind, so a tie answers it as readily. Read
-/// below the pattern the operand's table answers; read AT the pattern
-/// the product's own table does; an edge is not a face in either, so
-/// the word does not depend on which table was asked.
-///
-/// The contrast is the tied-FACE row above: there the kind question
-/// passes and the tie is the refusal, so a tie AMONG FACES at the
-/// pattern is `Ambiguous { width }`.
-#[test]
-fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
-    let s = scene_with("msolve5-tied-edge", u_split_part("msolve5-tied-edge-top"));
-    let ev0 = run(&s.doc, &s.opts);
-    let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Edge);
-    assert_eq!(width, 2, "the row is a TIE, which is what it is here to be");
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
-    let not_a_face = RefusedRef::NotAFace {
-        found: EntityKind::Edge,
-    };
-
-    let b = crate::fixture::head_at(s.xf, tied.clone());
-    let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("an edge never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, not_a_face);
-
-    let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("an edge never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why, not_a_face,
-        "the product's own rows ask kind before the tie, as the operand's do"
-    );
 }
 
 // ---- the claim is about the root list, not about the product's rows ----

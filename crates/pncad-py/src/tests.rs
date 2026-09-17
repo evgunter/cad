@@ -3990,7 +3990,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "boundary_edit_tag",
-        values: &["name_serialize"],
+        values: &["mate_head_not_a_face", "name_serialize"],
         delegates: &["declare_error_tag", "placement_rule_fault_tag"],
     },
     TagEntry {

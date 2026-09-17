@@ -280,21 +280,17 @@ pub struct Assembly<T: Decide> {
 ///
 /// The gate asks two tables in order, and each arm answers one
 /// question. The PRODUCT's table first — the rows of every root,
-/// carried verbatim by the gather: an entry there that is not one
-/// face is `Ambiguous` or `NotAFace`. When the product is silent, the
-/// OPERAND's own table — the `name_table` of the node the reference
-/// is read at: silent there too is `Vanished`; a non-face entry there
-/// is `NotAFace` (what it is precedes where it is rooted); a face
-/// entry there at a node the product does not list is
+/// carried verbatim by the gather: a tie there is `Ambiguous`. When
+/// the product is silent, the OPERAND's own table — the `name_table`
+/// of the node the reference is read at: silent there too is
+/// `Vanished`, and an entry at a node the product does not list is
 /// `ReadBelowARoot`. No consumer is walked; the two tables and the
 /// root list decide.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
 /// lookup refuses with (`ResolveError` spells them for a `Declare`
-/// node's names); `NotAFace` is this gate's own word, because only a
-/// mate declaration must name a FACE. The subject here is the
-/// assembly's product table and the operand's, not a boolean
-/// operand's.
+/// node's names). The subject here is the assembly's product table
+/// and the operand's, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
     /// No entity answers to the name — not in the product's table,
@@ -318,13 +314,26 @@ pub enum RefusedRef {
         /// How many entities the tie holds.
         width: u32,
     },
-    /// The name resolves — in the product's table, or in the operand's
-    /// own where the product is silent — but not to a FACE. A mate's
-    /// declaration is a face-pair contact; a body, edge or vertex
-    /// reference is a different statement, refused rather than
-    /// widened, wherever it is rooted.
+    /// The product's table answers to the name with a row whose KEY
+    /// is not a face.
+    ///
+    /// **What this guards is the name table's own invariant, not a
+    /// document.** A mate head is a [`crate::SitedFace`], so the
+    /// head's kind is fixed by its type and a mate naming an edge is
+    /// a program that does not compile — there is no document, no
+    /// file and no Python call that reaches this arm by naming a
+    /// non-face. What remains is `NameTable::insert`'s rule that a
+    /// row's kind is its name's: a table that broke it would hand a
+    /// face name an edge key, and this gate answers what the key IS
+    /// rather than minting a contact out of it. Asserted in debug at
+    /// the one site that raises it, answered here in release.
+    ///
+    /// The arm stays typed rather than folding into `Vanished`
+    /// because the two say different things to whoever reads the
+    /// panic: a name nothing answers to, against a table that
+    /// answered wrongly.
     NotAFace {
-        /// What it did name — `found`, the word every entity-kind
+        /// What the KEY named — `found`, the word every entity-kind
         /// refusal in this crate spells its answer with.
         found: EntityKind,
     },
@@ -1116,24 +1125,27 @@ fn resolve_face<P, T: Decide>(
 /// silent on a reference: does the OPERAND the mate reads at spell
 /// the name? Its own table is the `name_table` of `at`'s live value,
 /// read through the same door the name interrogation doors read it
-/// ([`value_of`]). One match, four answers, in this order:
+/// ([`value_of`]). One match, three answers, in this order:
 ///
 /// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
 ///    nothing where the mate reads it.
-/// 2. A non-face entry, unique or tied → [`RefusedRef::NotAFace`]: a
-///    non-face never mints anywhere, so WHAT it is precedes WHERE it
-///    is rooted. The kind is the NAME's kind, which the table makes
-///    the entry's kind for every candidate (`NameTable::insert`,
-///    `insert_tied`). A root's body row lands here — see
-///    `product::carry_names` for why the product is silent on it.
-/// 3. A face entry — unique or tied — at a node the product does not
+/// 2. An entry — unique or tied — at a node the product does not
 ///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
 ///    faces below a root is still read below a root; the product
 ///    decides ties for its own rows.
-/// 4. A face entry at a ROOT with the product silent: `carry_names`
+/// 3. An entry at a ROOT with the product silent: `carry_names`
 ///    carries every face row of every root at the source's index, so
 ///    a hit here is its bug, not a vanished name. `Vanished` in
 ///    release, asserted in debug.
+///
+/// **There is no kind rung**, and that is the type's doing rather
+/// than an omission: a head is a [`crate::SitedFace`], so the name
+/// this asks about denotes a face and the question "is it one" has no
+/// answer to give. The rung that used to sit second here — a root's
+/// BODY row, refused [`RefusedRef::NotAFace`] before the root
+/// question was asked — is now a head that does not compile. See
+/// `product::carry_names` for why the product is silent on a body row
+/// at all.
 ///
 /// An operand that is not a live value has no table to answer with,
 /// and the gate never asks it: every live node sits under some root
