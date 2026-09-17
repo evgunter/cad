@@ -121,3 +121,37 @@ that carry a chain profile with arcs (the content-key/name-digest
 goldens may move — say which and why, and re-baseline with the reason
 stated); `crates/editor-core/tests/*` (TCOST/TINT). Middle tier: one
 opus style review with a correctness arm, then a fix pass.
+
+## Built (2026-09-17, `edit/chain-radius-attach`)
+
+All four halves landed as one change.
+
+1. `LoopProgram::step_radii` — the PROGRAM-side question: each step's
+   own radius expression, a carrier form's one at step 0 and a chain's
+   per radius-bearing step. `ProfileProgram::segment_radii` — the
+   RECORD-side one: those expressions paired with the profile edges
+   their steps swept, through `profile_edges_of`, in program indices.
+2. The attach is per EDGE end to end. `SweptOut::walls` keeps the
+   record's second index (`Vec<Vec<Option<FaceKey>>>` — the revolve's
+   `None` positions are no longer flattened away), `attach_swept` takes
+   a token per canonical segment, and `profile_radius_tokens` lowers
+   the per-edge expressions the profile's value now carries.
+3. `content_key` feeds `step_radii`, so a chain arc's spelling moves
+   the profile's key. The feed's comment states the invariant the guard
+   now rests on: the key feeds the program's answer, the attach stamps
+   the record-filtered subset of it, and a spelling cannot be attached
+   without having been keyed.
+4. `carrier_radius` keeps its per-loop question and loses the
+   obligation paragraph; DM8's consumers line names the built door.
+
+**Not built, and why.** A fused step (`fillet_arc`, `arc_fillet`,
+`arc_fillet_arc`) carries two or three radii and emits several
+segments, and the span does not say which radius drew which. Those
+steps answer nothing at either door, which leaves them exactly where
+they were — unattached and unkeyed — rather than guessing. Filed as
+`fused-arc-fillet-steps-have-no-per-segment-radius-address`.
+
+**One spec premise corrected.** The RED row's spelling pair is
+param → literal, not `10 mm` → `0.01 m`: display units never enter the
+key by ratified design (D7), so the two unit spellings are one
+expression and move nothing.

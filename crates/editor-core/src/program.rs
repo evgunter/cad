@@ -1027,7 +1027,7 @@ impl LoopProgram {
     /// A CARRIER form answers its one radius at step 0, the step that
     /// replays to the whole loop, so one entry here means one radius
     /// on every edge. A CHAIN answers one entry per step that holds
-    /// exactly one radius-bearing argument ([`radius_arg`]), which is
+    /// exactly one radius-bearing argument (`radius_arg`), which is
     /// an `arc_to` in a radius-carrying mode or a `fillet`; a straight
     /// step holds none and answers nothing.
     ///

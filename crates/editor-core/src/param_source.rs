@@ -90,7 +90,7 @@
 //! differs per kind and nothing else does. [`attach_blend`] takes the
 //! ONE token a verb scalar is and stamps it on the fields the verb's
 //! own flow rows name; [`attach_swept`] takes one token per canonical
-//! profile loop and stamps each on the walls swept from that loop.
+//! profile EDGE and stamps each on the wall swept from that edge.
 //! Both walk the DECLARED parameter→field flow (`verbs::ParamFlow`)
 //! and find their carriers through the operation's own birth record.
 //! Nothing here knows what a fillet or an extrude is: each knows a
