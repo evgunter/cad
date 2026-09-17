@@ -163,6 +163,15 @@ pub enum ParseError {
 // smart constructor's own refusal rather than re-stating it, because
 // the constructors are the only door and their words are the ones that
 // hold.
+//
+// **The quotes are this door's, and they mean "the exact bytes you
+// wrote".** Every `{:?}` below renders a `String` lifted verbatim out
+// of the author's text — a character, a token, a number, a unit
+// symbol, a parameter name — and the delimiter is what says where that
+// text began and ended, which matters most when the reason it failed
+// is a typo or a stray space. A parameter name is bare everywhere else
+// in this crate (`ParamName`'s `Display`), because every other door
+// names a parameter the DOCUMENT holds rather than bytes it was handed.
 impl core::fmt::Display for ParseError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

@@ -866,6 +866,16 @@ impl<T: Real> Body<T> {
         self.shells.get(key)
     }
 
+    /// The solid owning `face` — through its shell's back-pointer — or
+    /// `None` where the face or its shell does not resolve. The one
+    /// spelling of face → shell → solid the census, the point-in-solid
+    /// door and their suites read.
+    pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
+        self.get_face(face)
+            .and_then(|d| self.get_shell(d.shell))
+            .map(|s| s.solid)
+    }
+
     /// The face at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     pub fn get_face(&self, key: FaceKey) -> Option<&Face> {

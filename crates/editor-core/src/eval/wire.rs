@@ -1323,14 +1323,12 @@ pub(crate) fn frame_plane_lane<T: Decide>(
 /// scalar is the `f64` lane — every component through
 /// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
 /// scalar. No component is inspected: the answer is the type's. The
-/// walk is [`anchor::map_affine`], the fallible direction of the walk
-/// whose infallible direction is `Affine3::map`.
+/// walk is the kernel's [`profile::SketchPlane::try_map`], the
+/// fallible direction of [`profile::SketchPlane::map`].
 pub(crate) fn pinned_plane<T: super::SectionScalar>(
     plane: &profile::SketchPlane<T>,
 ) -> Option<profile::SketchPlane<f64>> {
-    anchor::map_affine(&plane.placement, |x| x.pinned_f64().ok_or(()))
-        .ok()
-        .map(profile::SketchPlane::new)
+    plane.try_map(|x| x.pinned_f64().ok_or(())).ok()
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -2926,7 +2924,16 @@ fn wire_assertion<T: Decide>(
     // The bound's DECLARED dimension is what must agree — read off the
     // expression, never inferred from the evaluated number, which has
     // no dimension left (units erase at the evaluation boundary).
-    if bound_expr.dim() != *dim {
+    //
+    // E10's agreement is `AssertionBoundFault::against`, the same rule
+    // the two document doors ask through
+    // `Node::assertion_bound_fault`: this seat reaches it by the
+    // measured-dimension entry point because it has no document to
+    // resolve the reference in, only the measure's evaluated payload —
+    // which carries the dimension that node's own expression declared.
+    // The fault's other arm cannot arise here: a reference that is not
+    // a measure has already failed the operand-kind check above.
+    if crate::node::AssertionBoundFault::against(measure, *dim, bound_expr.dim()).is_some() {
         return Err(NodeErrorKind::AssertionDimension {
             measured: *dim,
             bound: bound_expr.dim(),
@@ -4973,6 +4980,67 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
+}
+
+/// **The lane → `f64` crossing, read directly.** What
+/// [`pinned_plane`] carries across where the lane IS `f64`, and what
+/// it refuses everywhere else. An evaluation shows only the typed
+/// refusal a consumer eventually reports; the crossing's own answer —
+/// which twelve components came back, in which places — is readable
+/// only here.
+#[cfg(test)]
+mod pinned_plane_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::pinned_plane;
+    use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
+    use profile::SketchPlane;
+
+    /// Twelve distinct components and no symmetry, so a crossing that
+    /// transposed a column or dropped the translation could not hide
+    /// behind an axis coincidence.
+    fn distinct() -> SketchPlane<f64> {
+        SketchPlane::new(Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::new(1.0, 2.0, 3.0),
+                Vec3::new(4.0, 5.5, -6.0),
+                Vec3::new(-7.25, 0.5, 8.0),
+            ),
+            Vec3::new(10.0, 11.0, 12.0),
+        ))
+    }
+
+    /// Where the lane IS `f64`, the crossing is exact and structural:
+    /// all twelve components come back in their places, bit for bit.
+    ///
+    /// The comparison is [`SketchPlane::bit_eq`], which IS that
+    /// twelve-component reading — by bits, in their places, off an
+    /// irrefutable destructuring of the placement rather than through
+    /// any walk. A readout spelled again here would be a second copy of
+    /// it, and the transposed-column mutation reds this row through
+    /// `bit_eq` exactly as it would through one.
+    #[test]
+    fn a_f64_lane_placement_crosses_bit_for_bit_in_its_places() {
+        let plane = distinct();
+        let crossed = pinned_plane(&plane).expect("f64 is the pinned lane");
+        assert!(
+            plane.bit_eq(&crossed),
+            "the crossing keeps the columns and the translation in place"
+        );
+    }
+
+    /// An analysis scalar refuses, and the refusal is the TYPE's, not
+    /// a number's: the placement here is the very one the row above
+    /// crossed successfully, lifted component for component, so every
+    /// value that pinned at `f64` is present and still unpinnable. No
+    /// number is inspected anywhere on the path, and the first
+    /// component refuses, so nothing downstream sees a partly-crossed
+    /// placement.
+    #[test]
+    fn an_analysis_scalar_refuses_the_very_placement_f64_crossed() {
+        let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
+        assert!(pinned_plane(&lane).is_none());
+    }
 }
 
 /// **The union's declaration routing, read directly.**

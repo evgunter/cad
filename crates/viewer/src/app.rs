@@ -349,6 +349,16 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
+    /// **How many datums the viewport drew nothing of on the last
+    /// frame it drew**, read by [`crate::frame::datums_badge`].
+    ///
+    /// One frame behind for the reason above. Unlike the fault above
+    /// it is not held past the frame that made it: the frame entry
+    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
+    /// panes write and assigns the result back unconditionally, so
+    /// this says what the LAST FRAME found and never what some
+    /// earlier one did.
+    datums_vanished: usize,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -743,6 +753,7 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
+            datums_vanished: 0,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -1008,9 +1019,9 @@ impl ViewerApp {
         let Some(stacked) = model_stack(tiles) else {
             return;
         };
-        // Slack over the measured height so the last row is not flush
-        // against the divider.
-        let fraction = ((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP);
+        let Some(fraction) = features_fraction(wanted, stack) else {
+            return;
+        };
         if let Some(Tile::Container(egui_tiles::Container::Linear(linear))) = tiles.get_mut(stacked)
         {
             // Shares are relative, so a pair summing to 2 states the
@@ -1520,6 +1531,17 @@ impl ViewerApp {
             {
                 draw_badge(ui, &self.theme, &badge);
             }
+            // **The datums the last drawn frame drew nothing of.**
+            // Not one of the three above: those hold a refusal until
+            // the seam they name succeeds, and this is a count the
+            // frame re-takes, so it stands for exactly as long as the
+            // view that produced it. What it buys is the one thing the
+            // picture cannot say — that the document HAS datums and
+            // this view draws none of them, which on screen is
+            // indistinguishable from a document with none.
+            if let Some(badge) = frame::datums_badge(self.datums_vanished) {
+                draw_badge(ui, &self.theme, &badge);
+            }
             ui.separator();
             // The palette picker. Every registered theme, by the
             // name `crate::theme` gives it — the registry IS the
@@ -1601,6 +1623,12 @@ impl eframe::App for ViewerApp {
             .flatten()
             .map(|plane| sketch::preview(plane, &authored, self.session.tol(), self.delta.get()));
         let mut profile_form_drawn = false;
+        // **Zeroed here and assigned back below, every frame.** The
+        // viewport writes it while it draws; a frame the viewport does
+        // not draw at all is a frame with no datums vanishing in it,
+        // and this is where that is said rather than left to whatever
+        // the field last held.
+        let mut datums_vanished = 0_usize;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1642,6 +1670,7 @@ impl eframe::App for ViewerApp {
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
+                    datums_vanished: &mut datums_vanished,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -1656,6 +1685,7 @@ impl eframe::App for ViewerApp {
             });
         self.checks_window(ui.ctx(), &mut ops);
         self.profile_form_drawn = profile_form_drawn;
+        self.datums_vanished = datums_vanished;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -1765,6 +1795,21 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **How many datums the viewport drew nothing of this frame**,
+    /// for [`frame::datums_badge`] to read.
+    ///
+    /// Written by the viewport pane and read by the toolbar next
+    /// frame, like the fault above — and unlike it, it does not have
+    /// to be cleared by anyone. The frame entry point
+    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
+    /// borrows before the panes draw and assigns the result back
+    /// after, whether or not the viewport was one of them, so a
+    /// viewport dragged shut or tabbed away reports none rather than
+    /// leaving the last count it made standing. That is
+    /// `profile_form_drawn`'s discipline above, and it is the one
+    /// `work/view/projection-fault-has-no-sweeper.md` says the fault
+    /// still lacks.
+    pub(crate) datums_vanished: &'a mut usize,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -1917,6 +1962,40 @@ fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
         dialog = dialog.set_directory(dir);
     }
     dialog.save_file()
+}
+
+/// **The Features tile's share of the stack it sits in**, capped at
+/// [`FEATURES_SHARE_CAP`], and `None` when the two measurements are
+/// not numbers to divide.
+///
+/// **The caller's `stack <= 0.0` arm above is about an EMPTY stack and
+/// this one is about an unmeasurable one**, and they are written apart
+/// because they are different facts: the first is the very first
+/// frame, before either tile has a rectangle, which is a legitimate
+/// state the caller is documented to do nothing in. The second is a
+/// toolkit measurement that is not a length, and there is nothing
+/// legitimate about it.
+///
+/// **A `clamp` is not a bound against the value it cannot order.**
+/// `f32::clamp` returns `self` when `self` is a `NaN`, so a share that
+/// could not be computed used to leave here looking exactly like one
+/// that had been — and `egui_tiles` keeps shares as STATE rather than
+/// recomputing them per frame, so a single poisoned frame left the
+/// pair of panes with a split no later frame and no divider drag could
+/// recover. Refusing keeps the last share the arithmetic actually
+/// produced.
+///
+/// `stack > 0.0` is stated here as well as at the caller rather than
+/// relied on from it: this door's answer has to be true of its own
+/// arguments, and a division whose denominator is checked somewhere
+/// else is checked by nothing when a second caller arrives.
+fn features_fraction(wanted: f32, stack: f32) -> Option<f32> {
+    if !wanted.is_finite() || !(stack.is_finite() && stack > 0.0) {
+        return None;
+    }
+    // Slack over the measured height so the last row is not flush
+    // against the divider.
+    Some(((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP))
 }
 
 /// The container holding the feature tree and the properties — the
@@ -2168,9 +2247,91 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{Polarity, Theme, ViewerApp};
+    use super::{FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
     use eframe::egui;
+
+    /// **A share that could not be computed is not a share.**
+    ///
+    /// `f32::clamp` returns `self` when `self` is a `NaN`, so both of
+    /// this door's measurements used to arrive at `set_share` in a
+    /// field shaped like a number the layout had produced.
+    ///
+    /// The shape this pins is DISTINGUISHABILITY, and for an `f32`
+    /// answer that takes two rows rather than one. Asserting only that
+    /// the poisoned answer differs from every legitimate one passes
+    /// over a `Some(NaN)` for free — a `NaN` is unequal to everything,
+    /// including itself — which is the broken door's own answer wearing
+    /// the test's approval. So: the poisoned inputs answer `None`, and
+    /// the row below holds that every legitimate input answers a share.
+    /// Neither row alone says anything.
+    ///
+    /// Both arguments are poisoned in turn, because a `NaN` in either
+    /// one reaches the division and a row that poisoned only the
+    /// denominator would have chosen its answer.
+    #[test]
+    fn a_share_that_could_not_be_measured_is_no_share() {
+        for (what, wanted, stack) in [
+            ("a content height", f32::NAN, 500.0),
+            ("a stack height", 100.0, f32::NAN),
+            ("an unbounded stack", 100.0, f32::INFINITY),
+            ("an unbounded content height", f32::INFINITY, 500.0),
+        ] {
+            assert_eq!(
+                features_fraction(wanted, stack),
+                None,
+                "{what} that is not a number",
+            );
+        }
+    }
+
+    /// **Every answer this door does give is a share**: a number, at
+    /// or above nothing, at or below the cap. The row above is a claim
+    /// about `None` and this one is what makes it mean anything — a
+    /// door that answered `None` for everything would satisfy the
+    /// first and fail this.
+    #[test]
+    fn every_share_it_gives_is_a_share() {
+        for (what, wanted, stack) in [
+            ("a tree that wants nothing", 0.0, 500.0),
+            ("a tree taller than the stack", 5_000.0, 500.0),
+            ("an ordinary tree", 100.0, 500.0),
+        ] {
+            let answer = features_fraction(wanted, stack);
+            assert!(
+                matches!(answer, Some(share)
+                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                "{what} answered {answer:?}",
+            );
+        }
+    }
+
+    /// The door's answers are not one answer, which is what makes the
+    /// two rows above a test of anything: a function returning the cap
+    /// for every input satisfies both.
+    #[test]
+    fn the_legitimate_shares_are_distinct() {
+        let floor = features_fraction(0.0, 500.0);
+        let cap = features_fraction(5_000.0, 500.0);
+        let ordinary = features_fraction(100.0, 500.0);
+        assert_ne!(floor, ordinary, "the floor and an ordinary share");
+        assert_ne!(ordinary, cap, "an ordinary share and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
+        assert_eq!(cap, Some(FEATURES_SHARE_CAP), "the cap is the cap");
+    }
+
+    /// The very first frame, before either tile has a rectangle, is
+    /// the caller's own arm and not this door's — so a zero stack is
+    /// not something this function is asked about. What it IS asked
+    /// about is a denominator it was handed anyway, and it refuses
+    /// rather than dividing by it.
+    #[test]
+    fn an_empty_stack_is_refused_here_too() {
+        assert_eq!(features_fraction(100.0, 0.0), None, "an empty stack");
+        assert_eq!(features_fraction(100.0, -1.0), None, "a negative stack");
+    }
 
     /// The narrowest window this chrome is held to, in points.
     ///

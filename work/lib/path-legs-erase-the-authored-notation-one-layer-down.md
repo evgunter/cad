@@ -2,10 +2,9 @@
 id: path-legs-erase-the-authored-notation-one-layer-down
 kind: issue
 title: a path leg's 25 mm is recorded as a bare f64 before any Expr exists
-status: parked
+status: open
 opened: 2026-09-09
 refs: [node-slot-literals-erase-the-authored-notation]
-blocked_on: [recorded-program-arguments-carry-no-notation]
 ---
 
 
@@ -52,3 +51,14 @@ beside each recorded `f64`), and what that costs the recorder's
 replay identity — the program is compared and re-run, and a unit is
 presentation metadata under D7 that must stay out of `bit_eq` exactly
 as a literal's does.
+
+## Unparked (2026-09-16, EDIT orchestrator)
+
+The trigger fired: EDIT's `recorded-program-arguments-carry-no-notation`
+merged as PR #2779 with the kernel shape this row follows —
+`RecordedNotation` beside the recording, keyed by `(step, StepArg)`,
+applied at `LoopProgram::from_recorded_with_notation`; the binding
+census charter `B-PATH-NOTATION` names the Python half. This header was
+edited from outside LIB's fence only to keep the tracker true (a row
+parked on a closed trigger is a lint error); nothing else here is
+LIB's decision made for it.

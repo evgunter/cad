@@ -347,3 +347,193 @@ the remaining seven: the ledger's *A note on inbound references*
 settles DELETED files, while these name rows that moved and are open,
 where the recovery recipe yields a superseded snapshot — a pointer that
 resolves and lies.
+
+## Ev rules the roster's membership rule (2026-09-16)
+
+The first `[ev]` PR of this program (#2733) asked whether a test-support
+name is K-roster material. **The question was wrong and Ev's first reply
+said so**: *"isn't everything that reaches the funnel dependent on our
+particular demos and tests?"* It is — every sample in the distribution
+comes from running our demos and tests, for every rostered row — so
+*"reaches the sweep's corpus?"* divides the corpus, not the names, and a
+roster built on it is a property of what we ran last.
+
+Re-framed on the axis the tree already states: **whose decision the name
+records.** `sketch_plane_frame_norm`'s own doc says the pair reaches it
+*"from a user's Python call"*; `crates/sweep/src/lib.rs` gates
+`test_support` behind `#[cfg(any(test, feature = "test-support"))]` and
+`#[doc(hidden)]`. So `fixture_frame_axis` is not a name the corpus
+happens to miss — nothing outside a test build can reach it at all.
+
+**Ruled (a): the roster records decisions the kernel can be ASKED to
+make.** `fixture_frame_axis` leaves; `sketch_plane_frame_norm` stays
+with its coverage gap as the finding; and — the part larger than the two
+names — `docs/K-REPORT.md`'s stated rule (*"from anywhere the sweep can
+execute"*) is reading (b) and is now wrong. The `chart_bound_*`
+paragraph already practises (a). Unit 16 rewrites the stated rule and
+keeps the coverage column as the behavioural half; `K-REPORT` is
+`Reference`, so that edit is the ruling landing rather than a second
+conversation.
+
+**Worth keeping as process, not just as content**: the useful output of
+this `[ev]` PR was not the answer to the question asked. It was Ev
+rejecting the question's premise, which turned a one-name membership
+query into a ruling on the roster's meaning and exposed two sentences in
+the governing document that disagree. Opening it early — before unit 16
+was anywhere near dispatch — is what made that cheap.
+
+## Unit 1 closes: the document was not carrying a copy, it was carrying a different cut (2026-09-17)
+
+`baseline-sizing-census-second-copy` is CLOSED, and the row's own
+diagnosis was too kind to the tree. The four figures in
+`docs/TESS-BUDGET.md` were not drifting copies of a live number — they
+were a **coherent reading of one superseded cut**, stamped
+`3f55f361b22e` and summable at `715977e6a`: 1353 rows, 64 sized, 286
+named, 46,019 / 110,811 / 93,066 / 44,162. Every derived factor in the
+document (3.52x, 3.35x, 1.042x, 8.5x) came from those operands. The
+census was re-pinned five times between 2026-09-10 and 2026-09-15 while
+the prose stood still. This is the failure the row PREDICTED —
+*"the alarm fires and the document stays wrong"* — arriving while the
+row slept.
+
+**The fix shape, and why a pointer could not do it.** One executable
+home; live claims cite the census tests; and the historical comparison
+is FROZEN and labelled, because a comparison between two named trees
+cannot be cured by a pointer — you cannot divide a pointer by 390,100.
+The document's frozen-exception enumeration went from two to three.
+
+**The `name` bullet's conclusion was backwards, not merely stale.** It
+said coverage is disjoint from the case a join would fix.
+`teapot/teapotspout` carries 8 sized rows, all 8 named, and four pairs
+separated by `name` — which is `C15`'s own dischargeability evidence.
+Two doc-comment leads stated the same falsehood directly above the
+assertions refuting it.
+
+**The orchestrator was wrong about this unit, in the most confident
+possible way, and a lane refused the instruction.** A
+`# tess-budget-cut:` line names the tree the sweep READ, not the commit
+whose blob holds the rows. So `git show <cut>:…baseline.csv` returns
+the PREVIOUS baseline — parsing cleanly, same shape, different sums, no
+error. Checking the unit's label that way produced 94,154 / 44,446
+against the document's 93,066 / 44,162, and the lane was instructed to
+re-point at `448275c8d`. **That would have been wrong**: `448275c8d`
+agrees on all four sums and carries 316 named against 286, so it cannot
+be the `name` bullet's source. The lane re-summed, found the
+stamp-versus-tree distinction, and refused. Recorded as measured
+evidence on `cut-line-commit-names-no-baseline-change`, whose two known
+failure modes both end with the reader KNOWING something is wrong; this
+is a third that ends with them confidently holding wrong numbers.
+
+**The repair for that trap is the unit's, and it is better than either
+option the orchestrator offered**: every cut citation is two-part — the
+stamp AND the commit to sum — with the re-sum command beside it and an
+explicit warning that the stamp's own SHA holds the previous file.
+
+**Then the fix minted its own defect, in the sentence explaining the
+defect.** The diff wrote *"64 there, 80 now"* into the passage arguing
+why the comparison had to be pinned. `80` is a current reading asserted
+at `baseline_census.rs`'s face-identity census, unlabelled, citing
+nothing — four hundred lines below the document's own rule that **no
+count over this file is written as a CURRENT reading**. The unit's own
+re-derived sweep declares it cannot see `sized == 80`, so the sweep
+written to prove the class closed could not see it re-opened. Only the
+style review caught it. Filed as
+`no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`, which
+records F1 as the hole's first measured instance, produced by the
+commit that disclosed the hole.
+
+**The file also stated a proposition and its negation** 170 lines
+apart — the rewritten header saying the document carries no current
+figure, `## What it is for` still saying it carries all four in
+present-tense prose, which was that test's entire justification. Fixed,
+and the class swept by reading all six named sites (five checked and
+still true).
+
+**The rename guard's reach was overclaimed and is now split.** The
+grep found ELEVEN unguarded-by-prose citation sites, not the three the
+review named — including two in code, one of them
+`report_columns_pin.rs`, the citation unit 0 minted when it re-pointed
+the dead path, in the same `tests/` directory as the guard. The two
+arms are now documented as unequal: the rename arm (a path expression)
+covers every citation anywhere; the prose arm reaches
+`docs/TESS-BUDGET.md` alone. **A tracker row does not belong in a
+test's guard list** — a row is deleted with its program, so wiring one
+in reds on an ordinary tracker edit and again at program close. That
+was the open question and the lane answered it with the reason.
+
+And the lane declined to write the count of unguarded tracker rows into
+the prose, because *"that count is exactly the kind of figure this unit
+exists to remove, and F1 is what putting it there looks like."*
+
+## Unit 5 closes: a garbage value reached the gate and the gate reported clean (2026-09-17)
+
+`tess-lint-ungated-columns-fold-silently` is CLOSED, arm by arm.
+
+**The constructed case is stronger than the row claimed, and the lane
+built it before writing anything.** One sized row of the committed
+baseline with `muu=banana`, linted as the fresh file against that same
+baseline: `0 finding(s)`, *"clean — no scene grew and no face's sizing
+got wastefuller"*, **exit 0**. The gate did not merely ignore the
+column — it read the file, compared it, and reported clean. After the
+fix: `malformed budget row (harness breakage)`, exit 1. The reviewer
+reproduced both directions against the real gate.
+
+**Arm 1 fixed** at the parse boundary; **arm 2** (`name` parsed and
+read by nothing) ruled unit 18's, since what it lacks is a rule that
+reads it and that is `C15`'s job; **arm 3** split out as
+`tess-lint-re-cut-folds-uncompared-columns`, carrying a sharper first
+move than "build the diff": `tess-lint` cannot today tell a re-cut from
+a gate run — both arrive as `<fresh> --baseline <committed>` — so a
+diff beside the verdict would print on every green run over what the
+row's own table says is mostly last-digit noise. Settling who the diff
+is for comes first.
+
+**The style review produced this program's first DEMONSTRATED finding
+rather than an argued one.** `Certificate`, `Sup` and `Count` were
+three spellings of `finite && >= 0.0`; the reviewer scrambled
+`BOUND_COLUMNS` across them and the whole suite stayed green, 59 + 31.
+Nothing in the crate could tell them apart. **The fix pass then found
+it was worse**: `Target`/`Aspect` were two more spellings of
+`finite && > 0.0`, which neither the review nor the orchestrator had
+named. The predicate is now the variant and the quantity is data —
+`NonNegative(&str)` / `Positive(&str)` — with messages verified
+byte-identical through the CLI, and the mutation's surviving
+cross-policy form now reds four tests.
+
+**The census asserted completeness it did not have.** Its failure
+message claimed a *claimed* column does not reach the gate carrying
+whatever the file says — false for `name`, which it claimed, `parse`
+stores and no rule reads: arm 2, the arm the unit declined to fix. A
+hand-maintained list asserting completeness about a hand-maintained
+list, failing open. Now split into `Claim::Read` / `Claim::Carried`
+with `assert_eq!(carried, ["name"])`, which fails in both directions.
+
+The lane declined one design call and said so rather than taking it
+silently: making the census REFUSE to claim a carried column collapses
+the gap check into the read check, and the gap check must cover every
+header column — including one nothing reads — or it stops being a
+cover. Adjudicated as correct.
+
+**Two more homes for "what the gate reads", filed on CIW.** The sweep
+script's copy went stale *because of this diff*, and `ci.yml` asserts
+the roster lives in `tools/tess-lint`'s module docs *"AND NOWHERE ELSE,
+this file included"* and then states a copy in that same file — a
+sentence false in its own file, which is the sharper half.
+`work/ciw/gate-reads-roster-has-two-copies-in-ciw-files`, filed after
+grepping 114 CIW rows and finding the nearest neighbours are the same
+shape on the cut line.
+
+**On the orchestrator's instruction about `C15.md`**: the note said
+both "you were right not to edit another unit's file" and "check the
+note lands where a unit-18 lane looks". The lane resolved the
+contradiction by appending a dated, additive section that does none of
+unit 18's work and leaves the re-pointing undone, and offered to revert
+it. Kept — the instruction was ambiguous and this reading is the useful
+one.
+
+**Posture note.** `plan.md` names the census-asserting-completeness
+shape as the reason unit 15 gets a full falsification lane; unit 5 was
+ruled style-only and the style lane caught it anyway. That is the
+second time a style review has caught something the full lane was
+reserved for. Not a reason to reopen the posture, recorded as evidence
+if it is ever revisited.

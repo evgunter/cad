@@ -496,6 +496,23 @@ impl SlotId {
         }
     }
 
+    /// **Spec D6's slot rule over ONE address and one candidate
+    /// expression**: the comparison itself, with nowhere else to write
+    /// it down.
+    ///
+    /// Every door that decides whether an expression may sit in a slot
+    /// asks this — [`Node::slot_dimension_fault`] per slot of a node
+    /// the document already holds, and `edit`'s `set_slot` of an
+    /// expression the node does not hold YET, which is why the subject
+    /// is a `(slot, expr)` pair rather than a node.
+    pub(crate) fn dimension_fault(self, expr: &Expr) -> Option<SlotDimensionFault> {
+        (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
+            slot: self,
+            expected: self.dimension(),
+            found: expr.dim(),
+        })
+    }
+
     /// Whether this slot is a STRUCTURAL parameter (spec D3: the
     /// structural/continuous distinction is typed, not emergent —
     /// structural slots are exactly the Count-dimensioned ones).
@@ -1175,6 +1192,111 @@ impl core::fmt::Display for MeasureNodeFault {
 
 impl core::error::Error for MeasureNodeFault {}
 
+/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
+/// spec D6) — one vocabulary for the edit doors and the load door, so
+/// the rule "a slot's expression carries the dimension the slot
+/// address fixes" has one definition rather than one per door.
+///
+/// The domain is [`Node::slots`], which is EVERY node kind: a profile
+/// program's step arguments, an extrude's distance, a datum's
+/// coordinates and a pattern's count are the same question asked of
+/// different addresses, and a door that asks it of one kind admits
+/// files the other doors could not have produced.
+/// ONE fact, so a struct: the dimensions disagree. A slot
+/// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
+/// property of the document at all — it is a disagreement between two
+/// matches in this module, which [`Node::slot_dimension_fault`]
+/// asserts against at the site rather than routing to a door as a
+/// refusal.
+///
+/// Its [`Display`](core::fmt::Display) is the refusal's one CLAUSE,
+/// which each door forwards into its own subject — the shape
+/// [`crate::placement::Frame::admission_fault`] carries for the frame
+/// rule. The sentence is written here and reaches a reader as
+/// "node 7: slot radius needs …" from the load door and as
+/// "slot radius needs …" from the edit door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SlotDimensionFault {
+    /// The offending slot.
+    pub slot: SlotId,
+    /// The dimension the address fixes.
+    pub expected: Dimension,
+    /// The expression's dimension.
+    pub found: Dimension,
+}
+
+impl core::fmt::Display for SlotDimensionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            slot,
+            expected,
+            found,
+        } = self;
+        write!(
+            f,
+            "slot {} needs {} {expected} expression, got {} {found}",
+            slot.label(),
+            expected.article(),
+            found.article()
+        )
+    }
+}
+
+/// What makes a [`Node::Assertion`]'s bound unusable
+/// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
+/// door and the load door's re-check.
+///
+/// Two arms rather than one dimension-or-nothing answer: "the
+/// reference is not a measure" and "it is, and it measures something
+/// else" are different mistakes with different repairs, and a reader
+/// should not have to decode an absent dimension to tell them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AssertionBoundFault {
+    /// The reference names no live measure node — there is no measured
+    /// dimension for the bound to agree with.
+    TargetNotMeasure {
+        /// What the assertion references.
+        measure: RecipeNodeId,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+    /// The reference is a measure, and its dimension is not the
+    /// bound's: the assertion compares two different quantities.
+    DimensionMismatch {
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// What that measure yields.
+        measured: Dimension,
+        /// The bound's dimension.
+        bound: Dimension,
+    },
+}
+
+impl AssertionBoundFault {
+    /// **E10's agreement itself, stated once**: an assertion compares
+    /// one quantity, so the bound's declared dimension is the one the
+    /// measure yields.
+    ///
+    /// The entry point for a caller that already HAS the measured
+    /// dimension and cannot reach the measure node —
+    /// `eval::wire`'s assertion backstop, which reads it off
+    /// the evaluated payload, the dimension the measure node's own
+    /// expression put there. [`Node::assertion_bound_fault`] is the
+    /// entry point for a caller holding the document, and reaches this
+    /// one once it has resolved the reference.
+    pub(crate) fn against(
+        measure: RecipeNodeId,
+        measured: Dimension,
+        bound: Dimension,
+    ) -> Option<Self> {
+        (measured != bound).then_some(Self::DimensionMismatch {
+            measure,
+            measured,
+            bound,
+        })
+    }
+}
+
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
 /// door, the persist re-check and the evaluation backstop.
@@ -1219,12 +1341,23 @@ impl core::fmt::Display for PlacementRuleFault {
                 "the placement list is empty — a group needs at least one placement, exactly \
                  as a stepped rule needs a count of at least 1",
             ),
+            // The frame clause is the frame rule's own
+            // ([`crate::placement::FrameFault`]); this arm supplies
+            // only the subject, so the sentence a reader sees about a
+            // frame is the same one wherever the frame was refused.
             Self::NonFiniteFrame { index } => {
-                write!(f, "placement {index} has a non-finite coordinate")
+                write!(
+                    f,
+                    "placement {index} {}",
+                    crate::placement::FrameFault::NonFinite
+                )
             }
             Self::ImproperFrame { index, determinant } => write!(
                 f,
-                "placement {index} is improper (mirroring): determinant {determinant}"
+                "placement {index} {}",
+                crate::placement::FrameFault::Improper {
+                    determinant: *determinant
+                }
             ),
         }
     }
@@ -2036,6 +2169,31 @@ fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
 /// `Explicit` answers `None` for EVERY slot including `Count`: its
 /// placements are the count and carry no expressions, which is exactly
 /// what [`Node::slots`] reports for it.
+/// A placement-rule node's slot LIST, the domain of [`rule_expr`]
+/// above the same two nodes — `has_count` says whether the node holds
+/// a count expression at all, which only [`Node::PlacedUnion`] can
+/// answer `false` to.
+///
+/// The two are one mapping read two ways, so a slot listed here is a
+/// slot `rule_expr` answers for: `Explicit` carries listed placements
+/// rather than a rule, so it has no count slot (the list's length IS
+/// the count) and no expressions (the frames are structural data, D8);
+/// and a parametric rule with no count is a node
+/// [`Node::placement_rule_fault`] refuses, not a node with a count
+/// slot nothing can read.
+fn rule_slots(has_count: bool, kind: &PatternKind) -> Vec<SlotId> {
+    let count = has_count.then_some(SlotId::Count);
+    match kind {
+        PatternKind::Linear { .. } => count
+            .into_iter()
+            .chain(Axis3::ALL.map(SlotId::Direction))
+            .chain([SlotId::Spacing])
+            .collect(),
+        PatternKind::Circular { .. } => count.into_iter().chain([SlotId::Step]).collect(),
+        PatternKind::Explicit(_) => Vec::new(),
+    }
+}
+
 fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
     match (kind, slot) {
         (PatternKind::Explicit(_), _) => None,
@@ -2259,6 +2417,50 @@ impl<P> Node<P> {
     pub(crate) fn bad_declare_input(&self, doc: &crate::doc::Doc<P>) -> Option<RecipeNodeId> {
         self.declare_input()
             .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
+    }
+
+    /// **E10, stated once**: what is wrong with this assertion's bound
+    /// against the node it constrains, if anything — the dimension the
+    /// measure yields, or the absence of a measure at that reference.
+    /// `None` for every node that is not a [`Node::Assertion`].
+    ///
+    /// The predicate takes the DOCUMENT because the measured dimension
+    /// is another node's property; that is the shape
+    /// [`Node::bad_declare_input`] has, for the same reason, and it is
+    /// what lets both doors ask ONE question. The edit door renders the
+    /// answer as [`crate::EditError::AssertionTarget`] /
+    /// [`crate::EditError::AssertionDimension`] and the load door as
+    /// `SnapshotError::AssertionTarget` / `SnapshotError::AssertionBound`:
+    /// a refusal names the door it came from, and the rule is asked in
+    /// one place so the two cannot drift.
+    ///
+    /// The target's LIVENESS is not asked separately: a reference that
+    /// names no live node is not a measure, and reports as such.
+    pub(crate) fn assertion_bound_fault(
+        &self,
+        doc: &crate::doc::Doc<P>,
+    ) -> Option<AssertionBoundFault> {
+        let Node::Assertion { measure, bound, .. } = self else {
+            return None;
+        };
+        let (measure, bound) = (*measure, bound.dim());
+        match doc.nodes.get(&measure) {
+            Some(Node::Measure { expr, .. }) => {
+                AssertionBoundFault::against(measure, expr.dim(), bound)
+            }
+            _ => Some(AssertionBoundFault::TargetNotMeasure { measure, bound }),
+        }
+    }
+
+    /// Whether this node is a mate whose alignment datum carries a
+    /// coordinate no predicate can decide on (ASM-R2a D-1).
+    ///
+    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
+    /// one place a NODE is asked it, so the edit door and the load
+    /// door's walk share the destructuring as well as the test.
+    /// `false` for every node that is not a [`Node::Mate`].
+    pub(crate) fn has_non_finite_alignment(&self) -> bool {
+        matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
     }
 
     /// **DM5, stated once**: what is wrong with this node's structural
@@ -2495,19 +2697,14 @@ impl<P> Node<P> {
                 s.push(SlotId::RotationAngle);
                 s
             }
-            Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => match kind {
-                PatternKind::Linear { .. } => {
-                    let mut s = vec![SlotId::Count];
-                    s.extend(vec3(SlotId::Direction));
-                    s.push(SlotId::Spacing);
-                    s
-                }
-                PatternKind::Circular { .. } => vec![SlotId::Count, SlotId::Step],
-                // The listed placements ARE the rule: no count slot
-                // (the list's length is the count) and no expressions
-                // (the frames are structural data, D8).
-                PatternKind::Explicit(_) => Vec::new(),
-            },
+            // A pattern's count is a field, so it is always there; a
+            // placed union's is an `Option`, and a rule missing the
+            // count it needs carries no count SLOT either — the
+            // mismatch is `PlacementRuleFault::CountSpelling`, refused
+            // at both doors, and not a slot address that answers
+            // nothing.
+            Node::Pattern { kind, .. } => rule_slots(true, kind),
+            Node::PlacedUnion { count, kind, .. } => rule_slots(count.is_some(), kind),
             // A half is recipe payload, not a number anyone sets; an
             // index is the one structural slot the projection carries.
             Node::Part { select, .. } => match select {
@@ -2960,21 +3157,23 @@ impl<P> Node<P> {
             return Some(PlacementRuleFault::NoPlacements);
         }
         // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to — finite, and proper
-        // (det > 0; admitting mirrors is gated on R4's equivariance
-        // audit). Checked HERE so the refusal lands at the edit door
+        // `SetPlacement` holds a cluster frame to, because it is held
+        // to it by the same predicate — `Frame::admission_fault`, whose
+        // home is the frame. This arm says only WHICH frame in the list
+        // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity
         // re-check downstream.
-        for (index, frame) in frames.iter().enumerate() {
-            if !frame.is_finite() {
-                return Some(PlacementRuleFault::NonFiniteFrame { index });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
-            }
-        }
-        None
+        frames
+            .iter()
+            .enumerate()
+            .find_map(|(index, frame)| match frame.admission_fault()? {
+                crate::placement::FrameFault::NonFinite => {
+                    Some(PlacementRuleFault::NonFiniteFrame { index })
+                }
+                crate::placement::FrameFault::Improper { determinant } => {
+                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
+                }
+            })
     }
 
     /// A `Declare` node whose every pair asserts the CONFORMAL class
@@ -3006,6 +3205,39 @@ impl<P> Node<P> {
             Some(fault) => Err(fault),
             None => Ok(node),
         }
+    }
+
+    /// **The slot-dimension rule, asked of this node** (spec D6):
+    /// every slot [`Node::slots`] names answers an expression, and
+    /// that expression carries the dimension [`SlotId::dimension`]
+    /// fixes for the address. `None` when the node carries no slot at
+    /// all, which is most of the assembly vocabulary.
+    ///
+    /// One home for the question, read by the edit doors
+    /// (`check_node_slots`) and by the load door's walk, each naming
+    /// the answer in its own vocabulary. The `pub` payloads are what
+    /// make a violation reachable: a hand-built node and a corrupt
+    /// file can both state one, and neither may reach a document the
+    /// edit doors could not have produced.
+    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slots().into_iter().find_map(|slot| {
+            // `slots()` IS `expr()`'s domain — the two matches answer
+            // for the same payload — so a slot with no expression is a
+            // bug in this module, not a document a door may refuse.
+            // Pinned for every node kind by
+            // `switch_slots::every_node_kinds_slots_are_all_readable`.
+            let Some(expr) = self.expr(slot) else {
+                unreachable!(
+                    "slot {}: `Node::slots` names it and `Node::expr` does not answer for it — \
+                     the two matches in this module disagree",
+                    slot.label()
+                )
+            };
+            slot.dimension_fault(expr)
+        })
     }
 
     /// What is wrong with this node's measured expression, if anything

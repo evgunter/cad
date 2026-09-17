@@ -9,9 +9,9 @@ use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EntityKey, EntityRef, EvalOptions, Evaluation,
-    HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide, ValuePayload,
-    body_name, entity_name, evaluate, resolve,
+    BooleanOp, BooleanValue, CancelToken, DocumentId, EntityKey, EntityRef, EvalOptions,
+    Evaluation, HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide,
+    ValuePayload, body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -312,8 +312,13 @@ test_utils::f6_variants! {
     /// weld compares against the rendered cases. The mechanism and what
     /// it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
-    const HIT_TEST_ERROR: HitTestError =
-        [NodeNotEvaluated, NodeFailed, NodePoisoned, Unnamed];
+    const HIT_TEST_ERROR: HitTestError = [
+        NodeNotEvaluated,
+        NodeFailed,
+        NodePoisoned,
+        EvaluationOfAnotherDocument,
+        Unnamed,
+    ];
 }
 
 /// The Display contract (#1111): a consumer renders a `HitTestError`
@@ -343,6 +348,16 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         (
             HitTestError::NodePoisoned { node, through },
             vec!["node 7", "node 3", "poisoned"],
+        ),
+        (
+            HitTestError::EvaluationOfAnotherDocument {
+                expected: DocumentId::derive("m4-hit-expected"),
+                found: DocumentId::derive("m4-hit-found"),
+            },
+            // Two documents, both named: which one the door is about
+            // and which one was handed. The ids render through their
+            // own `Display`, so the prose carries the whole answer.
+            vec!["document", "not"],
         ),
         (
             HitTestError::Unnamed {

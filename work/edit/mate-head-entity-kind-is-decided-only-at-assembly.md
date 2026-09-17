@@ -1,0 +1,101 @@
+---
+id: mate-head-entity-kind-is-decided-only-at-assembly
+kind: issue
+title: A mate head's EntityKind is decided at assembly and never at the edit door
+status: spec
+opened: 2026-09-16
+refs: [three-door-predicates-are-hand-copied-not-shared]
+---
+
+
+Raised by the style review of `edit/one-predicate-round-two` (PR 2772)
+while reading that unit's shared-predicate moves. **It is not a
+duplication**, which is why it is its own row rather than a hit on the
+sweep: nothing spells this rule twice, because only one door spells it
+at all.
+
+**The finding.** A `Node::Mate`'s two heads are `SitedRef`s whose
+`StableName` carries an `EntityKind`. A mate is a FACE-to-FACE contact:
+`crates/editor-core/src/assembly.rs`'s `resolve_face` refuses
+`RefusedRef::NotAFace { found }` for a head whose name is not a face,
+and says at the site that kind precedes multiplicity.
+
+That is the only place the kind is decided. The edit door that ADMITS
+the mate — `InsertNode`, through `check_node_inputs` — checks the
+heads' referenced nodes and the alignment's finiteness
+(`Node::has_non_finite_alignment`, now shared), and says nothing about
+what the heads denote. `EntityKind::Face` appears in `edit.rs` only for
+the appearance and metadata doors. So a mate whose `b` head names an
+EDGE inserts cleanly, saves cleanly, loads cleanly, and refuses at
+evaluation.
+
+**Which class this is.** It is the V1 class-2 shape — a document may
+hold a node that refuses to evaluate — and that reading is defensible:
+a head's name-level resolution needs a product, which the edit door
+does not have (the ruled `Declare` carve-out applies the same way to
+the second name-referencing edit). But the KIND is not name-level
+resolution: `name.kind` is data on the `StableName`, readable with no
+product at all, and `assembly.rs` reads it before it consults any
+table.
+
+**The question the row asks**: should the edit door refuse a mate head
+whose `EntityKind` is not `Face`, in the vocabulary
+`AppearanceWrongKind` already uses for the same shape of mistake? If
+yes, the predicate has one home (beside `Node::Mate`, or on the
+`SitedRef`) and `assembly.rs` names its answer — the round-two unit's
+move, applied to a rule that currently has one door instead of two. If
+no, both sites say why the kind waits for evaluation although it needs
+no product.
+
+Not built by the round-two unit: it is an addition to what the edit
+door refuses, not a relocation of a predicate, so it changes which
+documents exist.
+
+## Ruled and spec'd (2026-09-17, EDIT orchestrator) — middle tier, branch `edit/mate-head-kind`
+
+**Ruling: yes.** The edit door refuses a mate head whose
+`StableName.kind` is not `EntityKind::Face`, in the vocabulary
+`AppearanceWrongKind` uses for the same shape (`EditError::MateHeadWrongKind
+{ name, found }` or the spelling the existing arm's convention gives).
+The kind is data on the name and needs no product, so it belongs with
+what the edit door already checks of a mate (`check_node_inputs`: the
+heads' nodes, the alignment's finiteness). `assembly.rs`'s
+`resolve_face` keeps its `NotAFace` refusal (a loaded document can
+still carry the node — see the load half) and its doc names the edit
+door as the first reader.
+
+**The predicate has one home**: on `SitedRef` (`fn is_face(&self)` or
+the name that says it) or beside `Node::Mate`; the edit door and
+`assembly.rs` both read it; the load door (`persist/check.rs`) asks it
+too, placed on the exhaustive `Walk` (a new arm, F6 case, `pncad-py`
+tag — LIB's, mechanical, the round-three shape), so a saved mate whose
+head names an edge refuses to load as it refuses to insert. Ev is told
+of the ruling on the fourth `[ev]` PR (#2795) as an FYI.
+
+**Rows.** Red first: a mate whose `b` head names an edge inserts today
+and refuses at evaluation — write the row that says it refuses at
+`InsertNode`, watch it red, then the door. Then: the load twin; a
+round trip of a face-to-face mate; `assembly.rs`'s `NotAFace` still
+reachable (a head whose kind is `Face` but resolves to no face — say
+whether that is possible, and if not, what `NotAFace` now guards).
+
+**Mutants:** drop the edit-door check (the insert row reds); check
+only head `a` (the `b` row reds); the load walk dropped from `ORDER`
+(the load row + the roster row red).
+
+**Territory.** `crates/editor-core/src/{edit.rs, node.rs, assembly.rs,
+persist/check.rs}` (EDIT); `crates/editor-core/tests/*` (TCOST/TINT);
+`crates/pncad-py/src/{tags.rs, tests.rs}` (LIB, mechanical). Middle
+tier.
+
+## Re-scoped (2026-09-17, EDIT orchestrator; Ev on the fourth `[ev]` PR)
+
+Ev asked whether a non-face mate head could fail to TYPECHECK. It
+can: a `FaceName` newtype (a `StableName` whose kind is `Face` by
+construction, one checked constructor) and a mate head sited over it.
+`Node::Mate` then cannot be built with an edge in Rust; the constructor
+is the one refusal, called at the three boundaries that produce names
+from data (parse, load, the Python binding). The edit-door check and
+the load walk the spec named are replaced by the type; the lane was
+re-scoped mid-flight and states the deviation in its PR body.
+

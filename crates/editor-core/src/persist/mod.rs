@@ -152,6 +152,15 @@ struct FileBody {
 /// A loaded document: the parsed snapshot, the parsed edit log, and
 /// the REPLAYED result (snapshot + edits through [`apply`]'s doors —
 /// the document's current state).
+///
+/// There is no column for the maintenance the replayed edits
+/// performed, by the load boundary: the loaded document IS the state,
+/// and each edit's [`crate::Applied::maintenance`] was that edit's
+/// report to the caller who applied it, its effect already in the
+/// document (a rewritten registry; a stranded name the next evaluation
+/// reports typed). [`Doc::replay`](crate::Doc::replay) draws the same
+/// line, and DM7's round-trip row is the evidence the discard loses
+/// nothing.
 #[derive(Debug)]
 pub struct Loaded {
     /// The snapshot as saved.
@@ -339,7 +348,7 @@ impl core::fmt::Display for PersistError {
                 node.0
             ),
             Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {:?}: {fault}", name.0)
+                write!(f, "persist: document parameter {name}: {fault}")
             }
             Self::DisplayUnit {
                 name,
@@ -347,9 +356,8 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {:?} is declared {declared} but its display \
-                 unit measures {unit}",
-                name.0
+                "persist: document parameter {name} is declared {declared} but its display \
+                 unit measures {unit}"
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::HeaderId { found } => {

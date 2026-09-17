@@ -12033,73 +12033,438 @@ run, 7,570 passed, 38 skipped.
 
 Signed (VIEW implementer lane `view/frame-split`).
 
----
+## 2026-09-16 — the supersession lifetime is stated, not confessed (lane `view/supersession-lifetime`)
 
-## 2026-09-16 — a dead seam worker is a typed fact, badged, and the fit seam refuses
+`a-supersession-outlives-its-own-frame` is closed on Ev's fork-1
+ruling. `frame::Withdrawal`'s *Why the line and not a badge* section
+said *"That is a weaker lifetime than the argument above wants"* and
+pointed at this item as residue. It now states the lifetime the code
+has, in three legs with the row that holds each, and says why that
+lifetime is the right one — including the part the old sentence made
+underivable, that `Clear` is **tighter** than a per-instance
+retirement rather than looser.
 
-`a-dead-seam-worker-reads-as-an-ordinary-idle-state` closed on Ev's
-in-chat ruling of the same day: loud rather than silent, a badge on the
-item's own provenance rule, `Tone::Actionable` with the restart in the
-badge's own text, and the fit seam REFUSING the index build rather than
-taking the un-budgeted one.
+**Re-derived, not inherited.** `frame::acts` is
+`!matches!(op, SessionOp::Hover(_))` at `frame.rs:561-563`, not the
+`537-539` the item cites: `frame.rs` was split this morning and every
+number in the row predates it. `batch_status` is at `571-582` and
+reads as the ruling describes.
 
-**What the item was wrong about, and what it left out.** Its three
-bullets held against the tree, re-derived by subject. What did not hold
-is a sentence in the file the unit had to edit anyway:
-`crates/viewer/src/frame.rs`'s module header says *"The members are …"*
-and enumerates **seven** badges over a family of **eight** —
-`prefs_badge` is missing, and has been since the family was a
-vocabulary. The README's own enumeration has all eight and the count is
-guarded by `the_readme_counts_its_two_populations_correctly`; the
-header's is guarded by nothing, which is why it drifted. It now states
-the sweep rule (*every function in this module returning
-`Option<Badge>`*) beside the members rather than a bare list, and points
-at the row that counts them.
+**The "survives navigation" clause is true, and for two independent
+reasons rather than the one the item gives.** No `SessionOp` variant is
+a camera move — `camera::CameraOp` is its own vocabulary — so a fold
+never reaches `batch_status` at all; and
+the retirement a clean fold does issue is `Expire(Subject::Camera)`,
+which `apply` drops only against a message whose subject matches.
+Either alone is enough.
 
-**The shape of the fix, and why `busy()` could not carry it.** The
-worker-gone reset clears exactly the two fields `busy()` is computed
-from — deliberately, because an indicator must not stay lit for an
-answer that is not coming, which is the parent item's own ruling. That
-makes a dead seam report precisely what an idle one reports. So the
-fact is a second QUESTION rather than a third value of the first:
-`worker_gone()` on all three seam traits, `None` on every inline
-implementation, recorded by `Coalescing::forget_worker` at both arms
-that notice a death. `Worker` moved out of the `cfg(not(wasm))`
-`threaded` module to the crate's unconditional half, so the chrome has
-a vocabulary to match on where the failure cannot happen too.
+**The ruling's one wrong fact.** It says `Subject::Document` *"has no
+typed `StatusUpdate::Expire` issuer where three other subjects do"*.
+Two do. `SUBJECTS_WITH_AN_EXPIRY_ISSUER` is `[Subject; 2]` —
+`Camera` and `Cursor` — and `Document` shares the absence with
+`Display` and `Preferences`, which the roster's own paragraph states
+in as many words. So `Document` is not the odd one out; it is one of
+three, and the asymmetry the ruling narrows the item's framing to does
+not exist in the direction it names. The conclusion is untouched: the
+arm's doc is accurate and was not this unit's to change.
 
-**The base-tree red is a 32-error compile failure**, and that is the
-honest one: every error names a door `origin/main` does not have
-(`WorkerGone`, `worker_gone` on three traits, `settled_delta`,
-`dead_seam_badge`, `eval_worker_gone`). There is no spelling of *this
-seam is dead* anywhere above the seam on the base tree, which is the
-item restated as a measurement. What certifies the repair is four
-mutations on the fixed tree, each redding a different row: dropping the
-`worker_gone` conjunct from `settled_delta`; `forget_worker` not
-recording; `Tone::Advisory`; and the fit sentence naming only the
-fitter.
+**No new assertion, and the argument is a mutation table rather than a
+preference.** Each leg of the sentence was falsified in the source and
+the suite run:
 
-**One row had to be rewritten after it failed.** The failed-send arm of
-`Coalescing::dispatch` is not reached by submitting again after a
-worker dies — a submit while `running` only replaces `waiting`, so the
-handle finds out through `poll`. The arm's producers are a worker that
-dies between answering and a redispatch, and a closed channel; the row
-reaches it through `close()` and says so rather than pretending to a
-live race.
+| mutation | rows that red |
+|---|---|
+| `apply`'s `Keep` arm clears | `a_cursor_that_has_not_moved_retires_nothing`, `deliver_sends_news_to_the_notices_and_retirements_to_the_field`, `keep_clear_and_show_are_four_different_sentences` |
+| `acts` returns `true` (a hover acts) | `a_hover_only_batch_leaves_the_status_line_alone` |
+| `apply`'s `Expire` is subject-blind | `a_clean_fold_keeps_a_message_it_did_not_write`, `expiry_reaches_one_subject_and_no_other`, `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`, `a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it`, `a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ` |
+| `batch_status`'s acting arm keeps instead of clearing | `a_supersession_survives_the_accepted_edit_that_caused_it`, `a_superseded_free_move_is_news_the_ranking_shows`, `a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch`, `a_tool_notice_survives_the_batch_that_carried_its_own_pick`, `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on` |
 
-**The sweep** ranged over every `.busy()` read and every `.submit(`
-into a seam in `crates/viewer/src`. Four `busy()` readers: `settled_delta`
-(fixed here), `PickCache::indexing` and `app`'s `progress` argument
-(correct as they are — not-busy is the right answer for a spinner), and
-`DocSession::running` (honest; its residue is the *canceled* label,
-filed). Three submits: the fit and index submits, whose consequences
-the badges carry, and `DocSession::request_eval`, reached by every
-editing control there is. Only **Re-evaluate** is disabled, and the
-classification rule is written down: disable a control whose whole
-effect is the submit, badge the rest — Undo, a tool commit and a
-parameter edit all still do what they always did, and what stops is the
-picture following.
+So a row composing the three legs over a real `Withdrawal` could not
+be red on any tree where it would be the row that caught the break —
+four sibling rows red first. That is the register's *an item's
+suggested assertion is a claim whose cheapest failure is being GREEN
+on the broken tree*, answered by measurement: this one would be green
+on the broken tree because the tree cannot be broken past it. The
+deliverable instead is that the doc NAMES the five rows, which is what
+the item was actually missing — a stated lifetime nobody could trace.
 
-Residue filed: `the-canceled-label-names-a-cause-a-dead-worker-did-not-have`.
+The one leg with no mutation is `frame_status` delegating to
+`batch_status` on a hover-only batch, and it needs none:
+`a_tool_notice_survives_the_batch_that_carried_its_own_pick` asserts
+the two are equal verdict for verdict over `[Hover(None)]`, so a
+`frame_status` that stopped delegating reds there by construction.
 
-Signed (VIEW implementer lane `view/dead-seam-badge`).
+**Filed:** `a-doc-comment-names-a-test-row-and-nothing-checks-it-exists`
+— naming rows in a doc comment is the crate's convention
+(`blend.rs:347`, `readout.rs:121`) and is checked by nothing, because
+bracketing does not help: a `#[cfg(test)]` row and a row under
+`crates/viewer/tests/` are invisible to every rustdoc pass this repo
+runs, so a link would be broken rather than checked. 35 spans over 29
+names, all this crate's own resolving; five of them arrived with this
+unit.
+
+Signed (VIEW implementer lane `view/supersession-lifetime`).
+
+## 2026-09-16 — `view/datums-basis`: the datum basis takes the kernel's door
+
+Two rows, one unit:
+`datums-basis-hand-rolls-the-least-aligned-axis-basis` and
+`datums-unit-helper-normalizes-with-a-silent-x-fallback`.
+`crates/viewer/src/datums.rs`'s `basis` is now
+`UnitVec3::orthonormal_basis`, and the local `dot`, `cross` and `unit`
+helpers are deleted with the seed rule that needed them. The sweep's
+one other in-fence hit, `camera::up` spelling a cross by hand beside
+`Vec3::cross`, is bit-identical and taken here too.
+
+**The ruling was to adopt the door, and the measurement it turned on
+was whether the drawn axis moves. It does.** Over the world axes, the
+equator from both sides of the signed zero, the `<=` ties the local
+rule breaks, and 20,000 random unit normals, the pair turns about the
+normal for every normal sampled — none agreed to within 1e-9°. What a
+reader sees is less: a square grid is symmetric under a quarter turn
+and a tick under a half, so the six world axes (which move by exact
+multiples of 90°) leave the three default PLANES drawing the same
+picture — **while `MAX_GRID_LINES` does not bind; the review of #2783
+measured it binding at 2560 px and the row carries the correction** —
+while an axis datum along ±y or ±z has its end ticks turned 90° about
+itself. Every other normal's grid turns visibly, up to 45°.
+
+Not a cost to weigh: the pair is a display convention with no document
+meaning — the module says so itself, and `a_frames_grid_follows_its_
+own_axes` is the row that exists because a frame must NOT be drawn
+through it. What the trade buys is measured too: the replaced rule is
+discontinuous at each of its three magnitude ties and the kernel's
+door at one seam, the equator, which it states. Three conditions for
+one circle. **The per-crossing figures this entry first carried were
+seam samples read as seam values and are corrected on the row**: all
+three local ties share one profile (grid 0°→30°), and the door's
+equator costs up to 45° of grid, which is worse per crossing, not
+better.
+
+**The dispatch's premise was half wrong and the item's was right.**
+The brief called the overflowed-norm-to-paint-path a live defect that
+nothing catches. Transcribed and executed, `unit` really does return
+`[0,0,0]` for `[1e200; 3]` and `[1,0,0]` for `[1e-200; 3]` — but its
+only two call sites were in `basis`, whose only parameter is a
+`UnitVec3<f64>`, so neither input could arrive. The item's own body
+said so; the dispatch strengthened it. The ruling survives on the
+other two legs (a prose-unreachable fallback is the shape the charter
+rejects, and the viewer was maintaining a conditioning argument for a
+policy it did not decide) — and the correction changes the repair:
+what an unreachable defect justifies is deleting the code that needs
+the argument, not adding a finiteness question to it.
+
+**Base-tree red**, taken from a committed tree at `27d0571b09`, not by
+checkout gymnastics: `a_planes_ruling_runs_along_the_kernels_
+orthonormal_basis` and `an_axis_datums_ticks_run_along_the_kernels_
+first_basis_axis` fail on `origin/main` with the seed rule's directions
+printed; the other two rows are green on both and are labelled as
+standing guards rather than receipts. Four mutations on the fixed tree
+red each row by name — swapping the pair reds the axis row ALONE
+(a grid cannot tell `b1` from `b2`, and the plane row correctly does
+not claim it can), a 30° turn reds the three direction rows, and a
+planted zero axis reds `no_normal_makes_a_datum_draw_something_that_is
+_not_a_drawing` through the axis tick only, because `rule_patch`'s
+`span > 0.0` arm already refuses a collapsed ruling.
+
+**Filed:** `sketch-headings-guard-zero-length-but-not-an-infinite-one`
+(VIEW's own — two `hypot` sites the `sqrt()` pattern could not see,
+both guarding `> 0.0` and both handing back a zero vector for an
+infinite length) and, on MESH's slate,
+`degenerate-normal-rows-model-resolution-cites-a-deleted-helper` — its
+worked resolution cites `datums::unit`'s fallback as the model, and
+the subject is deleted rather than moved, so the sentence cannot be
+repointed.
+
+Signed (VIEW implementer lane `view/datums-basis`).
+
+## 2026-09-16 — `view/datum-refusals-named`: two refusals that were right and had no name
+
+Closed `datum-view-propagates-rather-than-refusing-by-name` and
+`a-datum-the-view-cannot-scale-vanishes-without-a-word` as one unit —
+the signature change is the second row's prerequisite.
+
+**`datum_view` answers `Result<View, CameraError>`**, refusing a
+non-finite width or height by name with the value in the message and a
+zero-area viewport with `UnusableBounds`. The `Result` over the
+`Option` the row also offered was the dispatch's ruling and it paid:
+`datum_view_refuses_a_window_the_way_the_cameras_own_door_does`
+compares this door's reply against `Camera::ray_through`'s on the same
+`ViewportSize`, variant for variant, which is an assertion an `Option`
+cannot carry. Compared through `Debug` rather than `==`, because half
+the inputs are `NaN` and a `CameraError` holding one is not equal to
+itself.
+
+**The class instance the first row recorded against itself is
+retired.** Both sides refused means `viewport_px` is `width.max(height)`
+over two finite positive numbers, so the `NaN` arm is deleted and no
+value the function did not compute leaves the door. `View`'s two field
+docs stop citing `datum_view` as the producer of one and say instead
+what is still true: the fields are the caller's, and the doors below
+owe their own check whatever is written there.
+
+**Both rows' reachability premise is right about its conclusion and
+wrong about its reason, and the gap is live.** `ViewportSize::aspect`
+asks whether both sides are above zero — so it refuses zero and
+refuses `NaN`, and **admits `inf`**. A pane of infinite extent has an
+aspect, passes `viewport_ui`'s early return and reaches `datum_view`,
+where every mark then refuses in silence. So the door's refusal is not
+a subset of the pane's guard, which is the whole reason the rows gave
+for calling this a hardening.
+`the_panes_aspect_guard_admits_an_extent_this_door_refuses` pins both
+halves. No production route was found that hands egui an infinite pane
+extent; what is established is that the guard does not exclude one —
+*a guard that admits everything positive is not a bound*, the register's
+own rule with the sign flipped.
+
+**So: the second row is the LIVE one and the first is hardening**, and
+the first is hardening for a narrower reason than it claims. Row A's
+two reachable causes are both real — the eye exactly on a datum, and a
+ruling whose extent is lost to the datum's own magnitude — and neither
+needs a pathological window.
+
+**`draws` answers `DatumDraws`**, the wireframes plus
+`vanished()`: how many came out with nothing drawn. A type change, so
+the compiler is the sweep over callers, and a method rather than a
+field, so the count cannot disagree with the thing it counts. The
+property is **"drew nothing"**, not "has no scale" — the second is a
+proxy that would miss the lost-extent case, which is one of the two
+live ones.
+
+**The shape pinned is the DIFFERENCE**, because "the segment list is
+empty" is equally true of a document with no datums.
+`how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed`
+measures four cases under one view: four datums at `f64::MAX` (four
+vanished), the same four with the eye on them (four), the same four
+from an ordinary place (**none** — without which the first two pass
+for a module that never draws), and a document with no datums (none,
+and an empty list). `a_datum_that_drew_some_of_itself_has_not_vanished`
+holds the far boundary.
+
+**No second latch was minted.** `frame::datums_badge` reads a count,
+`Subject::Camera`, `Tone::Actionable`, silent at zero — and
+the frame entry point (`<ViewerApp as eframe::App>::ui`, which is what
+the crate's prose elsewhere miscalls `update`) zeroes the local the
+panes write **before** they
+draw and assigns it back **unconditionally** after, whether or not the
+viewport was one of them. That is `profile_form_drawn`'s discipline,
+which `projection-fault-has-no-sweeper.md` names as the pattern the
+fault still lacks, so the count cannot outlive the view it describes
+and there is no sweeper to be missing. At `datum_view`'s refusal the
+pane writes the EXISTING `projection_fault` and returns; that is not a
+new latch and not a new condition either — every input this door
+refuses makes `view_projection` refuse a hundred lines down (an
+infinite height gives aspect `0.0`, an infinite width aspect `inf`,
+both aspect `NaN`), so the badge was going to be written on that frame
+and what changed is that it now names which side was not pixels.
+
+**Verification.** Both changes are signature changes, so a base-tree
+red can only be a compile failure and is not offered as one. Six
+mutations on the fixed tree instead, each redding a named row: deleting
+both refusals reds the parity row AND the aspect-gap row; deleting only
+the zero-area arm reds the parity row alone (the gap row is about `inf`
+and correctly does not claim the other); `vanished()` returning `0` and
+`vanished()` counting every drawing each red the distinguishability row
+(the second also reds the boundary row); a badge that never fires and a
+noun that never agrees each red the badge row.
+
+**The badge family's own header was wrong before this touched it.**
+`frame.rs`'s module doc enumerated the members as seven where the
+population is eight — `prefs_badge` was missing, and the README's list
+of the same family had it. Corrected to nine with the sentence now
+pointing at the counted population rather than restating it.
+
+**Sweep**, for the class *a door that hands back a value it did not
+compute, in a field shaped like one it did*, over `crates/viewer/src`:
+five patterns, ten hits, two filed —
+`id-readback-failure-reads-as-nothing-under-the-cursor` (a failed GPU
+readback becomes `IdMap::NOTHING`, and `idpass::disagreement` then
+reports it to the reader as the two picking paths disagreeing about the
+picture) and
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(unreachable below 51.5 GB of position data, and still the class). The
+hit list and the patterns' blind spots are in the PR body.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+**Addendum, same lane.** The first push's `rustdoc (gate)` went red on
+three intra-doc links this unit wrote to `ViewerApp::update`. There is
+no such function and there never has been — the frame entry point is
+`<ViewerApp as eframe::App>::ui` — and the name was taken from prose
+already in the tree (`frame.rs`'s `projection_badge` doc, and one row
+in `work/view/`), which says `update` in a code span where nothing
+checks it. Links were corrected; the two pre-existing spans are left as
+written and filed as
+`viewer-prose-calls-the-frame-entry-point-update`, per the in-fence
+rule about a citation that was wrong at the merge base.
+
+**And the receipt that missed it was mine.** `scripts/doc-gate.sh 2>&1
+| tail -20; echo "BARE=$?"` reports **`tail`'s** exit code, not the
+gate's. The bare pass had in fact failed locally before the push and
+the `0` was a measurement of the pipeline's last stage. Redirect to a
+file and read `$?` off the command itself; a pipeline's `$?` is never
+the receipt you think you are taking. All three forms re-run this way:
+`--selftest` 0, bare 0, `--skip-viewer-toolkit` 0.
+
+**Second addendum: the review's central correction was itself wrong,
+and finding that out corrected me too.** The review reported that at
+`f64::MAX` every mark refuses for want of a scale and `rule_patch`'s
+lost-extent arm is never reached, so the unit's justification for
+counting "drew nothing" rather than "has no scale" rested on an
+unreachable case. Instrumenting `grid` and `rule_patch` and running the
+fixture says otherwise: **the patch centre has a scale at every
+magnitude** — `Some(1.87e-4)` — because the centre is the point the
+camera is aimed at and the eye is a decimetre from it, so `rule_patch`
+is entered and the lost-extent arm fires. The review's probe read the
+scale at the datum's ORIGIN, which is where the normal tick is scaled;
+the module's own doc says the two marks are scaled at two different
+points, and that is the distinction the probe collapsed. Its ratio
+argument (`half / cv ≈ 1.46`, magnitude-independent) assumes the eye is
+about as far from the centre as the datum's origin is; measured, `half`
+is `0.26 m` against a `cv` running to `1e308`.
+
+**But the complaint under the wrong evidence was right.** The prose
+named `f64::MAX` as THE lost-extent case when it is three refusals at
+once — the tick's depth overflowing to `inf`, one ruled direction's
+`cv / pitch` overflowing past the finiteness guard, and the other
+losing its extent — and no row split them. The measured band is in the
+closed row's resolution as a table, and
+`a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale`
+is the row that splits them: at `1e100` the origin still scales, the
+tick draws, one direction still loses its extent, and the plane has NOT
+vanished. It reds under a `rule_patch` that emits its collapse.
+
+**Generalises, and it is the register's proxy rule with the reviewer
+holding the proxy.** *Scale* is not one quantity in this module — it is
+one per mark, at one point per mark, which the module says in as many
+words. A probe that samples it at a single point and reports
+`has_scale` has already chosen an answer. The check is the one this
+register states: name the property first and the instrument second,
+then ask what a member could look like that the instrument cannot see.
+
+**`git checkout <file>` took an uncommitted doc rewrite, again.**
+Reverting the mutation that certified the new row also discarded the
+`vanished()` doc edit made an hour earlier in the same file, and only
+`git status` showing `datums.rs` unmodified caught it. Third instance
+this program has recorded; the rule is already written (*commit before
+you mutate*) and I did not follow it for an edit made after the commit.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+## 2026-09-17 — `view/clamp-nan`: a clamp is not a bound against NaN
+
+Three doors that handed back a value the arithmetic did not compute,
+in a field shaped like one it did. All three of the row's claims
+re-executed and held; all three got a different repair, because the
+question a door can answer is a property of the door.
+
+`theme::channel_to_srgb8` refuses with `is_nan` and not `is_finite`,
+which is the whole argument at that site: **an infinity is ordered and
+a `NaN` is not**, so the clamp genuinely bounds one and cannot see the
+other. Refusing an infinity there would have been a second, unargued
+decision wearing the first one's clothes.
+
+`sketch::arc_points` refuses with `is_finite`, which is the OPPOSITE
+call for the opposite reason: an infinite radius emits `NaN` points
+just as surely as a `NaN` radius does. Two sites in one diff, two
+different finiteness tests, and a lane that reached for one rule for
+both would have been wrong at one of them.
+
+**The row's own framing was wrong about site 1, and the correction
+made the site stronger.** It called `channel_to_srgb8` a paint path
+that cannot refuse mid-frame. `Mark::over` and `from_linear` have one
+caller between them — `crates/viewer/tests/theme.rs`, the colourblind
+check — because the shader mixes in WGSL. So the consequence is not a
+black pixel; it is that the SAFETY MEASUREMENT would have taken pure
+black, the far end of every distance it computes, as the composited
+colour and certified the palette on it. A door that can refuse was
+argued as one that cannot, and the argument came from the item.
+
+**Site 2's live producer is not a `NaN` at all.** A bulge of `1e-320`
+on a horizontal chord — a finite literal `Expr::literal` accepts, typed
+through an ordinary `DragValue` — gives an infinite apothem, and the
+chord's left normal is exactly zero there, so `0 * inf` puts a `NaN` in
+the centre. 256 points at `[NaN, NaN]`, reached through the CAP rather
+than the floor, from an authored path. Hunting only the `NaN` input
+would have closed the arm nobody can reach and left the one anybody
+can.
+
+**A distinguishability assertion over an `f32` needs two rows, not
+one.** The share row was first written as *the poisoned answer differs
+from every legitimate answer*, which is the right shape for the `u8`
+and `usize` sites and worthless for this one: a `NaN` differs from
+everything including itself, so `Some(NaN)` — the broken door's own
+output — passed. The mutation found it, not the reading. The landed
+pair is *the poisoned inputs answer `None`* plus *every legitimate
+input answers a share*; neither row says anything alone. Generalises to
+the register's rule about a suggested assertion's two cheapest
+failures: for a float-valued door there is a third, which is an
+assertion the defect satisfies by being a defect.
+
+**Site 3's red could only be a compile failure**, because the function
+it holds did not exist on the base tree. Certified instead by three
+mutations, each redding the named row: the base tree's guard verbatim,
+the stack-half alone, and the `wanted`-half alone. Sites 1 and 2 took
+ordinary base-tree reds from a committed tree.
+
+Signed (VIEW implementer lane `view/clamp-nan`).
+
+### The review, and the three guards that were held by nothing
+
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything, and I reported a provenance receipt I had not taken.**
+The PR body named `07b41f6bf6` as the commit that wrote `theme.rs`'s
+clamp sentence. That SHA does not resolve in this repository. The real
+commit is `df8cc27873` (2026-08-30). Two things are worth keeping:
+this checkout is shallow — `.git/shallow` exists and history bottoms
+out at a grafted boundary — so a pickaxe over it reports an absence it
+has no standing to report; and the sentence spans a `///`
+continuation, which is the register's split-span trap and would have
+defeated the search even in a full clone. **The conclusion survived
+anyway** — `theme.rs` is in no companion table, so nothing was waiting
+for Ev — which is exactly what makes the class expensive: a receipt
+that is wrong about its own evidence and right about its answer passes
+every reading that stops at the answer.
+
+**Three of the guards I landed were held by nothing, and mutation is
+the only thing that said so.** The reviewer ran three and all three
+were green: undoing the theme refusal into the cap
+(`unwrap_or(255)`), deleting `flatten`'s `centre`/`start` filter, and
+replacing its `return Err` with `continue`. I reproduced all three
+before repairing any. The general shape is this program's own — *a
+typed refusal whose production is asserted nowhere* — and what it
+cost here is specific: I wrote a distinguishability row for the
+`usize` site that compared against the floor, the cap and an ordinary
+value, wrote one for the `u8` site that compared against the floor
+ALONE, and then wrote a PR body claiming both did the first thing. The
+sentence was true of one row and false of the other, and it read as
+true because the two rows sit in different files.
+
+**So: a claim about a POPULATION of rows is checked against each
+member, not against the row you wrote most recently.** The body's
+"both rows" is the same defect this register already records as *a
+universal in prose owes the sweep rule that produces its population*,
+scoped down to two.
+
+**The guard I argued for at greatest length was the one held by
+nothing, and my own account of why it exists was wrong.** The
+`centre`/`start` check: I wrote that it is earned by the denormal
+bulge. It is not — in that producer `radius` is `inf`, so `arc_points`
+refuses and `centre` never fires. It is earned by an arc whose radius
+is ORDINARY and whose midpoint overflows: two vertices near the top of
+the exponent range. Both cases are now rows and deleting the filter
+reds exactly one of them. A long argument attached to the wrong
+example is harder to catch than a short one, because the length reads
+as diligence.
+
+**And driving it through the real door moved a claim of mine.** I had
+written that the denormal bulge is a live producer and described it in
+a two-vertex loop. Through `preview` that loop never reaches the
+flattener at all — the seam reverses onto itself and the driver
+refuses it as an undeclared cusp two steps earlier. It takes a third
+vertex. The claim was right; the shape I stated it in was not, and the
+arithmetic I executed standalone could not tell me, because it was the
+flattener's arithmetic and not the door's. **Executing a function's
+arithmetic is not the same as reaching the function.**
+
+Signed (VIEW implementer lane `view/clamp-nan`, after review).

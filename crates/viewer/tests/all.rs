@@ -124,6 +124,8 @@ mod panel_display;
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick3_acceptance.rs"]
+mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
 #[path = "prefs.rs"]
@@ -148,6 +150,9 @@ mod review_gui4_r2;
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+
+#[path = "review_pick2_r1.rs"]
+mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]

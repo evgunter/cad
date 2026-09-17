@@ -442,6 +442,38 @@ impl UnitSym {
         Self::from_def(&row)
     }
 
+    /// The symbol for an AUTHORED unit on a value of dimension `dim`.
+    ///
+    /// The one home of "a unit measures what its value holds". Every
+    /// door that attaches a notation a caller CHOSE — the literal
+    /// constructor [`Expr::literal_with_unit`] and
+    /// [`crate::RecordedNotation::set`], which writes one down before
+    /// any literal exists — asks this, so the two cannot come to
+    /// disagree about which pairings are legal. [`Self::canonical_for`]
+    /// is the same relation in the other direction: the unit a
+    /// dimension picks when nobody chose one.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
+    /// is not `dim` (a `mm` on a bulge).
+    pub(crate) fn checked_for(
+        dim: Dimension,
+        unit: quantity::UnitDef,
+    ) -> Result<Self, DimensionError> {
+        // Total since the #650 seal: a `UnitDef` is a table row, so
+        // it has a code (see `UnitSym::from_def`).
+        let sym = Self::from_def(&unit);
+        let measured = sym.measures();
+        if measured != dim {
+            return Err(DimensionError::DisplayUnitMismatch {
+                unit: measured,
+                literal: dim,
+            });
+        }
+        Ok(sym)
+    }
+
     /// The code for a table row, by symbol — TOTAL, exactly as
     /// [`Self::def`] is total in the other direction.
     ///
@@ -490,9 +522,10 @@ impl UnitSym {
 
 /// A stored continuous literal: the canonical-units value plus its
 /// per-literal DISPLAY unit (LIB-SWITCH §4g, U8b folded into the v4
-/// break). The unit is presentation metadata under D7's hard rules —
-/// it is EXCLUDED from equality here (so [`Expr::bit_eq`], content
-/// keys, and naming keys are all display-unit-blind by construction),
+/// break). The unit is presentation metadata under DESIGN.md D6's hard
+/// rules — it is EXCLUDED from equality here (so [`Expr::bit_eq`],
+/// content keys, and naming keys are all display-unit-blind by
+/// construction),
 /// excluded from [`Expr::literal_bits`], and ignored by evaluation;
 /// the value stays canonical meters/radians regardless.
 ///
@@ -556,15 +589,16 @@ impl Lit {
 impl PartialEq for Lit {
     /// IEEE-semantic on the VALUE only — the display unit is
     /// presentation metadata and never part of expression identity
-    /// (D7; two literals differing only in display unit are the same
-    /// expression).
+    /// (DESIGN.md D6; two literals differing only in display unit are
+    /// the same expression).
     fn eq(&self, other: &Self) -> bool {
         // Bound by name on both sides so the omission is the
         // compiler's business: a third field on `Lit` is an E0027
         // here and has to be given a reason or a comparison.
         let Self {
             value,
-            // Presentation metadata, outside expression identity (D7).
+            // Presentation metadata, outside expression identity
+            // (DESIGN.md D6).
             display_unit: _,
         } = self;
         let Self {
@@ -704,25 +738,16 @@ impl Expr {
     /// agree with `dim` ([`DimensionError::DisplayUnitMismatch`]);
     /// everything [`Expr::literal`] refuses is refused here too.
     ///
-    /// The unit is presentation metadata (D7): it round-trips through
-    /// persistence and feeds the display formatter, but never enters
-    /// [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming keys,
-    /// or evaluation.
+    /// The unit is presentation metadata (DESIGN.md D6): it round-trips
+    /// through persistence and feeds the display formatter, but never
+    /// enters [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming
+    /// keys, or evaluation.
     pub fn literal_with_unit(
         value: f64,
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        // Total since the #650 seal: a `UnitDef` is a table row, so
-        // it has a code (see `UnitSym::from_def`).
-        let sym = UnitSym::from_def(&unit);
-        let unit_dim = sym.measures();
-        if unit_dim != dim {
-            return Err(DimensionError::DisplayUnitMismatch {
-                unit: unit_dim,
-                literal: dim,
-            });
-        }
+        let sym = UnitSym::checked_for(dim, unit)?;
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
@@ -1244,9 +1269,8 @@ impl core::fmt::Display for EvalError {
         match self {
             Self::UnknownParam(name) => write!(
                 f,
-                "parameter {:?} has no binding in the evaluation environment — declare \
-                 the document parameter or fix the reference",
-                name.0
+                "parameter {name} has no binding in the evaluation environment — declare \
+                 the document parameter or fix the reference"
             ),
             Self::ParamDimensionMismatch {
                 name,
@@ -1254,8 +1278,7 @@ impl core::fmt::Display for EvalError {
                 found,
             } => write!(
                 f,
-                "parameter {:?} is referenced as {expected} but bound as {found}",
-                name.0
+                "parameter {name} is referenced as {expected} but bound as {found}"
             ),
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \
@@ -1350,7 +1373,7 @@ fn eval_inner<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
     }
     match &expr.kind {
         // The display unit is presentation metadata: evaluation reads
-        // only the canonical value (D7; LIB-SWITCH §4g).
+        // only the canonical value (DESIGN.md D6; LIB-SWITCH §4g).
         K::Literal(lit) => Ok(T::from_f64(lit.value)),
         K::CountLiteral(_) => Err(EvalError::CountExprInContinuousEval),
         K::Param(name) => match params.bindings.get(name) {

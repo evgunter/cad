@@ -23,6 +23,13 @@
 //!    review_pick_r2 --nocapture`, which prints the tally.
 //! 3. **The aim reaches the graze class**: the count of rays answered
 //!    at the aimed vertex is pinned the same way.
+//! 4. **No winner's barycentric bound reaches `1`.** A value inside
+//!    `[0, 1]` whose rounding interval is that wide covers the range,
+//!    and `ray_triangle` refuses it, so zero is the only count this
+//!    can have. Asserted rather than pinned — the count is derivable
+//!    from the acceptance and a pinned `0` would read as a baseline —
+//!    and asserted HERE as well as in `index_memo` because this is
+//!    the aim that walks 441 126 rays.
 //!
 //! What is NOT pinned here, and why: the answers that moved against
 //! `main`'s kernel before this unit. That predicate is the copy the
@@ -34,7 +41,7 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{certified_determinant, ray_triangle};
+use editor_core::resolve::{crossing, ray_triangle};
 use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::{PickIndex, PictureKey};
@@ -147,6 +154,12 @@ struct Tally {
     refused_candidates: usize,
     rays_with_a_refusal: usize,
     genuine_refused: Vec<String>,
+    /// Winners whose barycentric bounds are not all below `1`. A
+    /// value inside `[0, 1]` with a bound that wide covers the range
+    /// and the exact test refuses it, so this is empty by
+    /// construction — over the WIDE aim as well as `index_memo`'s,
+    /// which is the point of asserting it in both places.
+    wide_winners: Vec<String>,
     /// The best-conditioned candidate refused at the determinant —
     /// the class the mechanism refuses, at its edge (reported, not
     /// pinned).
@@ -155,7 +168,7 @@ struct Tally {
 
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
-const PINNED: (usize, usize, usize, usize) = (441_126, 141_094, 20_016, 10_536);
+const PINNED: (usize, usize, usize, usize) = (441_126, 141_106, 20_016, 10_536);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let parts = flatten(index);
@@ -185,13 +198,13 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                         origin: *v - dir * reach,
                         dir,
                     };
-                    let mut best: Option<f64> = None;
+                    let mut best: Option<(f64, [f64; 3])> = None;
                     let mut refused_here = 0usize;
                     for flat in &parts {
                         for cand in flat.tree.ray(&ray) {
                             let tri = &flat.corners[cand.item];
-                            let certified = certified_determinant(&ray, tri).is_some();
-                            if !certified {
+                            let cross = crossing(&ray, tri);
+                            if cross.is_none() {
                                 let (det, cond) = det_and_conditioning(&ray, tri);
                                 if det != 0.0 {
                                     refused_here += 1;
@@ -205,10 +218,15 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                                     ));
                                 }
                             }
-                            if let Some(t) = ray_triangle(&ray, tri)
-                                && best.is_none_or(|b| t < b)
+                            if let Some(span) = ray_triangle(&ray, tri)
+                                && best.is_none_or(|(b, _)| span.t < b)
                             {
-                                best = Some(t);
+                                let t = span.t;
+                                let bounds = cross
+                                    .expect("an admitted candidate has a certified determinant")
+                                    .barycentrics
+                                    .map(|(_, err)| err);
+                                best = Some((t, bounds));
                             }
                         }
                     }
@@ -216,10 +234,19 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                     if refused_here > 0 {
                         tally.rays_with_a_refusal += 1;
                     }
-                    if let Some(t) = best
-                        && (t - reach).abs() < 1e-9
-                    {
-                        tally.grazes += 1;
+                    if let Some((t, bounds)) = best {
+                        if (t - reach).abs() < 1e-9 {
+                            tally.grazes += 1;
+                        }
+                        // A NaN bound is not a bound and must red
+                        // this row, not slip through a comparison it
+                        // fails.
+                        if bounds.iter().any(|&b| b.is_nan() || b >= 1.0) {
+                            tally.wide_winners.push(format!(
+                                "{name} after {step}: {dir:?} through {v:?} at reach {reach}: \
+                                 winner at t {t} with bounds {bounds:?}"
+                            ));
+                        }
                     }
                 }
             }
@@ -276,6 +303,13 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
         "# review_pick_r2 tally (rays, answered at the aimed vertex, candidates refused at the \
          determinant, rays with a refusal): {counts:?}; best conditioning refused {:e}",
         tally.worst_refused_conditioning
+    );
+    assert!(
+        tally.wide_winners.is_empty(),
+        "{} winners over the wide aim carry a barycentric bound of 1 or more, which covers the \
+         admissible range and the exact test refuses:\n{}",
+        tally.wide_winners.len(),
+        tally.wide_winners.join("\n")
     );
     assert!(
         tally.genuine_refused.is_empty(),

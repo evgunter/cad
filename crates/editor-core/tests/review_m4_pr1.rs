@@ -718,7 +718,8 @@ fn r6_nonfinite_doors_closed() {
         assert_eq!(
             res.unwrap_err(),
             EditError::NonFiniteDocParam {
-                name: ParamName::new("poison")
+                name: ParamName::new("poison"),
+                field: editor_core::DocParamField::Nominal,
             },
             "SetDocParam({poison})"
         );
