@@ -123,112 +123,6 @@ use crate::generation::Generation;
 use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
 use crate::scene::{DisplayTolerance, FittedDelta, SceneError, fit_delta, product_of_evaluation};
 
-/// **Which of this crate's three seams a fact is about** (D4 ¶3: a
-/// closed enum, because the set is this file's own and a reader asking
-/// which values occur should be able to see them).
-///
-/// Unconditional, though the only implementation that can lose a
-/// worker is the threaded one: [`WorkerGone`] is read by the chrome on
-/// every target, and a vocabulary that existed only where the failure
-/// can happen would leave the consumer with no type to match on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Worker {
-    /// The evaluation worker ([`EvalService`]).
-    Evaluation,
-    /// The index worker ([`IndexService`]).
-    Index,
-    /// The display budget's fit worker ([`FitService`]).
-    Fit,
-}
-
-impl core::fmt::Display for Worker {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Evaluation => "evaluation",
-            Self::Index => "index",
-            Self::Fit => "display fit",
-        })
-    }
-}
-
-/// **A seam whose worker has died**: every submit from here on is
-/// accepted and none is answered, for the life of the window.
-///
-/// # Why this is a type and not the absence of `busy`
-///
-/// A dead worker and a worker with nothing to do report the same
-/// `busy()` — `false` — because the worker-gone reset clears exactly
-/// the fields `busy()` is computed from (the coalescing machine's
-/// invariant, in the native module below). That is right for the
-/// indicator, which must not stay lit for an answer that is not
-/// coming, and it is why the two states are indistinguishable to every
-/// consumer that reads only `busy()`. This is the fact that tells them
-/// apart, and it is a distinct QUESTION rather than a third value of
-/// the old one: *is any answer still possible*, against *is one
-/// outstanding*.
-///
-/// # The words are the seam's own
-///
-/// Each arm's sentence names what the application loses for the rest
-/// of the run and the one recourse there is, because a verdict a
-/// reader must act on has to say what the act is (`crate::frame`'s
-/// `Tone::Actionable`). The recourse is the same for all three and it
-/// is a restart: nothing in the session respawns a worker, and the
-/// three [`Drop`] impls are the only things in this module that ever
-/// end one deliberately.
-///
-/// The fit seam's sentence carries TWO losses rather than its own. A
-/// dead fitter means no δ is ever priced again, and the index seam
-/// refuses to build rather than take the un-budgeted δ in force
-/// ([`settled_delta`]) — so the picking goes too, on exactly the
-/// documents the display budget was cut for. (Ev, in-chat,
-/// 2026-09-16: the refusal, and that the badge account for both.)
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WorkerGone {
-    worker: Worker,
-}
-
-impl WorkerGone {
-    /// The fact about `worker`.
-    #[must_use]
-    pub fn of(worker: Worker) -> Self {
-        Self { worker }
-    }
-
-    /// Which seam lost its worker — what a consumer names the fact by.
-    #[must_use]
-    pub fn worker(&self) -> Worker {
-        self.worker
-    }
-}
-
-impl core::fmt::Display for WorkerGone {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self.worker {
-            Worker::Evaluation => {
-                "stopped answering and nothing restarts it — no edit will \
-                 be evaluated again, so the picture on screen is the last one \
-                 this window will draw and Re-evaluate cannot recover it; \
-                 restart the viewer"
-            }
-            Worker::Index => {
-                "stopped answering and nothing restarts it — no pick \
-                 index will be built again, so nothing in the viewport can be \
-                 selected for the life of this window; restart the viewer"
-            }
-            Worker::Fit => {
-                "stopped answering and nothing restarts it — no display \
-                 budget will be priced again, and the pick index is refused \
-                 rather than built at a δ no budget has agreed to, so \
-                 nothing can be selected for the life of this window either; \
-                 restart the viewer"
-            }
-        })
-    }
-}
-
-impl core::error::Error for WorkerGone {}
-
 /// What the seam was asked to evaluate.
 #[derive(Clone, Debug)]
 pub struct EvalRequest {
@@ -285,17 +179,6 @@ pub trait EvalService {
 
     /// Whether a run is in flight or queued.
     fn busy(&self) -> bool;
-
-    /// The seam's worker, if it is gone: `None` while answers are
-    /// still possible.
-    ///
-    /// **Not the complement of [`EvalService::busy`].** A seam with nothing
-    /// to do and a seam nothing will ever answer both report `false`
-    /// there, by design — an indicator must not stay lit for an answer
-    /// that is not coming — so this is the only door that tells them
-    /// apart. An inline seam answers `None` always: it runs the work
-    /// inside `poll`, so there is no worker to lose.
-    fn worker_gone(&self) -> Option<WorkerGone>;
 }
 
 /// The previous completed run, together with the resolver that ran it
@@ -442,10 +325,6 @@ impl EvalService for InlineEvaluator {
     fn busy(&self) -> bool {
         self.pending.is_some()
     }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        None
-    }
 }
 
 // --- the index seam -------------------------------------------------
@@ -555,17 +434,6 @@ pub trait IndexService {
 
     /// Whether a build is in flight or waiting.
     fn busy(&self) -> bool;
-
-    /// The seam's worker, if it is gone: `None` while answers are
-    /// still possible.
-    ///
-    /// **Not the complement of [`IndexService::busy`].** A seam with nothing
-    /// to do and a seam nothing will ever answer both report `false`
-    /// there, by design — an indicator must not stay lit for an answer
-    /// that is not coming — so this is the only door that tells them
-    /// apart. An inline seam answers `None` always: it runs the work
-    /// inside `poll`, so there is no worker to lose.
-    fn worker_gone(&self) -> Option<WorkerGone>;
 }
 
 /// Run one index build over the seam's memo, stamping the answer with
@@ -641,10 +509,6 @@ impl IndexService for InlineIndexer {
 
     fn busy(&self) -> bool {
         self.pending.is_some()
-    }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        None
     }
 }
 
@@ -730,17 +594,6 @@ pub trait FitService {
 
     /// Whether a fit is in flight or waiting.
     fn busy(&self) -> bool;
-
-    /// The seam's worker, if it is gone: `None` while answers are
-    /// still possible.
-    ///
-    /// **Not the complement of [`FitService::busy`].** A seam with nothing
-    /// to do and a seam nothing will ever answer both report `false`
-    /// there, by design — an indicator must not stay lit for an answer
-    /// that is not coming — so this is the only door that tells them
-    /// apart. An inline seam answers `None` always: it runs the work
-    /// inside `poll`, so there is no worker to lose.
-    fn worker_gone(&self) -> Option<WorkerGone>;
 }
 
 /// Run one fit, stamping the answer with the request's own key.
@@ -792,41 +645,6 @@ impl FitService for InlineFitter {
     fn busy(&self) -> bool {
         self.pending.is_some()
     }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        None
-    }
-}
-
-/// **The δ the pick index may be built at**, read off the fit seam —
-/// and `None` for every state in which no δ has been agreed to.
-///
-/// The index build is downstream of the display budget: a build
-/// submitted at the δ in force while the fit is still pricing the
-/// document IS the un-budgeted build the budget exists to avoid, so a
-/// busy fitter offers nothing. **A fitter whose worker is GONE offers
-/// nothing either**, and that is the half a `busy()` read cannot
-/// express: the worker-gone reset leaves `busy()` false, so the seam
-/// that will never price anything again reads exactly like the seam
-/// that has finished, and the index was built at a δ nobody had
-/// agreed to — silently, on exactly the documents the budget was cut
-/// for. (Ev, in-chat, 2026-09-16: *"presumably it should refuse."*)
-///
-/// **What refusing costs, stated rather than left to be discovered.**
-/// On a document large enough to need the budget this means no index,
-/// so no picking, for the life of the window. That is the trade: a
-/// frozen window is worse than one that cannot be clicked, and
-/// [`WorkerGone`]'s own sentence for [`Worker::Fit`] is where the
-/// reader is told so.
-///
-/// A free function rather than an `&&` at the one call site, because
-/// where the decision lives decides whether a row can assert it
-/// (`crate::frame::Badge`'s argument, one layer down): the call site
-/// is inside the `app`-gated frame loop and no headless row reaches
-/// it.
-#[must_use]
-pub fn settled_delta(fit: &dyn FitService, delta: DisplayTolerance) -> Option<DisplayTolerance> {
-    (!fit.busy() && fit.worker_gone().is_none()).then_some(delta)
 }
 
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
@@ -849,7 +667,7 @@ const _: fn() = || {
 };
 
 #[cfg(not(target_family = "wasm"))]
-pub use threaded::{SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer};
+pub use threaded::{SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, Worker};
 
 /// The native seam: one worker thread, a request channel, a result
 /// channel.
@@ -867,9 +685,31 @@ mod threaded {
 
     use super::{
         EvalDone, EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone,
-        IndexRequest, IndexService, PickMemo, PriorRun, Worker, WorkerGone, build_index, run_fit,
-        run_once,
+        IndexRequest, IndexService, PickMemo, PriorRun, build_index, run_fit, run_once,
     };
+
+    /// Which of this module's three workers a refusal is about (D4 ¶3:
+    /// a closed enum, because the set is this file's own and a reader
+    /// asking which values occur should be able to see them).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Worker {
+        /// The evaluation worker ([`ThreadEvaluator`]).
+        Evaluation,
+        /// The index worker ([`ThreadIndexer`]).
+        Index,
+        /// The display budget's fit worker ([`ThreadFitter`]).
+        Fit,
+    }
+
+    impl core::fmt::Display for Worker {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(match self {
+                Self::Evaluation => "evaluation",
+                Self::Index => "index",
+                Self::Fit => "display fit",
+            })
+        }
+    }
 
     /// Why a worker could not be started.
     ///
@@ -940,10 +780,7 @@ mod threaded {
     ///   `Disconnected` receive both clear `running` AND `waiting`
     ///   ([`Coalescing::forget_worker`]), because nothing will ever be
     ///   answered again and an indicator must not stay lit for an
-    ///   answer that is not coming — and RECORD it, because a cleared
-    ///   flag is indistinguishable from a seam with nothing to do and
-    ///   the chrome has to be able to tell them apart
-    ///   ([`Coalescing::worker_gone`]);
+    ///   answer that is not coming;
     /// - **`busy()` is `running || waiting.is_some()`** — the two
     ///   fields are what the caller's one boolean is computed from, and
     ///   nothing else may compute it.
@@ -955,10 +792,6 @@ mod threaded {
     /// ([`Coalescing::close_and_join`] against [`Coalescing::close`]).
     #[derive(Debug)]
     struct Coalescing<J: Job> {
-        /// Which seam this is, so the fact a dead worker produces
-        /// names itself ([`WorkerGone`]) instead of being labelled by
-        /// whichever consumer happened to ask.
-        worker: Worker,
         to_worker: Option<Sender<J>>,
         from_worker: Receiver<J::Done>,
         /// Whether the worker holds a job. A flag rather than a count,
@@ -967,11 +800,7 @@ mod threaded {
         /// The newest job, held back until the worker is free.
         /// Replaced, never appended to: that is latest-wins.
         waiting: Option<J>,
-        /// Set by [`Coalescing::forget_worker`] and never cleared: no
-        /// seam here respawns, so the fact holds for the rest of the
-        /// run.
-        gone: bool,
-        handle: Option<JoinHandle<()>>,
+        worker: Option<JoinHandle<()>>,
     }
 
     impl<J: Job> Coalescing<J> {
@@ -1018,13 +847,11 @@ mod threaded {
                 })
                 .map_err(|error| SpawnError::Thread { worker, error })?;
             Ok(Self {
-                worker,
                 to_worker: Some(to_worker),
                 from_worker,
                 running: false,
                 waiting: None,
-                gone: false,
-                handle: Some(handle),
+                worker: Some(handle),
             })
         }
 
@@ -1051,17 +878,9 @@ mod threaded {
         /// The worker ended — only reachable after [`Coalescing::close`]
         /// has closed the channel, or if it panicked. Nothing more will
         /// ever be answered, so nothing may go on reporting busy.
-        ///
-        /// **And the fact is kept.** Clearing the two fields is what
-        /// stops the indicator lying about an answer that is coming; it
-        /// also makes this seam report exactly what an idle one
-        /// reports, which is a second lie one question over. `gone` is
-        /// the answer to that second question and the only thing that
-        /// distinguishes the two states above this boundary.
         fn forget_worker(&mut self) {
             self.running = false;
             self.waiting = None;
-            self.gone = true;
         }
 
         /// Take a finished answer, if one is ready. Never blocks.
@@ -1094,12 +913,6 @@ mod threaded {
             self.running || self.waiting.is_some()
         }
 
-        /// The seam's worker, if it is gone — the typed fact, naming
-        /// this seam.
-        fn worker_gone(&self) -> Option<WorkerGone> {
-            self.gone.then(|| WorkerGone::of(self.worker))
-        }
-
         /// Close the request channel so the worker's `recv` returns and
         /// the thread ends after whatever it is running, and drop the
         /// job that will now never be sent. **The worker is not waited
@@ -1116,8 +929,8 @@ mod threaded {
         /// nothing else bounds the join.
         fn close_and_join(&mut self) {
             self.close();
-            if let Some(handle) = self.handle.take() {
-                let _ = handle.join();
+            if let Some(worker) = self.worker.take() {
+                let _ = worker.join();
             }
         }
     }
@@ -1261,10 +1074,6 @@ mod threaded {
         fn busy(&self) -> bool {
             self.inner.busy()
         }
-
-        fn worker_gone(&self) -> Option<WorkerGone> {
-            self.inner.worker_gone()
-        }
     }
 
     impl Drop for ThreadEvaluator {
@@ -1340,10 +1149,6 @@ mod threaded {
 
         fn busy(&self) -> bool {
             self.inner.busy()
-        }
-
-        fn worker_gone(&self) -> Option<WorkerGone> {
-            self.inner.worker_gone()
         }
     }
 
@@ -1424,10 +1229,6 @@ mod threaded {
         fn busy(&self) -> bool {
             self.inner.busy()
         }
-
-        fn worker_gone(&self) -> Option<WorkerGone> {
-            self.inner.worker_gone()
-        }
     }
 
     impl Drop for ThreadFitter {
@@ -1437,125 +1238,6 @@ mod threaded {
         /// shutdown determinism with what the seam exists to buy.
         fn drop(&mut self) {
             self.inner.close();
-        }
-    }
-
-    /// The coalescing machine's two worker-gone arms, exercised on a
-    /// real thread that really dies.
-    ///
-    /// **These are the rows nothing above the seam can write.** Every
-    /// consumer reads the fact through a trait, so a test seam can
-    /// report anything it likes; what only a row in here can check is
-    /// that the SHIPPED handle sets the fact at both places the
-    /// machine notices a worker has gone — a `send` that fails and a
-    /// `Disconnected` receive — and that a live handle reports `None`
-    /// until one of them fires.
-    ///
-    /// Each row's worker prints one `thread '…' panicked` line to
-    /// stderr. That line is what the row is about, not a failure: a
-    /// panic inside the job is the only way a worker dies, because the
-    /// loop is private and has no door to inject a failure through.
-    #[cfg(test)]
-    mod tests {
-        // Panicking is a test's failure mechanism (workspace lint
-        // note), and here it is also the SUBJECT: a worker dies by
-        // panicking or not at all.
-        #![allow(clippy::expect_used)]
-        #![allow(clippy::panic)]
-
-        use super::{Coalescing, Job, Worker, WorkerGone};
-
-        /// A job with nothing in it: these rows are about the handle's
-        /// bookkeeping, and a payload would only be scenery.
-        struct Nothing;
-
-        impl Job for Nothing {
-            type Done = ();
-
-            /// Never superseded, so [`Coalescing::poll`] takes the
-            /// answer rather than redispatching — the arm under test
-            /// is the one where no answer comes at all.
-            fn supersedes(&self, (): &()) -> bool {
-                false
-            }
-        }
-
-        /// A worker that dies under the first job it is handed.
-        fn dying() -> Coalescing<Nothing> {
-            Coalescing::spawn(Worker::Fit, "viewer-test-dying", (), |(), Nothing| {
-                panic!("the worker dies under the job it was handed")
-            })
-            .expect("the worker starts")
-        }
-
-        /// Ten thousand millisecond naps, the ceiling
-        /// `tests/eval_seam.rs` uses for the same reason: long enough
-        /// that a loaded box does not fail the row, finite so that a
-        /// worker which never dies fails it instead of hanging.
-        const NAPS: usize = 10_000;
-
-        #[test]
-        fn a_worker_that_dies_is_reported_gone_by_the_poll_that_finds_it() {
-            let mut seam = dying();
-            assert_eq!(seam.worker_gone(), None, "a live worker");
-            seam.submit(Nothing);
-            assert!(seam.busy(), "the job is with the worker");
-
-            for _ in 0..NAPS {
-                if seam.poll().is_none() && seam.worker_gone().is_some() {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(1));
-            }
-            assert_eq!(
-                seam.worker_gone(),
-                Some(WorkerGone::of(Worker::Fit)),
-                "the Disconnected arm records which seam lost its worker",
-            );
-            assert!(
-                !seam.busy(),
-                "and clears the flags, which is exactly why the fact \
-                 above cannot be derived from this one",
-            );
-        }
-
-        /// The OTHER arm: a job the handle cannot hand over.
-        ///
-        /// **Reached here through [`Coalescing::close`], and the row
-        /// says so rather than pretending to a live race.** A submit
-        /// while the worker holds a job only replaces `waiting`, so
-        /// after a worker dies under its job the handle finds out
-        /// through `poll` — the row above — and the failed `send` is
-        /// left for two narrower cases: a worker that dies between
-        /// answering and the redispatch of a superseding job, and a
-        /// closed channel. Only the second is deterministic from
-        /// outside, and both run the same three lines. What is pinned
-        /// is that this arm records the fact as well as clearing the
-        /// flags, which is the half a reader would otherwise have to
-        /// take on trust from the other row.
-        #[test]
-        fn a_job_that_cannot_be_handed_over_records_the_worker_gone() {
-            let mut seam = Coalescing::<Nothing>::spawn(
-                Worker::Index,
-                "viewer-test-closed",
-                (),
-                |(), Nothing| {},
-            )
-            .expect("the worker starts");
-            assert_eq!(seam.worker_gone(), None, "a live worker");
-            seam.close();
-            assert_eq!(
-                seam.worker_gone(),
-                None,
-                "closing the channel is not itself the discovery",
-            );
-            seam.submit(Nothing);
-            assert_eq!(
-                seam.worker_gone(),
-                Some(WorkerGone::of(Worker::Index)),
-                "the job that could not be handed over is the discovery",
-            );
-            assert!(!seam.busy(), "and no job is left looking outstanding");
         }
     }
 }

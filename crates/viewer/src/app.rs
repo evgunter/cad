@@ -894,12 +894,7 @@ impl ViewerApp {
         // accepted rather than tracked: the alternative is a second
         // record of what the seam already holds, for a window under a
         // second on the frames just after a document opens.
-        //
-        // **A fitter whose worker is gone refuses outright**, and the
-        // policy is the seam's own (`evalseam::settled_delta`) rather
-        // than a condition spelled here, where no headless row could
-        // reach it.
-        let settled = crate::evalseam::settled_delta(self.fit.as_ref(), self.delta);
+        let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
             pickcache::CacheStep::Held
             | pickcache::CacheStep::Nothing
@@ -1438,24 +1433,7 @@ impl ViewerApp {
                         ui.spinner();
                     }
                     ui.label("canceled — showing an older result");
-                    // **A door that cannot act says so rather than
-                    // vanishing**, and says it in the words of the
-                    // value that knows — the posture
-                    // `session::CancelDoor` argues and the dialog
-                    // controls above already take. A dead evaluation
-                    // worker leaves this state with no recourse at
-                    // all: the click would reach a `Sender` whose
-                    // receiver died with the worker, the coalescing
-                    // machine's failed-send arm would fire, and the
-                    // control would answer by changing nothing.
-                    let blocked = self.session.eval_worker_gone();
-                    let button =
-                        ui.add_enabled(blocked.is_none(), egui::Button::new("Re-evaluate"));
-                    let clicked = match &blocked {
-                        Some(gone) => button.on_disabled_hover_text(gone.to_string()).clicked(),
-                        None => button.clicked(),
-                    };
-                    if clicked {
+                    if ui.button("Re-evaluate").clicked() {
                         ops.push(SessionOp::Reevaluate);
                     }
                     if indexing {
@@ -1536,23 +1514,6 @@ impl ViewerApp {
                 frame::scene_badge(self.scene_fault.as_ref()),
                 frame::index_badge(self.picks.error()),
                 frame::projection_badge(self.projection_fault.as_ref()),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                draw_badge(ui, &self.theme, &badge);
-            }
-            // **The three seams that can lose their worker.** One
-            // badge each, because the three losses are three different
-            // sentences — no evaluation, no picking, no budget and so
-            // no picking either — and a reader whose evaluation worker
-            // died needs to know that and not a summary of all three.
-            // Each fact comes from the seam that owns it, so no name
-            // is minted here (`frame::dead_seam_badge`).
-            for badge in [
-                frame::dead_seam_badge(self.session.eval_worker_gone().as_ref()),
-                frame::dead_seam_badge(self.picks.worker_gone().as_ref()),
-                frame::dead_seam_badge(self.fit.worker_gone().as_ref()),
             ]
             .into_iter()
             .flatten()

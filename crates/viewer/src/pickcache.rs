@@ -58,7 +58,7 @@ use std::sync::Arc;
 use pncad::document::{Doc, Evaluation, ProfileProgram};
 use pncad::geom_core::Tol;
 
-use crate::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, WorkerGone};
+use crate::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
 use crate::generation::Generation;
 use crate::input::PickAction;
 use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
@@ -491,26 +491,6 @@ impl PickCache {
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
-    }
-
-    /// The index seam's worker, if it is gone — passed through from
-    /// the seam, which is the only thing that knows.
-    ///
-    /// **A different question from [`PickCache::error`].** That one
-    /// says a build was attempted and refused, and the cache holds it
-    /// under the one-attempt-per-picture policy until another picture
-    /// comes along. This says no build will ever be attempted again,
-    /// so there is no later picture to hold anything for, and the
-    /// chrome badges the two separately
-    /// (`crate::frame::index_badge` against
-    /// `crate::frame::dead_seam_badge`).
-    ///
-    /// It is not derivable from anything else this type publishes:
-    /// [`PickCache::indexing`] is already `false` for a dead seam by
-    /// design, which is exactly what makes a dead seam read as an
-    /// ordinary idle one.
-    pub fn worker_gone(&self) -> Option<WorkerGone> {
-        self.seam.worker_gone()
     }
 }
 

@@ -32,8 +32,8 @@ use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
-    self, EvalDone, EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone,
-    IndexRequest, IndexService, InlineFitter, InlineIndexer, MemoReport, Worker, WorkerGone,
+    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
+    MemoReport,
 };
 use viewer::frame::{self, StatusUpdate};
 use viewer::generation::Generation;
@@ -967,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 9, "the badge family");
+    assert_eq!(badge_doors, 8, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
+        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -986,100 +986,6 @@ fn the_readme_counts_its_two_populations_correctly() {
     );
 }
 
-/// **Three seams, three badges, three sentences a reader acts on
-/// differently** — and each says the restart in its own text.
-///
-/// The shape pinned here is the DISTINGUISHABILITY of the three, not
-/// merely that each is `Some`: one badge for all three would have had
-/// to name every loss or none, and a label that did not name its own
-/// seam would send a reader to the wrong third of the application.
-/// So the row asserts the prefix, the tone, the affordance, the
-/// recourse, and that no two labels are equal.
-///
-/// `Tone::Actionable` is the ruled half (Ev, in-chat, 2026-09-16):
-/// `Advisory` is documented as *there is nothing to do about it*, and
-/// restarting the viewer is something to do.
-#[test]
-fn a_dead_seam_badges_its_own_worker_with_the_recourse_in_its_own_words() {
-    let labels: Vec<String> = [Worker::Evaluation, Worker::Index, Worker::Fit]
-        .into_iter()
-        .map(|worker| {
-            let badge = frame::dead_seam_badge(Some(&WorkerGone::of(worker)))
-                .expect("a dead worker always badges");
-            assert_eq!(
-                badge.tone(),
-                frame::Tone::Actionable,
-                "a verdict a reader must act on: {worker}",
-            );
-            assert_eq!(
-                badge.affordance(),
-                frame::Affordance::Read,
-                "there is no window of findings behind it: {worker}",
-            );
-            assert_eq!(badge.detail(), None, "the recourse is not a tooltip");
-            let label = badge.label().to_owned();
-            assert!(
-                label.starts_with(&format!("{worker} worker: ")),
-                "the badge opens by naming which badge it is: {label}",
-            );
-            assert!(
-                label.contains("restart the viewer"),
-                "the tone and the recourse agree: {label}",
-            );
-            label
-        })
-        .collect();
-
-    // The three consequences, each named where its reader is.
-    assert!(
-        labels[0].contains("Re-evaluate cannot recover it"),
-        "the evaluation badge answers the control it disables: {}",
-        labels[0],
-    );
-    assert!(
-        labels[1].contains("no pick index will be built again"),
-        "the index badge names the picking: {}",
-        labels[1],
-    );
-    assert!(
-        labels[2].contains("display budget") && labels[2].contains("pick index"),
-        "the fit badge names the budget AND the picking it also costs: {}",
-        labels[2],
-    );
-    assert_eq!(
-        labels
-            .iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len(),
-        3,
-        "three seams, three sentences",
-    );
-}
-
-/// **A dead seam's badge is about the WORKER and the pick index's is
-/// about a BUILD**, so the two never read as one fact said twice.
-///
-/// They can be lit together — a build that refused and then a worker
-/// that died — and a reader has to be able to tell which is which.
-#[test]
-fn the_dead_index_badge_is_not_the_refused_build_badge() {
-    let refused = frame::index_badge(Some(&pickindex::PickIndexError::DrawnTwice {
-        node: RecipeNodeId(3),
-        body: 0,
-    }))
-    .expect("a refused build badges");
-    let dead =
-        frame::dead_seam_badge(Some(&WorkerGone::of(Worker::Index))).expect("a dead worker badges");
-    assert_eq!(
-        refused.subject(),
-        dead.subject(),
-        "one seam, one subject, on both of its facts",
-    );
-    assert_ne!(refused.label(), dead.label());
-    assert!(refused.label().starts_with("pick index: "));
-    assert!(dead.label().starts_with("index worker: "));
-}
-
 /// **Every badge's silence is a row now**, which is the whole reason
 /// the family became a vocabulary: the checks badge's "only when there
 /// are findings" rule used to be an `&&` inside a `ui` closure, where
@@ -1087,11 +993,6 @@ fn the_dead_index_badge_is_not_the_refused_build_badge() {
 /// was right.
 #[test]
 fn a_badge_that_has_nothing_to_say_says_nothing() {
-    assert_eq!(
-        frame::dead_seam_badge(None),
-        None,
-        "a seam whose worker is still there"
-    );
     assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
     assert_eq!(
         frame::checks_badge(None),
@@ -1736,12 +1637,6 @@ impl IndexService for CountingIndexer {
 
     fn busy(&self) -> bool {
         self.inner.busy()
-    }
-
-    /// An inline seam runs the build inside `poll`: no worker, so
-    /// none to lose.
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        None
     }
 }
 
@@ -2760,9 +2655,6 @@ struct DyingIndexer {
     to_worker: Sender<IndexRequest>,
     from_worker: Receiver<IndexDone>,
     running: bool,
-    /// The shipped handle's `gone`, set in the same two arms that clear
-    /// `running` and never cleared.
-    gone: bool,
 }
 
 impl DyingIndexer {
@@ -2773,7 +2665,6 @@ impl DyingIndexer {
                 to_worker,
                 from_worker,
                 running: false,
-                gone: false,
             }),
             worker,
         )
@@ -2783,7 +2674,6 @@ impl DyingIndexer {
 impl IndexService for DyingIndexer {
     fn submit(&mut self, request: IndexRequest) {
         self.running = self.to_worker.send(request).is_ok();
-        self.gone |= !self.running;
     }
 
     fn poll(&mut self) -> Option<IndexDone> {
@@ -2792,7 +2682,6 @@ impl IndexService for DyingIndexer {
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 self.running = false;
-                self.gone = true;
                 None
             }
         }
@@ -2800,10 +2689,6 @@ impl IndexService for DyingIndexer {
 
     fn busy(&self) -> bool {
         self.running
-    }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        self.gone.then(|| WorkerGone::of(Worker::Index))
     }
 }
 
@@ -2813,7 +2698,6 @@ struct DyingEvaluator {
     to_worker: Sender<EvalRequest>,
     from_worker: Receiver<EvalDone>,
     running: bool,
-    gone: bool,
 }
 
 impl DyingEvaluator {
@@ -2824,7 +2708,6 @@ impl DyingEvaluator {
                 to_worker,
                 from_worker,
                 running: false,
-                gone: false,
             }),
             worker,
         )
@@ -2834,7 +2717,6 @@ impl DyingEvaluator {
 impl EvalService for DyingEvaluator {
     fn submit(&mut self, request: EvalRequest) {
         self.running = self.to_worker.send(request).is_ok();
-        self.gone |= !self.running;
     }
 
     fn cancel(&mut self) {}
@@ -2845,7 +2727,6 @@ impl EvalService for DyingEvaluator {
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 self.running = false;
-                self.gone = true;
                 None
             }
         }
@@ -2853,10 +2734,6 @@ impl EvalService for DyingEvaluator {
 
     fn busy(&self) -> bool {
         self.running
-    }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        self.gone.then(|| WorkerGone::of(Worker::Evaluation))
     }
 }
 
@@ -2930,25 +2807,6 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
         CacheStep::Indexing
     );
     assert!(!cache.indexing());
-
-    // **And the chrome now says which of the two silences this is.**
-    // Every read above is the read an IDLE seam gives — that is the
-    // whole of the defect this half closes — so the fact is published
-    // as its own question and badged.
-    assert_eq!(
-        cache.worker_gone().map(|gone| gone.worker()),
-        Some(Worker::Index),
-        "the cache passes through the one door that tells a dead seam \
-         from an idle one",
-    );
-    let badge = frame::dead_seam_badge(cache.worker_gone().as_ref())
-        .expect("a seam nothing will ever answer badges");
-    assert_eq!(badge.tone(), frame::Tone::Actionable);
-    assert!(
-        badge.label().starts_with("index worker: "),
-        "the badge names its own seam: {}",
-        badge.label(),
-    );
 }
 
 /// The same worker under the EVALUATION seam, which already asks.
@@ -2984,163 +2842,5 @@ fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
         frame::progress(session.outstanding(), false),
         Some(frame::Progress::Canceled { indexing: false }),
         "the state the chrome draws with a Re-evaluate button beside it",
-    );
-
-    // **And the button beside it cannot act.** Its click would reach a
-    // `Sender` whose receiver died with the worker, so the failed-send
-    // arm would fire and the control would answer by changing nothing.
-    // `blocked.is_none()` is what `app`'s `add_enabled` is handed, and
-    // the words it shows when disabled are this value's own.
-    let blocked = session.eval_worker_gone();
-    assert_eq!(
-        blocked.map(|gone| gone.worker()),
-        Some(Worker::Evaluation),
-        "the session publishes the fact the control is disabled by",
-    );
-    let gone = blocked.expect("the worker is gone");
-    assert!(
-        gone.to_string().contains("Re-evaluate cannot recover it"),
-        "the disabled control's own words say why: {gone}",
-    );
-    assert!(
-        frame::dead_seam_badge(blocked.as_ref()).is_some(),
-        "and the toolbar says it whether or not the reader hovers",
-    );
-}
-
-// --- a fit worker that dies, and the build it must not buy ----------
-
-/// The display budget's seam over [`dying_worker`], with
-/// `ThreadFitter`'s own two arms — the fit seam's counterpart to
-/// [`DyingIndexer`] and [`DyingEvaluator`].
-struct DyingFitter {
-    to_worker: Sender<FitRequest>,
-    from_worker: Receiver<FitDone>,
-    running: bool,
-    gone: bool,
-}
-
-impl DyingFitter {
-    fn new() -> (Box<Self>, JoinHandle<()>) {
-        let (to_worker, from_worker, worker) = dying_worker("fit-worker-that-dies");
-        (
-            Box::new(Self {
-                to_worker,
-                from_worker,
-                running: false,
-                gone: false,
-            }),
-            worker,
-        )
-    }
-}
-
-impl FitService for DyingFitter {
-    fn submit(&mut self, request: FitRequest) {
-        self.running = self.to_worker.send(request).is_ok();
-        self.gone |= !self.running;
-    }
-
-    fn poll(&mut self) -> Option<FitDone> {
-        match self.from_worker.try_recv() {
-            Ok(done) => Some(done),
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                self.running = false;
-                self.gone = true;
-                None
-            }
-        }
-    }
-
-    fn busy(&self) -> bool {
-        self.running
-    }
-
-    fn worker_gone(&self) -> Option<WorkerGone> {
-        self.gone.then(|| WorkerGone::of(Worker::Fit))
-    }
-}
-
-/// **A dead fitter refuses the index build rather than buying the
-/// un-budgeted one** (Ev, in-chat, 2026-09-16).
-///
-/// The shape this pins is the INDISTINGUISHABILITY, not the refusal
-/// alone: the row asserts that `busy()` answers the same `false` for a
-/// fitter that has finished and a fitter that will never answer, and
-/// then that `settled_delta` answers differently for the two. A row
-/// that only checked the dead case would pass over a `settled_delta`
-/// that refused unconditionally, which is a different and much worse
-/// bug — no document would ever be indexed.
-///
-/// What it costs is asserted too, because the trade was ruled rather
-/// than discovered: with no δ settled the cache forgets and submits
-/// nothing, so a click is refused `Absent` for the life of the window.
-#[test]
-fn a_dead_fitter_refuses_the_index_build_rather_than_taking_the_unbudgeted_delta() {
-    let tol = Tol::witness();
-    let (session, _extrude) = plate_session(tol);
-
-    // The live control: an idle fitter that really has answered.
-    let mut live = InlineFitter::new();
-    assert!(!live.busy());
-    assert_eq!(
-        evalseam::settled_delta(&live, delta()),
-        Some(delta()),
-        "a fitter that has answered settles the δ in force",
-    );
-    live.submit(session.fit_request(delta()).expect("a landing to price"));
-    assert_eq!(
-        evalseam::settled_delta(&live, delta()),
-        None,
-        "and a fitter still pricing the document settles nothing",
-    );
-
-    let (mut fit, worker) = DyingFitter::new();
-    fit.submit(session.fit_request(delta()).expect("a landing to price"));
-    assert!(
-        worker.join().is_err(),
-        "the row needs the worker to have actually panicked"
-    );
-    assert!(fit.poll().is_none(), "there is no answer to take");
-    assert!(
-        !fit.busy(),
-        "a dead fitter reports EXACTLY what a finished one reports, \
-         which is the state this row exists for",
-    );
-    assert_eq!(
-        evalseam::settled_delta(fit.as_ref(), delta()),
-        None,
-        "so the δ has to be refused off the other door, not off busy()",
-    );
-
-    // What the refusal costs, on the seam below it.
-    let mut cache = PickCache::new(Box::new(InlineIndexer::new()));
-    assert_eq!(
-        cache.sync(
-            session.index_inputs(),
-            evalseam::settled_delta(fit.as_ref(), delta())
-        ),
-        CacheStep::Nothing,
-        "no build is submitted at a δ no budget agreed to",
-    );
-    assert_eq!(cache.pump(), Vec::new());
-    assert_eq!(
-        pickcache::unindexed(
-            &[input::PickAction::Select([10.0, 10.0])],
-            cache.index(),
-            cache.indexing(),
-        ),
-        Some(pickcache::NotIndexed::Absent),
-        "and the picking goes with it, for the life of the window",
-    );
-
-    // The badge is where a reader is told that, rather than left to
-    // infer it from a viewport that has stopped answering.
-    let badge = frame::dead_seam_badge(fit.worker_gone().as_ref()).expect("a dead fitter badges");
-    assert!(
-        badge.label().contains("display budget") && badge.label().contains("pick index"),
-        "the fit badge accounts for BOTH losses, not only its own: {}",
-        badge.label(),
     );
 }

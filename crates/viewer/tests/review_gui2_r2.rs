@@ -1287,11 +1287,6 @@ impl EvalService for HeldEvaluator {
     fn busy(&self) -> bool {
         self.outstanding() > 0
     }
-
-    /// Nothing here is behind a worker: the held request is a field.
-    fn worker_gone(&self) -> Option<viewer::evalseam::WorkerGone> {
-        None
-    }
 }
 
 /// While a run is outstanding, the landed pair is the OLD document

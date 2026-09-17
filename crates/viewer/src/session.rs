@@ -71,7 +71,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, WorkerGone};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -608,14 +608,6 @@ pub enum Outstanding {
     /// on it — a cancel. [`SessionOp::Reevaluate`] is what recovers
     /// from it, and the state exists so the chrome does not spin over
     /// an idle seam forever.
-    ///
-    /// **A dead evaluation worker reaches this arm too**, and there
-    /// the recourse does not recover: the submit lands in a channel
-    /// whose receiver died with the worker. That is why the fact is
-    /// published separately ([`DocSession::eval_worker_gone`]) rather
-    /// than folded in here — this value answers what the session OWES,
-    /// and a dead worker changes neither of the two reads it is
-    /// composed from.
     Canceled,
 }
 
@@ -920,25 +912,6 @@ impl DocSession {
     /// [`SessionOp::Reevaluate`] recovers from.
     pub fn running(&self) -> bool {
         self.eval.busy()
-    }
-
-    /// The evaluation seam's worker, if it is gone — passed through
-    /// from the seam, which is the only thing that knows.
-    ///
-    /// **Beside [`DocSession::outstanding`] and not inside it.** That
-    /// value answers what the session owes, and both of its reads are
-    /// unchanged by a dead worker: the picture is genuinely older than
-    /// the document and nothing is genuinely running. What a dead
-    /// worker changes is that no submit will ever be answered, which
-    /// is a fact about the SEAM rather than about what is owed — and
-    /// the chrome spends it on two things the owed-state cannot
-    /// carry: a badge (`crate::frame::dead_seam_badge`) and the
-    /// disposition of the Re-evaluate control, whose click would
-    /// otherwise reach [`crate::evalseam::EvalService::submit`] and be
-    /// dropped by the coalescing machine's failed-send arm with the
-    /// chrome showing nothing.
-    pub fn eval_worker_gone(&self) -> Option<WorkerGone> {
-        self.eval.worker_gone()
     }
 
     /// The two reads above as [`Outstanding`] — the one value a
