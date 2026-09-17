@@ -167,3 +167,56 @@ it, which is re-worded here.
 (36 success, 3 skipped), no failed step, twelve `test (…)` and five
 `k-lint (gate, …)`, the python suite's wheel build and unittest step
 green. PR #2801.
+
+### Fix pass (2026-09-17, lane `rawtarget-fix`) — the review's findings built
+
+The review's verdict was MERGEABLE; nothing was re-baselined. Per
+finding:
+
+- **MINOR-1.** The manifest's stated reason for forwarding
+  `profile/test-support` was false: the `profile` dev-dependency below
+  it already carries the feature, so this crate's own test targets
+  build either way and `cargo check -p editor-core --all-targets` is
+  green without the forward. The comment now says the operative reason
+  and only it — the convention
+  `crates/profile/tests/raw_door_census.rs`'s
+  `every_crate_that_names_the_door_reaches_it` holds (a crate whose
+  `src/` names profile's raw door and declares its own `test-support`
+  forwards profile's), and that census row is what reds without the
+  forward.
+- **MINOR-2 + S9.** Three sites asserted "exists in no build", an
+  absolute `scripts/gates/test-features-dev-only.sh`'s own header
+  retracted (a build COMMAND may ask for any feature by name; the gate
+  constrains manifests). `crates/pncad/src/select.rs`,
+  `crates/pncad/tests/all.rs` and `ASSEMBLY.md` A2a now state the
+  operative claim: no consumer's manifest wires the feature onto an
+  edge of its own, which the gate holds across every manifest in the
+  repository. `PickTarget`'s heading in `resolve/pick.rs` reads "Every
+  half a consumer can reach is paired by construction".
+- **S1 + S2.** `MeshPick` has one `impl` block again, with
+  `#[cfg(any(test, feature = "test-support"))]` on `fn build` itself.
+  The docs are written once on the function, there is no `# Errors` on
+  an `impl` block and no "see the impl block's own docs" pointer.
+  `PickTarget::new` takes the same shape: the `cfg` moved to the
+  function.
+- **S4.** The ruling stands (neither mint is `#[doc(hidden)]`) and the
+  trade is stated at both sites: `scripts/doc-gate.sh` renders this
+  crate at `--all-features`, so there the mints sit among the public
+  API; a hidden door is one a reader cannot find, and what keeps a
+  consumer out is the feature gate rather than the docs.
+- **S5.** The sweep was re-run with bare-identifier patterns
+  (`PickTarget\b`, `MeshPick\b`) over `crates/` and every hit is
+  dispositioned in the PR body, `crates/viewer/tests/review_gui2_r2.rs`
+  included.
+- **S6.** `crates/viewer/src/pickindex.rs`'s hedge ("whether the façade
+  hands a consumer the raw-assembly lane is a separate question") is
+  one sentence now, doc-only, announced on VIEW's ground.
+- **S7.** `gui1_pick_r2`'s `#[ignore]` reason says what a forced run
+  shows rather than what the row used to document.
+- **S8.** The workspace-test residue is one line in the manifest
+  comment beside the `--all-targets` caveat that states the same
+  unification.
+- **S3.** Filed, not built:
+  `work/issues/test-support-convention-has-no-prose-home` — four
+  manifests restate one convention and it has no prose home.
+- **S10.** `build_every_table` keeps its name; weighed and kept.

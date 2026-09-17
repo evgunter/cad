@@ -4276,8 +4276,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can hold one. The kernel closed the same lane at
 ///   the API: both raw mints (`MeshPick::build` and
 ///   `PickTarget::new`) live behind `editor-core`'s `test-support`
-///   feature, which nothing in this crate's build graph enables, so
-///   neither exists in a build of this façade. `NodePick` is not
+///   feature, which no consumer's manifest wires onto an edge of its
+///   own — the claim `scripts/gates/test-features-dev-only.sh` holds
+///   across every manifest in the repository, and the strongest one a
+///   feature carries, because a build COMMAND may always ask for a
+///   feature by name (that gate's header retracted the absolute this
+///   stanza used to make). `NodePick` is not
 ///   merely the preferred door but the only one, and `PickTarget` is
 ///   carried because `pick_face`'s signature names it, not because it
 ///   can be built.

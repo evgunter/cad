@@ -25,17 +25,20 @@ workspace = true
 # both arms and only the constructors move — so nothing behind it is
 # part of the surface pncad's facade completeness guard watches.
 #
-# FORWARDS `profile/test-support`, and must: this crate's `src/` names
-# `profile::RawLoop` (the `ProfileLoop::polygon` fixtures in the
-# `#[cfg(test)]` modules of `resolve/pick.rs`, `names/emit*.rs`,
-# `eval/wire.rs` and `verbs/shell.rs`), so a `test-support` here that
-# did not turn that door on would be a feature that cannot compile the
-# tests it is named for. `crates/profile/tests/raw_door_census.rs`'s
-# `every_crate_that_names_the_door_reaches_it` is the row, and
-# `crates/sweep/Cargo.toml` carries the same forward for the same
-# reason — a feature has to compile from the crates that name IT,
-# rather than from whichever sibling's dev-dependency happens to unify
-# it into the same build graph.
+# FORWARDS `profile/test-support`, by the convention
+# `crates/profile/tests/raw_door_census.rs`'s
+# `every_crate_that_names_the_door_reaches_it` holds: a crate whose
+# `src/` names profile's raw door and declares a `test-support` feature
+# of its own forwards profile's from it, so the feature compiles from
+# the crate that NAMES the door rather than only where some sibling's
+# dev-dependency happens to unify it in. This crate's `src/` does name
+# it — the `ProfileLoop::polygon` fixtures in the `#[cfg(test)]`
+# modules of `resolve/pick.rs`, `names/emit*.rs`, `eval/wire.rs` and
+# `verbs/shell.rs` — and that census row is what reds without the
+# forward. `crates/sweep/Cargo.toml` carries it for the same reason. It
+# is the census row and not a compile: the `profile` dev-dependency
+# below already carries `test-support`, so this crate's own test
+# targets build either way.
 test-support = ["profile/test-support"]
 # Forwards geom-core's certified interval scalar so the expression
 # evaluator's and evaluation service's Interval instantiation tests
@@ -135,6 +138,10 @@ sha2 = { workspace = true }
 # artifact of that same invocation — an explicit test-inclusive build,
 # not a production one. The builds that compile this crate with the
 # feature OFF are the single-package ones: `-p viewer` and the wheel.)
+# A `--workspace` TEST run unifies it the same way, so a test file
+# anywhere in the workspace can name a gated mint: what this feature
+# decides is what a CONSUMER's build graph carries, not what every
+# invocation can reach.
 editor-core = { path = ".", features = ["test-support"] }
 # Review lane pick3-r2's exact-rational probe of the t interval.
 num-bigint = { workspace = true }

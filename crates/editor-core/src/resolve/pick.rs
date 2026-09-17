@@ -316,42 +316,39 @@ struct Candidate {
     tri: usize,
 }
 
-/// The raw index door — **test support**, absent from every build that
-/// does not ask for `editor-core`'s `test-support` feature.
-///
-/// A `MeshPick` is the pairing's other half: the index a
-/// [`PickTarget`] is built over. A consumer reaches one through
-/// [`NodePick`], which tessellates and indexes in one call so that the
-/// index and the `(document, node, body)` it is offered under come
-/// from one evaluation. Building one BY HAND is the move that makes a
-/// target's declaration a claim, so it is a fixture door: under this
-/// feature it is `pub`, under its negation it does not exist and
-/// [`MeshPick::build_every_table`] — the same body, crate-private — is
-/// what [`NodePick::build`] calls.
-///
-/// # Errors
-///
-/// [`MeshPickError::PositionOutOfRange`] when a triangle indexes
-/// outside [`Mesh::positions`] — corrupt input, never skipped.
-#[cfg(any(test, feature = "test-support"))]
 impl MeshPick {
-    /// Builds the index from a tessellated mesh: a [`PickTable`] per
-    /// patch — corners, per-triangle boxes, tree, hull — and the
-    /// top-level tree over the patches' hulls. Every table is built
-    /// here; the memoised form is [`MeshPick::build_with`].
+    /// The raw index door — **test support**: it exists only in a build
+    /// that asks for this crate's `test-support` feature. The body is
+    /// [`MeshPick::build_every_table`]'s, which is where what it builds
+    /// and what it refuses are written; this door only makes it
+    /// nameable from outside the crate.
     ///
-    /// Test support (the `impl` block's own docs): a shipped build has
-    /// no route to a hand-built index.
+    /// A `MeshPick` is the pairing's other half: the index a
+    /// [`PickTarget`] is built over. A consumer reaches one through
+    /// [`NodePick`], which tessellates and indexes in one call so that
+    /// the index and the `(document, node, body)` it is offered under
+    /// come from one evaluation. Building one BY HAND is the move that
+    /// makes a target's declaration a claim, so it is a fixture door,
+    /// and [`MeshPick::build_every_table`] — the same body,
+    /// crate-private — is what [`NodePick::build`] calls.
+    ///
+    /// **Not `#[doc(hidden)]`, and that has a cost.**
+    /// `scripts/doc-gate.sh` renders this crate at `--all-features`, so
+    /// in the rendered docs this mint sits among the public API with
+    /// nothing marking it but the paragraphs above. The trade is
+    /// deliberate: a hidden door is one a reader cannot find, and what
+    /// keeps a consumer out is the feature gate rather than the docs —
+    /// nothing written against this name compiles unless the build asks
+    /// for the feature.
     ///
     /// # Errors
     ///
     /// As [`MeshPick::build_every_table`].
+    #[cfg(any(test, feature = "test-support"))]
     pub fn build(mesh: &Mesh) -> Result<Self, MeshPickError> {
         Self::build_every_table(mesh)
     }
-}
 
-impl MeshPick {
     /// Builds the index from a tessellated mesh: a [`PickTable`] per
     /// patch — corners, per-triangle boxes, tree, hull — and the
     /// top-level tree over the patches' hulls. Every table is built
@@ -476,7 +473,7 @@ impl MeshPick {
 /// One displayed mesh offered to a pick: which document and which
 /// node/body the mesh renders, and its prebuilt index.
 ///
-/// # EVERY half is true by construction (DI3, A2a)
+/// # Every half a consumer can reach is paired by construction (DI3, A2a)
 ///
 /// [`NodePick::target`] is the only mint a consumer can reach, and it
 /// takes nothing: the document, the node, the body and the mesh index
@@ -487,8 +484,8 @@ impl MeshPick {
 /// answers every name lookup, about other geometry. So [`pick_face`]
 /// refuses an evaluation of any OTHER document before it reads a
 /// triangle — the one predicate every pairing door shares — and that
-/// refusal is a statement about the TYPE, because every target it can
-/// be handed carries a stamp it did not choose.
+/// refusal is a statement about the TYPE, because every target a
+/// consumer can mint carries a stamp it did not choose.
 ///
 /// The fields are private, so a minted target cannot be taken apart and
 /// re-stamped, and neither [`NodePick`] nor this type hands its
@@ -546,12 +543,20 @@ pub struct PickTarget<'a> {
     pick: &'a MeshPick,
 }
 
-#[cfg(any(test, feature = "test-support"))]
 impl<'a> PickTarget<'a> {
     /// A target assembled BY HAND from a mesh index the caller built —
-    /// **test support**, absent from every build that does not ask for
-    /// this crate's `test-support` feature, and the reason the rest of
-    /// this type's contract is a statement about the type.
+    /// **test support**: it exists only in a build that asks for this
+    /// crate's `test-support` feature, which is what makes the rest of
+    /// this type's contract a statement about the type.
+    ///
+    /// **Not `#[doc(hidden)]`, and that has a cost.**
+    /// `scripts/doc-gate.sh` renders this crate at `--all-features`, so
+    /// in the rendered docs this mint sits among the public API with
+    /// nothing marking it but this paragraph and the one above. The
+    /// trade is deliberate: a hidden door is one a reader cannot find,
+    /// and what keeps a consumer out is the feature gate rather than
+    /// the docs — nothing written against this name compiles unless the
+    /// build asks for the feature.
     ///
     /// The document half is not an argument — it is read off `eval`,
     /// the evaluation `pick`'s mesh is claimed to have been
@@ -565,6 +570,7 @@ impl<'a> PickTarget<'a> {
     /// target naming a node whose value failed or is absent (which
     /// [`NodePick::build`] refuses, and so mints nothing for), and the
     /// two witnesses of the raw-assembly class itself.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn new<T: Decide>(
         eval: &Evaluation<T>,
         node: RecipeNodeId,

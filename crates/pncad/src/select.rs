@@ -152,8 +152,12 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // structural twice over.** `MeshPick` stays interior, so a façade
 // consumer cannot NAME one; and both raw mints — `MeshPick::build`
 // and `PickTarget::new` — now live behind `editor-core`'s
-// `test-support` feature, which no edge in this crate's build graph
-// enables, so neither EXISTS in a build of this façade. The type is
+// `test-support` feature, which no consumer's manifest wires onto an
+// edge of its own — the claim `scripts/gates/test-features-dev-only.sh`
+// holds across every manifest in the repository, and the strongest one
+// a feature carries, since a build COMMAND may always ask for a feature
+// by name (that gate's header retracted the absolute this sentence used
+// to make). So a build of this façade has neither mint. The type is
 // carried only because `pick_face`'s signature names it. `NodePick`
 // is therefore not merely the door to prefer: it is the only one, here
 // and in `editor_core` itself.

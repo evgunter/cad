@@ -126,8 +126,12 @@ come from the one tessellation `NodePick::build` performed, so a caller
 declares none of them and the door's check is a statement about the
 type. The hand-assembled mint — `PickTarget::new`, and `MeshPick::build`
 the index it needs — is behind `editor-core`'s `test-support` cargo
-feature, enabled by one dev-dependency edge and by no consumer's build
-graph, so it exists in no shipped build. That closes issue #1098's
+feature, which this crate's own dev-dependency enables and which no
+consumer's manifest wires onto an edge of its own —
+`scripts/gates/test-features-dev-only.sh` holds that across every
+manifest in the repository, and its header says why that is the claim a
+feature carries rather than a stronger one: a build COMMAND may ask for
+any feature by name. That closes issue #1098's
 residual raw-assembly class at the API: the class now lives exactly
 where the feature does, in the rows that measure it (a raw target's
 declaration is taken at its word in the document half as in the node

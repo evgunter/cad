@@ -497,7 +497,7 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
 /// witness of what the TEST-SUPPORT door costs, and the node half of
 /// the class it documents is unprovable in principle either way.
 #[test]
-#[ignore = "R2 review finding: raw PickTarget provenance is by construction unverifiable; NodePick is the checked door — this row documents the residual raw-assembly class"]
+#[ignore = "forcing this row shows what the test-support mint costs: a mesh paired with the wrong node answers a name, and the door a consumer can reach cannot build one"]
 fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {
     let doc = ProfileDoc::empty_derived("gui1_r2_provenance", Tol::witness());
     let (doc, a) = box_node(doc, 0.0, 0.0, 1.0, 1.0);
