@@ -4,7 +4,7 @@ kind: issue
 title: EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts
 status: open
 opened: 2026-09-16
-refs: [brick-has-two-constructions-and-two-homes, blend-contact-edges-mint-the-intrinsic-description-without-the-rule]
+refs: [brick-has-two-constructions-and-two-homes]
 ---
 
 
@@ -89,3 +89,11 @@ numbers, and what the probe could not see (f64 only; two axis-aligned
 boxes; default and 1e-12 eps), are in
 `work/dup/brick-has-two-constructions-and-two-homes.md`'s
 `## Measurement (2026-09-16)`.
+
+## Reference retired at BLEND's sweep (2026-09-17)
+
+This row's `refs` named `blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+BLEND's unit 14, closed at its merge (PR #2509) and deleted with
+`work/blend/` at `docs/DOC-LEDGER.md` sweep 17; the finding it pointed
+at (the blend's contact edges routed through the must-carry rule) is
+in the tree, so the reference is dropped rather than re-pointed.

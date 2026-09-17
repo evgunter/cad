@@ -64,14 +64,13 @@ takes a single style review against
 
 ## Unit order
 
-Not yet drawn. The opening sitting reads the twenty-one rows, groups
+Not yet drawn. The opening sitting reads the twenty-five rows, groups
 them into units by dependency (the description-rule sites first, since
 the loft rows and the surgery rows each cite the rule), and writes the
-order here; until then nothing dispatches. **A unit that touches a
-file one of BLEND's three open units is landing on waits for that
-merge** — BLEND-14 (`crates/sweep/src/blend/surgery.rs`,
-`test_support.rs`) and BLEND-15 (`crates/sweep/src/blend/mod.rs`) are
-at their gates on 2026-09-17.
+order here; until then nothing dispatches. BLEND closed at its exit
+walk on 2026-09-17 with every unit but 13 merged; `S90-impl` (unit 13,
+blocked on PROPS' `H5`) came here with the walk and owes the per-read
+classification of the nineteen bracket reads as its first step.
 
 ## Exit shape
 
