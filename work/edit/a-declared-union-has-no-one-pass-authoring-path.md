@@ -124,3 +124,18 @@ persisted `Declare` form, two suites, five corpus documents, the
 Python constructor); the narrow `SetDeclare` stays the cheap
 alternative. Waiting on Ev.
 
+## RULED (2026-09-17, Ev on `[ev]` PR #2795): sited declarations
+
+A `Declare`'s pairs name SITED entities — `SitedRef { at, name }`,
+`at` the member (a pair boolean's operand), `name` the entity in that
+member's table — so a declaration names what exists before the union
+and is authored in one pass; the union derives each pair's fold step
+from its two sites; the site is the side, so `DeclareBothOperands`
+retires; the union's published `FromMember` names are unchanged. DM6
+is untouched. The DM4 clause is amended on this PR; the DM7 sentence
+that cited the old cycle is re-worded with it. Kernel unit (the
+resolver in `eval/wire.rs`, the persisted `Declare` form, the two
+DOCM-7/8 suites and the five declaring corpus documents, the Python
+declare constructors — LIB's, mechanical): v6 dual, block EDIT-B2
+slot 0, spec `docs/EDIT-DECL-SPEC.md` at the next claim.
+
