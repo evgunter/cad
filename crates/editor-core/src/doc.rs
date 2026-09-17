@@ -1276,16 +1276,24 @@ mod tests {
         }
     }
 
-    /// **A carrier `Carrier::ALL` does not name never walks.**
+    /// **A carrier [`Carrier::ALL`] does not name never walks.**
     ///
-    /// The other direction is the compiler's: a variant added to
+    /// One half of the weld is the compiler's: a variant added to
     /// [`Carrier`] does not compile until `Doc::carrier_names` places
-    /// it, and one DELETED from [`Carrier::ALL`] does not compile
-    /// either, because that array's length is its type. What neither
-    /// says is that a variant added to the enum reached the array —
-    /// the length is unchanged by an addition — so a new carrier
-    /// could be placed, be readable, and be walked by nobody. This is
-    /// that half.
+    /// it. The compiler does NOT say the new variant reached the
+    /// array — adding one leaves the array's length alone, so a
+    /// carrier can be placed, be readable, and be walked by nobody.
+    /// That is the case this row holds, and it is the likely one: the
+    /// author who adds a field to [`Doc`] is pushed to the match by a
+    /// broken build and to the array by nothing.
+    ///
+    /// A carrier REMOVED from the array is the compiler's again, but
+    /// only halfway: dropping an entry alone is a type error, since
+    /// the array's length is its type; dropping the length with it
+    /// leaves a variant nothing constructs, which is a `dead_code`
+    /// warning and an error under the gate's `-D warnings` — for as
+    /// long as nothing else constructs it. This row is the answer
+    /// that does not depend on that.
     #[test]
     fn the_carrier_roster_is_what_the_walk_iterates() {
         let walked: Vec<String> = Carrier::ALL
