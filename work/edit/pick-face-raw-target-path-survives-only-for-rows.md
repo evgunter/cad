@@ -131,6 +131,15 @@ every half of every reachable target is true by construction, and
 #1098's raw-assembly class lives where the feature does. The
 `compile_fail,E0451` row on the private fields is untouched.
 
+The feature also FORWARDS `profile/test-support`, which the first CI
+run found and a local green could not:
+`crates/profile/tests/raw_door_census.rs`'s
+`every_crate_that_names_the_door_reaches_it` reds a crate whose `src/`
+names `profile::RawLoop` and declares its own `test-support` without
+forwarding profile's, and editor-core's `#[cfg(test)]` modules do name
+it. `crates/sweep/Cargo.toml` carries the same forward for the same
+reason.
+
 **The four rows are unchanged** and green: they live in
 `editor-core`'s own test binary, which the self dev-dependency compiles
 with the feature on.
@@ -153,3 +162,8 @@ change): a workspace TEST file could still name a mint, because
 "the one `pncad` test that uses it" has no referent on this tree.
 `crates/pncad/tests/all.rs` carries only the curation ARGUMENT about
 it, which is re-worded here.
+
+**Verified.** Hosted CI run 35183311553 on `8de95d14a`: green, 39 jobs
+(36 success, 3 skipped), no failed step, twelve `test (…)` and five
+`k-lint (gate, …)`, the python suite's wheel build and unittest step
+green. PR #2801.
