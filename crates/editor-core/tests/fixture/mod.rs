@@ -41,11 +41,14 @@ pub mod seat;
 pub mod value_channel;
 
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
-    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble, evaluate,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
+    Entry, EvalOptions, Evaluation, Expr, LoopProgram, NameTable, Node, ParamName, ProfileDoc,
+    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble,
+    evaluate,
 };
-use geom_core::Tol;
+use geom_core::{Point3, Tol};
+use std::collections::HashSet;
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 
 /// **The evaluation, through the ordinary door** — `evaluate` at
 /// `f64` with a fresh cancel token and the witness tolerance, which
@@ -527,13 +530,44 @@ pub fn die() -> Die {
 
 pub mod pr4;
 
-/// One face name at a node (authoring shorthand).
-pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+/// **The witness tolerance a suite decides under** — `Tol::witness()`
+/// under the name the suites reach for it by.
+pub fn tol() -> Tol {
+    Tol::witness()
+}
+
+/// **A one-segment name at a node** — the whole of what "the name
+/// `node` mints for `seg`" is, for any entity kind. [`fname`],
+/// [`ename`] and [`vname`] are this with the kind spelled in the
+/// call.
+pub fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
     StableName {
-        kind: EntityKind::Face,
+        kind,
         node,
         path: vec![seg],
     }
+}
+
+/// One face name at a node (authoring shorthand).
+pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    minted(EntityKind::Face, node, seg)
+}
+
+/// One vertex name at a node (authoring shorthand).
+pub fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    minted(EntityKind::Vertex, node, seg)
+}
+
+/// **A cap RIM edge of an extrude**, by name — the arc cap `end`
+/// shares with the wall over outer- or hole-loop segment `edge`.
+pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> StableName {
+    ename(node, RoleSeg::RimEdge(end, edge))
+}
+
+/// **A cap VERTEX of an extrude**, by name — the corner cap `end`
+/// carries at profile vertex `vertex`.
+pub fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: ProfileVertexRef) -> StableName {
+    vname(node, RoleSeg::CapVertex(end, vertex))
 }
 
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —
@@ -597,11 +631,114 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 
 /// One edge name at a node (authoring shorthand).
 pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![seg],
+    minted(EntityKind::Edge, node, seg)
+}
+
+// ---------------------------------------------------------------- //
+// Reading an evaluation, its tables and its bodies
+// ---------------------------------------------------------------- //
+//
+// ONE home for the readers every name-reading suite spells for itself.
+// Each is the loud form: a missing node, a name that resolves to
+// nothing or to the wrong KIND of thing, or a dead key, is a panic
+// naming the subject rather than a `None` a row can drop on the floor.
+
+/// The name table `id` published, or a panic naming what it did
+/// instead.
+pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+    &ev.value(id)
+        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
+        .name_table
+}
+
+/// The one entity a name answers to — the row's loud end when a mint
+/// is missing, misspelled or aliased. `what` is the caller's word for
+/// the subject, so a failure says which row's name did not resolve.
+pub fn key_of(t: &NameTable, what: &str, n: &StableName) -> EntityKey {
+    match t.lookup(n) {
+        Some(Entry::Unique(r)) => r.key,
+        other => panic!("{what}: {n:?} is not uniquely named: {other:?}"),
     }
+}
+
+/// [`key_of`], refusing anything that is not an edge.
+pub fn edge_of(t: &NameTable, what: &str, n: &StableName) -> EdgeKey {
+    match key_of(t, what, n) {
+        EntityKey::Edge(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not an edge"),
+    }
+}
+
+/// [`key_of`], refusing anything that is not a vertex.
+pub fn vertex_of(t: &NameTable, what: &str, n: &StableName) -> VertexKey {
+    match key_of(t, what, n) {
+        EntityKey::Vertex(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not a vertex"),
+    }
+}
+
+/// [`key_of`], refusing anything that is not a face.
+pub fn face_of(t: &NameTable, what: &str, n: &StableName) -> FaceKey {
+    match key_of(t, what, n) {
+        EntityKey::Face(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not a face"),
+    }
+}
+
+/// How many names in `t` take `seg`'s role.
+pub fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
+    t.iter().filter(|(n, _)| seg(&n.path[0])).count()
+}
+
+/// Where a vertex stands.
+pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
+    topo::readback::vertex_point(body, v).expect("a live vertex")
+}
+
+/// An edge's two end vertices.
+pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
+    let edge = body.get_edge(e).expect("a live edge");
+    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
+    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
+    [h.start, far]
+}
+
+/// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
+/// the body rather than inferred from the surface it is a region of.
+/// An empty ring contributes its lone vertex: a pole is a vertex of
+/// the extent that bounds none of the face's edges.
+pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
+    let face = body.get_face(f).expect("a live face");
+    let mut out = HashSet::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        match body.get_loop(lk).expect("a live loop").boundary {
+            LoopBoundary::Empty { vertex } => {
+                out.insert(vertex);
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first).expect("a closed cycle") {
+                    out.insert(body.get_half_edge(he).expect("a live half-edge").start);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every edge on `f`'s boundary — [`face_vertices`]'s twin over the
+/// same walk. An empty ring bounds no edge, so it contributes nothing
+/// here.
+pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
+    let face = body.get_face(f).expect("a live face");
+    let mut out = HashSet::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        if let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary {
+            for he in body.loop_cycle(first).expect("a closed cycle") {
+                out.insert(body.get_half_edge(he).expect("a live half-edge").edge);
+            }
+        }
+    }
+    out
 }
 
 /// **The twelve edges of an extruded `n`-gon prism, by name** — the
@@ -619,8 +756,8 @@ pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
             loop_index: 0,
             segment: seg,
         };
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Start, e)));
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::End, e)));
+        out.push(rim_edge(node, CapEnd::Start, e));
+        out.push(rim_edge(node, CapEnd::End, e));
         out.push(ename(
             node,
             RoleSeg::LateralEdge(ProfileVertexRef {

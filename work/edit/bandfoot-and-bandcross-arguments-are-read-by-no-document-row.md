@@ -2,8 +2,11 @@
 id: bandfoot-and-bandcross-arguments-are-read-by-no-document-row
 kind: issue
 title: No document row reads a BandFoot's, BandCross's, BandFace's or BandSlit's argument — four blend mints ride check_total and a count alone
-status: spec
+status: closed
+pr: 2794
+branch: edit/ladder-rim-fixture
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -40,7 +43,15 @@ is one of three shapes, and none of them says what argument the role
 should carry:
 
 - an exhaustive `match` arm that classifies a role into a word
-  (`m6_composed_node.rs`, `m6_5_downstream.rs`);
+  (`m6_composed_node.rs` — and NOT `m6_5_downstream.rs`, which this
+  finding named when it was written and which carries no arm over any
+  of these roles at all: `grep -n Band
+  crates/editor-core/tests/m6_5_downstream.rs` is empty. Corrected in
+  the fix pass, 2026-09-17; the hit list is the five files under
+  `crates/editor-core/tests/` that match
+  `BandFoot|BandCross|BandFace|BandSlit`, which are
+  `blend5_r1_probes.rs`, `blend5_rim_support.rs`, `fixture/mod.rs`,
+  `m4_pr4_resolve.rs` and `m6_composed_node.rs`);
 - a covariance walk over whatever `NameRef`s a segment wraps
   (`m4_pr4_resolve.rs`);
 - a COUNT filtered on the role —
@@ -142,3 +153,169 @@ names right or files what it finds); the sweep crate's records.
 `tests/all.rs`. If the derivation of the ladder profile copies
 `sweep::test_support`, give it one home there (S-BOOL/FILLET's test
 support, disclosed, as the carve did). Middle tier.
+
+## Built (2026-09-17, PR #2794)
+
+`crates/editor-core/tests/edit_ladder_rim.rs` lands with six rows over
+one document: a square plate with two round holes, extruded, and both
+holes' `End`-cap rims filleted in ONE `Node::Fillet`. Each hole rim is a
+LADDER rim — a RING of the cap plane, and each of the two wall faces an
+extruded circle mints carries exactly one of its arcs.
+
+The four argument rows the spec names, each reading the argument against
+the runtime entity the name resolves to, plus
+`the_totality_and_the_counts_read_no_argument_at_all` (the count row,
+with the statement at the claim site that it stays green under every
+mutant) and
+`the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source` (the
+window derivation: the minimum over both rims of a foot-to-rim-vertex
+and a crossing-to-meridian-end separation, measured and pinned; `NEAR`
+is its 1e-7).
+
+**Mutant table**, each rotating one `BlendNaming` channel's source
+argument by one inside `name_blend` and running the whole `editor-core`
+`all` binary (baseline 1418 passed, 0 failed):
+
+| channel | role | rows RED |
+|---|---|---|
+| `rim_feet` | `BandFoot` | `a_band_foot_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| `meridian_splits` | `BandCross` | `a_band_crossing_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| `bands` | `BandFace` | `a_band_face_…`, + 2 digest goldens |
+| `slits` | `BandSlit` | `a_slit_runs_along_…`, + 2 digest goldens |
+
+`check_total` and every count stay green under all four. No other
+behavioural row in the tree moves: not `blend5_rim_support`, not
+`blend5_r1_probes`, not the `match` arms or the covariance walk. The two
+rows that do move under all four are the corpus name-DIGEST goldens
+(`lib_g16_corpus_name_digests`, `perf2_name_keying_differential`), which
+red under any change to the emitted names and cannot say which argument
+is right — change detectors, not readers. **The sentence that stood
+here about the sweep crate was false for `bands`** and is corrected in
+**After the review** below: `verbs_arms1_annulus` and `verbs_arms3` DO
+read that channel's source edge set by identity, on the record the
+surgery hands back rather than on a name, and cannot see a permutation
+applied in the emitter. The crate's other rows on these channels assert
+counts, source-key and minted-key injectivity and one minted face key,
+never which source entity a row carries.
+
+**What did not land**, and why: one rim (it would make the `bands` and
+`slits` mutants vacuous — those channels carry one row per closed rim);
+`die_composed` driven from the registry (it is not the smallest document
+that mints the four roles, and it already pays the registry battery);
+any addition to `sweep::test_support` (the plate's circles are authored
+in the document, so nothing is derived that could be copied); any change
+to `emit_blend.rs` (all four arguments are correct on this tree, so
+there was nothing to file).
+
+## After the review (2026-09-17, PR #2794)
+
+The review returned MERGEABLE with 0 MAJOR, 2 MINOR, 3 NOTE and 7
+style findings. Every one was taken.
+
+**The sweep paragraph above was false for `bands`, and is corrected.**
+Three of the four roles are first READ here — nothing in the tree says
+which rim vertex a foot was retracted from, which meridian a crossing
+split, or which meridian a slit ran along. `BandFace`'s SOURCE set
+already has two readers in the sweep crate:
+`verbs_arms1_annulus::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`
+asserts `rec.bands[0].1 == vec![rim]`, and `verbs_arms3`'s whole-rim
+row flattens `naming.bands`' edge sets and compares them to the rim's
+own two arcs. Both read the RECORD `sweep::fillet_edges` hands back;
+what is new for `BandFace` here is everything downstream of it — the
+emitter's translation of an edge-key set into a set of source edge
+NAMES, and a document-layer row reading that name. A permutation
+planted in `emit_blend` is invisible to those two rows for exactly that
+reason. The sweep that missed them matched `rec\.(rim_feet|…|slits)`,
+which cannot see `verbs_arms3`'s `naming.bands` spelling and which read
+`verbs_arms1_annulus`'s `rec.bands[0].1` as one of the counts beside
+it; the widened pattern is
+`\.(rim_feet|meridian_splits|bands|slits)\b` over `crates/`, whose
+blind spot is a record channel bound to a local before it is read
+(`let (_, srcs) = &rec.bands[0]`) — no such site exists on this tree,
+and the mutant runs cover it for `editor-core` from the other side.
+
+**The helpers got one home.** The eleven `edit_ladder_rim.rs` and
+`edit_ruled_carve.rs` each carried a byte-identical copy of — `tol`,
+`run`, `table`, `key_of`, `edge_of`, `vertex_of`, `face_of`, `point`,
+`ends`, `count`, `minted` — moved into
+`crates/editor-core/tests/fixture/mod.rs`, with `face_vertices`,
+`rim_edge` and `cap_vertex` unified there too and `vname` added beside
+`fname`/`ename`. The class outside these two suites is filed as
+`editor-core-suites-redefine-the-name-table-helpers` and is NOT swept
+here.
+
+**Six measurements replaced six assertions that read as measurements.**
+`APART` — how far the plate's closest two meridians actually stand —
+now backs the crossing row's "off every other meridian" arm, where
+`NEAR` had been standing in for a separation it is not; `CLOSEST` stays
+a measured literal and its row says why it coincides with the blend
+radius on right-angle supports and what a tapered wall would do to it;
+the loop index of each hole has one source (`rims`, derived from the
+order `plate` pushes them in); the two-equal-terms `max` became
+`footprint_gap`, which reads both ends and requires them to agree; and
+the face and counts rows now say where a wrong set actually reds (at
+the lookup, not the set equality) and that the counts can red only
+through totality.
+
+**Mutant table, re-run after the helper move.** Baseline on this
+branch: 1419 passed, 0 failed, 5 ignored. Each mutant is planted in
+`names::emit_blend::name_blend` by the reviewer's harness
+(`scripts/review-ladder-rim-mutants.py` on `review/ladderrim-rv`, a
+review artifact that is NOT carried here), which rewrites one
+`BlendNaming` channel's SOURCE halves and leaves the minted keys alone.
+
+| # | channel / op | rows RED |
+|---|---|---|
+| M1 | `rim_feet` rotate | `a_band_foot_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| M2 | `meridian_splits` rotate | `a_band_crossing_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| M3 | `bands` rotate | `a_band_face_…`, + 2 digest goldens |
+| M4 | `slits` rotate | `a_slit_runs_along_…`, + 2 digest goldens |
+| M5 | `rim_feet` swap inside one rim | `a_band_foot_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| M6 | `meridian_splits` swap inside one rim | `a_band_crossing_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| M7 | `rim_feet` swap ACROSS the two rims | `a_band_foot_…`, `a_slit_runs_along_…` — and NOTHING else |
+| M8 | `meridian_splits` swap ACROSS the two rims | `a_band_crossing_…`, `a_slit_runs_along_…` — and NOTHING else |
+| M9 | `bands` drop one member of each set | `a_band_face_…` (at the LOOKUP), + 2 digest goldens |
+| M10 | `rim_feet` drop a whole record | all six ladder rows, at the table — and no digest golden |
+
+M7 and M8 are the sharpest result and are new since the review: this
+suite is the ONLY thing in the tree that sees them. The two digest
+goldens (`lib_g16_corpus_name_digests`,
+`perf2_name_keying_differential`) red under the other mutants because
+any change to an emitted name moves a digest — they are change
+detectors that cannot say which argument is right — but the across-rims
+swap and the dropped record leave the corpus's own ladder rims'
+channels untouched, so the goldens stay green and only these rows
+speak. M10 does not red a count: dropping a record makes the fillet
+node fail outright with `Naming(MissingUpstream)`, so every row reds at
+the table, which is totality refusing rather than a count noticing.
+`check_total` and
+`the_totality_and_the_counts_read_no_argument_at_all` stay green under
+M1–M9. No other behavioural row in the tree moved under any of the ten.
+
+**Rows filed from the fix pass.**
+`editor-core-suites-redefine-the-name-table-helpers` (EDIT's slate):
+twenty-four `crates/editor-core/tests/` files still define their own
+copy of the readers `fixture/mod.rs` now holds one home for. Only the
+two `edit_*` suites were re-pointed here.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2794 after one opus style review (MERGEABLE:
+0 MAJOR, 2 MINOR, 3 NOTE, 7 style — every one taken in the fix pass).
+A plate with two round holes, both cap rims filleted in one
+`Node::Fillet`, is the smallest document in which all four
+permutations move a name; four rows read `BandFoot`, `BandCross`,
+`BandFace` and `BandSlit` arguments against the runtime entity each
+name resolves to, ten mutants each red on its row with `check_total`
+and every count green, and the two across-rim swaps are seen by
+nothing else in the tree. The review's corrections stand in the
+record: `BandFace`'s source set already has two readers in the sweep
+crate's rows (the emitter-side translation is what is new for it), and
+`m6_5_downstream` carries no arm over these roles. The eleven helpers
+the suite had copied from `edit_ruled_carve.rs` now have one home in
+`tests/fixture/mod.rs` (two of the copies had diverged), with `vname`
+beside `fname`/`ename`; the class across the other twenty-four suites
+is filed as `editor-core-suites-redefine-the-name-table-helpers`.
+The orchestrator's rulings on the lane's three questions: the carve
+branch was already merged, so no conflict; `face_edges` moves with its
+twin; the tight neighbour-arm bound stays.
