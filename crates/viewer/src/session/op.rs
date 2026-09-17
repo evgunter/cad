@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+    ProfileProgram, RecipeNodeId, SitedFace, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -358,9 +358,9 @@ pub enum SessionOp {
         /// The `a` reference — a name and the operand it is read at,
         /// resolving to a member of A11's vocabulary
         /// (`pncad::document::member_of`).
-        a: SitedRef,
+        a: SitedFace,
         /// The `b` reference, same vocabulary.
-        b: SitedRef,
+        b: SitedFace,
         /// The declared contact class.
         class: ContactClass,
         /// The alignment datum (frames in each member's own part
