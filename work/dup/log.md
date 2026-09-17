@@ -376,3 +376,62 @@ remote orchestrator has no away-channel monitor and no
 `hourly-checkin.sh`; the substitutes are `subscribe_pr_activity` per
 open PR and a `create_trigger` Routine bound to this session.** Arm
 both at the first dispatch, not after the first stall.
+
+### Link 1b's full review (2026-09-17) — mergeable, and it measured what the brief only suspected
+
+**Verdict: mergeable, no MAJOR**, all seven falsification claims confirmed —
+and confirmed by re-measurement rather than by reading the PR: 105 661
+lines of derived-`Debug` dump compared byte-for-byte at both SHAs,
+mutation (c) re-run independently, the interval 5-rows-vs-3 split
+reproduced locally. The claim CI could not make, the review made.
+
+**The finding worth keeping: a shared home costs you an oracle, and
+this unit paid it without noticing.** Link 1's guard compared doors
+*against each other*, which silently catches a surface regression in
+any one of them. Once the doors share a core, a change that moves every
+door alike is invisible to that shape — the lane saw this and added an
+independent row that re-derives the body from `profile`/`z`/`map`. The
+review confirms the row really is independent, and then measured what
+it does **not** cover: it never reads a surface. Changing `plane(&rev)`
+to `plane(&bot)` reds `every_box_door_builds_one_body` at the merge
+base and **nothing at head**. So the unification traded away an axis,
+the compensation restored most of it, and only a reader who went
+looking for the gap found the rest. **Generalisation for this program:
+when a unit gives n spellings one home, ask what the n-way comparison
+was silently buying, because the shared home cannot buy it back.**
+
+**Three false statements this unit wrote**, all caught by the review and
+none by CI: a fresh causal claim in `review_m3_pr3_consumer` naming the
+describe step where the `&mut Body` seat is what matters; a dead first
+arm promoted from `prism_z` into the one core behind eight doors; and
+`cube_doors_agree.rs`'s header still asserting the two-route property
+**twenty lines above a new paragraph that says the opposite**. A file
+that contradicts itself within thirty lines is what accumulation looks
+like when two units write the same header.
+
+**Two durable records were wrong where the PR body was right.** The row
+claimed mutation (c) "reds only that row" (it reds four); and it retired
+`triangle_prism` on three reasons, one of which is not a difference —
+`[c,b,a]` and `[a,c,b]` are cyclic rotations and `newell_plane` anchors
+at the centroid over a cyclic cross-product sum, so both name the same
+plane. **The PR body is not the record; the row is.** Worth stating as a
+rule: when a lane writes the same fact into both, the row is the one to
+check, because it is the one that survives.
+
+**Two brief corrections, both mine.** `pub` on `prism_ops` serves two
+sibling suites, not one, and every top-level item in `common/mod.rs` was
+already `pub` — `cube_ops` was the file's only private item, so the
+shape is the file's convention rather than an exception. And the
+arena-order question I raised is settled by `DESIGN.md:202`'s ratified
+*"deterministic minting order (documented per op — D9 lineage replay)"*:
+the composite order is a **derived consequence of a stated contract**,
+not an invented one, so pinning it is right and the maintenance cost on
+links 2 and 3 is near zero.
+
+**X4, fourth instance, and the first one no instrument could have
+caught.** `REFLEX_L` is digit-for-digit `stl`'s `l_prism`, and the same
+profile literal appears seven times across four crates — including a
+byte-identical pair inside one test binary. Every instrument this
+program has used keys on a builder (`mvfs(`, `find_half_edge(seed`, a
+name); **none can see a duplicated profile *literal***. The class needs
+an instrument that greps the constant, not the construction.

@@ -344,6 +344,19 @@ watching the gate fire.
    to annotate, and that asymmetry is worth revisiting once the family
    has a home in `src/`.
 
+   **Named for link 3, so they are scheduled rather than disclosed**
+   (link 1b's review, Q6): three in-`src` census candidates nobody has
+   opened — `crates/topo/src/review_m1_pr2/cube_independent.rs`,
+   `.../atomicity.rs`, and `crates/topo/src/review_m1_pr3.rs`'s
+   `build_box`. The census that found them counts call sites rather than
+   operators, so it undercounts any builder that loops and cannot settle
+   their membership either way; someone has to read them, and link 3 is
+   the unit standing in that code. Also for link 3 to decide:
+   `crates/topo/tests/fixture/mod.rs` is a **second** `tests/`-only
+   vocabulary home in the same binary, 393 lines, with no stated
+   boundary against `tests/common/mod.rs` — the move has to say which of
+   the two it is moving.
+
 3. **Move, then unify.** The family goes to
    `crates/topo/src/test_support_impl.rs`; `sweep::test_support::brick`
    delegates to it or is deleted, and `stl` and `step-export` follow
