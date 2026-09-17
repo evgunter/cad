@@ -102,7 +102,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::doc::Doc;
+use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
@@ -1271,19 +1271,29 @@ pub fn split(
         }
     }
     // Cut-side name references must lie wholly within the cut: the
-    // part document cannot name the remainder's entities.
-    for &id in doc.order() {
-        if !cut.contains(&id) {
-            continue;
-        }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            if !derivation_nodes(name).is_subset(cut) {
-                return Err(SplitError::PartNameReachesRemainder {
-                    node: id,
-                    name: Box::new(name.clone()),
-                });
+    // part document cannot name the remainder's entities. Read off
+    // the document's name-carrier enumeration, so a carrier added to
+    // `Carrier` is walked here without being remembered into this
+    // site — only its SIDE has to be decided, which is what the two
+    // arms below say.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if !cut.contains(&node) {
+                    continue;
+                }
+                if !derivation_nodes(name).is_subset(cut) {
+                    return Err(SplitError::PartNameReachesRemainder {
+                        node,
+                        name: Box::new(name.clone()),
+                    });
+                }
             }
+            // A store key is the document's, not either side's: no
+            // node carries it, so there is no cut-side instance of
+            // one to refuse. It is classified below instead, where
+            // the remainder's references are.
+            NameCarrier::Store { .. } => {}
         }
     }
     // Remainder-side references to cut entities re-anchor through the
@@ -1308,17 +1318,20 @@ pub fn split(
         rebinds.insert(name.clone());
         Ok(())
     };
-    for &id in doc.order() {
-        if cut.contains(&id) {
-            continue;
+    // Every name the document holds that is not carried by a cut
+    // node: the payload names of the kept nodes, then the store's
+    // keys, which no node carries and which therefore always
+    // classify.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if cut.contains(&node) {
+                    continue;
+                }
+                classify(name)?;
+            }
+            NameCarrier::Store { name } => classify(name)?,
         }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
     }
     // The deterministic id remap: cut nodes in document order mint
     // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
@@ -1705,14 +1718,11 @@ pub fn inline(
             name: Box::new(name.clone()),
         })
     };
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
+    // Every name the host document holds, in both carriers — the
+    // classification is the same for each, so this asks the
+    // enumeration for the names and nothing else.
+    for carrier in doc.name_carriers() {
+        classify(carrier.name())?;
     }
     wrapped.sort();
     wrapped.dedup();
