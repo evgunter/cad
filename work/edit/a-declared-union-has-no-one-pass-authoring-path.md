@@ -206,3 +206,11 @@ one; `pncad::select`'s declare doors are re-exports of `editor-core`'s
 and needed no change; `FlushFinding`'s pair became sited, because
 `declare_node(&findings)` holds no consumer context and could not have
 sited a same-operand carried finding at all.
+
+**CI**: run `35197936603` green on head `5ff5db8093011f46f53ba160bc9de36c27c33ee6`
+(38 jobs, 0 failed; twelve `test (…)`, five `k-lint (gate, …)`, the python
+suite). An earlier run was red in six jobs from ONE cause, recorded on the
+PR: main had moved `asm_r2a_mate_solve.rs`'s import block, and the
+auto-merge of this branch with main dropped the `SitedRef` the branch had
+added to it — green on the branch tip, red on the PR's merge ref. Main is
+merged in and the import restored.
