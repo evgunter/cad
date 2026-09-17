@@ -2,7 +2,7 @@
 id: bandfoot-and-bandcross-arguments-are-read-by-no-document-row
 kind: issue
 title: No document row reads a BandFoot's, BandCross's, BandFace's or BandSlit's argument — four blend mints ride check_total and a count alone
-status: open
+status: spec
 opened: 2026-09-16
 ---
 
@@ -86,3 +86,59 @@ is the permutation above, applied to `rec.rim_feet` and
 `crates/editor-core/src/names/emit_blend.rs` is EDIT's (claimed
 2026-09-16 for the ruled cut-off-arc row), so this sits beside the
 fixture row it was found from.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier, branch `edit/ladder-rim-fixture`
+
+**Premises, verified against the tree.** `emit_blend.rs` mints
+`BandFace` from `rec.bands: Vec<(FaceKey, Vec<EdgeKey>)>`, `BandFoot`
+from `rec.rim_feet: Vec<(VertexKey, VertexKey)>`, `BandCross` from
+`rec.meridian_splits: Vec<(VertexKey, EdgeKey)>`, `BandSlit` from
+`rec.slits: Vec<(EdgeKey, EdgeKey)>` (`sweep::blend::naming`, lines
+185–203). The corpus's `die_composed` carves LADDER rims through
+`Node::Fillet`; `blend5_rim_support.rs` drives an ANNULUS rim and reads
+`BandTrim`'s argument; `edit_ruled_carve.rs` is the shape for a row
+that reads a role's ARGUMENT against the entity the name resolves to.
+
+**What lands.** `crates/editor-core/tests/edit_ladder_rim.rs` (+ its
+`#[path]` line in `tests/all.rs`): a document driving a ladder rim
+through `Node::Fillet` — the smallest document that mints all four
+roles (measure: a rim whose supports meet at a ladder, the
+`die_composed` pip cavity's shape, authored as a recipe through
+`DocEdit`; if `die_composed` itself is the smallest, drive it from the
+corpus registry and say why the registry's cost is not paid twice).
+Four rows, each reading the ARGUMENT against the runtime entity:
+- `a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex`
+  — the foot's coordinates against the source rim vertex its `BandFoot`
+  argument names: on the host support, retracted from that vertex and
+  no other (the name resolves; the geometry agrees).
+- `a_band_crossing_lies_on_the_meridian_its_name_carries` — the
+  crossing vertex's coordinates on the meridian edge the `BandCross`
+  argument names, and not on its neighbour.
+- `a_band_face_carries_the_set_of_rim_edges_it_rounds` — the face's
+  boundary against the SET of source rim edge names in `BandFace`'s
+  argument, as a set equality, not a count.
+- `a_slit_runs_along_the_meridian_it_was_slit_along` — the slit edge's
+  two ends on the meridian `BandSlit`'s argument names.
+Plus the count row the header already promised is NOT enough
+(`check_total` and the counts stay green under every mutant below —
+state it at the claim site).
+
+**Mutants, each named with the rows it reds:** permute the source
+argument across `rec.rim_feet`; across `rec.meridian_splits` (the
+neighbouring meridian); across `rec.bands`' edge sets; across
+`rec.slits`. Each leaves `check_total` and the counts green and reds
+exactly its row; say which of the four survive any OTHER row in the
+tree (`blend5_rim_support`, `blend5_r1_probes`, the sweep crate's own
+rows) — the fixture is only load-bearing where it is the first reader.
+
+**The window.** As `edit_ruled_carve.rs`: derive the one tolerance from
+the closest separation a row must resolve, measured and pinned by a
+row; no chosen constant.
+
+**Not this unit:** `emit_blend.rs` itself (the fixture proves the
+names right or files what it finds); the sweep crate's records.
+
+**Territory:** `crates/editor-core/tests/*` (EDIT, also TCOST/TINT);
+`tests/all.rs`. If the derivation of the ladder profile copies
+`sweep::test_support`, give it one home there (S-BOOL/FILLET's test
+support, disclosed, as the carve did). Middle tier.

@@ -2,7 +2,7 @@
 id: load-door-does-not-check-payload-expression-param-refs
 kind: issue
 title: The load door asks the param-table rule of slot expressions only; a measure's or an assertion's payload expression is edit-door-only
-status: open
+status: spec
 opened: 2026-09-16
 ---
 
@@ -47,3 +47,64 @@ expressions (`check_param_refs`) and ruled that half. The payload half
 needs two more `SnapshotError` arms with their tags and F6 rows, and
 the payload vocabulary's refusals name a NODE rather than a slot, so
 it is a second pair of arms rather than a wider domain for the first.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier, branch `edit/load-door-payload-refs`
+
+**Premises, verified against the tree.** `Doc::param_ref_fault(&Expr)
+-> Option<ParamRefFault>` (`doc.rs:857`) is the one predicate; the edit
+door asks it of every `payload_exprs` leaf in `check_node_slots`
+(`edit.rs` ~1941) and refuses `EditError::UnknownPayloadParam { name,
+node }` / `PayloadParamDimensionMismatch { name, node, declared,
+referenced }`; the load door's `first_slot_param_ref_fault`
+(`persist/check.rs:369`) walks `node.slots()` only, placed on
+`Walk::SlotParamRef`; `Walk::ORDER` is what `validate_document`
+iterates and `Walk::run` is the exhaustive map (PR #2780). The probe
+`rv_a_measure_expression_reading_an_undeclared_parameter_still_loads`
+is green because the gap is real.
+
+**What lands.**
+1. `first_payload_param_ref_fault(snapshot) -> Option<(RecipeNodeId,
+   ParamRefFault)>` beside the slot walk, over `payload_exprs` of every
+   node, asking the SAME `param_ref_fault`; no second spelling of the
+   rule.
+2. Two `SnapshotError` arms, `PayloadUnknownDocParam { node, name }` and
+   `PayloadDocParamDimension { node, name, declared, referenced }`,
+   whose `Display` names the NODE (the payload vocabulary's shape, as
+   the edit door's does) and the parameter; the F6 census in
+   `display_contract.rs` gains both cases; `crates/pncad-py/src/tags.rs`
+   gains `payload_unknown_doc_param` / `payload_doc_param_dimension`
+   and the tag inventory the two words (LIB's, mechanical — the
+   exhaustive match breaks without them; say so).
+3. Placement: a new `Walk::PayloadParamRef` after `Walk::SlotParamRef`
+   in `Walk::ORDER`, or the two payload arms placed on
+   `Walk::SlotParamRef` renamed `Walk::ParamRef` — take the second only
+   if the walk's doc can say in one sentence why slot and payload are
+   one walk; either way the exhaustive match places both arms.
+4. The probe flips: rewrite it red-first as
+   `a_measure_expression_reading_an_undeclared_parameter_refuses_to_load`
+   (the same saved document now refuses as the new arm, and `InsertNode`
+   of the same node refuses `UnknownPayloadParam` — one row reads both
+   doors' answers over one fixture), plus the dimension twin (a
+   declared parameter read at another dimension by a measure or an
+   assertion bound), plus an assertion-bound row. A round-trip row: a
+   document whose measure reads a declared parameter at the declared
+   dimension saves, loads, and `bit_eq`s.
+5. Order in the walk: a document with BOTH a slot fault and a payload
+   fault reports the slot fault (or state and pin whichever order the
+   placement in (3) gives — the round-three review's NOTE-2 said an
+   unpinned order shifts a corrupt file's diagnosis).
+
+**Mutants, each named with the rows it reds:** drop the payload walk
+(the flipped probe reds); walk slots twice instead (the payload rows
+red, the slot rows stay green); swap the two arms' payloads.
+
+**Not this unit:** the payload expressions' DIMENSION checks already run
+at construction (`MeasureExpr`'s F1 checker; an assertion's bound
+against its measure) — say so in the walk's doc; the row does not
+re-check them.
+
+**Territory:** `crates/editor-core/src/persist/check.rs`, `src/node.rs`
+(EDIT); `crates/editor-core/tests/*` (also TCOST/TINT);
+`crates/pncad-py/src/tags.rs`, `src/tests.rs` (LIB, mechanical).
+Middle tier: one opus style review with a correctness arm, then a fix
+pass.

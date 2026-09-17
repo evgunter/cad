@@ -27,8 +27,10 @@ posture under §Process.
 
 1. **Ruled and ready** — `cut-off-arc-persists-as-a-corner-arc`
    merged (E-class, PR #2717); the fixture it was split from,
-   `a-ruled-carve-has-no-editor-fixture-…`, is **dispatched**, middle
-   tier.
+   `a-ruled-carve-has-no-editor-fixture-…`, is **merged** (PR #2778,
+   middle tier); its residue
+   `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` is
+   **spec'd**, middle tier (wave 6).
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
@@ -38,8 +40,12 @@ posture under §Process.
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
    middle tier). DM7's boundary (appearance keys) and DM8's word
-   "canonical" are on the third `[ev]` PR (#2764) with the pick door's
-   `t`. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
+   "canonical" were ruled on the third `[ev]` PR (#2764): DM8's
+   follow-through is **merged** (E-class, PR #2785); DM7's second
+   carrier, `stranded-appearance-keys-are-not-reported-by-dm7`, is
+   **merged** (PR #2784, middle tier); its residue
+   `document-stablename-carriers-have-no-enumeration` is **spec'd**,
+   middle tier (wave 6). `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
    not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` merged (kernel unit);
@@ -48,13 +54,14 @@ posture under §Process.
    `load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`,
    is **dispatched**, middle tier. `doc-param-distribution-edit-has-no-door`
    (the unit door's mirror) is **dispatched**, middle tier.
-   Round two merged (PR #2772) and left three load-door rows, now
-   **dispatched** together as round three, middle tier
-   (`load-door-checks-slot-dimensions-for-profile-nodes-only` carries
-   the spec). `recorded-program-arguments-carry-no-notation` is
-   **dispatched**, middle tier, ruled by DESIGN.md D6 ¶2 and the
-   doc-param precedent
-   (LIB's Python half parked on it).
+   Round two merged (PR #2772) and left three load-door rows, merged
+   together as round three (PR #2780, middle tier; the census is now
+   the code's). `recorded-program-arguments-carry-no-notation` is
+   **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
+   doc-param precedent; LIB's Python half unparked at that merge).
+   Round three's residue
+   `load-door-does-not-check-payload-expression-param-refs` is
+   **spec'd**, middle tier (wave 6).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK and EDIT-PICK2 merged. Three
@@ -62,8 +69,10 @@ posture under §Process.
    `pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`,
    `pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`)
    are parked on the ruling row
-   `what-t-the-pick-door-answers-and-with-what-width` (`needs_ev`: the
-   orchestrator ruled wrongly twice on this door and puts it to Ev);
+   `what-t-the-pick-door-answers-and-with-what-width`, ruled by Ev on
+   the third `[ev]` PR (#2764) and being built as EDIT-PICK3
+   (`pick-door-answers-a-t-interval`, kernel unit, v6 dual, block
+   EDIT-B1 slot 2, **dispatched**);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;

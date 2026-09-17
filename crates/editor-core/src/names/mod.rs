@@ -6,9 +6,9 @@
 //! Names contain no floats, no arena keys, no bare enumeration
 //! indices — geometry enters only as margined predicate VERDICTS
 //! recorded in [`Qualifier`]s (N2), and the only integer payloads are
-//! recipe-structural data (pattern `Instance(i)`) or the profile
-//! crate's own canonical combinatorial identities (locators — see
-//! [`role`](self)).
+//! recipe-structural data (pattern `Instance(i)`) or a profile's own
+//! combinatorial identities (locators — see [`role`](self), which
+//! says which anchoring a published locator carries).
 //!
 //! The per-node [`NameTable`] (N4) is emitted EAGERLY by the wire
 //! layer during evaluation — a mechanical, linear pass over each op's

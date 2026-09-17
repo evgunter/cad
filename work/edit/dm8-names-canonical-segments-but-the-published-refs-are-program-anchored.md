@@ -2,8 +2,11 @@
 id: dm8-names-canonical-segments-but-the-published-refs-are-program-anchored
 kind: issue
 title: DM8 says 'canonical segments' but a program loop's published ProfileEdgeRef is program-anchored
-status: spec
+status: closed
+pr: 2785
+branch: edit/dm8-follow-through
 opened: 2026-09-16
+closed: 2026-09-16
 refs: [authored-step-to-canonical-segment-map-has-no-home]
 ---
 
@@ -146,3 +149,65 @@ each with its shape written here:
    WIRE's `section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`).
 
 No other behaviour changes; corpus goldens unmoved.
+
+## Built (2026-09-16) — PR #2785, branch `edit/dm8-follow-through`
+
+All three edits the ruling named landed.
+
+1. `ProfileEdgeRef`'s doc in `names/role.rs` says which anchoring it
+   carries and when — canonical as an emitter mints it, the program's
+   own step order once `eval/anchor.rs`'s rewrite has published it —
+   citing DM8 and naming the loft exception. Its two fields follow, and
+   `ProfileVertexRef` with them: `remap_table` rewrites `loop_index`
+   too (canonical loop index to `LoopAnchor::program_loop`), so the
+   anchoring is not a segment-only property.
+2. The two-record check at `profile_edges_of` is an `assert!` naming
+   the invariant and both records' values.
+   `StepSegmentsError::RecordsDisagree` is deleted with its `Display`
+   arm and its F6 census case; the enum's header doc says why there is
+   no such arm. `two_records_describing_different_loops_refuse` is
+   `two_records_describing_different_loops_assert`, a `should_panic`
+   row whose `expected` is the whole message, values included.
+3. The door's doc cites DM8's amended sentence — the span GIVES the
+   answer, the permutation is CHECKED and never applied — and a new
+   section says why a disagreement asserts, with the mispairing cost
+   and its citation of WIRE's
+   `section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`.
+
+Three things the spec did not name, each argued in the PR body:
+
+- **The `crates/pncad-py` tag the spec says to retire does not
+  exist.** `StepSegmentsError` has no per-variant spelling there; the
+  type is dispositioned whole as `gap: B-STEP-SEGMENTS` because the
+  door has no Python binding yet. Nothing under `crates/pncad*` is
+  touched.
+- **A second row**,
+  `a_naming_without_this_loop_refuses_rather_than_asserting`, carries
+  the `NoAnchor` assertion the old row held alongside the one that now
+  panics; without it `NoAnchor` has no coverage.
+- **The sweep** over prose calling a published profile ref canonical
+  fixed three more sites in `names/role.rs` and `names/mod.rs` (the
+  `# Locators` paragraph, the `band` builder's doc, the module's
+  locator sentence) and filed the Python mirror as
+  `work/lib/python-selection-builder-docs-call-the-profile-index-canonical`.
+
+Nothing else moved: no golden, no stored bit, no behaviour beyond the
+refusal that became an assertion.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2785 (E-class: green CI and the orchestrator's
+read; no review lane). The three edits the ruling named landed as the
+`## Built` section records, with the sweep's three further prose sites
+in `names/` taken as the same class. The orchestrator's rulings on the
+lane's three questions: the `crates/pncad-py` half of the spec was a
+wrong premise (there is no per-variant tag; the type is dispositioned
+whole as `gap: B-STEP-SEGMENTS`), so nothing under `crates/pncad*`
+moves and the spec is corrected by this note; the three sweep sites
+stay; the closed row `authored-step-to-canonical-segment-map-has-no-home`
+keeps its `m3` note naming `RecordsDisagree`, since it records a
+mutation whose branch still exists and now asserts. One stale inline
+comment in the `should_panic` row (it still said the door "cannot tell
+which" record lied) was re-worded at close-out to match the row's doc.
+Residue for LIB in its own file:
+`work/lib/python-selection-builder-docs-call-the-profile-index-canonical`.

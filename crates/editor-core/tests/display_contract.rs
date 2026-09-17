@@ -1783,7 +1783,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -1835,6 +1835,11 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
 /// The strand sentence's relative clause binds to the NODE: the name
 /// is what survives a strand, so a sentence reading "a name, which
 /// this edit deleted" would name the wrong casualty.
+/// The appearance arm names the STORE where the payload arm names a
+/// carrying node, because that is the difference between the two
+/// carriers, and it offers both repairs: `Rebind` moves the key,
+/// `ClearAppearance` retires it, and only the second works without a
+/// live node to move to.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let gauge = RecipeNodeId(3);
@@ -1859,6 +1864,14 @@ fn maintenance_display_says_what_the_edit_did() {
                 "resolves to nothing until it is rebound",
             ],
         ),
+        (
+            Maintenance::StrandedAppearance { name: face_name() },
+            vec![
+                "the appearance store holds an attachment under a face name minted by node 7",
+                "this edit deleted node 7",
+                "rebound or cleared",
+            ],
+        ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
 }
@@ -1869,7 +1882,7 @@ test_utils::f6_variants! {
     /// the door could not answer, so every arm must say which question
     /// in words a consumer can act on.
     const STEP_SEGMENTS_ERROR: StepSegmentsError =
-        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RecordsDisagree, SpanOffTheLoop];
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, SpanOffTheLoop];
 }
 
 #[test]
@@ -1892,10 +1905,6 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
         (
             StepSegmentsError::NoAnchor { loop_: 0 },
             vec!["naming anchor", "loop 0"],
-        ),
-        (
-            StepSegmentsError::RecordsDisagree { loop_: 3 },
-            vec!["loop 3", "two different permutations"],
         ),
         (
             StepSegmentsError::SpanOffTheLoop {

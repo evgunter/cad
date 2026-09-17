@@ -13220,3 +13220,176 @@ the subject is deleted rather than moved, so the sentence cannot be
 repointed.
 
 Signed (VIEW implementer lane `view/datums-basis`).
+
+## 2026-09-16 — `view/datum-refusals-named`: two refusals that were right and had no name
+
+Closed `datum-view-propagates-rather-than-refusing-by-name` and
+`a-datum-the-view-cannot-scale-vanishes-without-a-word` as one unit —
+the signature change is the second row's prerequisite.
+
+**`datum_view` answers `Result<View, CameraError>`**, refusing a
+non-finite width or height by name with the value in the message and a
+zero-area viewport with `UnusableBounds`. The `Result` over the
+`Option` the row also offered was the dispatch's ruling and it paid:
+`datum_view_refuses_a_window_the_way_the_cameras_own_door_does`
+compares this door's reply against `Camera::ray_through`'s on the same
+`ViewportSize`, variant for variant, which is an assertion an `Option`
+cannot carry. Compared through `Debug` rather than `==`, because half
+the inputs are `NaN` and a `CameraError` holding one is not equal to
+itself.
+
+**The class instance the first row recorded against itself is
+retired.** Both sides refused means `viewport_px` is `width.max(height)`
+over two finite positive numbers, so the `NaN` arm is deleted and no
+value the function did not compute leaves the door. `View`'s two field
+docs stop citing `datum_view` as the producer of one and say instead
+what is still true: the fields are the caller's, and the doors below
+owe their own check whatever is written there.
+
+**Both rows' reachability premise is right about its conclusion and
+wrong about its reason, and the gap is live.** `ViewportSize::aspect`
+asks whether both sides are above zero — so it refuses zero and
+refuses `NaN`, and **admits `inf`**. A pane of infinite extent has an
+aspect, passes `viewport_ui`'s early return and reaches `datum_view`,
+where every mark then refuses in silence. So the door's refusal is not
+a subset of the pane's guard, which is the whole reason the rows gave
+for calling this a hardening.
+`the_panes_aspect_guard_admits_an_extent_this_door_refuses` pins both
+halves. No production route was found that hands egui an infinite pane
+extent; what is established is that the guard does not exclude one —
+*a guard that admits everything positive is not a bound*, the register's
+own rule with the sign flipped.
+
+**So: the second row is the LIVE one and the first is hardening**, and
+the first is hardening for a narrower reason than it claims. Row A's
+two reachable causes are both real — the eye exactly on a datum, and a
+ruling whose extent is lost to the datum's own magnitude — and neither
+needs a pathological window.
+
+**`draws` answers `DatumDraws`**, the wireframes plus
+`vanished()`: how many came out with nothing drawn. A type change, so
+the compiler is the sweep over callers, and a method rather than a
+field, so the count cannot disagree with the thing it counts. The
+property is **"drew nothing"**, not "has no scale" — the second is a
+proxy that would miss the lost-extent case, which is one of the two
+live ones.
+
+**The shape pinned is the DIFFERENCE**, because "the segment list is
+empty" is equally true of a document with no datums.
+`how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed`
+measures four cases under one view: four datums at `f64::MAX` (four
+vanished), the same four with the eye on them (four), the same four
+from an ordinary place (**none** — without which the first two pass
+for a module that never draws), and a document with no datums (none,
+and an empty list). `a_datum_that_drew_some_of_itself_has_not_vanished`
+holds the far boundary.
+
+**No second latch was minted.** `frame::datums_badge` reads a count,
+`Subject::Camera`, `Tone::Actionable`, silent at zero — and
+the frame entry point (`<ViewerApp as eframe::App>::ui`, which is what
+the crate's prose elsewhere miscalls `update`) zeroes the local the
+panes write **before** they
+draw and assigns it back **unconditionally** after, whether or not the
+viewport was one of them. That is `profile_form_drawn`'s discipline,
+which `projection-fault-has-no-sweeper.md` names as the pattern the
+fault still lacks, so the count cannot outlive the view it describes
+and there is no sweeper to be missing. At `datum_view`'s refusal the
+pane writes the EXISTING `projection_fault` and returns; that is not a
+new latch and not a new condition either — every input this door
+refuses makes `view_projection` refuse a hundred lines down (an
+infinite height gives aspect `0.0`, an infinite width aspect `inf`,
+both aspect `NaN`), so the badge was going to be written on that frame
+and what changed is that it now names which side was not pixels.
+
+**Verification.** Both changes are signature changes, so a base-tree
+red can only be a compile failure and is not offered as one. Six
+mutations on the fixed tree instead, each redding a named row: deleting
+both refusals reds the parity row AND the aspect-gap row; deleting only
+the zero-area arm reds the parity row alone (the gap row is about `inf`
+and correctly does not claim the other); `vanished()` returning `0` and
+`vanished()` counting every drawing each red the distinguishability row
+(the second also reds the boundary row); a badge that never fires and a
+noun that never agrees each red the badge row.
+
+**The badge family's own header was wrong before this touched it.**
+`frame.rs`'s module doc enumerated the members as seven where the
+population is eight — `prefs_badge` was missing, and the README's list
+of the same family had it. Corrected to nine with the sentence now
+pointing at the counted population rather than restating it.
+
+**Sweep**, for the class *a door that hands back a value it did not
+compute, in a field shaped like one it did*, over `crates/viewer/src`:
+five patterns, ten hits, two filed —
+`id-readback-failure-reads-as-nothing-under-the-cursor` (a failed GPU
+readback becomes `IdMap::NOTHING`, and `idpass::disagreement` then
+reports it to the reader as the two picking paths disagreeing about the
+picture) and
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(unreachable below 51.5 GB of position data, and still the class). The
+hit list and the patterns' blind spots are in the PR body.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+**Addendum, same lane.** The first push's `rustdoc (gate)` went red on
+three intra-doc links this unit wrote to `ViewerApp::update`. There is
+no such function and there never has been — the frame entry point is
+`<ViewerApp as eframe::App>::ui` — and the name was taken from prose
+already in the tree (`frame.rs`'s `projection_badge` doc, and one row
+in `work/view/`), which says `update` in a code span where nothing
+checks it. Links were corrected; the two pre-existing spans are left as
+written and filed as
+`viewer-prose-calls-the-frame-entry-point-update`, per the in-fence
+rule about a citation that was wrong at the merge base.
+
+**And the receipt that missed it was mine.** `scripts/doc-gate.sh 2>&1
+| tail -20; echo "BARE=$?"` reports **`tail`'s** exit code, not the
+gate's. The bare pass had in fact failed locally before the push and
+the `0` was a measurement of the pipeline's last stage. Redirect to a
+file and read `$?` off the command itself; a pipeline's `$?` is never
+the receipt you think you are taking. All three forms re-run this way:
+`--selftest` 0, bare 0, `--skip-viewer-toolkit` 0.
+
+**Second addendum: the review's central correction was itself wrong,
+and finding that out corrected me too.** The review reported that at
+`f64::MAX` every mark refuses for want of a scale and `rule_patch`'s
+lost-extent arm is never reached, so the unit's justification for
+counting "drew nothing" rather than "has no scale" rested on an
+unreachable case. Instrumenting `grid` and `rule_patch` and running the
+fixture says otherwise: **the patch centre has a scale at every
+magnitude** — `Some(1.87e-4)` — because the centre is the point the
+camera is aimed at and the eye is a decimetre from it, so `rule_patch`
+is entered and the lost-extent arm fires. The review's probe read the
+scale at the datum's ORIGIN, which is where the normal tick is scaled;
+the module's own doc says the two marks are scaled at two different
+points, and that is the distinction the probe collapsed. Its ratio
+argument (`half / cv ≈ 1.46`, magnitude-independent) assumes the eye is
+about as far from the centre as the datum's origin is; measured, `half`
+is `0.26 m` against a `cv` running to `1e308`.
+
+**But the complaint under the wrong evidence was right.** The prose
+named `f64::MAX` as THE lost-extent case when it is three refusals at
+once — the tick's depth overflowing to `inf`, one ruled direction's
+`cv / pitch` overflowing past the finiteness guard, and the other
+losing its extent — and no row split them. The measured band is in the
+closed row's resolution as a table, and
+`a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale`
+is the row that splits them: at `1e100` the origin still scales, the
+tick draws, one direction still loses its extent, and the plane has NOT
+vanished. It reds under a `rule_patch` that emits its collapse.
+
+**Generalises, and it is the register's proxy rule with the reviewer
+holding the proxy.** *Scale* is not one quantity in this module — it is
+one per mark, at one point per mark, which the module says in as many
+words. A probe that samples it at a single point and reports
+`has_scale` has already chosen an answer. The check is the one this
+register states: name the property first and the instrument second,
+then ask what a member could look like that the instrument cannot see.
+
+**`git checkout <file>` took an uncommitted doc rewrite, again.**
+Reverting the mutation that certified the new row also discarded the
+`vanished()` doc edit made an hour earlier in the same file, and only
+`git status` showing `datums.rs` unmodified caught it. Third instance
+this program has recorded; the rule is already written (*commit before
+you mutate*) and I did not follow it for an edit made after the commit.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).

@@ -2654,8 +2654,12 @@ mod tests {
     ///
     /// EQUALITY is a reading — the schedule already is the cheapest
     /// split — so the refusal is the relation and not a strict
-    /// inequality beside it. Six of the 64 sized rows of the
-    /// committed baseline sit exactly there.
+    /// inequality beside it. Some of the committed baseline's sized
+    /// rows sit exactly there, and how many is a reading of that file
+    /// rather than a number to write down here:
+    /// `the_committed_baseline_meets_the_split_bound_on_this_many_rows`,
+    /// in `tools/tess-lint/tests/baseline_census.rs`, counts them and
+    /// reds when one arrives or leaves.
     #[test]
     fn the_cheapest_split_never_costs_more_than_the_schedule() {
         const OPT: usize = SIZING_FIRST + 2;
