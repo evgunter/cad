@@ -42,3 +42,36 @@ each re-cut" would discharge it.
 ## Was
 
 Disclosed by INSTR unit 4's style review (`instr/u4-census-partition-assert`).
+
+## Evidence from INSTR unit 1 (2026-09-16): the SIZING half, re-derived
+
+`baseline-sizing-census-second-copy` carried the same defect one
+subject over — its own sweep pattern was the SUPERSEDED sizing
+literals (`46,019`, `110,811`, `93,066`, `44,162`), so re-running it
+found the stale copies and said nothing about the live figures. Unit 1
+re-derived that pattern from what the census asserts today and ran it:
+
+```
+grep -rnE '362[,_]?154|261[,_]?106|88[,_]?036|147[,_]?960|127[,_]?966|76[,_]?599|1\.6807|1\.1493|29[,_]?726' \
+  --include=*.md --include=*.rs --include=*.py --include=*.sh --include=*.toml --include=*.yml .
+```
+
+**Two things that bear on this row.**
+
+- The re-derived sweep covers `all_pairs == 29_726` and every figure
+  `the_committed_baseline_sizes_this_much` asserts, so that much of
+  the hit list above is discharged as of 2026-09-16: outside the
+  census itself the only hits are dated tracker records
+  (`work/instr/log.md`, this row's own quotation). It does NOT cover
+  `pairs == 11`, `in_pairs == 22`, `all.len() == 1605`, `sized == 80`
+  or the *five of the seven* split — those literals are short enough
+  that a grep for them is noise, which is the same blind spot the
+  frozen sweep had.
+- **A re-derived pattern goes stale the moment it is written**, which
+  is this row's point stated as a receipt: the pattern above was
+  correct for exactly one cut, and the next re-cut moves six of its
+  nine literals. Nothing schedules the re-derivation, and unit 1 did
+  it only because its brief said the item was stale about itself. A
+  register row saying "re-derive and re-sweep on each re-cut" is the
+  remedy this row already proposes, and the sizing half now has a
+  second instance of the cost.

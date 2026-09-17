@@ -72,3 +72,35 @@ actually lives: a row that could see §1 is a row over "when is the
 fault written and when is it cleared", and there is nowhere headless to
 put one until that discipline is a value rather than two assignments in
 a draw path.
+
+## The design question §1 defers now has a worked instance, ten lines away (2026-09-16)
+
+§1 says the honest fix for the not-drawn-at-all arm is *"that the
+application clears the fault on a frame the viewport did NOT draw —
+the `profile_form_drawn` latch is the pattern"*, and leaves it because
+that would be a **third** piece of app-gated state.
+
+**#2788 built exactly that pattern, in the same struct.**
+`ViewerApp::datums_vanished` is a per-frame count the viewport writes:
+the frame entry point (`<ViewerApp as eframe::App>::ui`) zeroes the
+local the panes borrow BEFORE they draw and assigns it back
+UNCONDITIONALLY after, so a frame on which the viewport did not draw
+reports none. It sits beside `projection_fault` in `ViewerBehavior` and
+is passed the same way.
+
+So the argument against the fix has moved: the third piece of app-gated
+state exists, its discipline is written down, and what remains is one
+`Option<CameraError>` following a `usize` through the same two lines.
+What #2788 did NOT do is take this arm — it is not that unit's row, and
+the fault's meaning (*"what the viewport said the last time it could
+project"*) is unchanged by it.
+
+**Two facts for whoever takes it.** First, `projection_fault` now has
+**three** writers rather than the two §1 names: the zero-aspect early
+return, the `view_projection` match, and `datum_view`'s refusal, which
+#2788 added a hundred lines above the matrix on the ground that every
+input it declines is one the matrix declines too. Second, the count
+that demonstrates the pattern has **no headless row** over its
+set-and-clear discipline, for the reason §2 gives about these two
+fields — so the pattern is exercised only by the app, and taking this
+arm does not change that.

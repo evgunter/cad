@@ -150,3 +150,18 @@ mis-filed them as historical prose before adopting this row's reading:
 example of the doctrine paragraph whose own sentence says *"the PATHS
 are not [frozen] … and the pointers here followed them"*. They are live
 pointers in the doctrine's own demonstration that pointers follow.
+
+## One of the seven is gone (INSTR unit 1, 2026-09-16)
+
+`baseline_census.rs`'s `work/meter/baseline-sizing-census-second-copy`
+citation went with the paragraph that carried it: that paragraph said
+`docs/TESS-BUDGET.md` *"still carries four of the sizing figures
+asserted below in present-tense prose"*, which unit 1's fix made
+false, so it was rewritten and the pointer had nothing left to point
+at. **That is not the repair this row asks for** — the citation was
+deleted as collateral, not re-pointed — and the other four in that
+file (`work/meter/C15.md` x2, `work/meter/D201.md`,
+`work/meter/tess-lint-ungated-columns-fold-silently`) are untouched,
+including the two in the doctrine's own worked example. From this PR
+on the count above reads `baseline_census.rs` 4, **six live across
+three files**.
