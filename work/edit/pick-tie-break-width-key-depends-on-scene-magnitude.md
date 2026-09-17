@@ -297,3 +297,89 @@ their only use of `TSpan::width` is the enclosure's half-width, which
 the ruling keeps — so there was nothing to re-baseline there. The
 `tube_arc` width rows are in `crates/viewer/tests/index_memo.rs`, and
 those are re-baselined.
+
+## Fix pass (2026-09-17, same branch) — the review's findings built
+
+The style review's verdict was NOT-MERGEABLE-AS-IS on one MAJOR, and
+that finding is the largest change here.
+
+**MAJOR — the edge pick survives a face tie.** `hovered_for`,
+`edge_at_for` and `faces_under_cursor` open on `PickIndex::seed`,
+which was `pick_for` and propagated its refusal with `?` — so a cursor
+on a shared edge, the pixel a user aims an EDGE with, refused the
+edge pick: 18 of the 66 segment-midpoint cursors on the shipped plate.
+The seed is now a DEPTH: `PickIndex::front_of` answers the nearest of
+the faces the door names plus the tied set beside it, and the refusal
+is raised only by `hovered_for`, only for a cursor whose own answer
+would have been a face, and only after the edge-priority rule has had
+it. The occlusion probe reads the same door, which is why
+`work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts`
+§3 now records `front_of`'s two readers and why a depth across a tie
+is not a pick. Row: `edge_pick::a_cursor_the_face_pick_ties_on_still_picks_the_edge`
+(the reviewer's probe, inverted, with the 18/66 sweep as its fixture
+and its premise asserted).
+
+**The group rule has one home.** `resolve::pick::answer_of` over
+`(span, face key)` pairs answers `Answer::Miss | One | Ambiguous` —
+the survivors of `TSpan::precedes` grouped by face, each face at the
+hull of its members' intervals and the smallest rounded `t` among
+them. `pick_face`, `PickIndex::pick_for`, `pick3_acceptance::winners`
+and `index_memo::FlatReference::pick` all call it; the references keep
+their own candidate enumeration, which is what makes them references.
+
+**A refusing group no longer shadows a nearer face in another group.**
+`pick_for` collects every group's whole answer — a group that refuses
+contributes its tied faces — and runs `answer_of` over the union. Two
+rows on a new two-root fixture (`select_pick.rs`):
+`a_moved_face_in_front_of_a_tied_batch_is_the_answer` and
+`two_coincident_faces_across_groups_refuse_with_both`.
+
+**The smallest-`t` half, pinned.** The reviewer's
+`one_faces_members_answer_the_smallest_rounded_t` is adopted, and
+`several_triangles_of_one_face_answer_that_face`'s fixture is no
+longer degenerate: its two members are a few ulps apart along the ray
+(the seam a tessellation actually leaves), the FAR one offered first,
+and both premises — the overlap and the different parameters — are
+asserted.
+
+**The acceptance's columns.** `aim_lost` reads by IDENTITY: the aim is
+kept when the door names the aimed vertex's OWN face at the aimed
+parameter, not merely a hit at that depth. `beyond_or_miss` and
+`moved` read the NEAREST of the door's list rather than its first
+entry. On this head, release, full corpus: `aim_lost 0`,
+`aim_gained 1 440`, `moved 1`, `moved_farther 0`; of the 20 475
+refusals a hit at the aimed parameter is in, 20 469 name the aimed
+face itself. `tie.refused > 0`'s prose says what it is — a liveness
+guard on the corpus, not a measurement of the refusal.
+
+**The 4- and 6-face refusals attributed.** 2 351 of the wide aim's
+34 934 refusals name four (2 327) or six (24) faces. The four-face
+instance is `kitchen_sink` at the origin: four faces of four
+different (node, body) pairs — an instance's lateral, a split
+fragment of a merged face, a revolve cap and a revolve band — all
+containing one point, which is coincident faces of separate
+instances. The six-face instance is `cut_cylinder`: three faces
+incident at one point (two lateral split fragments and the section
+face) in EACH of the two bodies the cut produced, which are
+coincident there. Both are the ruling's intended refusal: every hit
+listed is true and nothing orders them.
+
+**Q7 — the status line.** The kernel's refusal stays numbered by name
+(the prose contract). `frame::pick_refusal` re-renders the tie itself,
+each face the way `idpass::Disagreement` renders a name — kind,
+minting node, role path — so two faces of one node are two phrases.
+Row: `frame_policy::the_status_line_renders_two_tied_faces_as_two_different_phrases`.
+
+**Q3/Q2 and the record.** The `Ambiguous` `Display` comment is one
+sentence. The PR body's `prose_census` paragraph is gone (that file is
+not in the diff). Three stale citations of the deleted tie-break are
+fixed (`pick.rs`'s memo-equivalence and `ray_triangle` boundary
+paragraphs, `pickindex.rs`'s edge-determinism paragraph) and the
+sweep `tie-break|tie break|narrower` over `crates/*/src`, the pick
+test suites and `docs/` is re-run: the surviving hits are the edge
+door's own pixel tie-break, `bvh`'s split rule and uses of "narrower"
+about intervals and windows.
+
+The review branch is merged authorship-preserving
+(`git merge --no-ff origin/review/pickrefuse-rv`), its two probes
+re-headed to the invariants they pin.
