@@ -328,6 +328,8 @@ mod review_must_carry_rule_r1_probes;
 mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
+#[path = "review_recourse_roster_r2_probes.rs"]
+mod review_recourse_roster_r2_probes;
 #[path = "review_s11_adv.rs"]
 mod review_s11_adv;
 #[path = "review_s12_adv.rs"]
