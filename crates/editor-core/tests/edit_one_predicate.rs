@@ -28,6 +28,14 @@
 //! a non-finite alignment or placement coordinate can only reach
 //! `validate_document` from memory. Every other rule below is
 //! reachable from a file and is paired here.
+//!
+//! **One rule below has no edit-door half, by construction rather than
+//! by omission**: a mate head is a `SitedFace` over a `FaceName`, so
+//! "this head names a face" is decided by the TYPE and there is no
+//! edit to refuse — the row pairs the load door against `SitedFace`'s
+//! own `compile_fail` doctest instead, and says so at the site. That
+//! is the same property one rung up: not two doors kept in step, but
+//! one decision the second door cannot restate differently.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
