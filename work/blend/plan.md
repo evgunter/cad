@@ -1,6 +1,6 @@
 # BLEND — the blend kernel and the profile fillet door (plan)
 
-**STATUS: OPEN (2026-09-06).** Successor to FILLET (closed 2026-09-06,
+**STATUS: OPEN, RE-SCOPED 2026-09-17, NOT DISPATCHING.** Opened 2026-09-06. Successor to FILLET (closed 2026-09-06,
 `docs/DOC-LEDGER.md` sweep 7), opened in the tracker-wide cut of
 2026-09-06 (`docs/WORK-TRACKS-2026-09.md`, addendum 2). Live state is
 `work/blend/log.md`'s tail and the item files beside this plan, never
@@ -30,9 +30,10 @@ output its own validator refuses. The substrate — `crates/sweep/README.md`
 `crates/topo/README.md` (`rim_of`) — is ratified and cited, never
 re-litigated.
 
-Territory: `crates/sweep/src/*` less `loft.rs` (S-BOOL's). The profile
-fillet door is S-BOOL's glob and is edited here by announced seam, as
-FILLET did.
+Territory: `crates/sweep/src/*` (`loft.rs` came here at S-BOOL's exit,
+2026-09-16), shared with CARVE by declaration since the cut. The
+profile fillet door is PATHS' glob (S-BOOL's until its exit) and is
+edited here by announced seam, as FILLET did.
 
 ## Review posture
 
@@ -113,12 +114,11 @@ H, in dependency order:
     classification of the nineteen bracket reads so the day `H5`
     lands the tightening is one PR. Last.
 
-D, as `[ev]`:
+D, as `[ev]` — answered:
 
-- `ambiguity-k-below-the-cap-rim-crossover` — should `Tol` carry a K
-  floor at all, and is it the crossover or a kernel-wide argument.
-  Kernel tolerance policy; opened as an `[ev]` PR when Ev is next
-  available and never resolved by implementing.
+- `ambiguity-k-below-the-cap-rim-crossover` — closed 2026-09-08 by
+  Ev's ruling: no K floor; the special case removed, no constraint on
+  K (PR 2119, unit K).
 
 Closed at opening as a record: `curved-single-host-rim-refuses-at-the-half-band-gate`
 (the shape arises through `kef`, refuses at the half-band gate on
@@ -126,7 +126,9 @@ both routes, and the statement lives at `HostSide`'s doc).
 
 ## Exit shape
 
-The twelve land (with 14 and 15, promoted from the slate's residues on
-2026-09-13, beside them; 13 stays blocked on PROPS' H5 and is walked as
-such), the ruling is answered, Track T is empty; the walk convention
-applies.
+Units 14 and 15 land beside the twelve (13 stays blocked on PROPS' H5
+and is walked as such); the ruling is answered; Track T is empty; the
+residue slate is empty by the cut of 2026-09-17 (twenty-one rows to
+CARVE, eight to PATHS, one each to SYM, TOPO and META — the table is
+in `work/blend/log.md`'s cut entry) and the two docs rows closed in
+place; the walk convention applies.
