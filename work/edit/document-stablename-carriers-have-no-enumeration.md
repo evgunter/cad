@@ -3,7 +3,8 @@ id: document-stablename-carriers-have-no-enumeration
 kind: issue
 title: Which carriers hold a StableName is answered in four places and enumerated in none
 opened: 2026-09-16
-status: review
+closed: 2026-09-17
+status: closed
 branch: edit/stablename-carriers
 pr: 2797
 refs: [2784, stranded-appearance-keys-are-not-reported-by-dm7, load-door-appearance-key-id-check-is-pinned-by-no-row]
@@ -220,3 +221,24 @@ Every finding taken. What changed in the tree:
   `NameCarrier::name()`'s doc cites `pncad`'s `Maintenance.name` as the
   same flattening one layer up; the `doc.rs` fixture says why no edit
   door can mint the order it pokes in.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2797 after one opus style review
+(APPROVE-WITH-FIXES: 1 MAJOR, 3 MINOR, 4 NOTE, 9 style — every one
+taken). `Carrier` / `NameCarrier` / `Doc::name_carriers` is the one
+answer to which `Doc` fields hold a `StableName`, carrying the
+payload-vs-store difference; `Carrier::ALL` is what the walk iterates
+and the roster row welds it to the enum; the four hand-spelled sites
+(DM7's walk, the split door's two checks, `inline_part`, the snapshot
+validator) read it, with the DM7 order contract stated once and pinned
+by three rows. The review's MAJOR was the shape #2784's review had
+returned — a "pinned by" citation naming a test module that held no
+such row — and the fix pass re-read every such sentence against a
+mutant run; two undisclosed facts were disclosed (a `Doc` field is
+compile-forced only at the variant; the validator's name pass now
+runs in document order, pinned as a non-contract); the reviewer's
+store-key probe closed `load-door-appearance-key-id-check-is-pinned-by-no-row`
+on this branch. `refactor.rs` is FIX's, crossed by announcement. The
+enumeration is crate-private until a consumer outside the crate wants
+it (none does: measured).
