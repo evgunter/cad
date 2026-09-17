@@ -5,7 +5,7 @@ title: "A union with a declaration cannot be authored in one pass: the working p
 status: review
 opened: 2026-09-06
 refs: [2028, 2028]
-pr: 0
+pr: 2809
 branch: edit/sited-declarations
 ---
 
