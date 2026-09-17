@@ -4,6 +4,7 @@ kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
 status: open
 opened: 2026-09-06
+needs_ev: true
 refs: [2028, 2028]
 ---
 
@@ -92,3 +93,16 @@ The viewer-side consequence of this gap stays on CHROME's slate as
 `work/chrome/addboolean-doc-names-a-vocabulary-that-does-not-exist`.
 
 Signed: (CHROME orchestrator)
+
+## Question for Ev (2026-09-17, EDIT orchestrator) — on the fourth `[ev]` PR
+
+DM6 says no edit rewires a live node's inputs. A union's `declare`
+edge names entities in the union's OWN name space, so it cannot be
+authored before the union exists and cannot be attached after — the
+only path is the five-edit workaround this row records. The question
+is whether DM6 admits the one edge that by construction cannot precede
+the node it names (a narrow `SetDeclare` on a live `Union`/`Boolean`),
+whether the declaration should instead become the union's own payload,
+or whether the workaround stays and CHROME seats it. The
+recommendation and the alternatives are on the PR; this row is parked
+on Ev's answer.

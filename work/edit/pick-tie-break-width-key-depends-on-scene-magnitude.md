@@ -4,6 +4,7 @@ kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
 status: open
 opened: 2026-09-16
+needs_ev: true
 ---
 
 
@@ -70,3 +71,12 @@ Three shapes, none of them free:
 corpus measurement that says the class is not currently reached is
 `crates/viewer/tests/pick3_acceptance.rs` — `aim_lost == 0` over
 441 126 rays with the widths as they stand.
+
+## Question for Ev (2026-09-17, EDIT orchestrator) — on the fourth `[ev]` PR
+
+Whether the certified tie's second key stays the full interval width
+(arithmetically the better-certified claim, but a rule under which
+translating the document can change a tie's answer), or becomes the
+shape-only term (`from_barycentrics`, translation-invariant) while the
+enclosure and the `precedes` order keep the full width. The
+recommendation is on the PR; this row is parked on Ev's answer.
