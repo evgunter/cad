@@ -334,9 +334,9 @@ impl core::fmt::Display for SplitError {
                 kept_node,
             } => write!(
                 f,
-                "split: parameter {:?} is referenced by cut node {} and kept node {} — one \
+                "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                param.0, cut_node.0, kept_node.0
+                cut_node.0, kept_node.0
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
@@ -495,8 +495,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::ParamConflict { param } => write!(
                 f,
-                "inline: parameter {:?} is declared by both documents with different values",
-                param.0
+                "inline: parameter {param} is declared by both documents with different values"
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,

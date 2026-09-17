@@ -1129,14 +1129,18 @@ impl From<crate::ident::Mispaired> for EditError {
 // middle of a sentence. Both are gone: the frame belongs to whoever
 // received the refusal, and a name is written unquoted.
 //
-// **That makes `EditError` the exception in this crate, not the rule,
-// and the exception is deliberate.** Its neighbours still open with a
-// category of their own — `persist:`, `split:`, `inline:`, `parse:`,
-// `product:` — and `refactor.rs` quotes a parameter name exactly the
-// way this impl used to. They are outside the amendment that changed
-// this one, so they keep their spelling until someone decides for
-// them; a reader comparing the two should not read this paragraph as
-// describing the crate. The SLOT id renders through `SlotId::label`
+// **The category prefix makes `EditError` the exception in this crate,
+// not the rule, and that exception is deliberate.** Its neighbours
+// still open with a category of their own — `persist:`, `split:`,
+// `inline:`, `parse:`, `product:` — and are outside the amendment that
+// changed this one, so a reader comparing the two should not read that
+// paragraph as describing the crate.
+//
+// **The bare name, by contrast, IS the crate's rule.** A parameter
+// name renders through `ParamName`'s `Display` at every door that
+// frames it in a sentence of its own; the one door that quotes is
+// `ParseError::UnknownParam`, which echoes the bytes an author typed
+// and says so at the site. The SLOT id renders through `SlotId::label`
 // for the same reason a name does: a variant identifier dropped into a
 // sentence is the `Debug` dump's fingerprint, and the slot vocabulary
 // has one prose spelling of its own, so a message reads "slot origin x"
@@ -1260,9 +1264,9 @@ impl core::fmt::Display for EditError {
             }
             Self::UnknownPayloadParam { name, node } => write!(
                 f,
-                "document parameter {} does not exist (referenced by node {}'s \
+                "document parameter {name} does not exist (referenced by node {}'s \
                  measurement payload)",
-                name.0, node.0
+                node.0
             ),
             Self::PayloadParamDimensionMismatch {
                 name,
@@ -1271,9 +1275,9 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "document parameter {} is declared {declared} but node {}'s \
+                "document parameter {name} is declared {declared} but node {}'s \
                  measurement payload references it as {referenced}",
-                name.0, node.0
+                node.0
             ),
             Self::MeasureMalformed { node, fault } => {
                 write!(f, "measure node {}: {fault}", node.0)
@@ -1306,8 +1310,7 @@ impl core::fmt::Display for EditError {
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
-                "document parameter {} does not exist (referenced by node {}, slot {})",
-                name.0,
+                "document parameter {name} does not exist (referenced by node {}, slot {})",
                 node.0,
                 slot.label()
             ),
@@ -1319,15 +1322,14 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "parameter {} is declared {declared} but node {} (slot {}) references it as {referenced}",
-                name.0,
+                "parameter {name} is declared {declared} but node {} (slot {}) references it as \
+                 {referenced}",
                 node.0,
                 slot.label()
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "parameter {}: a continuous parameter cannot be a count — use a count parameter",
-                name.0
+                "parameter {name}: a continuous parameter cannot be a count — use a count parameter"
             ),
             // The closing clause is also `Refusal::NoSuchParam`'s, in
             // the viewer: one mistake reaches this door by typing and
@@ -1336,21 +1338,18 @@ impl core::fmt::Display for EditError {
             // them in step (`panel_edits::refusals_render_as_sentences`).
             Self::DocParamNotDeclared { name, door } => write!(
                 f,
-                "parameter {} is not declared, so {door} has no declaration to carry \
-                 forward — declare it first",
-                name.0
+                "parameter {name} is not declared, so {door} has no declaration to carry \
+                 forward — declare it first"
             ),
             Self::DocParamCountHasNoUnit { name } => write!(
                 f,
-                "parameter {} is a count, and a count is an integer rather than a quantity — \
-                 it has no display unit to change",
-                name.0
+                "parameter {name} is a count, and a count is an integer rather than a quantity — \
+                 it has no display unit to change"
             ),
             Self::DocParamCountHasNoDistribution { name } => write!(
                 f,
-                "parameter {} is a count, and a count is a structural parameter that is fixed \
-                 under any error analysis — it has no distribution to change",
-                name.0
+                "parameter {name} is a count, and a count is a structural parameter that is fixed \
+                 under any error analysis — it has no distribution to change"
             ),
             Self::DocParamUnitMismatch {
                 name,
@@ -1358,9 +1357,8 @@ impl core::fmt::Display for EditError {
                 declared,
             } => write!(
                 f,
-                "parameter {} is declared {declared} but the display unit offered measures \
-                 {unit}",
-                name.0
+                "parameter {name} is declared {declared} but the display unit offered measures \
+                 {unit}"
             ),
             Self::DocParamValueKindMismatch {
                 name,
@@ -1368,9 +1366,8 @@ impl core::fmt::Display for EditError {
                 offered,
             } => write!(
                 f,
-                "parameter {} is declared {declared} but the value edit offered a \
-                 {offered} — changing a parameter's kind is a redeclaration",
-                name.0
+                "parameter {name} is declared {declared} but the value edit offered a \
+                 {offered} — changing a parameter's kind is a redeclaration"
             ),
             Self::PathOffTree { path } => {
                 write!(f, "expression path {path:?} runs off the tree")
@@ -1386,12 +1383,11 @@ impl core::fmt::Display for EditError {
             ),
             Self::NonFiniteDocParam { name, field } => write!(
                 f,
-                "parameter {}: {field} is not finite — the value and every distribution \
-                 offset must be a number",
-                name.0
+                "parameter {name}: {field} is not finite — the value and every distribution \
+                 offset must be a number"
             ),
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {}: {fault}", name.0)
+                write!(f, "parameter {name}: {fault}")
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
