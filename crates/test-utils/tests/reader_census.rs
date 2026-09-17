@@ -200,6 +200,11 @@ const LEDGER: &[Entry] = &[
                              // gate, code+literal view
     },
     Entry {
+        path: "crates/profile/tests/review_recourse_roster_r1_probes.rs",
+        disposition: Shared, // the roster reader's turbofish precondition, over the
+                             // crate's src, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/recourse_roster.rs",
         disposition: Shared, // the recourse roster reads every decide site in
                              // the crate's src, code+literal view
@@ -235,6 +240,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_recourse_roster_r1_probes.rs",
+        disposition: Shared, // the roster reader's turbofish precondition, over the
+                             // crate's src, code+literal view
     },
     Entry {
         path: "crates/sweep/tests/recourse_roster.rs",
