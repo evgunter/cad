@@ -925,10 +925,12 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
     // the filter exists to keep reachable.
     assert_eq!(
         index
-            .face_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+            .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
             .expect("un-projects")
-            .map(|under| under.name),
-        Some(face.name.clone()),
+            .into_iter()
+            .map(|under| under.name)
+            .collect::<Vec<_>>(),
+        vec![face.name.clone()],
         "the filtered answer is the ray path's own face, unnarrowed"
     );
 

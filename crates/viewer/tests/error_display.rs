@@ -273,7 +273,7 @@ fn pick_error_forwards_its_hit_test_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = PickError::HitTest(inner).to_string();
+    let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
 }
@@ -284,7 +284,7 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = EdgeNameFault::Unnamed(inner).to_string();
+    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "Unnamed");
 }

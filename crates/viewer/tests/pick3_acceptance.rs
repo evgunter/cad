@@ -5,10 +5,14 @@
 //!
 //! - **`Pruned == Every`.** `PickIndex::pick` — `pick_face` over the
 //!   picture's parts — answers what an EXHAUSTIVE walk of every
-//!   candidate box the ray meets answers. The exhaustive walk calls
-//!   `ray_triangle` and `TSpan::best_of`, the door's own two doors, so
-//!   it restates neither the traversal nor the order: what it does not
-//!   have is the early-out, which is exactly what is under test.
+//!   candidate box the ray meets answers — the one hit, the miss, or
+//!   the whole LIST of a refusal. The exhaustive walk calls
+//!   `ray_triangle` and `TSpan::survivors`, the door's own two doors,
+//!   so it restates neither the traversal nor the order: what it does
+//!   not have is the early-out, which is exactly what is under test.
+//!   With the certified tie refused rather than broken, the margin is
+//!   what makes a refusal COMPLETE as well as what makes a hit right:
+//!   a pruned candidate is a tied face that would have gone unlisted.
 //! - **The closed acceptance loses no aimed vertex** that `main`'s
 //!   rounded-`t` order answered, and gains some.
 //!
@@ -27,7 +31,8 @@
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse,
+    Dimension, DocEdit, Evaluation, Expr, HitTestError, PickHit, ProfileDoc, RecipeNodeId, SlotId,
+    unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::{PickIndex, PictureKey};
@@ -98,13 +103,17 @@ fn ring_bump(doc: &ProfileDoc) -> SessionOp {
 
 // ---------------------------------------------------------------
 // The exhaustive walk: every candidate box the ray meets, through
-// `ray_triangle` and `TSpan::best_of`. No early-out, no order of its
+// `ray_triangle` and `TSpan::survivors`. No early-out, no order of its
 // own.
 // ---------------------------------------------------------------
 
 struct FlatPart {
     tree: Bvh,
     corners: Vec<[Point3<f64>; 3]>,
+    /// Which patch — and so which FACE — each flat triangle belongs
+    /// to: the door groups its survivors by face, so the reference
+    /// has to know the grouping too.
+    face: Vec<usize>,
 }
 
 fn flatten(index: &PickIndex) -> Vec<FlatPart> {
@@ -115,16 +124,19 @@ fn flatten(index: &PickIndex) -> Vec<FlatPart> {
             let mesh = part.mesh();
             let mut corners = Vec::new();
             let mut boxes = Vec::new();
-            for p in &mesh.patches {
+            let mut face = Vec::new();
+            for (pi, p) in mesh.patches.iter().enumerate() {
                 for tri in &p.triangles {
                     let c = tri.map(|i| mesh.positions[i as usize]);
                     boxes.push(Aabb::from_points(c).expect("three points box"));
                     corners.push(c);
+                    face.push(pi);
                 }
             }
             FlatPart {
                 tree: Bvh::build(&boxes),
                 corners,
+                face,
             }
         })
         .collect()
@@ -139,8 +151,8 @@ struct Seen {
 }
 
 /// Every admitted candidate on `ray`, part by part and, within a part,
-/// in flat triangle order — the order `pick_face` reads as its last
-/// tie-break key, so [`TSpan::best_of`] over this slice decides the
+/// in flat triangle order — the order `pick_face` lists a refusal's
+/// faces in, so [`TSpan::survivors`] over this slice answers the
 /// certified tie the way the door does.
 fn every(parts: &[FlatPart], ray: &Ray) -> Vec<Seen> {
     let mut seen = Vec::new();
@@ -156,9 +168,30 @@ fn every(parts: &[FlatPart], ray: &Ray) -> Vec<Seen> {
     seen
 }
 
-fn winner(seen: &[Seen]) -> Option<Seen> {
+/// **What the door answers for**: the survivors of the certified
+/// order, in the door's own list order. Empty is the miss; one face
+/// is the hit; several faces are the refusal, and the whole list is
+/// what `Pruned == Every` is now a claim about.
+///
+/// The FACES, not the triangles: several triangles of one face are
+/// one answer, so this collapses each face to its smallest rounded
+/// `t` — the member the door reports.
+fn winners(parts: &[FlatPart], seen: &[Seen]) -> Vec<Seen> {
     let spans: Vec<TSpan> = seen.iter().map(|s| s.span).collect();
-    TSpan::best_of(&spans).map(|i| seen[i])
+    let mut per_face: Vec<Seen> = Vec::new();
+    for i in TSpan::survivors(&spans) {
+        let hit = seen[i];
+        let face = parts[hit.part].face[hit.item];
+        match per_face
+            .iter_mut()
+            .find(|kept| (kept.part, parts[kept.part].face[kept.item]) == (hit.part, face))
+        {
+            Some(kept) if hit.span.t < kept.span.t => *kept = hit,
+            Some(_) => {}
+            None => per_face.push(hit),
+        }
+    }
+    per_face
 }
 
 /// `main`'s order: the rounded `t`, then position. The OLD door, kept
@@ -191,10 +224,17 @@ fn widest_bound(parts: &[FlatPart], ray: &Ray, win: &Seen) -> f64 {
 #[derive(Default, Debug)]
 struct TieTable {
     rays: usize,
-    /// The door's answer differs from the exhaustive walk's. The
-    /// early-out is the only difference between them, so any count
-    /// here is the early-out pruning a candidate the set rule keeps.
+    /// The door's answer differs from the exhaustive walk's — the
+    /// hit, the miss, or the refusal's whole list. The early-out is
+    /// the only difference between them, so any count here is the
+    /// early-out pruning a candidate the set rule keeps.
     pruned_differs: usize,
+    /// The door refused: the survivors named more than one face. The
+    /// tie-break aim points at shared edges and vertices by
+    /// construction, so this is most of it; printed AND asserted
+    /// non-zero, because an aim that never reached the refusal would
+    /// be measuring nothing about it.
+    refused: usize,
     /// The aimed point is not answered: the winner is beyond it, or
     /// the ray misses. Printed, not pinned — the corpus's shape, and
     /// the row above it is
@@ -212,6 +252,10 @@ struct TieTable {
 #[derive(Default, Debug)]
 struct WideTable {
     rays: usize,
+    /// The door refused on this ray: the wide aim's own count of the
+    /// class the ruling opened. Printed, not pinned — it is the
+    /// corpus's shape.
+    refused: usize,
     moved: usize,
     moved_farther: usize,
     aimed_main: usize,
@@ -286,44 +330,57 @@ fn tie_sweep(
     let parts = flatten(index);
     for (ray, reach) in tie_rays_for(index) {
         table.rays += 1;
-        let exhaustive = winner(&every(&parts, &ray));
-        let door = index
-            .pick(eval, &ray)
-            .expect("the index is of this evaluation");
-        let same = match (door.as_ref(), exhaustive) {
-            (None, None) => true,
-            (Some(d), Some(e)) => {
+        let exhaustive = winners(&parts, &every(&parts, &ray));
+        let door = answers(index, eval, &ray);
+        if door.len() > 1 {
+            table.refused += 1;
+        }
+        // `Pruned == Every` over hit AND refusal: the two lists agree
+        // face for face, in order, on all three numbers.
+        let same = door.len() == exhaustive.len()
+            && door.iter().zip(&exhaustive).all(|(d, e)| {
                 (d.t.to_bits(), d.t_lo.to_bits(), d.t_hi.to_bits())
                     == (
                         e.span.t.to_bits(),
                         e.span.t_lo.to_bits(),
                         e.span.t_hi.to_bits(),
                     )
-            }
-            _ => false,
-        };
+            });
         if !same {
             table.pruned_differs += 1;
             if table.examples.len() < 8 {
                 table.examples.push(format!(
                     "{name}/{step}: PRUNED DIFFERS {:?} reach {reach}: door {:?} exhaustive {:?}",
                     ray.dir,
-                    door.as_ref().map(|d| d.t),
-                    exhaustive.map(|e| e.span.t)
+                    door.iter().map(|d| d.t).collect::<Vec<_>>(),
+                    exhaustive.iter().map(|e| e.span.t).collect::<Vec<_>>()
                 ));
             }
         }
-        match exhaustive {
+        match exhaustive.first() {
             None => table.beyond_or_miss += 1,
             Some(win) => {
                 if win.span.t > reach + 1e-9 {
                     table.beyond_or_miss += 1;
                 }
-                if widest_bound(&parts, &ray, &win) >= 1.0 {
-                    table.wide_winners += 1;
+                for win in &exhaustive {
+                    if widest_bound(&parts, &ray, win) >= 1.0 {
+                        table.wide_winners += 1;
+                    }
                 }
             }
         }
+    }
+}
+
+/// The door's whole answer as a list: the one hit, the empty miss, or
+/// the tied faces of a refusal. The refusal is an ANSWER about the ray
+/// — every hit in it is true — so both sweeps read it that way.
+fn answers(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> Vec<PickHit> {
+    match index.pick(eval, ray) {
+        Ok(hit) => hit.into_iter().collect(),
+        Err(HitTestError::Ambiguous { hits }) => hits,
+        Err(other) => panic!("the index is of this evaluation: {other}"),
     }
 }
 
@@ -356,11 +413,17 @@ fn wide_sweep(
                     };
                     table.rays += 1;
                     let main = by_rounded_t(&every(&parts, &ray));
-                    let here = index
-                        .pick(eval, &ray)
-                        .expect("the index is of this evaluation");
+                    let here = answers(index, eval, &ray);
+                    if here.len() > 1 {
+                        table.refused += 1;
+                    }
                     let aimed_main = main.is_some_and(|s| (s.span.t - reach).abs() < 1e-9);
-                    let aimed_here = here.as_ref().is_some_and(|h| (h.t - reach).abs() < 1e-9);
+                    // The aim is ANSWERED FOR when the aimed vertex is
+                    // among the faces the door names — one of them when
+                    // it answers, any of them when it refuses, because
+                    // a refusal that lists the aimed face has not lost
+                    // it.
+                    let aimed_here = here.iter().any(|h| (h.t - reach).abs() < 1e-9);
                     table.aimed_main += usize::from(aimed_main);
                     table.aimed_interval += usize::from(aimed_here);
                     table.aim_gained += usize::from(aimed_here && !aimed_main);
@@ -371,11 +434,13 @@ fn wide_sweep(
                                 "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: \
                                  main {:?} door {:?}",
                                 main.map(|s| s.span.t),
-                                here.as_ref().map(|h| h.t)
+                                here.iter().map(|h| h.t).collect::<Vec<_>>()
                             ));
                         }
                     }
-                    if let (Some(m), Some(h)) = (main, here.as_ref())
+                    // "Moved" reads the FRONT of what the door names,
+                    // which is its first answer in either shape.
+                    if let (Some(m), Some(h)) = (main, here.first())
                         && m.span.t.to_bits() != h.t.to_bits()
                     {
                         table.moved += 1;
@@ -463,12 +528,21 @@ fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<
 /// doors over EVERY candidate box the ray meets. The two answers agree
 /// on every ray or the margin is wrong.
 ///
-/// `aim_lost` is the column the ruling read for the acceptance. It is
-/// `0` and it can red: a door that reordered the candidates in a way
-/// that answered a nearer face would lose aims here.
+/// `aim_lost` is the column the ruling read for the acceptance. An aim
+/// is kept when the aimed vertex is among the faces the door names —
+/// the refusal that LISTS it has not lost it — and it can red: a door
+/// that reordered the candidates in a way that answered a nearer face
+/// alone would lose aims here.
 ///
-/// The counts are printed. Two are asserted at their value and the
-/// third (`wide_winners`) is disclosed above as structurally zero.
+/// `refused` is the class the certified tie's refusal opens, counted
+/// on both aims. The tie-break aim points at shared edges and
+/// vertices by construction, so its count is asserted non-zero: an
+/// aim that never reached a refusal would be measuring nothing about
+/// one.
+///
+/// The counts are printed. The asserted ones are named below; the
+/// rest are the corpus's shape, and `wide_winners` is disclosed above
+/// as structurally zero.
 #[test]
 fn the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex() {
     let mut tie = TieTable::default();
@@ -492,8 +566,14 @@ fn the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex() {
     assert_eq!(
         tie.pruned_differs, 0,
         "the door's answer differs from the exhaustive walk's on {} of {} rays — the early-out \
-         is pruning a candidate the certified tie keeps",
+         is pruning a candidate the certified tie keeps, which costs a hit its answer or a \
+         refusal an entry",
         tie.pruned_differs, tie.rays
+    );
+    assert!(
+        tie.refused > 0,
+        "the tie-break aim reached no refusal at all, so `Pruned == Every` over a refusal's \
+         list is untested here: {tie:#?}"
     );
     assert_eq!(
         tie.wide_winners, 0,
@@ -502,7 +582,7 @@ fn the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex() {
     );
     assert_eq!(
         wide.aim_lost, 0,
-        "the door loses {} aimed vertices main's rounded-t order answered",
+        "the door names none of {} aimed vertices main's rounded-t order answered",
         wide.aim_lost
     );
     assert!(
