@@ -1178,3 +1178,42 @@ fn rv_r2_rebind_moves_the_name_and_leaves_the_site() {
     eprintln!("RV-R2 rebound name, unchanged site: {said}");
     assert!(said.contains("Vanished"), "expected rung 3, got {said}");
 }
+
+/// **The site is the side, in the one direction that can tell**: a name
+/// the SITED operand does not carry, which the OTHER operand does,
+/// refuses `Vanished` — it is not silently read in the other table.
+///
+/// Every existing row sites each name at the operand whose table holds
+/// it, so a resolver that ignored the site and fell back to the other
+/// table would pass them all.
+#[test]
+fn rv_r2_a_name_the_other_operand_carries_is_not_read_there() {
+    let doc = ProfileDoc::empty_derived("rv_r2_wrong_side", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    // Both sides name entities of `b`; the first is SITED at `a`,
+    // whose table does not carry it.
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fname(b, wall(0))),
+            SitedRef::new(b, fname(b, wall(2))),
+        )]),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    let said = format!("{:?}", failure(&ev, pair));
+    eprintln!("RV-R2 wrong-side name: {said}");
+    assert!(
+        said.contains("Vanished"),
+        "a name read in the operand its site does not name: {said}"
+    );
+}
