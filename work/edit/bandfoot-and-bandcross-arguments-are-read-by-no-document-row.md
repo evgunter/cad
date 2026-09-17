@@ -2,7 +2,9 @@
 id: bandfoot-and-bandcross-arguments-are-read-by-no-document-row
 kind: issue
 title: No document row reads a BandFoot's, BandCross's, BandFace's or BandSlit's argument — four blend mints ride check_total and a count alone
-status: spec
+status: review
+pr: 2794
+branch: edit/ladder-rim-fixture
 opened: 2026-09-16
 ---
 
@@ -142,3 +144,52 @@ names right or files what it finds); the sweep crate's records.
 `tests/all.rs`. If the derivation of the ladder profile copies
 `sweep::test_support`, give it one home there (S-BOOL/FILLET's test
 support, disclosed, as the carve did). Middle tier.
+
+## Built (2026-09-17, PR #2794)
+
+`crates/editor-core/tests/edit_ladder_rim.rs` lands with six rows over
+one document: a square plate with two round holes, extruded, and both
+holes' `End`-cap rims filleted in ONE `Node::Fillet`. Each hole rim is a
+LADDER rim — a RING of the cap plane, and each of the two wall faces an
+extruded circle mints carries exactly one of its arcs.
+
+The four argument rows the spec names, each reading the argument against
+the runtime entity the name resolves to, plus
+`the_totality_and_the_counts_read_no_argument_at_all` (the count row,
+with the statement at the claim site that it stays green under every
+mutant) and
+`the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source` (the
+window derivation: the minimum over both rims of a foot-to-rim-vertex
+and a crossing-to-meridian-end separation, measured and pinned; `NEAR`
+is its 1e-7).
+
+**Mutant table**, each rotating one `BlendNaming` channel's source
+argument by one inside `name_blend` and running the whole `editor-core`
+`all` binary (baseline 1418 passed, 0 failed):
+
+| channel | role | rows RED |
+|---|---|---|
+| `rim_feet` | `BandFoot` | `a_band_foot_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| `meridian_splits` | `BandCross` | `a_band_crossing_…`, `a_slit_runs_along_…`, + 2 digest goldens |
+| `bands` | `BandFace` | `a_band_face_…`, + 2 digest goldens |
+| `slits` | `BandSlit` | `a_slit_runs_along_…`, + 2 digest goldens |
+
+`check_total` and every count stay green under all four. No other
+behavioural row in the tree moves: not `blend5_rim_support`, not
+`blend5_r1_probes`, not the `match` arms or the covariance walk. The two
+rows that do move under all four are the corpus name-DIGEST goldens
+(`lib_g16_corpus_name_digests`, `perf2_name_keying_differential`), which
+red under any change to the emitted names and cannot say which argument
+is right — change detectors, not readers. The sweep crate's rows on
+these channels assert counts, source-key and minted-key injectivity and
+one minted face key, never which source entity a row carries, and cannot
+see a permutation applied in the emitter in any case.
+
+**What did not land**, and why: one rim (it would make the `bands` and
+`slits` mutants vacuous — those channels carry one row per closed rim);
+`die_composed` driven from the registry (it is not the smallest document
+that mints the four roles, and it already pays the registry battery);
+any addition to `sweep::test_support` (the plate's circles are authored
+in the document, so nothing is derived that could be copied); any change
+to `emit_blend.rs` (all four arguments are correct on this tree, so
+there was nothing to file).
