@@ -72,6 +72,8 @@ mod corner_table;
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "cube_doors_agree.rs"]
+mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "geom_origin_rows.rs"]

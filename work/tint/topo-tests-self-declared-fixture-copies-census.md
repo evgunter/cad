@@ -8,7 +8,8 @@ opened: 2026-09-16
 
 ## Finding
 
-- **Where**: `crates/topo/tests/`, twelve sites below.
+- **Where**: `crates/topo/tests/`, twelve sites below, of which one
+  is resolved (struck through).
 - **Importance**: low-medium — **this row is the census, not the
   verdict**
 - **Confidence**: sure that the prose says what it says; unsure which
@@ -22,7 +23,7 @@ crates/topo/tests/` finds twelve in seconds:
 
 | site | what the prose says |
 | --- | --- |
-| `review_m2_pr7.rs:23` | *"The geometric-cube op sequence of `common::geometric_cube`, but…"* — its own row, `topo-tests-review-m2-pr7-rederives-the-shared-cube` |
+| ~~`review_m2_pr7.rs:23`~~ | **gone (PR #2727).** The prose *"The geometric-cube op sequence of `common::geometric_cube`, but…"* and the private `mapped_cube` it labelled are both deleted; the suite's six call sites name `common::mapped_cube`, proved equal at four maps. Row `topo-tests-review-m2-pr7-rederives-the-shared-cube` closed. **One of twelve walked, eleven to go** |
 | `m9_c1_r1_probes.rs:72` | *"The unit's own flush seat, rebuilt verbatim"* — see `topo-tests-straddle-seat-hand-copies` |
 | `mate8_witness_schedule.rs:63` | *"MATE-4a's overhang seat, verbatim"* — same row |
 | `mate8_witness_schedule.rs:84` | *"`r1_mate4a_probes`'s probe fixture, verbatim"* — same row |
