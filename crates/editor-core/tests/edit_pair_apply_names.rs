@@ -363,7 +363,7 @@ fn the_name_doors_refuse_a_twins_evaluation() {
     };
     assert_eq!(
         pick.patch_names(&t.ev_triangle),
-        Err(expected),
+        Err(expected.clone()),
         "the finding: a foreign evaluation used to answer out of the \
          twin's tables, in patch order"
     );

@@ -10,9 +10,11 @@
 //! rounding interval covers the whole admissible range is refused
 //! rather than answered from ([`ray_triangle`], [`crossing`]) →
 //! the certified `t` INTERVAL each admitted candidate carries
-//! ([`TSpan`]), ordered by that interval with a total, documented
-//! tie-break on the candidates the geometry cannot order
-//! → the winning patch's [`mesh::FacePatch::face`] back-reference →
+//! ([`TSpan`]), ordered by that interval alone — candidates the
+//! geometry cannot order are a certified tie, answered as one face
+//! where they name one and REFUSED with all of them where they name
+//! several ([`HitTestError::Ambiguous`])
+//! → the answered patch's [`mesh::FacePatch::face`] back-reference →
 //! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
 //! node id, `t`, and hit point) or a typed error; the
@@ -26,8 +28,9 @@
 //! Picking is a UI concern with no D9 predicate obligation (GQ6
 //! re-survey §3): everything here is plain `f64` with conservative
 //! comparisons, and what IS kept is determinism — fixed iteration
-//! order, a total tie-break, no hashing — so the same pick against the
-//! same state answers bit-identically.
+//! order, an answer that is a function of the candidate SET, no
+//! hashing — so the same pick against the same state answers
+//! bit-identically.
 //!
 //! # Where the acceleration state lives, and when it dies
 //!
@@ -126,7 +129,7 @@ struct PickPatch {
     /// never leaves the service.
     face: FaceKey,
     /// The flat position of `table.tris[0]` in the mesh's patch-major
-    /// triangle order: the tie-break's coordinate.
+    /// triangle order: the refusal list's coordinate.
     base: usize,
 }
 
@@ -230,7 +233,7 @@ impl core::error::Error for MeshPickError {}
 ///
 /// Triangles are addressed patch-major in patch order, triangles
 /// within a patch in their emitted order — the **flat order** the
-/// pick tie-break below is stated in ([`PickPatch::base`] plus the
+/// refusal's list below is stated in ([`PickPatch::base`] plus the
 /// position within the patch).
 ///
 /// # Why the two-level query answers exactly as one tree over every
@@ -296,7 +299,7 @@ struct Candidate {
     /// The triangle box's conservative entry parameter
     /// ([`bvh::RayCandidate::t_enter`]).
     t_enter: f64,
-    /// Flat position (patch-major) — the tie-break's coordinate.
+    /// Flat position (patch-major) — the refusal list's coordinate.
     flat: usize,
     /// Position in [`MeshPick::patches`].
     patch: usize,
@@ -880,7 +883,7 @@ impl PickMemo {
     /// table with a different count would mean the identity named
     /// another patch's geometry — a broken threading rather than a
     /// state, so it panics (D9) instead of desynchronising the flat
-    /// positions the tie-break is taken on.
+    /// positions the refusal's list is stated in.
     fn table(
         &mut self,
         stored: Option<StoredPatchId>,
@@ -1294,9 +1297,13 @@ impl NodePick {
     }
 }
 
-/// A successful face pick: the stable name plus where and what was
+/// A face pick's answer: the stable name plus where and what was
 /// hit. No arena key — the name IS the reference selection state
 /// holds (G1).
+///
+/// One of these is the door's success; a LIST of them is
+/// [`HitTestError::Ambiguous`], the certified tie between faces, where
+/// each one is equally true.
 #[derive(Debug, Clone)]
 pub struct PickHit {
     /// The picked face's stable name.
@@ -1315,7 +1322,7 @@ pub struct PickHit {
     /// **The parameter is of the ray this call was given.** A consumer
     /// that carries a hit across a transform converts all three, or
     /// none of them mean anything: the viewer's cross-part merge is
-    /// `work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`.
+    /// `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`.
     pub t: f64,
     /// See [`PickHit::t`].
     pub t_lo: f64,
@@ -1325,12 +1332,39 @@ pub struct PickHit {
     pub point: Point3<f64>,
 }
 
+/// **Field-wise equality, floats included** — written out because
+/// [`Point3`] has none to derive from.
+///
+/// It exists for [`HitTestError`], whose [`HitTestError::Ambiguous`]
+/// arm carries these: two refusals are the same refusal when they
+/// name the same faces at the same parameters and the same points, and
+/// nothing weaker would let a row pin a refusal at all. `==` on the
+/// floats, so a hit carrying a NaN parameter equals nothing, itself
+/// included — unreachable here ([`ray_triangle`] admits only a finite
+/// span) and the fail-loud direction if it ever were not.
+impl PartialEq for PickHit {
+    fn eq(&self, other: &Self) -> bool {
+        let point = |p: &Point3<f64>| [p.x, p.y, p.z];
+        self.name == other.name
+            && self.node == other.node
+            && self.body == other.body
+            && self.t == other.t
+            && self.t_lo == other.t_lo
+            && self.t_hi == other.t_hi
+            && point(&self.point) == point(&other.point)
+    }
+}
+
 /// The face pick: the nearest ray/triangle hit across `targets`,
 /// resolved to a stable name.
 ///
 /// `Ok(Some(hit))` is the nearest hit; **`Ok(None)` is the typed
 /// miss** — the ray hits no offered triangle. Errors are never
 /// flattened into a miss:
+///
+/// `Err(`[`HitTestError::Ambiguous`]`)` is the certified tie between
+/// faces, below; it is a refusal about the GEOMETRY, not about the
+/// targets, and it carries every tied face's own hit.
 ///
 /// - every target must be OF the document `eval` is of — a target
 ///   stamped with another document answers
@@ -1348,36 +1382,44 @@ pub struct PickHit {
 ///   evaluated-but-unnamed face is the loud
 ///   [`HitTestError::Unnamed`] bug report, propagated verbatim.
 ///
-/// **Determinism and the tie-break (documented contract)**: an
+/// **Determinism and the certified tie (documented contract)**: an
 /// admitted candidate answers a `t` INTERVAL ([`TSpan`]), and one
 /// candidate is in front of another only when the WHOLE of its
 /// interval is ([`TSpan::precedes`]). A candidate that some other
 /// candidate precedes is out; the survivors overlap one another, so
 /// the geometry does not order them at all — they are a CERTIFIED
-/// TIE, decided by the NARROWER interval first and then by
-/// `(target position in `targets`, flat triangle position)`,
-/// positions as integers. The narrower interval wins because when
-/// the geometry cannot say which surface is in front the door
-/// prefers the better-certified claim: a face the ray meets nearly
-/// edge-on carries a wide interval and is what the user is aiming
-/// past, and preferring the narrow one is what makes this path agree
-/// with the viewer's GPU id pass, which picks what is displayed by
-/// construction. A ray down the shared edge of two faces ties two
-/// narrow intervals, so it resolves to the earlier target and then
-/// the earlier patch in face-arena order, every time. Triangle
-/// boundaries are CLOSED in the exact test, so an edge/vertex graze
-/// is a hit for every incident triangle and the tie-break, not
-/// chance, picks the answer.
+/// TIE, and **the door does not break it**. There is no second key:
+/// what the survivors NAME decides.
+///
+/// - Survivors naming ONE face — the same `(node, body, face)` met on
+///   several of its own triangles, which is every ray across a
+///   triangle diagonal or an in-face shared edge — are one answer.
+///   The door answers that face with the HULL of the members'
+///   intervals (each encloses the crossing of its own triangle, so
+///   the hull encloses every crossing the tie holds) and, for `t` and
+///   `point`, the member with the smallest rounded `t`: a function of
+///   the set, and a point of the face.
+/// - Survivors naming MORE THAN ONE face are refused, typed
+///   ([`HitTestError::Ambiguous`]) — one [`PickHit`] per tied face,
+///   each of them true, listed in the caller's target order and then
+///   face-arena order. That is an order for a LIST and decides
+///   nothing: neither the interval's width, nor the scene's placement,
+///   nor the order the targets were offered in can reach a pick's
+///   answer.
+///
+/// Triangle boundaries are CLOSED in the exact test, so an
+/// edge/vertex graze is a hit for every incident triangle — which is
+/// why a ray down a cube's shared edge names neither face and refuses
+/// with both, while a ray down an edge INSIDE one face answers that
+/// face.
 ///
 /// **That rule is total, and it is a rule about the SET rather than a
-/// pairwise fold.** "A precedes B, else the narrower wins" applied
-/// pairwise has three-cycles — `[−5, 0]` precedes `[1, 2.5]`, which is
-/// narrower than `[−0.5, 1.5]`, which is narrower than `[−5, 0]` — so
-/// a fold over it would answer whichever candidate the traversal met
-/// first. Taking the survivors of `precedes` as one set removes that:
-/// a candidate no other precedes is exactly one with
-/// `t_lo ≤ min_j t_hi(j)`, any two such candidates overlap each other,
-/// and width-then-position orders that set totally.
+/// pairwise fold.** `precedes` is a strict partial order, not a total
+/// one, so a pairwise fold over it would answer whichever candidate
+/// the traversal met first. Taking the survivors of `precedes` as one
+/// set removes that: a candidate no other precedes is exactly one with
+/// `t_lo ≤ min_j t_hi(j)`, and any two such candidates overlap each
+/// other. Grouping that set by face is a function of the set alone.
 ///
 /// **The answer is that winner over every candidate's exact test.**
 /// Each test reads the ray and the triangle alone, and a ray in a
@@ -1396,11 +1438,14 @@ pub struct PickHit {
 ///    of that triangle (`early_out_margin`, term by term).
 /// 2. So the skip fires only where `lowest_hi < t_lo`, which is
 ///    `precedes`: the candidate holding `lowest_hi` precedes this
-///    one, and [`TSpan::best_of`] drops it.
+///    one, and [`TSpan::survivors`] drops it.
 /// 3. A skipped candidate could not have lowered `lowest_hi` either,
 ///    since `t_hi ≥ t_lo > lowest_hi`.
-/// 4. So the set of survivors, and the winner over it, are what an
-///    exhaustive walk of every candidate answers. `Pruned == Every`.
+/// 4. So the set of survivors — and therefore the answer, and the
+///    refusal's LIST — are what an exhaustive walk of every candidate
+///    answers. `Pruned == Every` is now what makes a refusal
+///    COMPLETE as well as what makes a hit right: a pruned candidate
+///    is a tied face that would have gone unlisted.
 ///
 /// The margin's leading term is the triangle's own extent along the
 /// ray, twice, so the skip still fires for every candidate whose box
@@ -1497,33 +1542,110 @@ pub fn pick_face<T: Decide>(
         }
     }
 
-    // The certified tie's own order, in its one spelling
-    // ([`TSpan::best_of`]): the narrower interval, then position. The
-    // survivors are offered in `(target position, flat triangle
-    // position)` order because that is the door's documented last key
-    // and `best_of` reads the slice's own order as it.
+    // The survivors of the certified order ([`TSpan::survivors`]),
+    // offered in `(target position, flat triangle position)` order
+    // because that is the order the refusal LISTS its hits in.
     undecided.sort_unstable_by_key(|c| (c.target_pos, c.tri_pos));
     let spans: Vec<TSpan> = undecided.iter().map(|c| c.span).collect();
-    let Some(win) = TSpan::best_of(&spans).map(|i| &undecided[i]) else {
+    let survivors = TSpan::survivors(&spans);
+    if survivors.is_empty() {
         return Ok(None); // the typed miss
+    }
+
+    // One group per FACE: several triangles of one face are one
+    // answer, not a tie (docs). The first target a face was met on
+    // rides along as the list's first key; survivors arrive in target
+    // order, so it is the target order the refusal is documented in.
+    struct Group {
+        target_pos: usize,
+        node: RecipeNodeId,
+        body: u32,
+        face: FaceKey,
+        members: Vec<usize>,
+    }
+    let mut groups: Vec<Group> = Vec::new();
+    for &i in &survivors {
+        let cand = &undecided[i];
+        match groups
+            .iter_mut()
+            .find(|g| g.node == cand.node && g.body == cand.body && g.face == cand.face)
+        {
+            Some(group) => group.members.push(i),
+            None => groups.push(Group {
+                target_pos: cand.target_pos,
+                node: cand.node,
+                body: cand.body,
+                face: cand.face,
+                members: vec![i],
+            }),
+        }
+    }
+    groups.sort_by_key(|g| (g.target_pos, g.face));
+
+    // One face's answer: the hull of its members' intervals, at the
+    // smallest rounded `t` among them (ties to the earlier position —
+    // every member is a point of the same face, so this decides which
+    // POINT of it is reported and nothing else).
+    let answer = |group: &Group| -> PickHitParts {
+        let at = *group
+            .members
+            .iter()
+            .min_by(|&&a, &&b| {
+                undecided[a]
+                    .span
+                    .t
+                    .total_cmp(&undecided[b].span.t)
+                    .then(a.cmp(&b))
+            })
+            .expect("a group is built from at least one member");
+        let span = TSpan::hull_at(
+            group.members.iter().map(|&i| undecided[i].span),
+            undecided[at].span.t,
+        );
+        PickHitParts {
+            span,
+            point: ray.origin + ray.dir * span.t,
+        }
     };
-    let name = entity_name(
-        eval,
-        win.node,
-        EntityRef {
-            body: win.body,
-            key: EntityKey::Face(win.face),
-        },
-    )?;
-    Ok(Some(PickHit {
-        name: name.clone(),
-        node: win.node,
-        body: win.body,
-        t: win.span.t,
-        t_lo: win.span.t_lo,
-        t_hi: win.span.t_hi,
-        point: ray.origin + ray.dir * win.span.t,
-    }))
+    let hit_of = |group: &Group| -> Result<PickHit, HitTestError> {
+        let parts = answer(group);
+        let name = entity_name(
+            eval,
+            group.node,
+            EntityRef {
+                body: group.body,
+                key: EntityKey::Face(group.face),
+            },
+        )?;
+        Ok(PickHit {
+            name: name.clone(),
+            node: group.node,
+            body: group.body,
+            t: parts.span.t,
+            t_lo: parts.span.t_lo,
+            t_hi: parts.span.t_hi,
+            point: parts.point,
+        })
+    };
+
+    let [only] = &groups[..] else {
+        // More than one face, and nothing left to order them by: the
+        // typed refusal, carrying every tied face's own true hit.
+        let hits: Vec<PickHit> = groups
+            .iter()
+            .map(hit_of)
+            .collect::<Result<_, HitTestError>>()?;
+        return Err(HitTestError::Ambiguous { hits });
+    };
+    Ok(Some(hit_of(only)?))
+}
+
+/// The two halves of one face's answer that are functions of its
+/// members' spans alone — split out so the door builds them once for
+/// the hit and for every member of a refusal.
+struct PickHitParts {
+    span: TSpan,
+    point: Point3<f64>,
 }
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
@@ -1632,8 +1754,10 @@ fn retract_to_simplex(u: f64, v: f64) -> (f64, f64) {
 ///
 /// Two hits are ORDERED only when one interval lies wholly below the
 /// other ([`TSpan::precedes`]); intervals that overlap are a CERTIFIED
-/// tie — the geometry does not order them — which [`pick_face`] breaks
-/// by [`TSpan::width`] and then by position.
+/// tie — the geometry does not order them — and [`pick_face`] does not
+/// break it. There is no second key: the survivors
+/// ([`TSpan::survivors`]) are the answer when they name one face and
+/// the refusal when they name more.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TSpan {
     /// The rounded parameter of the hit point, in units of `|ray.dir|`.
@@ -1646,8 +1770,15 @@ pub struct TSpan {
 
 impl TSpan {
     /// `t_hi − t_lo`: how little the arithmetic certifies about where
-    /// along the ray the crossing is. The certified tie's order — the
-    /// narrower claim is the better-certified one.
+    /// along the ray the crossing is.
+    ///
+    /// **A measurement, never a key.** It is what the interval IS —
+    /// the enclosure, and the quantity [`precedes`](TSpan::precedes)
+    /// and [`early_out_margin`] are stated in — and nothing orders a
+    /// certified tie by it: the width is not a function of the
+    /// candidates' shapes alone ([`t_span`]'s `from_rounding` reads
+    /// the coordinates' magnitudes), so a rule that read it would let
+    /// translating the document change a pick's answer.
     pub fn width(&self) -> f64 {
         self.t_hi - self.t_lo
     }
@@ -1659,36 +1790,44 @@ impl TSpan {
         self.t_hi < other.t_lo
     }
 
-    /// **The certified tie's winner**: the position in `spans` of the
-    /// hit the door answers, or `None` for an empty slice. THE one
-    /// spelling of the rule — [`pick_face`] calls it, and so does
-    /// every reference loop and probe that pins it, so no row can pass
-    /// by agreeing with a second copy of the door.
+    /// **The certified order's survivors**: the positions in `spans`
+    /// of the hits no other hit [`precedes`](TSpan::precedes), in
+    /// slice order. THE one spelling of the rule — [`pick_face`] calls
+    /// it, and so does every reference loop and probe that pins it, so
+    /// no row can pass by agreeing with a second copy of the door.
     ///
-    /// The rule, in three lines: a span some other span
-    /// [`precedes`](TSpan::precedes) is out; the survivors are exactly
-    /// those with `t_lo ≤ min_j t_hi(j)`, they pairwise overlap, and
-    /// so they are ONE certified tie; that tie is decided by the
-    /// narrower interval and, at equal width, by the EARLIER position
-    /// in `spans`. Total, so the answer is a function of the set and
-    /// not of the order the candidates were met in.
+    /// The rule, in two lines: a span some other span precedes is out;
+    /// the survivors are exactly those with `t_lo ≤ min_j t_hi(j)`,
+    /// they pairwise overlap, and so they are ONE certified tie. The
+    /// set is a function of the spans alone — no width, no position —
+    /// so the order the candidates were met in cannot reach the
+    /// answer. An empty slice has no survivors, which is the miss.
     ///
-    /// **The caller owns what position means.** This reads the slice's
-    /// own order as the tie-break's last key, so a caller whose
-    /// documented order is `(target position, flat triangle position)`
-    /// offers the spans in that order ([`pick_face`] sorts its
-    /// survivors before it calls).
-    pub fn best_of(spans: &[Self]) -> Option<usize> {
+    /// **What the caller does with a tie is the caller's.**
+    /// [`pick_face`] answers the face when every survivor names one
+    /// and refuses with all of them when they name several; the slice
+    /// order is the order the refusal lists them in, and decides
+    /// nothing else.
+    pub fn survivors(spans: &[Self]) -> Vec<usize> {
         let lowest_hi = spans.iter().map(|s| s.t_hi).fold(f64::INFINITY, f64::min);
         (0..spans.len())
             .filter(|&i| spans[i].t_lo <= lowest_hi)
-            .reduce(|best, i| {
-                if spans[i].width() < spans[best].width() {
-                    i
-                } else {
-                    best
-                }
-            })
+            .collect()
+    }
+
+    /// The hull of a non-empty set of intervals: `[min t_lo, max t_hi]`
+    /// around the `t` of `at`.
+    ///
+    /// The members of one face's tie each enclose the crossing of
+    /// their own triangle, so the hull encloses every crossing the tie
+    /// holds — which is what makes it the face's answer rather than
+    /// one triangle's ([`pick_face`]).
+    fn hull_at(spans: impl IntoIterator<Item = Self>, at: f64) -> Self {
+        let (t_lo, t_hi) = spans.into_iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY),
+            |(lo, hi), s| (lo.min(s.t_lo), hi.max(s.t_hi)),
+        );
+        Self { t: at, t_lo, t_hi }
     }
 }
 
@@ -2141,8 +2280,8 @@ mod tests {
     /// A served table whose triangle count is not the mesh patch's
     /// would mean the identity named another patch's geometry — a
     /// broken threading, not a state, so it announces itself (D9)
-    /// instead of desynchronising the flat positions the tie-break is
-    /// taken on.
+    /// instead of desynchronising the flat positions the refusal's
+    /// list is stated in.
     #[test]
     #[should_panic(expected = "triangles and the mesh's patch has")]
     fn a_served_table_that_is_not_this_patchs_panics() {
@@ -2828,18 +2967,17 @@ mod tests {
     }
 
     /// **The certified order is a rule about the SET.** `precedes` is a
-    /// strict partial order, not a total one, and "A precedes B, else
-    /// the narrower wins" compared pairwise has three-cycles:
-    /// `[−5, 0]` precedes `[1, 2.5]`, which is narrower than
-    /// `[−0.5, 1.5]`, which is narrower than `[−5, 0]`. A fold over
-    /// that relation answers whichever candidate it met first, which
-    /// is the order-dependence the door's determinism contract
-    /// forbids.
+    /// strict partial order, not a total one, so a pairwise fold over
+    /// it answers whichever candidate it met first — the
+    /// order-dependence the door's determinism contract forbids. The
+    /// triple here is the cycle that shows it: `[−5, 0]` precedes
+    /// `[1, 2.5]`, and neither of the other two pairs is ordered at
+    /// all.
     ///
-    /// [`TSpan::best_of`] takes the survivors of `precedes` as one set
-    /// — they are pairwise overlapping, so they are one certified tie
-    /// — and orders that set by width then position. This row runs it
-    /// over every arrival order of the triple and gets one index.
+    /// [`TSpan::survivors`] takes the survivors of `precedes` as one
+    /// set — they are pairwise overlapping, so they are one certified
+    /// tie — and nothing orders them further. This row runs it over
+    /// every arrival order of the triple and gets one set.
     #[test]
     fn the_certified_order_does_not_depend_on_the_arrival_order() {
         let span = |lo: f64, hi: f64| TSpan {
@@ -2855,7 +2993,7 @@ mod tests {
         );
         assert!(
             cycle[0].width() < cycle[1].width() && cycle[1].width() < cycle[2].width(),
-            "and the widths run the other way round the cycle"
+            "and the widths run the other way round the cycle, which decides nothing"
         );
         let mut door = std::collections::BTreeSet::new();
         for order in [
@@ -2867,36 +3005,42 @@ mod tests {
             [2, 1, 0],
         ] {
             let spans: Vec<TSpan> = order.iter().map(|&i| cycle[i]).collect();
-            door.insert(order[TSpan::best_of(&spans).expect("three candidates")]);
+            let mut survived: Vec<usize> = TSpan::survivors(&spans)
+                .into_iter()
+                .map(|i| order[i])
+                .collect();
+            survived.sort_unstable();
+            door.insert(survived);
         }
         assert_eq!(
             door.len(),
             1,
-            "the door's rule answers one candidate whatever order it met them in: {door:?}"
+            "the door's rule answers one SET whatever order it met the candidates in: {door:?}"
         );
         assert_eq!(
-            door.iter().copied().next(),
-            Some(1),
-            "and it is the narrowest of the two the third does not precede: {door:?}"
+            door.iter().next().map(Vec::as_slice),
+            Some(&[1usize, 2][..]),
+            "and it is the two the first is not in, the first being preceded: {door:?}"
         );
     }
 
     /// **A ray down a shared edge ties two narrow intervals, and
-    /// position decides.** Two triangles mirrored across the segment
-    /// from `(0, 0, 0)` to `(1, 0, 0)`, each carrying it as `(a, b)`,
-    /// and a `−z` ray through its midpoint: both compute `u = 0.5`,
-    /// `v = 0` and `t = 2` without a rounding, and their bounds are
-    /// the same magnitudes, so the intervals are identical. Neither
-    /// precedes the other and neither is narrower, so the tie falls to
-    /// the earlier position — every time, whichever order the
-    /// candidates arrive in.
+    /// nothing breaks the tie.** Two triangles mirrored across the
+    /// segment from `(0, 0, 0)` to `(1, 0, 0)`, each carrying it as
+    /// `(a, b)`, and a `−z` ray through its midpoint: both compute
+    /// `u = 0.5`, `v = 0` and `t = 2` without a rounding, and their
+    /// bounds are the same magnitudes, so the intervals are identical.
+    /// Neither precedes the other, so both survive — in whichever
+    /// order they arrive.
     ///
     /// **Both answers are true**, which is what makes the tie a tie:
-    /// each triangle places the hit at the midpoint to the bit, so the
-    /// door is choosing which face to NAME, not where the ray met the
-    /// mesh.
+    /// each triangle places the hit at the midpoint to the bit. What
+    /// the door does with two survivors on two different FACES is the
+    /// refusal, pinned through the real door by
+    /// `pick3_early_out::a_ray_down_a_shared_edge_refuses_with_both_faces`;
+    /// this row is the arithmetic underneath it.
     #[test]
-    fn a_ray_down_a_shared_edge_ties_two_narrow_intervals_and_position_decides() {
+    fn a_ray_down_a_shared_edge_ties_two_narrow_intervals_and_nothing_breaks_it() {
         let shared = [Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
         let tris = [
             [shared[0], shared[1], Point3::new(0.5, 1.0, 0.0)],
@@ -2932,18 +3076,19 @@ mod tests {
         assert_eq!(
             spans[0].width(),
             spans[1].width(),
-            "the mirrored pair carries the same bound, so width does not order them either"
+            "the mirrored pair carries the same bound, which orders nothing in any case"
         );
         assert_eq!(
-            TSpan::best_of(&spans),
-            Some(0),
-            "the tie falls to the earlier position"
+            TSpan::survivors(&spans),
+            vec![0, 1],
+            "both triangles are in the certified tie"
         );
         let reversed = [spans[1], spans[0]];
         assert_eq!(
-            TSpan::best_of(&reversed),
-            Some(0),
-            "and to the earlier position again when the candidates arrive the other way round"
+            TSpan::survivors(&reversed),
+            vec![0, 1],
+            "and both again when the candidates arrive the other way round: the SET is the \
+             answer, and it does not depend on the arrival order"
         );
     }
 

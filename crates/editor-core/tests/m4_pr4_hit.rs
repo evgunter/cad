@@ -9,9 +9,10 @@ use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocumentId, EntityKey, EntityRef, EvalOptions,
-    Evaluation, HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide,
-    ValuePayload, body_name, entity_name, evaluate, resolve,
+    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
+    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
+    RoleSeg, RunCtx, SplitSide, StableName, ValuePayload, body_name, entity_name, evaluate,
+    resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -317,6 +318,7 @@ test_utils::f6_variants! {
         NodeFailed,
         NodePoisoned,
         EvaluationOfAnotherDocument,
+        Ambiguous,
         Unnamed,
     ];
 }
@@ -339,6 +341,22 @@ test_utils::f6_variants! {
 fn hit_test_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(7);
     let through = RecipeNodeId(3);
+    // Two faces of ONE node, differing only in their role path — the
+    // shared-edge tie's own shape, and the case that says the
+    // rendering carries the path.
+    let tied_hit = |at: u32| PickHit {
+        name: StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::Cap(if at == 3 { CapEnd::Start } else { CapEnd::End })],
+        },
+        node,
+        body: 0,
+        t: f64::from(at),
+        t_lo: f64::from(at),
+        t_hi: f64::from(at),
+        point: geom_core::Point3::new(0.0, 0.0, 0.0),
+    };
     let cases = [
         (
             HitTestError::NodeNotEvaluated { node },
@@ -358,6 +376,16 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             // and which one was handed. The ids render through their
             // own `Display`, so the prose carries the whole answer.
             vec!["document", "not"],
+        ),
+        (
+            HitTestError::Ambiguous {
+                hits: [3u32, 5].map(tied_hit).to_vec(),
+            },
+            // The tied faces, each named with its own role path: two
+            // faces of one node render identically without it, and
+            // this sentence's whole subject is that two answers cannot
+            // be told apart.
+            vec!["tied between 2 faces", "node 7", "Cap(Start)", "Cap(End)"],
         ),
         (
             HitTestError::Unnamed {
