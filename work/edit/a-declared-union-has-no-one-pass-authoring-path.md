@@ -4,7 +4,6 @@ kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
 status: open
 opened: 2026-09-06
-needs_ev: true
 refs: [2028, 2028]
 ---
 

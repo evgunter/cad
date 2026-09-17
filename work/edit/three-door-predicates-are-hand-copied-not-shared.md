@@ -344,6 +344,8 @@ in `Walk::ORDER`.
 | `Snapshot` | `Roots` | **delegated** — `roots::check` | `SetRoots`, `on_insert`, `on_delete`, `on_set_members`. |
 | `Snapshot` | `MetadataUnversioned` | **delegated** — `MetaValue::require_versioned` | `SetAppearanceMeta`'s `MetaUnversioned`. **The rule is shared; only the WALK differs, irreducibly**: the edit door holds the one value it is about to write, and this door holds a map that arrived whole. Said at both sites. |
 
+**2026-09-17** — the `SlotParamRef` row's last sentence is out of date: the PAYLOAD half IS asked at the load door now (`edit/load-door-payload-refs`, PR #2793, a new `PayloadParamRef` walk after this one), so `Doc::param_ref_fault` has four callers rather than three, and the probe that row cites has moved — the fact is `load_door_payload_param_ref::a_measure_expression_reading_an_undeclared_parameter_refuses_to_load`, not `rv_onepred3_probes::rv_a_measure_expression_reading_an_undeclared_parameter_still_loads`, which is gone.
+
 **The walk ORDER is a contract**, not an implementation detail: a
 document broken in two ways at once is refused by the EARLIER walk, so
 that is the answer every caller comparing two doors reads, and moving

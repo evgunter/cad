@@ -4,7 +4,6 @@ kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
 status: open
 opened: 2026-09-16
-needs_ev: true
 ---
 
 
@@ -80,3 +79,84 @@ translating the document can change a tie's answer), or becomes the
 shape-only term (`from_barycentrics`, translation-invariant) while the
 enclosure and the `precedes` order keep the full width. The
 recommendation is on the PR; this row is parked on Ev's answer.
+
+## Recommendation and the exchange on the PR (2026-09-17)
+
+The PR recommended the shape-only key. Ev asked whether the door
+should "just be refusing in a case like this"; the orchestrator
+proposed refusing at an EXACT shape-width tie only (the position key
+gone, the width key kept as the informativeness rule for ties the
+arithmetic can grade) and asked whether Ev meant that or the wider
+scope — refuse at any certified tie and drop the width key too.
+
+## RULED (2026-09-17, Ev on `[ev]` PR #2795): the certified tie is refused and the width key goes
+
+Ev: *"either scope is good, but dropping the width key seems like it
+might simplify the code and also not increase refusals where it's
+actually clear what the user meant."* The wide scope is the ruling.
+Part (c) of `what-t-the-pick-door-answers-and-with-what-width` is
+superseded; its (a), (b) and (d) stand. The order is `precedes`
+alone, over the set, and the certified tie is not broken:
+
+1. A candidate some other candidate precedes (`t_hi < t_lo`) is out.
+   The survivors pairwise overlap — one certified tie, as today.
+2. Survivors that name ONE face — the same `(node, body, face)` met
+   on several of its own triangles, which is every ray across a
+   triangle diagonal or an in-face shared edge — are one answer, not
+   a tie. The door answers that face with the HULL of the members'
+   intervals (each encloses the crossing of its own triangle, so the
+   hull encloses every crossing the tie holds) and, for `t` and
+   `point`, the member with the smallest rounded `t` — a function of
+   the set, and a point of the face. This is the "clear what the user
+   meant" case; refusing it would refuse most picks.
+3. Survivors naming MORE THAN ONE face are refused, typed:
+   `HitTestError::Ambiguous { hits }`, one `PickHit` per tied face
+   (name, node, body, its own hull interval and point), listed in the
+   caller's target order and then face-arena order — an order for a
+   LIST, which decides nothing. Nothing about width, the scene's
+   placement or the target order decides a pick any more; this row's
+   class is unreachable by construction.
+
+The width stays what the interval IS — the enclosure, the `precedes`
+order, the early-out margin, the acceptance's `wide_winners`
+measurement — and stops being a key. `TSpan::best_of` retires for one
+set-valued home (the survivors of `precedes`) that the door and every
+reference loop and probe call. The early-out is unchanged and carries
+a second obligation: `Pruned == Every` is now also what makes the
+refusal's list complete.
+
+What changes visibly, told to Ev on the PR before the ruling: a ray
+down a cube's shared edge names neither face and refuses with both; a
+face the ray meets edge-on (wide) in front of a transversal face
+(narrow) no longer loses to the narrow one — the two are refused
+together. The corpus's tie-break aim (19 296 rays aimed at shared
+edges and vertices by construction) lands in the refusal wherever the
+tied triangles belong to different faces; the acceptance re-baselines
+to count those and to keep `Pruned == Every` over the refusal's list.
+
+**The viewer** (VIEW's, crossed by announcement). The ray path is the
+authoritative one at its own seam (`crates/viewer/src/idpass.rs`, the
+recorded role inversion), so an ambiguous ray answer is a refused
+click — nothing selected, the status line naming the tied faces — and
+`idpass::disagreement` reports no disagreement when the id pass's name
+is one of the tied set (the raster chose among faces the kernel says
+are tied). The cross-group merge in `PickIndex::pick_for` takes the
+same rule — `precedes` over the groups' answers, else the refusal —
+which is what `work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts`
+§2 asks for; the unit closes that row's §2 by announcement and says
+what of its §1 and §3 stands. **The Python door** (LIB's, mechanical):
+the new `HitTestError` variant gets its tag and the exception carries
+the tied hits.
+
+**Middle tier** (one implementer, one style review with a correctness
+arm), not the E-class this row was first cut as: the door's public
+answer changes shape across three crates. Spec'd at the next claim
+(branch `edit/pick-tie-refuses`). Rows that re-baseline to pin the
+refusal: `pick.rs`'s `a_ray_down_a_shared_edge_…_position_decides`,
+`pick3_early_out`'s `equal_widths_fall_to_the_earlier_target` and
+`the_certified_tie_is_decided_by_the_candidates_and_not_the_targets_order`,
+the width rows of the two PICK3 review-probe suites, `pick3_acceptance`'s
+`winner`, and whatever `gui1_pick` / `review_gui1_r1` rows aim at an
+edge. `docs/DESIGN.md`'s picking bullet ("a total documented
+tie-break") is re-worded by the unit, as the description of what it
+built.

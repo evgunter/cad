@@ -53,6 +53,10 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod corpus;
 mod fixture;
+// The wire-surgery helper, editor-core's alone — `tests/fixture/` and
+// `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
+// one is not, because its subject is `serde_json`.
+mod wire;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
@@ -136,6 +140,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
+#[path = "edit_ladder_rim.rs"]
+mod edit_ladder_rim;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
@@ -195,6 +201,8 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "load_door_payload_param_ref.rs"]
+mod load_door_payload_param_ref;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
@@ -233,6 +241,8 @@ mod msolve4_mate_memo;
 mod msolve5_read_below_a_root;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
+#[path = "rv_payloadrefs_probes.rs"]
+mod rv_payloadrefs_probes;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;

@@ -36,6 +36,9 @@ posture under §Process.
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
+   `a-declared-union-has-no-one-pass-authoring-path` was ruled by Ev
+   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended):
+   **ruled**, kernel unit, block EDIT-B2 slot 0, spec at the next claim.
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -61,17 +64,22 @@ posture under §Process.
    doc-param precedent; LIB's Python half unparked at that merge).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
-   **spec'd**, middle tier (wave 6).
+   **merged** (PR #2793, middle tier). DM8's residue
+   `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
+   is **spec'd**, middle tier (wave 8; crosses WIRE's `eval::content_key`
+   by announcement).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
    merged (block EDIT-B1 concluded); the ruling row
    `what-t-the-pick-door-answers-and-with-what-width` (ruled by Ev on
    `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
-   the residue rows `pick-tie-break-width-key-depends-on-scene-magnitude`
-   and `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stand open, and the early-out amendment goes to Ev on the next
-   `[ev]` PR;
+   `pick-tie-break-width-key-depends-on-scene-magnitude` was ruled by
+   Ev on the fourth `[ev]` PR (#2795): the certified tie between faces
+   is refused and the width key goes — **ruled**, middle tier, spec at
+   the next claim; `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   stands open; `pick-face-raw-target-path-survives-only-for-rows`
+   is ruled and **spec'd** (middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
@@ -83,7 +91,8 @@ posture under §Process.
    `debug-in-prose-residue-after-finding-sink` and
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
    **merged** (PR #2719); its residue
-   `quoted-parameter-name-in-error-prose-has-no-decision` stands, and
+   `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
+   **spec'd** (E-class, wave 7), and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the

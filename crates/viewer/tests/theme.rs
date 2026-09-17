@@ -92,7 +92,7 @@ fn srgb_linear_round_trip_is_exact() {
         let color = editor_core::appearance::Rgba8::opaque(code, code, code);
         assert_eq!(
             from_linear(linear(color)),
-            color,
+            Some(color),
             "code {code} did not survive the round trip",
         );
     }
@@ -114,7 +114,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
             };
             assert_eq!(
                 none.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} at strength 0 moved the body colour",
                 theme.name,
             );
@@ -124,7 +124,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
             };
             assert_eq!(
                 full.over(theme.body),
-                mark.tint,
+                Some(mark.tint),
                 "{}: {which} at strength 1 did not reach its tint",
                 theme.name,
             );
@@ -144,7 +144,7 @@ fn every_mark_is_visible_against_its_body() {
         for (which, mark) in theme.marks() {
             assert_ne!(
                 mark.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} composites to the body colour and marks nothing",
                 theme.name,
             );
@@ -400,8 +400,33 @@ mod cvd {
         };
         let mut out = vec![("body", scale(linear(theme.body)))];
         for (label, mark) in theme.marks() {
-            out.push((label, scale(linear(mark.over(theme.body)))));
+            // **A mark that does not composite is not measured as
+            // black.** `Mark::over` answers `None` for a strength that
+            // is not a number, and this walk is where a palette's
+            // safety CLAIM is checked: taking `None` as a colour would
+            // put pure black into every distance below, which is the
+            // most legible answer there is and would certify the
+            // palette on a value nothing computed.
+            let composited = mark.over(theme.body);
+            assert!(
+                composited.is_some(),
+                "{}: {label} does not composite",
+                theme.name,
+            );
+            out.extend(composited.map(|c| (label, scale(linear(c)))));
         }
+        // **A short list would still measure.** `extend` over an
+        // `Option` drops rather than refusing, so if the row above is
+        // ever relaxed the separation below would be taken over fewer
+        // swatches and pass for having less to compare. The length is
+        // the structural half of that guard; the row above names which
+        // mark, which a length cannot.
+        assert_eq!(
+            out.len(),
+            theme.marks().len() + 1,
+            "{}: the swatch walk lost a mark",
+            theme.name,
+        );
         out
     }
 
@@ -580,5 +605,71 @@ mod cvd {
                  ({rg:.4}) — the axis this palette is built on",
             );
         }
+    }
+}
+
+/// **A channel that is not a number is not a channel of anything.**
+///
+/// `f32::clamp` returns `self` when `self` is a `NaN` — a clamp cannot
+/// order the one value that has no order — and `NaN as u8` is `0`, so
+/// a poisoned channel used to arrive as a legitimate pure black. The
+/// composited colour is what [`cvd`] measures a palette's safety from,
+/// and pure black is the far end of every distance it takes: a channel
+/// that could not be computed read as the most legible answer there is.
+///
+/// What this row holds is the DISTINCTION, and it is held against
+/// **every** answer the encode gives rather than against black alone.
+/// Comparing with the floor only leaves the refusal free to be undone
+/// into any other legitimate value — `unwrap_or(255)` in place of the
+/// `?` passes a floor-only row and is the same defect at the other end
+/// of the ramp. So each channel is checked against the floor, the cap
+/// and an ordinary value between them, **substituted into that same
+/// channel**: the poisoned answer for lane `i` has to differ from the
+/// answer for every real light level in lane `i`, not from some other
+/// lane's colour. Each lane in turn, because the encode runs per
+/// channel.
+#[test]
+fn a_channel_that_is_not_a_number_is_not_a_channel() {
+    for lane in 0..3 {
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let legitimate = [at(0.0), at(1.0), at(0.25)];
+        let poisoned = at(f32::NAN);
+        assert!(
+            !legitimate.contains(&poisoned),
+            "channel {lane} that is not a number answered {poisoned:?}, \
+             which is an answer a real channel gives",
+        );
+    }
+}
+
+/// The three legitimate answers per channel are three different
+/// answers, which is what makes the row above a test of anything: an
+/// encode that answered one colour for every level would satisfy a
+/// difference check against a set whose members had collapsed.
+///
+/// All three pairs, not two of them — a set of three has three pairs,
+/// and checking the two adjacent ones leaves `floor == cap` unread.
+#[test]
+fn the_legitimate_channel_answers_are_distinct() {
+    for lane in 0..3 {
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let (floor, cap, ordinary) = (at(0.0), at(1.0), at(0.25));
+        assert_ne!(
+            floor, ordinary,
+            "channel {lane}: the floor and an ordinary level"
+        );
+        assert_ne!(
+            ordinary, cap,
+            "channel {lane}: an ordinary level and the cap"
+        );
+        assert_ne!(floor, cap, "channel {lane}: the floor and the cap");
     }
 }

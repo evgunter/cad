@@ -2,8 +2,11 @@
 id: load-door-does-not-check-payload-expression-param-refs
 kind: issue
 title: The load door asks the param-table rule of slot expressions only; a measure's or an assertion's payload expression is edit-door-only
-status: spec
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
+pr: 2793
+branch: edit/load-door-payload-refs
 ---
 
 
@@ -108,3 +111,107 @@ re-check them.
 `crates/pncad-py/src/tags.rs`, `src/tests.rs` (LIB, mechanical).
 Middle tier: one opus style review with a correctness arm, then a fix
 pass.
+
+## Built (2026-09-16)
+
+The load door asks the param-table rule of a node's PAYLOAD
+expressions as well as its slots.
+
+`persist::check::first_payload_param_ref_fault` walks
+`node::payload_exprs` of every node and asks the same
+`Doc::param_ref_fault` the edit door asks — one spelling of the rule,
+now with FOUR callers: the two doors' two walks each, which is what
+the predicate's own doc names. Its answer is named by two
+`SnapshotError` arms whose address is the NODE,
+`PayloadUnknownDocParam` and
+`PayloadDocParamDimension`, placed on a new walk
+`Walk::PayloadParamRef` that runs after `Walk::SlotParamRef`: a
+document broken in both a slot and a payload is diagnosed at the slot.
+The exhaustive map places both arms, so neither the walk nor the arms
+compile until they are placed; the F6 census in `display_contract.rs`
+renders both, and `pncad-py`'s tag map and tag inventory carry
+`payload_unknown_doc_param` / `payload_doc_param_dimension`.
+
+The measurement that disclosed the gap flipped: its row is gone from
+`rv_onepred3_probes.rs` and the payload contract lives in
+`crates/editor-core/tests/load_door_payload_param_ref.rs` — the
+undeclared-parameter row over a measure (both doors, one fixture), its
+dimension twin, an assertion-bound row, a round-trip row, and the
+slot-before-payload order row.
+
+What did not land: nothing from the spec. The spec's option of
+renaming `Walk::SlotParamRef` to `Walk::ParamRef` and placing both
+pairs on it was not taken — slot and payload are two walks because
+their refusals carry different addresses, and the order between them
+is a contract a single walk could not state.
+
+## After the review (2026-09-17)
+
+One opus style review, APPROVE-WITH-FIXES (0 MAJOR, 3 MINOR, 6 NOTE,
+10 style). Every finding taken; what each became is in PR #2793's
+**After the review** section, and this is the tracker's half.
+
+**The census moved onto the code, properly this time.** The module
+doc's hand-written "Its walks:" list is gone — it had undercounted by
+the walk this very PR added, the third round in a row the same list
+has been wrong. `Walk` is the roster, `Walk::ORDER` the order, and
+`Walk::run` the map; each walk's coverage and its snapshot-only reason
+now live on its own variant, and the module doc keeps only what no
+roster can carry.
+
+**The order is stated as a contract per adjacency.** `validate_document`
+now says which three adjacencies are load-bearing and names the row for
+each, and which three are free. A new row measures the last one: an
+assertion whose bound reads an undeclared parameter AND whose target is
+not a measure reads the PAYLOAD refusal, not `Walk::Snapshot`'s
+`AssertionTarget`.
+
+**One mapper over an address.** `slot_param_ref_refusal` and
+`payload_param_ref_refusal` are one `param_ref_refusal` over
+`ParamRefAddress::Slot(SlotId) | ::Payload`. The edit door's two
+destructurings stay two — they feed a different error type with a
+different subject, the same shape the slot-dimension and assertion
+pairs have at both doors.
+
+**The payload refusals' noun is repaired at both doors**: an
+assertion's bound is not a "measurement payload", so both doors now say
+"payload expression". The reviewer's fourth probe, which pinned the
+defective wording, is rewritten to pin the repaired one and to hold the
+two doors to the same word.
+
+**The wire surgery is one body.** `fn doctored` — five byte-identical
+copies, measured identical by diff before the move — lives in
+`tests/fixture/mod.rs` and is read by all five suites.
+
+**Filed:** `param-ref-refusals-spell-two-facts-four-ways` (EDIT), the
+eight names for two facts under four conventions, with the rosters that
+ride the names and would have to move in the same PR. Not renamed here.
+
+**Not filed:** no Python row. Both new arms reach the bindings through
+`snapshot_error_tag` and the committed tag inventory, which is the
+round-three precedent for a load-door arm: the tag words are carried
+mechanically and the Python suite's census is what reds if they are
+not.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2793 after one opus style review
+(APPROVE-WITH-FIXES: 0 MAJOR, 3 MINOR, 6 NOTE, 10 style — every one
+taken). The load door asks `Doc::param_ref_fault` of every payload
+expression (`first_payload_param_ref_fault` on `Walk::PayloadParamRef`,
+after the slot walk, with the order pinned), refusing
+`PayloadUnknownDocParam` / `PayloadDocParamDimension` addressed by node;
+the round-three probe became the red-first row of a new suite. The
+review's sharpest finding was round three's own MAJOR shape one more
+time — the module doc's hand-written walk census undercounting by the
+walk this unit added — and the orchestrator ruled the prose census
+deleted in favour of the code's (`Walk::ORDER`/`Walk::run`), which is
+what round three intended. One mapper over an address enum replaced
+the two load-door mappers; the refusal noun covers an assertion bound
+at both doors; the round trip carries a signed zero so `bit_eq`'s
+payload half is exercised. The wire-surgery helper the four suites had
+copied has one home in `tests/wire/mod.rs` — not `tests/fixture/`,
+which is symlinked into the viewer's serde-free test binary (a CI
+lesson banked for every lane). Residue in its own file:
+`param-ref-refusals-spell-two-facts-four-ways` (eight arm names, four
+conventions, and the rosters a rename must move together).
