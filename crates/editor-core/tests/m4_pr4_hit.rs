@@ -385,11 +385,12 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             HitTestError::Ambiguous {
                 hits: [3u32, 5].map(tied_hit).to_vec(),
             },
-            // The tied faces, each named with its own role path: two
-            // faces of one node render identically without it, and
-            // this sentence's whole subject is that two answers cannot
-            // be told apart.
-            vec!["tied between 2 faces", "node 7", "Cap(Start)", "Cap(End)"],
+            // The count, and each tied face NUMBERED so the phrase
+            // lines up with its entry in `hits` — two faces of one
+            // node render identically through `StableName`'s
+            // `Display`, and the role path that would tell them apart
+            // is a `Debug` derivation the prose must not carry.
+            vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
         ),
         (
             HitTestError::Unnamed {

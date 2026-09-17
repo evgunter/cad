@@ -1767,13 +1767,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          which the shared lexer does not expand, so its shape is unreadable",
     ),
     (
-        "crates/editor-core/src/resolve/hit.rs",
-        "HitTestError",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
         "crates/geom-brep/src/nurbs_iso.rs",
         "IsoRowError",
         "u",

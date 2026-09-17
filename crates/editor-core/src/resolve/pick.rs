@@ -1344,14 +1344,35 @@ pub struct PickHit {
 /// span) and the fail-loud direction if it ever were not.
 impl PartialEq for PickHit {
     fn eq(&self, other: &Self) -> bool {
-        let point = |p: &Point3<f64>| [p.x, p.y, p.z];
-        self.name == other.name
-            && self.node == other.node
-            && self.body == other.body
-            && self.t == other.t
-            && self.t_lo == other.t_lo
-            && self.t_hi == other.t_hi
-            && point(&self.point) == point(&other.point)
+        // Destructured exhaustively on BOTH sides: a field added to
+        // `PickHit` is E0027 here rather than a field silently outside
+        // equality.
+        let Self {
+            name,
+            node,
+            body,
+            t,
+            t_lo,
+            t_hi,
+            point,
+        } = self;
+        let Self {
+            name: other_name,
+            node: other_node,
+            body: other_body,
+            t: other_t,
+            t_lo: other_t_lo,
+            t_hi: other_t_hi,
+            point: other_point,
+        } = other;
+        let xyz = |p: &Point3<f64>| [p.x, p.y, p.z];
+        name == other_name
+            && node == other_node
+            && body == other_body
+            && t == other_t
+            && t_lo == other_t_lo
+            && t_hi == other_t_hi
+            && xyz(point) == xyz(other_point)
     }
 }
 

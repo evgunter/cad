@@ -1248,8 +1248,9 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report = idpass::disagreement(&index, nothing, Some(serial), &[named.clone()])
-            .expect("nothing-under-the-cursor against a named face is a disagreement");
+        let report =
+            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
+                .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 

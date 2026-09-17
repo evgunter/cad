@@ -147,22 +147,26 @@ impl core::fmt::Display for HitTestError {
                     "hit test: the ray is tied between {} faces the arithmetic cannot order — ",
                     hits.len()
                 )?;
+                // **Numbered, and by name alone.** Two faces of one
+                // node render identically through [`StableName`]'s
+                // `Display`, which omits the role path on purpose —
+                // so the ordinal is what ties each phrase to its
+                // entry in `hits`, where the path IS carried. The
+                // path itself stays out of the prose: it renders
+                // through `Debug`, and a `Debug` struct dump in a
+                // refusal's message is what the Display contract
+                // forbids and what the binding's prose check refuses
+                // outright.
                 for (i, hit) in hits.iter().enumerate() {
                     if i > 0 {
                         f.write_str(", ")?;
                     }
-                    // The name AND its role path: two faces of one
-                    // node render identically through `Display`
-                    // alone, and a sentence whose whole subject is
-                    // that two answers cannot be told apart cannot
-                    // afford that collapse. The path rides as `Debug`
-                    // because `RoleSeg` has no `Display`.
-                    write!(f, "{} ({:?})", hit.name, hit.name.path)?;
+                    write!(f, "({}) {}", i + 1, hit.name)?;
                 }
                 write!(
                     f,
                     " — so the pick names none of them; aim away from the shared edge, or \
-                     choose one of the tied faces"
+                     choose one of the tied faces, which this refusal lists in full"
                 )
             }
             Self::Unnamed { node, entity } => write!(
