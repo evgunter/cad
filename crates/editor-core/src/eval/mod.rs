@@ -4019,12 +4019,12 @@ where
             )) {
                 for lp in &program.loops {
                     // Every step's own radius, in program-step order: a
-                    // carrier form's one, a chain's per arc step. The
-                    // loop shapes are not distinguished here because
-                    // the question is not per loop — it is "which
-                    // spellings of this program can reach a stored
-                    // field", and a chain's arc radii reach the walls
-                    // its arcs sweep exactly as a carrier's does.
+                    // carrier form's one, a chain's per radius-bearing
+                    // step. The loop shapes are not distinguished here
+                    // because the question is not per loop — it is
+                    // "which spellings of this program can reach a
+                    // stored field", and a chain's arc radii reach the
+                    // walls its arcs sweep exactly as a carrier's does.
                     for (_, expr) in lp.step_radii() {
                         // Opened by its word in the profile-payload
                         // vocabulary (`tag::program`).
