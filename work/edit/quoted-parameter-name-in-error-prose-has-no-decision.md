@@ -2,8 +2,9 @@
 id: quoted-parameter-name-in-error-prose-has-no-decision
 kind: issue
 title: editor-core quotes a parameter name in error prose at some doors and not at others, and nothing decides which
-status: spec
+status: review
 opened: 2026-09-16
+branch: edit/param-name-display
 ---
 
 
@@ -95,3 +96,64 @@ without quotes at every door except parse, and with them there.
 expr.rs, parse.rs}` (EDIT), `refactor.rs` (FIX, mechanical),
 `crates/editor-core/tests/display_contract.rs` (TCOST/TINT). E-class:
 green CI and the orchestrator's read.
+
+## Built (2026-09-17)
+
+**The rule has one home.** `ParamName` carries a `Display` that writes
+the bare name, with the exception and its reason in its rustdoc. Every
+door in `editor-core` that frames a parameter name in a sentence of its
+own renders through it — including the twelve `EditError` arms that were
+already bare through `name.0`, so no prose site reaches inside the
+newtype any more and the hazard this row names ("a `{name:?}` written
+over the newtype instead of over its `.0`") is a compile-time question
+rather than a wording accident. `ParseError` keeps `{:?}` at all eight
+of its placeholders, and its `Display` header now says what the quotes
+mean: every one of them renders text lifted verbatim out of the
+author's input.
+
+**Twenty-two placeholders moved** across eight files: `edit.rs` (12,
+`.0` -> `Display`, same bytes out), `persist/mod.rs` (2),
+`persist/check.rs` (4), `range.rs` (2), `expr.rs` (2), `refactor.rs`
+(2, FIX's, mechanical), `analysis.rs` (6) and `stackup.rs` (4) — the
+last two PROPS's, mechanical, and **a correction to this row's own
+table**, which did not list them.
+
+**The row.**
+`display_contract::a_parameter_name_renders_unquoted_at_every_door_but_parse`:
+thirteen doors, one arm each, asserting the rendered sentence names the
+parameter and does not quote it, plus the parse door asserting it does.
+Verified red before the change (`PersistError::DisplayUnit` first).
+The range and stackup doors ride a `#[cfg(feature = "interval")]` arm,
+since those modules compile in that lane only.
+
+**Two expectations re-baselined**, both asserting the quotes:
+`tests/lib_doors_node_result.rs`'s `EvalError::UnknownParam` case
+(`"\"width\""` -> `"parameter width"`) and
+`tests/asm4_split_inline.rs`'s `InlineError::ParamConflict` assertion
+(`msg.contains("\"L\"")` -> the sentence fragment around the name). No
+F6 `assert_f6*` case carried quotes: those match content words as
+substrings, so the class this row named as re-baselining turned out to
+be two hand-written assertions and no census row.
+
+**Two premises corrected.** `ParseError::UnknownParam`'s `name` is a
+`String`, not a `ParamName` (it is built from `key.0` at the parse
+site), so the parse door is outside the `ParamName` sweep by type as
+well as by ruling. And the positional blind spot this row describes is
+not where these sites landed: `prose_census.rs`'s `expression_type`
+reads a tuple-struct field, so a positional `{:?}` over `name.0`
+resolves to `String` and verdicts `Prose` — none of the twenty-two was
+on `UNDECIDED` or `KNOWN_BRACED`, and the census stayed green across
+the change. The blind spot is real for a positional `{:?}` written over
+the newtype itself, which is the hazard, not the state.
+
+**The other half of the residue is left, as a stated negative.** The
+`String` payloads that are not parameter names — a metadata key
+(`edit.rs` ×4, `persist/check.rs` ×2, `refactor.rs`, `meta/mod.rs`), the
+header line `PersistError::HeaderId` echoes, a unit symbol
+(`expr.rs`, `parse.rs`) — are quoted at every one of their sites, so
+there is no second spelling to decide between, and each is text a door
+was HANDED rather than a name the document holds: the reading
+`parse.rs`'s header now states. They are also the named-binding half
+the census can type, so a re-type to a structured key reds it. No row
+filed; if a future reader wants that written beside each door rather
+than argued here, it is a wording unit and not a decision.
