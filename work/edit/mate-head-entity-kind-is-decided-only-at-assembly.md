@@ -2,7 +2,9 @@
 id: mate-head-entity-kind-is-decided-only-at-assembly
 kind: issue
 title: A mate head's EntityKind is decided at assembly and never at the edit door
-status: spec
+status: review
+pr: 2799
+branch: edit/mate-head-kind
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
@@ -87,3 +89,62 @@ only head `a` (the `b` row reds); the load walk dropped from `ORDER`
 persist/check.rs}` (EDIT); `crates/editor-core/tests/*` (TCOST/TINT);
 `crates/pncad-py/src/{tags.rs, tests.rs}` (LIB, mechanical). Middle
 tier.
+
+## Built (2026-09-17, `edit/mate-head-kind`)
+
+**Re-scoped before the build landed** (orchestrator, ratified by Ev on
+the `[ev]` PR): a non-face mate head fails to TYPECHECK rather than
+refusing at the edit door. The ruling's answer — the edit door decides
+the kind, not the at-rest gate — stands; what changed is where the
+decision is written down.
+
+`crates/editor-core/src/names/role.rs` carries `FaceName`, a
+`StableName` whose kind is `EntityKind::Face` by construction, with
+one checked constructor (`FaceName::new -> Result<_, NotAFaceName>`),
+`Deref`/`AsRef` to the inner name, and a `Deserialize` that goes
+through the constructor. `crates/editor-core/src/node.rs` carries
+`SitedFace` — `SitedRef`'s shape over a `FaceName` — and `Node::Mate`'s
+two heads are `SitedFace`s. **A mate whose head names an edge is a
+program that does not compile**, pinned by `SitedFace`'s own
+`compile_fail,E0308` row.
+
+A separate `SitedFace` rather than a generic `SitedRef<N>`: the two
+payloads that hold a sited reference want different things of it — a
+measure's `at` is a DAG edge and its name is any kind, a mate's `at` is
+an A12 reading edge and its name is a face — and only three consumers
+are mate-only (`assembly::resolve_face`/`operand_answer`,
+`mate::member`'s walk, `refactor`'s crossing gate). A type parameter
+would have put a bound on every signature that names the type for a
+distinction two structs make with no bounds at all.
+
+**The three boundaries that turn data into names call the
+constructor**: the wire (`FaceName`'s `Deserialize`, so a file whose
+head is retyped refuses as `PersistError::Unreadable` — the reader
+accepted the bytes and this build's types rejected them), the Python
+binding (`face_name_from_text`, raising `EditError.variant ==
+"mate_head_not_a_face"` at the `Node.mate` call), and the viewer's
+picked face (whose selection door already refused a non-face; filed as
+`work/view/face-selection-carries-a-bare-stable-name`).
+
+**No edit-door arm and no `Walk` arm** — the spec's two doors are what
+the type replaced. `EditError` and `SnapshotError` are unchanged.
+
+`assembly.rs`'s `RefusedRef::NotAFace` **stays, and now guards one
+thing**: `NameTable::insert`'s rule that a row's kind is its name's.
+Its two kind rungs are gone — `resolve_face`'s (the head is a face by
+type) and `operand_answer`'s rung 2 (same) — leaving the release
+answer for a table that handed a face name a non-face key, asserted in
+debug at the site. The ladder is three rungs now and its doc says so.
+
+`msolve5_read_below_a_root`'s three kind rows are DELETED: each built
+a document that cannot be written, and a row measuring an unreachable
+state measures nothing. What replaced them: the `compile_fail` row,
+`edit_one_predicate`'s load-door row over both heads and all three
+non-face kinds, `a_face_to_face_mate_round_trips`, and the Python
+row. The suite's header says where the question went and what its
+ladder still decides.
+
+Residue in its own file:
+`interface-crossing-heads-are-bare-stable-names` (EDIT's — the split's
+crossing record did not follow the type) and
+`work/view/face-selection-carries-a-bare-stable-name` (VIEW's).
