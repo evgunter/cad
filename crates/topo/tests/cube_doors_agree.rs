@@ -63,11 +63,7 @@ fn onto(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> impl Fn(f64, f64, f64) -
 /// `1.015625 > 0` so outward stays outward — a map no `onto` can
 /// spell, and the class the mapped doors exist for.
 fn sheared(u: f64, v: f64, w: f64) -> Point3<f64> {
-    Point3::new(
-        1.0 + u + 0.5 * v,
-        2.0 + v + 0.25 * w,
-        -1.0 + w + 0.125 * u,
-    )
+    Point3::new(1.0 + u + 0.5 * v, 2.0 + v + 0.25 * w, -1.0 + w + 0.125 * u)
 }
 
 /// The rectangle profile of `[x] x [y]`, counterclockwise from +z.
@@ -238,7 +234,7 @@ fn assert_prism_shaped<T: Decide>(
         })
         .collect();
     let mut want_ring = vec![n, n];
-    want_ring.extend(std::iter::repeat(4).take(n));
+    want_ring.extend(std::iter::repeat_n(4, n));
     assert_eq!(
         ring, want_ring,
         "face arena order: the top cap, the bottom cap, then one quad per segment"
