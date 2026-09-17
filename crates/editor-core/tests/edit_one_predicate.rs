@@ -35,8 +35,7 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocumentId, EditError,
-    EntityKind, Expr, Frame, MateFrame, MatePrimitive, MateSide, MeasureExpr, Node, ParamName,
-    PersistError,
+    EntityKind, Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, ParamName, PersistError,
     ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply,
     load, save,
 };
@@ -283,20 +282,9 @@ fn in_part(instance: RecipeNodeId) -> StableName {
 }
 
 fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgram> {
-    mate_of(
-        SitedRef::at_mint(in_part(a)),
-        SitedRef::at_mint(in_part(b)),
-        origin,
-    )
-}
-
-/// The same mate over heads the caller supplies — what the kind rows
-/// below need, and what `mate` is written in terms of, so a head that
-/// is the wrong kind is the only difference between the two fixtures.
-fn mate_of(a: SitedRef, b: SitedRef, origin: [f64; 3]) -> Node<ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(in_part(a)),
+        b: SitedRef::at_mint(in_part(b)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame {
@@ -341,111 +329,6 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
         Err(EditError::NonFiniteAlignment { .. }) => {}
         other => panic!("a non-finite alignment must refuse typed, got {other:?}"),
     }
-}
-
-// ---- The mate head's entity kind ----
-
-/// `in_part`'s head with the entity kind replaced — the ONLY thing
-/// wrong with it, so a refusal read below is the kind rule's and not
-/// the fixture's. The role path still spells a cap face, which is
-/// what makes the head a lie rather than a different reference: a
-/// name's kind is data on the name, and nothing on the wire pins it
-/// to the path it carries.
-fn head_of_kind(instance: RecipeNodeId, kind: EntityKind) -> SitedRef {
-    let mut name = in_part(instance);
-    name.kind = kind;
-    SitedRef::at_mint(name)
-}
-
-/// Retypes one head of a saved mate, kind and nothing else.
-fn retype_head(text: &str, mate: RecipeNodeId, side: MateSide, kind: EntityKind) -> String {
-    doctored(text, |wire| {
-        let field =
-            &mut wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side.name()]["name"]["kind"];
-        assert_eq!(
-            *field,
-            serde_json::json!("Face"),
-            "the surgery is aimed at a face head"
-        );
-        *field = serde_json::json!(format!("{kind:?}"));
-    })
-}
-
-/// A two-instance document carrying one face-to-face mate, saved.
-fn saved_mate(label: &str) -> (String, RecipeNodeId) {
-    let (doc, ids) = instances_of_a_stored_part(label, 2);
-    let (doc, mate) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("a face-to-face mate round trips");
-    (text, mate)
-}
-
-/// **A mate head that is not a face — both doors.** A mate's
-/// declaration is a FACE-PAIR contact, and a head's kind is data on
-/// the `StableName`: no product, no table and no evaluation is needed
-/// to read it, so the question belongs where the mate is ADMITTED.
-/// The edit door names it `MateHeadWrongKind`; the load door names
-/// the same answer (`Node::mate_head_fault`) as
-/// `SnapshotError::MateHeadWrongKind`.
-///
-/// Both heads and all three non-face kinds, because the predicate
-/// walks two heads and asks one question of each: a door that checked
-/// `a` alone, or that admitted a body because it was thinking of
-/// edges, reds here.
-#[test]
-fn a_mate_head_that_is_not_a_face_is_refused_at_both_doors() {
-    for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
-        for side in [MateSide::A, MateSide::B] {
-            let (doc, ids) = instances_of_a_stored_part("onepred-matehead", 2);
-            let (a, b) = match side {
-                MateSide::A => (head_of_kind(ids[0], kind), SitedRef::at_mint(in_part(ids[1]))),
-                MateSide::B => (SitedRef::at_mint(in_part(ids[0])), head_of_kind(ids[1], kind)),
-            };
-            match apply(
-                &doc,
-                &DocEdit::InsertNode {
-                    node: mate_of(a, b, [0.0, 0.0, 0.0]),
-                },
-                Tol::witness(),
-            ) {
-                Err(EditError::MateHeadWrongKind { side: s, name }) => {
-                    assert_eq!(s, side, "the refusal names the head that is wrong");
-                    assert_eq!(name.kind, kind, "and carries the head it refused");
-                }
-                other => panic!("a {kind:?} mate head must refuse typed at the edit door, got {other:?}"),
-            }
-
-            // The same fact at the load door: a saved face-to-face
-            // mate with one head retyped on the wire.
-            let (text, mate) = saved_mate("onepred-matehead-file");
-            let corrupt = retype_head(&text, mate, side, kind);
-            match load(&corrupt, Tol::witness()) {
-                Err(PersistError::Snapshot(SnapshotError::MateHeadWrongKind {
-                    node,
-                    side: s,
-                    name,
-                })) => {
-                    assert_eq!(node, mate);
-                    assert_eq!(s, side, "the refusal names the head that is wrong");
-                    assert_eq!(name.kind, kind);
-                }
-                other => panic!("a {kind:?} mate head must refuse typed at load, got {other:?}"),
-            }
-        }
-    }
-}
-
-/// **The control.** The same document with both heads naming faces
-/// inserts, saves and loads — so the rows above measure the kind and
-/// not the fixture, and the new load walk admits what it should.
-#[test]
-fn a_face_to_face_mate_round_trips() {
-    let (text, mate) = saved_mate("onepred-matehead-ok");
-    let doc = load(&text, Tol::witness()).expect("a face-to-face mate loads");
-    assert!(
-        matches!(doc.doc.node(mate), Some(Node::Mate { .. })),
-        "the mate survives the round trip"
-    );
 }
 
 // ---- The A11 placement registry ----

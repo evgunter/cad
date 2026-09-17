@@ -40,21 +40,17 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 
 WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
 ----------------------------------------------------------------
-`ref_read_below_a_root` is reached below: `Node.mate` takes
+`ref_not_a_face` is reached below, by authoring a mate against an
+edge. `ref_read_below_a_root` is reached below too: `Node.mate` takes
 an operand, so a mate read at a transform that a `placed_union`
 consumes is authorable — the operand spells the name, the product
 lists only the union and spells that face as an instance row, and
 the gate names the operand. (`placed_union` is what puts the
 transform below a root there; the kernel's own row spells the same
 document with `Node::Pattern`, and both wrap the transform's rows the
-same way.) The other three are MEASURED as unreachable from Python
+same way.) The other two are MEASURED as unreachable from Python
 authoring today, which is a finding about the doors and not a gap in
 this file:
-
-* `ref_not_a_face` — a head that is not a face. The EDIT door decides
-  the kind now (`mate_head_wrong_kind`, asserted below) and the load
-  door asks the same predicate, so no document reaching the gate
-  carries one.
 
 * `ref_vanished` — no product entity answers to the name, and the
   operand the mate reads at does not spell it either. Reaching it
@@ -955,25 +951,28 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertIsNone(row.why.width)
         self.assertIsNone(row.why.kind)
 
-    def test_a_mate_head_that_is_not_a_face_refuses_at_the_edit_door(self):
-        """A mate's declaration is a FACE-PAIR contact. An edge head is
-        a different statement, refused rather than widened — and the
-        kind is data on the name, so the door that ADMITS the mate is
-        where it is read. The head the exception carries is the one
-        that was refused; which SIDE it is rides in the message."""
+    def test_a_mate_reference_that_is_not_a_face_refuses_at_the_gate(self):
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
-        with self.assertRaises(pncad.EditError) as caught:
-            doc.insert(
-                Node.mate(
-                    post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A)
-                )
-            )
+        mate = doc.insert(
+            Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+        )
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(doc, evaluate(doc, resolver=self.ws))
         err = caught.exception
-        self.assertEqual(err.variant, "mate_head_wrong_kind")
-        self.assertEqual(err.name, edge)
+        # A mate's declaration is a FACE-PAIR contact. An edge
+        # reference is a different statement, refused rather than
+        # widened — and the refusal says which side and which way.
+        self.assertEqual(err.variant, "unminted_mates")
+        (row,) = err.refusals
+        self.assertEqual(row.variant, "mate_reference_refused")
+        self.assertEqual(row.mate, mate)
+        self.assertEqual(row.side, pncad.MateSide.A)
+        self.assertEqual(row.why.variant, "ref_not_a_face")
+        self.assertEqual(row.why.kind, "edge")
+        self.assertIsNone(row.why.width)
 
     def test_a_gather_refusal_arrives_under_the_gathers_own_tag(self):
         doc = Doc("no-resolver")

@@ -935,20 +935,6 @@ pub enum EditError {
         /// The colliding attribute kind.
         kind: AttrKind,
     },
-    /// A mate head that does not name a FACE. A mate declares a
-    /// FACE-PAIR contact, and a head's kind is data on its
-    /// [`StableName`] — no product, no table and no evaluation are
-    /// needed to read it — so the question is asked where the mate is
-    /// ADMITTED, beside the alignment's finiteness
-    /// ([`Node::mate_head_fault`], the one home the load door's walk
-    /// reads too). A body, edge or vertex head is a different
-    /// statement, refused rather than widened.
-    MateHeadWrongKind {
-        /// Which head it is.
-        side: crate::mate::MateSide,
-        /// The refused head.
-        name: StableName,
-    },
     /// A `SetAppearance` on an edge or vertex name — v1 appearance is
     /// per-face/per-body (M4-PLAN item 7); edge/vertex attributes are
     /// a future additive extension, refused typed until ratified.
@@ -1455,11 +1441,6 @@ impl core::fmt::Display for EditError {
                 f,
                 "the rebind would land two {} attributes on the {name} — clear one first",
                 kind.noun()
-            ),
-            Self::MateHeadWrongKind { side, name } => write!(
-                f,
-                "a mate declares a contact between two faces (its {} head names the {name})",
-                side.name()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
@@ -2212,17 +2193,6 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // is decidable, which the load door's walk asks too.
             if node.has_non_finite_alignment() {
                 return Err(EditError::NonFiniteAlignment { node: id });
-            }
-            // A mate's heads name FACES, through the same
-            // `Node::mate_head_fault` the load door's walk asks. The
-            // kind is data on the name, so this door can decide it;
-            // what the head RESOLVES to is the at-rest gate's, which
-            // needs a product this door does not have.
-            if let Some((side, name)) = node.mate_head_fault() {
-                return Err(EditError::MateHeadWrongKind {
-                    side,
-                    name: name.clone(),
-                });
             }
             check_node_slots(&new, id, node)?;
             // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile

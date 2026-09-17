@@ -419,15 +419,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             name: Some(name),
             ..none
         },
-        // The mate-head arm names a SIDE beside the head, and no
-        // attribute of this record carries one: the message states it,
-        // as the document-mismatch arm above states its two documents.
-        // The head itself is the half a caller acts on — it carries
-        // the kind that was refused and the node that minted it.
-        EditError::MateHeadWrongKind { name, .. } => EditPayload {
-            name: Some(name),
-            ..none
-        },
         // A rebind's two ENTITY kinds. `from` is a Python keyword, so
         // neither half can keep the kernel's bare word and both take
         // the role suffix rather than one of the pair reading oddly.

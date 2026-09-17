@@ -2443,13 +2443,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         E::NameUnresolvedInEvaluation { name: named() },
         E::AppearanceWrongKind { name: named() },
         E::AppearanceNamesMissingNode { name: named() },
-        // The refused mate head. The SIDE the kernel names beside it
-        // has no attribute on this record and rides in the message,
-        // the way `EvaluationOfAnotherDocument`'s two documents do.
-        E::MateHeadWrongKind {
-            side: pncad::document::MateSide::B,
-            name: named(),
-        },
     ] {
         carries(&arm, &["name"]);
     }
@@ -4121,7 +4114,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
-            "mate_head_wrong_kind",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -4979,7 +4971,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "id_beyond_counter",
             "input_list",
             "mate_alignment",
-            "mate_head_wrong_kind",
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",

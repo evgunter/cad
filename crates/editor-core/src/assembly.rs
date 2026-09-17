@@ -323,20 +323,6 @@ pub enum RefusedRef {
     /// declaration is a face-pair contact; a body, edge or vertex
     /// reference is a different statement, refused rather than
     /// widened, wherever it is rooted.
-    ///
-    /// **The edit door reads the rule first.** A head's kind is data
-    /// on the [`StableName`], so [`crate::node::Node::mate_head_fault`]
-    /// answers it with no product at all, and both document doors
-    /// refuse the node — [`crate::EditError::MateHeadWrongKind`] at
-    /// `InsertNode`, `SnapshotError::MateHeadWrongKind` at load and at
-    /// save. No document a caller outside this crate can build reaches
-    /// this arm. What it still guards is in-crate: a `Doc` assembled
-    /// through the crate-private fields rather than through
-    /// [`crate::apply`], and the release answer for a name table that
-    /// admitted a row whose key kind is not its name's (asserted in
-    /// debug at the site). The gate asks rather than assumes, because
-    /// a gate that trusted a door it does not call would mint a
-    /// contact out of an edge.
     NotAFace {
         /// What it did name — `found`, the word every entity-kind
         /// refusal in this crate spells its answer with.
@@ -1078,14 +1064,6 @@ pub(crate) fn mint<P, T: Decide>(
 /// is [`RefusedRef::Ambiguous`]. What a name denotes does not depend
 /// on which table answered it, so the same edge refuses in the same
 /// word read at a root and read below one.
-///
-/// **The edit door is the kind rule's first reader**, not this one:
-/// the kind is data on the name, so [`crate::node::Node::mate_head_fault`]
-/// answers it where a mate is ADMITTED and the load door's walk asks
-/// the same predicate. What is left for this gate is what needs a
-/// PRODUCT — which entity a head resolves to, and how many — and the
-/// kind question it keeps is the one [`RefusedRef::NotAFace`]
-/// documents.
 fn resolve_face<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1111,12 +1089,7 @@ fn resolve_face<P, T: Decide>(
     // (`NameTable::insert`, `insert_tied`), so a tie answers this as
     // readily as a unique row does — and an edge named here and the
     // same edge named one node below get one word for one fact.
-    //
-    // `SitedRef::is_face` is that one question; the EDIT and LOAD
-    // doors ask it of a whole mate (`Node::mate_head_fault`) before a
-    // document can carry the head at all, which is why this arm is
-    // reached only through the in-crate routes the enum's docs name.
-    if !reference.is_face() {
+    if name.kind != EntityKind::Face {
         return Err(refuse(RefusedRef::NotAFace { found: name.kind }));
     }
     match entry {
@@ -1187,11 +1160,7 @@ fn operand_answer<P, T: Decide>(
         .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
         None => RefusedRef::Vanished,
-        // The same `SitedRef::is_face` the caller asked of the
-        // product's rows, asked here of the operand's — one question
-        // with one home, so the two tables cannot come to disagree
-        // about what a name denotes.
-        Some(Entry::Unique(_) | Entry::Tied(_)) if !reference.is_face() => {
+        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
             RefusedRef::NotAFace { found: kind }
         }
         Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },

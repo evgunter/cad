@@ -1053,19 +1053,6 @@ impl SitedRef {
     pub fn new(at: RecipeNodeId, name: StableName) -> Self {
         Self { at, name }
     }
-
-    /// **Whether this reference names a FACE** — the one spelling of
-    /// a kind question two doors and the at-rest gate ask.
-    ///
-    /// The kind is data on the [`StableName`], readable with no
-    /// product, no table and no evaluation, which is why the question
-    /// is answered here rather than wherever a reference happens to
-    /// be resolved. [`Node::mate_head_fault`] asks it of a mate's two
-    /// heads for the edit and load doors; `assembly::resolve_face`
-    /// asks it of the head it is resolving.
-    pub(crate) fn is_face(&self) -> bool {
-        self.name.kind == crate::names::EntityKind::Face
-    }
 }
 
 /// **What makes a node's structural content invalid**
@@ -2474,33 +2461,6 @@ impl<P> Node<P> {
     /// `false` for every node that is not a [`Node::Mate`].
     pub(crate) fn has_non_finite_alignment(&self) -> bool {
         matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
-    }
-
-    /// **The first head of this mate that does not name a FACE**, with
-    /// the side it is — `None` for a face-to-face mate and for every
-    /// node that is not a [`Node::Mate`].
-    ///
-    /// A mate declares a FACE-PAIR contact, so a head naming a body,
-    /// an edge or a vertex is a different statement rather than a
-    /// widening of this one. The rule is [`SitedRef::is_face`] and it
-    /// needs no product: this is the one place a NODE is asked it, so
-    /// the edit door and the load door's walk share the destructuring
-    /// as well as the test, and `assembly::resolve_face` — which asks
-    /// the same question of a reference it is about to resolve — reads
-    /// the same predicate.
-    ///
-    /// `a` answers first when both heads are wrong: one node yields
-    /// one refusal, and which head it names is the order the
-    /// references are written in (the at-rest gate's own rule for the
-    /// same pair).
-    pub(crate) fn mate_head_fault(&self) -> Option<(crate::mate::MateSide, &StableName)> {
-        let Node::Mate { a, b, .. } = self else {
-            return None;
-        };
-        [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)]
-            .into_iter()
-            .find(|(_, head)| !head.is_face())
-            .map(|(side, head)| (side, &head.name))
     }
 
     /// **DM5, stated once**: what is wrong with this node's structural

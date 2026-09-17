@@ -56,11 +56,6 @@
 //!   the slot walk's above, not a second spelling here. The retired
 //!   stored-joint walk died with stored joints: programs persist no
 //!   derived values.
-//! - [`first_mate_head_fault`] — every mate's two heads name FACES,
-//!   by the same `Node::mate_head_fault` the edit door asks. A head's
-//!   kind is data on its `StableName`, so the question needs no
-//!   product and belongs at every door that ADMITS a mate. Snapshot
-//!   only, for the reason above.
 //! - [`validate_snapshot`] — the document invariants `apply`
 //!   maintains, re-checked structurally (a parsed snapshot is not
 //!   trusted; an in-memory one can be corrupted through the `pub`
@@ -189,15 +184,13 @@ pub(crate) enum Walk {
     /// [`validate_snapshot`] over the document's structural
     /// invariants.
     Snapshot,
-    /// [`first_mate_head_fault`] over every mate's two heads.
-    MateHead,
 }
 
 impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 8] = [
+    pub(crate) const ORDER: [Walk; 7] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
@@ -205,7 +198,6 @@ impl Walk {
         Walk::SlotParamRef,
         Walk::Program,
         Walk::Snapshot,
-        Walk::MateHead,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -245,9 +237,6 @@ impl Walk {
             Walk::Snapshot => validate_snapshot(snapshot)
                 .err()
                 .map(super::PersistError::Snapshot),
-            Walk::MateHead => first_mate_head_fault(snapshot).map(|(node, side, name)| {
-                super::PersistError::Snapshot(SnapshotError::MateHeadWrongKind { node, side, name })
-            }),
         }
     }
 }
@@ -257,8 +246,7 @@ impl Walk {
 /// runs are [`Walk`]'s variants, in that order — float walk →
 /// distribution walk → display-unit walk → SLOT walks (dimension,
 /// then param refs) → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite) → the
-/// mate-head walk.
+/// door's historical precedence, pinned by the refusal suite).
 ///
 /// **The order is a CONTRACT, not an implementation detail**: a
 /// document broken in two ways at once is refused by the EARLIER walk,
@@ -271,14 +259,6 @@ impl Walk {
 /// walk PROBES the replay: a step whose argument is an angle where the
 /// role fixes a length is not a walk worth probing, and "your loop is
 /// not a legal lattice walk" is the wrong sentence for it.
-///
-/// The mate-head walk runs LAST, after the structural walk, for the
-/// same kind of reason read the other way: a head's kind is a fact
-/// about a mate's PAYLOAD, and the structural walk is what certifies
-/// that the document holding it is a document at all. Placing it
-/// there also leaves every file this door already refused refused in
-/// the same word, which is what the order contract asks of a walk
-/// with no reason to shadow one.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -374,23 +354,6 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
         .nodes
         .iter()
         .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
-}
-
-/// The first mate head that does not name a FACE, by the ONE
-/// predicate the edit door asks ([`Node::mate_head_fault`]) — so a
-/// file can carry no mate head `InsertNode` would have refused.
-///
-/// The kind is data on the head's `StableName`, which is why this
-/// door can decide it at all: no product is resolved here, and what a
-/// head resolves TO stays the at-rest gate's question
-/// (`assembly::resolve_face`).
-fn first_mate_head_fault(
-    snapshot: &ProfileDoc,
-) -> Option<(RecipeNodeId, crate::mate::MateSide, StableName)> {
-    snapshot.nodes.iter().find_map(|(&id, node)| {
-        let (side, name) = node.mate_head_fault()?;
-        Some((id, side, name.clone()))
-    })
 }
 
 /// The first slot expression whose document-parameter references the
@@ -794,19 +757,6 @@ pub enum SnapshotError {
         /// The bound's dimension.
         bound: crate::expr::Dimension,
     },
-    /// A mate one of whose heads does not name a FACE. A mate
-    /// declares a face-pair contact, and the head's kind is data on
-    /// its name — so the edit door refuses it through the same
-    /// predicate ([`Node::mate_head_fault`]) and a file carrying one
-    /// is data the edit door could not have produced.
-    MateHeadWrongKind {
-        /// The offending mate.
-        node: RecipeNodeId,
-        /// Which head it is.
-        side: crate::mate::MateSide,
-        /// The refused head.
-        name: StableName,
-    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -977,13 +927,6 @@ impl core::fmt::Display for SnapshotError {
                 node.0,
                 bound.article(),
                 measure.0
-            ),
-            Self::MateHeadWrongKind { node, side, name } => write!(
-                f,
-                "mate node {}'s {} head names the {name}, and a mate declares a contact \
-                 between two faces",
-                node.0,
-                side.name()
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -1324,7 +1267,6 @@ mod tests {
             SlotParamRef,
             Program,
             Snapshot,
-            MateHead,
         ];
     }
 
@@ -1337,7 +1279,7 @@ mod tests {
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
-            Walk::SlotDimension | Walk::SlotParamRef | Walk::Snapshot | Walk::MateHead => true,
+            Walk::SlotDimension | Walk::SlotParamRef | Walk::Snapshot => true,
         }
     }
 
@@ -1369,7 +1311,6 @@ mod tests {
             InputList,
             AssertionTarget,
             AssertionBound,
-            MateHeadWrongKind,
             MetadataUnversioned,
         ];
     }
@@ -1384,7 +1325,6 @@ mod tests {
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             SnapshotError::SlotUnknownDocParam { .. }
             | SnapshotError::SlotDocParamDimension { .. } => Walk::SlotParamRef,
-            SnapshotError::MateHeadWrongKind { .. } => Walk::MateHead,
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
@@ -1512,15 +1452,6 @@ mod tests {
                 measure: RecipeNodeId(4),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
-            },
-            SnapshotError::MateHeadWrongKind {
-                node,
-                side: crate::mate::MateSide::B,
-                name: crate::names::StableName {
-                    kind: crate::names::EntityKind::Edge,
-                    node,
-                    path: Vec::new(),
-                },
             },
             SnapshotError::MetadataUnversioned {
                 name: crate::names::StableName {
