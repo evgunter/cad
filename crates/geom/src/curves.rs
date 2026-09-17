@@ -368,12 +368,13 @@ impl<T: SpanLocate> Curve3<T> {
     ///   anomaly, not arc length).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     ///
-    /// There is no jet door: a caller wanting `deriv` and [`Self::deriv2`]
-    /// at one `t` pays two frames. Measured at release, that is 19 ns
-    /// per pair against a fused jet on the conic arms, and the one
-    /// consumer that asks for both (the splitting orbit's conic arm)
-    /// evaluated it 0 times on the boolean corpus — so no `CurveJet` is
-    /// minted for it.
+    /// The order-1 jet is [`Self::ders1`]: a caller wanting the point
+    /// and this at one `t` asks once. There is no order-2 jet on the
+    /// enum: a caller wanting `deriv` and [`Self::deriv2`] at one `t`
+    /// pays two frames on the conic arms (its one consumer, the
+    /// splitting orbit's conic arm, never reaches `Nurbs`, where the
+    /// payload's [`NurbsCurve3::ders`] would answer all three from one
+    /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,
@@ -397,6 +398,52 @@ impl<T: SpanLocate> Curve3<T> {
                 *u_ref * (-(*major * s)) + v_ref * (*minor * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
+        }
+    }
+
+    /// The point and the first derivative at parameter `t` from ONE
+    /// pass — the order-1 jet for a caller wanting both, who would
+    /// otherwise run [`Self::eval`] and [`Self::deriv`] (on `Nurbs`, two
+    /// span selections and two basis passes for what one answers).
+    ///
+    /// Each half is its own evaluator's answer, bit for bit:
+    /// - Line: `(origin + dir·t, dir)`.
+    /// - Circle: one azimuthal frame, both its fields —
+    ///   `(center + radial·radius, tangential·radius)`, the frame's own
+    ///   formulas.
+    /// - Ellipse: one `sin_cos`, then the two combinations exactly as
+    ///   [`Self::eval`] and [`Self::deriv`] parenthesize them.
+    /// - Nurbs: the payload's [`NurbsCurve3::ders1`].
+    ///
+    /// The return is the tuple the NURBS jets return; a consumer
+    /// destructures it on the spot. `eval` and `deriv` keep their own
+    /// passes and are not projections of this one.
+    pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Line { origin, dir } => (*origin + *dir * t, *dir),
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                let f = azimuth::frame(*axis, *u_ref, t);
+                (*center + f.radial.0 * *radius, f.tangential.0 * *radius)
+            }
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
+                (
+                    *center + (*u_ref * (*major * c) + v_ref * (*minor * s)),
+                    *u_ref * (-(*major * s)) + v_ref * (*minor * c),
+                )
+            }
+            Curve3::Nurbs(n) => n.ders1(t),
         }
     }
 
@@ -1161,6 +1208,69 @@ mod tests {
                 ("dz", d.z, e.z),
             ] {
                 assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
+    /// `ders1` is `eval` and `deriv` bit for bit at the whole-curve
+    /// level — one span selection and one order-1 pass answering both
+    /// — on the knotted fixture at every knot value, span boundary and
+    /// span midpoint. A differential, not a digest: a one-ulp move in
+    /// either half against its own evaluator reds it by name.
+    #[test]
+    fn ders1_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        for t in knot_and_span_params(&c) {
+            let (p, d) = c.ders1(t);
+            let q = c.eval(t);
+            let e = c.deriv(t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
+    /// The analytic arms' `ders1` is their `eval` and `deriv` bit for
+    /// bit: the line's closed form, the circle's one azimuthal frame
+    /// against the two frames the pair builds, the ellipse's one
+    /// `sin_cos` against the pair's two — on the tilted fixtures, at
+    /// parameters that are not special to any of them.
+    #[test]
+    fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
+        let line = Curve3::Line {
+            origin: Point3::new(1.0, -2.0, 0.5),
+            dir: Vec3::new(0.3, -0.4, 1.2),
+        };
+        for (kind, c) in [
+            ("line", line),
+            ("circle", tilted_circle()),
+            ("ellipse", tilted_ellipse()),
+        ] {
+            for t in [-7.3, -1.0, 0.0, 0.37, 1.0, FRAC_PI_2, 2.9, TAU, 41.5] {
+                let (p, d) = c.ders1(t);
+                let q = c.eval(t);
+                let e = c.deriv(t);
+                for (name, a, b) in [
+                    ("x", p.x, q.x),
+                    ("y", p.y, q.y),
+                    ("z", p.z, q.z),
+                    ("dx", d.x, e.x),
+                    ("dy", d.y, e.y),
+                    ("dz", d.z, e.z),
+                ] {
+                    assert_eq!(
+                        a.to_bits(),
+                        b.to_bits(),
+                        "{kind} at t = {t}: {name} {a} vs {b}"
+                    );
+                }
             }
         }
     }

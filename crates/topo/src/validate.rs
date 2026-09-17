@@ -4112,8 +4112,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             let mut side_mixed = false;
             for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                 let t = curve.sample_param(i);
-                let p = curve.carrier().eval(t);
-                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
+                let (p, tau) = curve.carrier().ders1(t);
+                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
                 let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
                 match classify_material_pairing(
                     s_plus,
