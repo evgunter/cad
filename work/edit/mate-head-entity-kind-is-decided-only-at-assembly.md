@@ -50,3 +50,15 @@ no product.
 Not built by the round-two unit: it is an addition to what the edit
 door refuses, not a relocation of a predicate, so it changes which
 documents exist.
+
+## Re-scoped (2026-09-17, EDIT orchestrator; Ev on the fourth `[ev]` PR)
+
+Ev asked whether a non-face mate head could fail to TYPECHECK. It
+can: a `FaceName` newtype (a `StableName` whose kind is `Face` by
+construction, one checked constructor) and a mate head sited over it.
+`Node::Mate` then cannot be built with an edge in Rust; the constructor
+is the one refusal, called at the three boundaries that produce names
+from data (parse, load, the Python binding). The edit-door check and
+the load walk the spec named are replaced by the type; the lane was
+re-scoped mid-flight and states the deviation in its PR body.
+

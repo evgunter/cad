@@ -106,3 +106,21 @@ whether the declaration should instead become the union's own payload,
 or whether the workaround stays and CHROME seats it. The
 recommendation and the alternatives are on the PR; this row is parked
 on Ev's answer.
+
+## Revised on the `[ev]` PR (2026-09-17)
+
+Ev asked whether "declare names pre-boolean entities" is possible. It
+is how the pair `Boolean` already works (a bare name resolved through
+the operands' tables, one pass — `kiss_carry`); it fails for the n-ary
+`Union` only because DM4's members can carry identical tables (21
+transforms of one ball), so a bare pre-union name cannot say which
+member — which is why DOCM-7 made the declaration name the union's own
+`FromMember` rows. A SITED declaration (`SitedRef { at: member, name }`
+per side — the shape a mate head already has) says which member
+without naming the union: one pass, no DM6 exception, and
+`DeclareBothOperands` unnecessary by construction. Revised
+recommendation: (B) sited declarations, a DOCM-7 shape change (the
+persisted `Declare` form, two suites, five corpus documents, the
+Python constructor); the narrow `SetDeclare` stays the cheap
+alternative. Waiting on Ev.
+
