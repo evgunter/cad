@@ -2,7 +2,7 @@
 id: quoted-parameter-name-in-error-prose-has-no-decision
 kind: issue
 title: editor-core quotes a parameter name in error prose at some doors and not at others, and nothing decides which
-status: open
+status: spec
 opened: 2026-09-16
 ---
 
@@ -69,3 +69,29 @@ struct reds the census. It cannot see the positional form: a bare
 `UNDECIDED` roster as `<positional>` and is decided by nobody. So the
 instrument covers the named half of this residue and not the half the
 crate actually uses.
+
+## Ruled and spec'd (2026-09-17, EDIT orchestrator) — E-class, branch `edit/param-name-display`
+
+**Ruling.** `ParamName` gains `impl Display` rendering the bare name.
+The doors that frame the name in a sentence render it bare through
+that `Display`; the doors that echo bytes the user typed — `ParseError`
+(a name that may be mistyped) — keep `{:?}`, and say at the site that
+the quotes mean "the exact bytes you wrote". Nothing else decides per
+call site.
+
+**What lands.** `impl core::fmt::Display for ParamName`; every `{:?}`
+of a `ParamName` in an `impl Display` in `crates/editor-core/src`
+(`persist/mod.rs`, `persist/check.rs`, `range.rs`, `refactor.rs`,
+`expr.rs`) becomes `{}` except `parse.rs`'s, which keeps `{:?}` with
+the sentence; `EditError`'s header comment loses "keep their spelling
+until someone decides for them" and states the rule; the F6 census
+rows whose expected content words carried quotes re-baseline (say
+which). `refactor.rs` is FIX's ground — mechanical, disclosed.
+
+**Row.** One row over the rendered sentences: a parameter name renders
+without quotes at every door except parse, and with them there.
+
+**Territory.** `crates/editor-core/src/{doc.rs, persist/, range.rs,
+expr.rs, parse.rs}` (EDIT), `refactor.rs` (FIX, mechanical),
+`crates/editor-core/tests/display_contract.rs` (TCOST/TINT). E-class:
+green CI and the orchestrator's read.

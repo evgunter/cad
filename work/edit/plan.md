@@ -70,8 +70,9 @@ posture under §Process.
    `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
    the residue rows `pick-tie-break-width-key-depends-on-scene-magnitude`
    and `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stand open, and the early-out amendment goes to Ev on the next
-   `[ev]` PR;
+   stand open — the second on the fourth `[ev]` PR (#2795) with the
+   early-out amendment notice; `pick-face-raw-target-path-survives-only-for-rows`
+   is ruled and **spec'd** (middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
@@ -83,7 +84,8 @@ posture under §Process.
    `debug-in-prose-residue-after-finding-sink` and
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
    **merged** (PR #2719); its residue
-   `quoted-parameter-name-in-error-prose-has-no-decision` stands, and
+   `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
+   **spec'd** (E-class, wave 7), and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
