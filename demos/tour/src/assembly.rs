@@ -75,10 +75,9 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    EvalOptions, Evaluation, Expr, FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame,
     MatePrimitive, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind,
-    FaceName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, UNDER_RECOURSE, apply,
-    assemble,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, UNDER_RECOURSE, apply, assemble,
     content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
     solve_document, split,
 };

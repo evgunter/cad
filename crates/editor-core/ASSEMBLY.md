@@ -147,8 +147,10 @@ the move.
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface }` has no placement field
 (A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
-`a`/`b` are `SitedRef`s — an instance-qualified stable name plus the
-operand node it is read at; `class` is the kernel
+`a`/`b` are `SitedFace`s — an instance-qualified FACE name
+(`names::FaceName`, whose one constructor is the only way a face name
+is made) plus the operand node it is read at, so a mate naming an edge
+is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
 part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
@@ -164,8 +166,8 @@ recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
-**A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
-— a name, and the OPERAND node it is read at — and each contributes a
+**A12 — Mate edges and roots.** A mate's two references are `SitedFace`s
+— a face name, and the OPERAND node it is read at — and each contributes a
 *reading edge* to the member that operand resolves to — the walk's
 minting instance, whatever the depth of the copy chain above it —
 recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
@@ -238,9 +240,10 @@ reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
 `RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
 `RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. The operand's entry decides its kind first: a non-face
-entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
-face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
+reads it. The gate asks no KIND question of its own: a head is a
+`SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
+by the type and `RefusedRef::NotAFace` guards only the name table's own
+rule that a row's kind is its name's. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the
