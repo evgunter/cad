@@ -2,8 +2,9 @@
 id: load-door-does-not-check-payload-expression-param-refs
 kind: issue
 title: The load door asks the param-table rule of slot expressions only; a measure's or an assertion's payload expression is edit-door-only
-status: review
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 pr: 2793
 branch: edit/load-door-payload-refs
 ---
@@ -191,3 +192,26 @@ ride the names and would have to move in the same PR. Not renamed here.
 round-three precedent for a load-door arm: the tag words are carried
 mechanically and the Python suite's census is what reds if they are
 not.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Built and merged as PR #2793 after one opus style review
+(APPROVE-WITH-FIXES: 0 MAJOR, 3 MINOR, 6 NOTE, 10 style — every one
+taken). The load door asks `Doc::param_ref_fault` of every payload
+expression (`first_payload_param_ref_fault` on `Walk::PayloadParamRef`,
+after the slot walk, with the order pinned), refusing
+`PayloadUnknownDocParam` / `PayloadDocParamDimension` addressed by node;
+the round-three probe became the red-first row of a new suite. The
+review's sharpest finding was round three's own MAJOR shape one more
+time — the module doc's hand-written walk census undercounting by the
+walk this unit added — and the orchestrator ruled the prose census
+deleted in favour of the code's (`Walk::ORDER`/`Walk::run`), which is
+what round three intended. One mapper over an address enum replaced
+the two load-door mappers; the refusal noun covers an assertion bound
+at both doors; the round trip carries a signed zero so `bit_eq`'s
+payload half is exercised. The wire-surgery helper the four suites had
+copied has one home in `tests/wire/mod.rs` — not `tests/fixture/`,
+which is symlinked into the viewer's serde-free test binary (a CI
+lesson banked for every lane). Residue in its own file:
+`param-ref-refusals-spell-two-facts-four-ways` (eight arm names, four
+conventions, and the rosters a rename must move together).
