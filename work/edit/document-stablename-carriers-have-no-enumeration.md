@@ -5,6 +5,7 @@ title: Which carriers hold a StableName is answered in four places and enumerate
 opened: 2026-09-16
 status: review
 branch: edit/stablename-carriers
+pr: 2797
 refs: [2784, stranded-appearance-keys-are-not-reported-by-dm7, load-door-appearance-key-id-check-is-pinned-by-no-row]
 ---
 
