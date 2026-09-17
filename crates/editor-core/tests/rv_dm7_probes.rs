@@ -185,7 +185,7 @@ fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
     let doc = ProfileDoc::empty_derived("rv_cascade_noise", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
 
     let order = cascade_delete_order(&doc, decl);
     assert_eq!(order, vec![union, decl], "the union consumes the declare");

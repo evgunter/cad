@@ -101,9 +101,11 @@ fn resting_contact_is_one_same_opposite_finding() {
     assert_eq!(f.class, ContactClass::Rest);
     assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite);
     assert_eq!(f.evidence.rung, FlushRung::DecidedCoincident);
-    // Names, never keys — and each side names its OWN node's face.
-    assert_eq!(f.pair.0.node, base);
-    assert_eq!(f.pair.1.node, top);
+    // Names, never keys — and each side names its OWN node's face,
+    // SITED at the node the query read it at.
+    assert_eq!(f.pair.0.name.node, base);
+    assert_eq!(f.pair.1.name.node, top);
+    assert_eq!((f.pair.0.at, f.pair.1.at), (base, top));
 }
 
 /// Flush WALLS (corner-table shape): a post overlapping a slab with

@@ -88,21 +88,22 @@ fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_cor
 // The declared union — DOCM-7's R1 probe, as a row.
 // ---------------------------------------------------------------------
 
-/// **Deleting a declared union reports every pair of its `Declare`,
-/// and deleting the `Declare` still refuses.**
+/// **A strand per NAME and none per site**, on a declared union.
 ///
-/// The two halves are the whole ruling in one document. The `Declare`
-/// is the union's INPUT, so deleting it dangles an edge and is refused
-/// typed. The union is what the `Declare`'s pairs NAME, which is not an
-/// edge, so that delete is accepted — and every pair it stranded is in
-/// the record, at the door, rather than waiting for the next
-/// evaluation to answer `NodeGone`.
+/// The `Declare` is the union's INPUT, so deleting it dangles an edge
+/// and is refused typed. What the pairs NAME is not an edge: a sited
+/// pair names entities in the MEMBERS, so deleting the union strands
+/// nothing at all, and deleting a member — once the union is gone and
+/// nothing consumes it — strands the names minted there, one row per
+/// name. The SITE is reported by neither delete: a site is a reading
+/// edge, and a deleted one is N5's dangling case refused at the next
+/// evaluation (`Node::payload_read_sites`, DM7's sentence).
 #[test]
-fn deleting_a_declared_union_names_every_pair_of_its_declare() {
+fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_declared_union", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
 
     assert!(
         matches!(
@@ -115,33 +116,48 @@ fn deleting_a_declared_union_names_every_pair_of_its_declare() {
     let Some(Node::Declare { pairs }) = doc.node(decl) else {
         panic!("the declaration is a Declare")
     };
+    assert_eq!(pairs.len(), 4, "four flush pairs");
+    assert!(
+        pairs
+            .iter()
+            .flat_map(|((x, y), _)| [x, y])
+            .all(|r| r.name.node == r.at && [a, b].contains(&r.at)),
+        "every side is sited at the member whose table holds it"
+    );
+
+    // The union is what the declaration's sites POINT AT, and a site
+    // is not a name: deleting it strands nothing.
+    let freed = delete(&doc, union);
+    assert_eq!(
+        strands(&freed.maintenance),
+        Vec::new(),
+        "a site is not a strand"
+    );
+
+    // The member, now consumed by nothing, IS a name's minting node.
+    let applied = delete(&freed.doc, b);
     let expected: Vec<(RecipeNodeId, StableName)> = pairs
         .iter()
-        .flat_map(|((x, y), _)| [x.clone(), y.clone()])
-        .map(|name| (decl, name))
+        .flat_map(|((x, y), _)| [x, y])
+        .filter(|r| r.name.node == b)
+        .map(|r| (decl, r.name.clone()))
         .collect();
     assert_eq!(
         expected.len(),
-        8,
-        "four flush pairs, two names each, all in the union's own space"
+        4,
+        "one name per pair is minted in the deleted member"
     );
-    assert!(
-        expected.iter().all(|(_, name)| name.node == union),
-        "a member-space name carries the union's id, which is what the delete strands"
-    );
-
-    let applied = delete(&doc, union);
     assert_eq!(
         strands(&applied.maintenance),
         expected,
-        "the accepted delete names every stranded pair, in the payload's own order"
+        "the accepted delete names every stranded name, in the payload's own order"
     );
     // NOT "the Declare survives": a strand row names a SURVIVING
     // carrier by construction, so the rows above already say that.
     // What they do not say is that the payload is untouched — DM7
     // reports, it does not repair — so that is what is asserted.
     let Some(Node::Declare { pairs: after }) = applied.doc.node(decl) else {
-        panic!("the Declare survives its union — the orphan the user cascades or deletes")
+        panic!("the Declare survives its member — the orphan the user cascades or deletes")
     };
     assert_eq!(
         after, pairs,
@@ -217,7 +233,13 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         )
         .expect("both indices address a reference"),
     );
-    let (doc, decl) = insert(doc, Node::declare_rest(vec![(f1.clone(), f2.clone())]));
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(victim, f1.clone()),
+            SitedRef::new(victim, f2.clone()),
+        )]),
+    );
 
     // **The expectation is DERIVED by an exhaustive match over
     // `Node`, not written out as a list.** A list is only ever as
@@ -519,17 +541,19 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, _decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
 
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.doc.bit_eq(&doc), "the snapshot round-trips");
 
-    let direct = delete(&doc, union);
-    let after_load = delete(&loaded.doc, union);
+    // The union goes first — a member is its DAG input while it lives —
+    // and then the member, which is what a declared name is minted in.
+    let direct = delete(&delete(&doc, union).doc, b);
+    let after_load = delete(&delete(&loaded.doc, union).doc, b);
     assert!(
         !direct.maintenance.is_empty(),
-        "the delete strands the declaration's pairs"
+        "the delete strands the declaration's names"
     );
     assert_eq!(
         direct.maintenance, after_load.maintenance,

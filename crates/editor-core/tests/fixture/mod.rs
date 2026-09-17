@@ -43,8 +43,8 @@ pub mod value_channel;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoopProgram, NameTable, Node, ParamName, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble,
-    evaluate,
+    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    assemble, evaluate,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -498,8 +498,8 @@ pub fn die() -> Die {
             // sketch plane, which IS the cube face's plane).
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
             let decl = r.insert(Node::declare_rest(vec![(
-                cube_face_names[face_idx].clone(),
-                pip_cap,
+                SitedRef::new(acc, cube_face_names[face_idx].clone()),
+                SitedRef::new(tr, pip_cap),
             )]));
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
@@ -788,18 +788,22 @@ pub fn declare_x_offset_flush(
     a_ext: RecipeNodeId,
     b_ext: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let pairs = vec![
-        (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
-        (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
+    // Each name is sited at the operand whose table holds it — the
+    // two extrudes, which are the consuming boolean's `a` and `b`.
+    let pairs = [
+        wall(0),
+        wall(2),
+        RoleSeg::Cap(CapEnd::Start),
+        RoleSeg::Cap(CapEnd::End),
+    ]
+    .into_iter()
+    .map(|seg| {
         (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Start)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Start)),
-        ),
-        (
-            fname(a_ext, RoleSeg::Cap(CapEnd::End)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::End)),
-        ),
-    ];
+            SitedRef::new(a_ext, fname(a_ext, seg.clone())),
+            SitedRef::new(b_ext, fname(b_ext, seg)),
+        )
+    })
+    .collect();
     insert(doc, Node::declare_rest(pairs))
 }
 

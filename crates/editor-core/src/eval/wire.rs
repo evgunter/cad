@@ -5046,8 +5046,8 @@ mod route_tests {
     fn the_joining_member_is_operand_b_and_the_accumulation_is_operand_a() {
         let (doc, union, ms) = doc_with_members(4);
         let sided = |p| {
-            let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
-                .expect("routes");
+            let buckets =
+                route_declarations(union, &ms, std::slice::from_ref(&p), &doc).expect("routes");
             buckets.into_iter().flatten().next().expect("one bucket")
         };
         // An earlier member against a later one: A then B, and each
@@ -5300,7 +5300,9 @@ mod route_tests {
         let f = |m, e| member_face(union, m, e);
         let key = a_face_key();
         let mut member = NameTable::new();
-        member.insert(f(ms[1], CapEnd::Start), face_ref(key)).unwrap();
+        member
+            .insert(f(ms[1], CapEnd::Start), face_ref(key))
+            .unwrap();
         member
             .insert(
                 f(ms[1], CapEnd::End),

@@ -9,8 +9,8 @@
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
-    resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, SlotId, StableName,
+    evaluate, resolve, resolve_with_prior,
 };
 
 use super::{ang, insert, len, on_frame, scl, step};
@@ -203,8 +203,8 @@ where
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End)),
-            cap_b.clone(),
+            SitedRef::new(da, name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(db, cap_b.clone()),
         )]),
     );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });

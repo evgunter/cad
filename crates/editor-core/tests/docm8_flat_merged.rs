@@ -13,10 +13,7 @@ use crate::docm7_union_declare::{
 use crate::fixture;
 use crate::fixture::{Recorder, fname, insert, len, wall};
 
-use editor_core::{
-    BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, StableName, resolve,
-};
+use editor_core::{BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve};
 use geom_core::Tol;
 
 /// The four flush families two x-offset blocks share: both y-walls
@@ -49,10 +46,10 @@ fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 
 /// The declared contacts of a CHAIN: every consecutive pair of
 /// `chain` meets flush, all four families, in member space.
-fn chain_pairs(union: RecipeNodeId, chain: &[RecipeNodeId]) -> Vec<(StableName, StableName)> {
+fn chain_pairs(chain: &[RecipeNodeId]) -> Vec<(SitedRef, SitedRef)> {
     chain
         .windows(2)
-        .flat_map(|w| flush_pairs(union, (w[0], w[0]), (w[1], w[1])))
+        .flat_map(|w| flush_pairs((w[0], w[0]), (w[1], w[1])))
         .collect()
 }
 
@@ -116,7 +113,7 @@ fn member_space_declarations_survive_every_order() {
     let chain = [a, c, d];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, |u| chain_pairs(u, &chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -145,7 +142,7 @@ fn a_four_member_chain_fuses_in_every_order() {
     let chain = [a, c, d, e];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, |u| chain_pairs(u, &chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -174,7 +171,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
     let chain = [a, c, d];
     for order in permutations(&[a, c, d, far]) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, |u| chain_pairs(u, &chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -263,7 +260,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let decl_ab = rec.insert(Node::declare_rest(
         flush_segs()
             .into_iter()
-            .map(|seg| (fname(a, seg.clone()), fname(b, seg)))
+            .map(|seg| {
+                (
+                    SitedRef::new(a, fname(a, seg.clone())),
+                    SitedRef::new(b, fname(b, seg)),
+                )
+            })
             .collect(),
     ));
     let inner = rec.insert(Node::Boolean {
@@ -286,7 +288,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let decl_ic = rec.insert(Node::declare_rest(
         flush_segs()
             .into_iter()
-            .map(|seg| (inner_row(seg.clone()), fname(c, seg)))
+            .map(|seg| {
+                (
+                    SitedRef::new(inner, inner_row(seg.clone())),
+                    SitedRef::new(c, fname(c, seg)),
+                )
+            })
             .collect(),
     ));
     let outer = rec.insert(Node::Boolean {
@@ -344,43 +351,12 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 // A4 — the look-through is the union's alone, and what it refuses.
 // ---------------------------------------------------------------------
 
-/// **A fold row absorbed by a later merge keeps the vanished rung.**
-/// A `Merged` row the fold minted at step 1 and absorbed into a wider
-/// merge at step 2 is no row at step 3 — an accumulation-entity name
-/// does not look through — and a pair naming it there refuses
-/// `Vanished`, not `UnionDeclareStep`: the row vanished INTO a merge,
-/// and the merged row that lists its faces is N3's offer for it
-/// (`merge_offers`), so the routing diagnosis does not re-say it.
-#[test]
-fn an_absorbed_fold_row_keeps_the_vanished_rung_and_does_not_look_through() {
-    let doc = ProfileDoc::empty_derived("docm8_no_lookthrough", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
-    let (doc, e) = block(doc, (1.9, 2.9), (0.0, 1.0), 0.0, 1.0);
-    let chain = [a, c, d, e];
-    let (doc, union, _) = declared_union(doc, &chain, |u| {
-        let mut v = chain_pairs(u, &chain);
-        // Step 1's cap row, paired with `e`: routed to `e`'s step,
-        // where the row has already been merged into `{a, c, d}`.
-        v.push((
-            chain_merged(u, &[a, c], RoleSeg::Cap(CapEnd::Start)),
-            member_face(u, e, fname(e, RoleSeg::Cap(CapEnd::Start))),
-        ));
-        v
-    });
-    let ev = run(&doc);
-    let absorbed = chain_merged(union, &[a, c], RoleSeg::Cap(CapEnd::Start));
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { error })
-                if matches!(&**error, ResolveError::Vanished { name, .. } if *name == absorbed)
-        ),
-        "expected the vanished rung on the absorbed row, got {:?}",
-        failure(&ev, union)
-    );
-}
+// `an_absorbed_fold_row_keeps_the_vanished_rung_and_does_not_look_through`
+// retired with the class it measured: a declared entity is sited at a
+// node that precedes the union, so a row the FOLD minted has no site
+// and cannot be declared at all. `docm7_union_declare`'s
+// `a_declared_pair_side_that_is_a_bare_name_does_not_load` is what
+// stands in its place.
 
 /// **A member face the fold consumed WITHOUT a merge keeps the
 /// vanished refusal.** `a`'s x = 1 wall lies inside `big` and is gone
@@ -393,12 +369,14 @@ fn a_member_face_in_no_table_and_no_merged_row_keeps_the_vanished_refusal() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, big, far], |u| {
+    let (doc, union, _) = declared_union(
+        doc,
+        &[a, big, far],
         vec![(
-            member_face(u, a, fname(a, wall(1))),
-            member_face(u, far, fname(far, wall(3))),
-        )]
-    });
+            SitedRef::new(a, fname(a, wall(1))),
+            SitedRef::new(far, fname(far, wall(3))),
+        )],
+    );
     let ev = run(&doc);
     assert!(
         matches!(
@@ -428,7 +406,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let decl_ab = rec.insert(Node::declare_rest(
         flush_segs()
             .into_iter()
-            .map(|seg| (fname(a, seg.clone()), fname(b, seg)))
+            .map(|seg| {
+                (
+                    SitedRef::new(a, fname(a, seg.clone())),
+                    SitedRef::new(b, fname(b, seg)),
+                )
+            })
             .collect(),
     ));
     let inner = rec.insert(Node::Boolean {
@@ -450,7 +433,12 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let decl_ic = rec.insert(Node::declare_rest(
         flush_segs()
             .into_iter()
-            .map(|seg| (inner_row(seg.clone()), fname(c, seg)))
+            .map(|seg| {
+                (
+                    SitedRef::new(inner, inner_row(seg.clone())),
+                    SitedRef::new(c, fname(c, seg)),
+                )
+            })
             .collect(),
     ));
     let outer = rec.insert(Node::Boolean {
@@ -509,7 +497,12 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         Node::declare_rest(
             flush_segs()
                 .into_iter()
-                .map(|seg| (fname(a, seg.clone()), fname(b, seg)))
+                .map(|seg| {
+                    (
+                        SitedRef::new(a, fname(a, seg.clone())),
+                        SitedRef::new(b, fname(b, seg)),
+                    )
+                })
                 .collect(),
         ),
     );
@@ -552,7 +545,12 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         Node::declare_rest(
             flush_segs()
                 .into_iter()
-                .map(|seg| (carried(seg.clone()), fname(c, seg)))
+                .map(|seg| {
+                    (
+                        SitedRef::new(mid, carried(seg.clone())),
+                        SitedRef::new(c, fname(c, seg)),
+                    )
+                })
                 .collect(),
         ),
     );
@@ -605,12 +603,12 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let pairs = move |u: RecipeNodeId| {
-        let mut v = flush_pairs(u, (a, a), (c, c));
+    let pairs = {
+        let mut v = flush_pairs((a, a), (c, c));
         for seg in [wall(0), wall(2)] {
             v.push((
-                member_face(u, a, fname(a, seg.clone())),
-                member_face(u, s, fname(s, seg)),
+                SitedRef::new(a, fname(a, seg.clone())),
+                SitedRef::new(s, fname(s, seg)),
             ));
         }
         v
@@ -630,7 +628,7 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
         (vec![c, s, a], Outcome::SeamVertexNoRule),
         (vec![s, c, a], Outcome::SeamVertexNoRule),
     ] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let got = match failure(&ev, union) {
             None => Outcome::Fused,

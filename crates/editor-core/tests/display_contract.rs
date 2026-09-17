@@ -1139,14 +1139,6 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         "a vanished name is one neither table answers to: {shown:?}"
     );
 
-    let both = NodeErrorKind::DeclareBothOperands {
-        name: Box::new(face_name()),
-    };
-    let shown = both.to_string();
-    assert!(
-        shown.contains(&format!("the declared {phrase} resolves")),
-        "the declaration refusal re-spells the name instead of forwarding it: {shown:?}"
-    );
 }
 
 /// The WHY clause of a mate-reference refusal says what the gate
