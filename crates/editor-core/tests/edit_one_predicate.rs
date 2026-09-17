@@ -36,8 +36,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocumentId, EditError,
     EntityKind, Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, ParamName, PersistError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply,
-    load, save,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load,
+    save,
 };
 use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
@@ -283,8 +283,8 @@ fn in_part(instance: RecipeNodeId) -> StableName {
 
 fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a)),
-        b: SitedRef::at_mint(in_part(b)),
+        a: crate::fixture::head(in_part(a)),
+        b: crate::fixture::head(in_part(b)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame {

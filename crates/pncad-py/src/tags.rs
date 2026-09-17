@@ -355,6 +355,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::NameSerialize => "name_serialize",
         BoundaryEdit::Declare(err) => declare_error_tag(err),
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
+        BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
     }
 }
 

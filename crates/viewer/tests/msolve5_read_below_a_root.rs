@@ -17,7 +17,7 @@ use crate::common;
 use common::asm;
 use pncad::document::{
     AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, apply,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -73,8 +73,8 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
     let mate = insert(
         &mut asm,
         Node::Mate {
-            a: SitedRef::at_mint(asm::in_part(post, &bench.post_top)),
-            b: SitedRef::new(lifted, b.clone()),
+            a: common::head(asm::in_part(post, &bench.post_top)),
+            b: common::head_at(lifted, b.clone()),
             class: ContactClass::Rest,
             alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
         },

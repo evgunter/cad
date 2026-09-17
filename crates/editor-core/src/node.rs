@@ -56,7 +56,7 @@ macro_rules! name_free_node {
 )]
 pub struct RecipeNodeId(pub u64);
 
-pub use crate::names::{EntityKind, RoleSeg, StableName};
+pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
 /// (spec D5: slots are NAMED, never positional indices).
@@ -1055,6 +1055,49 @@ impl SitedRef {
     }
 }
 
+/// **A mate head: a FACE name, and the node it is read at.**
+///
+/// [`SitedRef`]'s shape with the name's kind fixed by the type. A mate
+/// declares a FACE-PAIR contact, so a head that names a body, an edge
+/// or a vertex is a different statement — and because the kind is data
+/// on the name rather than a property of some product, the requirement
+/// is expressible where it belongs: in the type of the field. A mate
+/// whose head is a bare [`StableName`] does not compile, so no door
+/// downstream has a document to refuse.
+///
+/// The three boundaries that turn data into names — the wire, the
+/// Python binding, and authored text — call [`FaceName::new`] and
+/// answer its refusal in their own vocabulary. `at` is the A12 reading
+/// edge, exactly as it is on a [`SitedRef`]; everything [`SitedRef`]'s
+/// docs say about it holds here.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct SitedFace {
+    /// The node whose evaluated value the carrier is read at — the
+    /// PLACED geometry, when that node placed it.
+    pub at: RecipeNodeId,
+    /// The face's stable name.
+    pub name: FaceName,
+}
+
+impl SitedFace {
+    /// A head read at the node that minted the name — the degenerate
+    /// case, and the honest spelling of "as authored".
+    pub fn at_mint(name: FaceName) -> Self {
+        Self {
+            at: name.node,
+            name,
+        }
+    }
+
+    /// A head read at `at`.
+    pub fn new(at: RecipeNodeId, name: FaceName) -> Self {
+        Self { at, name }
+    }
+}
+
 /// **What makes a node's structural content invalid**
 /// ([`Node::input_fault`]; DM5) — one vocabulary for the two edit doors
 /// and the load door's re-check, so each rule has one definition and
@@ -1958,8 +2001,8 @@ pub enum Node<P> {
     /// and the contact declaration, so there is no second vocabulary
     /// to keep synced.
     ///
-    /// **A leaf.** `a`/`b` are [`SitedRef`]s — each an
-    /// instance-qualified stable name plus the OPERAND node it is
+    /// **A leaf.** `a`/`b` are [`SitedFace`]s — each an
+    /// instance-qualified FACE name plus the OPERAND node it is
     /// read at — and neither half is a consuming edge, so
     /// [`Node::inputs`] is empty and inserting a mate transfers no
     /// root. A12 adds *reading* edges on top: the walk from each
@@ -1998,9 +2041,9 @@ pub enum Node<P> {
     Mate {
         /// The `a` reference: an entity of one instance's product,
         /// read at the operand the mate is authored against.
-        a: SitedRef,
+        a: SitedFace,
         /// The `b` reference: an entity of the other's.
-        b: SitedRef,
+        b: SitedFace,
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
@@ -2933,7 +2976,7 @@ impl<P> Node<P> {
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
             // are listed by [`Node::payload_read_sites`].
-            Node::Mate { a, b, .. } => vec![&a.name, &b.name],
+            Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
@@ -3002,12 +3045,31 @@ impl<P> Node<P> {
             // re-authoring the mate.
             Node::Mate { a, b, .. } => {
                 for r in [a, b] {
+                    if &*r.name != from {
+                        continue;
+                    }
+                    // A head's kind is the type's (`FaceName`), and a
+                    // rebind never crosses entity kinds — its door
+                    // refuses that pair — so `to` is a face whenever
+                    // it can replace a head at all. A `to` that is not
+                    // is this crate's bug: asserted here, and answered
+                    // by rewriting nothing, which leaves the count at
+                    // zero and the rebind refusing `RebindNoReferences`
+                    // rather than writing a head the type forbids.
+                    let Ok(next) = FaceName::new(to.clone()) else {
+                        debug_assert!(
+                            false,
+                            "a rebind reached a mate head across entity kinds: \
+                             `DocEdit::Rebind` refuses that pair at its own door"
+                        );
+                        continue;
+                    };
                     let at_mint = r.at == r.name.node;
-                    let moved = rewrite(&mut r.name, from, to);
-                    if moved > 0 && at_mint {
+                    r.name = next;
+                    if at_mint {
                         r.at = r.name.node;
                     }
-                    hits += moved;
+                    hits += 1;
                 }
             }
             // One name, no set to re-canonicalize.

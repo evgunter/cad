@@ -354,6 +354,106 @@ impl EntityKind {
     }
 }
 
+/// Why a [`StableName`] could not be read as a [`FaceName`].
+///
+/// One field, because there is one fact: a name's kind is data on the
+/// name, so the only thing the constructor can report is what it found
+/// instead. `found` is the word every entity-kind refusal in this
+/// crate spells its answer with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NotAFaceName {
+    /// What the name denotes.
+    pub found: EntityKind,
+}
+
+impl core::fmt::Display for NotAFaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the name denotes {} {}, and a face is required here",
+            self.found.article(),
+            self.found.noun()
+        )
+    }
+}
+
+impl core::error::Error for NotAFaceName {}
+
+/// **A [`StableName`] that denotes a FACE, by construction.**
+///
+/// A name's kind is data on the name — readable with no product, no
+/// table and no evaluation — so a caller that requires a face can
+/// require it in the TYPE rather than re-asking the question at every
+/// door. [`crate::SitedFace`] is the carrier a mate's heads are made
+/// of, and that is what makes a mate whose head names an edge a
+/// program that does not compile rather than a document some door has
+/// to refuse.
+///
+/// **Three boundaries produce names from data and each calls
+/// [`FaceName::new`]**: the wire (this type's `Deserialize`, so a file
+/// whose mate head names an edge refuses at the load door's parse),
+/// the Python binding's name-from-text door, and any future reader of
+/// authored text. Everything inside the crate receives a `FaceName`
+/// already made.
+///
+/// The inner name is reachable by [`Deref`](core::ops::Deref) and
+/// [`AsRef`], never by a public field: a field could be assigned and
+/// the invariant would last exactly until someone did.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
+pub struct FaceName(StableName);
+
+impl FaceName {
+    /// The checked constructor — the ONE way a `FaceName` is made.
+    pub fn new(name: StableName) -> Result<Self, NotAFaceName> {
+        if name.kind == EntityKind::Face {
+            Ok(Self(name))
+        } else {
+            Err(NotAFaceName { found: name.kind })
+        }
+    }
+
+    /// The name back out, owned.
+    pub fn into_name(self) -> StableName {
+        self.0
+    }
+}
+
+impl core::ops::Deref for FaceName {
+    type Target = StableName;
+
+    fn deref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+impl AsRef<StableName> for FaceName {
+    fn as_ref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+// The name's own rendering, forwarded: a face name reads the same
+// wherever it is held, and a wrapper that re-spelled it would be a
+// second vocabulary for one fact.
+impl core::fmt::Display for FaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+// THE WIRE'S DOOR. `Deserialize` goes through [`FaceName::new`], so a
+// file whose mate head names an edge is refused where the bytes are
+// read — in the load door's own `PersistError::Unreadable` class,
+// which is what "this build's types rejected these bytes" means — and
+// no walk downstream has to re-ask the question.
+impl<'de> serde::Deserialize<'de> for FaceName {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let name = StableName::deserialize(de)?;
+        Self::new(name).map_err(serde::de::Error::custom)
+    }
+}
+
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).

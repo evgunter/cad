@@ -667,6 +667,10 @@ pub use crate::document::{
     RecordedProgramError, SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
+// A mate head's type and the door that makes one, beside the name
+// type they refine: a prelude user who can author a mate can spell
+// its heads.
+pub use crate::document::{FaceName, NotAFaceName, SitedFace};
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // `StableName` sits in group 8 with no door there to obtain or read a

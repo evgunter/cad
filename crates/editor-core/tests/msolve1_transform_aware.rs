@@ -20,8 +20,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
     EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive,
-    MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    load, product, save, solve_document,
+    MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace,
+    StableName, load, product, save, solve_document,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
@@ -101,13 +101,13 @@ fn b_frame() -> MateFrame {
 
 /// A `Rest` mate seating `b`'s bottom cap onto `a`'s top cap, both
 /// frames authored in their member's own part coordinates.
-fn seat(a: SitedRef, b: SitedRef) -> Node<editor_core::ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
     seat_with(a, b, MatePrimitive::FrameCoincidence, None)
 }
 
 fn seat_with(
-    a: SitedRef,
-    b: SitedRef,
+    a: SitedFace,
+    b: SitedFace,
     primitive: MatePrimitive,
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
@@ -175,8 +175,8 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::new(a_at, in_part(base, CapEnd::End)),
-                SitedRef::new(b_at, in_part(top, CapEnd::Start)),
+                crate::fixture::head_at(a_at, in_part(base, CapEnd::End)),
+                crate::fixture::head_at(b_at, in_part(top, CapEnd::Start)),
             ),
         },
     );
@@ -410,8 +410,8 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             doc,
             DocEdit::InsertNode {
                 node: seat(
-                    SitedRef::at_mint(a.clone()),
-                    SitedRef::new(pattern, b.clone()),
+                    crate::fixture::head(a.clone()),
+                    crate::fixture::head_at(pattern, b.clone()),
                 ),
             },
         );
@@ -475,7 +475,10 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(SitedRef::at_mint(a.clone()), SitedRef::new(xf, b.clone())),
+                node: seat(
+                    crate::fixture::head(a.clone()),
+                    crate::fixture::head_at(xf, b.clone()),
+                ),
             },
         );
         let mate = mate.unwrap();
@@ -668,13 +671,16 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(SitedRef::at_mint(a.clone()), SitedRef::new(x1, b.clone())),
+            node: seat(
+                crate::fixture::head(a.clone()),
+                crate::fixture::head_at(x1, b.clone()),
+            ),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(SitedRef::at_mint(a), SitedRef::new(x2, b)),
+            node: seat(crate::fixture::head(a), crate::fixture::head_at(x2, b)),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -786,8 +792,8 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             doc,
             DocEdit::InsertNode {
                 node: seat_with(
-                    SitedRef::at_mint(in_part(base, CapEnd::End)),
-                    SitedRef::new(at, in_part(top, CapEnd::Start)),
+                    crate::fixture::head(in_part(base, CapEnd::End)),
+                    crate::fixture::head_at(at, in_part(top, CapEnd::Start)),
                     MatePrimitive::Coaxial,
                     Some(0.0),
                 ),
@@ -876,8 +882,8 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: seat(
-                    SitedRef::new(ghost, in_part(s.base, CapEnd::End)),
-                    SitedRef::at_mint(in_part(s.top, CapEnd::Start)),
+                    crate::fixture::head_at(ghost, in_part(s.base, CapEnd::End)),
+                    crate::fixture::head(in_part(s.top, CapEnd::Start)),
                 ),
             },
             Tol::witness(),
@@ -943,8 +949,8 @@ fn a8c_the_content_key_separates_two_operands() {
             doc,
             DocEdit::InsertNode {
                 node: seat(
-                    SitedRef::at_mint(in_part(base, CapEnd::End)),
-                    SitedRef::new(
+                    crate::fixture::head(in_part(base, CapEnd::End)),
+                    crate::fixture::head_at(
                         if at_transform { xf } else { top },
                         in_part(top, CapEnd::Start),
                     ),
@@ -1051,8 +1057,8 @@ fn a10_a_nested_pattern_head_is_a_member() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::at_mint(a.clone()),
-                SitedRef::new(outer, nested.clone()),
+                crate::fixture::head(a.clone()),
+                crate::fixture::head_at(outer, nested.clone()),
             ),
         },
     );
@@ -1189,8 +1195,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::at_mint(in_part(base, CapEnd::End)),
-                SitedRef::new(xf, in_part(top, CapEnd::Start)),
+                crate::fixture::head(in_part(base, CapEnd::End)),
+                crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
             ),
         },
     );
@@ -1352,8 +1358,8 @@ fn severed_operand_scene(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::new(xf, in_part(top, CapEnd::Start)),
-                SitedRef::at_mint(local_face),
+                crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
+                crate::fixture::head(local_face),
             ),
         },
     );
@@ -1414,8 +1420,8 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::at_mint(a.clone()),
-                SitedRef::new(outer, nested.clone()),
+                crate::fixture::head(a.clone()),
+                crate::fixture::head_at(outer, nested.clone()),
             ),
         },
     );
@@ -1521,8 +1527,8 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         doc,
         DocEdit::InsertNode {
             node: seat(
-                SitedRef::at_mint(a.clone()),
-                SitedRef::new(part, nested.clone()),
+                crate::fixture::head(a.clone()),
+                crate::fixture::head_at(part, nested.clone()),
             ),
         },
     );

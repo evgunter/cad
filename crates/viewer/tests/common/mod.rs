@@ -428,3 +428,24 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
     dir
 }
+
+/// A mate head over a name this fixture built as a face — the kind is
+/// the type's ([`SitedFace`](pncad::document::SitedFace)), so a
+/// fixture naming an edge does not compile, and the `expect` is this
+/// fixture's own claim about the name it just made.
+pub fn head(name: pncad::prelude::StableName) -> pncad::document::SitedFace {
+    pncad::document::SitedFace::at_mint(face(name))
+}
+
+/// The same head read at `at` rather than at its mint.
+pub fn head_at(
+    at: pncad::document::RecipeNodeId,
+    name: pncad::prelude::StableName,
+) -> pncad::document::SitedFace {
+    pncad::document::SitedFace::new(at, face(name))
+}
+
+/// A fixture's name as a [`FaceName`](pncad::document::FaceName).
+pub fn face(name: pncad::prelude::StableName) -> pncad::document::FaceName {
+    pncad::document::FaceName::new(name).expect("the fixture names a face")
+}

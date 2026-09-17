@@ -77,7 +77,7 @@ use crate::mate::{
 };
 use crate::names::interrogate::value_of;
 use crate::names::{EntityKind, Entry, NameTable, StableName};
-use crate::node::{Node, RecipeNodeId, SitedRef};
+use crate::node::{Node, RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
 use geom_core::Tol;
 
@@ -1041,8 +1041,8 @@ pub(crate) fn mint<P, T: Decide>(
         }
         minted.push(MintedDeclaration {
             mate: id,
-            a: a.name.clone(),
-            b: b.name.clone(),
+            a: (*a.name).clone(),
+            b: (*b.name).clone(),
             class: *class,
             faces: (face_a, face_b),
         });
@@ -1070,28 +1070,24 @@ fn resolve_face<P, T: Decide>(
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
-    reference: &SitedRef,
+    reference: &SitedFace,
 ) -> Result<FaceKey, MintRefusal> {
     let name = &reference.name;
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
-        name: Box::new(name.clone()),
+        name: Box::new((**name).clone()),
         why,
     };
     let Some(entry) = names.lookup(name) else {
         return Err(refuse(operand_answer(doc, evaluation, reference)));
     };
-    // KIND BEFORE MULTIPLICITY, the order [`operand_answer`] asks in:
-    // a non-face never mints anywhere, so WHAT the name denotes
-    // precedes how many entities answer to it. The kind is the NAME's,
-    // which the table makes every candidate's kind
-    // (`NameTable::insert`, `insert_tied`), so a tie answers this as
-    // readily as a unique row does — and an edge named here and the
-    // same edge named one node below get one word for one fact.
-    if name.kind != EntityKind::Face {
-        return Err(refuse(RefusedRef::NotAFace { found: name.kind }));
-    }
+    // THE KIND IS THE TYPE'S. A head is a `FaceName`, so "is this a
+    // face" is not a question this gate can ask twice — there is no
+    // non-face head to ask it of. What is left below is the table's
+    // own half: a row whose KEY is not a face under a face name,
+    // which is `NameTable::insert`'s invariant broken rather than a
+    // document this door may refuse.
     match entry {
         Entry::Unique(ent) => {
             // A face by the question above and the table's own rule
@@ -1150,19 +1146,15 @@ fn resolve_face<P, T: Decide>(
 fn operand_answer<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    reference: &SitedRef,
+    reference: &SitedFace,
 ) -> RefusedRef {
     let at = reference.at;
-    let kind = reference.name.kind;
     let rooted = doc.roots().contains(&at);
     let entry = value_of(evaluation, at)
         .ok()
         .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
         None => RefusedRef::Vanished,
-        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
-            RefusedRef::NotAFace { found: kind }
-        }
         Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
         Some(Entry::Unique(_) | Entry::Tied(_)) => {
             debug_assert!(

@@ -1597,9 +1597,16 @@ mod tests {
             node: instance,
             path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
         };
+        // A mate head is a `SitedFace`, so the fixture's claim that
+        // the name it just built is a face is made where it is built.
+        let face_head = |name: crate::names::StableName| {
+            crate::node::SitedFace::at_mint(
+                crate::names::FaceName::new(name).expect("the fixture names a face"),
+            )
+        };
         let mate = Node::Mate {
-            a: crate::SitedRef::at_mint(name(ids[0])),
-            b: crate::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
                 a: crate::mate::MateFrame {

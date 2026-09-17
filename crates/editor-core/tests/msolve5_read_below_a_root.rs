@@ -24,7 +24,7 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
     DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
     MateRole, MateSide, MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind,
-    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef,
+    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace,
     StableName, ValuePayload, product, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
@@ -234,7 +234,7 @@ fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (Stab
 /// A `Rest` mate seating `b`'s bottom cap on `a`'s top cap by frame
 /// coincidence, both frames in their member's own part coordinates
 /// and both axes outward, so the block stands ON the slab.
-fn seat(a: SitedRef, b: SitedRef) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
     Node::Mate {
         a,
         b,
@@ -290,8 +290,8 @@ fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRe
 #[test]
 fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
     let s = scene("msolve5-a1");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
     let (doc, mate) = mated(s.doc, seat(a, b));
 
     let poses = solve_document(&doc, Tol::witness());
@@ -323,8 +323,8 @@ fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
 #[test]
 fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let s = scene("msolve5-control");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
     );
@@ -360,8 +360,8 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
         "the Part consumed the pattern's root: {:?}",
         doc.roots()
     );
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
     let (doc, mate) = mated(doc, seat(a, b));
     let poses = solve_document(&doc, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
@@ -400,8 +400,8 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
             .into(),
         }],
     };
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, nowhere);
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, nowhere);
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
@@ -426,8 +426,8 @@ fn a_mate_naming_a_roots_body_refuses_not_a_face() {
         node: s.base,
         path: vec![RoleSeg::OutputBody],
     };
-    let a = SitedRef::at_mint(body.clone());
-    let b = SitedRef::new(
+    let a = crate::fixture::head(body.clone());
+    let b = crate::fixture::head_at(
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
     );
@@ -459,7 +459,7 @@ fn a_mate_naming_a_roots_body_refuses_not_a_face() {
 #[test]
 fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
     let s = scene("msolve5-body-below");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
     let body = StableName {
         kind: EntityKind::Body,
         node: s.top,
@@ -473,7 +473,7 @@ fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
         value.name_table.lookup(&body).is_some(),
         "the transform's own table spells the instance's body"
     );
-    let b = SitedRef::new(s.xf, body);
+    let b = crate::fixture::head_at(s.xf, body);
     let (doc, mate) = mated(s.doc, seat(a, b));
     assert!(!doc.roots().contains(&s.xf));
     let ev = run(&doc, &s.opts);
@@ -502,9 +502,9 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Face);
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
     assert_eq!(width, 2);
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
 
-    let b = SitedRef::new(s.xf, tied.clone());
+    let b = crate::fixture::head_at(s.xf, tied.clone());
     let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -516,7 +516,7 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!((named, side), (mate, MateSide::B));
     assert_eq!(*why, RefusedRef::ReadBelowARoot { at: s.xf });
 
-    let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
+    let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
@@ -542,12 +542,12 @@ fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Edge);
     assert_eq!(width, 2, "the row is a TIE, which is what it is here to be");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
     let not_a_face = RefusedRef::NotAFace {
         found: EntityKind::Edge,
     };
 
-    let b = SitedRef::new(s.xf, tied.clone());
+    let b = crate::fixture::head_at(s.xf, tied.clone());
     let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("an edge never mints");
@@ -555,7 +555,7 @@ fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
     assert_eq!((named, side), (mate, MateSide::B));
     assert_eq!(*why, not_a_face);
 
-    let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
+    let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("an edge never mints");
@@ -606,8 +606,8 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         "the boolean consumed the transform's root: {:?}",
         doc.roots()
     );
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -657,8 +657,8 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             },
         },
     );
-    let a = SitedRef::at_mint(in_part(base, CapEnd::End));
-    let b = SitedRef::new(xf, in_part(top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(base, CapEnd::End));
+    let b = crate::fixture::head_at(xf, in_part(top, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.role(mate), Some(MateRole::Determining));

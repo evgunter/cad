@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    clusters, load, product, relative_freedom_components, save, solve_document,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, clusters,
+    load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -100,8 +100,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, PART_BODY)),
-        b: SitedRef::at_mint(in_part(b, PART_BODY)),
+        a: crate::fixture::head(in_part(a, PART_BODY)),
+        b: crate::fixture::head(in_part(b, PART_BODY)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -1435,7 +1435,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &DocEdit::InsertNode {
             node: Node::Mate {
                 a,
-                b: SitedRef::at_mint(bogus.clone()),
+                b: crate::fixture::head(bogus.clone()),
                 class,
                 alignment,
             },

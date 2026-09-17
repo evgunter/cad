@@ -31,8 +31,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
     EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive,
-    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    assemble, content_pin, inline, product_recorded, split,
+    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, assemble,
+    content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, step};
@@ -120,8 +120,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
-        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, CapEnd::End)),
+        b: crate::fixture::head(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -143,8 +143,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
-        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
+        a: crate::fixture::head(in_part(a, CapEnd::End)),
+        b: crate::fixture::head(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -873,7 +873,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
     let (doc, local) = block(doc, (0.0, 1.0), (0.0, 1.0), 5.0, 1.0);
     let mut node = rest_mate(instance, instance, 1.0);
     if let Node::Mate { b, .. } = &mut node {
-        *b = SitedRef::at_mint(StableName {
+        *b = crate::fixture::head(StableName {
             kind: EntityKind::Face,
             node: local,
             path: vec![RoleSeg::Cap(CapEnd::Start)],
@@ -1412,7 +1412,12 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, ids, _, store) = stacked("asm-r2b-vanish", 1.0);
     let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
-        a.name.path = vec![RoleSeg::InPart {
+        // The head keeps its KIND — it is a face name that answers to
+        // nothing, which is what `Vanished` is about — so the rewrite
+        // goes through the head's own constructor rather than reaching
+        // into it.
+        let mut name = (*a.name).clone();
+        name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
@@ -1420,6 +1425,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
             }
             .into(),
         }];
+        *a = crate::fixture::head_at(a.at, name);
     }
     let (doc, _) = step(doc, DocEdit::InsertNode { node });
     let ev = run(&doc, &with_resolver(store));
@@ -1500,8 +1506,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
         doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: SitedRef::at_mint(in_part(post_id, CapEnd::End)),
-                b: SitedRef::at_mint(in_part(shelf_id, CapEnd::Start)),
+                a: crate::fixture::head(in_part(post_id, CapEnd::End)),
+                b: crate::fixture::head(in_part(shelf_id, CapEnd::Start)),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),

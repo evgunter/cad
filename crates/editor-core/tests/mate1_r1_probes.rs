@@ -15,7 +15,7 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Expr, Frame,
     MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedRef, StableName, clusters, solve_document,
+    StableName, clusters, solve_document,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, scl, step};
@@ -72,8 +72,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame(origin, [0.0, 0.0, 1.0]),

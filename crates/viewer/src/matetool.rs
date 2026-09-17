@@ -90,7 +90,7 @@
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
-    MateFrame, MatePrimitive, MateSide, Member, ProfileProgram, RecipeNodeId, SitedRef,
+    MateFrame, MatePrimitive, MateSide, Member, ProfileProgram, RecipeNodeId, SitedFace,
     class_admission, member_of, solve_document,
 };
 use pncad::geom_core::Tol;
@@ -176,7 +176,7 @@ fn picked_member(
     doc: &Doc<ProfileProgram>,
     side: MateSide,
     pick: &FaceSelection,
-) -> Result<(SitedRef, Member, StableName), MateToolError> {
+) -> Result<(SitedFace, Member, StableName), MateToolError> {
     let refused = || MateToolError::NotAnInstancePick {
         side,
         node: pick.node,
@@ -184,7 +184,21 @@ fn picked_member(
     // The pick's own operand: the node the ray met, which is the node
     // whose body was drawn and therefore the geometry the author is
     // pointing at.
-    let reference = SitedRef::new(pick.node, pick.name.clone());
+    // A `FaceSelection` carries a face — the picker's own door
+    // refuses anything else — so the head's constructor answers `Ok`
+    // here. It is CALLED rather than bypassed because the invariant
+    // has one door; a selection that stopped carrying a face is a
+    // pick this tool cannot make a mate out of, which is what the
+    // refusal above says.
+    let name = editor_core::FaceName::new(pick.name.clone()).map_err(|_| {
+        debug_assert!(
+            false,
+            "a face selection carries a name that is not a face: the picking door \
+             refuses `SelectionRefusal::NotAFace` before a selection is made"
+        );
+        refused()
+    })?;
+    let reference = SitedFace::new(pick.node, name);
     let member = member_of(doc, &reference).ok_or_else(refused)?;
     // A copy reads its MASTER's entity: the name inside the
     // `Instance(i)` qualifier, one qualifier per pattern level the
@@ -381,9 +395,9 @@ pub struct MateChoice {
 pub struct MateProposal {
     /// The `a` reference: the picked name, read at the node the ray
     /// met.
-    pub a: SitedRef,
+    pub a: SitedFace,
     /// The `b` reference.
-    pub b: SitedRef,
+    pub b: SitedFace,
     /// The declared class.
     pub class: ContactClass,
     /// The derived alignment.
