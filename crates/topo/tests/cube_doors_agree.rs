@@ -316,8 +316,8 @@ fn every_box_door_builds_one_body() {
 /// a corner recomputed rather than carried, a witness taken from the
 /// wrong end — moves one door and not the other here and nowhere else
 /// in this file.
-#[test]
 #[cfg(feature = "interval")]
+#[test]
 fn the_generic_box_doors_agree_at_an_interval_scalar() {
     use geom_core::Interval;
     let boxes = [
@@ -422,8 +422,8 @@ fn every_door_builds_the_prism_its_inputs_name() {
 
 /// [`every_door_builds_the_prism_its_inputs_name`] at a scalar that is
 /// not `f64`, over the same off-rectangle profiles.
-#[test]
 #[cfg(feature = "interval")]
+#[test]
 fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     use geom_core::Interval;
     let ident = |x: f64, y: f64, z: f64| {
