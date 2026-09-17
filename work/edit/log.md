@@ -416,3 +416,28 @@ retired; the spec's `pncad-py` half was a wrong premise — no
 per-variant tag exists — and the sweep filed LIB's Python mirror),
 the appearance-strand arm (PR #2784) is in its style review, and
 EDIT-PICK3 is building.
+
+## 2026-09-16 — fourth sitting: DM7's second carrier merged, EDIT-PICK3's dual concluded, wave 6 cut
+
+The appearance-strand arm merged (PR #2784, middle tier: the review's
+MAJOR was an order boundary documented as pinned by a row that painted
+nothing; the reviewer's row holds it now; the Python row was refused
+with a measurement — Python has no `set_appearance` door — and filed
+for LIB). EDIT-PICK3's v6 dual concluded on the frozen head `31cbee19f`
+(R1 opus 4802, R2 fable 4803): both found the same MAJOR — the
+traversal's early-out prunes a narrower member of the certified tie,
+so the answer depends on target order — with red probes on the real
+door; the orchestrator ruled to repair the early-out with the derived
+margin R2 proposed (no chosen factor; `Pruned == Every` becomes a
+theorem) rather than re-word the contract, amending premise 5's
+inequality while the decision stands (Ev is told on the next `[ev]`
+PR); the MEET column retires to a dated measurement, the order gets one
+callable home (`TSpan::best_of`), and the acceptance suite calls the
+door instead of restating it. The union fix pass is running. Wave 6
+cut, three middle-tier units: the load door's payload-expression half
+(`load-door-does-not-check-payload-expression-param-refs`), the ladder
+rim fixture (`bandfoot-and-bandcross-arguments-are-read-by-no-document-row`),
+and the `StableName` carrier enumeration
+(`document-stablename-carriers-have-no-enumeration`); the first two
+dispatch now, the third as the fix-pass slot frees.
+
