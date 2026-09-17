@@ -7190,6 +7190,20 @@ derived bound; two instruments exist; the closed-boundary pins
 re-stated). Slot 1 = OPUS per the draw above.
 
 
+Block EDIT-B2 pre-draw fields (2026-09-17, logged before the draw):
+slot 0 = EDIT-DECL (docs/EDIT-DECL-SPEC.md, `a-declared-union-has-no-one-pass-authoring-path`,
+ruled by Ev on `[ev]` #2795) — difficulty M, task-class STRUCTURAL
+(a payload shape change on `Node::Declare` to sited pairs, the
+resolver's side pick replaced by the site, the union's routing by
+site with the member-space rewrite ahead of the shared look-through,
+two `DeclSite` variants and their rows retired by type, the persisted
+form and five declaring documents re-authored, the façades following
+mechanically). Slots 1–2 bank for the program's next kernel units in
+dispatch order (none spec'd yet; the middle-tier units — the tie
+refusal among them — run outside the protocol per the band record),
+pre-draw fields at their specs.
+
+
 ## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
 
 EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
