@@ -1151,7 +1151,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
             assert_eq!(param, ParamName::new("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
             assert!(
-                msg.contains("\"L\""),
+                msg.contains("parameter L is declared by both"),
                 "the message names the parameter: {msg}"
             );
         }

@@ -102,7 +102,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::doc::Doc;
+use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
@@ -334,9 +334,9 @@ impl core::fmt::Display for SplitError {
                 kept_node,
             } => write!(
                 f,
-                "split: parameter {:?} is referenced by cut node {} and kept node {} — one \
+                "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                param.0, cut_node.0, kept_node.0
+                cut_node.0, kept_node.0
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
@@ -495,8 +495,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::ParamConflict { param } => write!(
                 f,
-                "inline: parameter {:?} is declared by both documents with different values",
-                param.0
+                "inline: parameter {param} is declared by both documents with different values"
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
@@ -833,6 +832,16 @@ fn remap_node(
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
+    // A mate head across the cut, through the same name door and back
+    // through the type's own constructor. `remap_name` rewrites the
+    // minting node ids embedded in a name and never its KIND, so the
+    // constructor answers `Ok` here; it is CALLED rather than
+    // bypassed because the invariant has one door, and a remap that
+    // ever did change a kind is a name this walk could not carry —
+    // which is what the miss it reports says.
+    let face = |n: &crate::names::FaceName| -> Result<crate::names::FaceName, RemapMiss> {
+        crate::names::FaceName::new(nm(n)?).map_err(|_| RemapMiss::Name(Box::new((**n).clone())))
+    };
     Ok(match node {
         // **An in-plane axis is not a leaf**: its frame is an input,
         // and a clone would carry the OTHER document's node number
@@ -1022,13 +1031,13 @@ fn remap_node(
             class,
             alignment,
         } => Node::Mate {
-            a: crate::node::SitedRef {
+            a: crate::node::SitedFace {
                 at: id(a.at)?,
-                name: nm(&a.name)?,
+                name: face(&a.name)?,
             },
-            b: crate::node::SitedRef {
+            b: crate::node::SitedFace {
                 at: id(b.at)?,
-                name: nm(&b.name)?,
+                name: face(&b.name)?,
             },
             class: *class,
             alignment: *alignment,
@@ -1272,19 +1281,29 @@ pub fn split(
         }
     }
     // Cut-side name references must lie wholly within the cut: the
-    // part document cannot name the remainder's entities.
-    for &id in doc.order() {
-        if !cut.contains(&id) {
-            continue;
-        }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            if !derivation_nodes(name).is_subset(cut) {
-                return Err(SplitError::PartNameReachesRemainder {
-                    node: id,
-                    name: Box::new(name.clone()),
-                });
+    // part document cannot name the remainder's entities. Read off
+    // the document's name-carrier enumeration, so a carrier added to
+    // `Carrier` is walked here without being remembered into this
+    // site — only its SIDE has to be decided, which is what the two
+    // arms below say.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if !cut.contains(&node) {
+                    continue;
+                }
+                if !derivation_nodes(name).is_subset(cut) {
+                    return Err(SplitError::PartNameReachesRemainder {
+                        node,
+                        name: Box::new(name.clone()),
+                    });
+                }
             }
+            // A store key is the document's, not either side's: no
+            // node carries it, so there is no cut-side instance of
+            // one to refuse. It is classified below instead, where
+            // the remainder's references are.
+            NameCarrier::Store { .. } => {}
         }
     }
     // Remainder-side references to cut entities re-anchor through the
@@ -1309,17 +1328,20 @@ pub fn split(
         rebinds.insert(name.clone());
         Ok(())
     };
-    for &id in doc.order() {
-        if cut.contains(&id) {
-            continue;
+    // Every name the document holds that is not carried by a cut
+    // node: the payload names of the kept nodes, then the store's
+    // keys, which no node carries and which therefore always
+    // classify.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if cut.contains(&node) {
+                    continue;
+                }
+                classify(name)?;
+            }
+            NameCarrier::Store { name } => classify(name)?,
         }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
     }
     // The deterministic id remap: cut nodes in document order mint
     // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
@@ -1481,7 +1503,7 @@ pub fn split(
     // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
     // document (N5) and its names rebind like any other; it simply
     // says nothing about the seam.
-    let is_mate_edge_end = |r: &crate::node::SitedRef| crate::mate::member_of(doc, r).is_some();
+    let is_mate_edge_end = |r: &crate::node::SitedFace| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1506,12 +1528,12 @@ pub fn split(
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
         let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
-            name: Box::new(inner.clone()),
+            name: Box::new((**inner).clone()),
         })?;
         crossings.push(InterfaceCrossing::Mate {
             mate: id,
             class: *class,
-            outer: outer.clone(),
+            outer: (**outer).clone(),
             inner,
         });
     }
@@ -1706,14 +1728,11 @@ pub fn inline(
             name: Box::new(name.clone()),
         })
     };
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
+    // Every name the host document holds, in both carriers — the
+    // classification is the same for each, so this asks the
+    // enumeration for the names and nothing else.
+    for carrier in doc.name_carriers() {
+        classify(carrier.name())?;
     }
     wrapped.sort();
     wrapped.dedup();

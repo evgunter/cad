@@ -348,7 +348,7 @@ impl core::fmt::Display for PersistError {
                 node.0
             ),
             Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {:?}: {fault}", name.0)
+                write!(f, "persist: document parameter {name}: {fault}")
             }
             Self::DisplayUnit {
                 name,
@@ -356,9 +356,8 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {:?} is declared {declared} but its display \
-                 unit measures {unit}",
-                name.0
+                "persist: document parameter {name} is declared {declared} but its display \
+                 unit measures {unit}"
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::HeaderId { found } => {

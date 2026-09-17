@@ -290,9 +290,9 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 ///   under a `debug_assert!`. What this row still cannot see is the
 ///   site at all.
 /// - **A kind refusal on another error type**: `names::interrogate`'s
-///   `kind_mismatch`, `assembly.rs`'s `RefusedRef::NotAFace`,
-///   `clearance.rs`'s `SelectionRefusal::NotAFace`, `mate/member.rs`'s
-///   recipe road. Rows and dispositions on
+///   `kind_mismatch`, `clearance.rs`'s `SelectionRefusal::NotAFace`,
+///   `names::role`'s `NotAFaceName`, `mate/member.rs`'s recipe road.
+///   Rows and dispositions on
 ///   `work/wire/the-entity-kind-door-has-six-spellings.md`.
 /// - **A refusal built in a test**: the walk stops at `eval/wire.rs`'s
 ///   own inline `#[cfg(test)] mod` and reads no other file.

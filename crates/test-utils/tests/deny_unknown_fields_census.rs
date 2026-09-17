@@ -340,7 +340,7 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 17] = [
     ("crates/editor-core/src/mate.rs", 2),
     ("crates/editor-core/src/measure.rs", 1),
     ("crates/editor-core/src/names/role.rs", 5),
-    ("crates/editor-core/src/node.rs", 8),
+    ("crates/editor-core/src/node.rs", 9),
     ("crates/editor-core/src/persist/mod.rs", 1),
     ("crates/editor-core/src/persist/wire.rs", 1),
     ("crates/editor-core/src/placement.rs", 1),

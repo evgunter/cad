@@ -40,8 +40,7 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 
 WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
 ----------------------------------------------------------------
-`ref_not_a_face` is reached below, by authoring a mate against an
-edge. `ref_read_below_a_root` is reached below too: `Node.mate` takes
+`ref_read_below_a_root` is reached below: `Node.mate` takes
 an operand, so a mate read at a transform that a `placed_union`
 consumes is authorable — the operand spells the name, the product
 lists only the union and spells that face as an instance row, and
@@ -61,6 +60,12 @@ this file:
   produces is tied, and Python cannot hand-build a name.
 
 Each is bound and tagged; a reach appears when some other door does.
+
+There is no arm for a head that is NOT A FACE, and that is the type's
+doing: a head is a `SitedFace` over a `FaceName`, `Node.mate` calls
+that type's one constructor, and the refusal a Python caller meets is
+`mate_head_not_a_face` at the build call (asserted below) — before a
+document exists, not at the gate.
 
 THE SPELLING OF THE PLACED FAMILY, MEASURED RATHER THAN CLAIMED
 ---------------------------------------------------------------
@@ -949,30 +954,31 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(row.why.variant, "ref_read_below_a_root")
         self.assertEqual(row.why.at, lifted)
         self.assertIsNone(row.why.width)
-        self.assertIsNone(row.why.kind)
 
-    def test_a_mate_reference_that_is_not_a_face_refuses_at_the_gate(self):
+    def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
+        """A mate's declaration is a FACE-PAIR contact, and the kernel
+        says so in the TYPE of a head: a Rust caller cannot write the
+        edge-headed mate at all. Python holds names as opaque text, so
+        the compiler cannot keep that promise for a Python caller and
+        the BINDING keeps it — `Node.mate` calls the head
+        constructor and publishes its refusal under the boundary's own
+        word, at the call that would have built the mate rather than
+        at some door downstream."""
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
-        mate = doc.insert(
+        with self.assertRaises(pncad.EditError) as caught:
             Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
-        )
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(doc, evaluate(doc, resolver=self.ws))
         err = caught.exception
-        # A mate's declaration is a FACE-PAIR contact. An edge
-        # reference is a different statement, refused rather than
-        # widened — and the refusal says which side and which way.
-        self.assertEqual(err.variant, "unminted_mates")
-        (row,) = err.refusals
-        self.assertEqual(row.variant, "mate_reference_refused")
-        self.assertEqual(row.mate, mate)
-        self.assertEqual(row.side, pncad.MateSide.A)
-        self.assertEqual(row.why.variant, "ref_not_a_face")
-        self.assertEqual(row.why.kind, "edge")
-        self.assertIsNone(row.why.width)
+        self.assertEqual(err.variant, "mate_head_not_a_face")
+        self.assertIn("edge", str(err))
+        # The same call with a face head builds, so the refusal above
+        # is the KIND's and not the fixture's.
+        top = one(ev.select(post_i, cap_selector(CapEnd.End, [SegTag.InPart])))
+        doc.insert(
+            Node.mate(post_i, top, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+        )
 
     def test_a_gather_refusal_arrives_under_the_gathers_own_tag(self):
         doc = Doc("no-resolver")

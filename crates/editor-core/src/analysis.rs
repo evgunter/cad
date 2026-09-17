@@ -568,20 +568,17 @@ impl core::fmt::Display for SeedError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the seed names {:?}, which is not a parameter of this document",
-                param.0
+                "the seed names {param}, which is not a parameter of this document"
             ),
             Self::CountParam { param } => write!(
                 f,
-                "the seed names {:?}, a Count parameter — structural parameters are fixed \
-                 under any error analysis and carry no derivative axis",
-                param.0
+                "the seed names {param}, a Count parameter — structural parameters are fixed \
+                 under any error analysis and carry no derivative axis"
             ),
             Self::TangentUnrepresentable { param } => write!(
                 f,
-                "parameter {:?} is seeded and this evaluation scalar carries no tangent \
-                 channel — a sensitivity pass needs a dual",
-                param.0
+                "parameter {param} is seeded and this evaluation scalar carries no tangent \
+                 channel — a sensitivity pass needs a dual"
             ),
         }
     }
@@ -744,14 +741,13 @@ impl core::fmt::Display for ParamBoxError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the parameter box names {:?}, which is not a continuous parameter of this document",
-                param.0
+                "the parameter box names {param}, which is not a continuous parameter of this \
+                 document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => write!(
                 f,
-                "parameter {:?} spans offsets [{lo}, {hi}] and this evaluation scalar carries no \
-                 such value — a widened box needs an enclosing scalar",
-                param.0
+                "parameter {param} spans offsets [{lo}, {hi}] and this evaluation scalar carries \
+                 no such value — a widened box needs an enclosing scalar"
             ),
         }
     }
@@ -993,9 +989,8 @@ impl core::fmt::Display for MeasureUnavailable {
         match self {
             Self::BandHasNoMeasure { param } => write!(
                 f,
-                "parameter {:?} carries a band: worst-case limits with no shape, so it \
-                 prices nothing — state a distribution to ask for mass",
-                param.0
+                "parameter {param} carries a band: worst-case limits with no shape, so it \
+                 prices nothing — state a distribution to ask for mass"
             ),
         }
     }

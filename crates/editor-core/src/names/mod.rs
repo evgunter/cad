@@ -69,9 +69,9 @@ pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub(crate) use role::never_in_a_boolean_table;
 pub use role::{
-    CapEnd, EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, Qualifier,
-    RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName, band, band_pi, band_rim,
-    carried, meridian_vertex,
+    CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
+    band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

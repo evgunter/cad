@@ -2,7 +2,7 @@
 id: a-declared-union-has-no-one-pass-authoring-path
 kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
-status: open
+status: spec
 opened: 2026-09-06
 refs: [2028, 2028]
 ---
@@ -92,3 +92,65 @@ The viewer-side consequence of this gap stays on CHROME's slate as
 `work/chrome/addboolean-doc-names-a-vocabulary-that-does-not-exist`.
 
 Signed: (CHROME orchestrator)
+
+## Question for Ev (2026-09-17, EDIT orchestrator) — on the fourth `[ev]` PR
+
+DM6 says no edit rewires a live node's inputs. A union's `declare`
+edge names entities in the union's OWN name space, so it cannot be
+authored before the union exists and cannot be attached after — the
+only path is the five-edit workaround this row records. The question
+is whether DM6 admits the one edge that by construction cannot precede
+the node it names (a narrow `SetDeclare` on a live `Union`/`Boolean`),
+whether the declaration should instead become the union's own payload,
+or whether the workaround stays and CHROME seats it. The
+recommendation and the alternatives are on the PR; this row is parked
+on Ev's answer.
+
+## Revised on the `[ev]` PR (2026-09-17)
+
+Ev asked whether "declare names pre-boolean entities" is possible. It
+is how the pair `Boolean` already works (a bare name resolved through
+the operands' tables, one pass — `kiss_carry`); it fails for the n-ary
+`Union` only because DM4's members can carry identical tables (21
+transforms of one ball), so a bare pre-union name cannot say which
+member — which is why DOCM-7 made the declaration name the union's own
+`FromMember` rows. A SITED declaration (`SitedRef { at: member, name }`
+per side — the shape a mate head already has) says which member
+without naming the union: one pass, no DM6 exception, and
+`DeclareBothOperands` unnecessary by construction. Revised
+recommendation: (B) sited declarations, a DOCM-7 shape change (the
+persisted `Declare` form, two suites, five corpus documents, the
+Python constructor); the narrow `SetDeclare` stays the cheap
+alternative. Waiting on Ev.
+
+## RULED (2026-09-17, Ev on `[ev]` PR #2795): sited declarations
+
+A `Declare`'s pairs name SITED entities — `SitedRef { at, name }`,
+`at` the member (a pair boolean's operand), `name` the entity in that
+member's table — so a declaration names what exists before the union
+and is authored in one pass; the union derives each pair's fold step
+from its two sites; the site is the side, so `DeclareBothOperands`
+retires; the union's published `FromMember` names are unchanged. DM6
+is untouched. The DM4 clause is amended on this PR; the DM7 sentence
+that cited the old cycle is re-worded with it. Kernel unit (the
+resolver in `eval/wire.rs`, the persisted `Declare` form, the two
+DOCM-7/8 suites and the five declaring corpus documents, the Python
+declare constructors — LIB's, mechanical): v6 dual, block EDIT-B2
+slot 0, spec `docs/EDIT-DECL-SPEC.md` at the next claim.
+
+
+## Spec'd (2026-09-17, EDIT orchestrator) — kernel unit, v6 dual, block EDIT-B2 slot 0
+
+`docs/EDIT-DECL-SPEC.md`; branch `edit/sited-declarations`. Eight
+premises: the sited payload (`SitedRef` reused), the site is the side
+(`DeclareBothOperands` retires, one new site arm), the union routes by
+site and rewrites into member space before the shared resolver
+(look-through unchanged), fold-minted rows stop being declaration
+subjects by type (the DOCM-7 fold-row rows retire with the class,
+each replaced by a cannot-be-written row), the doors follow the
+payload (`payload_names` the names, `payload_read_sites` the sites),
+the persisted form moves and every declaring document in the tree is
+re-authored (no migration — the format is unversioned and nothing
+outside the tree declares), the façades follow mechanically (LIB's,
+announced), DM6 untouched. Pre-draw fields at the block record
+(`edit/b2-block`): difficulty **M**, task-class **STRUCTURAL**.
