@@ -150,7 +150,7 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 //
 // **The raw-assembly lane is NOT carried, and its absence is
 // structural.** `MeshPick` stays interior, so a façade consumer
-// cannot build one — and `PickTarget`'s `pick` field is a
+// cannot build one — and the raw mint `PickTarget::new` takes a
 // `&MeshPick`, so the target whose contract warns of a confidently
 // wrong name has no constructor here. The type is carried only
 // because `pick_face`'s signature names it. `NodePick` is therefore

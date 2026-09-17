@@ -242,9 +242,9 @@ fn encloses_corner(body: &Body<Interval>, rho: f64, h: f64, what: &str) {
 /// decide sites, executed at the scalar that can escalate (this file's
 /// own law). The direct door is the row's subject for the same reason
 /// it is at f64: `shell`'s closing tier 3 needs a volume the sphere
-/// flux arm's `props_band_coplanar` premise cannot yet give a lune —
-/// the operand's own standing wall — so the door is asked directly and
-/// the corner enclosures are the claim.
+/// flux arm cannot yet give the CAVITY's lens face (its rims are the
+/// moved caps' off-centre sections, `props_meridian_great`) — so the
+/// door is asked directly and the corner enclosures are the claim.
 ///
 /// One hollow executes the meridian-pair arm (`offset_axial_cap_pair`,
 /// `offset_axial_cap_line`, and the shared corner/concurrence/residual

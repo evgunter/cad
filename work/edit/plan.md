@@ -26,39 +26,91 @@ Reviewed against the tree and Ev's answers at the first sitting
 posture under §Process.
 
 1. **Ruled and ready** — `cut-off-arc-persists-as-a-corner-arc`
-   (Ev's (b′), 2026-09-15; the V3 read first) and, after it, the
-   fixture it was split from,
-   `a-ruled-carve-has-no-editor-fixture-…`. E-class, then a unit.
+   merged (E-class, PR #2717); the fixture it was split from,
+   `a-ruled-carve-has-no-editor-fixture-…`, is **merged** (PR #2778,
+   middle tier); its residue
+   `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` is
+   **merged** (PR #2794, middle tier); its residue
+   `editor-core-suites-redefine-the-name-table-helpers` stands open.
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
-   `deletenode-strands-a-declare-payload-name` is the one real
-   question of the three and goes to Ev as an `[ev]` PR with a
-   recommendation, carrying
-   `authored-step-to-canonical-segment-map-has-no-home` as a second
-   short decision. `no-docedit-splices-a-deleted-node` is deferred
-   on DM6 and is not work.
+   `a-declared-union-has-no-one-pass-authoring-path` was ruled by Ev
+   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended):
+   **dispatched**, kernel unit (`docs/EDIT-DECL-SPEC.md`, v6 dual, block
+   EDIT-B2 slot 0, opus).
+   `deletenode-strands-a-declare-payload-name` (DM7) and
+   `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
+   ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
+   middle tier). DM7's boundary (appearance keys) and DM8's word
+   "canonical" were ruled on the third `[ev]` PR (#2764): DM8's
+   follow-through is **merged** (E-class, PR #2785); DM7's second
+   carrier, `stranded-appearance-keys-are-not-reported-by-dm7`, is
+   **merged** (PR #2784, middle tier); its residue
+   `document-stablename-carriers-have-no-enumeration` is **merged**
+   (PR #2797, middle tier). `mate-head-entity-kind-is-decided-only-at-assembly`
+   is **merged** (PR #2799, middle tier; re-scoped on Ev's question to
+   a `FaceName` newtype, so a non-face head does not typecheck); its
+   residue `interface-crossing-heads-are-bare-stable-names` stands
+   open. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
+   not work.
 3. **The persisted recipe's honesty** —
-   `blend-selection-canonical-check-load-only` (one predicate, two
-   doors; kernel unit), `recorded-program-arguments-carry-no-notation`
-   (a shape question with LIB parked on it),
-   `replay-and-load-keep-the-document-without-its-maintenance`.
-4. **The resolver's doors** —
-   `pick-grazing-ray-answer-depends-on-candidate-order` (kernel unit;
-   re-baselines `viewer`'s reference loop by announcement),
-   `pair-doors-outside-the-three-do-not-check-document-identity`
-   (EDIT builds the `apply_with_names` door; the `stackup` and
-   `drive` doors are PROPS's, announced to it).
-5. **Error-surface hygiene** — one E-class unit over
+   `blend-selection-canonical-check-load-only` merged (kernel unit);
+   its residue `three-door-predicates-are-hand-copied-not-shared`,
+   carrying the sweep row
+   `load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`,
+   is **merged** (PR #2772, middle tier). `doc-param-distribution-edit-has-no-door`
+   (the unit door's mirror) is **merged** (PR #2774, middle tier).
+   Round two merged (PR #2772) and left three load-door rows, merged
+   together as round three (PR #2780, middle tier; the census is now
+   the code's). `recorded-program-arguments-carry-no-notation` is
+   **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
+   doc-param precedent; LIB's Python half unparked at that merge).
+   Round three's residue
+   `load-door-does-not-check-payload-expression-param-refs` is
+   **merged** (PR #2793, middle tier). DM8's residue
+   `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
+   is **in review** (PR #2804, middle tier, wave 8; crosses WIRE's
+   `eval::content_key` and `ProfileValue` by announcement); its residue
+   `fused-arc-fillet-steps-have-no-per-segment-radius-address` stands
+   open.
+   `replay-and-load-keep-the-document-without-its-maintenance` was
+   ruled and closed (E-class, PR #2771).
+4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
+   merged (block EDIT-B1 concluded); the ruling row
+   `what-t-the-pick-door-answers-and-with-what-width` (ruled by Ev on
+   `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
+   `pick-tie-break-width-key-depends-on-scene-magnitude` was ruled by
+   Ev on the fourth `[ev]` PR (#2795): the certified tie between faces
+   is refused and the width key goes — **spec'd**, middle tier (wave 9,
+   dispatches as a lane frees); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   stands open; `pick-face-raw-target-path-survives-only-for-rows`
+   is ruled and **in review** (PR #2801, middle tier, wave 7);
+   `pick-refuses-a-crossing-within-rounding-of-a-plane` and
+   `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
+   the mechanism's stated classes;
+   `nodepick-name-doors-take-a-second-evaluation-unpaired` is
+   **merged** (PR #2773, middle tier). The pairing row went to PROPS
+   with EDIT's door built.
+5. **Error-surface hygiene** — the E-class unit over
    `persist-check-renders-enum-variants-through-debug-into-user-prose`,
    `debug-in-prose-residue-after-finding-sink` and
-   `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way`.
+   `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
+   **merged** (PR #2719); its residue
+   `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
+   **merged** (E-class, PR #2800), and
+   `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
-   is unblocked (BOOL-12 closed) and is an E-class unit; the rest of
-   `C6` and `D366` stay as visibility rows, their live work being in
-   `pncad-py` (LIB's) or behind blockers that are not items.
+   is **built** (PR #2738, dispatched middle tier rather than the
+   E-class this line first guessed: the collapse crossed the persisted
+   format and earned a style review with a correctness arm).
+   `editor-core`'s document step vocabulary is now its persisted one.
+   The rest of `C6` stands — the `SegTag` member behind the
+   workspace's first proc-macro crate, the "no usable value" core —
+   and `C6` and `D366` stay as visibility rows for it, their live work
+   being in `pncad-py` (LIB's) or behind blockers that are not items.
 
 ## Process
 

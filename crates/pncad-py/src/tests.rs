@@ -531,6 +531,17 @@ fn picking_refusal_tags_are_stable() {
         "node_poisoned"
     );
 
+    // DI3's pairing refusal, under the word the gather, the checks and
+    // the name-level edit door already answer with: one fact, one tag,
+    // whichever door a caller meets it at.
+    assert_eq!(
+        hit_test_error_tag(&H::EvaluationOfAnotherDocument {
+            expected: pncad::document::DocumentId::derive("tag-expected"),
+            found: pncad::document::DocumentId::derive("tag-found"),
+        }),
+        "evaluation_of_another_document"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -2203,7 +2214,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
@@ -2367,8 +2378,20 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ContinuousParamCannotBeCount { name: param() },
         &["param"],
     );
-    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
-    carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
+    carries(
+        &E::DocParamNotDeclared {
+            name: param(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &["param"],
+    );
+    carries(
+        &E::NonFiniteDocParam {
+            name: param(),
+            field: pncad::document::DocParamField::Nominal,
+        },
+        &["param"],
+    );
     carries(
         &E::DocParamValueKindMismatch {
             name: param(),
@@ -2539,9 +2562,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::ProfileProgramRefused {
             node: id(1),
-            refusal: pncad::document::ProgramRefusal::Validate(
+            refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
-            ),
+            )),
         },
         &["node"],
     );
@@ -2578,6 +2601,16 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         .expect_err("a zero axis has no definite direction");
     carries(&E::from(axis), &[]);
     carries(&E::EmptyWitnessBulk, &[]);
+    // Two DOCUMENTS, which no attribute of this record carries — the
+    // `ProductError` arm's precedent one door over: the message states
+    // both ids.
+    carries(
+        &E::EvaluationOfAnotherDocument {
+            expected: DocumentId::derive("edited"),
+            found: DocumentId::derive("handed"),
+        },
+        &[],
+    );
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -3957,7 +3990,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "boundary_edit_tag",
-        values: &["name_serialize"],
+        values: &["mate_head_not_a_face", "name_serialize"],
         delegates: &["declare_error_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
@@ -4007,11 +4040,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "class_admission_tag",
         values: &["mints", "no_at_rest_record", "not_admitted"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "cluster_maintenance_tag",
-        values: &["drop", "gauge_rewrite", "join", "split"],
         delegates: &[],
     },
     TagEntry {
@@ -4072,13 +4100,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
+            "doc_param_count_has_no_distribution",
+            "doc_param_count_has_no_unit",
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
+            "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
+            "evaluation_of_another_document",
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
@@ -4250,6 +4282,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
             "node_poisoned",
@@ -4312,6 +4345,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "section_structure",
             "skin",
             "stacking_escalated",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "maintenance_tag",
+        values: &[
+            "drop",
+            "gauge_rewrite",
+            "join",
+            "split",
+            "strand",
+            "stranded_appearance",
         ],
         delegates: &[],
     },
@@ -4678,7 +4723,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_fault_tag",
-        values: &["lattice", "slot_dimension"],
+        values: &["lattice"],
         delegates: &[],
     },
     TagEntry {
@@ -4708,17 +4753,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "recorded_program_error_tag",
-        values: &["carrier_in_chain", "subdivision_count"],
+        values: &[
+            "carrier_in_chain",
+            "notation_off_program",
+            "subdivision_count",
+        ],
         delegates: &["expr_dimension_error_tag"],
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &[
-            "ref_ambiguous",
-            "ref_not_a_face",
-            "ref_read_below_a_root",
-            "ref_vanished",
-        ],
+        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {
@@ -4914,7 +4958,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
-            "count_continuous",
+            "assertion_target",
             "dangling_input",
             "declare_input",
             "epsilon_invalid",
@@ -4925,10 +4969,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",
-            "placement_frame",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
+            "placement_improper",
+            "placement_non_finite",
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
+            "slot_dimension",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
+            "witness_on_missing_node",
             "witness_site",
         ],
         delegates: &["root_fault_tag"],
@@ -5130,6 +5181,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_loop_vertex_with_emanating",
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
+            "instance_interference",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",
@@ -5239,6 +5291,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("ambiguous", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
+    ("assertion_target", 2),
     ("band", 16),
     ("cap_plane", 3),
     ("certify", 2),
@@ -5253,7 +5306,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 2),
+    ("evaluation_of_another_document", 4),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),

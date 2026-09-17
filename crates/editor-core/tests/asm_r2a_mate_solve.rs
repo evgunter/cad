@@ -15,9 +15,9 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind,
-    NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply, clusters, load,
-    product, relative_freedom_components, save, solve_document,
+    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, clusters,
+    load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -100,8 +100,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, PART_BODY)),
-        b: SitedRef::at_mint(in_part(b, PART_BODY)),
+        a: crate::fixture::head(in_part(a, PART_BODY)),
+        b: crate::fixture::head(in_part(b, PART_BODY)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -418,11 +418,11 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
     assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: ids[0],
             absorbed: ids[1],
             absorbed_frame: Some(Frame::translation([0.0, 5.0, 0.0])),
-        }],
+        })],
         "the join names the survivor and CONSUMES the absorbed frame"
     );
     assert_eq!(
@@ -453,11 +453,11 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
     assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::Split {
+        vec![Maintenance::Cluster(ClusterMaintenance::Split {
             from: ids[0],
             to: ids[1],
             frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        }],
+        })],
         "the orphan's frame is RE-MINTED from its solved pose, so its \
          world pose is unchanged"
     );
@@ -484,13 +484,30 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
     let before = doc.clone();
     let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
         .expect("the gauge deletes");
+    // The mate names the dead instance with an instance-qualified
+    // head, which is a payload NAME and not a DAG edge: the delete
+    // stands and DM7's report rides beside the registry act, read at
+    // the door before the registry reconciles.
+    let mate_node = applied
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
+        .expect("the mate survives its member");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::GaugeRewrite {
-            from: ids[0],
-            to: ids[1],
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        }],
+        vec![
+            Maintenance::Strand {
+                node: mate_node,
+                name: in_part(ids[0], PART_BODY),
+            },
+            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
+                from: ids[0],
+                to: ids[1],
+                frame: Some(Frame::translation([0.0, 0.0, 5.0])),
+            }),
+        ],
         "the key moves to the next representative, composed with the \
          already-solved relative pose, so the survivor's world pose \
          does not move"
@@ -1418,7 +1435,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &DocEdit::InsertNode {
             node: Node::Mate {
                 a,
-                b: SitedRef::at_mint(bogus.clone()),
+                b: crate::fixture::head(bogus.clone()),
                 class,
                 alignment,
             },

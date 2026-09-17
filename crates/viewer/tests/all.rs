@@ -112,6 +112,7 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
@@ -124,6 +125,8 @@ mod panel_display;
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick3_acceptance.rs"]
+mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
 #[path = "prefs.rs"]
@@ -146,6 +149,13 @@ mod review_gui4_r1;
 mod review_gui4_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
+#[path = "review_pick_r2.rs"]
+mod review_pick_r2;
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
+
+#[path = "review_pick2_r1.rs"]
+mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]

@@ -749,7 +749,17 @@ class HitTestError(PncadError):
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
-    The fourth, `unnamed`, is a KERNEL BUG report — the node evaluated
+    `evaluation_of_another_document` is the pairing refusal, the same
+    word `Doc.product`, the checks and the name-level edit door already
+    answer with: the index and the evaluation handed to it are of two
+    documents. Node ids are minted per document, so a twin recipe's
+    evaluation answers every lookup — confidently, about other
+    geometry — which is why `NodePick.patch_names`,
+    `NodePick.boundary_names` and `Evaluation.pick_face` all check it
+    before reading anything. It names two documents, which the fields
+    below cannot carry and the message states.
+
+    The fifth, `unnamed`, is a KERNEL BUG report — the node evaluated
     and the entity has no name in its table — and it carries the
     entity's `kind` and `body`, never its arena key. It is also the one
     arm that appears as a VALUE rather than a raise:
@@ -758,7 +768,7 @@ class HitTestError(PncadError):
     the names of every other patch it is drawing.
 
     Every field is present on every arm, `None` where that arm does not
-    carry it."""
+    carry it — and the pairing arm carries none of them."""
 
     variant: str
     node: Optional[NodeId]
@@ -2280,6 +2290,13 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
+        A head must name a FACE, and that IS refused here: a mate
+        declares a face-pair contact, the kernel says so in the type of
+        a head, and this door calls that type's constructor — so `a` or
+        `b` naming an edge raises `EditError` with `variant ==
+        "mate_head_not_a_face"` at this call rather than reaching a
+        document.
+
         A dangling reference is not refused here: the solve refuses
         typed naming its head (`mate_dangling_head`) — or, where the
         head resolves and a pattern or transform placing it could not
@@ -2786,9 +2803,10 @@ class DocParam:
         records the canonical metre row.
 
         No `distribution=`: the kernel's own notation door carries no
-        annotation, so neither does this. Annotate through `length`,
-        or restate the notation once the kernel offers a door that
-        takes both."""
+        annotation, so neither does this. Annotate a parameter declared
+        here with `DocEdit.set_doc_param_distribution`, which carries
+        the notation forward; `length` takes both at once and records
+        the canonical metre row."""
 
     @staticmethod
     def written_angle(value: WrittenAngle) -> DocParam:
@@ -2918,6 +2936,53 @@ class DocEdit:
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
     @staticmethod
+    def set_doc_param_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+        """Write a new NOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and
+        distribution alike.
+
+        `set_doc_param_value`'s mirror over the other field of the same
+        declaration, and preferable over `set_doc_param` for the same
+        reason. A notation change is not a redeclaration — the display
+        unit is presentation metadata, excluded from `DocParam.bit_eq`.
+
+        The unit is one of the typed unit objects (`mm`, `deg`, ...),
+        so an off-table notation is a `TypeError` here rather than a
+        kernel refusal; a `Scalar` parameter has only the dimensionless
+        row and needs no door. Refuses typed on an undeclared name
+        (`doc_param_not_declared`), on a `Count`
+        (`doc_param_count_has_no_unit`) and on a unit that does not
+        measure the declared dimension (`doc_param_unit_mismatch`)."""
+    @staticmethod
+    def set_doc_param_distribution(
+        name: ParamName, distribution: Distribution | None
+    ) -> DocEdit:
+        """Write an E1/E2 ANNOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and notation
+        alike.
+
+        The third of the carry-forward doors, one per field of the
+        declaration, and preferable over `set_doc_param` for its
+        siblings' reason: the annotated authoring spelling writes the
+        CANONICAL notation, so annotating through create-or-replace
+        re-spells a parameter authored in millimetres.
+
+        `None` CLEARS the annotation, through this same door: the field
+        is optional and "no annotation" is a value of the declaration,
+        not a row removed from a map.
+
+        The distribution's own dimension is not checked here: a kernel
+        distribution is dimension-free offsets, so the `dim` this value
+        carries is dropped at the door, as `set_doc_param_value` drops
+        its quantity's (LIB's
+        `doc-param-edit-doors-drop-the-python-dimension`).
+
+        Refuses typed on an undeclared name (`doc_param_not_declared`),
+        on a `Count` (`doc_param_count_has_no_distribution` — a count
+        takes no annotation, for the reason `DocParam.count` gives) and
+        on a broken E2 invariant (`invalid_distribution`,
+        `non_finite_doc_param`)."""
+    @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.
 
@@ -3044,11 +3109,14 @@ class Doc:
         Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     @property
-    def last_maintenance(self) -> list[ClusterMaintenance]:
-        """The cluster-record maintenance the LAST accepted edit
-        performed. Empty after an edit that moved no mate graph, and
-        on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched.
+    def last_maintenance(self) -> list[Maintenance]:
+        """The maintenance the LAST accepted edit performed: its
+        cluster-record acts, and the payload names its delete
+        stranded. The strands lead and the cluster acts follow, so
+        read `variant`, never a position. Empty after an edit that
+        moved no mate graph and stranded no name, and on a document
+        that has applied none; a REFUSED edit leaves it untouched, as
+        it leaves the document untouched.
 
         The reading begins at the load boundary: a Doc from
         `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -4262,6 +4330,31 @@ class PickHit:
         was given a unit direction. `point` is the dimensioned answer."""
 
     @property
+    def t_lo(self) -> float:
+        """The lower end of the hit parameter's certified interval, in
+        the same units as `t`, and `t_lo <= t <= t_hi` always.
+
+        The kernel orders two candidates only when one interval lies
+        wholly below the other. Where the intervals OVERLAP the
+        geometry has not said which surface is in front, and the
+        NARROWER interval wins — the better-certified claim — before
+        position is looked at at all. So this and `t_hi` say how wide
+        a claim the hit is, not a second answer, and they are what
+        decided it against its neighbours.
+
+        The enclosure is conditional: `[t_lo, t_hi]` contains the
+        parameter of the true crossing when that crossing is a point
+        of the closed triangle. The interval is always centred on the
+        point the kernel answers, which is always on the triangle.
+
+        The parameter is the parameter of the ray you passed. A hit
+        carried across a transform converts all three or none."""
+
+    @property
+    def t_hi(self) -> float:
+        """The upper end of that interval. See `t_lo`."""
+
+    @property
     def point(self) -> tuple[Length, Length, Length]:
         """The hit point, `origin + t * direction`."""
 
@@ -4350,7 +4443,18 @@ class NodePick:
         in ITS OWN SLOT, because one such bug must not cost a consumer
         the names of every other patch it is drawing. Branch with
         `isinstance(entry, str)`; the exception in a slot is a value,
-        not something raised."""
+        not something raised.
+
+        `evaluation` must be an evaluation OF the document this index
+        was built from. One of another document RAISES `HitTestError`
+        with variant `evaluation_of_another_document`, before a single
+        name is read: node ids are minted per document, so a twin
+        recipe's evaluation would answer every slot out of its own
+        tables — other geometry's names, in patch order, with nothing
+        marked. That is one thing wrong with the arguments, so it is
+        raised rather than written into every slot. A LATER evaluation
+        of the same document is admitted; a pairing is about identity,
+        never about a version."""
 
     def boundary_names(self, evaluation: Evaluation) -> list[str | HitTestError]:
         """The stable name of every boundary polyline of `mesh`, in
@@ -4361,7 +4465,11 @@ class NodePick:
         indices is arena keys), so what this is FOR is a consumer that
         hit-tests against drawn edges by POSITION — a display
         coordinate valid for one tessellation — and reads the name out
-        of here."""
+        of here.
+
+        It pairs the way `patch_names` does, raising `HitTestError`
+        with variant `evaluation_of_another_document` for an
+        evaluation of another document."""
 
 class CancelToken:
     """The cooperative stop for a running evaluation — a handle onto
@@ -4549,10 +4657,13 @@ class Evaluation:
         `(t, position in targets, triangle position)` — so a ray down a
         shared edge answers the same face every time.
 
-        Raises `HitTestError`, typed: the standing ladder up front for
-        a target whose node this evaluation has no value for, and the
-        loud `unnamed` bug arm if the winning face inverts to no
-        name."""
+        Raises `HitTestError`, typed: the pairing refusal
+        (`evaluation_of_another_document`) for a target built from an
+        evaluation of another document, which is checked before any
+        target's standing because a twin recipe mints the same node
+        ids; then the standing ladder for a target whose node this
+        evaluation has no value for; then the loud `unnamed` bug arm
+        if the winning face inverts to no name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
         """The cross-body flush candidates between `a`'s and `b`'s
@@ -5104,22 +5215,35 @@ def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
     union reading edges, so mates couple what they constrain. Coarser
     than `clusters`, which partitions instances alone."""
 
-class ClusterMaintenance:
-    """One recorded act of cluster-record maintenance: what an
-    ordinary edit's motion of the mate graph forced on the placement
-    registry.
+class Maintenance:
+    """One act of automatic maintenance an accepted edit performed:
+    what an ordinary edit's motion of the mate graph forced on the
+    placement registry, or a reference its delete stranded.
 
     It rides the accepted edit rather than being an edit of its own —
     deterministic from the edit, so a replay reproduces it and undo
     restores it exactly. What the record adds is VISIBILITY: an
-    absorbed cluster's frame is consumed here.
+    absorbed cluster's frame is consumed here, and a stranded name is
+    said at the delete rather than at the next evaluation.
+
+    A `strand` names a node that survived the delete carrying a name
+    whose minting node did not. The name is not a DAG edge, so the
+    delete is legal; the name now resolves to nothing, and
+    `DocEdit.rebind` is the repair.
+
+    A `stranded_appearance` is the same loss one carrier over: the
+    document's appearance store still holds an attachment under a name
+    whose minting node the delete removed. It carries no `node`,
+    because the store carries it and no node does; the attachment is
+    left exactly where it was, since the report never repairs.
 
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, or `drop`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`, or
+        `stranded_appearance`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5135,6 +5259,10 @@ class ClusterMaintenance:
     def frame(self) -> Optional[Frame]: ...
     @property
     def gauge(self) -> Optional[NodeId]: ...
+    @property
+    def node(self) -> Optional[NodeId]: ...
+    @property
+    def name(self) -> Optional[str]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 
@@ -5169,12 +5297,14 @@ class RefusedRef:
     The gate asks two tables in order: the product's, then — when it
     is silent — the operand's own. `ref_vanished` is a name neither
     spells; `ref_read_below_a_root` is a name the operand spells at a
-    node the product does not list as a root."""
+    node the product does not list as a root. A head's KIND is not
+    among the questions: a mate head is a face by its type, refused
+    where the name is made (`mate_head_not_a_face`)."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_read_below_a_root`, `ref_ambiguous`,
-        or `ref_not_a_face`."""
+        """`ref_vanished`, `ref_read_below_a_root`, or
+        `ref_ambiguous`."""
 
     @property
     def at(self) -> Optional[NodeId]:
@@ -5186,10 +5316,6 @@ class RefusedRef:
     def width(self) -> Optional[int]:
         """How many entities a tie holds. A mate declaration must name
         ONE face, and a tie is never broken by picking."""
-
-    @property
-    def kind(self) -> Optional[str]:
-        """What a non-face reference did name."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.

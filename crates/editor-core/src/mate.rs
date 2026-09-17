@@ -8,8 +8,9 @@
 //!
 //! # What a mate is, structurally
 //!
-//! A mate is a **leaf**: its `a`/`b` are `SitedRef`s — an
-//! instance-qualified stable name plus the OPERAND node it is read at
+//! A mate is a **leaf**: its `a`/`b` are [`crate::SitedFace`]s — an
+//! instance-qualified FACE name plus the OPERAND node it is read at,
+//! the kind fixed by the type because a mate is a face-pair contact
 //! — and neither half is a DAG edge (the shipped D3 carve-out, which
 //! `Declare` established, extended to the node half by A12's reading
 //! rule). What A12 adds on top is the *reading* edge: the MEMBER
@@ -773,6 +774,21 @@ pub enum MateFault {
         /// Why.
         refusal: LeverRefusal,
     },
+}
+
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for MateFault {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::PosesOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
 }
 
 /// The predicate that decides the EMPTY intersection. It is the one

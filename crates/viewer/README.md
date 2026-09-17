@@ -222,7 +222,7 @@ are never overridden here.
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
-| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
+| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs`, `src/platform.rs` and `src/idpass.rs` are vocabularies and are built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
 
@@ -352,8 +352,8 @@ transpose. The fold itself is covered by driving a session into each of
 the three states (`tests/eval_seam.rs`), because a row that names the
 states says nothing about which session state produces which.
 
-`frame`'s `Zenity` and `SessionBus` are the same rule at the other end
-of that file: two independent environment readings that `ChooserBackend`
+`platform`'s `Zenity` and `SessionBus` are the same rule one module
+over: two independent environment readings that `ChooserBackend`
 ranks, named so the pair cannot be transposed either. That is the whole
 population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
@@ -426,8 +426,9 @@ since its revision counter is the chrome's rebuild key and must not go
 backwards; its own `clear` closes the same hazard inside it. `gesture`
 is cleared by nothing and must not be, and the refusal runs the other
 way round from the sentence one reaches for: while a value drag is in
-flight the DOOR is refused (`permitted_during_value_gesture`, checked
-once in `perform`) and the drag is left untouched, because a gesture
+flight the DOOR is refused (`Open` and `NewDocument` are two of the
+rows `permitted_during_value_gesture` says no to, checked once in
+`perform`) and the drag is left untouched, because a gesture
 dissolved under the pointer is the half-acted state that refusal
 exists to prevent. So the precondition is established before either
 door writes anything, and the reset re-checks nothing — a check there
@@ -625,7 +626,9 @@ neither.
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
+| `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
+| `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`NO_CHOOSER_BACKEND`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
+| `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `Disagreement`, `disagreement`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
 
 ### Two axes: which channel, and what retires it
 
@@ -650,7 +653,7 @@ on this rule needed the three ways it falls short. It is a property of the FACT 
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
 makes it an outcome is that `pickcache::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
-`frame::Disagreement` reads only held state and is recomputed every
+`idpass::Disagreement` reads only held state and is recomputed every
 frame the cursor holds still, and what sorts it onto the line is *a
 reader **consults** a badge*, because a claim about where the pointer
 is this instant is something a reader is told rather than something
@@ -716,7 +719,7 @@ splits the two: news to the notices, retirement to the field;
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `frame::NO_CHOOSER_BACKEND` as its
+control with `platform::NO_CHOOSER_BACKEND` as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -727,19 +730,19 @@ carries one frame's news, so the arm and its policy are gone and the
 hover text is the whole surface. An empty-handed dialog under a
 plausibly-present backend is a genuine cancel and was always silent.
 **The sweep rule is over the FACT, not over the string.** A rule
-ranging over readers of `frame::NO_CHOOSER_BACKEND` would leave the
+ranging over readers of `platform::NO_CHOOSER_BACKEND` would leave the
 universal above green while a future route built its own `Message` from
 `chooser.usable()` — so the population is *every read of
 `ViewerApp::chooser`, this crate's only value of type
-`frame::ChooserBackend`*: one, `app.rs:1172`, consumed at `:1174` and
+`platform::ChooserBackend`*: one, `app.rs:1172`, consumed at `:1174` and
 `:1193` as `add_enabled(chooser.usable(), …)` with
-`frame::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
+`platform::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
-the field — `frame::chooser_backend()` has one caller (`app.rs:688`,
+the field — `platform::chooser_backend()` has one caller (`app.rs:688`,
 the constructor), which is the fact that makes the field the whole
 population rather than a sample. **This is the argument's one full
-copy**: `frame::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
+copy**: `platform::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
 at the two controls point here rather than restating it.
 
 **A store that keeps no preferences is on the toolbar too**, by that
@@ -747,7 +750,7 @@ same rule and with the opposite answer at the control. Whether a
 `prefs::PrefsStore` can hold anything is settled when the store is
 built and true for the whole run — `prefs::Absent` always keeps
 nothing, and the native `file::FileStore` keeps nothing where
-`frame::prefs_path` found no config directory — so it is held state a
+`platform::prefs_path` found no config directory — so it is held state a
 reader consults and `frame::prefs_badge` is that read, with
 `Subject::Preferences` and `Tone::Advisory`. A write that was attempted
 and failed is the other channel's (`frame::store_refusal`), which is
@@ -790,11 +793,16 @@ and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
-fault, the budget's δ, the store that keeps no preferences, and the
-three display seams that hold a refusal (scene, pick index,
-projection) — each a function of the typed value it reads, so each
-one's SILENCE is a row a test can write. **The population is every
-`frame` function returning `Option<Badge>`** — eight — and that rule
+fault, the budget's δ, the store that keeps no preferences, the datums
+this view draws nothing of, and the three display seams that hold a
+refusal (scene, pick index, projection) — each a function of the typed
+value it reads, so each one's SILENCE is a row a test can write. The
+datums count is the one member that HOLDS nothing: its writer re-takes
+it every frame and the application zeroes it whether or not the
+viewport drew, so it says what the last frame found. The toolbar draws
+before the panes, so it trails the view it describes by one frame and
+no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
+`frame` function returning `Option<Badge>`** — nine — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
@@ -1101,10 +1109,10 @@ for all three arms; the arm's own doc says which event it is waiting
 for, so a later split of that subject has the fact it would need.
 
 **The id query's key is the picture AND the index**, which is the same
-rule met from the other side. `frame::IdQueryLog` holds a query open
+rule met from the other side. `idpass::IdQueryLog` holds a query open
 while its answer still describes the cursor, and that answer is an id
 the GPU read out of one picture, resolved through one index's id map —
-so `frame::IdSubject` carries both halves, `ViewerApp::revision` for the
+so `idpass::IdSubject` carries both halves, `ViewerApp::revision` for the
 picture and the index's generation for the alphabet. **Neither half
 subsumes the other.** `sync_scene` rebuilds on a display-revision or
 focus-set change at a standing generation, so hiding a part draws ids
@@ -1112,7 +1120,7 @@ the generation cannot distinguish from the ones before it; and a rebuild
 `sync_scene` REFUSES does not bump the revision, so an index that landed
 over one is a new generation beside the picture already on screen. A key
 carrying one half holds a question that should be re-asked, and a held
-query keeps the last answer MATCHED — so `frame::disagreement` finds a
+query keeps the last answer MATCHED — so `idpass::disagreement` finds a
 fresh ray answer against a GPU answer about a different picture and
 reports it as *the two picking paths disagree*, which issue #1097 §4
 tells an operator to read as an `R32Uint` clear fault.
@@ -1233,10 +1241,22 @@ script through both.
 
 The mid-gesture policy is one exhaustive value,
 `SessionOp::permitted_during_value_gesture`, checked once in `perform`
-before dispatch: 26 operations refuse while a value gesture is open and
-15 are permitted. A forty-second operation cannot be added without
+before dispatch: 24 operations refuse while a value gesture is open and
+17 are permitted. A forty-second operation cannot be added without
 answering for it, and the whole policy is readable in one place rather
 than inferred from every dispatch target.
+
+**What the table does not decide is rule 1.** A begin that arrives
+under an open gesture is refused by that gesture's own door —
+`g1::Slot::begin`, reached through `DocSession::start` for the value
+drag and `DisplayState::begin_free_move` for the probe — so
+`BeginGesture` and `BeginParamGesture` are permitted by this table and
+refused anyway, one layer down, with the same `GestureInFlight` a row
+here would raise off the same state. A row would be a second spelling
+of one answer and would leave the door's own arm unreachable through
+`perform`. The set of operations a value drag refuses is therefore this
+table plus that one rule, and the rule is held once for both drags
+rather than per gesture and per table.
 
 It says nothing about the free-move gesture, which is a different value
 with a different owner (`display::DisplayState`) and has a table of its
@@ -1266,7 +1286,9 @@ layer down: `DisplayState::begin_free_move` answers a second begin off
 its own state with the same `FreeMoveInFlight`, through `g1::Slot`'s
 first rule. A row in the table
 would be a second spelling of one answer, and the test that exercises
-the doors says so rather than smoothing it over.
+the doors says so rather than smoothing it over. The value table's two
+begins say the same about the other drag, so this is one rule about
+rule 1 rather than one table's exception.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
@@ -1403,7 +1425,7 @@ something, and that it stays inside one.
 
 **How it says so is a different precedent from where it is drawn**, and
 citing one for both is wrong: the dialog controls hand
-`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button,
+`platform::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button,
 to `on_disabled_hover_text` — the shape
 `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
 is open about. A cancel door follows `pane::create`'s catalogue entry

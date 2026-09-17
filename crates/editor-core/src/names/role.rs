@@ -17,19 +17,34 @@
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
 //!
+//! **One caller does want the kind at COMPILE time**, and gets it from
+//! a type beside the tag rather than instead of it: a mate head is a
+//! [`FaceName`], a `StableName` whose tag is `Face` by construction.
+//! The tag is still the runtime fact everything else reads — the
+//! wrapper adds a door, it does not replace the field — and it exists
+//! for the one place where what the name denotes is fixed by the
+//! statement being made rather than discovered from it.
+//!
 //! # Locators (spec D2, cited)
 //!
-//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry the profile's OWN
-//! canonical combinatorial identity — `profile::ValidatedProfile`'s
-//! loop order (outer first, then holes in the DESCRIPTION's order —
-//! recipe data) and each loop's canonical chain indices, whose
-//! canonical start is selected through the exact-order band
-//! (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
+//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry a profile's OWN
+//! combinatorial identity, never a bare enumeration index. As an
+//! emitter mints them that identity is `profile::ValidatedProfile`'s
+//! canonical form — its loop order (outer first, then holes in the
+//! DESCRIPTION's order — recipe data) and each loop's canonical chain
+//! indices, whose canonical start is selected through the exact-order
+//! band (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
 //! total, rotation-invariant, and a function of recipe structure plus
-//! recorded verdicts — NOT bare enumeration indices. The sweep
-//! emitters (`Extruded`, `Revolved`) index their output maps by
-//! exactly these identities, which is what makes sweep naming a
-//! mechanical zip.
+//! recorded verdicts. The sweep emitters (`Extruded`, `Revolved`)
+//! index their output maps by exactly these identities, which is what
+//! makes sweep naming a mechanical zip.
+//!
+//! What the NAME TABLE publishes is that identity only for a
+//! hand-built profile. For a program loop `eval::anchor` rewrites
+//! every emitted ref canonical → program before the table is
+//! published, so the ref a consumer holds is the one the program's
+//! own step order authored — see the two types' docs and DM8
+//! (`crates/editor-core/REFERENCES.md`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -347,6 +362,111 @@ impl EntityKind {
     }
 }
 
+/// Why a [`StableName`] could not be read as a [`FaceName`].
+///
+/// One field, because there is one fact: a name's kind is data on the
+/// name, so the only thing the constructor can report is what it found
+/// instead. `found` is the word every entity-kind refusal in this
+/// crate spells its answer with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NotAFaceName {
+    /// What the name denotes.
+    pub found: EntityKind,
+}
+
+impl core::fmt::Display for NotAFaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the name denotes {} {}, and a face is required here",
+            self.found.article(),
+            self.found.noun()
+        )
+    }
+}
+
+impl core::error::Error for NotAFaceName {}
+
+/// **A [`StableName`] that denotes a FACE, by construction.**
+///
+/// Not to be confused with `tess-meter`'s `FaceName`, a validated text
+/// token in a mesh report: one short name, two unrelated types, and
+/// `demos/tour` uses both — which is why that binary spells each by
+/// full path.
+///
+/// A name's kind is data on the name — readable with no product, no
+/// table and no evaluation — so a caller that requires a face can
+/// require it in the TYPE rather than re-asking the question at every
+/// door. [`crate::SitedFace`] is the carrier a mate's heads are made
+/// of, and that is what makes a mate whose head names an edge a
+/// program that does not compile rather than a document some door has
+/// to refuse.
+///
+/// **Three boundaries produce names from data and each calls
+/// [`FaceName::new`]**: the wire (this type's `Deserialize`, so a file
+/// whose mate head names an edge refuses at the load door's parse),
+/// the Python binding's name-from-text door, and any future reader of
+/// authored text. Everything inside the crate receives a `FaceName`
+/// already made.
+///
+/// The inner name is reachable by [`Deref`](core::ops::Deref) and
+/// [`AsRef`], never by a public field: a field could be assigned and
+/// the invariant would last exactly until someone did.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
+pub struct FaceName(StableName);
+
+impl FaceName {
+    /// The checked constructor — the ONE way a `FaceName` is made.
+    pub fn new(name: StableName) -> Result<Self, NotAFaceName> {
+        if name.kind == EntityKind::Face {
+            Ok(Self(name))
+        } else {
+            Err(NotAFaceName { found: name.kind })
+        }
+    }
+
+    /// The name back out, owned.
+    pub fn into_name(self) -> StableName {
+        self.0
+    }
+}
+
+impl core::ops::Deref for FaceName {
+    type Target = StableName;
+
+    fn deref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+impl AsRef<StableName> for FaceName {
+    fn as_ref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+// The name's own rendering, forwarded: a face name reads the same
+// wherever it is held, and a wrapper that re-spelled it would be a
+// second vocabulary for one fact.
+impl core::fmt::Display for FaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+// THE WIRE'S DOOR. `Deserialize` goes through [`FaceName::new`], so a
+// file whose mate head names an edge is refused where the bytes are
+// read — in the load door's own `PersistError::Unreadable` class,
+// which is what "this build's types rejected these bytes" means — and
+// no walk downstream has to re-ask the question.
+impl<'de> serde::Deserialize<'de> for FaceName {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let name = StableName::deserialize(de)?;
+        Self::new(name).map_err(serde::de::Error::custom)
+    }
+}
+
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
@@ -406,30 +526,44 @@ pub enum CapEnd {
     Start,
 }
 
-/// A profile edge (segment) by canonical combinatorial identity
-/// (module docs: the profile crate's canonical form, cited — not a
-/// bare index).
+/// A profile edge (segment) by combinatorial identity, never a bare
+/// index — and WHICH identity depends on where the ref came from: the
+/// profile crate's canonical form (module docs, cited) for a
+/// hand-built profile, the program's own step order for a program
+/// loop, whose refs `eval::anchor` rewrites canonical → program
+/// before the name table is published, so that a parameter edit
+/// cannot renumber a frozen selection. DM8
+/// (`crates/editor-core/REFERENCES.md`) rules on the published
+/// anchoring and names the one exception: a loft's sections are all
+/// anchored by section 0's map.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileEdgeRef {
-    /// Canonical loop: 0 = outer, then holes in description order.
+    /// The loop: canonical loop order (0 = outer, then holes in
+    /// description order) as minted, the program's own loop index
+    /// once published for a program loop.
     pub loop_index: u32,
-    /// Canonical segment index within the loop's chain.
+    /// The edge's index along that loop's chain, in the same
+    /// anchoring the loop index carries.
     pub segment: u32,
 }
 
-/// A profile vertex by canonical combinatorial identity: vertex `v`
-/// starts segment `v` of its loop's canonical chain.
+/// A profile vertex by combinatorial identity, under the same two
+/// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
+/// `v` starts segment `v` of its loop's chain, canonical as minted
+/// and program-order once published for a program loop (DM8).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileVertexRef {
-    /// Canonical loop index.
+    /// The loop, in the anchoring [`ProfileEdgeRef::loop_index`]
+    /// describes.
     pub loop_index: u32,
-    /// Canonical vertex index (the start vertex of segment `vertex`).
+    /// The vertex's index along that loop's chain (the start vertex
+    /// of segment `vertex`), in the same anchoring.
     pub vertex: u32,
 }
 
@@ -690,7 +824,7 @@ pub enum RoleSeg {
     /// `Fragment(OrderAlong)` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
-    /// (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
+    /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
     /// so it is the verb's asymmetry showing through a fold rather
     /// than anything the fold or this segment adds.
     ///
@@ -957,9 +1091,11 @@ pub enum RoleSeg {
 /// hand-spelled name gets wrong silently until emission refuses it.
 ///
 /// The loop index is [`ProfileEdgeRef::loop_index`] and spells what
-/// that field spells: 0 = outer, then holes in description order. No
-/// loop is privileged by these builders — a hole's band is `band` at
-/// its own loop, and `seg` indexes THAT loop's canonical chain.
+/// that field spells, `seg` what [`ProfileEdgeRef::segment`] spells:
+/// the anchoring the published table carries, canonical for a
+/// hand-built profile and the program's own step order for a program
+/// loop (DM8). No loop is privileged by these builders — a hole's
+/// band is `band` at its own loop.
 #[must_use]
 pub fn band(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
     StableName {

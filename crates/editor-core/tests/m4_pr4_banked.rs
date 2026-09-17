@@ -264,6 +264,7 @@ fn single_qualifier_flip_changes_exactly_the_names_through_it() {
             eval: &ev1,
         },
         vanished[0],
+        Tol::witness(),
     );
     let Resolution::Failed(fail) = res else {
         panic!("expected Failed, got {res:?}");
@@ -277,6 +278,7 @@ fn single_qualifier_flip_changes_exactly_the_names_through_it() {
             predicate: "name_frag_side_of",
             from: geom_core::Sign::Negative,
             to: geom_core::Sign::Positive,
+            source: editor_core::FlipSource::VerdictLog,
         }
     );
 }
@@ -377,6 +379,7 @@ fn fused_vertex_scenario(
             },
             RunCtx { doc, eval: &ev1 },
             name,
+            Tol::witness(),
         );
         let Resolution::Failed(f) = res else {
             panic!("expected Failed for {name:?}, got {res:?}");

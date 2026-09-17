@@ -24,7 +24,7 @@ use std::thread::JoinHandle;
 use common::asm;
 use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
-    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+    ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::{EntityKind, StableName};
@@ -35,11 +35,13 @@ use viewer::evalseam::{
     EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
     MemoReport,
 };
-use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
+use viewer::frame::{self, StatusUpdate};
 use viewer::generation::Generation;
+use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
+use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
@@ -564,7 +566,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
-    let disagreement = frame::Disagreement {
+    let disagreement = idpass::Disagreement {
         from_gpu: None,
         from_ray: None,
     };
@@ -965,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 8, "the badge family");
+    assert_eq!(badge_doors, 9, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
+        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1022,6 +1024,51 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         frame::prefs_badge(None),
         None,
         "a store that keeps preferences says nothing about keeping them"
+    );
+    assert_eq!(
+        frame::datums_badge(0),
+        None,
+        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
+    );
+}
+
+/// **The datums badge says how many, and says it in agreeing
+/// words.**
+///
+/// The count is the whole content: the picture already shows nothing,
+/// and what a reader cannot get from it is that there was something
+/// to show. The noun agreeing with the number is not a flourish —
+/// "1 datums" reads as a sentence nobody wrote, beside eight badges
+/// that were.
+#[test]
+fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
+    let one = frame::datums_badge(1).expect("one vanished datum badges");
+    assert_eq!(
+        one.label(),
+        "datums: 1 datum this view draws nothing of",
+        "the singular"
+    );
+    assert_eq!(
+        one.tone(),
+        frame::Tone::Actionable,
+        "a reader can move the camera and get them back"
+    );
+    assert_eq!(
+        one.subject(),
+        frame::Subject::Camera,
+        "what makes the count the wrong answer is the camera moving"
+    );
+    assert_eq!(
+        one.affordance(),
+        frame::Affordance::Read,
+        "there is no window of findings behind it"
+    );
+    assert_eq!(
+        frame::datums_badge(4)
+            .expect("four vanished datums badge")
+            .label(),
+        "datums: 4 datums this view draws nothing of",
+        "the plural"
     );
 }
 
@@ -1183,23 +1230,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::{ChooserBackend, SessionBus, Zenity};
+    use platform::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1381,23 +1428,26 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        frame::disagreement(&index, answer(6, id), Some(7), None),
+        idpass::disagreement(&index, answer(6, id), Some(7), None),
         None
     );
-    assert_eq!(frame::disagreement(&index, answer(7, id), None, None), None);
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), None, None),
+        None
+    );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
         None
     );
     // A real disagreement reports both sides.
-    let report = frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
+    let report = idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
         .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
     assert_eq!(report.from_ray.as_ref(), Some(&hit.name));
@@ -1464,12 +1514,12 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1502,7 +1552,7 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
         .expect("a second occurrence");
     assert_eq!(
-        frame::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
+        idpass::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
         None,
         "two ids of one name are the same answer"
     );
@@ -2431,7 +2481,7 @@ fn the_preferences_path_follows_the_xdg_rules() {
     use std::path::PathBuf;
 
     let xdg = |c: Option<&str>, h: Option<&str>| {
-        frame::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+        platform::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
     };
     let tail = PathBuf::from("pncad").join("viewer.toml");
 
@@ -2525,8 +2575,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // Then they mate it, and that placement is discarded under them.
     let mate = SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
     };

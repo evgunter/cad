@@ -21,13 +21,14 @@ fn table_row(symbol: &str) -> quantity::UnitDef {
     quantity::unit_by_symbol(symbol).unwrap_or_else(|| panic!("{symbol} is a table row"))
 }
 
-/// The literal dimension a table row's quantity implies.
+/// The literal dimension a table row's quantity implies — the kernel's
+/// own reading (`UnitSym::measures`), asked rather than restated here.
+///
+/// A suite that re-laddered it would pass while the kernel's ladder
+/// disagreed with this one, which is the one thing these rows exist to
+/// catch.
 fn dim_of(row: quantity::UnitDef) -> Dimension {
-    match row.quantity() {
-        quantity::UnitQuantity::Length => Dimension::Length,
-        quantity::UnitQuantity::Angle => Dimension::Angle,
-        quantity::UnitQuantity::Scalar => Dimension::Scalar,
-    }
+    editor_core::UnitSym::from_def(&row).measures()
 }
 
 /// The §4g acceptance ladder, end to end on one literal.

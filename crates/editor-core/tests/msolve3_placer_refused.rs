@@ -28,8 +28,7 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
     EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName,
-    solve_document,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StableName, solve_document,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, step, xform};
@@ -65,8 +64,8 @@ fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
         reference: [1.0, 0.0, 0.0],
     };
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
@@ -182,7 +181,7 @@ where
     if let Node::Mate { a, .. } = &mut node {
         // The reference is read AT the placer: that operand is what
         // puts the placer on the walk's chain.
-        *a = SitedRef::new(placer, a.name.clone());
+        *a = crate::fixture::head_at(placer, (*a.name).clone());
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     (

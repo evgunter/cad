@@ -54,6 +54,14 @@
 mod common;
 mod fixture;
 
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
+#[path = "bool4r1_probes.rs"]
+mod bool4r1_probes;
+#[path = "bool4r2_base_probe.rs"]
+mod bool4r2_base_probe;
+#[path = "bool4r2_probes.rs"]
+mod bool4r2_probes;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -64,6 +72,8 @@ mod corner_table;
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "cube_doors_agree.rs"]
+mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "geom_origin_rows.rs"]
@@ -136,6 +146,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "props_sphere_cap_door.rs"]
+mod props_sphere_cap_door;
 #[path = "quad_lane_is_the_certified_lane.rs"]
 mod quad_lane_is_the_certified_lane;
 #[path = "r1_mate4a_probes.rs"]

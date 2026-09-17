@@ -3324,11 +3324,18 @@ fn asm_r2a_mated_assembly(
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
+    // A mate head is a `SitedFace`: the fixture's claim that the name
+    // it just built is a face is made where the name is built.
+    let face_head = |name: pncad::prelude::StableName| {
+        pncad::document::SitedFace::at_mint(
+            pncad::document::FaceName::new(name).expect("the fixture names a face"),
+        )
+    };
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: pncad::document::SitedRef::at_mint(name(ids[0])),
-            b: pncad::document::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),
@@ -4272,11 +4279,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///
 ///   **`MeshPick` stays, and that is what closes the raw-target lane
 ///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
-///   with the index unnameable here, the target whose contract warns
-///   of a confidently wrong name has no constructor a façade consumer
-///   can reach, and `NodePick` is not merely the preferred door but
-///   the only one. `PickTarget` is carried because `pick_face`'s
+///   `PickTarget` needs, and `PickTarget`'s raw mint
+///   (`PickTarget::new`) takes a `&MeshPick` — so with the index
+///   unnameable here, the target whose contract warns of a
+///   confidently wrong name has no constructor a façade consumer can
+///   reach, and `NodePick` is not merely the preferred door but the
+///   only one. `PickTarget` is carried because `pick_face`'s
 ///   signature names it, not because it can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
@@ -4338,7 +4346,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 89] = [
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4364,6 +4372,7 @@ const NOT_CARRIED: [&str; 89] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
+    "FlipSource",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4389,8 +4398,10 @@ const NOT_CARRIED: [&str; 89] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SHADOW_EXEC_MAX_PAIRS",
     "SectionScalar",
     "SeedScalar",
+    "ShadowExecRefusal",
     "ShellLane",
     "SideVerdict",
     "StructureFlip",
