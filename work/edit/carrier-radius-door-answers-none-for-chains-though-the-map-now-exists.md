@@ -4,6 +4,7 @@ kind: issue
 title: LoopProgram::carrier_radius answers None for chain loops though the step-to-profile-edge map now exists: the widening waits on the content-key attach
 status: review
 opened: 2026-09-16
+pr: 2804
 branch: edit/chain-radius-attach
 ---
 
