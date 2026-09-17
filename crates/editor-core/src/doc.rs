@@ -1319,7 +1319,7 @@ mod tests {
     use crate::appearance::AppearanceRecord;
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, StableName};
-    use crate::node::{Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId, SitedRef};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -1430,13 +1430,25 @@ mod tests {
         doc.nodes.insert(
             RecipeNodeId(0),
             Node::Declare {
-                pairs: vec![((first.clone(), second.clone()), ContactClass::Rest)],
+                pairs: vec![(
+                    (
+                        SitedRef::at_mint(first.clone()),
+                        SitedRef::at_mint(second.clone()),
+                    ),
+                    ContactClass::Rest,
+                )],
             },
         );
         doc.nodes.insert(
             RecipeNodeId(1),
             Node::Declare {
-                pairs: vec![((third.clone(), third.clone()), ContactClass::Tangent)],
+                pairs: vec![(
+                    (
+                        SitedRef::at_mint(third.clone()),
+                        SitedRef::at_mint(third.clone()),
+                    ),
+                    ContactClass::Tangent,
+                )],
             },
         );
         doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];

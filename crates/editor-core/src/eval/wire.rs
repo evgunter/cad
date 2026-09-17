@@ -4892,123 +4892,101 @@ mod pinned_plane_tests {
 /// finished evaluation — a document only shows which pairs RESOLVED —
 /// so the rule is read here, where the answer is the bucket list
 /// itself. What a document row cannot pin and this can: that a step
-/// with no declared pair receives NOTHING, and that a pair is fed at
-/// exactly one step rather than tried at several.
+/// with no declared pair receives NOTHING, that a pair is fed at
+/// exactly one step rather than tried at several, and which SIDE of
+/// that step each of its two sites takes.
 #[cfg(test)]
 mod route_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{
-        DeclaredPair, NodeErrorKind, RecipeNodeId, look_through_merges, resolve_declarations,
-        route_declarations,
+        NodeErrorKind, RecipeNodeId, SidedPair, SitedRef, look_through_merges,
+        resolve_declarations, route_declarations,
     };
     use crate::names::{CapEnd, EntityKey, EntityKind, EntityRef, NameTable, RoleSeg, StableName};
     use crate::node::Node;
     use crate::{DocEdit, ProfileDoc};
     use geom_core::Tol;
-    use topo::ContactClass;
+    use topo::{ContactClass, Operand};
 
-    /// A live document holding one node, whose id stands in for the
-    /// union's: routing reads the document for rung 1 only (is the
-    /// minting node live), and every member-space name carries the
-    /// union's own id, so one live node is the whole dependency.
-    fn doc_with_one_node() -> (ProfileDoc, RecipeNodeId) {
-        let doc = ProfileDoc::empty_derived("union declare routing", Tol::witness());
-        let applied = doc
-            .apply(
-                &DocEdit::InsertNode {
-                    node: Node::declare_rest(Vec::new()),
-                },
-                Tol::witness(),
-            )
-            .expect("an empty Declare inserts");
-        let id = applied.record.minted.expect("the insert minted an id");
-        (applied.doc, id)
-    }
-
-    /// One member's own face, as `member_view` spells it: a one-segment
-    /// `FromMember` path under the union's id.
-    fn member_face(union: RecipeNodeId, member: RecipeNodeId) -> StableName {
-        StableName {
-            kind: EntityKind::Face,
-            node: union,
-            path: vec![RoleSeg::FromMember {
-                member,
-                of: StableName {
-                    kind: EntityKind::Face,
-                    node: member,
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }
-                .into(),
-            }],
+    /// A live document and `n` live node ids standing in for a union's
+    /// members, plus one more for the union itself.
+    ///
+    /// The members have to be LIVE: a declared entity is named in its
+    /// member's own table, so rung 1 — is the minting node still in
+    /// the document — is asked of each member before anything is said
+    /// about which step the pair belongs to.
+    fn doc_with_members(n: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
+        let mut doc = ProfileDoc::empty_derived("union declare routing", Tol::witness());
+        let mut ids = Vec::new();
+        for _ in 0..=n {
+            let applied = doc
+                .apply(
+                    &DocEdit::InsertNode {
+                        node: Node::declare_rest(Vec::new()),
+                    },
+                    Tol::witness(),
+                )
+                .expect("an empty Declare inserts");
+            ids.push(applied.record.minted.expect("the insert minted an id"));
+            doc = applied.doc;
         }
+        let union = ids.remove(0);
+        (doc, union, ids)
     }
 
-    /// A row the fold mints: the merge of two members' faces.
-    fn merged(union: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> StableName {
-        StableName {
-            kind: EntityKind::Face,
-            node: union,
-            path: vec![RoleSeg::Merged(vec![
-                member_face(union, a),
-                member_face(union, b),
-            ])],
-        }
+    /// One entity of one member, in the MEMBER's own name space — what
+    /// a declaration names, with the member beside it.
+    fn at(member: RecipeNodeId, end: CapEnd) -> SitedRef {
+        SitedRef::new(
+            member,
+            StableName {
+                kind: EntityKind::Face,
+                node: member,
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
     }
 
-    /// The union's own body row — this node's space, and no step's
-    /// operand.
-    fn output_body(union: RecipeNodeId) -> StableName {
-        StableName {
-            kind: EntityKind::Body,
-            node: union,
-            path: vec![RoleSeg::OutputBody],
-        }
+    /// The same entity as the UNION spells it — the row `member_view`
+    /// puts into that member's operand table, which is what the
+    /// routing rewrites a sited pair into.
+    fn member_face(union: RecipeNodeId, member: RecipeNodeId, end: CapEnd) -> StableName {
+        crate::names::member_name(union, member, &at(member, end).name)
     }
 
-    fn pair(a: StableName, b: StableName) -> DeclaredPair {
+    fn pair(a: SitedRef, b: SitedRef) -> ((SitedRef, SitedRef), ContactClass) {
         ((a, b), ContactClass::Rest)
     }
 
     /// The bucket of each pair on a FOUR-member document, read out of
     /// the routing itself.
     #[test]
-    fn each_pair_is_routed_to_the_one_step_that_joins_its_two_names() {
-        let (doc, union) = doc_with_one_node();
-        let members: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
-        let (m0, m1, m2, m3) = (members[0], members[1], members[2], members[3]);
-        let face = |m| member_face(union, m);
+    fn each_pair_is_routed_to_the_one_step_that_joins_its_two_sites() {
+        let (doc, union, ms) = doc_with_members(4);
+        let (m0, m1, m2, m3) = (ms[0], ms[1], ms[2], ms[3]);
+        let face = |m| at(m, CapEnd::Start);
+        let other = |m| at(m, CapEnd::End);
 
-        let cases: Vec<(&str, DeclaredPair, usize)> = vec![
+        let cases = vec![
             // Two members meet at the LATER one's step.
             ("members 0 and 1", pair(face(m0), face(m1)), 0),
             ("members 1 and 2", pair(face(m1), face(m2)), 1),
+            // Order within the pair is not a fact about the step.
+            ("members 2 and 1", pair(face(m2), face(m1)), 1),
             // The list's own gap: (1, 3) is fed at step 3 and step 2
             // receives nothing, which is the half a resolved-or-not
             // document cannot show.
             ("members 1 and 3", pair(face(m1), face(m3)), 2),
-            // Two names in ONE member are that member's carried
-            // contact, at its own step — member 0's at step 1, where it
-            // is operand A, exactly as in the pair chain.
-            ("member 2 with itself", pair(face(m2), face(m2)), 1),
-            ("member 0 with itself", pair(face(m0), face(m0)), 0),
-            // A fold row meets a member that joins after it was minted.
-            (
-                "the 0-1 merge and member 2",
-                pair(merged(union, m0, m1), face(m2)),
-                1,
-            ),
-            // Two fold rows are the accumulation's own carried contact,
-            // at the first step that has both.
-            (
-                "the 0-1 merge and the 0-2 merge",
-                pair(merged(union, m0, m1), merged(union, m0, m2)),
-                2,
-            ),
+            // Two entities of ONE member are that member's carried
+            // contact, at its own step — member 0's at step 0, where it
+            // is the accumulation, exactly as in the pair chain.
+            ("member 2 with itself", pair(face(m2), other(m2)), 1),
+            ("member 0 with itself", pair(face(m0), other(m0)), 0),
         ];
 
         for (what, p, want) in cases {
-            let buckets = route_declarations(union, &members, std::slice::from_ref(&p), &doc)
+            let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
                 .unwrap_or_else(|e| panic!("{what} routed nowhere: {e:?}"));
             let filled: Vec<usize> = buckets
                 .iter()
@@ -5025,56 +5003,113 @@ mod route_tests {
         let all = vec![
             pair(face(m0), face(m1)),
             pair(face(m1), face(m3)),
-            pair(face(m2), face(m2)),
+            pair(face(m2), other(m2)),
         ];
-        let buckets = route_declarations(union, &members, &all, &doc).expect("all three route");
+        let buckets = route_declarations(union, &ms, &all, &doc).expect("all three route");
         let sizes: Vec<usize> = buckets.iter().map(Vec::len).collect();
         assert_eq!(sizes, vec![1, 1, 1]);
     }
 
-    /// The arrival clamp: a member is the JOINING operand at exactly
-    /// its own step, so a fold row minted after that step is never that
-    /// member's counterpart — the two would be rows of one operand
-    /// there, a different claim.
+    /// **Every sited pair has a step**, which is what the sited payload
+    /// bought: a declaration can only name entities that exist BEFORE
+    /// the union, so there is no pair the routing accepts and then has
+    /// nowhere to feed. The bucket is `max(i, j) - 1`, and `max(i, j)`
+    /// is at most the last member's index, so the bucket is always one
+    /// the fold runs.
     #[test]
-    fn a_fold_row_paired_with_a_member_the_fold_already_swallowed_has_no_step() {
-        let (doc, union) = doc_with_one_node();
-        let members: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
-        let (m0, m1, m2) = (members[0], members[1], members[2]);
-        for (what, p) in [
-            // The 1-2 merge is minted at step 2; member 1 joined at
-            // step 1.
-            (
-                "a later merge with an earlier member",
-                pair(merged(union, m1, m2), member_face(union, m1)),
-            ),
-            // Member 0 is where the accumulation starts and is never a
-            // joining operand.
-            (
-                "any merge with member 0",
-                pair(merged(union, m0, m1), member_face(union, m0)),
-            ),
-        ] {
-            let refused = route_declarations(union, &members, std::slice::from_ref(&p), &doc);
-            assert!(
-                matches!(refused, Err(NodeErrorKind::UnionDeclareStep { .. })),
-                "{what}: {refused:?}",
-            );
+    fn every_pair_of_member_sites_lands_in_a_step_of_the_fold() {
+        let (doc, union, ms) = doc_with_members(5);
+        let steps = ms.len() - 1;
+        for i in 0..ms.len() {
+            for j in 0..ms.len() {
+                let p = pair(at(ms[i], CapEnd::Start), at(ms[j], CapEnd::End));
+                let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
+                    .unwrap_or_else(|e| panic!("({i}, {j}) routed nowhere: {e:?}"));
+                let filled: Vec<usize> = buckets
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, b)| !b.is_empty())
+                    .map(|(k, _)| k)
+                    .collect();
+                assert_eq!(filled, vec![i.max(j).saturating_sub(1)], "({i}, {j})");
+                assert_eq!(buckets.len(), steps);
+            }
         }
     }
 
-    /// A row of this node's space that names no member — the union's
-    /// own body — is a step's OUTPUT and never one of its two inputs.
-    /// It refuses as unroutable, not as vanished: the union publishes
-    /// that name, so "no table derives it any more" would be false.
+    /// **The site is the side.** The member joining at a step is that
+    /// step's operand B; every member the fold has already accumulated
+    /// is operand A. Read off the routed bucket, because nothing
+    /// downstream re-derives it — the resolver reads the side the
+    /// routing decided.
     #[test]
-    fn the_unions_own_body_row_is_no_steps_operand() {
-        let (doc, union) = doc_with_one_node();
-        let members: Vec<RecipeNodeId> = (100..103).map(RecipeNodeId).collect();
-        let p = pair(output_body(union), member_face(union, members[1]));
-        let refused = route_declarations(union, &members, std::slice::from_ref(&p), &doc);
+    fn the_joining_member_is_operand_b_and_the_accumulation_is_operand_a() {
+        let (doc, union, ms) = doc_with_members(4);
+        let sided = |p| {
+            let buckets = route_declarations(union, &ms, std::slice::from_ref(&p), &doc)
+                .expect("routes");
+            buckets.into_iter().flatten().next().expect("one bucket")
+        };
+        // An earlier member against a later one: A then B, and each
+        // name is rewritten into the union's member space.
+        let ((o1, n1), (o2, n2), _) = sided(pair(at(ms[1], CapEnd::Start), at(ms[3], CapEnd::End)));
+        assert_eq!(o1, Operand::A);
+        assert_eq!(o2, Operand::B);
+        assert_eq!(n1, member_face(union, ms[1], CapEnd::Start));
+        assert_eq!(n2, member_face(union, ms[3], CapEnd::End));
+        // The same pair written the other way round: the SITES decide,
+        // not the order the author wrote them in.
+        let ((o1, _), (o2, _), _) = sided(pair(at(ms[3], CapEnd::End), at(ms[1], CapEnd::Start)));
+        assert_eq!((o1, o2), (Operand::B, Operand::A));
+        // One member with itself is that member's CARRIED contact, on
+        // the side it enters the step as: operand B at its own step,
+        // and operand A for member 0, which is where the fold starts.
+        let ((o1, _), (o2, _), _) = sided(pair(at(ms[2], CapEnd::Start), at(ms[2], CapEnd::End)));
+        assert_eq!((o1, o2), (Operand::B, Operand::B));
+        let ((o1, _), (o2, _), _) = sided(pair(at(ms[0], CapEnd::Start), at(ms[0], CapEnd::End)));
+        assert_eq!((o1, o2), (Operand::A, Operand::A));
+    }
+
+    /// **A site the member list does not hold refuses through the N5
+    /// ladder**, as a vanished name does — the state `SetMembers`
+    /// creates by dropping a declared member, and never a silent drop.
+    #[test]
+    fn a_site_outside_the_member_list_refuses_as_a_vanished_name() {
+        let (doc, union, ms) = doc_with_members(4);
+        // A live node that is simply not in the list.
+        let outsider = ms[3];
+        let members = &ms[..3];
+        let p = pair(at(ms[0], CapEnd::Start), at(outsider, CapEnd::End));
+        let refused = route_declarations(union, members, std::slice::from_ref(&p), &doc);
         assert!(
-            matches!(refused, Err(NodeErrorKind::UnionDeclareStep { .. })),
+            matches!(
+                refused,
+                Err(NodeErrorKind::DeclareResolve { ref error })
+                    if matches!(**error, crate::resolve::ResolveError::Vanished { .. })
+            ),
+            "{refused:?}",
+        );
+    }
+
+    /// **Rung 1 outranks the site question**: a name whose minting node
+    /// the document no longer holds says `NodeGone`, before anything is
+    /// said about which step it would have belonged to.
+    #[test]
+    fn a_dead_minting_node_outranks_a_site_outside_the_list() {
+        let (doc, union, ms) = doc_with_members(4);
+        let gone = ms[3];
+        let doc = doc
+            .apply(&DocEdit::DeleteNode { id: gone }, Tol::witness())
+            .expect("the empty Declare deletes")
+            .doc;
+        let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));
+        let refused = route_declarations(union, &ms[..3], std::slice::from_ref(&p), &doc);
+        assert!(
+            matches!(
+                refused,
+                Err(NodeErrorKind::DeclareResolve { ref error })
+                    if matches!(**error, crate::resolve::ResolveError::NodeGone { .. })
+            ),
             "{refused:?}",
         );
     }
@@ -5110,85 +5145,102 @@ mod route_tests {
         }
     }
 
-    /// The rewrite touches ONE shape: a member face that is no row and
-    /// sits in a merged row's set goes to that row. An accumulation
-    /// name — even one whose whole set is inside a wider row's — and a
-    /// member face in no set are handed on as written.
-    #[test]
-    fn look_through_rewrites_only_a_member_face_inside_a_merged_row() {
-        let (_doc, union) = doc_with_one_node();
-        let ms: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
-        let key = a_face_key();
-        // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
-        // flat.
-        let mut set = vec![
-            member_face(union, ms[0]),
-            member_face(union, ms[1]),
-            member_face(union, ms[2]),
-        ];
+    /// A routed pair, as the bucket carries it: the two names already
+    /// in the union's member space, each with the side its site took.
+    fn routed(a: (Operand, StableName), b: (Operand, StableName)) -> SidedPair {
+        (a, b, ContactClass::Rest)
+    }
+
+    /// A merged row over member faces, as a fold step mints it: flat,
+    /// sorted, in the union's own space.
+    fn merged(set: Vec<StableName>) -> StableName {
+        let mut set = set;
         set.sort();
-        let wide = StableName {
+        StableName {
             kind: EntityKind::Face,
-            node: union,
+            node: RecipeNodeId(0),
             path: vec![RoleSeg::Merged(set)],
+        }
+    }
+
+    /// The rewrite touches ONE shape: an ACCUMULATION-side member face
+    /// that is no row and sits in a merged row's set goes to that row.
+    /// A face the accumulation still holds, and one in no set at all,
+    /// are handed on as written — and the JOINING member's side never
+    /// looks through, because no merge the fold has performed could
+    /// have consumed a face of a member that has not joined yet.
+    #[test]
+    fn look_through_rewrites_only_an_accumulated_member_face_inside_a_merged_row() {
+        let (_doc, union, ms) = doc_with_members(4);
+        let key = a_face_key();
+        let f = |m, e| member_face(union, m, e);
+        // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
+        // flat, minted in the union's space.
+        let wide = StableName {
+            node: union,
+            ..merged(vec![
+                f(ms[0], CapEnd::Start),
+                f(ms[1], CapEnd::Start),
+                f(ms[2], CapEnd::Start),
+            ])
         };
         let mut acc = NameTable::new();
         acc.insert(wide.clone(), face_ref(key)).unwrap();
+        acc.insert(
+            f(ms[1], CapEnd::End),
+            EntityRef {
+                body: 1,
+                key: EntityKey::Face(key),
+            },
+        )
+        .unwrap();
         let mut member = NameTable::new();
         member
-            .insert(member_face(union, ms[3]), face_ref(key))
+            .insert(f(ms[3], CapEnd::Start), face_ref(key))
             .unwrap();
         let bucket = vec![
-            pair(member_face(union, ms[0]), member_face(union, ms[3])),
-            pair(merged(union, ms[0], ms[1]), member_face(union, ms[3])),
-            pair(
-                member_face(union, RecipeNodeId(200)),
-                member_face(union, ms[3]),
+            // Merged away at an earlier step: rewritten.
+            routed(
+                (Operand::A, f(ms[0], CapEnd::Start)),
+                (Operand::B, f(ms[3], CapEnd::Start)),
+            ),
+            // Still a row of the accumulation: untouched.
+            routed(
+                (Operand::A, f(ms[1], CapEnd::End)),
+                (Operand::B, f(ms[3], CapEnd::Start)),
+            ),
+            // In no table and in no set: untouched, and the door below
+            // refuses it as the vanished name it is.
+            routed(
+                (Operand::A, f(ms[2], CapEnd::End)),
+                (Operand::B, f(ms[3], CapEnd::Start)),
             ),
         ];
-        let out = look_through_merges(union, &bucket, &acc, &member).unwrap();
-        assert_eq!(out[0].0, (wide, member_face(union, ms[3])));
+        let out = look_through_merges(&bucket, &acc, &member).unwrap();
+        assert_eq!(out[0].0, (Operand::A, wide));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
     }
 
-    /// The member-space guard observed: a FRAGMENT of a member face
-    /// (`[FromMember, Fragment]`) is a legitimate constituent of a
-    /// later merge, and a declared name of that shape — an
-    /// accumulation entity — is not rewritten to the row that lists
-    /// it, though a membership test alone would find it.
+    /// The joining member's side is never looked through: its face is
+    /// in the accumulation's merged row's set only in a table no fold
+    /// can produce, and the door must not rewrite it there.
     #[test]
-    fn a_fragment_of_a_member_face_inside_a_merged_row_does_not_look_through() {
-        let (_doc, union) = doc_with_one_node();
-        let (m0, m1, m2) = (RecipeNodeId(100), RecipeNodeId(101), RecipeNodeId(102));
-        let fragment = StableName {
-            kind: EntityKind::Face,
-            node: union,
-            path: vec![
-                RoleSeg::FromMember {
-                    member: m0,
-                    of: StableName {
-                        kind: EntityKind::Face,
-                        node: m0,
-                        path: vec![RoleSeg::Cap(CapEnd::Start)],
-                    }
-                    .into(),
-                },
-                RoleSeg::Fragment(crate::names::Qualifier::OrderAlong { rank: 0, of: 2 }),
-            ],
-        };
-        let mut set = vec![fragment.clone(), member_face(union, m1)];
-        set.sort();
+    fn the_joining_members_side_never_looks_through() {
+        let (_doc, union, ms) = doc_with_members(4);
+        let f = |m, e| member_face(union, m, e);
         let row = StableName {
-            kind: EntityKind::Face,
             node: union,
-            path: vec![RoleSeg::Merged(set)],
+            ..merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)])
         };
         let mut acc = NameTable::new();
         acc.insert(row, face_ref(a_face_key())).unwrap();
         let member = NameTable::new();
-        let p = pair(fragment, member_face(union, m2));
-        let out = look_through_merges(union, std::slice::from_ref(&p), &acc, &member).unwrap();
+        let p = routed(
+            (Operand::A, f(ms[1], CapEnd::End)),
+            (Operand::B, f(ms[3], CapEnd::Start)),
+        );
+        let out = look_through_merges(std::slice::from_ref(&p), &acc, &member).unwrap();
         assert_eq!(out[0], p);
     }
 
@@ -5197,20 +5249,25 @@ mod route_tests {
     /// never resolved to whichever row came first.
     #[test]
     fn a_member_face_in_two_merged_rows_refuses_as_an_emission_bug() {
-        let (_doc, union) = doc_with_one_node();
-        let (m0, m1, m2, m3) = (
-            RecipeNodeId(100),
-            RecipeNodeId(101),
-            RecipeNodeId(102),
-            RecipeNodeId(103),
-        );
+        let (_doc, union, ms) = doc_with_members(4);
         let key = a_face_key();
+        let f = |m, e| member_face(union, m, e);
         let mut acc = NameTable::new();
-        acc.insert(merged(union, m0, m1), face_ref(key)).unwrap();
+        acc.insert(
+            StableName {
+                node: union,
+                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)])
+            },
+            face_ref(key),
+        )
+        .unwrap();
         // A second entity for the second row: the table refuses two
         // names on one entity, and the shape under test is two rows.
         acc.insert(
-            merged(union, m0, m2),
+            StableName {
+                node: union,
+                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)])
+            },
             EntityRef {
                 body: 1,
                 key: EntityKey::Face(key),
@@ -5218,8 +5275,11 @@ mod route_tests {
         )
         .unwrap();
         let member = NameTable::new();
-        let p = pair(member_face(union, m0), member_face(union, m3));
-        let refused = look_through_merges(union, std::slice::from_ref(&p), &acc, &member);
+        let p = routed(
+            (Operand::A, f(ms[0], CapEnd::Start)),
+            (Operand::B, f(ms[3], CapEnd::Start)),
+        );
+        let refused = look_through_merges(std::slice::from_ref(&p), &acc, &member);
         assert!(
             matches!(
                 refused,
@@ -5230,22 +5290,32 @@ mod route_tests {
         );
     }
 
-    /// Both names of one pair inside ONE merged row: the rewrite hands
-    /// the door that row twice, and the door refuses it by its own
-    /// same-operand rule — a pair of two faces of one operand is not a
-    /// contact the pair verb takes.
+    /// Two FACES of one operand are outside the v1 threading
+    /// vocabulary, and the refusal says so with `cross_operand` false —
+    /// the fact the two sites decide. A same-operand pair reaches this
+    /// door whenever both sites name the one member the step joins.
     #[test]
-    fn a_pair_whose_two_names_rewrite_to_one_row_refuses_typed() {
-        let (doc, union) = doc_with_one_node();
-        let (m0, m1) = (RecipeNodeId(100), RecipeNodeId(101));
-        let row = merged(union, m0, m1);
-        let mut acc = NameTable::new();
-        acc.insert(row.clone(), face_ref(a_face_key())).unwrap();
-        let member = NameTable::new();
-        let p = pair(member_face(union, m0), member_face(union, m1));
-        let out = look_through_merges(union, std::slice::from_ref(&p), &acc, &member).unwrap();
-        assert_eq!(out[0].0, (row.clone(), row));
-        let refused = resolve_declarations(&out, &doc, &acc, &member);
+    fn two_faces_of_one_operand_refuse_as_an_unsupported_pair() {
+        let (doc, union, ms) = doc_with_members(4);
+        let f = |m, e| member_face(union, m, e);
+        let key = a_face_key();
+        let mut member = NameTable::new();
+        member.insert(f(ms[1], CapEnd::Start), face_ref(key)).unwrap();
+        member
+            .insert(
+                f(ms[1], CapEnd::End),
+                EntityRef {
+                    body: 1,
+                    key: EntityKey::Face(key),
+                },
+            )
+            .unwrap();
+        let acc = NameTable::new();
+        let p = routed(
+            (Operand::B, f(ms[1], CapEnd::Start)),
+            (Operand::B, f(ms[1], CapEnd::End)),
+        );
+        let refused = resolve_declarations(std::slice::from_ref(&p), &doc, &acc, &member);
         assert!(
             matches!(
                 refused,
