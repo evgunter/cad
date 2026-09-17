@@ -90,9 +90,9 @@ impl core::fmt::Display for NonFiniteSite {
             Self::DocParam {
                 name,
                 field: DocParamField::Nominal,
-            } => write!(f, "document parameter {:?}", name.0),
+            } => write!(f, "document parameter {name}"),
             Self::DocParam { name, field } => {
-                write!(f, "document parameter {:?}, {field}", name.0)
+                write!(f, "document parameter {name}, {field}")
             }
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on the {name}, at {path}")
@@ -1041,10 +1041,9 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::SlotUnknownDocParam { node, slot, name } => write!(
                 f,
-                "node {}: slot {} reads the parameter {:?}, which the document does not declare",
+                "node {}: slot {} reads the parameter {name}, which the document does not declare",
                 node.0,
-                slot.label(),
-                name.0
+                slot.label()
             ),
             Self::SlotDocParamDimension {
                 node,
@@ -1054,18 +1053,17 @@ impl core::fmt::Display for SnapshotError {
                 referenced,
             } => write!(
                 f,
-                "node {}: slot {} reads the parameter {:?} as {} {referenced}, and it is \
+                "node {}: slot {} reads the parameter {name} as {} {referenced}, and it is \
                  declared {declared}",
                 node.0,
                 slot.label(),
-                name.0,
                 referenced.article()
             ),
             Self::PayloadUnknownDocParam { node, name } => write!(
                 f,
-                "node {}: its payload expression reads the parameter {:?}, which the \
+                "node {}: its payload expression reads the parameter {name}, which the \
                  document does not declare",
-                node.0, name.0
+                node.0
             ),
             Self::PayloadDocParamDimension {
                 node,
@@ -1074,10 +1072,9 @@ impl core::fmt::Display for SnapshotError {
                 referenced,
             } => write!(
                 f,
-                "node {}: its payload expression reads the parameter {:?} as {} \
+                "node {}: its payload expression reads the parameter {name} as {} \
                  {referenced}, and it is declared {declared}",
                 node.0,
-                name.0,
                 referenced.article()
             ),
             Self::MeasureRefs { node, fault } => {
@@ -1795,9 +1792,16 @@ mod tests {
             node: instance,
             path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
         };
+        // A mate head is a `SitedFace`, so the fixture's claim that
+        // the name it just built is a face is made where it is built.
+        let face_head = |name: crate::names::StableName| {
+            crate::node::SitedFace::at_mint(
+                crate::names::FaceName::new(name).expect("the fixture names a face"),
+            )
+        };
         let mate = Node::Mate {
-            a: crate::SitedRef::at_mint(name(ids[0])),
-            b: crate::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
                 a: crate::mate::MateFrame {

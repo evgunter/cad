@@ -503,7 +503,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
         (
             EvalError::UnknownParam(ParamName::new("width")).to_string(),
             &[
-                "\"width\"",
+                "parameter width",
                 "has no binding",
                 "declare the document parameter",
             ],

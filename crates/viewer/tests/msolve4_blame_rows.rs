@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Doc, Evaluation, MateFault, MateRole, Node, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId, SitedRef, ValuePayload, solve_document,
+    RecipeNodeId, ValuePayload, solve_document,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -93,8 +93,8 @@ fn add_seat(
     common::insert(
         session,
         SessionOp::AddMate {
-            a: SitedRef::at_mint(common::asm::in_part(post, &bench.post_top)),
-            b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            a: common::head(common::asm::in_part(post, &bench.post_top)),
+            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
             class: ContactClass::Rest,
             alignment: common::asm::seat_alignment(b_x, clocking),
         },

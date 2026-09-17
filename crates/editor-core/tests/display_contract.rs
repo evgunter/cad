@@ -1195,9 +1195,17 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
 /// An entity kind carries the article that agrees with it, because the
 /// value decides which one is correct: three of the four kinds take
 /// "a" and `Edge` takes "an", so a sentence that hard-codes one is
-/// wrong for every edge-kind refusal it can reach — and each of these
-/// IS reachable with an edge (a mate reference may name any kind,
-/// which is what `NotAFace` reports).
+/// wrong for every edge-kind refusal it can reach.
+///
+/// Two sentences read it, and they differ in how an edge reaches them.
+/// [`editor_core::NotAFaceName`] — what the mate head's one
+/// constructor answers — is RAISED with an edge wherever a boundary
+/// turns data into a head, so its article is live.
+/// `MintRefusal::Reference` renders the NAME's own kind: the gate
+/// raises it only over a face name, because a head is a `SitedFace`,
+/// but the row is public data with public fields and its article is
+/// therefore read off the value a consumer hands it rather than fixed
+/// at the raise.
 #[test]
 fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     let edge_name = StableName {
@@ -1206,17 +1214,33 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
 
+    let shown = editor_core::FaceName::new(edge_name.clone())
+        .expect_err("an edge is not a face name")
+        .to_string();
+    assert!(
+        shown.contains("an edge"),
+        "an edge-kind head refusal reads as \"a edge\": {shown:?}"
+    );
+    let shown = editor_core::FaceName::new(StableName {
+        kind: EntityKind::Vertex,
+        ..edge_name.clone()
+    })
+    .expect_err("a vertex is not a face name")
+    .to_string();
+    assert!(
+        shown.contains("a vertex"),
+        "the consonant kinds must keep \"a\": {shown:?}"
+    );
+
     let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
-        why: RefusedRef::NotAFace {
-            found: EntityKind::Edge,
-        },
+        why: RefusedRef::Vanished,
     });
     let shown = reference.to_string();
     assert!(
-        shown.contains(&format!("(an {edge_name})")) && shown.contains("it names an edge"),
+        shown.contains(&format!("(an {edge_name})")),
         "an edge-kind mate reference reads as \"a edge\": {shown:?}"
     );
 
@@ -1224,13 +1248,11 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::NotAFace {
-            found: EntityKind::Vertex,
-        },
+        why: RefusedRef::Vanished,
     });
     let shown = face.to_string();
     assert!(
-        shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
+        shown.contains(&format!("(a {})", face_name())),
         "the consonant kinds must keep \"a\": {shown:?}"
     );
 }
@@ -1944,4 +1966,184 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_SEGMENTS_ERROR, &[]);
+}
+
+/// **A parameter name renders without quotes at every door but parse.**
+///
+/// [`ParamName`] is a `String` newtype, so a `{:?}` over it renders the
+/// name plus `Debug`'s quotes: prose, but carrying a delimiter the
+/// sentence did not ask for, and the crate spelled it both ways. The
+/// rule is the one [`ParamName`]'s `Display` carries — a door that
+/// FRAMES the name in a sentence of its own ("parameter width is
+/// declared length") renders it bare, and the one door that echoes the
+/// bytes an author typed, [`ParseError::UnknownParam`], keeps the
+/// quotes, because there the delimiter is what says which bytes were
+/// read.
+///
+/// The row is over the rendered SENTENCE rather than over the
+/// placeholder, so it holds whether a quote returns as a `{:?}`, as a
+/// literal pair written around the name, or through a `Debug` the
+/// newtype is given later. One arm per door: the spelling is a property
+/// of the door, and an arm added to one of these enums inherits
+/// whichever spelling its neighbours use.
+///
+/// The certified-range and stackup doors compile in the interval build
+/// only, so they are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`]
+/// rather than by a branch inside this one: a test that exists in both
+/// builds runs identical code in both.
+#[test]
+fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
+    use editor_core::{
+        DocParamField, InlineError, MeasureUnavailable, NonFiniteSite, ParamBoxError, PersistError,
+        SeedError, SplitError,
+    };
+
+    let name = ParamName::new("width");
+    let node = RecipeNodeId(5);
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "EditError::UnknownDocParam",
+            EditError::UnknownDocParam {
+                name: name.clone(),
+                node,
+                slot: SlotId::Radius,
+            }
+            .to_string(),
+        ),
+        (
+            "EditError::ContinuousParamCannotBeCount",
+            EditError::ContinuousParamCannotBeCount { name: name.clone() }.to_string(),
+        ),
+        (
+            "PersistError::DisplayUnit",
+            PersistError::DisplayUnit {
+                name: name.clone(),
+                unit: Dimension::Angle,
+                declared: Dimension::Length,
+            }
+            .to_string(),
+        ),
+        (
+            "NonFiniteSite::DocParam",
+            NonFiniteSite::DocParam {
+                name: name.clone(),
+                field: DocParamField::Nominal,
+            }
+            .to_string(),
+        ),
+        (
+            "SnapshotError::SlotUnknownDocParam",
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "EvalError::UnknownParam",
+            EvalError::UnknownParam(name.clone()).to_string(),
+        ),
+        (
+            "SplitError::UncutParamReference",
+            SplitError::UncutParamReference {
+                param: name.clone(),
+                cut_node: RecipeNodeId(1),
+                kept_node: RecipeNodeId(2),
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::ParamConflict",
+            InlineError::ParamConflict {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "SeedError::UnknownParam",
+            SeedError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "ParamBoxError::UnknownParam",
+            ParamBoxError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "MeasureUnavailable::BandHasNoMeasure",
+            MeasureUnavailable::BandHasNoMeasure {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
+
+    // The exception, and the reason it is one: the name is the bytes the
+    // author wrote, which may be a typo, so the quotes delimit what was
+    // read rather than decorating a name the document holds.
+    let echoed = ParseError::UnknownParam {
+        pos: 4,
+        name: name.0.clone(),
+    }
+    .to_string();
+    assert!(
+        echoed.contains(&format!("{:?}", name.0)),
+        "the parse door delimits the bytes it read: {echoed}"
+    );
+}
+
+/// Each sentence names the parameter and does not quote it — the shared
+/// predicate of
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
+/// interval-only sibling, so the two lanes cannot drift into asking
+/// different questions of the same rule.
+fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
+    let quoted = format!("{:?}", name.0);
+    for (door, shown) in framed {
+        assert!(
+            shown.contains(&name.0),
+            "{door} does not name the parameter at all: {shown}"
+        );
+        assert!(
+            !shown.contains(&quoted),
+            "{door} quotes the parameter name, which is `Debug`'s delimiter and not this \
+             sentence's: {shown}"
+        );
+    }
+}
+
+/// The two doors [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]
+/// cannot reach: `range.rs` and `stackup.rs` compile in the interval
+/// build only, so their spelling is censused in that lane — which every
+/// code-tier run gates, not a lane nobody runs.
+#[cfg(feature = "interval")]
+#[test]
+fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
+    use editor_core::{RangeRefusal, Unavailable};
+
+    let name = ParamName::new("width");
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "RangeRefusal::NotAContinuousParam",
+            RangeRefusal::NotAContinuousParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "Unavailable::TangentDegraded",
+            Unavailable::TangentDegraded {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
 }

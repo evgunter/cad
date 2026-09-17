@@ -485,3 +485,53 @@ dispatch as wave 6's slots free. Left standing for a later sitting:
 `eval::content_key`), `recorded-notation-makes-a-rust-author-count-step-indices`
 (PATHS-shaped: the recorder's own door), C6's remaining members, D366.
 
+
+## 2026-09-17 — sixth sitting: `[ev]` #2795 ratified on both questions
+
+Ev ruled both. **Item 1**, after asking for the walkthrough (a pair
+boolean with a declaration always authored in one pass; the n-ary
+union broke because DM4's members can carry identical tables, so a
+bare pre-union name cannot say which member): the revised
+recommendation, SITED declarations (`SitedRef { at: member, name }`
+per side, one pass, the site is the side, `DeclareBothOperands`
+retires, `FromMember` unchanged as what the union publishes, DM6
+untouched) — the DM4 clause amended on the PR. **Item 2**, after
+asking whether the door should "just be refusing" and being offered
+the narrow scope (refuse at an exact shape-width tie, keep the width
+key) or the wide one: the wide — the certified tie between faces is
+REFUSED, typed, and the width key goes; a tie among one face's own
+triangles is one answer (the hull). Part (c) of the pick ruling is
+superseded, (a), (b), (d) stand. Ev also asked for the mate head's
+kind to fail to typecheck (the wave-7 lane re-scoped to a `FaceName`
+newtype) and whether `ParamName` is user-facing (it is the user's own
+parameter identifier; the row is only about quoting). Both units spec
+at the next claim: EDIT-DECL as a kernel unit (v6 dual, block EDIT-B2
+slot 0) and the tie refusal as a middle-tier unit across three crates.
+
+## 2026-09-17 — seventh sitting: waves 6–8 merged, wave 9 dispatched, a container restart
+
+Merged since the fifth sitting, each after one opus style review and
+the union fix pass unless noted: the load door's payload-expression
+half (#2793 — `Walk::PayloadParamRef`, the prose walk census deleted
+for the code's); the ladder rim fixture (#2794 — four rows over the
+`BandFoot`/`BandCross`/`BandFace`/`BandSlit` arguments, ten mutants,
+the copied helpers given one home and the class across twenty-four
+suites filed); the `StableName` carrier enumeration (#2797 —
+`Carrier`/`NameCarrier`/`Doc::name_carriers`, four sites reading it,
+the review's MAJOR a "pinned by" citation with no row behind it — the
+second time on this program); `ParamName`'s bare `Display` (#2800,
+E-class — twenty-four sites in eight files, PROPS's two crossed by
+announcement because the guard row has to hold at every door); the
+mate head as a `FaceName` (#2799 — Ev's re-scope: a non-face head does
+not typecheck, `RefusedRef::NotAFace` measured unreachable and
+deleted, three rows filed on EDIT, VIEW and MSOLVE). The raw pick
+mints behind a `test-support` feature (#2801) and the per-edge chain
+radius attach (#2804) are through review (both MERGEABLE, no MAJOR)
+and in their fix passes. The wave-9 claim (#2803) put
+`docs/EDIT-DECL-SPEC.md` on main and drew block EDIT-B2 (byte 131:
+slot 0 opus, slot 2 fable); EDIT-DECL is dispatched; the tie refusal
+waits for a lane. A container restart at 06:25 killed three lanes
+mid-flight; everything pushed survived, the mate-head fix pass had
+already pushed its whole record and the orchestrator closed it, the
+other two were relaunched. Banked: the board is rendered on main by a
+bot after every merge, so a branch never commits `STATUS.md`.

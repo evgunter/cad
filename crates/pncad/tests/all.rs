@@ -3324,11 +3324,18 @@ fn asm_r2a_mated_assembly(
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
+    // A mate head is a `SitedFace`: the fixture's claim that the name
+    // it just built is a face is made where the name is built.
+    let face_head = |name: pncad::prelude::StableName| {
+        pncad::document::SitedFace::at_mint(
+            pncad::document::FaceName::new(name).expect("the fixture names a face"),
+        )
+    };
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: pncad::document::SitedRef::at_mint(name(ids[0])),
-            b: pncad::document::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),
