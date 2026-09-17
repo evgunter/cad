@@ -1567,74 +1567,39 @@ pub fn pick_face<T: Decide>(
     // offered in `(target position, flat triangle position)` order
     // because that is the order the refusal LISTS its hits in.
     undecided.sort_unstable_by_key(|c| (c.target_pos, c.tri_pos));
-    let spans: Vec<TSpan> = undecided.iter().map(|c| c.span).collect();
-    let survivors = TSpan::survivors(&spans);
-    if survivors.is_empty() {
+
+    // The survivors, grouped by FACE — several triangles of one face
+    // are one answer, not a tie ([`answer_of`], the one spelling of
+    // that half of the rule). The candidates are offered in the order
+    // the refusal LISTS its faces in, which is target order and then
+    // flat triangle order, so a group's first member says where its
+    // face belongs in the list.
+    let candidates: Vec<(TSpan, (RecipeNodeId, u32, FaceKey))> = undecided
+        .iter()
+        .map(|c| (c.span, (c.node, c.body, c.face)))
+        .collect();
+    let mut groups = answer_of(&candidates).faces();
+    if groups.is_empty() {
         return Ok(None); // the typed miss
     }
+    // Target order first, then face-arena order within one target:
+    // the documented order of the LIST, which decides nothing.
+    groups.sort_by_key(|group| (undecided[group.first].target_pos, group.face.2));
 
-    // One group per FACE: several triangles of one face are one
-    // answer, not a tie (docs). Each group accumulates its answer as
-    // it is built — the HULL of its members' intervals, at the
-    // smallest rounded `t` among them, ties to the earlier position —
-    // so there is no empty group to unwrap and no second pass. The
-    // first target a face was met on rides along as the list's first
-    // key; survivors arrive in target order, so it is the target order
-    // the refusal is documented in.
-    struct Group {
-        target_pos: usize,
-        node: RecipeNodeId,
-        body: u32,
-        face: FaceKey,
-        /// The hull so far, at the smallest rounded `t` so far.
-        span: TSpan,
-    }
-    let mut groups: Vec<Group> = Vec::new();
-    for &i in &survivors {
-        let cand = &undecided[i];
-        match groups
-            .iter_mut()
-            .find(|g| g.node == cand.node && g.body == cand.body && g.face == cand.face)
-        {
-            Some(group) => {
-                group.span = TSpan {
-                    // The survivors arrive in position order, so the
-                    // strict `<` keeps the earlier position at equal
-                    // `t` — which decides which POINT of one face is
-                    // reported, and nothing else.
-                    t: if cand.span.t < group.span.t {
-                        cand.span.t
-                    } else {
-                        group.span.t
-                    },
-                    t_lo: group.span.t_lo.min(cand.span.t_lo),
-                    t_hi: group.span.t_hi.max(cand.span.t_hi),
-                };
-            }
-            None => groups.push(Group {
-                target_pos: cand.target_pos,
-                node: cand.node,
-                body: cand.body,
-                face: cand.face,
-                span: cand.span,
-            }),
-        }
-    }
-    groups.sort_by_key(|g| (g.target_pos, g.face));
-
-    let hit_of = |group: &Group| -> Result<PickHit, HitTestError> {
+    let hit_of = |group: &FaceAnswer<(RecipeNodeId, u32, FaceKey)>| -> Result<PickHit, HitTestError> {
+        let (node, body, face) = group.face;
         let name = entity_name(
             eval,
-            group.node,
+            node,
             EntityRef {
-                body: group.body,
-                key: EntityKey::Face(group.face),
+                body,
+                key: EntityKey::Face(face),
             },
         )?;
         Ok(PickHit {
             name: name.clone(),
-            node: group.node,
-            body: group.body,
+            node,
+            body,
             t: group.span.t,
             t_lo: group.span.t_lo,
             t_hi: group.span.t_hi,
@@ -1819,6 +1784,116 @@ impl TSpan {
         (0..spans.len())
             .filter(|&i| spans[i].t_lo <= lowest_hi)
             .collect()
+    }
+}
+
+/// **One face's share of an answer**: the face its members name, the
+/// hull of their intervals carrying the smallest rounded `t` among
+/// them, and where in the offered slice those readings come from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FaceAnswer<K> {
+    /// The key every member of this group carries.
+    pub face: K,
+    /// The HULL of the members' intervals — each encloses the
+    /// crossing of its own triangle, so the hull encloses every
+    /// crossing the tie holds — with `t` the smallest rounded
+    /// parameter among them.
+    pub span: TSpan,
+    /// The position, in the offered slice, of the member `span.t` was
+    /// read from: the smallest rounded `t`, the earlier position at an
+    /// equality. It is the member whose POINT the caller reports.
+    pub member: usize,
+    /// The position, in the offered slice, where this face was first
+    /// met. Groups are listed in this order, which is the caller's
+    /// own.
+    pub first: usize,
+    /// How many survivors named this face.
+    pub members: usize,
+}
+
+/// **What the survivors of the certified order say**, once
+/// [`answer_of`] has grouped them by face.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Answer<K> {
+    /// No candidate survived: the typed miss.
+    Miss,
+    /// Every survivor named one face, which is the answer.
+    One(FaceAnswer<K>),
+    /// The survivors named more than one face and nothing orders
+    /// them: the certified tie, in first-met order.
+    Ambiguous(Vec<FaceAnswer<K>>),
+}
+
+impl<K> Answer<K> {
+    /// The faces this answer names, in the order it lists them: none
+    /// for the miss, one for a hit, the whole tie for a refusal.
+    ///
+    /// The shape a caller comparing a door's answer against a
+    /// reference's reads, because a refusal is an ANSWER about the ray
+    /// — every hit in it is true — and the three arms differ only in
+    /// how many faces it names.
+    pub fn faces(self) -> Vec<FaceAnswer<K>> {
+        match self {
+            Self::Miss => Vec::new(),
+            Self::One(one) => vec![one],
+            Self::Ambiguous(faces) => faces,
+        }
+    }
+}
+
+/// **THE group rule, once**: the survivors of the certified order
+/// ([`TSpan::survivors`]) grouped by the face they name.
+///
+/// The second half of [`pick_face`]'s documented contract, in one
+/// callable beside the first, so that the door and every reference
+/// loop that pins it run the same code: several triangles of ONE face
+/// are one answer — the hull of their intervals at the smallest
+/// rounded `t` among them — and several faces are the tie the door
+/// refuses with. A reference keeps its own candidate ENUMERATION,
+/// which is what makes it a reference; re-deriving the merge beside it
+/// only makes a second door a row could agree with instead.
+///
+/// `candidates` is every admitted candidate, each with the key that
+/// says which face it belongs to, in the order the caller wants the
+/// answer LISTED in — for [`pick_face`] that is target order and then
+/// flat triangle order. Keys are compared for equality alone: what
+/// counts as one face is the caller's, and nothing here orders them.
+///
+/// Positions in the returned [`FaceAnswer`]s index `candidates`, not
+/// the survivors, so a caller reads its own identity back without a
+/// second lookup.
+pub fn answer_of<K: Clone + PartialEq>(candidates: &[(TSpan, K)]) -> Answer<K> {
+    let spans: Vec<TSpan> = candidates.iter().map(|(span, _)| *span).collect();
+    let mut groups: Vec<FaceAnswer<K>> = Vec::new();
+    for i in TSpan::survivors(&spans) {
+        let (span, face) = &candidates[i];
+        match groups.iter_mut().find(|group| group.face == *face) {
+            Some(group) => {
+                // The survivors arrive in the caller's order, so the
+                // strict `<` keeps the earlier position at an equal
+                // `t` — which decides which POINT of one face is
+                // reported, and nothing else.
+                if span.t < group.span.t {
+                    group.span.t = span.t;
+                    group.member = i;
+                }
+                group.span.t_lo = group.span.t_lo.min(span.t_lo);
+                group.span.t_hi = group.span.t_hi.max(span.t_hi);
+                group.members += 1;
+            }
+            None => groups.push(FaceAnswer {
+                face: face.clone(),
+                span: *span,
+                member: i,
+                first: i,
+                members: 1,
+            }),
+        }
+    }
+    match groups.len() {
+        0 => Answer::Miss,
+        1 => Answer::One(groups.pop().expect("one group")),
+        _ => Answer::Ambiguous(groups),
     }
 }
 

@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, PickHit, ProfileDoc,
     RecipeNodeId, SlotId, StableName, unparse,
@@ -455,12 +455,11 @@ impl FlatReference {
     ///
     /// EVERY candidate box the ray meets is tested: this is the
     /// reference, and the service's early-out is what it is a
-    /// reference for. The ORDER is not restated — the candidates are
-    /// offered to [`TSpan::survivors`] in `(part, flat position)`
-    /// order, and that function is the door's own. What is restated is
-    /// only what the door does with the survivors: group them by face,
-    /// and answer each face with the HULL of its members' intervals at
-    /// the smallest rounded `t` among them.
+    /// reference for. Neither half of the RULE is restated — the
+    /// candidates are offered to [`answer_of`] in `(part, flat
+    /// position)` order, and that callable is the door's own, order
+    /// and face grouping together. What is this file's own is the
+    /// enumeration.
     fn pick(&self, ray: &Ray) -> (Vec<FlatHit>, usize) {
         let mut hits: Vec<FlatHit> = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
@@ -479,34 +478,22 @@ impl FlatReference {
                 });
             }
         }
-        let spans: Vec<TSpan> = hits.iter().map(|h| h.span).collect();
-        let survivors = TSpan::survivors(&spans);
-        let tied = survivors.len();
-        let mut per_face: Vec<FlatHit> = Vec::new();
-        for &i in &survivors {
-            let hit = hits[i];
-            match per_face
-                .iter_mut()
-                .find(|kept| (kept.part, kept.patch) == (hit.part, hit.patch))
-            {
-                Some(kept) => {
-                    let hull = TSpan {
-                        t: if hit.t() < kept.t() {
-                            hit.t()
-                        } else {
-                            kept.t()
-                        },
-                        t_lo: kept.span.t_lo.min(hit.span.t_lo),
-                        t_hi: kept.span.t_hi.max(hit.span.t_hi),
-                    };
-                    if hit.t() < kept.t() {
-                        kept.item = hit.item;
-                    }
-                    kept.span = hull;
-                }
-                None => per_face.push(hit),
-            }
-        }
+        let candidates: Vec<(TSpan, (usize, usize))> = hits
+            .iter()
+            .map(|hit| (hit.span, (hit.part, hit.patch)))
+            .collect();
+        let faces = answer_of(&candidates).faces();
+        // How many candidates the tie holds — the sum of the groups'
+        // memberships is the survivor count, which is what says a ray
+        // of the tie-break row actually tied.
+        let tied = faces.iter().map(|face| face.members).sum();
+        let per_face = faces
+            .into_iter()
+            .map(|face| FlatHit {
+                span: face.span,
+                ..hits[face.member]
+            })
+            .collect();
         (per_face, tied)
     }
 }

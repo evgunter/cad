@@ -29,7 +29,7 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Evaluation, Expr, HitTestError, PickHit, ProfileDoc, RecipeNodeId, SlotId,
     unparse,
@@ -174,40 +174,28 @@ fn every(parts: &[FlatPart], ray: &Ray) -> Vec<Seen> {
 /// what `Pruned == Every` is now a claim about.
 ///
 /// The FACES, not the triangles: several triangles of one face are
-/// one answer, so this collapses each face to the HULL of its
-/// members' intervals at the smallest rounded `t` among them — the
-/// three numbers the door reports for it. `part`/`item` stay the
-/// min-`t` member's, which is the triangle the point comes from.
+/// one answer, at the HULL of their intervals and the smallest
+/// rounded `t` among them. `part`/`item` stay the min-`t` member's,
+/// which is the triangle the point comes from.
+///
+/// **The merge is the door's own callable**, [`answer_of`], as the
+/// order above it is [`TSpan::survivors`]. What this file is a
+/// reference FOR is the enumeration — every candidate box the ray
+/// meets, no early-out — and restating the merge beside it would only
+/// build a second door for the sweep to agree with.
 fn winners(parts: &[FlatPart], seen: &[Seen]) -> Vec<Seen> {
-    let spans: Vec<TSpan> = seen.iter().map(|s| s.span).collect();
-    let mut per_face: Vec<Seen> = Vec::new();
-    for i in TSpan::survivors(&spans) {
-        let hit = seen[i];
-        let face = parts[hit.part].face[hit.item];
-        match per_face
-            .iter_mut()
-            .find(|kept| (kept.part, parts[kept.part].face[kept.item]) == (hit.part, face))
-        {
-            Some(kept) => {
-                let hull = TSpan {
-                    t: if hit.span.t < kept.span.t {
-                        hit.span.t
-                    } else {
-                        kept.span.t
-                    },
-                    t_lo: kept.span.t_lo.min(hit.span.t_lo),
-                    t_hi: kept.span.t_hi.max(hit.span.t_hi),
-                };
-                if hit.span.t < kept.span.t {
-                    kept.part = hit.part;
-                    kept.item = hit.item;
-                }
-                kept.span = hull;
-            }
-            None => per_face.push(hit),
-        }
-    }
-    per_face
+    let candidates: Vec<(TSpan, (usize, usize))> = seen
+        .iter()
+        .map(|s| (s.span, (s.part, parts[s.part].face[s.item])))
+        .collect();
+    answer_of(&candidates)
+        .faces()
+        .into_iter()
+        .map(|face| Seen {
+            span: face.span,
+            ..seen[face.member]
+        })
+        .collect()
 }
 
 /// `main`'s order: the rounded `t`, then position. The OLD door, kept

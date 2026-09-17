@@ -623,28 +623,50 @@ fn a_ray_down_a_shared_edge_refuses_with_both_faces() {
 
 /// **Several triangles of ONE face are one answer, not a tie.**
 ///
-/// A square face split along its diagonal, both halves carried under
-/// the SAME face of the cube, and a ray down the diagonal: both
-/// triangles are hit, neither precedes the other, and the survivors
-/// name one face — so the door answers that face, with the HULL of
-/// the two intervals and the smaller of the two rounded `t`s.
+/// A face split along a diagonal, both halves carried under the SAME
+/// face of the cube, and a ray down that diagonal: both triangles are
+/// hit, neither precedes the other, and the survivors name one face —
+/// so the door answers that face, with the HULL of the two intervals
+/// and the smaller of the two rounded `t`s.
 ///
 /// This is the case a refusal must not reach: it is every ray across
 /// a triangle diagonal or an in-face shared edge, which is most
 /// picks. A door that refused on the number of surviving TRIANGLES
 /// rather than on the number of faces reds here.
+///
+/// **The two halves do not meet the ray at the same depth, on
+/// purpose.** A face's triangles are chorded one by one, so two of
+/// them meet along a seam only to within a rounding — and the second
+/// half here sits a few ulps along the ray, far enough that the two
+/// members answer DIFFERENT rounded parameters and far inside either
+/// interval, so neither is certified in front of the other. Both
+/// halves in one exact plane, struck at a dyadic midpoint, answer one
+/// `t` between them and a door reporting the LARGER member, or the
+/// hull's midpoint, passes the row. The far half is offered FIRST, so
+/// a door answering its first member rather than its smallest reds
+/// too. All of it is asserted rather than assumed.
 #[test]
 fn several_triangles_of_one_face_answer_that_face() {
     // The unit square in z = 0, split along the diagonal from
     // (0, 0) to (1, 1); the ray runs down that diagonal's midpoint.
+    // The second half is chorded a few ulps further along the ray,
+    // which is the seam a tessellation actually leaves.
+    let sag = 2e-15;
     let corners = [
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(1.0, 0.0, 0.0),
         Point3::new(1.0, 1.0, 0.0),
         Point3::new(0.0, 1.0, 0.0),
     ];
+    let dropped = |p: Point3<f64>| Point3::new(p.x, p.y, p.z - sag);
+    // The FIRST half offered is the far one, so "the smallest rounded
+    // `t`" and "the first member" are different answers here.
     let halves = [
-        [corners[0], corners[1], corners[2]],
+        [
+            dropped(corners[0]),
+            dropped(corners[1]),
+            dropped(corners[2]),
+        ],
         [corners[0], corners[2], corners[3]],
     ];
     let midpoint = Point3::new(0.5, 0.5, 0.0);
@@ -661,11 +683,10 @@ fn several_triangles_of_one_face_answer_that_face() {
         "the row's premise: the diagonal is a hit for both halves and neither is in \
          front ({spans:?})"
     );
-    assert_eq!(
+    assert_ne!(
         spans[0].t, spans[1].t,
-        "REVIEW PROBE (lane pickrefuse-rv): this fixture's two members carry the SAME \
-         rounded t, so `min` over them pins nothing — see \
-         `one_faces_members_answer_the_SMALLEST_rounded_t` below"
+        "the row's premise: the two members answer DIFFERENT rounded parameters, so \
+         the smallest-`t` rule has something to decide ({spans:?})"
     );
 
     let door = Door::new("pick3_one_face_diagonal");
@@ -692,16 +713,16 @@ fn several_triangles_of_one_face_answer_that_face() {
     );
 }
 
-/// **REVIEW PROBE (lane `pickrefuse-rv`): one face's members answer the
-/// SMALLEST rounded `t`.**
+/// **One face's members answer the SMALLEST rounded `t`**, at any
+/// separation.
 ///
-/// `several_triangles_of_one_face_answer_that_face` builds its two
-/// members at the same rounded `t` (both `3.0`), so `min` over them is
-/// either member and a door answering the LARGEST — or the hull's
-/// midpoint — passes it. This row puts two members of ONE face at
-/// `t = 1.5` and `t = 1.7` (the `the_early_outs_bound_…` pair, carried
-/// under one face instead of two): they overlap, so both survive, and
-/// the answer is the smaller parameter on the hull of both intervals.
+/// `several_triangles_of_one_face_answer_that_face` puts its two
+/// members a rounding apart, which is where the rule is REACHED — a
+/// diagonal, an in-face shared edge. This row puts two members of one
+/// face at `t = 1.5` and `t = 1.7` (the `the_early_outs_bound_…`
+/// pair, carried under one face instead of two): their intervals
+/// overlap, so both survive, and the parameters they answer are far
+/// enough apart that no rounding could confuse the two.
 ///
 /// Reds a door that answers the larger member, or the hull's midpoint.
 #[test]

@@ -81,8 +81,8 @@ use pncad::select::{
 // `pncad`'s own crate docs state for a type the façade does not carry,
 // and the same one this crate's `bvh` and `Rgba8` edges cite. Spelling
 // the rule again here instead would be the second copy of the door
-// that `TSpan::survivors` exists to prevent.
-use editor_core::resolve::TSpan;
+// that `TSpan::survivors` and `answer_of` exist to prevent.
+use editor_core::resolve::{Answer, FaceAnswer, TSpan, answer_of};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
@@ -1138,9 +1138,14 @@ impl PickIndex {
     /// first, then moved instances in node order) is the order the
     /// refusal LISTS them in and decides nothing.
     ///
-    /// A group that refuses on its own refuses the whole call: its
-    /// tied faces are not ordered against anything, so there is no
-    /// answer to merge.
+    /// **A group's own refusal does not end the call.** A group that
+    /// cannot order ITS faces has said nothing about another group's,
+    /// and every hit it carries is true — so its tied faces join the
+    /// candidate set and the merge runs over the union. Otherwise a
+    /// tie inside the unmoved batch would shadow a moved instance in
+    /// front of it, and the answer would depend on which batch the
+    /// caller's display view happened to split the scene into rather
+    /// than on the geometry.
     ///
     /// The parameters stay comparable because the display layer
     /// admits only rigid probe frames (lengths preserved, so `t` in
@@ -1170,10 +1175,10 @@ impl PickIndex {
             .filter(|part| !display.moved_roots.contains_key(&part.node()))
             .map(NodePick::target)
             .collect();
-        // One candidate per group, in group order: the unmoved batch,
-        // then the moved instances. A group that refuses on its own
-        // propagates through `?`.
-        let mut candidates: Vec<PickHit> = pick_face(eval, &unmoved, ray)?.into_iter().collect();
+        // Every group's whole answer, in group order: the unmoved
+        // batch, then the moved instances. A group that refuses
+        // contributes its tied faces rather than ending the call.
+        let mut candidates: Vec<PickHit> = group_answer(pick_face(eval, &unmoved, ray))?;
         for (&node, frame) in &display.moved_roots {
             if display.hidden_roots.contains(&node) {
                 continue;
@@ -1193,34 +1198,47 @@ impl PickIndex {
                 origin: inverse.transform_point(ray.origin),
                 dir: inverse.transform_vec(ray.dir),
             };
-            if let Some(hit) = pick_face(eval, &targets, &local)? {
+            for hit in group_answer(pick_face(eval, &targets, &local))? {
                 // The hit's point is display-local; the answer the
-                // caller compares against the picture is world.
+                // caller compares against the picture is world. The
+                // interval rides across unconverted, which is the
+                // rigid-frame argument above and
+                // `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`
+                // §1.
                 candidates.push(PickHit {
                     point: map.transform_point(hit.point),
                     ..hit
                 });
             }
         }
-        // The kernel's own rule over the groups' answers: the
-        // survivors of `precedes`, then one or the refusal.
-        let spans: Vec<TSpan> = candidates
+        // The kernel's own rule over the whole candidate set, through
+        // the kernel's own callable: the survivors of `precedes`,
+        // grouped by face, then one answer or the refusal.
+        let pairs: Vec<(TSpan, (RecipeNodeId, u32, StableName))> = candidates
             .iter()
-            .map(|hit| TSpan {
-                t: hit.t,
-                t_lo: hit.t_lo,
-                t_hi: hit.t_hi,
+            .map(|hit| {
+                (
+                    TSpan {
+                        t: hit.t,
+                        t_lo: hit.t_lo,
+                        t_hi: hit.t_hi,
+                    },
+                    (hit.node, hit.body, hit.name.clone()),
+                )
             })
             .collect();
-        let survivors = TSpan::survivors(&spans);
-        let mut kept: Vec<PickHit> = survivors
-            .into_iter()
-            .map(|i| candidates[i].clone())
-            .collect();
-        match kept.len() {
-            0 => Ok(None),
-            1 => Ok(kept.pop()),
-            _ => Err(HitTestError::Ambiguous { hits: kept }),
+        let at = |face: &FaceAnswer<(RecipeNodeId, u32, StableName)>| PickHit {
+            t: face.span.t,
+            t_lo: face.span.t_lo,
+            t_hi: face.span.t_hi,
+            ..candidates[face.member].clone()
+        };
+        match answer_of(&pairs) {
+            Answer::Miss => Ok(None),
+            Answer::One(face) => Ok(Some(at(&face))),
+            Answer::Ambiguous(faces) => Err(HitTestError::Ambiguous {
+                hits: faces.iter().map(at).collect(),
+            }),
         }
     }
 
@@ -1392,10 +1410,17 @@ impl PickIndex {
     /// edges meeting at the cursor answer the earlier one every time —
     /// and the answer is the first of them the solid does not hide.
     ///
+    /// **A certified tie between faces does not refuse here.** The
+    /// seed is a depth ([`PickIndex::front_of`]), and the cursors
+    /// where the face pick ties are exactly the cursors an edge is
+    /// aimed with — a shared edge's own pixels. The face answer is
+    /// where the tie costs something ([`PickIndex::hovered_for`]).
+    ///
     /// # Errors
     ///
     /// [`PickError`]: the camera's refusal for a cursor the viewport
-    /// cannot un-project, or the hit-test service's.
+    /// cannot un-project, or the hit-test service's — less the
+    /// certified tie.
     pub fn edge_at_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1404,10 +1429,10 @@ impl PickIndex {
         cursor: [f64; 2],
         display: &DisplayView,
     ) -> Result<Option<EdgePick>, PickError> {
-        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
             return Ok(None);
         };
-        self.edge_near(eval, camera, viewport, cursor, display, &hit)
+        self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)
     }
 
     /// **The faces under a cursor**, whichever entity the priority rule
@@ -1446,25 +1471,27 @@ impl PickIndex {
             node: hit.node,
             body: hit.body,
         };
-        let ray = camera
-            .ray_through(cursor, viewport)
-            .map_err(PickError::Camera)?;
-        match self.pick_for(eval, &ray, display) {
-            Ok(hit) => Ok(hit.map(selection).into_iter().collect()),
-            Err(HitTestError::Ambiguous { hits }) => Ok(hits.into_iter().map(selection).collect()),
-            Err(other) => Err(PickError::HitTest(other)),
-        }
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
+            return Ok(Vec::new());
+        };
+        Ok(if front.tied.is_empty() {
+            vec![selection(front.nearest)]
+        } else {
+            front.tied.into_iter().map(selection).collect()
+        })
     }
 
-    /// **How near the nearest surface on `ray` is**, for the occlusion
-    /// question alone — `None` when the ray meets nothing.
+    /// **What is in front on `ray`**, read as a MEASUREMENT: the
+    /// nearest of the faces the door names, and the whole tied set
+    /// when it names several.
     ///
-    /// A certified tie between faces is not a refusal HERE: the
-    /// question is whether anything is in front of a candidate edge,
-    /// and a ray that meets two faces the arithmetic cannot order has
-    /// met a surface either way. The tied answers pairwise overlap, so
-    /// the smallest of their rounded parameters is the one this
-    /// question can be asked with, and it is a function of the set.
+    /// A certified tie between faces is not a refusal here, because
+    /// the question is not which face the ray met. A ray that meets
+    /// two faces the arithmetic cannot order has met a surface either
+    /// way, and the tied answers pairwise overlap, so the smallest of
+    /// their rounded parameters is a depth this question can be asked
+    /// with and is a function of the set. Only a caller whose own
+    /// answer IS a face refuses on `tied`.
     ///
     /// # Errors
     ///
@@ -1474,11 +1501,25 @@ impl PickIndex {
         eval: &Evaluation<f64>,
         ray: &Ray,
         display: &DisplayView,
-    ) -> Result<Option<f64>, HitTestError> {
+    ) -> Result<Option<Front>, HitTestError> {
         match self.pick_for(eval, ray, display) {
-            Ok(hit) => Ok(hit.map(|hit| hit.t)),
+            Ok(hit) => Ok(hit.map(|hit| Front {
+                nearest: hit,
+                tied: Vec::new(),
+            })),
             Err(HitTestError::Ambiguous { hits }) => {
-                Ok(hits.iter().map(|hit| hit.t).min_by(f64::total_cmp))
+                // `min_by` keeps the FIRST of equal parameters, so a
+                // tie inside the tie falls to the list's order, which
+                // is the door's own.
+                let nearest = hits
+                    .iter()
+                    .min_by(|left, right| left.t.total_cmp(&right.t))
+                    .expect("a refusal carries at least two hits")
+                    .clone();
+                Ok(Some(Front {
+                    nearest,
+                    tied: hits,
+                }))
             }
             Err(other) => Err(other),
         }
@@ -1488,6 +1529,15 @@ impl PickIndex {
     /// face pick, in one place because three doors above open with
     /// exactly these two steps and a fourth spelling is how they come
     /// to disagree about which ray a cursor names.
+    ///
+    /// **The seed is a DEPTH, not a pick** — [`PickIndex::front_of`],
+    /// through the same door the occlusion probe reads. A cursor on a
+    /// shared edge is exactly the pixel a user aims an EDGE with, and
+    /// it is also where the face pick ties; seeding on the face
+    /// answer would refuse the edge search before it ran, on the
+    /// cursors it matters most on. So the tie rides along in
+    /// [`Front::tied`] and only the callers whose answer is a face
+    /// raise it.
     fn seed(
         &self,
         eval: &Evaluation<f64>,
@@ -1495,11 +1545,11 @@ impl PickIndex {
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-    ) -> Result<Option<PickHit>, PickError> {
+    ) -> Result<Option<Front>, PickError> {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
-        self.pick_for(eval, &ray, display)
+        self.front_of(eval, &ray, display)
             .map_err(PickError::HitTest)
     }
 
@@ -1527,9 +1577,17 @@ impl PickIndex {
     /// cursor means — and so a tool that needs one kind narrows the
     /// rule ([`PickKinds`]) instead of re-deciding it.
     ///
+    /// **This is where the certified tie costs an answer**, and only
+    /// after the priority rule has run: an edge within the radius is
+    /// what the cursor means whether or not the faces behind it tie,
+    /// and the refusal is raised only for the cursor whose answer
+    /// would have been a FACE.
+    ///
     /// # Errors
     ///
-    /// As [`PickIndex::edge_at_for`].
+    /// As [`PickIndex::edge_at_for`], plus
+    /// [`HitTestError::Ambiguous`] for a cursor whose answer is a
+    /// face the door will not name.
     pub fn hovered_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1539,11 +1597,12 @@ impl PickIndex {
         display: &DisplayView,
         kinds: PickKinds,
     ) -> Result<Option<Hovered>, PickError> {
-        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
             return Ok(None);
         };
         if kinds.edges()
-            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &hit)?
+            && let Some(edge) =
+                self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)?
         {
             return Ok(Some(Hovered::Edge(edge.selection())));
         }
@@ -1553,10 +1612,18 @@ impl PickIndex {
             // cursor can mean is here, not the face it did not aim at.
             return Ok(None);
         }
+        if !front.tied.is_empty() {
+            // The answer being asked for IS a face, and the door names
+            // several it cannot order: this is where the refusal
+            // belongs, after the edge rule has had the cursor.
+            return Err(PickError::HitTest(HitTestError::Ambiguous {
+                hits: front.tied,
+            }));
+        }
         Ok(Some(Hovered::Face(FaceSelection {
-            name: hit.name,
-            node: hit.node,
-            body: hit.body,
+            name: front.nearest.name,
+            node: front.nearest.node,
+            body: front.nearest.body,
         })))
     }
 
@@ -1686,7 +1753,7 @@ impl PickIndex {
             let hidden = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
-                .is_some_and(|front| front < t - OCCLUSION_SLACK_REL * t.abs());
+                .is_some_and(|front| front.nearest.t < t - OCCLUSION_SLACK_REL * t.abs());
             if hidden {
                 continue;
             }
@@ -1873,6 +1940,41 @@ impl EdgePick {
             body: self.body,
         }
     }
+}
+
+/// **One group's whole answer as a list**: the one hit, the empty
+/// miss, or the faces it refused with.
+///
+/// A refusal is an ANSWER about the ray — every hit in it is true —
+/// and a group that cannot order its own faces has said nothing about
+/// another group's, so the tie travels to the cross-group merge
+/// instead of ending the call there
+/// ([`PickIndex::pick_for`]). Every other refusal is about the
+/// TARGETS, not the geometry, and propagates.
+fn group_answer(
+    answer: Result<Option<PickHit>, HitTestError>,
+) -> Result<Vec<PickHit>, HitTestError> {
+    match answer {
+        Ok(hit) => Ok(hit.into_iter().collect()),
+        Err(HitTestError::Ambiguous { hits }) => Ok(hits),
+        Err(other) => Err(other),
+    }
+}
+
+/// **What the ray path found in front**, read as a measurement of the
+/// surface rather than as a pick of a face
+/// ([`PickIndex::front_of`]).
+///
+/// `nearest` is the hit with the smallest rounded parameter among the
+/// faces the door names — a point of the surface under the cursor
+/// whichever face of a tie owns it, and the body whose drawn edges an
+/// edge search is over. `tied` is empty when the door named one face
+/// and carries the whole certified tie when it named several, so a
+/// caller whose own answer is a face can raise the refusal verbatim
+/// while one asking about depth or about an edge never sees it.
+struct Front {
+    nearest: PickHit,
+    tied: Vec<PickHit>,
 }
 
 /// The best drawn edge segment a cursor found so far: how near it
