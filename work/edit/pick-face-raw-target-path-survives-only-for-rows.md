@@ -220,3 +220,11 @@ finding:
   `work/issues/test-support-convention-has-no-prose-home` — four
   manifests restate one convention and it has no prose home.
 - **S10.** `build_every_table` keeps its name; weighed and kept.
+
+**Verified (fix pass).** Hosted CI run 35191056430 on `2b2b2ab68`:
+green — 39 jobs (36 success, 3 skipped), no step with a conclusion
+other than success or skipped, twelve `test (…)` and five
+`k-lint (gate, …)`, the python suite green through the wheel build and
+the unittest step. A fourth site of MINOR-2's class —
+`crates/pncad-py/src/py/pick.rs` — was found by the bare-identifier
+sweep and re-worded with the other three.
