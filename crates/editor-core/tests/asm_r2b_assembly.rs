@@ -30,9 +30,9 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
-    EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive,
-    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, assemble,
-    content_pin, inline, product_recorded, split,
+    EntityKind, EntityRef, Entry, EvalOptions, FaceName, InterfaceCrossing, MateFrame,
+    MatePrimitive, MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    assemble, content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, step};
@@ -735,11 +735,12 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         Tol::witness(),
     );
     // The part-local name of the cube's end cap.
-    let inner = StableName {
+    let inner = FaceName::new(StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
+    })
+    .expect("a crossing's references are face names");
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(7),
@@ -814,11 +815,12 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         },
         Tol::witness(),
     );
-    let inner = StableName {
+    let inner = FaceName::new(StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
+    })
+    .expect("a crossing's references are face names");
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(9),
@@ -1035,11 +1037,12 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         },
         Tol::witness(),
     );
-    let inner = StableName {
+    let inner = FaceName::new(StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
+    })
+    .expect("a crossing's references are face names");
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(4),

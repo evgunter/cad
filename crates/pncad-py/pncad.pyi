@@ -5499,7 +5499,11 @@ class InterfaceCrossing:
 
     `outer` stayed in the remainder; `inner` moved into the part and
     is spelled in the PART's own names, unwrapped, because that is
-    what the part's product answers to."""
+    what the part's product answers to.
+
+    Both are FACE names. A crossing is written out of the two heads of
+    a mate and each head names a face, so the kind is fixed by the
+    record's type and neither getter can answer anything else."""
 
     @property
     def variant(self) -> str:
@@ -5511,9 +5515,13 @@ class InterfaceCrossing:
     @property
     def class_(self) -> ContactClass: ...
     @property
-    def outer(self) -> str: ...
+    def outer(self) -> str:
+        """The remainder-side reference, as name text — a FACE name."""
+
     @property
-    def inner(self) -> str: ...
+    def inner(self) -> str:
+        """The part-side reference, as name text, in the part's own
+        names — a FACE name."""
 
 class InterfaceRecord:
     """The interface record of an instantiate seam: the declarations
