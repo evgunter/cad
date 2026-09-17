@@ -752,6 +752,70 @@ pub enum Datum {
 /// gave: a crossing is whatever KIND of edge crossed, and mates are
 /// the only kind of edge that can cross today. A second kind extends
 /// this enum rather than retrofitting a shape onto the first.
+///
+/// **A crossing's two references are FACE names** ([`FaceName`]), the
+/// kind fixed by the type as a mate head's is. A crossing is written
+/// out of the two heads of a mate ([`SitedFace`]s), so the fields are
+/// face names by construction, and this is the record SAYING what the
+/// split guarantees rather than the readers re-asking it. The wire
+/// asks the question once, in `FaceName`'s `Deserialize`, so a file
+/// whose crossing names an edge refuses at the load door's parse; the
+/// split's own re-wrap is one call at this boundary rather than one
+/// per reader.
+///
+/// **A crossing cannot be built from a bare name**, which is the whole
+/// claim, pinned where a claim about types belongs:
+///
+/// ```compile_fail,E0308
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     mate: editor_core::RecipeNodeId(0),
+///     class: editor_core::ContactClass::Rest,
+///     outer: named(editor_core::EntityKind::Face),
+///     inner: named(editor_core::EntityKind::Face),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
+///
+/// **What that row proves, and what it does not.** Stable rustdoc
+/// checks only that the block FAILS to build; it does not enforce the
+/// `,E0308` named beside it, so a row whose body had a typo, a renamed
+/// field or a missing import would pass just as well and prove nothing
+/// about the reference's type. The twin below is the same body with
+/// the one difference this claim is about — the two references are
+/// made through [`FaceName::new`] instead of being bare names — and it
+/// is a RUNNING doctest: every other line above is a line it also
+/// compiles, so a defect anywhere but the references reddens here
+/// rather than silently satisfying the block above for the wrong
+/// reason. (The idiom is `quantity::units`', which states the rule.)
+///
+/// ```
+/// let face = || {
+///     editor_core::FaceName::new(named(editor_core::EntityKind::Face))
+///         .expect("a face name is a face")
+/// };
+///
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     mate: editor_core::RecipeNodeId(0),
+///     class: editor_core::ContactClass::Rest,
+///     outer: face(),
+///     inner: face(),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum InterfaceCrossing {
@@ -773,10 +837,11 @@ pub enum InterfaceCrossing {
         /// The class the crossing declares.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
-        /// The remainder-side reference.
-        outer: StableName,
-        /// The part-side reference, in the part's own names.
-        inner: StableName,
+        /// The remainder-side reference — the head the mate keeps.
+        outer: FaceName,
+        /// The part-side reference, in the part's own names — the head
+        /// that moved, remapped into the part's node numbering.
+        inner: FaceName,
     },
 }
 

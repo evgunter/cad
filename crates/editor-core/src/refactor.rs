@@ -106,7 +106,7 @@ use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::names::{FaceName, NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -667,6 +667,25 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
         node,
         path,
     })
+}
+
+/// [`remap_name`] for a FACE name, keeping the kind in the type across
+/// the rewrite.
+///
+/// [`remap_name`] renumbers a name's derivation and copies its `kind`
+/// through untouched, so what comes back denotes whatever went in
+/// denoted. The re-wrap is still ASKED — [`FaceName::new`] is the one
+/// door a face name is made at — and a refusal here would be a bug in
+/// the remap rather than anything a caller can reach.
+fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RecipeNodeId> {
+    let remapped = remap_name(name, map)?;
+    match FaceName::new(remapped) {
+        Ok(face) => Ok(face),
+        Err(not) => unreachable!(
+            "`remap_name` carries a name's kind through unchanged, so a face name \
+             remaps to a face name; it produced {not}"
+        ),
+    }
 }
 
 /// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
@@ -1527,13 +1546,16 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
+        let inner = remap_face(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
             name: Box::new((**inner).clone()),
         })?;
+        // The heads' own face names go through: the record carries
+        // what the mate carries, so the split neither unwraps a head
+        // nor re-asks the question its type already answered.
         crossings.push(InterfaceCrossing::Mate {
             mate: id,
             class: *class,
-            outer: (**outer).clone(),
+            outer: outer.clone(),
             inner,
         });
     }
@@ -1878,8 +1900,8 @@ pub fn inline(
     // re-anchored — so the record's job ends here, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_name(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
-            name: Box::new(inner.clone()),
+        remap_face(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new((**inner).clone()),
         })?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
