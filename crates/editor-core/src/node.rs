@@ -817,8 +817,8 @@ pub enum Datum {
 /// let _ = editor_core::InterfaceCrossing::Mate {
 ///     mate: editor_core::RecipeNodeId(0),
 ///     class: editor_core::ContactClass::Rest,
-///     outer: named(editor_core::EntityKind::Face),
-///     inner: named(editor_core::EntityKind::Face),
+///     outer: named(editor_core::EntityKind::Edge),
+///     inner: named(editor_core::EntityKind::Edge),
 /// };
 ///
 /// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
@@ -830,17 +830,10 @@ pub enum Datum {
 /// }
 /// ```
 ///
-/// **What that row proves, and what it does not.** Stable rustdoc
-/// checks only that the block FAILS to build; it does not enforce the
-/// `,E0308` named beside it, so a row whose body had a typo, a renamed
-/// field or a missing import would pass just as well and prove nothing
-/// about the reference's type. The twin below is the same body with
-/// the one difference this claim is about — the two references are
-/// made through [`FaceName::new`] instead of being bare names — and it
-/// is a RUNNING doctest: every other line above is a line it also
-/// compiles, so a defect anywhere but the references reddens here
-/// rather than silently satisfying the block above for the wrong
-/// reason. (The idiom is `quantity::units`', which states the rule.)
+/// The RUNNING twin below — the same body, differing only in that the
+/// two references are made through [`FaceName::new`] — is why that
+/// block proves anything; [`SitedFace`]'s doc states the rule, for the
+/// pair it states it about.
 ///
 /// ```
 /// let face = || {
@@ -874,7 +867,7 @@ pub enum InterfaceCrossing {
     /// is the reference that moved into the part, spelled in the
     /// PART's own names — unwrapped, because that is what the part's
     /// product answers to and re-verification resolves against. The
-    /// wrapped form (`outer_head / InPart{ inner }`) is what the
+    /// wrapped form (`outer / InPart{ inner }`) is what the
     /// remainder's mate now reads, and re-wrapping is the split's
     /// rebind, so storing the wrapper twice would be storing a
     /// derivable fact.
@@ -884,9 +877,9 @@ pub enum InterfaceCrossing {
         /// The class the crossing declares.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
-        /// The remainder-side reference — the head the mate keeps.
+        /// The remainder-side reference — the one the mate keeps.
         outer: FaceName,
-        /// The part-side reference, in the part's own names — the head
+        /// The part-side reference, in the part's own names — the one
         /// that moved, remapped into the part's node numbering.
         inner: FaceName,
     },
@@ -1169,9 +1162,9 @@ impl SitedRef {
 /// whose head is a bare [`StableName`] does not compile, so no door
 /// downstream has a document to refuse.
 ///
-/// The three boundaries that turn data into names — the wire, the
-/// Python binding, and the viewer's picked face — call
-/// [`FaceName::new`] and answer its refusal in their own vocabulary.
+/// Where a face name comes from is [`FaceName`]'s own doc: the three
+/// boundaries that turn DATA into one, and the single in-crate door
+/// that re-derives one without re-asking the kind.
 ///
 /// **`at` is an A12 READING edge** — never consuming, or the mated
 /// bodies would leave A10's root set. It names the OPERAND the mate is
@@ -3273,22 +3266,17 @@ impl<P> Node<P> {
                     if &*r.name != from {
                         continue;
                     }
-                    // A head's kind is the type's (`FaceName`), and a
-                    // rebind never crosses entity kinds — its door
-                    // refuses that pair — so `to` is a face whenever
-                    // it can replace a head at all. A `to` that is not
-                    // is this crate's bug: asserted here, and answered
-                    // by rewriting nothing, which leaves the count at
-                    // zero and the rebind refusing `RebindNoReferences`
-                    // rather than writing a head the type forbids.
-                    let Ok(next) = FaceName::new(to.clone()) else {
-                        debug_assert!(
-                            false,
-                            "a rebind reached a mate head across entity kinds: \
-                             `DocEdit::Rebind` refuses that pair at its own door"
-                        );
-                        continue;
-                    };
+                    // A head's kind is the TYPE's, not this rewrite's:
+                    // `DocEdit::Rebind` refuses a cross-kind pair at
+                    // its own door, so what `to` contributes here is
+                    // its DERIVATION. That is the one re-derivation
+                    // door (`FaceName::map_derivation`), which cannot
+                    // change a kind — so there is no arm to assert
+                    // away, and `Infallible` is the whole of what can
+                    // go wrong.
+                    let Ok(next) = r.name.map_derivation(|_, _| {
+                        Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
+                    });
                     let at_mint = r.at == r.name.node;
                     r.name = next;
                     if at_mint {

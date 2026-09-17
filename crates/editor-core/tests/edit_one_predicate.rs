@@ -450,16 +450,36 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     };
     let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("a face-headed crossing round trips");
+    load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
 }
 
 /// Retypes one reference of a saved crossing — its KIND and nothing
 /// else.
+///
+/// It is also half the receipt that the typed field costs no bytes: it
+/// reaches `kind` INSIDE `["Mate"][side]`, and asserts that object is
+/// the bare name's own three fields, so a `FaceName` that stopped
+/// being `#[serde(transparent)]` would redden here. The other half is
+/// the literal `a_crossings_references_are_bare_names_on_the_wire`
+/// pins.
 fn retype_crossing(text: &str, instance: RecipeNodeId, side: &str, kind: EntityKind) -> String {
     doctored(text, |wire| {
-        let field = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
-            ["crossings"][0]["Mate"][side]["kind"];
+        let reference = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]
+            ["interface"]["crossings"][0]["Mate"][side];
+        let mut keys: Vec<&str> = reference
+            .as_object()
+            .expect("a crossing reference is a bare name object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["kind", "node", "path"],
+            "a crossing reference is a bare `StableName` on the wire, unwrapped"
+        );
+        let field = &mut reference["kind"];
         assert_eq!(
             *field,
             serde_json::json!("Face"),
@@ -509,19 +529,58 @@ fn a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door() {
 /// **The control**: the same document with both references naming faces
 /// saves, loads and keeps its record — so the row above measures the
 /// kind and not the fixture.
+///
+/// Its assertion is THE RECORD SURVIVES, and the two `let … else`
+/// panics are the whole of it: the instance comes back an
+/// `InstantiatePart` carrying an interface, and that interface carries
+/// exactly one `Mate` crossing. Nothing follows them, because the kind
+/// is no longer a runtime question here — the fields are `FaceName`s,
+/// so a load that answered otherwise would not typecheck.
 #[test]
-fn a_face_headed_crossing_round_trips() {
+fn a_face_referenced_crossing_round_trips() {
     let (text, instance) = saved_crossing("onepred-crossing-ok");
-    let loaded = load(&text, Tol::witness()).expect("a face-headed crossing loads");
+    let loaded = load(&text, Tol::witness()).expect("a face-referenced crossing loads");
     let Some(Node::InstantiatePart { interface, .. }) = loaded.doc.node(instance) else {
         panic!("the crossing-bearing instance survives the round trip");
     };
-    let [InterfaceCrossing::Mate { outer, inner, .. }] = &interface.crossings[..] else {
+    let [InterfaceCrossing::Mate { .. }] = &interface.crossings[..] else {
         panic!("the one crossing survives the round trip");
     };
+}
+
+/// **A crossing's two references are BARE names on the wire**, pinned
+/// against a literal.
+///
+/// `FaceName` is `#[serde(transparent)]`, so fixing the kind in the
+/// TYPE costs no bytes and moves no pin — and that is a claim about
+/// bytes, which only bytes can hold. `wire_rv_bytes`' variant pins
+/// never see a crossing (no fixture there carries an interface
+/// record), so this row is where the claim lives: the whole crossing,
+/// serialized, against the JSON it must be. A wrapper around either
+/// field, or a renamed one, reddens it.
+#[test]
+fn a_crossings_references_are_bare_names_on_the_wire() {
+    let reference = |node: u64| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(node),
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
+    };
+    let crossing = InterfaceCrossing::Mate {
+        mate: RecipeNodeId(7),
+        class: ContactClass::Rest,
+        outer: face(reference(3)),
+        inner: face(reference(5)),
+    };
     assert_eq!(
-        (outer.kind, inner.kind),
-        (EntityKind::Face, EntityKind::Face)
+        serde_json::to_value(&crossing).expect("a crossing serializes"),
+        serde_json::json!({
+            "Mate": {
+                "mate": 7,
+                "class": "rest",
+                "outer": { "kind": "Face", "node": 3, "path": [{ "Cap": "Start" }] },
+                "inner": { "kind": "Face", "node": 5, "path": [{ "Cap": "Start" }] },
+            }
+        })
     );
 }
 
