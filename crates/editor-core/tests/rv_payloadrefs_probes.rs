@@ -12,10 +12,16 @@
 //! - Which door refuses a measure's dimension fault first (PROBE 2):
 //!   the F1 checker at CONSTRUCTION for the arithmetic, and the
 //!   param-ref doors for the param TABLE, which are different faults.
-//! - The dimension arm's rendered prose names the node (PROBE 3): the
-//!   F6 case in `display_contract` does not read that word, so this
-//!   row is what reds when the address the arm exists to carry is
-//!   dropped from its `Display`.
+//! - The dimension arm's rendered prose names the node (PROBE 3) —
+//!   ADOPTED: the fact is now a word of the F6 case for
+//!   `SnapshotError::PayloadDocParamDimension` in `display_contract`,
+//!   which is the census that owns rendered prose, so the probe is
+//!   gone rather than kept as a second copy of it.
+//! - The noun both payload arms use (PROBE 4): it said "measurement
+//!   payload" of an assertion's BOUND, which is the wrong noun for
+//!   half the walk's domain. The wording is repaired at both doors,
+//!   and the probe below pins the repaired sentence instead of the
+//!   defect it measured.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,19 +31,8 @@ use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PatternKind,
     PersistError, ProfileDoc, RecipeNodeId, SnapshotError, apply, load, save,
 };
-use fixture::{ang, insert, len, on_frame, scl, square};
+use fixture::{ang, doctored, insert, len, on_frame, scl, square};
 use geom_core::Tol;
-
-/// Wire surgery by path, as `load_door_payload_param_ref::doctored`.
-fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    edit(&mut wire);
-    let out = format!("{header}{wire}");
-    assert_ne!(out, text, "the corruption really landed");
-    out
-}
 
 /// A frame, a profile, an extrude and a COUNT document parameter
 /// `howmany`,
@@ -219,48 +214,22 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     }
 }
 
-/// **PROBE 3 — the dimension arm's prose names the NODE.** The arm
-/// exists because the address of a payload expression is its node
-/// (`persist::check`'s `PayloadDocParamDimension` doc), and its
-/// `Display` writes that address — but the F6 case for it in
-/// `display_contract.rs` reads only `measurement payload`, `depth`,
-/// `as a length` and `declared angle`, so a `Display` that dropped the
-/// node renders a refusal with no address at all and no row reds.
-/// This is that row.
-#[test]
-fn rv_the_payload_dimension_refusal_names_the_node_it_addresses() {
-    let rendered = format!(
-        "{}",
-        SnapshotError::PayloadDocParamDimension {
-            node: RecipeNodeId(5),
-            name: ParamName::new("depth"),
-            declared: Dimension::Angle,
-            referenced: Dimension::Length,
-        }
-    );
-    assert!(
-        rendered.contains("node 5"),
-        "the payload refusals' whole reason for being a second pair of arms is that their \
-         address is the NODE; the dimension arm must render it: {rendered}"
-    );
-}
-
-/// **PROBE 4, MEASURED — the payload refusals call an ASSERTION's
-/// bound a "measurement payload".** Both arms render one sentence for
-/// both payload expressions, and the noun that sentence uses is the
-/// measure's. An assertion node whose BOUND reads an undeclared
-/// parameter is reported as "node N: its measurement payload reads …",
-/// which is the wrong noun for the only other expression the walk can
-/// be looking at: `Node::Assertion`'s bound is a bound, and the edit
-/// door's twin (`EditError::UnknownPayloadParam`) says "payload"
-/// without claiming which kind.
+/// **PROBE 4 — the payload refusals' noun covers BOTH payload
+/// expressions.** One sentence serves a measure's expression and an
+/// assertion's bound alike, so the noun it uses has to be true of
+/// both: `Node::Assertion`'s bound is a bound, not a measurement, and
+/// "measurement payload" — the wording this probe first measured —
+/// was the measure's noun applied to both.
 ///
-/// This row records what the prose says today and reds if the wording
-/// is repaired, which is the point — nothing else reads these words
-/// for an assertion, because the F6 case in `display_contract.rs`
-/// builds the arm directly and never reaches an assertion fixture.
+/// The repaired sentence says "payload expression", at the load door
+/// here and at the edit door's twins (`EditError::UnknownPayloadParam`
+/// / `PayloadParamDimensionMismatch`). This row pins it over an
+/// ASSERTION's refusal, which is the half nothing else renders: the F6
+/// cases in `display_contract.rs` build the arms directly and never
+/// reach an assertion fixture, so a regression to the measure's noun
+/// reds here and nowhere else.
 #[test]
-fn rv_the_payload_refusal_calls_an_assertion_bound_a_measurement() {
+fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadUnknownDocParam {
@@ -269,7 +238,25 @@ fn rv_the_payload_refusal_calls_an_assertion_bound_a_measurement() {
         }
     );
     assert!(
-        rendered.contains("its measurement payload reads"),
-        "MEASURED: one sentence serves both payload expressions: {rendered}"
+        rendered.contains("its payload expression reads"),
+        "the noun has to be true of an assertion's bound as well as a measure's expression: \
+         {rendered}"
+    );
+    assert!(
+        !rendered.contains("measurement"),
+        "an assertion's bound is not a measurement: {rendered}"
+    );
+
+    // The edit door's twin, the same noun.
+    let edit = format!(
+        "{}",
+        EditError::UnknownPayloadParam {
+            name: ParamName::new("depth"),
+            node: RecipeNodeId(7),
+        }
+    );
+    assert!(
+        edit.contains("payload expression") && !edit.contains("measurement"),
+        "the two doors spell the payload's noun the same way: {edit}"
     );
 }

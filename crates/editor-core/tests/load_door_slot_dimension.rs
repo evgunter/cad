@@ -35,7 +35,7 @@ use editor_core::{
     Axis3, Dimension, DocEdit, EditError, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, apply, load, save,
 };
-use fixture::{ang, len, on_frame_keeping, square};
+use fixture::{ang, doctored, len, on_frame_keeping, square};
 use geom_core::Tol;
 
 /// A one-extrude document on an explicit frame: the frame's origin
@@ -60,20 +60,6 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         },
     );
     (doc, frame, extrude)
-}
-
-/// **Wire surgery BY PATH**: the saved file is split at its id header,
-/// the body is parsed, `edit` moves the named field, and the body is
-/// re-serialized under the same header. A byte substitution proves
-/// only that a byte moved; this proves the INTENDED field moved.
-fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    edit(&mut wire);
-    let out = format!("{header}{wire}");
-    assert_ne!(out, text, "the corruption really landed");
-    out
 }
 
 /// Retypes one literal from `Length`/`m` to `Angle`/`rad`. BOTH halves

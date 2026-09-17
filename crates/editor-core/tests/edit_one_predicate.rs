@@ -40,7 +40,7 @@ use editor_core::{
     load, save,
 };
 use fixture::resolver::{PART_BODY, PartStore};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{doctored, insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The assertion's bound ----
@@ -165,24 +165,6 @@ fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (Str
     let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     (text, id)
-}
-
-/// **Wire surgery BY PATH.** The saved file is split at its id header,
-/// the body is parsed, `edit` moves the named field, and the body is
-/// re-serialized under the same header.
-///
-/// A byte substitution proves only that a byte moved; this proves the
-/// INTENDED field moved, because the path names it and `edit` asserts
-/// what it found there. A fixture or field-order change then breaks
-/// the surgery loudly instead of silently landing it on a neighbour.
-fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    edit(&mut wire);
-    let out = format!("{header}{wire}");
-    assert_ne!(out, text, "the corruption really landed");
-    out
 }
 
 /// Re-points the assertion's `measure` field.

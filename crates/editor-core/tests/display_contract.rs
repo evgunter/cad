@@ -915,7 +915,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 name: ParamName::new("depth"),
             },
-            vec!["node 5", "measurement payload", "depth", "does not declare"],
+            vec!["node 5", "payload expression", "depth", "does not declare"],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
@@ -925,7 +925,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 referenced: Dimension::Length,
             },
             vec![
-                "measurement payload",
+                // The NODE, which is this arm's whole reason for
+                // existing beside the slot one: a payload expression
+                // has no slot, so the node is the only address the
+                // refusal can carry.
+                "node 5",
+                "payload expression",
                 "depth",
                 "as a length",
                 "declared angle",

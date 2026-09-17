@@ -31,24 +31,14 @@ use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, MeasureExpr, Node, ParamName, PersistError,
     ProfileDoc, RecipeNodeId, SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{insert, len, on_frame, square};
+use fixture::{doctored, insert, len, on_frame, square};
 use geom_core::Tol;
-
-/// Wire surgery by path, as `load_door_slot_dimension::doctored`.
-fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    edit(&mut wire);
-    let out = format!("{header}{wire}");
-    assert_ne!(out, text, "the corruption really landed");
-    out
-}
 
 /// A frame, a profile, an extrude and a LENGTH document parameter
 /// `depth` — the ground every row below builds its payload node on,
-/// keeping the EXTRUDE's id for the row that needs a slot to break.
-fn with_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
+/// with the EXTRUDE's id, which only the rows that need a SLOT to
+/// break read.
+fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
     let name = ParamName::new("depth");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
@@ -80,13 +70,35 @@ fn with_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
     (doc, name, extrude)
 }
 
-/// [`with_depth`] plus a measure whose expression reads `depth`.
+/// The same ground for the rows whose fault is in a PAYLOAD and needs
+/// no slot address — the one place the extrude's id is dropped, so no
+/// row below writes `_` for a value it was handed.
+fn with_depth() -> (ProfileDoc, ParamName) {
+    let (doc, name, _) = with_depth_and_extrude();
+    (doc, name)
+}
+
+/// [`with_depth`] plus a measure whose expression reads `depth` — and
+/// carries a LITERAL beside it, `-0.0`.
+///
+/// The literal is what gives the round-trip row something only
+/// `bit_eq` can see: `-0.0 == 0.0` is true in IEEE arithmetic and the
+/// two have different bits, so a payload channel whose comparison had
+/// silently degraded to `==`, or a writer that normalised the sign of
+/// zero on the way out, passes on every other value and fails on this
+/// one. `MeasureExpr::add` keeps both leaves at `Length`, so the F1
+/// checker admits it and the value the measure reports is unchanged.
 fn measuring_depth() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let (doc, name, _) = with_depth();
+    let (doc, name) = with_depth();
+    let expr = MeasureExpr::add(
+        MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
+        MeasureExpr::value(len(-0.0)),
+    )
+    .expect("two length leaves add");
     let (doc, measure) = insert(
         doc,
         Node::Measure {
-            expr: MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
+            expr,
             refs: Vec::new(),
         },
     );
@@ -218,7 +230,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
 /// that misses it misses half the vocabulary.
 #[test]
 fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
-    let (doc, name, _) = with_depth();
+    let (doc, name) = with_depth();
     let (doc, measure) = insert(
         doc,
         Node::Measure {
@@ -259,15 +271,43 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
 /// broken pairing and nothing else: a measure reading a declared
 /// parameter at its declared dimension saves, loads, and comes back
 /// bit for bit.
+///
+/// The payload carries `-0.0` beside the reference ([`measuring_depth`])
+/// so that the BITS are what this row reads. Signed zero is the one
+/// f64 value for which `==` and bit equality disagree, so a `bit_eq`
+/// that had degraded to `==` on the payload channel — or a writer that
+/// normalised the sign away — is green over any other literal and red
+/// here. The row asserts the sign survived on the loaded document too,
+/// so the panic says WHICH half broke.
 #[test]
 fn a_payload_reference_the_table_answers_round_trips() {
-    let (doc, _, _) = measuring_depth();
+    let (doc, _, measure) = measuring_depth();
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let loaded = load(&text, Tol::witness()).expect("the fixture loads").doc;
+    assert!(
+        signed_zero_leaf(&loaded, measure),
+        "the payload's `-0.0` came back as `+0.0`: the saved text is {text}"
+    );
     assert!(
         loaded.bit_eq(&doc),
         "a payload expression the param table answers round-trips"
     );
+}
+
+/// Whether the measure node's payload still carries a NEGATIVE zero —
+/// read off the loaded document rather than off the wire, because the
+/// claim is about the value that reaches memory, and by BITS, which is
+/// the only comparison that can tell `-0.0` from `0.0`.
+fn signed_zero_leaf(doc: &ProfileDoc, measure: RecipeNodeId) -> bool {
+    let node = doc.node(measure).expect("the measure survived");
+    editor_core::node::payload_exprs(node)
+        .into_iter()
+        .flatten()
+        .any(|expr| {
+            let mut bits = Vec::new();
+            expr.literal_bits(&mut bits);
+            bits.contains(&(-0.0f64).to_bits())
+        })
 }
 
 /// **The walk ORDER, pinned**: a document broken in a SLOT expression
@@ -279,7 +319,7 @@ fn a_payload_reference_the_table_answers_round_trips() {
 /// so out loud.
 #[test]
 fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
-    let (doc, name, extrude) = with_depth();
+    let (doc, name, extrude) = with_depth_and_extrude();
     let doc = apply(
         &doc,
         &DocEdit::SetParam {
@@ -309,6 +349,86 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         other => panic!(
             "a file broken in a slot AND in a payload must read the slot walk's refusal — the \
              walk order `validate_document` documents. Got {other:?}"
+        ),
+    }
+}
+
+/// **The walk order again, at the other edge**: a node broken in a
+/// PAYLOAD expression and STRUCTURALLY at once reads the PAYLOAD
+/// refusal, because both param-ref walks run before
+/// `persist::check::Walk::Snapshot`.
+///
+/// The fixture is an assertion whose bound reads `depth` and whose
+/// target is the EXTRUDE — a node that is not a measure, which
+/// `Node::assertion_bound_fault` refuses as
+/// `SnapshotError::AssertionTarget` — with `depth` undeclared in the
+/// same file. Both faults are real and only one sentence comes back;
+/// this row says which, so moving the payload walk behind the
+/// structural walk changes a diagnosis with a row on it rather than
+/// silently.
+///
+/// It also says the edit door could not have produced the file: the
+/// same assertion offered to `InsertNode` is refused, at the target.
+#[test]
+fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
+    let (doc, name, extrude) = with_depth_and_extrude();
+    let (doc, measure) = insert(
+        doc,
+        Node::Measure {
+            expr: MeasureExpr::value(len(1.0)),
+            refs: Vec::new(),
+        },
+    );
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            measure,
+            bound: Expr::param(name.clone(), Dimension::Length),
+            dir: editor_core::AssertionDir::AtLeast,
+        },
+    );
+
+    // The edit door, over the node the wire surgery below forges.
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Assertion {
+                measure: extrude,
+                bound: Expr::param(name.clone(), Dimension::Length),
+                dir: editor_core::AssertionDir::AtLeast,
+            },
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::AssertionTarget { .. }) => {}
+        other => panic!("the edit door must refuse an assertion on a non-measure, got {other:?}"),
+    }
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let corrupt = doctored(&text, |wire| {
+        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        assert_eq!(
+            *field,
+            serde_json::json!(measure.0),
+            "the surgery is aimed at the assertion's target"
+        );
+        *field = serde_json::json!(extrude.0);
+        let params = wire["snapshot"]["params"]
+            .as_object_mut()
+            .expect("the params are a map");
+        assert!(
+            params.remove(&name.0).is_some(),
+            "the surgery also removes the declaration the bound reads"
+        );
+    });
+
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::PayloadUnknownDocParam { node, name: n })) => {
+            assert_eq!((node, n), (assertion, name));
+        }
+        other => panic!(
+            "a node broken in a payload AND structurally must read the PAYLOAD walk's refusal — \
+             both param-ref walks run before `Walk::Snapshot`. Got {other:?}"
         ),
     }
 }

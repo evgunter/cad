@@ -21,19 +21,8 @@ use editor_core::{
     Dimension, DocEdit, EditError, Expr, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
     SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{insert, len, on_frame_keeping, scl, square};
+use fixture::{doctored, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
-
-/// Wire surgery by path, as `load_door_slot_dimension::doctored`.
-fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    edit(&mut wire);
-    let out = format!("{header}{wire}");
-    assert_ne!(out, text, "the corruption really landed");
-    out
-}
 
 /// An extrude, patterned linearly — the pattern's `count` is a
 /// Count-typed STRUCTURAL slot, the third node kind (after the extrude
