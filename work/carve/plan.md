@@ -68,8 +68,8 @@ Not yet drawn. The opening sitting reads the twenty-five rows, groups
 them into units by dependency (the description-rule sites first, since
 the loft rows and the surgery rows each cite the rule), and writes the
 order here; until then nothing dispatches. BLEND closed at its exit
-walk on 2026-09-17 with every unit but 13 merged;  (unit 13,
-blocked on PROPS' ) came here with the walk and owes the per-read
+walk on 2026-09-17 with every unit but 13 merged; `S90-impl` (unit 13,
+blocked on PROPS' `H5`) came here with the walk and owes the per-read
 classification of the nineteen bracket reads as its first step.
 
 ## Exit shape

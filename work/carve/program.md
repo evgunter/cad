@@ -18,8 +18,10 @@ how it describes what it built**: the blend surgery's phases and their
 records, the verbs' description rule at every site that mints a stored
 description, the loft's parameterisation and its section checks, and
 the fixtures the crate's own suites build those bodies from.
-Twenty-one rows arrived from `work/blend/`, each by `git mv` with its
-body, its id and its history unchanged.
+Twenty-one rows arrived from `work/blend/` at the cut and four more at
+BLEND's exit walk the same day, each by `git mv` with its body, its id
+and its history unchanged; BLEND closed at that walk
+(`docs/DOC-LEDGER.md` sweep 17).
 
 Charter and order: `work/carve/plan.md`; narrative in
 `work/carve/log.md`. Review posture is BLEND's, inherited: the full v6

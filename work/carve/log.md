@@ -35,12 +35,11 @@ Nothing dispatches until the opening sitting writes the unit order.
 ## BLEND closed (2026-09-17)
 
 BLEND's exit walk (PR #2826, "merged!" from Ev in chat) closed the
-parent the day this program opened; the sweep (
-sweep 17) deleted . Four rows arrived with the walk —
- (BLEND's unit 13, blocked on PROPS' ),
-,
- and
- — so
-the slate is twenty-five rows. Every path in  is this program's
-alone now; the "BLEND stays open" clause left .
-
+parent the day this program opened; the sweep (`docs/DOC-LEDGER.md`
+sweep 17) deleted `work/blend/`. Four rows arrived with the walk —
+`S90-impl` (BLEND's unit 13, blocked on PROPS' `H5`),
+`contact-edge-arm-is-picked-from-the-carrier-kind-not-the-dihedral`,
+`ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` and
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag` — so
+the slate is twenty-five rows. Every path in `paths` is this program's
+alone now; the "BLEND stays open" clause left `keep_out`.
