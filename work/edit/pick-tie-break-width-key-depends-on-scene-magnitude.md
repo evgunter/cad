@@ -4,7 +4,7 @@ kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
 status: review
 opened: 2026-09-16
-pr: 0
+pr: 2816
 branch: edit/pick-tie-refuses
 ---
 
