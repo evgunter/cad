@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, clusters,
-    load, product, relative_freedom_components, save, solve_document,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
+    clusters, load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
