@@ -209,26 +209,32 @@ So the chain goes, not the link:
   else in the vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks —
   CHROME's build, not in the tree today.
-- **A declaration channel, in member space.** Two members that touch
-  refuse `UndeclaredContact` exactly as a pair boolean's operands do,
-  and the union carries the same recourse: `Node::Union { members,
+- **A declaration channel, sited at the members.** Two members that
+  touch refuse `UndeclaredContact` exactly as a pair boolean's operands
+  do, and the union carries the same recourse: `Node::Union { members,
   declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
-  entities in the UNION's own name space — `FromMember { member, of }`
-  names, which the fold presents to every step through `member_view`
-  — so a declaration says "this face of member `m` meets that face of
-  member `n`" and records no fold position anywhere. Each pair is fed
-  to the fold step at which both its members are in the accumulation:
-  the later member's step in list order, the earlier side as the
-  accumulator's operand, the later as the joining member's; a pair
-  whose two names lie in ONE member is that member's carried contact
-  at its own step. A name in neither table, or in both, refuses typed
-  through the pair boolean's own resolver, which the union reuses (one
-  definition of "resolve a declared name against two tables").
-  `SetMembers` leaves `declare` as it was; a pair whose member left
-  the list refuses at the next evaluation as a vanished name does
-  (N5), never silently. The "disjoint-only" reading is not taken: the
-  common modelling case (a boss on a plate) would keep the pairwise
-  chain alive.
+  SITED entities — `SitedRef { at, name }`, the entity `name` as it
+  stands at node `at`, where `at` is the member (for a pair boolean,
+  the operand) — so a declaration says "this face of member `m` meets
+  that face of member `n`" by naming the face IN the member with the
+  member beside it, and never names the union. A declaration therefore
+  names only what exists before the union does, and is authored in one
+  pass: the `Declare` is inserted before the union that carries it.
+  Each pair is fed to the fold step at which both its sites are in the
+  accumulation: the later member's step in list order, the earlier
+  side as the accumulator's operand, the later as the joining member's;
+  a pair whose two sites are ONE member is that member's carried
+  contact at its own step; no fold position is recorded anywhere. A
+  name not in its site's table refuses typed through the pair
+  boolean's own resolver, which the union reuses (one definition of
+  "resolve a declared name at its site"); the site IS the side, so a
+  name carried by both operands is no longer ambiguous. What the
+  union PUBLISHES is unchanged — `FromMember { member, of }` is what
+  it mints; a sited pair is what it consumes. `SetMembers` leaves
+  `declare` as it was; a pair whose site left the list refuses at the
+  next evaluation as a vanished name does (N5), never silently. The
+  "disjoint-only" reading is not taken: the common modelling case (a
+  boss on a plate) would keep the pairwise chain alive.
   **Merges and order.** A merged face's name is a FLAT constituent
   set (N3) — whatever mints a `Merged` mints it flat, and a nested
   `Merged` is an emission bug, never something a consumer flattens —
@@ -242,7 +248,10 @@ So the chain goes, not the link:
   (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
 
 *Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
-the member-space declaration channel is DOCM-7 (PR 2028); the flat
+the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
+the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
+`a-declared-union-has-no-one-pass-authoring-path`), built by the unit
+that row names; the flat
 `Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
 History in `docs/DOC-LEDGER.md`.*
 
@@ -298,11 +307,12 @@ carrying node. `Node::payload_names` stays the one list of NODE
 carriers; the store is the other carrier.
 
 - **Why not an edge.** A full edge over payload names reverses the
-  carve-out and deadlocks the declared union: the union's input is the
-  `Declare`, the `Declare`'s pairs name the union, so neither could be
-  deleted alone and `cascade_delete_order`, which walks inputs, cannot
-  see the cycle. A name pointing at the consuming node's own space is
-  therefore not a separate case; it is the case that decides.
+  carve-out (D3: a name is a reference, not an edge). The case that
+  decided it was the declared union as DOCM-7 first shaped it — the
+  union's input was the `Declare` and the `Declare`'s pairs named the
+  union's own space, a cycle `cascade_delete_order` could not see;
+  sited declarations (DM4, as re-ruled on EDIT's fourth `[ev]` PR)
+  remove that cycle, and the carve-out stands on D3's own ground.
 - **Why not as-is.** A legal edit whose consequence is invisible until
   evaluation is what the maintenance column exists to end.
 - The chrome's cascade affordance shows the strand count beside its

@@ -220,3 +220,10 @@ early-out, with the derived margin the `## Amended` section records.
 The mechanism moved once (the early-out's inequality) with the decision
 unchanged; the class the width key's magnitude dependence opens is
 `pick-tie-break-width-key-depends-on-scene-magnitude`.
+
+## Superseded in part (2026-09-17, Ev on `[ev]` PR #2795)
+
+Part (c) — the tie-break — is retired: the certified tie between
+faces is REFUSED, typed, and the width is no longer a key. (a), (b)
+and (d) stand. The ruling and the unit's shape are on
+`pick-tie-break-width-key-depends-on-scene-magnitude`.

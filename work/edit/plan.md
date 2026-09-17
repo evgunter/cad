@@ -36,6 +36,9 @@ posture under §Process.
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
+   `a-declared-union-has-no-one-pass-authoring-path` was ruled by Ev
+   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended):
+   **ruled**, kernel unit, block EDIT-B2 slot 0, spec at the next claim.
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -71,10 +74,11 @@ posture under §Process.
    merged (block EDIT-B1 concluded); the ruling row
    `what-t-the-pick-door-answers-and-with-what-width` (ruled by Ev on
    `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
-   the residue rows `pick-tie-break-width-key-depends-on-scene-magnitude`
-   and `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stand open — the second on the fourth `[ev]` PR (#2795) with the
-   early-out amendment notice; `pick-face-raw-target-path-survives-only-for-rows`
+   `pick-tie-break-width-key-depends-on-scene-magnitude` was ruled by
+   Ev on the fourth `[ev]` PR (#2795): the certified tie between faces
+   is refused and the width key goes — **ruled**, middle tier, spec at
+   the next claim; `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   stands open; `pick-face-raw-target-path-survives-only-for-rows`
    is ruled and **spec'd** (middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
