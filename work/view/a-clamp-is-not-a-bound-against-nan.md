@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-16
 closed: 2026-09-17
 branch: view/clamp-nan
+pr: 2798
 ---
 
 
@@ -91,7 +92,7 @@ what is asserted is that the guard at each site does not answer it.
 `crates/viewer/src/{theme.rs, sketch.rs, app.rs}` — VIEW's, with
 `app.rs` the standing double claim with CHROME.
 
-## Closed — #PRNUM, 2026-09-17
+## Closed — #2798, 2026-09-17
 
 Each site was re-executed before it was changed; all three of the row's
 claims held. Three different repairs, because the three doors are
