@@ -7,9 +7,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, EntityRef,
-    InterfaceCrossing, InterfaceRecord, NameTable, Node, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, apply, load, save,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKey, EntityKind,
+    EntityRef, InterfaceCrossing, InterfaceRecord, NameTable, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
