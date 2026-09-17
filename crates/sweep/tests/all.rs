@@ -172,6 +172,8 @@ mod cert5_offgrid_knot_rational;
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "contact_edge_must_carry.rs"]
+mod contact_edge_must_carry;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -294,6 +296,8 @@ mod review_blend6_r2_probes;
 mod review_chamfer_r1_probes;
 #[path = "review_closed_chain_junctions_r2_probes.rs"]
 mod review_closed_chain_junctions_r2_probes;
+#[path = "review_contact_edge_must_carry_r2_probes.rs"]
+mod review_contact_edge_must_carry_r2_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -625,6 +629,8 @@ mod review_blend5_r5_probes;
 
 #[path = "review_blend4_r4_probes.rs"]
 mod review_blend4_r4_probes;
+#[path = "review_contact_edge_must_carry_r1_probes.rs"]
+mod review_contact_edge_must_carry_r1_probes;
 #[path = "shell5_r1_dump.rs"]
 mod shell5_r1_dump;
 #[path = "shell5_r1_probes.rs"]
