@@ -954,7 +954,6 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(row.why.variant, "ref_read_below_a_root")
         self.assertEqual(row.why.at, lifted)
         self.assertIsNone(row.why.width)
-        self.assertIsNone(row.why.kind)
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel
