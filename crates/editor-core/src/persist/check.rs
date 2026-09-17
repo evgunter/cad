@@ -90,9 +90,9 @@ impl core::fmt::Display for NonFiniteSite {
             Self::DocParam {
                 name,
                 field: DocParamField::Nominal,
-            } => write!(f, "document parameter {:?}", name.0),
+            } => write!(f, "document parameter {name}"),
             Self::DocParam { name, field } => {
-                write!(f, "document parameter {:?}, {field}", name.0)
+                write!(f, "document parameter {name}, {field}")
             }
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on the {name}, at {path}")
@@ -1041,10 +1041,9 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::SlotUnknownDocParam { node, slot, name } => write!(
                 f,
-                "node {}: slot {} reads the parameter {:?}, which the document does not declare",
+                "node {}: slot {} reads the parameter {name}, which the document does not declare",
                 node.0,
-                slot.label(),
-                name.0
+                slot.label()
             ),
             Self::SlotDocParamDimension {
                 node,
@@ -1054,18 +1053,17 @@ impl core::fmt::Display for SnapshotError {
                 referenced,
             } => write!(
                 f,
-                "node {}: slot {} reads the parameter {:?} as {} {referenced}, and it is \
+                "node {}: slot {} reads the parameter {name} as {} {referenced}, and it is \
                  declared {declared}",
                 node.0,
                 slot.label(),
-                name.0,
                 referenced.article()
             ),
             Self::PayloadUnknownDocParam { node, name } => write!(
                 f,
-                "node {}: its payload expression reads the parameter {:?}, which the \
+                "node {}: its payload expression reads the parameter {name}, which the \
                  document does not declare",
-                node.0, name.0
+                node.0
             ),
             Self::PayloadDocParamDimension {
                 node,
@@ -1074,10 +1072,9 @@ impl core::fmt::Display for SnapshotError {
                 referenced,
             } => write!(
                 f,
-                "node {}: its payload expression reads the parameter {:?} as {} \
+                "node {}: its payload expression reads the parameter {name} as {} \
                  {referenced}, and it is declared {declared}",
                 node.0,
-                name.0,
                 referenced.article()
             ),
             Self::MeasureRefs { node, fault } => {
@@ -1168,17 +1165,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 return Err(SnapshotError::ForwardInput { node: id, input });
             }
         }
-        // Every name-carrying payload's references, by the one list of
-        // which payloads those are: an id past the counter inside a
-        // mate head or a fillet selection is as corrupt as one inside a
-        // Declare pair, and unrepairable by `Rebind` (whose source door
-        // refuses a never-minted id) if it loads.
-        for name in node.payload_names() {
-            for n in derivation_nodes(name) {
-                check_id(n)?;
-            }
-        }
-        // And every node a reference is READ AT that is not also an
+        // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
         // an id past the counter inside an operand is as corrupt as
         // one inside the name beside it, and as unrepairable.
@@ -1256,8 +1243,17 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::MateAlignment { node: id });
         }
     }
-    for name in doc.appearance.keys() {
-        for n in derivation_nodes(name) {
+    // Every `StableName` the document holds, in ONE pass over the
+    // carrier enumeration rather than a payload walk inside the node
+    // loop above and a store walk down here, hundreds of lines apart
+    // and neither reading as half of one list. An id past the counter
+    // inside a mate head, a fillet selection or an appearance key is
+    // as corrupt as one inside a `Declare` pair, and as unrepairable
+    // by `Rebind` (whose source door refuses a never-minted id) if it
+    // loads. A carrier added to `Carrier` is checked here without
+    // being remembered into this door.
+    for carrier in doc.name_carriers() {
+        for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }
     }
@@ -1858,6 +1854,102 @@ mod tests {
                 assert_eq!(node, ids[0]);
             }
             other => panic!("a non-finite placement must refuse at save, got {other:?}"),
+        }
+    }
+
+    // ---- review probes (lane `carriers-rv`, PR #2797) ----
+
+    /// A name minted by `node`, with no role path.
+    fn rv_name(node: u64, kind: crate::names::EntityKind) -> crate::names::StableName {
+        crate::names::StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path: Vec::new(),
+        }
+    }
+
+    /// **The store half of the load door's id check**: a document
+    /// whose ONLY fault is an appearance key minted by a node past
+    /// the mint counter refuses typed, with that id named.
+    ///
+    /// Before this row the store half was held by nothing — dropping
+    /// the whole name pass reds two rows, dropping only its `Store`
+    /// arm red none. The check is reachable, not dead: no edit door
+    /// mints a key past the counter, but `SetAppearance` is the one
+    /// name-carrying edit the insert door deliberately does not check
+    /// (`resolve::walk_names`' match says why — an appearance name
+    /// resolves at evaluation, where a miss is a typed
+    /// `AppearanceLoss`), so a loaded document can hold such a key and
+    /// this door is the only one that refuses it. The corruption
+    /// needs in-crate reach for the same reason.
+    ///
+    /// The twin on the payload side is
+    /// `asm_r2a_mate_solve::row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter`.
+    #[test]
+    fn rv_an_appearance_key_past_the_mint_counter_refuses_typed() {
+        let mut doc = ProfileDoc::empty_derived("rv-store-id", Tol::witness());
+        assert_eq!(doc.next_id, 0, "the empty document has minted nothing");
+        doc.appearance.insert(
+            rv_name(7, crate::names::EntityKind::Face),
+            crate::appearance::AppearanceRecord::default(),
+        );
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id })) => {
+                assert_eq!(id, RecipeNodeId(7));
+                assert_eq!(next_id, 0);
+            }
+            other => panic!("an appearance key past the counter must refuse, got {other:?}"),
+        }
+    }
+
+    /// **The validator's name pass answers in DOCUMENT order, not id
+    /// order.** Two payload names are corrupt at once, and the
+    /// document orders their carrying nodes in the REVERSE of their id
+    /// order, so a walk over `doc.nodes` and a walk over `doc.order`
+    /// name different offending ids. This row says which one this
+    /// door does: the pass is `Doc::name_carriers`, which walks
+    /// `Doc::order`, so the document's FIRST node answers and the id
+    /// is 60.
+    ///
+    /// **That order is not a contract.** `validate_snapshot` promises
+    /// that a corrupt document refuses typed, not WHICH of its faults
+    /// it names first; `Walk::ORDER` contracts between walks, not
+    /// within one, and a caller cannot repair a doubly corrupt file by
+    /// reading the first refusal anyway. What this row is for is that
+    /// the answer moved and nothing said so — the pass used to run
+    /// inside the per-node loop over `doc.nodes`, a `BTreeMap`, and
+    /// this document refused with 50. An unpinned order that changes
+    /// silently is how a diagnosis drifts one refactor at a time, so
+    /// the row names the order the walk has now: a later change that
+    /// moves it again has to say it is moving it.
+    #[test]
+    fn rv_the_name_pass_refuses_in_document_order() {
+        let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());
+        doc.next_id = 2;
+        for (id, derived) in [(0u64, 50u64), (1, 60)] {
+            doc.nodes.insert(
+                RecipeNodeId(id),
+                Node::Declare {
+                    pairs: vec![(
+                        (
+                            rv_name(derived, crate::names::EntityKind::Face),
+                            rv_name(derived, crate::names::EntityKind::Face),
+                        ),
+                        crate::mate::ContactClass::Rest,
+                    )],
+                },
+            );
+        }
+        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        match save(&doc, &[], Tol::witness()) {
+            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, .. })) => {
+                assert_eq!(
+                    id,
+                    RecipeNodeId(60),
+                    "the name pass walks `Doc::order`, so the document's FIRST node answers"
+                );
+            }
+            other => panic!("a corrupt payload name must refuse, got {other:?}"),
         }
     }
 }

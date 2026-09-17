@@ -485,3 +485,25 @@ dispatch as wave 6's slots free. Left standing for a later sitting:
 `eval::content_key`), `recorded-notation-makes-a-rust-author-count-step-indices`
 (PATHS-shaped: the recorder's own door), C6's remaining members, D366.
 
+
+## 2026-09-17 — sixth sitting: `[ev]` #2795 ratified on both questions
+
+Ev ruled both. **Item 1**, after asking for the walkthrough (a pair
+boolean with a declaration always authored in one pass; the n-ary
+union broke because DM4's members can carry identical tables, so a
+bare pre-union name cannot say which member): the revised
+recommendation, SITED declarations (`SitedRef { at: member, name }`
+per side, one pass, the site is the side, `DeclareBothOperands`
+retires, `FromMember` unchanged as what the union publishes, DM6
+untouched) — the DM4 clause amended on the PR. **Item 2**, after
+asking whether the door should "just be refusing" and being offered
+the narrow scope (refuse at an exact shape-width tie, keep the width
+key) or the wide one: the wide — the certified tie between faces is
+REFUSED, typed, and the width key goes; a tie among one face's own
+triangles is one answer (the hull). Part (c) of the pick ruling is
+superseded, (a), (b), (d) stand. Ev also asked for the mate head's
+kind to fail to typecheck (the wave-7 lane re-scoped to a `FaceName`
+newtype) and whether `ParamName` is user-facing (it is the user's own
+parameter identifier; the row is only about quoting). Both units spec
+at the next claim: EDIT-DECL as a kernel unit (v6 dual, block EDIT-B2
+slot 0) and the tie refusal as a middle-tier unit across three crates.

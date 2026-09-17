@@ -1269,9 +1269,8 @@ impl core::fmt::Display for EvalError {
         match self {
             Self::UnknownParam(name) => write!(
                 f,
-                "parameter {:?} has no binding in the evaluation environment — declare \
-                 the document parameter or fix the reference",
-                name.0
+                "parameter {name} has no binding in the evaluation environment — declare \
+                 the document parameter or fix the reference"
             ),
             Self::ParamDimensionMismatch {
                 name,
@@ -1279,8 +1278,7 @@ impl core::fmt::Display for EvalError {
                 found,
             } => write!(
                 f,
-                "parameter {:?} is referenced as {expected} but bound as {found}",
-                name.0
+                "parameter {name} is referenced as {expected} but bound as {found}"
             ),
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \

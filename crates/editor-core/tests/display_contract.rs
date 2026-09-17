@@ -1967,3 +1967,183 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
     ];
     assert_f6_every_variant(&cases, &STEP_SEGMENTS_ERROR, &[]);
 }
+
+/// **A parameter name renders without quotes at every door but parse.**
+///
+/// [`ParamName`] is a `String` newtype, so a `{:?}` over it renders the
+/// name plus `Debug`'s quotes: prose, but carrying a delimiter the
+/// sentence did not ask for, and the crate spelled it both ways. The
+/// rule is the one [`ParamName`]'s `Display` carries — a door that
+/// FRAMES the name in a sentence of its own ("parameter width is
+/// declared length") renders it bare, and the one door that echoes the
+/// bytes an author typed, [`ParseError::UnknownParam`], keeps the
+/// quotes, because there the delimiter is what says which bytes were
+/// read.
+///
+/// The row is over the rendered SENTENCE rather than over the
+/// placeholder, so it holds whether a quote returns as a `{:?}`, as a
+/// literal pair written around the name, or through a `Debug` the
+/// newtype is given later. One arm per door: the spelling is a property
+/// of the door, and an arm added to one of these enums inherits
+/// whichever spelling its neighbours use.
+///
+/// The certified-range and stackup doors compile in the interval build
+/// only, so they are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`]
+/// rather than by a branch inside this one: a test that exists in both
+/// builds runs identical code in both.
+#[test]
+fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
+    use editor_core::{
+        DocParamField, InlineError, MeasureUnavailable, NonFiniteSite, ParamBoxError, PersistError,
+        SeedError, SplitError,
+    };
+
+    let name = ParamName::new("width");
+    let node = RecipeNodeId(5);
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "EditError::UnknownDocParam",
+            EditError::UnknownDocParam {
+                name: name.clone(),
+                node,
+                slot: SlotId::Radius,
+            }
+            .to_string(),
+        ),
+        (
+            "EditError::ContinuousParamCannotBeCount",
+            EditError::ContinuousParamCannotBeCount { name: name.clone() }.to_string(),
+        ),
+        (
+            "PersistError::DisplayUnit",
+            PersistError::DisplayUnit {
+                name: name.clone(),
+                unit: Dimension::Angle,
+                declared: Dimension::Length,
+            }
+            .to_string(),
+        ),
+        (
+            "NonFiniteSite::DocParam",
+            NonFiniteSite::DocParam {
+                name: name.clone(),
+                field: DocParamField::Nominal,
+            }
+            .to_string(),
+        ),
+        (
+            "SnapshotError::SlotUnknownDocParam",
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "EvalError::UnknownParam",
+            EvalError::UnknownParam(name.clone()).to_string(),
+        ),
+        (
+            "SplitError::UncutParamReference",
+            SplitError::UncutParamReference {
+                param: name.clone(),
+                cut_node: RecipeNodeId(1),
+                kept_node: RecipeNodeId(2),
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::ParamConflict",
+            InlineError::ParamConflict {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "SeedError::UnknownParam",
+            SeedError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "ParamBoxError::UnknownParam",
+            ParamBoxError::UnknownParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "MeasureUnavailable::BandHasNoMeasure",
+            MeasureUnavailable::BandHasNoMeasure {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
+
+    // The exception, and the reason it is one: the name is the bytes the
+    // author wrote, which may be a typo, so the quotes delimit what was
+    // read rather than decorating a name the document holds.
+    let echoed = ParseError::UnknownParam {
+        pos: 4,
+        name: name.0.clone(),
+    }
+    .to_string();
+    assert!(
+        echoed.contains(&format!("{:?}", name.0)),
+        "the parse door delimits the bytes it read: {echoed}"
+    );
+}
+
+/// Each sentence names the parameter and does not quote it — the shared
+/// predicate of
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
+/// interval-only sibling, so the two lanes cannot drift into asking
+/// different questions of the same rule.
+fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
+    let quoted = format!("{:?}", name.0);
+    for (door, shown) in framed {
+        assert!(
+            shown.contains(&name.0),
+            "{door} does not name the parameter at all: {shown}"
+        );
+        assert!(
+            !shown.contains(&quoted),
+            "{door} quotes the parameter name, which is `Debug`'s delimiter and not this \
+             sentence's: {shown}"
+        );
+    }
+}
+
+/// The two doors [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]
+/// cannot reach: `range.rs` and `stackup.rs` compile in the interval
+/// build only, so their spelling is censused in that lane — which every
+/// code-tier run gates, not a lane nobody runs.
+#[cfg(feature = "interval")]
+#[test]
+fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
+    use editor_core::{RangeRefusal, Unavailable};
+
+    let name = ParamName::new("width");
+    let framed: Vec<(&str, String)> = vec![
+        (
+            "RangeRefusal::NotAContinuousParam",
+            RangeRefusal::NotAContinuousParam {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "Unavailable::TangentDegraded",
+            Unavailable::TangentDegraded {
+                param: name.clone(),
+            }
+            .to_string(),
+        ),
+    ];
+    assert_parameter_names_are_bare(&framed, &name);
+}
