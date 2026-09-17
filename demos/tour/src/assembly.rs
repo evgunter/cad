@@ -75,7 +75,7 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
     MatePrimitive, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, UNDER_RECOURSE, apply, assemble,
     content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
@@ -171,12 +171,20 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 ///
 /// A mate declares a contact between two FACES, and the kernel says so
 /// in the type: `Node::Mate` takes `SitedFace`s, whose names are
-/// `FaceName`s. A caller holding a `StableName` from a selection door
-/// asks for one and handles the refusal — which for this tour is the
-/// same loud panic every other authoring helper here uses, because a
-/// demo that named an edge would be a demo with a bug in it.
+/// `pncad::document::FaceName`s. A caller holding a `StableName` from
+/// a selection door asks for one and handles the refusal — which for
+/// this tour is the same loud panic every other authoring helper here
+/// uses, because a demo that named an edge would be a demo with a bug
+/// in it.
+///
+/// **Spelled by full path**, because this binary also uses
+/// `tess_meter::FaceName` (`main.rs`'s face-name tokens): two
+/// unrelated types with one short name, and a bare `FaceName` here
+/// would be read as either. `tess-meter`'s is a validated text token
+/// for a mesh report; this one is a `StableName` whose kind is
+/// `Face`.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
-    let name = FaceName::new(in_part(instance, local))
+    let name = pncad::document::FaceName::new(in_part(instance, local))
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
     SitedFace::at_mint(name)
 }

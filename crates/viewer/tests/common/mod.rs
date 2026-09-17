@@ -429,23 +429,11 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     dir
 }
 
-/// A mate head over a name this fixture built as a face — the kind is
-/// the type's ([`SitedFace`](pncad::document::SitedFace)), so a
-/// fixture naming an edge does not compile, and the `expect` is this
-/// fixture's own claim about the name it just made.
-pub fn head(name: pncad::prelude::StableName) -> pncad::document::SitedFace {
-    pncad::document::SitedFace::at_mint(face(name))
-}
-
-/// The same head read at `at` rather than at its mint.
-pub fn head_at(
-    at: pncad::document::RecipeNodeId,
-    name: pncad::prelude::StableName,
-) -> pncad::document::SitedFace {
-    pncad::document::SitedFace::new(at, face(name))
-}
-
-/// A fixture's name as a [`FaceName`](pncad::document::FaceName).
-pub fn face(name: pncad::prelude::StableName) -> pncad::document::FaceName {
-    pncad::document::FaceName::new(name).expect("the fixture names a face")
-}
+// The mate-head helpers are `crate::fixture`'s, re-exported rather than
+// re-written: `tests/fixture/` is editor-core's tree, symlinked into
+// this one and mounted by this binary's root, so a second body here
+// would be a second definition of one fixture claim — and
+// `pncad::document::SitedFace` IS `editor_core::SitedFace`, the façade
+// re-exporting the kernel's type rather than wrapping it. A suite says
+// `common::head` as before.
+pub use crate::fixture::{head, head_at};

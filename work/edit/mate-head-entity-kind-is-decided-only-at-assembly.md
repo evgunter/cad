@@ -148,3 +148,61 @@ Residue in its own file:
 `interface-crossing-heads-are-bare-stable-names` (EDIT's — the split's
 crossing record did not follow the type) and
 `work/view/face-selection-carries-a-bare-stable-name` (VIEW's).
+
+### After the review (2026-09-17)
+
+The style review's verdict was MERGEABLE; every finding is taken, and
+two are taken by argument with a measurement beside it.
+
+**`RefusedRef::NotAFace` is deleted.** The reviewer measured that
+`NameTable::insert` is the one door that seats a row and refuses a key
+whose kind disagrees with its name's, so the arm's last state was
+unreachable — what it documented was a crate bug, not a refusal. The
+gate now asserts the table's rule at the site and answers `Vanished`
+in release (`operand_answer`'s third rung, the same shape). Gone with
+it: the F6 case, `refused_ref_tag`'s `ref_not_a_face`, the
+`RefusedRef.kind` Python getter and its `.pyi` entry, the tag
+inventory word, and the binding census's row. The reviewer's probe is
+now the row that says why, over BOTH seating doors.
+
+**The viewer refuses typed in every build.** `MateToolError` gains
+`PickIsNotAFace { side, refusal }`, carrying the head constructor's
+own `NotAFaceName`; the `debug_assert` beside `FaceName::new` is gone,
+because `FaceSelection` is a `pub`-field struct whose face rule lives
+in its DOOR. The two viewer probes are the rows that pin it.
+
+**The prose sweep the compiler census could not run.** `SitedRef`'s
+type doc is measure-only — one reader, `Node::Measure` — with the A12
+reading-edge contract and the `Rebind` half moved to `SitedFace`;
+`resolve_face`'s and `operand_answer`'s docs lose the deleted rungs
+and the "rung 4" citation; `mate.rs`'s and
+`msolve1_transform_aware.rs`'s headers say `SitedFace`; `ASSEMBLY.md`
+and `test_assembly_author.py` say the gate asks no kind question at
+all.
+
+**The `compile_fail` row pins its reason** by the `quantity::units`
+idiom: a RUNNING twin whose body is the same text with the head's type
+corrected, so a defect anywhere but the head reddens the twin rather
+than satisfying the block for the wrong reason, and the doc says what
+stable rustdoc does and does not check.
+
+**Measured and argued rather than taken.** (1) `SitedRef<N>` with
+`type SitedFace = SitedRef<FaceName>` compiles, but its cheapest form
+needs a reflexive `AsRef<StableName> for StableName` added to a core
+public type for no other reason; without it 24 measure-side call sites
+in 19 files break (E0277 with a bound on the constructors, E0034 with
+split inherent impls, since `SitedRef::new` becomes ambiguous). That
+is not confined to the mate-only sites, and no alias can carry the
+per-reader `at` contract each doc now states, so the two structs stay.
+(2) `test-utils` has ZERO dependencies by design and sits BELOW every
+crate, so it cannot name `StableName`; the face-fixture helper's one
+home is `tests/fixture/mod.rs`, which the viewer's test tree already
+mounts by symlink — the viewer's copy is deleted for a re-export.
+
+Filed: `work/msolve/msolve5-read-below-a-root-rows-replaced-by-face-typed-rows`
+(the three deleted MSOLVE rows, what replaced them, and the ordering
+claim that has nothing left to order). Updated:
+`work/edit/interface-crossing-heads-are-bare-stable-names` (the hole
+is wider than a file) and
+`work/view/face-selection-carries-a-bare-stable-name` (what the tool
+does now, and what the constructor would remove).

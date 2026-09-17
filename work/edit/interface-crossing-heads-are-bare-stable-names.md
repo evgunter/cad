@@ -36,6 +36,17 @@ split's crossing walk writing the heads' own `FaceName`s through
 rather than unwrapping them. `crates/pncad-py`'s crossing payload
 follows mechanically (LIB's).
 
-Measured: `crates/editor-core/tests/fix_pattern_mate_crossing.rs`
-builds crossings through the split, and nothing there names a non-face
-— so this is a hole in what a FILE may carry, not a live defect.
+**Measured, and WIDER than a file.**
+`crates/editor-core/tests/rv_matehead_probes.rs`'s
+`probe_an_edge_headed_interface_crossing_inserts_saves_and_loads` is
+the measurement and stays until this row is taken:
+`Node::instantiate_part_with` is public, so an EDGE-headed crossing is
+built IN MEMORY through an ordinary door, and then inserts, saves and
+loads. No file is needed — the load door is the third of three places
+that admit one, not the only one.
+
+Not a live defect:
+`crates/editor-core/tests/fix_pattern_mate_crossing.rs` builds
+crossings through the split, and nothing in the tree names a non-face
+one. What the row asks for is the type saying what the split already
+guarantees.

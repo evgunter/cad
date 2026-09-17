@@ -17,6 +17,14 @@
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
 //!
+//! **One caller does want the kind at COMPILE time**, and gets it from
+//! a type beside the tag rather than instead of it: a mate head is a
+//! [`FaceName`], a `StableName` whose tag is `Face` by construction.
+//! The tag is still the runtime fact everything else reads — the
+//! wrapper adds a door, it does not replace the field — and it exists
+//! for the one place where what the name denotes is fixed by the
+//! statement being made rather than discovered from it.
+//!
 //! # Locators (spec D2, cited)
 //!
 //! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry a profile's OWN
@@ -380,6 +388,11 @@ impl core::fmt::Display for NotAFaceName {
 impl core::error::Error for NotAFaceName {}
 
 /// **A [`StableName`] that denotes a FACE, by construction.**
+///
+/// Not to be confused with `tess-meter`'s `FaceName`, a validated text
+/// token in a mesh report: one short name, two unrelated types, and
+/// `demos/tour` uses both — which is why that binary spells each by
+/// full path.
 ///
 /// A name's kind is data on the name — readable with no product, no
 /// table and no evaluation — so a caller that requires a face can

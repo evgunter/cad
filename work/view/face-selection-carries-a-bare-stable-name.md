@@ -16,19 +16,33 @@ name is made.
 `crates/viewer/src/session/select.rs`'s `FaceSelection` carries
 `pub name: StableName` — a face by its door's own rule (the picking
 door refuses `SelectionRefusal::NotAFace` before a selection exists)
-and not by its type. So `matetool.rs`'s `picked_member` now calls
-`FaceName::new` on a name the picker already proved is a face, and has
-to say what it does when the constructor refuses: it asserts in debug
-and answers `NotAnInstancePick` in release, which is the arm's word
-stretched to cover a case it was not written for.
+and not by its type, with every field public. So `matetool.rs`'s
+`picked_member` calls `FaceName::new` on a name the picker already
+proved is a face, and has to say what it does when the constructor
+refuses.
+
+**What it does today**: it answers a typed arm,
+`MateToolError::PickIsNotAFace { side, refusal }`, in every build —
+the head constructor's own `NotAFaceName` carried rather than
+restated, so the sentence a user reads names the kind. It is not a
+`debug_assert`: the rule lives in the picking DOOR and the value is a
+`pub`-field struct any caller of `MateTool::pick` can build, so a
+release build must refuse it rather than reach a head the type
+forbids. Rows:
+`crates/viewer/tests/rv_matehead_probes.rs`'s two.
 
 **The fix is the same move one layer out**: `FaceSelection::name:
 FaceName`, made where the pick is made (the picking door has the
 kind in hand and already refuses the alternative), and every consumer
 reading it through `Deref`/`AsRef`. `picked_member` then takes the
-name it is given, and the stretched arm goes away rather than being
-re-worded.
+name it is given.
 
-Cited: `crates/viewer/src/matetool.rs`'s `picked_member` (the
-`debug_assert!` beside `FaceName::new`), `crates/viewer/src/session/select.rs`'s
-`FaceSelection`.
+**What taking it removes**: the `FaceName::new` call in
+`picked_member`, the `MateToolError::PickIsNotAFace` arm and its
+rendering, and the two rows above — one refusal arm fewer in the
+tool's closed enum, because the state it answers stops being
+constructible instead of being answered.
+
+Cited: `crates/viewer/src/matetool.rs`'s `picked_member` and
+`MateToolError::PickIsNotAFace`,
+`crates/viewer/src/session/select.rs`'s `FaceSelection`.
