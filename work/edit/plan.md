@@ -64,15 +64,15 @@ posture under §Process.
    **spec'd**, middle tier (wave 6).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
-4. **The resolver's doors** — EDIT-PICK and EDIT-PICK2 merged. Three
-   residue rows (`pick-closed-acceptance-loses-a-graze-to-rounding`,
-   `pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`,
-   `pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`)
-   are parked on the ruling row
-   `what-t-the-pick-door-answers-and-with-what-width`, ruled by Ev on
-   the third `[ev]` PR (#2764) and being built as EDIT-PICK3
-   (`pick-door-answers-a-t-interval`, kernel unit, v6 dual, block
-   EDIT-B1 slot 2, **dispatched**);
+4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
+   merged (block EDIT-B1 concluded); the ruling row
+   `what-t-the-pick-door-answers-and-with-what-width` (ruled by Ev on
+   `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
+   the residue rows `pick-tie-break-width-key-depends-on-scene-magnitude`
+   and `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   stand open — the second on the fourth `[ev]` PR (#2795) with the
+   early-out amendment notice; `pick-face-raw-target-path-survives-only-for-rows`
+   is ruled and **spec'd** (middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
@@ -84,7 +84,8 @@ posture under §Process.
    `debug-in-prose-residue-after-finding-sink` and
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
    **merged** (PR #2719); its residue
-   `quoted-parameter-name-in-error-prose-has-no-decision` stands, and
+   `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
+   **spec'd** (E-class, wave 7), and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
