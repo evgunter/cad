@@ -2,8 +2,9 @@
 id: what-t-the-pick-door-answers-and-with-what-width
 kind: ruling
 title: what t the pick door answers for an admitted candidate, and with what width
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -162,9 +163,60 @@ above. This row is now the unit (kernel unit, v6 dual, block EDIT-B1
 slot 2); the three rows parked on it unpark at its merge; the
 corner-labelling row stays its own.
 
+## Amended (fix pass, 2026-09-16)
+
+Part (d)'s early-out gained a derived margin; the DECISION is
+unchanged. The box still enters only as the traversal's early-out, and
+the order is still `precedes`, then the narrower interval, then
+`(target position, flat triangle position)`.
+
+The recommendation's sentence — "the traversal's early-out compares
+`t_hi(best) < t_enter(cand)`" — was a mechanism carried over from the
+rounded-`t` order, and it is unsound for the width tie-break this same
+ruling added. Membership of the certified tie is `t_lo(cand) ≤
+t_hi(best)`, so a candidate whose interval reaches back below its own
+box's entry is in the tie and was never tested; when it is the
+narrower of the two, it is the answer the rule names. Both of
+EDIT-PICK3's blinded reviewers found it independently, each with a
+probe red on `pick_face` itself (`pick3-r1`'s
+`the_early_out_prunes_a_candidate_of_the_certified_tie`, `pick3-r2`'s
+`the_certified_tie_is_decided_by_the_targets_order_through_the_early_out`,
+the second showing the answer depending on the order the targets were
+offered in).
+
+The repair derives the margin instead of loosening the sentence:
+`early_out_margin` bounds how far below its own box's entry an
+admitted candidate's `t_lo` can reach, from that candidate's triangle
+and the ray alone, every term counted and no factor chosen (the
+leading term is the triangle's own extent along the ray, twice). The
+scan drops a candidate only where that proves it preceded, so
+`Pruned == Every` is a theorem and not a hope. The
+`pruned_differs == 0` figure over the corpus's 19 296 rays is a
+MEASUREMENT that the margin holds on the rays drawn — the derivation
+is what says it holds.
+
+`docs/EDIT-PICK3-SPEC.md` carries the same amendment with the full
+derivation. **Ev is told on the next `[ev]` PR**: the mechanism in a
+ratified recommendation moved, even though what it decides did not.
+
 ## Unit (2026-09-16, EDIT orchestrator)
 
 Built by `pick-door-answers-a-t-interval` (kernel unit, v6 dual,
 block EDIT-B1 slot 2; spec `docs/EDIT-PICK3-SPEC.md`). This ruling row
 closes at that unit's merge, which is when the three rows parked on it
 unpark.
+
+## Closed (2026-09-17, EDIT orchestrator)
+
+Ruled by Ev on `[ev]` PR #2764 and built by EDIT-PICK3
+(`pick-door-answers-a-t-interval`, PR #2786, sample #215). What the
+door answers: a certified interval `[t_lo, t_hi]` around the rounded
+`t`, derived at one site from the arithmetic the acceptance already
+certifies; the order is `precedes` over the set of candidates no other
+precedes, then the narrower interval, then `(target position, flat
+triangle position)`; the hit point is the per-coordinate retraction
+into the closed triangle; the box enters only as the traversal's
+early-out, with the derived margin the `## Amended` section records.
+The mechanism moved once (the early-out's inequality) with the decision
+unchanged; the class the width key's magnitude dependence opens is
+`pick-tie-break-width-key-depends-on-scene-magnitude`.

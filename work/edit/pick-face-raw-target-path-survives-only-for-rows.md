@@ -2,7 +2,7 @@
 id: pick-face-raw-target-path-survives-only-for-rows
 kind: issue
 title: pick_face's raw PickTarget path has no non-test consumer, and its document half is a claim
-status: open
+status: spec
 opened: 2026-09-16
 refs: [2773, 1098]
 ---
@@ -75,3 +75,36 @@ private fields and the honest contract, and left this here.
 (`work/edit/program.md` paths); the four rows are TCOST's and TINT's.
 Found by lane `nodepick-fix` while taking the style review's N1 on PR
 2773.
+
+## Ruled and spec'd (2026-09-17, EDIT orchestrator) — middle tier, branch `edit/raw-target-test-support`
+
+**Ruling.** `NodePick::target` is the only mint a consumer can reach.
+`PickTarget::new` (and any other raw constructor of a target or a
+`MeshPick` over a declared document) moves behind a `test-support`
+cargo feature on `editor-core`, so that "the document half is checked"
+is true of every target a non-test consumer can hold, by construction.
+The four rows that need the raw mint keep it (the feature is enabled
+for `editor-core`'s own integration tests and for the one `pncad`
+test that uses it — measure how: a self dev-dependency with the
+feature, or `[[test]] required-features`, whichever the workspace's
+existing pattern is; `pncad` the façade does not carry it).
+
+**What lands.** The feature; the mint gated and `#[doc(hidden)]`-free
+(it is documented as the test-support door, not hidden); `PickTarget`'s
+and A2a's prose say the document half is CHECKED for every reachable
+target and the raw door is test support; #1098's raw-assembly class is
+closed at the API and its residual sentence updated; the
+`compile_fail` row on the private fields stays; a new `compile_fail`
+row (or a `cargo check` of a consumer crate without the feature —
+measure which is honest) shows the mint is unreachable without the
+feature.
+
+**Rows.** The four rows unchanged; the unreachability row above; the
+`a_raw_target_is_a_claim_in_every_half` row's doc re-read (it is now
+about the test-support door).
+
+**Territory.** `crates/editor-core/{Cargo.toml, src/resolve/pick.rs}`,
+`crates/editor-core/ASSEMBLY.md` A2a (a clause re-worded because the
+door moved, not a new decision — say so in the PR body and cite the
+CLAUDE.md test) (EDIT); `crates/editor-core/tests/*`,
+`crates/pncad/tests/all.rs` (TCOST/TINT/LIB — mechanical). Middle tier.

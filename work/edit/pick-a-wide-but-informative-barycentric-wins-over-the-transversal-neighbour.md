@@ -2,9 +2,9 @@
 id: pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour
 kind: issue
 title: a near-coplanar candidate whose barycentrics are informative but wide wins on t over the transversal neighbour at the aimed vertex
-status: parked
+status: closed
 opened: 2026-09-16
-blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
+closed: 2026-09-16
 ---
 
 
@@ -88,3 +88,46 @@ giving `t` a width moves it the other way.
 Each changes the answers `index_memo`'s differential pins and
 `review_pick_r2`'s tally counts, and the first changes what the
 tie-break is FOR, which is ratified ground. Ruling first.
+
+## Measured (EDIT-PICK3, 2026-09-16)
+
+The first shape landed — `t` is an interval and the tie-break decides
+overlap — and it resolves this class **where the two crossings are
+closer together than the near-coplanar triangle is large**, which the
+ring's own ray is not. The certified width is
+`err_u·|e1| + max(err_u, err_v)·|e2|` over `|d|`: relative to the
+triangle, not to the scene. The ring's triangles are `0.016` on a side,
+so the winner's interval is `0.030` across and lies wholly before the
+vertex `0.031` further on — it PRECEDES the transversal neighbours and
+the tie-break never runs. The fixture
+`a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex`
+(`crates/viewer/tests/index_memo.rs`) now records that, with the
+arithmetic that makes it true.
+
+Where the intervals DO overlap the tie-break takes the better-certified
+claim, which is what this row asked for: `tube_arc` at open, `+y`
+through `(1.2534, 0.3843, −1.9521)`, where `main` answered
+`1.4759_048_527_723_095` — `0.0041` short — and the door now answers
+the vertex. Pinned by
+`a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it`.
+Over the wide aim's 441 126 rays the interval order moves 502 answers,
+every one FARTHER, and gains 3 aimed vertices while losing none.
+
+**What is left of this row** is the ring's own ray: a candidate at the
+certification's noise floor, certified to a piece of the ray `0.03`
+long, answering in front of a vertex `0.031` away. Nothing in the
+derivation says that is wrong — the arithmetic vouches for the order —
+so what would close it is a bound that covers the MESH's own coordinate
+error, which `crossing`'s explicitly does not
+(`crossing`'s "What the bounds bound"). That residue is scheduled as
+its own row,
+`pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`, with
+the ring's numbers carried onto it; nothing else of this row remains,
+so it closes at EDIT-PICK3's merge.
+
+The corrected count, from the fix pass's re-measurement (2026-09-16,
+`crates/viewer/tests/pick3_acceptance.rs`): the interval order moves
+**503** of the wide aim's 441 126 answers, every one farther, and gains
+3 aimed vertices while losing none. The `502` above was measured before
+the early-out carried its derived margin and before the clamp's `v`
+bound became exact.
