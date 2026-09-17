@@ -92,7 +92,7 @@ fn srgb_linear_round_trip_is_exact() {
         let color = editor_core::appearance::Rgba8::opaque(code, code, code);
         assert_eq!(
             from_linear(linear(color)),
-            color,
+            Some(color),
             "code {code} did not survive the round trip",
         );
     }
@@ -114,7 +114,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
             };
             assert_eq!(
                 none.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} at strength 0 moved the body colour",
                 theme.name,
             );
@@ -124,7 +124,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
             };
             assert_eq!(
                 full.over(theme.body),
-                mark.tint,
+                Some(mark.tint),
                 "{}: {which} at strength 1 did not reach its tint",
                 theme.name,
             );
@@ -144,7 +144,7 @@ fn every_mark_is_visible_against_its_body() {
         for (which, mark) in theme.marks() {
             assert_ne!(
                 mark.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} composites to the body colour and marks nothing",
                 theme.name,
             );
@@ -400,7 +400,17 @@ mod cvd {
         };
         let mut out = vec![("body", scale(linear(theme.body)))];
         for (label, mark) in theme.marks() {
-            out.push((label, scale(linear(mark.over(theme.body)))));
+            // **A mark that does not composite is not measured as
+            // black.** `Mark::over` answers `None` for a strength that
+            // is not a number, and this walk is where a palette's
+            // safety CLAIM is checked: taking `None` as a colour would
+            // put pure black into every distance below, which is the
+            // most legible answer there is and would certify the
+            // palette on a value nothing computed.
+            let composited = mark
+                .over(theme.body)
+                .unwrap_or_else(|| panic!("{}: {label} does not composite", theme.name));
+            out.push((label, scale(linear(composited))));
         }
         out
     }
