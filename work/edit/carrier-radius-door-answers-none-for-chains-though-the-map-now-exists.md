@@ -145,19 +145,52 @@ All four halves landed as one change.
 4. `carrier_radius` keeps its per-loop question and loses the
    obligation paragraph; DM8's consumers line names the built door.
 
-**Not built, and why.** No fillet arc's radius reaches its wall. A
-`fillet(r)` binder holds the radius and emits no segment — the arc is
-the ARRIVAL step's, and that step holds no radius — and a fused step
-(`fillet_arc`, `arc_fillet`, `arc_fillet_arc`) holds two or three
-radii over several segments the span cannot tell apart. Both answer no
-edge, which leaves those walls exactly where they were rather than
-guessing; the one-radius shapes' spellings do enter the key, which is
-the conservative side. Pinned by
+**Not built, and why.** No fillet arc's radius reaches its wall,
+because the step a fillet's radius is authored on is never the step
+its arc is credited to. A `fillet(r)` binder holds the radius and
+emits no segment — the arc is the ARRIVAL step's, and that step holds
+no radius. `arc_fillet` is the same binder with an incoming carrier
+fused into it: measured, its span is EMPTY too. `fillet_arc` and
+`arc_fillet_arc` are arrival steps emitting the fillet arc AND the
+spec's, so their span is longer than one segment. Every one of them
+answers no edge, which leaves those walls exactly where they were
+rather than guessing; the one-radius shapes' spellings do enter the
+key, which is the conservative side. Pinned by
 `a_fillets_radius_is_a_program_answer_and_no_edges` and
-`a_step_with_several_radii_answers_no_radius`, filed as
+`a_one_radius_fused_step_attaches_to_no_edge`, filed as
 `fused-arc-fillet-steps-have-no-per-segment-radius-address`.
+
+**The radius COUNT is not what keeps a fused step out.** Only the
+`Radius`, `Sweep` and `ArcLen` arc specs carry a `CarrierRadius` role;
+a `Bulge`, `Via` or `Center` spec carries none, so a fused step over
+one of those holds exactly the fillet's one radius and passes
+`radius_arg`. `a_step_with_several_radii_answers_no_radius` is the row
+for the two-and-three-radius shapes and is not cited for the span.
 
 **One spec premise corrected.** The RED row's spelling pair is
 param → literal, not `10 mm` → `0.01 m`: display units never enter the
 key by ratified design (D7), so the two unit spellings are one
 expression and move nothing.
+
+**One deviation stands, argued rather than scheduled.**
+`ProfileValue::edge_radii` is computed in `wire_profile` from the
+node's own inputs, carries no `Serialize`, and the replay record stays
+`pub(crate)` on `ProfilePre` — so the value gains an answer, not a
+witness, and WIRE's PP1/PP2 question about where a structure witness
+lives is untouched.
+
+## Fix pass (2026-09-17)
+
+The style review's findings, built. `StepArg::is_radius` replaces the
+hand-written three-variant roster in `radius_arg` with an exhaustive
+match; `segment_radii`'s loop-shape test is `step_radii`'s own match;
+`attach_swept` refuses a walls/tokens shape mismatch loudly instead of
+attaching nothing; `edge_radii`'s `unreachable!` says why the state
+cannot occur and its lookup matches the whole `ProfileEdgeRef`. The
+review lane's probes are adopted as rows, including a chain
+canonicalization that both reverses and ROTATES (no committed fixture
+had a non-zero `start`), a mechanical inclusion row over the whole
+corpus, and a revolve whose first leg lies ON the axis, which pins
+that the attach addresses by position across the `None` its record
+holds there. The loft's per-loop-per-segment walls are filed as
+`work/issues/loft-walls-carry-no-per-edge-radius-address.md`.
