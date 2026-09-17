@@ -2,8 +2,11 @@
 id: a-clamp-is-not-a-bound-against-nan
 kind: issue
 title: Three clamps in the viewer pass NaN through and hand back a value the arithmetic did not compute
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
+branch: view/clamp-nan
+pr: 2798
 ---
 
 
@@ -88,3 +91,98 @@ what is asserted is that the guard at each site does not answer it.
 
 `crates/viewer/src/{theme.rs, sketch.rs, app.rs}` — VIEW's, with
 `app.rs` the standing double claim with CHROME.
+
+## Closed — #2798, 2026-09-17
+
+Each site was re-executed before it was changed; all three of the row's
+claims held. Three different repairs, because the three doors are
+different doors.
+
+**`theme::channel_to_srgb8`.** Answers `Option<u8>`, `None` for a
+channel that is not a number, and `from_linear` and `Mark::over` carry
+that up as `Option<Rgba8>`. The test is `is_nan` and NOT `is_finite`,
+which is the argument this site turns on: an infinity is ORDERED and
+sits above the whole gamut, so the clamp bounds it correctly; a `NaN`
+has no order, so there is no bound to put it under. The row's claim
+that this is a paint path is **wrong** — see below.
+
+**`sketch::arc_points`.** Answers `Option<usize>`, `None` when the
+radius, the swept angle or the chord tolerance is not a finite number;
+`flatten` turns that into `PreviewError::Unflattenable { loop_, vertex }`
+and `preview` reports it. `is_finite` here rather than `is_nan`,
+because an infinite radius emits `NaN` points just as surely.
+
+**`ViewerApp::fit_features_share`.** The share arithmetic is
+`features_fraction(wanted, stack) -> Option<f32>`, refusing both
+measurements unless they are numbers. The caller's `stack <= 0.0` arm
+stays what it was and means what it said — the very first frame,
+before either tile has a rectangle — and the new arm is written apart
+from it because they are different facts.
+
+## What the row was wrong about
+
+**Site 1 is not a paint path.** `Mark::over` and `from_linear` have
+exactly one caller between them and it is `crates/viewer/tests/theme.rs`
+— the colourblind check. The shader does its own mixing in WGSL. So
+the consequence is not "a poisoned colour arrives on screen as black";
+it is that the SAFETY MEASUREMENT would have taken pure black — the far
+end of every distance it computes — as the composited colour, and
+certified the palette on it. The door could therefore refuse outright,
+where the row's framing implies it could not.
+
+## What the row did not name
+
+**An ordinary authored bulge reaches site 2's defect without any
+`NaN` input at all.** A bulge of `1e-320` gives `theta = 4e-320`,
+`sin(theta/2)` of the same order and a radius of `inf`; every point
+along such an arc is `±inf` or a `NaN`. The bulge is a literal a
+`Path` step authors through `widgets::named_scalar`, and
+`Expr::literal` accepts it because it is finite.
+`an_arc_whose_radius_is_not_a_number_refuses_at_the_preview` drives it
+through the public `preview` door.
+
+**It takes a third vertex.** The two-vertex shape this was first
+written down in — an arc straight across a chord and a closing leg
+back — never reaches the flattener: the seam reverses onto itself and
+the driver refuses it as an undeclared cusp two steps earlier. The
+claim was right and the shape it was stated in was not, which is what
+driving it through the door rather than through the arithmetic
+established.
+
+**The `centre` and `start` checks are earned by a DIFFERENT case, and
+conflating the two was this row's own error.** In the producer above
+`radius` is `inf`, so `arc_points` alone refuses and the `centre`
+check is never what fires. What the `centre` check exists for is an
+arc whose radius is an ordinary finite number and whose frame is not:
+two vertices near the top of the exponent range, where the chord's own
+MIDPOINT overflows on its way to a value that would have been
+representable. At `from.x = 1.6e308`, `to.x = 1.5e308`, bulge 1, the
+radius is `4.999e306` — finite — `arc_points` answers `Some(256)`, and
+`centre` is `[inf, −3.06e290]`. `radius` carries the apothem
+(`apothem = ±radius·cos(θ/2)`) and does not carry the midpoint the
+apothem is measured from.
+`an_arc_whose_centre_overflows_refuses_at_the_preview` is that row, and
+deleting the `centre` check reds it and only it.
+
+## Residue
+
+Six rows, all on this slate. Two from the sweep this unit owed:
+`a-count-slot-launders-a-typed-nan-into-zero` and
+`world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure`.
+Four from the review of #2798, which walked the blind spots this
+unit's sweep stated and one it did not:
+`the-shader-encodes-a-mark-strength-nothing-bounds` — **the paint
+path, which is the shader and not the door this unit fixed** —
+`a-nan-edge-distance-wins-its-boundary-rather-than-losing`,
+`finite-bounds-yield-an-infinite-scene-radius`, and
+`flatten-emits-every-vertex-before-it-judges-any-of-them`.
+
+## What held the guards, in the end
+
+Three of this unit's landed guards were held by nothing when the PR
+was first pushed, and the review's mutations are what said so. The
+rows that hold them now are
+`theme::a_channel_that_is_not_a_number_is_not_a_channel`,
+`path_authoring::an_arc_whose_centre_overflows_refuses_at_the_preview`,
+`path_authoring::an_arc_whose_radius_is_not_a_number_refuses_at_the_preview`
+and `path_authoring::an_undrawable_arc_is_refused_and_not_skipped`.
