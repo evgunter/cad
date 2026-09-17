@@ -1,7 +1,7 @@
 ---
 id: interface-crossing-heads-are-bare-stable-names
 kind: issue
-title: An interface crossing's two heads are bare StableNames, not FaceNames
+title: An interface crossing's two references are bare StableNames, not FaceNames
 status: review
 pr: 2814
 branch: edit/crossing-face-heads
@@ -99,28 +99,63 @@ one opus style review with a correctness arm, then the fix pass.
 edge refuses at the wire door as `PersistError::Unreadable`;
 `Node::instantiate_part_with` takes the typed record, so one cannot be
 built in memory either. The split's crossing walk (`refactor.rs`)
-writes the heads' own face names through, and the part-side remap and
-`inline`'s dissolve check go through a new `remap_face` — one re-wrap
-at the record's boundary, `unreachable!` on the arm a remap bug would
-reach, since `remap_name` carries `kind` through unchanged.
+writes the heads' own face names through.
+
+**Premise corrected.** The ruling above says the remainder's rebind
+re-wraps through the typed head. It does not: the remainder's rebind
+runs over the DOCUMENT's own names and never touches the record. The
+re-wrap the ruling describes is the PART-SIDE remap in the crossing
+walk (`refactor::split`, the `inner` that moves into the part's id
+space) and `inline`'s dissolve check, which re-derives the same
+reference to prove it lands on a spliced local name. One call at the
+record's boundary either way; the site is not the one named.
+
+`FaceName::map_derivation` (`names/role.rs`, crate-private) is the one
+door a face name is re-derived at inside the crate. It is handed a
+name's DERIVATION — the minting node and the role path — and keeps the
+kind itself, so a rewrite cannot change a kind and no arm exists for
+the case where one did. Its three callers are `refactor::remap_face`
+(the split's crossing walk and `inline`'s dissolve check),
+`remap_node`'s head arm, and `Node::rebind_payload_names`' mate arm;
+the `unreachable!`, the `debug_assert!` and the third `FaceName::new`
+they used to spell are gone. `remap_face` answers `RemapMiss::Name`,
+and the id miss is its only miss. Where a `FaceName` comes from is one
+census in one home (`FaceName`'s doc): three boundaries that turn DATA
+into one — the wire, the Python binding's name-from-text door, the
+viewer's picked face — plus that one in-crate re-derivation.
+`SitedFace`'s copy is a pointer.
 
 Rows. `rv_matehead_probes`'s
 `probe_an_edge_headed_interface_crossing_inserts_saves_and_loads` is
 deleted and replaced, beside the mate-head load row in
 `edit_one_predicate`, by
 `a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door`
-(both fields, all three non-face kinds) and its round-trip control
-`a_face_headed_crossing_round_trips`. `InterfaceCrossing`'s doc carries
-the `quantity::units` twin: a `compile_fail,E0308` block over bare
-names and a RUNNING twin differing only in the two `FaceName::new`
+(both fields, all three non-face kinds), its round-trip control
+`a_face_referenced_crossing_round_trips`, and
+`a_crossings_references_are_bare_names_on_the_wire`, which pins a
+serialized crossing against a JSON literal. `refactor.rs`'s
+`remap_keeps_the_kind` module — the reviewer's probe, merged with its
+authorship and re-headed to the invariant — pins that a remap carries
+every kind through and that the face remap agrees with the bare one.
+`InterfaceCrossing`'s doc carries the `quantity::units` twin: a
+`compile_fail,E0308` block feeding EDGE names, as its mate-head twin
+does, and a RUNNING twin differing only in the two `FaceName::new`
 calls. Measured red first: with the fields reverted to `StableName` the
 load row answers `Ok(Loaded { … outer: StableName { kind: Body, … } })`.
 `fix_pattern_mate_crossing`'s rows are unchanged and green.
 
-Wire bytes unchanged — `FaceName` is `#[serde(transparent)]`, and
-`wire_rv_the_bytes_of_every_variant_are_pinned` is green with no
-re-baseline. `crates/pncad-py`'s crossing payload needed no code
-change: its getters reach the name through `Deref`, so what followed
-there is prose. Vocabulary note: the item calls the two fields "heads";
-the record's own prose calls them REFERENCES, and the new rows keep
-that word, reserving "head" for the mate's `SitedFace`.
+Wire bytes unchanged — `FaceName` is `#[serde(transparent)]` — and the
+receipt for that is the two rows above, not `wire_rv_bytes`, whose
+variant pins carry no interface record and never see a crossing.
+`crates/pncad-py`'s crossing payload needed no code change: its getters
+reach the name through `Deref`, so what followed there is prose, in
+`py/refactor.rs` and by hand in `pncad.pyi` (the stub a Python caller
+reads; `py/path.rs` says the two are kept in step by hand). Vocabulary:
+a crossing has REFERENCES, a mate has HEADS — the record's own word,
+applied to the code and the title here; the id is identity and does not
+move.
+
+Filed, not built:
+`work/edit/instantiate-part-crossings-are-names-payload-names-does-not-list.md`
+— `InstantiatePart` is `name_free_node!()` while its crossings carry
+two names each.

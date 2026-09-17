@@ -9,9 +9,10 @@
 //!   would have answered cannot be seated, so what it documented was a
 //!   crate bug rather than a refusal.
 //! - `DocEdit::Rebind` refuses a cross-kind pair at its own door,
-//!   before any payload is touched, which is what makes the mate arm
-//!   of `Node::rebind_payload_names` a `debug_assert` rather than a
-//!   refusal it would have to invent.
+//!   before any payload is touched, which is what lets the mate arm of
+//!   `Node::rebind_payload_names` take `to`'s DERIVATION and keep the
+//!   head's kind — no second refusal to invent, and no arm to assert
+//!   away.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -77,8 +78,8 @@ fn probe_the_name_table_refuses_a_key_that_disagrees_with_its_name() {
 /// `RebindKindMismatch` before any payload is touched, so the mate arm
 /// of `Node::rebind_payload_names` — which must produce a `FaceName`
 /// for `to` — meets a face whenever it can replace a head at all. That
-/// is what its `debug_assert` stands on, and this is the door it
-/// stands on.
+/// is what lets it rewrite the head's DERIVATION and keep the kind the
+/// type holds, and this is the door it stands on.
 #[test]
 fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
     use editor_core::EditError;
