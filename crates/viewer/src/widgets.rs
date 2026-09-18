@@ -19,14 +19,18 @@
 
 use eframe::egui;
 use pncad::document::{Dimension, RecipeNodeId};
-use pncad::profile::{ArcSide, ArcSweep};
+use pncad::geom_core::Point2;
+use pncad::profile::{ArcData, ArcMode, ArcSide, ArcSweep, Step, Target, TargetKind, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
-use crate::forms::{ANGLE_DRAG_SPEED, ArcMode, FIELD_DRAG_SPEED, PathVerb, UNIT_DRAG_SPEED};
+use crate::forms::{
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
+    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+};
 use crate::props;
 use crate::readout;
 use crate::session::{DocSession, SessionOp};
-use crate::sketch::{ArcSpec, PathStep, PathTarget};
+use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
 /// this chrome obeys: *the text reads back as the value the field
@@ -415,32 +419,48 @@ pub(crate) fn unit_vec3_row(
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
-pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
-    for (axis, component) in ["x", "y"].into_iter().zip(point) {
-        named_field(ui, axis, unit, FIELD_DRAG_SPEED, component);
-    }
+pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) {
+    named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
+    named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
 }
 
-/// A path verb's target: the entry vertex (which CLOSES the loop), or
-/// an authored point.
+/// **A path verb's target**: an authored point, the entry vertex
+/// (which CLOSES the loop), or the entry vertex with the seam's
+/// tangent joint declared.
 ///
-/// The two are one control because they are one decision — where this
-/// leg ends — and `Start` is not a point somebody could type: it is
-/// the bound entry, and aiming at it is what closing IS in this
-/// algebra (`pncad::profile::path`, which has no `close()` alias).
-pub(crate) fn target_fields(ui: &mut egui::Ui, unit: UnitDef, target: &mut PathTarget) {
-    let closing = matches!(target, PathTarget::Start);
-    let mut to_start = closing;
-    ui.checkbox(&mut to_start, "to start");
-    if to_start != closing {
-        *target = if to_start {
-            PathTarget::Start
-        } else {
-            PathTarget::Point([0.01, 0.0])
-        };
+/// One control because they are one decision — where this leg ends —
+/// and `Start` is not a point somebody could type: it is the bound
+/// entry, and aiming at it is what closing IS in this algebra
+/// (`pncad::profile::path`, which has no `close()` alias). The forms
+/// are the kernel's [`TargetKind::ALL`], so a form the vocabulary
+/// gains is offered here without an edit.
+///
+/// Switching form REPLACES the target with a fresh one, for the
+/// reason [`arc_fields`] replaces a spec: only one form has fields.
+pub(crate) fn target_fields(
+    ui: &mut egui::Ui,
+    salt: &str,
+    unit: UnitDef,
+    target: &mut Target<f64>,
+) {
+    let mut kind = target.kind();
+    let before = kind;
+    egui::ComboBox::from_id_salt(("path_target", salt))
+        .selected_text(target_kind_label(kind))
+        .width(152.0)
+        .show_ui(ui, |ui| {
+            for &option in TargetKind::ALL {
+                ui.selectable_value(&mut kind, option, target_kind_label(option));
+            }
+        });
+    if kind != before {
+        *target = sketch::fresh_target(kind);
     }
-    if let PathTarget::Point(point) = target {
-        point_fields(ui, unit, point);
+    // Exhaustive, so a form that grows a payload has to be given its
+    // fields here before this compiles.
+    match target {
+        Target::Point(point) => point_fields(ui, unit, point),
+        Target::Start | Target::StartArriving => {}
     }
 }
 
@@ -472,8 +492,8 @@ pub(crate) fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSwe
         });
 }
 
-/// **One arc leg's spec**: which of the six modes, then that mode's
-/// own fields.
+/// **One arc leg's spec**: which of the kernel's modes, then that
+/// mode's own fields.
 ///
 /// Switching the mode REPLACES the spec with a fresh one of the new
 /// mode rather than carrying numbers across. The modes do not share a
@@ -488,7 +508,7 @@ pub(crate) fn arc_fields(
     role: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
-    spec: &mut ArcSpec,
+    spec: &mut ArcData<f64>,
 ) {
     // What to call this arc's own radius. A step can hold TWO arcs and
     // a fillet between them (`arc_fillet_arc`), and every one of the
@@ -500,45 +520,45 @@ pub(crate) fn arc_fields(
     } else {
         format!("{role} r")
     };
-    let mut mode = ArcMode::of(spec);
+    let mut mode = spec.mode();
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
-        .selected_text(mode.label())
+        .selected_text(arc_mode_label(mode))
         .width(88.0)
         .show_ui(ui, |ui| {
-            for (option, label) in ArcMode::ALL {
-                ui.selectable_value(&mut mode, option, label);
+            for &option in ArcMode::ALL {
+                ui.selectable_value(&mut mode, option, arc_mode_label(option));
             }
         });
     if mode != before {
-        *spec = mode.fresh();
+        *spec = sketch::fresh_arc(mode);
     }
     match spec {
-        ArcSpec::Radius { r, side } => {
+        ArcData::Radius { r, side } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
         }
-        ArcSpec::Bulge { target, b } => {
-            target_fields(ui, length_unit, target);
+        ArcData::Bulge { target, b } => {
+            target_fields(ui, salt, length_unit, target);
             named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
-        ArcSpec::Via { q, target } => {
+        ArcData::Via { q, target } => {
             ui.label("via");
             point_fields(ui, length_unit, q);
-            target_fields(ui, length_unit, target);
+            target_fields(ui, salt, length_unit, target);
         }
-        ArcSpec::Center { c, winding, target } => {
+        ArcData::Center { c, winding, target } => {
             ui.label("centre");
             point_fields(ui, length_unit, c);
             winding_picker(ui, salt, winding);
-            target_fields(ui, length_unit, target);
+            target_fields(ui, salt, length_unit, target);
         }
-        ArcSpec::Sweep { r, side, angle } => {
+        ArcData::Sweep { r, side, angle } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
             named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        ArcSpec::ArcLen { r, side, len } => {
+        ArcData::ArcLen { r, side, len } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
             named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
@@ -546,78 +566,72 @@ pub(crate) fn arc_fields(
     }
 }
 
-/// **The step a fresh row starts as**, by where it is going.
+/// **The step a new row starts as**, by where it is going.
 ///
-/// `at` at position 0 — nothing else is well-typed at the entry, so
-/// offering anything there would be offering a refusal — and `line_to`
+/// `at` at position 0 — it is what a chain opens with — and `line_to`
 /// anywhere after it, which is the verb a chain is mostly made of. It
 /// is a starting point and not a judgement: the row's own combo,
 /// narrowed to what the lattice admits at that tip, is where it
 /// becomes something else.
-pub(crate) fn fresh_step(at: usize) -> PathStep {
-    if at == 0 {
-        PathVerb::At.fresh()
-    } else {
-        PathVerb::LineTo.fresh()
-    }
+pub(crate) fn new_row_step(at: usize) -> Step<f64> {
+    sketch::fresh_step(if at == 0 { Verb::At } else { Verb::LineTo })
 }
 
 /// **One authoring verb's own fields.**
 ///
-/// Exhaustive on [`PathStep`], like the lowering it feeds: a verb the
-/// vocabulary gains has to be given a row here before it compiles,
-/// which is the same protection `crate::sketch`'s lowering has and
-/// for the same reason — a verb reachable in one and not the other is
-/// a verb nobody can use.
+/// Exhaustive on the kernel's [`Step`]: a verb the transition table
+/// gains has to be given a row here before this compiles, as it has
+/// to be given a starting step in [`sketch::fresh_step`] — a verb in
+/// the menu with no fields would be a verb nobody can use.
 pub(crate) fn path_step_fields(
     ui: &mut egui::Ui,
     salt: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
-    step: &mut PathStep,
+    step: &mut Step<f64>,
 ) {
     // **Every field says which quantity it is.** The arms below are
-    // split further than the lowering's are — `line` and `fillet` both
-    // carry one Length and shared an arm — because what a number MEANS
-    // is the thing a row has to say, and a shared arm can only give
-    // two different quantities one name.
+    // split further than the step's shapes would need — `line` and
+    // `fillet` both carry one Length — because what a number MEANS is
+    // the thing a row has to say, and a shared arm can only give two
+    // different quantities one name.
     match step {
-        PathStep::At(point) => point_fields(ui, length_unit, point),
-        PathStep::FarEndTo(point) => {
+        Step::At(point) => point_fields(ui, length_unit, point),
+        Step::FarEndTo(point) => {
             ui.label("far end");
             point_fields(ui, length_unit, point);
         }
-        PathStep::Angle(angle) => {
+        Step::Angle(angle) => {
             named_field(ui, "angle", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        PathStep::Turn(angle) => {
+        Step::Turn(angle) => {
             named_field(ui, "turn", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        PathStep::Toward { dx, dy } => {
+        Step::Toward { dx, dy } => {
             named_scalar(ui, "dx", UNIT_DRAG_SPEED, dx);
             named_scalar(ui, "dy", UNIT_DRAG_SPEED, dy);
         }
-        PathStep::Line(length) => {
+        Step::Line(length) => {
             named_field(ui, "length", length_unit, FIELD_DRAG_SPEED, length);
         }
-        PathStep::Fillet(radius) => {
+        Step::Fillet { radius } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
-        PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
-            target_fields(ui, length_unit, target);
+        Step::LineTo(target) | Step::ContinueTo(target) | Step::TangentArcTo(target) => {
+            target_fields(ui, salt, length_unit, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
-        PathStep::FilletArc { radius, spec } => {
+        Step::FilletArc { radius, spec } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
             arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
         }
-        PathStep::ArcFillet { spec, radius } => {
+        Step::ArcFillet { spec, radius } => {
             arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
-        PathStep::ArcFilletArc {
+        Step::ArcFilletArc {
             spec,
             radius,
             spec2,
@@ -640,8 +654,34 @@ pub(crate) fn path_step_fields(
                 spec2,
             );
         }
+        // The complete-loop verbs: the whole loop in one step.
+        Step::Circle { centre, radius } => {
+            ui.label("centre");
+            point_fields(ui, length_unit, centre);
+            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+        }
+        Step::CircleSplit {
+            centre,
+            radius,
+            n,
+            phase,
+        } => {
+            ui.label("centre");
+            point_fields(ui, length_unit, centre);
+            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+            // Bounded both ways. Below two the lattice refuses, and
+            // the form does not offer that; above the cap the preview
+            // would build the whole subdivision every frame, and a
+            // typed count is enough to exhaust memory doing it.
+            ui.add(
+                number_field(n, COUNT_DRAG_SPEED)
+                    .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
+                    .prefix("n "),
+            );
+            named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);
+        }
         // Structural verbs: the verb IS the whole step.
-        PathStep::Tangent | PathStep::Cusp | PathStep::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
     }
 }
 

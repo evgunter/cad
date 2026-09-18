@@ -64,6 +64,15 @@ Applying it the other way: **a row belongs here only if a wrong number,
 or no number, reaches the screen.** A number that is merely
 inconsistently spelled in prose is VDOC's.
 
+## Ev's requests — high priority
+
+Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
+order below**: Ev asked for these directly, so they are taken before
+anything else on this slate. Each row carries Ev's note verbatim.
+
+- `datum-grid-lines-are-too-prominent-and-cover-profile-lines`
+- `committed-profiles-are-not-drawn-in-the-viewport`
+
 ## Order
 
 E-first, and the ordering is by the fail-loud class rather than by

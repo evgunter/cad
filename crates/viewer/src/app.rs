@@ -1689,7 +1689,9 @@ impl eframe::App for ViewerApp {
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        if profile_form_drawn && self.drafts.profile_loops() != authored {
+        if profile_form_drawn
+            && !sketch::authors_same_loops(&self.drafts.profile_loops(), &authored)
+        {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a

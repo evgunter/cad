@@ -222,7 +222,7 @@ impl EdgeOverlay {
 /// (`crate::gpu`'s `EDGE_MARK_SELECTED` is the ABSENCE of
 /// `EDGE_MARK_HOVERED`, so no vertex can mean both), and the two lanes
 /// are drawn from one buffer, selected first, by a pass that does not
-/// blend and does not write depth and compares `LessEqual` — so a
+/// blend and does not write depth and compares `GreaterEqual` — so a
 /// hovered lane holding the selected edge's own geometry would OVERDRAW
 /// the selected mark and resolve the opposite way from `fs_main`'s
 /// `else if`. [`Highlight`] can leave its pair to the shader because a

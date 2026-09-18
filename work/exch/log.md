@@ -214,3 +214,36 @@ option surface LIB held for two weeks is now fully ruled, none of it
 needing an implementation lane. EXCH's remaining slate: the H1
 fix-pass landing in flight, E1's fix landing in flight, then units
 2–3 and the E tail.
+## EXCH-E1 landed (2026-09-17)
+
+PR [#1854](https://github.com/evgunter/cad/pull/1854) merged at the
+full-matrix-green head `065fc3ee3`. D343 executed over both STEP
+crates with both riders (the closed_shell is_empty guard; the
+UnsupportedCurve refusal test made red-capable via printable_carrier);
+two conversions were live-panic fixes on a public door, the eight
+arena-key spellings LEFT with the fire-before-emission argument, and
+the review's kfmrh correction completed the face-killing door census.
+Single style review, adjudicated from its notes across two
+usage-limit interruptions; fix pass absorbed ~7350 commits of drift
+including one silent KnotVector::unit_segment API break caught by
+re-running the suites. Row `D343` closes with the unit; the
+export-naming residue is scheduled as
+`step-export-refusals-cannot-name-entities`.
+
+## EXCH-H1 landed (2026-09-17)
+
+PR [#1798](https://github.com/evgunter/cad/pull/1798) merged at
+`6ebcef1fd`, hosted green at the full twelve-point matrix. Degree-1
+line promotion is in: the recognition limb (INV-C3 composite +
+INV-C5 Greville map obligation; the INV-C4 excursion channel deleted
+at fix per both reviewers' executed proof), the banded wall-column
+candidate, and the seam-class Line limb. `#389` holds a candidate;
+on the merged tree main's check-7 change had made it dm1's
+every-band refusal, so this unit moved dm1's frontier to the arc-rim
+`MapResidual` at all three bands — re-pinned with the measured
+values. The dual's union landed in full (six items, two argued
+declines); five residue items filed. Unit and parent issue closed;
+the spec is deleted per the doc ledger. The A/B row (ordinal 2100)
+is recorded in `docs/MODEL-AB-LOG.md` at merge, with the
+process-incident annotations; block EXCH-B1 slots 1–2 stay banked
+branch-side.
