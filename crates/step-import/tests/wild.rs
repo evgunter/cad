@@ -36,7 +36,7 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The imports-class corpus: files that import to a first-class,
 /// tier-valid body, each with an oracle-derived `.expect` sidecar.
-const WILD_IMPORTS: [&str; 9] = [
+pub(crate) const WILD_IMPORTS: [&str; 9] = [
     "adafruit/328_2500mAh_battery.step",
     "adafruit/1982_MPR121.step",
     "adafruit/805_slide_switch.step",
@@ -110,7 +110,7 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
 /// column-72 string folds included, which is the point).
-fn wild(name: &str) -> String {
+pub(crate) fn wild(name: &str) -> String {
     let path: PathBuf = [
         env!("CARGO_MANIFEST_DIR"),
         "tests",

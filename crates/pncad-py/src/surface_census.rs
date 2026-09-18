@@ -559,6 +559,7 @@ fn options_doors() -> Vec<Roster> {
     let ImportOptions {
         eps_in: _,
         declared_contacts: _,
+        examine_chart_coherence: _,
     } = &import;
 
     let ascii = AsciiOptions::default();
@@ -614,6 +615,23 @@ fn options_doors() -> Vec<Roster> {
                         would_be: &["declared_contacts"],
                         reason: "its element type `ImportContact` has no Python spelling, so \
                                  the keyword would take a list of nothing a caller can build",
+                    },
+                ),
+                // The flag is a `bool` a Python keyword could carry
+                // trivially; what it cannot carry is the ANSWER. The
+                // field it turns on reports a `topo::CoherenceReport`
+                // on `StepImport::Solid`, and that type has no Python
+                // spelling, so a bound keyword would set a switch
+                // whose result `ImportReport` does not expose — a
+                // caller could ask and never read. Binding the pair
+                // together is LIB surface work and its own row.
+                (
+                    "examine_chart_coherence",
+                    Spelling::NotBound {
+                        would_be: &["examine_chart_coherence"],
+                        reason: "the report it produces (`topo::CoherenceReport`) has no Python \
+                                 spelling and no field on `ImportReport`, so the keyword would \
+                                 set a switch whose answer a caller cannot read",
                     },
                 ),
             ],

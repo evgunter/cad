@@ -2050,6 +2050,11 @@ pub(crate) fn import_step(
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
         declared_contacts: defaults.declared_contacts,
+        // This door asks for no chart-coherence examination, because
+        // `ImportReport` has no field to report one on: asking would
+        // measure the body and drop the measurement. The surface
+        // census carries that decision as a `NotBound` row.
+        examine_chart_coherence: defaults.examine_chart_coherence,
     };
     match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
@@ -2059,6 +2064,10 @@ pub(crate) fn import_step(
             normalizations,
             curve_promotions,
             instances,
+            // `None` by construction: the options above ask for no
+            // examination, and `None` means NOT ASKED — which is the
+            // one thing an empty report would not say.
+            coherence: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: MassProperties {
