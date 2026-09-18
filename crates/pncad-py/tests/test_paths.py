@@ -455,13 +455,18 @@ class TestTheSeamArrival(unittest.TestCase):
             .turn(90 * deg)
             .line(1 * m)
         )
-        self.closes_only_declared(lambda target: tip.arc_to(Bulge(target, 1.0)))
+        loop = self.closes_only_declared(lambda target: tip.arc_to(Bulge(target, 1.0)))
+        self.assertEqual(loop.vertex_count, 5)
 
     def test_the_declaration_is_checked(self):
         # A square's seam is a right angle; declaring it tangent is
         # contradicted by the geometry, and the kernel says so.
-        tip = Open.at(ORIGIN).line_to((1 * m, 0 * m)).line_to((1 * m, 1 * m))
-        tip = tip.line_to((0 * m, 1 * m))
+        tip = (
+            Open.at(ORIGIN)
+            .line_to((1 * m, 0 * m))
+            .line_to((1 * m, 1 * m))
+            .line_to((0 * m, 1 * m))
+        )
         with self.assertRaises(pncad.PathError) as caught:
             tip.line_to(Start.arrives_tangent())
         self.assertEqual(caught.exception.variant, "seam_arrival_off_direction")
@@ -469,7 +474,10 @@ class TestTheSeamArrival(unittest.TestCase):
     def test_via_and_center_do_not_take_the_declaration(self):
         # The kernel's `Via` and `Center` closers take bare `Start`
         # only, so the declared token is refused at construction — the
-        # Python face of Rust's missing trait impl.
+        # Python face of Rust's missing trait impl. Bare `Start` builds,
+        # so the token is the only difference.
+        Via((1 * m, 1 * m), Start)
+        Center(ORIGIN, ArcSweep.Ccw, Start)
         arriving = Start.arrives_tangent()
         with self.assertRaises(TypeError):
             Via((1 * m, 1 * m), arriving)

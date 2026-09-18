@@ -138,13 +138,22 @@ are exactly the closers the kernel's `ArrivesTangent` serves. `Via`
 and `Center` refuse it with a TypeError at construction, mirroring the
 missing trait impls in Rust; lifting that is
 `work/paths/via-and-center-arc-closers-declared-arrival.md`.
-`PyTarget` now carries all three forms, and `Via`/`Center` extract a
-narrower `ThroughTarget`.
+`PyTarget` now carries all three forms. The binding still spells the
+vocabulary in its own enums, and there are four of them now, on
+purpose: `PyTarget`/`BulgeTgt` carry three forms and
+`ThroughTarget`/`Tgt` carry two, because `Via` and `Center` do not
+take the declaration (each pair is an extraction enum and its lowered
+twin).
 
-The census this row asked for now exists:
+The census this row asked for now exists, and here is what it forces.
 `surface_census.rs`'s `every_target_form_has_a_python_spelling` keys
-on `TargetKind::ALL` through an exhaustive `target_class` match, so a
-new form fails to compile until someone gives it a Python class. While
+on `TargetKind::ALL` through an exhaustive `target_class` match. So a
+new kernel form fails to compile until it is given a Python class
+name, and fails the test until the stub declares that class and some
+signature accepts it. It does NOT force the binding's own enums: those
+are still hand-written, and a form could reach the stub while
+`PyTarget` refuses it at runtime. The runtime half is guarded only by
+`tests/test_paths.py`. While
 writing it, the census found a blind spot in the stub scanner that is
 fixed here too: `Stub::defs` kept only the FIRST `@overload` of each
 `def`, so the census never read any type accepted only by a later

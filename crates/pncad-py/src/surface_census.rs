@@ -74,8 +74,7 @@ struct Stub {
     names: BTreeSet<String>,
     /// Each `def`'s source text from `def` to its closing paren,
     /// keyed by the same qualified name — one text per `@overload`,
-    /// because the overloads of one verb take DIFFERENT types (the
-    /// closing target is always a later overload than the point).
+    /// because the overloads of one verb take different types.
     defs: BTreeMap<String, Vec<String>>,
     /// Top-level `NAME = <rhs>` right-hand sides — the stub's private
     /// `TypeAlias`es, which is where the admissibility unions live.
@@ -896,6 +895,10 @@ fn every_arc_mode_has_a_python_spelling() {
 /// **The target census.** Every target form's token is a class
 /// `pncad.pyi` declares AND some signature admits — the mode census's
 /// two halves, over the other vocabulary a leg's end is spelled in.
+///
+/// SOME signature, not each closer's: which verbs take which token is
+/// the `ty` fixtures' claim (`tests/ty_fixtures/legal.py`), and the
+/// binding's runtime extraction is `tests/test_paths.py`'s.
 #[test]
 fn every_target_form_has_a_python_spelling() {
     let stub = stub();

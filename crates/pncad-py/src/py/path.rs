@@ -114,7 +114,7 @@ impl StartToken {
         "Start"
     }
 
-    /// `Start` with the seam's tangent joint DECLARED — the one
+    /// `Start` with the seam's tangent joint DECLARED — the seam's
     /// arrival declaration. The kernel checks the arriving direction
     /// against `Start`'s own and refuses a seam that contradicts it;
     /// undeclared, a zero-turn seam refuses instead.
@@ -1336,16 +1336,16 @@ impl PathDirected {
             (Directed::Plain(p), PyTarget::Start(_)) => {
                 out_closed(py, p.clone().tangent_arc_to(pf::Start, tol))
             }
+            (Directed::Plain(p), PyTarget::StartArriving(_)) => out_closed(
+                py,
+                p.clone().tangent_arc_to(pf::Start.arrives_tangent(), tol),
+            ),
             (Directed::WithIncoming(p), PyTarget::Point(t)) => {
                 out_point(py, p.clone().tangent_arc_to(pt(t), tol))
             }
             (Directed::WithIncoming(p), PyTarget::Start(_)) => {
                 out_closed(py, p.clone().tangent_arc_to(pf::Start, tol))
             }
-            (Directed::Plain(p), PyTarget::StartArriving(_)) => out_closed(
-                py,
-                p.clone().tangent_arc_to(pf::Start.arrives_tangent(), tol),
-            ),
             (Directed::WithIncoming(p), PyTarget::StartArriving(_)) => out_closed(
                 py,
                 p.clone().tangent_arc_to(pf::Start.arrives_tangent(), tol),
