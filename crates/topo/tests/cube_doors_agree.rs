@@ -416,7 +416,11 @@ fn the_generic_box_doors_agree_at_an_interval_scalar() {
             ),
             ("cube_into", {
                 let mut body = Body::<Interval>::new();
-                common::cube_into(&mut body, onto::<Interval>(x, y, z), geom_core::Tol::witness());
+                common::cube_into(
+                    &mut body,
+                    onto::<Interval>(x, y, z),
+                    geom_core::Tol::witness(),
+                );
                 dump(&body)
             }),
         ];

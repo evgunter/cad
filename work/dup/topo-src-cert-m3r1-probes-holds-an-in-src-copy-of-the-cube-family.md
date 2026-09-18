@@ -2,8 +2,9 @@
 id: topo-src-cert-m3r1-probes-holds-an-in-src-copy-of-the-cube-family
 kind: issue
 title: cert_m3r1_probes.rs carries a verbatim in-src copy of the whole geometric-cube fixture family
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-18
 ---
 
 
@@ -115,3 +116,35 @@ difference is the cfg shape, not the directory.
 into the shared family after link 3, its call sites have to thread
 `tol: Tol` because the family's doors now take it (link 2), not because
 anything would red if they did not.
+
+
+## Closed (2026-09-18, `dup/move-the-fixture-family`)
+
+**Folded.** `crates/topo/src/cert_m3r1_probes.rs` no longer holds a
+copy of anything. `GeoCube`, `line`, `plane`, `geometric_cube`,
+`describe_as_intersections` and the local `face_surface_of_he` are
+deleted from it; it now names
+`crate::test_support_fixtures::{geometric_cube, describe_as_intersections,
+face_surface_of_he}` and builds nothing box-shaped. The file went from
+382 lines to 225. What it keeps is its own subject: `nurbs_wall`,
+`m7_8_cube`, `six_doors`, `edge_cert_count`, `DOOR_NAMES` and the row.
+
+**The two stale "copied verbatim" sentences are gone with the code they
+described**, so the doc-rot this row tracked over two decays has no
+carrier left. The lesson it drew — *if the in-`src` copy survives the
+move, the claim it carries should be one a test can check* — is
+discharged the other way: the copy did not survive.
+
+**The header's `Body::surfaces` argument still holds and is still
+served.** The corruption route needs `pub(crate)` access
+(`body.surfaces[wall] = nurbs_wall(0.05)`), which is why this module is
+in-crate; the fold does not move it out. `test_support_fixtures` is
+mounted `#[cfg(any(test, feature = "test-support"))]`, so it exists in
+the `cfg(test)` build this module compiles in, and an in-crate module
+names it by path.
+
+**The witness note was right and cost nothing.** This module is still
+`#[cfg(test)] mod cert_m3r1_probes;`, so the gate still does not reach
+it; its `Tol::witness()` calls stay legal. Two of them are new, at the
+two folded doors, because the family's signatures take `tol: Tol` after
+link 2 — exactly as this row predicted.

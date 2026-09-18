@@ -2,8 +2,9 @@
 id: brick-has-two-constructions-and-two-homes
 kind: issue
 title: The axis-aligned box is built two ways in two homes; the shared home is topo's, not sweep's
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-18
 refs: [topo-tests-brick-copies]
 ---
 
@@ -1004,3 +1005,73 @@ asserts `n >= 3`, `fixtures::prism` accepts `n >= 2`);
 were read, not executed; the `all.rs` alias was not compiled; no
 consumer above `topo` was built against a moved family;
 `cert_m3r1_probes.rs`'s copy was not dumped.
+
+
+## Closed (2026-09-18, `dup/move-the-fixture-family`) — link 3 landed, with one bullet carved out
+
+**Option 3, as adjudicated.** The family is
+`crates/topo/src/test_support_fixtures.rs`, a sibling of
+`test_support_impl.rs` mounted `#[cfg(any(test, feature =
+"test-support"))]` and re-exported flat through `topo::test_support`.
+`ArenaCounts` keeps its allow-free file. The `#![allow]` carried is
+`unwrap_used` + `expect_used` with `fixtures.rs`'s argument comment
+adapted; **the `panic` arm was dropped**, since the measurement had it
+earning zero.
+
+**The one call site moved, and it compiles.** `mod common;` at
+`tests/all.rs` is now `use topo::test_support as common;`. All 279
+`common::` references still resolve — a crate-root `use` is private but
+visible to descendants, which is every suite module. No suite file
+changed for the move. This retires the row's *"read, not compiled"*
+caveat.
+
+**`tests/fixture/mod.rs` moved nowhere**, as adjudicated.
+
+**The collision was resolved by renaming the INCUMBENT, not the
+incomer.** `crates/topo/src/fixtures.rs`'s `prism`/`Prism` are now
+`raw_prism`/`RawPrism` — 12 call sites inside `crates/topo/src/`, the
+number this row measured for that direction. So `prism` and `Prism` now
+have exactly one definition each in the crate and no `use` can bind the
+wrong one. `test_support_fixtures`'s own
+`the_two_prism_families_build_different_bodies` is the guard: it asserts
+the two agree on every arena length and then separates them by surface
+kind, carrier description and mass properties — the axes a counts check
+cannot see.
+
+**`cert_m3r1_probes.rs` is folded** and its row
+(`topo-src-cert-m3r1-probes-holds-an-in-src-copy-of-the-cube-family`)
+is closed. A sixth copy the row named in passing folded with it:
+`face_surface_of_he` was written four times (a closure in the family, a
+free function in `cert_m3r1_probes.rs`, a closure in
+`tests/bool4_material_containment.rs`, a free function in
+`tests/m4_pr2_transform.rs`) and is now one exported function.
+
+**Link 1's carried residue is fixed.** `mapped_cube` and `cube_into`
+are generic in the `Decide` scalar, and **no call site needed an
+annotation** — the closures they take already fix `T`. The payoff is
+executed, not asserted: `tests/cube_doors_agree.rs`'s interval row now
+runs the whole four-door roster instead of the two generic ones.
+
+**Two `src/` guards had to learn about the new home**, which is a fact
+the move turned up and nothing predicted. `crate::source_walk::mutation_doors`
+walks `topo/src` for `pub fn` taking `&mut Body`, so `prism_ops`,
+`describe_as_intersections` and `cube_into` entered the population of
+`review_m1_pr5_internal::ALLOWED` and
+`pcurves::staleness_posture::DECLARED`. They were given entries in both,
+with the reason tier 1 and the pcurve map survive each — the guards'
+own prescribed remedy. **Narrowing either walk to exclude test-support
+sources was considered and refused**: it would shrink a guard's
+population so that new code escapes it, and the entries are true and
+checkable.
+
+### What did NOT land: the `sweep` bullet
+
+*"`sweep::test_support::brick` delegates to it or is deleted"* is the
+one part of link 3 this unit could not do, for three measured reasons —
+a scalar-domain mismatch (`(T, T)` against `(f64, f64)`, which `block`
+and `cube` propagate), a `src/`-to-`src/` feature edge that
+`scripts/gates/test-features-dev-only.sh` polices, and a committed
+`.step` corpus regenerated from those builders. Filed with its evidence
+as `work/dup/sweep-test-support-brick-is-still-a-second-box-construction.md`
+rather than left in a PR body. Nothing blocks it now that the home
+exists.

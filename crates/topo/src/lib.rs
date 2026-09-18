@@ -263,12 +263,12 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
-    pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_fixtures::{
         GeoCube, Prism, PrismOps, StraddleSeat, assert_every_chord_named_by_both_rules, brick,
         cube_into, describe_as_intersections, face_surface_of_he, flush_declarations,
         geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
     };
+    pub use crate::test_support_impl::ArenaCounts;
 
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's

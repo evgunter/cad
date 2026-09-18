@@ -33,11 +33,11 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+use crate::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
-use crate::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 
 /// **The two independent at-rest rules a conventional chord breaks**,
 /// asserted as a pair over exactly this body's edges — and nothing
@@ -612,10 +612,6 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
-    /// The square profile the two families' four-corner prisms are
-    /// compared over.
-    const SQUARE: [(f64, f64); 4] = UNIT_SQUARE;
-
     /// **The two `prism`s in this crate build different artifacts, and
     /// the difference is geometric.** [`crate::fixtures::raw_prism`]
     /// and this module's [`prism`] take near-identical arguments and
@@ -631,7 +627,7 @@ mod tests {
     #[test]
     fn the_two_prism_families_build_different_bodies() {
         let tol = Tol::witness();
-        let euler = prism::<f64>(&SQUARE, 1.0, tol);
+        let euler = prism::<f64>(&UNIT_SQUARE, 1.0, tol);
         let raw = crate::fixtures::raw_prism(4, tol);
 
         // The lengths agree, which is exactly why the rest of this test
