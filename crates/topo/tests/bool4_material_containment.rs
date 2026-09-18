@@ -558,11 +558,7 @@ fn nurbs_walled_bracket() -> Body<f64> {
             topo::FaceSurface::New(nurbs_wall((0.0, 3.0), (0.0, 1.0))),
         )
         .unwrap();
-    let face_surface_of_he = |body: &Body<f64>, he: topo::HalfEdgeKey| {
-        let he_data = body.get_half_edge(he).unwrap();
-        let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-        body.get_face(loop_data.face).unwrap().surface
-    };
+    let face_surface_of_he = common::face_surface_of_he::<f64>;
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {

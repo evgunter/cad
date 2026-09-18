@@ -471,9 +471,9 @@ pub fn prism_z<T: geom_core::Decide>(
 /// its rows assert on. Every other one — `brick`, [`prism`],
 /// [`prism_z`], [`mapped_cube`], [`cube_into`] — is [`prism_ops`] and
 /// then that step, so they agree arena for arena wherever their domains
-/// meet, an axis-aligned box, and they differ only in reach: any extent
-/// at any `Decide` scalar against `f64` under any point map, tilts
-/// included.
+/// meet, an axis-aligned box, and they differ only in what they vary:
+/// an extent on one side, a point map on the other with tilts included.
+/// Every one of them is generic in the `Decide` scalar.
 ///
 /// **Both halves of that are pinned by `tests/cube_doors_agree.rs`**,
 /// which is where to look before trusting either. A shared core is what
@@ -554,15 +554,22 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
 /// `Scaffold(ExtrudedPoint …)`/`Declared`.
-pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) -> Body<f64> {
-    let mut body = Body::<f64>::new();
+pub fn mapped_cube<T: geom_core::Decide>(
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
+) -> Body<T> {
+    let mut body = Body::<T>::new();
     cube_into(&mut body, map, tol);
     body
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) {
+pub fn cube_into<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
+) {
     prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, tol);
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.

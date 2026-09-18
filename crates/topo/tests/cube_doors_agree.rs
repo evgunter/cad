@@ -54,12 +54,16 @@ use crate::common;
 /// The affine map carrying the unit cube onto `[x] x [y] x [z]` — the
 /// one map under which the fixed cube corners and `prism_z`'s
 /// profile describe the same box.
-fn onto(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> impl Fn(f64, f64, f64) -> Point3<f64> {
+fn onto<T: Decide>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> impl Fn(f64, f64, f64) -> Point3<T> {
     move |u, v, w| {
         Point3::new(
-            x.0 + u * (x.1 - x.0),
-            y.0 + v * (y.1 - y.0),
-            z.0 + w * (z.1 - z.0),
+            T::from_f64(x.0 + u * (x.1 - x.0)),
+            T::from_f64(y.0 + v * (y.1 - y.0)),
+            T::from_f64(z.0 + w * (z.1 - z.0)),
         )
     }
 }
@@ -341,11 +345,11 @@ fn every_box_door_builds_one_body() {
             ),
             (
                 "mapped_cube",
-                dump(&common::mapped_cube(onto(x, y, z), Tol::witness())),
+                dump(&common::mapped_cube(onto::<f64>(x, y, z), Tol::witness())),
             ),
             ("cube_into", {
                 let mut body = Body::<f64>::new();
-                common::cube_into(&mut body, onto(x, y, z), Tol::witness());
+                common::cube_into(&mut body, onto::<f64>(x, y, z), Tol::witness());
                 dump(&body)
             }),
         ];
@@ -367,10 +371,10 @@ fn every_box_door_builds_one_body() {
     }
 }
 
-/// The generic box doors agree at a scalar that is not `f64`.
+/// The box doors agree at a scalar that is not `f64`.
 ///
-/// `mapped_cube` and `cube_into` are `f64`-only, so the roster here is
-/// the generic half of the family; what this adds is the lane. A
+/// The roster is the whole family, exactly as the `f64` row above: what
+/// this adds is the lane, not a narrower set of doors. A
 /// construction that is right at `f64` and wrong under an enclosure —
 /// a corner recomputed rather than carried, a witness taken from the
 /// wrong end — moves one door and not the other here and nowhere else
@@ -403,6 +407,18 @@ fn the_generic_box_doors_agree_at_an_interval_scalar() {
                         .body,
                 ),
             ),
+            (
+                "mapped_cube",
+                dump(&common::mapped_cube(
+                    onto::<Interval>(x, y, z),
+                    geom_core::Tol::witness(),
+                )),
+            ),
+            ("cube_into", {
+                let mut body = Body::<Interval>::new();
+                common::cube_into(&mut body, onto::<Interval>(x, y, z), geom_core::Tol::witness());
+                dump(&body)
+            }),
         ];
         if z.0 == 0.0 {
             doors.push((
@@ -429,7 +445,7 @@ fn the_generic_box_doors_agree_at_an_interval_scalar() {
 /// sample is deliberately outside what the agreement rows can reach:
 /// `n = 3`, `n = 5` and a reflex `n = 6` (which only the profile doors
 /// spell), a shear (which only the mapped doors spell), and a scalar
-/// that is not `f64` (which only the generic doors spell).
+/// that is not `f64`.
 #[test]
 fn every_door_builds_the_prism_its_inputs_name() {
     let ident = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
@@ -497,7 +513,9 @@ fn every_door_builds_the_prism_its_inputs_name() {
 }
 
 /// [`every_door_builds_the_prism_its_inputs_name`] at a scalar that is
-/// not `f64`, over the same off-rectangle profiles.
+/// not `f64`, over the same off-rectangle profiles. The shear is left
+/// at `f64`: what the mapped doors add here is the map, and the lane is
+/// what the rows above it carry.
 #[cfg(feature = "interval")]
 #[test]
 fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
