@@ -513,7 +513,7 @@ fn the_sectioned_vessel_stops_at_the_props_door() {
 /// **The torus wall's closed-form parse names its spiric rim** — the
 /// one public door that reaches `torus_boundary`'s named `Spiric` arm:
 /// the vessel cavity's torus face's loop, read through
-/// `topo::loop_edges`, handed to `geom_brep::curved_face` (the
+/// `topo::props::loop_edges`, handed to `geom_brep::curved_face` (the
 /// closed-form flux door `topo`'s face flux takes for an UNtrimmed
 /// loop). `NotIsoRectangle { "torus boundary edge is not a circle" }`,
 /// the arm the props door would raise if the quadrature lane did not
@@ -540,7 +540,7 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
         .expect("a spiric rim bounds a torus face");
     let face = cavity.get_face(torus_face).expect("face");
     let surface = cavity.get_surface(face.surface).expect("surface");
-    let (edges, _) = topo::loop_edges(&cavity, face.outer).expect("the loop reads");
+    let (edges, _) = topo::props::loop_edges(&cavity, face.outer).expect("the loop reads");
     let band = Band::linear(tol()).expect("band");
     let sense = if face.sense { 1.0 } else { -1.0 };
     let e = geom_brep::curved_face(surface, &edges, sense, band)
