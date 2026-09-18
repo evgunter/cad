@@ -450,6 +450,13 @@ pub fn spiric_arc_aabb<T: Bounds>(
     let my = az.mul(nx).sub(ax.mul(nz));
     let mz = ax.mul(ny).sub(ay.mul(nx));
 
+    // `curves::spiric_f_range`'s two numbers in bracket arithmetic —
+    // the plain-scalar helper cannot round outward, so the range is
+    // spelled here a second time, in `Brk`. Each radicand is a genuine
+    // DIFFERENCE, not a sum of squares: `sqrt_nonneg`'s clamp at zero
+    // is right for it anyway, because a radicand at or below zero is
+    // the one-oval regime, where the true `f` is zero at the fold and
+    // a box reaching down to `f = 0` is still a superset.
     let d2 = d.mul(d);
     let rho_min = big.sub(r);
     let rho_max = big.add(r);

@@ -194,6 +194,13 @@ pub enum Curve3<T: Real> {
     ///   frame data, there is no `bool`. Under `u_ref ↦ −u_ref,
     ///   offset ↦ −offset` alone the OTHER oval is named.
     ///
+    /// [`Curve3::spiric`] is the one deciding door into this variant:
+    /// it decides the ring, the two-oval regime and the frame's
+    /// orthogonality through named predicates, exactly as
+    /// [`Curve3::ellipse`] decides its axis ordering. A struct literal
+    /// that bypasses it owns the consequences (well-defined garbage or
+    /// poison, never a panic).
+    ///
     /// The locus is a bicircular quartic of genus 1 — no rational
     /// parameterization exists, so no `Nurbs` is its exact locus.
     Spiric {
@@ -280,6 +287,66 @@ impl core::fmt::Display for EllipseInvalid {
 
 impl std::error::Error for EllipseInvalid {}
 
+/// Typed refusal of [`Curve3::spiric`] — the one place that decides a
+/// spiric's regime (one kind per configuration, D3; the constructor is
+/// the only decision point).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpiricInvalid {
+    /// The minor radius is not definitely positive (a degenerate tube,
+    /// not a torus).
+    MinorNotPositive,
+    /// `R ≤ r`: not a ring torus (a horn or spindle torus, whose
+    /// axis-parallel sections are not two ovals).
+    NotARing,
+    /// `|offset| ≥ R − r`: the cutting plane reaches the inner
+    /// equator, so the section is a node, one oval with folds, or
+    /// empty — not the two-oval regime this kind carries.
+    NotTwoOvals,
+    /// `axis · u_ref` is definitely nonzero (levered at `R + r`): the
+    /// cutting plane is not parallel to the torus axis.
+    FrameNotOrthogonal,
+    /// A constructor predicate landed in the ambiguity band or was
+    /// poisoned (`spiric_minor_positive`, `spiric_ring`,
+    /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
+    Escalated(Indeterminate),
+}
+
+impl core::fmt::Display for SpiricInvalid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::MinorNotPositive => write!(
+                f,
+                "spiric construction: the minor radius is not positive (a degenerate tube, \
+                 not a torus)"
+            ),
+            Self::NotARing => write!(
+                f,
+                "spiric construction: major ≤ minor — not a ring torus, whose axis-parallel \
+                 sections are the two ovals this kind carries"
+            ),
+            Self::NotTwoOvals => write!(
+                f,
+                "spiric construction: |offset| ≥ major − minor — the cutting plane reaches \
+                 the inner equator, so the section is not two ovals"
+            ),
+            Self::FrameNotOrthogonal => write!(
+                f,
+                "spiric construction: axis · u_ref is not zero — the cutting plane is not \
+                 parallel to the torus axis"
+            ),
+            Self::Escalated(diag) => write!(
+                f,
+                "spiric construction escalated: {} — the configuration sits too close to a \
+                 regime boundary to name the kind; {} (D4)",
+                diag.payload(),
+                geom_core::COINCIDENCE_RECOURSE
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SpiricInvalid {}
+
 impl<T: Real> Curve3<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -340,6 +407,77 @@ impl<T: Decide> Curve3<T> {
             u_ref,
         })
     }
+
+    /// The one deciding door into [`Curve3::Spiric`]: refuses a
+    /// non-positive minor radius, a non-ring torus, a stand-off at or
+    /// past the inner equator, and a cutting plane not parallel to the
+    /// axis, each through a named trilean:
+    ///
+    /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
+    ///   required; else [`SpiricInvalid::MinorNotPositive`].
+    /// - `spiric_ring` — margin `major_radius − minor_radius` (m):
+    ///   Positive required; else [`SpiricInvalid::NotARing`].
+    /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
+    ///   |offset|` (m), the length the two-oval regime closes by,
+    ///   decided BEFORE any root is taken: Positive required; else
+    ///   [`SpiricInvalid::NotTwoOvals`].
+    /// - `spiric_frame_orthogonal` — margin `axis · u_ref` levered at
+    ///   `major_radius + minor_radius` (m, the farthest point the
+    ///   frame places): Zero required; else
+    ///   [`SpiricInvalid::FrameNotOrthogonal`].
+    ///
+    /// In-band or poison on any of them ⇒ [`SpiricInvalid::Escalated`].
+    /// The frame's unit lengths stay conventional data exactly as for
+    /// `Circle` (unchecked here — tier-3 certification owns them at
+    /// rest).
+    ///
+    /// # Errors
+    ///
+    /// [`SpiricInvalid`] — see each variant.
+    pub fn spiric(
+        center: Point3<T>,
+        axis: Vec3<T>,
+        u_ref: Vec3<T>,
+        major_radius: T,
+        minor_radius: T,
+        offset: T,
+        band: Band,
+    ) -> Result<Self, SpiricInvalid> {
+        use geom_core::k_stats::decide;
+        match decide("spiric_minor_positive", Margin::of(minor_radius), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::MinorNotPositive),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        let ring = major_radius - minor_radius;
+        match decide("spiric_ring", Margin::of(ring), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        match decide("spiric_two_ovals", Margin::of(ring - offset.abs()), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotTwoOvals),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        match decide(
+            "spiric_frame_orthogonal",
+            Margin::levered(axis.dot(u_ref), major_radius + minor_radius),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Err(SpiricInvalid::FrameNotOrthogonal),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        Ok(Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        })
+    }
 }
 
 impl<T: Real> Curve3<T> {
@@ -370,6 +508,21 @@ impl<T: Real> Curve3<T> {
         let radial = azimuth::frame(axis, u_ref, t).radial.0;
         center + radial * radius
     }
+}
+
+/// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
+/// `(f_min, f_max)` at `ρ = R ∓ r` — `f` is monotone in `ρ` and
+/// `ρ ∈ [R − r, R + r]`. The one spelling the amplitude boxes read
+/// (`topo`'s census reach, `mesh`'s chord sizing); `curves::boxes`
+/// spells the same two numbers in its outward-bracket arithmetic, which
+/// no plain-scalar helper can supply. Off-regime data (`ρ_min² <
+/// offset²`) yields poison in `f_min`, as every evaluator does.
+pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
+    let d2 = offset.powi(2);
+    (
+        ((major - minor).powi(2) - d2).sqrt(),
+        ((major + minor).powi(2) - d2).sqrt(),
+    )
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and
@@ -615,7 +768,10 @@ impl<T: SpanLocate> Curve3<T> {
     ///   makes the answer `near` itself. (The retired seam spellings
     ///   answered the nearest multiple of `τ` to `near` instead. Both
     ///   are arbitrary; this one is at least the anchor the caller
-    ///   already had.)
+    ///   already had.) The spiric arm reads `w = (ρ − R, h)` in the
+    ///   meridian half-plane, so `p == center` gives `w = (−R, 0)` and
+    ///   the answer `near + π` — equally arbitrary, and equally the
+    ///   caller's violation.
     /// - The branch the caller wants must be the one nearest `near`.
     ///   A caller recovering a parameter INSIDE a stored span
     ///   `[t₀, t₁]` can get that by passing the span's MIDPOINT, and
@@ -1081,23 +1237,64 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // The spiric — the elbow's numbers in an exactly orthonormal
-    // tilted frame (`tilted_circle`'s), so the closed forms are read
-    // against the plane and speed identities rather than a
-    // coordinate-aligned special case.
+    // The spiric — the elbow's numbers in `tilted_circle`'s frame,
+    // orthonormal to rounding (`|axis|² − 1 = −1.1e-16`: thirds do not
+    // round exactly), so the closed forms are read against the plane
+    // and speed identities rather than a coordinate-aligned special
+    // case.
     // ------------------------------------------------------------------
 
     /// `T(R = 1.2, r = 0.225)` cut at stand-off `d = 0.05`: the klein
     /// elbow's moved rim (`torax_axial`'s `R`, `r − t`, `t`).
     fn tilted_spiric() -> Curve3<f64> {
-        Curve3::Spiric {
-            center: Point3::new(-0.5, 4.0, 1.25),
-            axis: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
-            u_ref: Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
-            major_radius: 1.2,
-            minor_radius: 0.225,
-            offset: 0.05,
-        }
+        Curve3::spiric(
+            Point3::new(-0.5, 4.0, 1.25),
+            Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+            Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
+            1.2,
+            0.225,
+            0.05,
+            band(),
+        )
+        .expect("the elbow's numbers are a ring torus cut short of its inner equator")
+    }
+
+    /// **The constructor's four refusals, each on the number that
+    /// breaks its predicate**, and the acceptance the fixture relies
+    /// on. The ellipse constructor's row shape.
+    #[test]
+    fn spiric_constructor_decides_its_regime() {
+        let mk = |big_r: f64, r: f64, d: f64, u_ref: Vec3<f64>| {
+            Curve3::spiric(Point3::origin(), Vec3::unit_z(), u_ref, big_r, r, d, band())
+        };
+        assert!(matches!(
+            mk(1.2, 0.225, 0.05, Vec3::unit_x()),
+            Ok(Curve3::Spiric { .. })
+        ));
+        assert_eq!(
+            mk(1.2, 0.0, 0.05, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::MinorNotPositive)
+        );
+        assert_eq!(
+            mk(0.2, 0.225, 0.05, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::NotARing)
+        );
+        // Exactly at the inner equator: the node, refused as the
+        // regime boundary it is.
+        assert_eq!(
+            mk(1.2, 0.225, 0.975, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::NotTwoOvals)
+        );
+        assert_eq!(
+            mk(1.2, 0.225, -1.0, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::NotTwoOvals)
+        );
+        // A cutting plane tilted 30° off the axis.
+        let tilted = Vec3::new(0.75_f64.sqrt(), 0.0, 0.5);
+        assert_eq!(
+            mk(1.2, 0.225, 0.05, tilted).err(),
+            Some(SpiricInvalid::FrameNotOrthogonal)
+        );
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {
@@ -1166,10 +1363,11 @@ mod tests {
 
     /// `|dP/dv|` within `[r, r(R − r)/√((R − r)² − d²)]` at every sample;
     /// the floor is attained (at `v = 0` and `v = π`, where `sin v = 0`)
-    /// and the sampled maximum stands visibly above it (the
-    /// `ρ²/(ρ² − d²)` factor — the mutant that drops it reads `r`
-    /// everywhere). The ceiling is a bound, not attained: the factor
-    /// peaks at `ρ = R − r`, where `sin v` vanishes.
+    /// and the sampled maximum reaches at least the `v = π/2` value
+    /// `r·R/√(R² − d²)` (the `ρ²/(ρ² − d²)` factor — the mutant that
+    /// drops it reads `r` everywhere). The ceiling is a bound, not
+    /// attained: the factor peaks at `ρ = R − r`, where `sin v`
+    /// vanishes.
     #[test]
     fn spiric_speed_within_its_bounds() {
         let c = tilted_spiric();
@@ -1194,9 +1392,14 @@ mod tests {
             (lo - r).abs() <= 1e-15,
             "the floor is attained: {lo} vs {r}"
         );
+        // The rise above the floor, stated from `(d, R, r)`: at
+        // `v = π/2` (a sample, `i = 2500`) `ρ = R` and
+        // `|dP/dv| = r·R/√(R² − d²)`, which is what a dropped
+        // `ρ²/(ρ² − d²)` factor flattens back to `r`.
+        let rise = r * big_r / (big_r.powi(2) - d * d).sqrt();
         assert!(
-            hi > r * 1.0005,
-            "the speed rises above the floor: {hi} vs {r}"
+            hi >= rise - 1e-15,
+            "the sampled maximum {hi} is below the v = π/2 value {rise}"
         );
     }
 
@@ -1230,13 +1433,16 @@ mod tests {
         }
     }
 
-    /// The whole-period box contains every sample, on every axis, and
-    /// is not vacuous: its extent along `axis` is `2r` to rounding and
-    /// along `m` is `f_max − f_min`. Kills a dropped `axis·e` term.
+    /// The whole-period box contains every sample, on every axis
+    /// (kills a dropped `axis·e` term), and is the amplitude
+    /// construction and nothing wider: per axis `e` the box's span is
+    /// `|m·e|·(f_max − f_min) + 2r·|axis·e|` to rounding, since the
+    /// endpoint hull lies inside that amplitude box (kills a box padded
+    /// or doubled along any channel).
     #[test]
     fn spiric_arc_aabb_contains_every_sample() {
         let c = tilted_spiric();
-        let (_, axis, _, big_r, r, d) = spiric_fields(&c);
+        let (_, axis, u_ref, big_r, r, d) = spiric_fields(&c);
         let (t0, t1) = (0.4, 2.9);
         let b = boxes::conic_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)).expect("a spiric boxes");
         let inside = |x: f64, lo: f64, hi: f64| lo <= x && x <= hi;
@@ -1250,19 +1456,22 @@ mod tests {
                 "sample {p:?} escapes {b:?}"
             );
         }
-        // Not vacuous: the box is the frame's own amplitude box, so
-        // its projection on `axis` spans at most the `r·[−1, 1]`
-        // channel plus the `m`-channel's projection (zero for an exact
-        // frame) — bounded by `2r + (f_max − f_min)·|m·axis|`.
-        let f_max = ((big_r + r).powi(2) - d * d).sqrt();
-        let f_min = ((big_r - r).powi(2) - d * d).sqrt();
-        let span = Vec3::new(b.max_x - b.min_x, b.max_y - b.min_y, b.max_z - b.min_z);
-        let along_axis = span.x * axis.x.abs() + span.y * axis.y.abs() + span.z * axis.z.abs();
-        assert!(
-            along_axis <= 2.0 * r + (f_max - f_min) + 1e-12,
-            "box extent along the axis {along_axis} vs 2r = {}",
-            2.0 * r
-        );
+        // The ceiling: each axis's span is exactly the amplitude
+        // channel sum, to the bracket arithmetic's few ulps.
+        let (f_min, f_max) = super::spiric_f_range(big_r, r, d);
+        let m = axis.cross(u_ref);
+        for (name, lo, hi, me, ae) in [
+            ("x", b.min_x, b.max_x, m.x, axis.x),
+            ("y", b.min_y, b.max_y, m.y, axis.y),
+            ("z", b.min_z, b.max_z, m.z, axis.z),
+        ] {
+            let want = me.abs() * (f_max - f_min) + 2.0 * r * ae.abs();
+            assert!(
+                (hi - lo - want).abs() <= 1e-12,
+                "{name}: box span {} vs the amplitude construction {want}",
+                hi - lo
+            );
+        }
     }
 
     #[cfg(feature = "interval")]
@@ -1302,8 +1511,13 @@ mod tests {
             }
         }
 
-        /// The box at the interval scalar contains every f64 sample —
-        /// the bracketed frame enters the door whole.
+        /// The box door at the interval scalar, on POINT brackets: the
+        /// lifted fixture's brackets are single f64 values, so this
+        /// box is bit-for-bit the f64 twin's (`Brk` reads `lo()`/`hi()`
+        /// and both are the point) — what this row checks is that the
+        /// `Interval` scalar passes the door and the result contains
+        /// every f64 sample. It cannot see an inward-turned bracket;
+        /// the wide-bracket row below is that reader.
         #[test]
         fn spiric_arc_aabb_contains_every_sample_at_interval() {
             let c = tilted_spiric();
@@ -1323,6 +1537,56 @@ mod tests {
                     "sample {p:?} escapes {b:?}"
                 );
             }
+        }
+
+        /// **A WIDE bracket must box every member.** A carrier whose
+        /// `offset` is the bracket `[0.05, 0.06]` describes a family of
+        /// spirics; the f64 twins at the bracket's two ends sample the
+        /// `m`-faces of the box, so a `Brk` turned inward
+        /// (`[f_min.hi, f_max.lo]`) lets them escape by
+        /// `≈ 5.65e-4` — the reader the point-bracket row above cannot
+        /// be. Adopted from the v6 dual's second reviewer lane
+        /// (`sp1a_wide_bracket_box_contains_every_member_twin`),
+        /// authorship preserved.
+        #[test]
+        fn spiric_wide_bracket_box_contains_every_member_twin() {
+            let iv = Interval::from_f64;
+            let ci = Curve3::Spiric {
+                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                major_radius: iv(1.2),
+                minor_radius: iv(0.225),
+                offset: Interval::from_bounds(0.05, 0.06),
+            };
+            let (t0, t1) = (iv(0.0), iv(TAU));
+            let b = boxes::conic_arc_aabb(&ci, t0, t1, ci.eval(t0), ci.eval(t1)).expect("boxes");
+            let mut worst = f64::NEG_INFINITY;
+            for d in [0.05, 0.06] {
+                let twin = Curve3::Spiric {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    major_radius: 1.2,
+                    minor_radius: 0.225,
+                    offset: d,
+                };
+                for i in 0..10_000 {
+                    let v = f64::from(i) * TAU / 10_000.0;
+                    let p = twin.eval(v);
+                    for (x, lo, hi) in [
+                        (p.x, b.min_x, b.max_x),
+                        (p.y, b.min_y, b.max_y),
+                        (p.z, b.min_z, b.max_z),
+                    ] {
+                        worst = worst.max(lo - x).max(x - hi);
+                    }
+                }
+            }
+            assert!(
+                worst <= 0.0,
+                "a member twin escapes the wide-bracket box by {worst:e}"
+            );
         }
     }
 

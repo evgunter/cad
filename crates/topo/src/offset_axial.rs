@@ -1812,12 +1812,7 @@ fn mint_carrier<T: Decide>(
                     u_ref,
                 },
             ) => {
-                let off = Vec3::new(
-                    frame.radial(*cc).norm() - *major_radius,
-                    frame.station(*cc) - frame.station(*center),
-                    T::zero(),
-                )
-                .norm();
+                let off = tube_centre_offset(frame, *cc, *center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
                     Ok(Sign::Zero) => Ok(Curve3::Circle {
                         center: *cc,
@@ -1911,7 +1906,7 @@ fn mint_carrier<T: Decide>(
         // normal, so one sine covers the operand plane and the moved
         // one together.
         let mh = m.normalize();
-        let tilt = axis.normalize().cross(mh).norm();
+        let tilt = cap_plane_tilt(*axis, mh);
         match decide(
             "offset_axial_rim_plane",
             Margin::levered(tilt, frame.extent),
@@ -1999,13 +1994,13 @@ fn mint_carrier<T: Decide>(
         };
         // The old rim is centred on the tube-centre circle `(ρ, h) =
         // (R, h_c)` — one length in the meridian half-plane, the seam
-        // arm's comparand on a distinct-charts edge.
-        let off = Vec3::new(
-            frame.radial(*cc).norm() - *big_r,
-            frame.station(*cc) - frame.station(*tc),
-            T::zero(),
-        )
-        .norm();
+        // arm's comparand on a distinct-charts edge. Read against the
+        // MOVED torus's centre and major radius, which are the
+        // operand's own: the torus offset (`geom_brep::offset_surface`)
+        // moves the minor radius alone and keeps `center`, `axis`,
+        // `major_radius` and `u_ref` verbatim, so the tube-centre
+        // circle is the datum that does not move.
+        let off = tube_centre_offset(frame, *cc, *tc, *big_r);
         match decide("offset_axial_rim_meridian", Margin::of(off), band) {
             Ok(Sign::Zero) => {}
             Ok(_) => {
@@ -2032,7 +2027,7 @@ fn mint_carrier<T: Decide>(
         // normal, so one sine covers the operand plane and the moved
         // one together (the sphere arm's predicate, reused).
         let n = m.normalize();
-        let tilt = axis.normalize().cross(n).norm();
+        let tilt = cap_plane_tilt(*axis, n);
         match decide(
             "offset_axial_rim_plane",
             Margin::levered(tilt, frame.extent),
@@ -2108,14 +2103,22 @@ fn mint_carrier<T: Decide>(
             }
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         };
-        return Ok(Curve3::Spiric {
-            center: *tc,
-            axis: axis_s,
-            u_ref: n_s,
-            major_radius: *big_r,
-            minor_radius: *new_r,
-            offset: d_s,
-        });
+        // Minted through the kind's own deciding door: its ring,
+        // two-oval and orthogonal-frame predicates re-state what the
+        // guards above already decided on the same numbers, so a
+        // refusal here is a kernel bug (a guard that let off-regime
+        // data past) and is named as one; an escalation is the
+        // constructor's own.
+        return match Curve3::spiric(*tc, axis_s, n_s, *big_r, *new_r, d_s, band) {
+            Ok(carrier) => Ok(carrier),
+            Err(geom::SpiricInvalid::Escalated(source)) => {
+                Err(ReplaceFaceError::Escalated { source })
+            }
+            Err(_) => Err(refuse(
+                "a torus rim whose minted spiric fails the kind's own regime after the \
+                 door's guards passed it",
+            )),
+        };
     }
 
     // Two distinct charts: the carrier keeps its KIND and its
@@ -2164,6 +2167,32 @@ fn mint_carrier<T: Decide>(
             "an edge between two distinct charts whose carrier is neither a line nor a circle",
         )),
     }
+}
+
+/// A circle centre's distance from the tube-centre circle `(ρ, h) =
+/// (R, h_c)` in the meridian half-plane — the one comparand both
+/// meridian-posture decisions read (`offset_axial_seam_meridian` on a
+/// same-surface seam, `offset_axial_rim_meridian` on a rim between
+/// two charts; two decisions, one spelling).
+fn tube_centre_offset<T: Real>(
+    frame: &Frame<T>,
+    centre: Point3<T>,
+    tube_centre: Point3<T>,
+    major_radius: T,
+) -> T {
+    Vec3::new(
+        frame.radial(centre).norm() - major_radius,
+        frame.station(centre) - frame.station(tube_centre),
+        T::zero(),
+    )
+    .norm()
+}
+
+/// The sine between a circle's plane normal and a cap plane's unit
+/// normal — the one comparand `offset_axial_rim_plane` reads at both
+/// rim arms (the sphere wall's and the torus wall's).
+fn cap_plane_tilt<T: Real>(circle_axis: Vec3<T>, cap_normal: Vec3<T>) -> T {
+    circle_axis.normalize().cross(cap_normal).norm()
 }
 
 /// **Does `p` stand on the axis?** The one door for that question —
@@ -2287,7 +2316,10 @@ fn param_on<T: Decide>(
         // anchors the branch, and `param_near` reads the moved point
         // within a half-turn of it. The old circle's centre is the
         // tube centre in the cap's plane, so the minor angle needs
-        // only the carrier's own frame.
+        // only the carrier's own frame — read off the MOVED carrier's
+        // `center` and `major_radius`, which equal the old torus's
+        // (the torus offset keeps both; the mint verified the old rim
+        // against them).
         (
             Curve3::Spiric {
                 center,

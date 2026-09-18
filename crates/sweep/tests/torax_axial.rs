@@ -584,7 +584,7 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
 /// demonstrated by mutation in the unit's PR (the RIMCAP shape), and
 /// its arm stays as the honest remainder for a hand-built operand.
 #[test]
-fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
+fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
     let elbow = {
         let profile = Profile::new(

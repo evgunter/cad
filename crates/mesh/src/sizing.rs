@@ -445,7 +445,7 @@ pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
 /// carrier before a mesh is asked for.
 pub(crate) fn spiric_step(delta_s: f64, major: f64, minor: f64, offset: f64) -> f64 {
     let rho_max = major + minor;
-    let f_min = ((major - minor).powi(2) - offset.powi(2)).sqrt();
+    let (f_min, _) = geom::spiric_f_range(major, minor, offset);
     let m = minor
         + (minor.powi(2) + minor * rho_max) / f_min
         + minor.powi(2) * rho_max.powi(2) / f_min.powi(3);

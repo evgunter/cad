@@ -78,9 +78,9 @@
 //!    which the axial door mints as the exact `Curve3::Spiric` rim it
 //!    is; the hollow then reaches tier 3 and stops at the props
 //!    inventory, at the cap's loop area (an elliptic integral, no
-//!    closed form; the torus wall behind it has no parse arm for a
-//!    rim that is neither a circle about the axis nor a meridian).
-//!    Probed live below (wall 1). The sphere half of the same rim family stands
+//!    closed form; the torus wall behind it routes to the quadrature
+//!    lane, whose chart gate has no torus arm either). Probed live
+//!    below (wall 1). The sphere half of the same rim family stands
 //!    at the same door on a different premise
 //!    (`torax_the_sphere_lune_next_door_is_the_props_inventory`). The
 //!    props quadrature lane for a spiric-bounded face is the spiric
@@ -712,10 +712,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     )
             )
         },
-        "the props quadrature lane integrates a spiric-bounded torus wall. Retire this \
-         probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
-         — they are one gate — and ship the sectioned vessel as this scene's third \
-         panel, which is the picture it was always for",
+        "the props quadrature lane integrates a spiric-bounded face. Retire this probe \
+         and ship the sectioned vessel as this scene's third panel, which is the \
+         picture it was always for; the klein elbow's row \
+         (`torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses`) is a second \
+         gate, its equator seams' re-author, and retires on its own",
     );
 
     let (sv, se, sf) = census(&sealed);
@@ -785,10 +786,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  band in a SPIRIC — which the axial door now mints as the exact \
                  carrier it is, so the hollow walks to tier 3 and stops at the props \
                  inventory: the cap's oval area is an elliptic integral with no closed \
-                 form (and the torus wall's parse behind it has no arm for a rim that \
-                 is neither a circle about the axis nor a meridian), so the +V \
-                 invariant refuses VolumeUncomputable. The klein elbow's wall \
-                 (`torax_the_klein_elbow_rim_refuses_at_the_carrier_mint`) mints the \
+                 form (and the torus wall behind it routes to the quadrature lane, whose \
+                 chart gate has no torus arm), so the +V invariant refuses \
+                 VolumeUncomputable. The klein elbow's wall \
+                 (`torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses`) mints the \
                  same carrier and stops one door earlier, at its equator seams' \
                  re-author; the sectioned vessel has no such seam. The SPHERE half of the \
                  same rim family stands at the same door on a different premise: the \

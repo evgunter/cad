@@ -2077,12 +2077,18 @@ fn torus_boundary<T: Decide>(
                 Curve3::Nurbs(_) => PropsError::Unimplemented,
                 // The spiric rim of a partial revolve's hollowed torus
                 // wall — a boundary edge that IS on the torus but is
-                // neither rim nor meridian. Its flux has no closed form
-                // in this parse (the cap's oval area is an elliptic
-                // integral); the props quadrature lane is the spiric
-                // unit's next PR, and until then the wall stops here,
-                // named: this is the door `topo::shell`'s klein elbow
-                // stands at.
+                // neither rim nor meridian, so this parse has no arm
+                // for it and says which edge kind it met. Named rather
+                // than folded into the wildcard so a reader knows the
+                // kind was considered. Reached through the closed-form
+                // door (`curved_face`) directly; `topo`'s own face flux
+                // never gets here for a spiric-bounded face — a loop
+                // carrying one routes to the quadrature lane first,
+                // which refuses at its chart gate (`props.rs`,
+                // `cut_face_rounds`: only the cylinder chart has a
+                // lane) — and a stored pcurve cache does not change
+                // that. The spiric quadrature lane is the spiric unit's
+                // props PR.
                 Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
                     what: "torus boundary edge is not a circle",
                 },

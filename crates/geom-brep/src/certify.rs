@@ -1375,17 +1375,17 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
         }
-        // The minor semi-axis is the certified direction (doc above):
-        // the ellipse dominates its minor-radius circle pointwise.
-        Curve3::Ellipse { minor, .. } => {
+        // The minor semi-axis / minor radius is the certified direction
+        // (doc above): the ellipse and the spiric each dominate their
+        // minor-radius circle pointwise, so both take the circle fold
+        // at that radius.
+        Curve3::Ellipse { minor, .. }
+        | Curve3::Spiric {
+            minor_radius: minor,
+            ..
+        } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(minor * (T::one() - half_span.cos()))
-        }
-        // The minor radius is the certified direction (doc above): the
-        // spiric dominates its minor-radius circle pointwise.
-        Curve3::Spiric { minor_radius, .. } => {
-            let half_span = (t1 - t0) * T::from_f64(0.5);
-            chord.max(minor_radius * (T::one() - half_span.cos()))
         }
         Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }

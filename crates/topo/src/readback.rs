@@ -71,7 +71,11 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
 ///   names is the same plane either way).
 /// - `axis` is the carrier's principal direction: a plane's normal,
 ///   every other analytic surface's axis, a circle's or ellipse's
-///   plane normal, a line's direction. It is the CHART's direction,
+///   plane normal, a line's direction — and a spiric's TORUS axis,
+///   which lies IN the curve's plane: the spiric's stored frame is
+///   its torus's, and the curve's plane normal is its `u_ref` (the
+///   cutting plane's normal), so for that one kind the two roles are
+///   the other way round from a circle's. It is the CHART's direction,
 ///   NOT corrected by a face's orientation sense — the sense is a
 ///   separate fact about the face, and folding it in silently would
 ///   make two different questions share one answer. That second fact
@@ -80,7 +84,9 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
 ///   rather than receiving it pre-folded.
 /// - `u_ref` is the in-frame reference direction where the carrier's
 ///   convention fixes one (the seam of every closed chart, θ = 0 of a
-///   circle, an ellipse's semi-major direction). It is `None` where
+///   circle, an ellipse's semi-major direction) — and a spiric's
+///   cutting-plane normal, which is NOT in the curve's plane (above).
+///   It is `None` where
 ///   the convention fixes none: a line has a direction and no
 ///   distinguished perpendicular, and inventing one would be a
 ///   fabricated convention (rule 3).
@@ -424,7 +430,12 @@ pub fn vertex_point_ref<T: Real>(
 /// description (D4 ¶2), so what comes back is the concrete curve the
 /// model actually holds, and its `u_ref` is the seam convention that
 /// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
-/// fixes a direction and no perpendicular (rule 3).
+/// fixes a direction and no perpendicular (rule 3). A
+/// [`Curve3::Spiric`] answers its stored TORUS frame — `origin` the
+/// torus centre (off the curve, by `≥ R − r − |offset|`), `axis` the
+/// torus axis (in the curve's plane), `u_ref` the cutting plane's
+/// normal — the six fields ARE its canonical frame, and a reader that
+/// wants a point ON the curve evaluates the carrier.
 ///
 /// # Errors
 ///

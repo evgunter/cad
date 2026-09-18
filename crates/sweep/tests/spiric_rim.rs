@@ -205,10 +205,14 @@ fn the_minted_rim_lies_on_both_implicit_forms() {
 }
 
 /// **Row 2 — `edge_extent` below the sampled point-set diameter on
-/// every sub-span.** The certified lever `max(chord, r(1 − cos Δv/2))`
-/// never exceeds the sampled diameter of the arc it describes; a
-/// larger arm (the mutant `major_radius` in place of `minor_radius`)
-/// exceeds it on the short spans.
+/// every sub-span**, on the vessel's minted rim. The certified lever
+/// `max(chord, r′(1 − cos Δv/2))` never exceeds the sampled diameter
+/// of the arc it describes. This fixture CANNOT see the wrong-arm
+/// mutant (`major_radius` in place of `minor_radius`): the fold only
+/// overtakes the chord on the LONG spans, where
+/// `R(1 − cos Δv/2) > 2r′·sin(Δv/2)` needs `R ≳ 2r′`, and the vessel's
+/// `R/r′ = 1.33`. The row below, at the elbow's ratio `R/r = 5.3`, is
+/// the one that reds under it.
 #[test]
 fn the_edge_extent_stays_below_the_sampled_diameter() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
@@ -236,10 +240,61 @@ fn the_edge_extent_stays_below_the_sampled_diameter() {
     }
 }
 
+/// **Row 2′ — the extent arm at a ratio that can see it.** A spiric
+/// on the elbow's numbers (`R = 1.2`, `r = 0.225`, `d = 0.05`, so
+/// `R/r = 5.3`), minted through the kind's door: over the whole
+/// oval and its halves the certified lever stays below the sampled
+/// diameter, and the mutant that reads `major_radius` as the fold's
+/// arm exceeds it by `≈ 0.75` m on the full period (`R(1 − cos π)
+/// = 2.4` against a diameter of `≈ 1.65`). The lever is what
+/// transversality's dihedral pass classifies against, so a larger arm
+/// would let a sliver classify transverse — this is the row that pins
+/// it below the diameter.
+#[test]
+fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
+    let band = Band::linear(tol()).expect("band");
+    let carrier = Curve3::spiric(
+        Point3::new(0.3, -0.2, 0.7),
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+        1.2,
+        0.225,
+        0.05,
+        band,
+    )
+    .expect("the elbow's numbers are in regime");
+    for (a, b) in [
+        (0.0, TAU),
+        (0.0, core::f64::consts::PI),
+        (0.7, 2.9),
+        (2.0, 5.5),
+    ] {
+        let chord = carrier.eval(a).distance(carrier.eval(b));
+        let extent = geom_brep::edge_extent(&carrier, a, b, chord);
+        let samples: Vec<Point3<f64>> = (0..=400)
+            .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
+            .collect();
+        let mut diameter = 0.0_f64;
+        for p in &samples {
+            for q in &samples {
+                diameter = diameter.max(p.distance(*q));
+            }
+        }
+        println!("[spiric] span [{a}, {b}]: extent {extent}, sampled diameter {diameter}");
+        assert!(
+            extent <= diameter + 1e-15,
+            "span [{a}, {b}]: extent {extent} exceeds the sampled diameter {diameter}"
+        );
+    }
+}
+
 /// **Row 3 — the box.** 10⁴ sampled points of each minted rim lie
-/// inside its certified box on every axis, through the boolean's own
-/// reader (`edge_box_rule` → `spiric_arc_aabb`) as well as `geom`'s
-/// door directly.
+/// inside its certified box on every axis, through `geom`'s door
+/// (`conic_arc_aabb` → `spiric_arc_aabb`). The boolean's own reader
+/// (`edge_box_rule` → `edge_box`) is crate-private and no public door
+/// reaches its spiric arm at this head; `topo`'s in-src row
+/// `the_spiric_edge_box_and_reach_contain_a_dense_sample` executes it
+/// on a hand-built sector.
 #[test]
 fn the_box_contains_every_sample_of_the_minted_rim() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
@@ -422,11 +477,16 @@ fn the_elbow_stops_at_its_seam_reauthor() {
 /// 1–6 pass; **check 7 refuses** `VolumeUncomputable` — at a CAP,
 /// visited before the torus wall in arena order, so the payload is
 /// `loop_vector_area`'s `Unimplemented` (the oval's area is an
-/// elliptic integral); the torus wall behind it would read
-/// `torus_boundary`'s `NotIsoRectangle { "torus boundary edge is not a
-/// circle" }`. The spec named both and predicted the wall first; the
-/// run shows the cap. Same door as the lune's (`NotIsoRectangle {
-/// "props_band_coplanar" }`), different premise.
+/// elliptic integral). The torus wall behind it is NOT
+/// `torus_boundary`'s parse: `topo`'s face flux routes a loop carrying
+/// a spiric to the quadrature lane, whose chart gate refuses
+/// `QuadratureUnsupported { "conic trim on a cone/sphere/torus chart
+/// …" }` (`props.rs`, `cut_face_rounds`) — read from the source, since
+/// no public door visits the wall before the cap; the closed-form
+/// parse's own answer for the wall is the row below. The spec named
+/// the wall's parse first; the run shows the cap. Same door as the
+/// lune's (`NotIsoRectangle { "props_band_coplanar" }`), different
+/// premise.
 #[test]
 fn the_sectioned_vessel_stops_at_the_props_door() {
     let quarter = vessel_quarter();
@@ -447,6 +507,142 @@ fn the_sectioned_vessel_stops_at_the_props_door() {
             }]
         ),
         "check 7 at a cap's loop area, got {errors:?}"
+    );
+}
+
+/// **The torus wall's closed-form parse names its spiric rim** — the
+/// one public door that reaches `torus_boundary`'s named `Spiric` arm:
+/// the vessel cavity's torus face's loop, read through
+/// `topo::loop_edges`, handed to `geom_brep::curved_face` (the
+/// closed-form flux door `topo`'s face flux takes for an UNtrimmed
+/// loop). `NotIsoRectangle { "torus boundary edge is not a circle" }`,
+/// the arm the props door would raise if the quadrature lane did not
+/// take the face first.
+#[test]
+fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, _, _) = spiric_edges(&cavity).remove(0);
+    let e = cavity.get_edge(edge).expect("edge");
+    let face_of = |he| {
+        cavity
+            .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+            .expect("loop")
+            .face
+    };
+    let torus_face = [face_of(e.he_plus), face_of(e.he_minus)]
+        .into_iter()
+        .find(|f| {
+            matches!(
+                cavity.get_surface(cavity.get_face(*f).expect("face").surface),
+                Some(Surface::Torus { .. })
+            )
+        })
+        .expect("a spiric rim bounds a torus face");
+    let face = cavity.get_face(torus_face).expect("face");
+    let surface = cavity.get_surface(face.surface).expect("surface");
+    let (edges, _) = topo::loop_edges(&cavity, face.outer).expect("the loop reads");
+    let band = Band::linear(tol()).expect("band");
+    let sense = if face.sense { 1.0 } else { -1.0 };
+    let e = geom_brep::curved_face(surface, &edges, sense, band)
+        .expect_err("the rim-or-meridian parse has no arm for a spiric");
+    assert_eq!(
+        e,
+        geom_brep::PropsError::NotIsoRectangle {
+            what: "torus boundary edge is not a circle"
+        }
+    );
+}
+
+/// **`classify_kind` opens no iso side for a spiric rim**: the vessel
+/// cavity's torus chart, asked about each of its spiric rims through
+/// the public `topo::classify_kind`, answers `None` — the coherence
+/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
+/// meridian `Meridian`.
+#[test]
+fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let rims = spiric_edges(&cavity);
+    assert_eq!(rims.len(), 2);
+    for (edge, _, _) in rims {
+        let e = cavity.get_edge(edge).expect("edge");
+        let curve = cavity
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("certified");
+        let face_of = |he| {
+            cavity
+                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                .expect("loop")
+                .face
+        };
+        let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
+            .into_iter()
+            .map(|f| {
+                cavity
+                    .get_surface(cavity.get_face(f).expect("face").surface)
+                    .expect("surface")
+            })
+            .find(|s| matches!(s, Surface::Torus { .. }))
+            .expect("a spiric rim bounds a torus face");
+        let chart = topo::Chart::of(chart_surface).expect("the torus charts");
+        assert!(
+            topo::classify_kind(&chart, curve).is_none(),
+            "a spiric opens no iso side"
+        );
+    }
+}
+
+/// **`split_edge` meters a spiric's interiority at its minor radius**:
+/// the vessel cavity's rim split at its mid-parameter yields two
+/// certified spiric pieces whose spans partition the original, on the
+/// same carrier. The only door that reads the kind's `split_edge`
+/// meter arm.
+#[test]
+fn a_spiric_rim_splits_at_its_mid_parameter() {
+    let (_, mut cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    let mid = (t0 + t1) * 0.5;
+    let made = cavity
+        .split_edge(edge, mid, tol())
+        .expect("a spiric rim splits at an interior parameter");
+    let piece = |k: topo::EdgeKey| {
+        let e = cavity.get_edge(k).expect("edge");
+        let c = cavity
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("certified");
+        assert!(
+            matches!(c.carrier(), Curve3::Spiric { .. }),
+            "the piece keeps the kind"
+        );
+        assert_eq!(
+            format!("{:?}", c.carrier()),
+            format!("{carrier:?}"),
+            "the piece keeps the carrier"
+        );
+        c.params()
+    };
+    let (a0, a1) = piece(edge);
+    let (b0, b1) = piece(made.new_edge);
+    let (lo, hi) = if a0 < b0 {
+        ((a0, a1), (b0, b1))
+    } else {
+        ((b0, b1), (a0, a1))
+    };
+    assert!(
+        (lo.0 - t0).abs() <= 1e-15 && (hi.1 - t1).abs() <= 1e-15,
+        "the spans cover the original"
+    );
+    assert!(
+        (lo.1 - mid).abs() <= 1e-15 && (hi.0 - mid).abs() <= 1e-15,
+        "the cut is at the midpoint"
+    );
+    let split_point = *cavity
+        .get_point(cavity.get_vertex(made.vertex).expect("vertex").point)
+        .expect("point");
+    assert!(
+        split_point.distance(carrier.eval(mid)) <= 1e-15,
+        "the new vertex is on the carrier"
     );
 }
 

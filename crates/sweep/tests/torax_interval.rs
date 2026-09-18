@@ -336,7 +336,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 /// strict band is the certified scalar's honest answer and is pinned
 /// as such.
 #[test]
-fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
+fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(

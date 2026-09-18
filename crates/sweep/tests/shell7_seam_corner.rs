@@ -626,7 +626,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
 /// refuses typed. That decide is now door-built-reachable, and this
 /// row is what reaches it.
 #[test]
-fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
+fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
         RawLoop::new(vec![

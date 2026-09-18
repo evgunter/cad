@@ -2469,9 +2469,13 @@ mod quad_lane {
             }
             // The spiric's chart images are not harmonic (its `m`
             // channel is `√((R + r cos v)² − d²)`), so the trig
-            // brackets this lane reads do not exist for it; the props
-            // quadrature lane for a spiric-bounded face is the spiric
-            // unit's next PR.
+            // brackets this lane reads do not exist for it. Unreachable
+            // by construction: this lane is entered only for a CYLINDER
+            // chart (`cut_face_rounds`'s chart gate), and a spiric lies
+            // on no cylinder — the arm names the kind so the gate's
+            // removal would meet a typed refusal here rather than a
+            // wildcard. The props quadrature lane for a spiric-bounded
+            // face is the spiric unit's props PR.
             Curve3::Spiric { .. } => Err(PropsError::QuadratureUnsupported {
                 what: "spiric trim carrier on an ANALYTIC chart's quadrature lane — the \
                        hollowed partial revolve's torus wall and plane cap; the spiric \
