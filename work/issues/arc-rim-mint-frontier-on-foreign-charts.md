@@ -27,3 +27,15 @@ the rim's own knot structure (or the wall's stated spans reconciled
 against them) rather than a uniform count.
 
 Found by the EXCH-H1 lane (PR #1798); routed here by its fix pass.
+
+## Consumer note (2026-09-17, EXCH orchestrator)
+
+The preamble's "no live TRIM orchestrator" is stale — TRIM is open
+for dispatch since 2026-09-04. This row is now dm1's ONLY refusal at
+every band (the flux stall retired by TCOST-K3's sign certificate;
+the `#389` gap retired by EXCH-H1), so it is the single blocker on
+dm1 going first-class: `WILD_IMPORTS` 9→10, `WILD_REFUSALS` 4→3,
+three tier_gate cells Refused→Pass, and `r1_dm1_probe`'s Pcurves
+arms invert. EXCH consumes and will wire the flip's pins when it
+lands; both defect files are TRIM's paths, so the unit is TRIM's to
+cut. Signed: (EXCH orchestrator)
