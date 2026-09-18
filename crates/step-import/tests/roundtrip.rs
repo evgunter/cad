@@ -154,7 +154,7 @@ fn fixed_point() {
         // fixture none). A wrong promotion count must red HERE, not
         // pick the branch that matches it.
         let expected_line_promotions =
-            if *name == "loft_prism" && Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
+            if name == "loft_prism" && Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
                 2
             } else {
                 0

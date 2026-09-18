@@ -4075,7 +4075,7 @@ fn run_iso_checks<T: Decide>(
             if let Curve3::Line { origin, dir } = carrier {
                 let u_start = p0.x + pl.x * t0;
                 let (cu0, cu1) = payload.knots_u().domain();
-                let (end, slack_u) = side_of(
+                let Some((end, slack_u)) = side_of(
                     u_start,
                     T::from_f64(cu0),
                     T::from_f64(cu1),
@@ -4083,7 +4083,15 @@ fn run_iso_checks<T: Decide>(
                     du_extent.value(),
                     band,
                     &esc,
-                )?;
+                )?
+                else {
+                    return Err(PcurveCertifyError::IsoUnsupported {
+                        what: "a LINE seam on a column that is not a chart boundary — the \
+                               limb's hull is stated on a boundary column (a control-net \
+                               copy); the interior collapse route for a promoted line \
+                               arrives with its first minting construction",
+                    });
+                };
                 let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
                     PcurveCertifyError::IsoUnsupported {
                         what: "the chart's boundary row failed to re-wrap as a curve \
@@ -4123,8 +4131,12 @@ fn run_iso_checks<T: Decide>(
                 let over = (T::from_f64(d0) - v_at_0.min(v_at_1))
                     .max(v_at_0.max(v_at_1) - T::from_f64(d1))
                     .max(T::zero());
-                match decide("pcurve_iso_domain", Margin::metered(over, stretch_v), band)
-                    .map_err(esc)?
+                match decide(
+                    "pcurve_iso_domain",
+                    Margin::metered_sup(over, stretch_v),
+                    band,
+                )
+                .map_err(esc)?
                 {
                     Sign::Zero => {}
                     Sign::Positive | Sign::Negative => {
@@ -4134,7 +4146,7 @@ fn run_iso_checks<T: Decide>(
                         });
                     }
                 }
-                break 'seam hull + slack_u + over * stretch_v;
+                break 'seam hull + slack_u + stretch_v.to_meters(over);
             }
             let Curve3::Nurbs(c) = carrier else {
                 return Err(PcurveCertifyError::IsoUnsupported {
