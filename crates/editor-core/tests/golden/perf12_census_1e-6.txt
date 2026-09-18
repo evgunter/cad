@@ -1,0 +1,681 @@
+## die
+solids=1 faces=111 edges=264 vertices=176
+assemble: Ok
+census: Ok
+## corner_table
+solids=1 faces=18 edges=56 vertices=40
+assemble: Ok
+census: Ok
+## heat_sink
+solids=6 faces=61 edges=132 vertices=88
+assemble: Err(AtRest)
+census: 105 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(9v1), b: VertexKey(56v1) }, witness: "(0.25, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(11v1), b: VertexKey(55v1) }, witness: "(0.4375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(13v1), b: VertexKey(54v1) }, witness: "(0.4375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(15v1), b: VertexKey(53v1) }, witness: "(0.25, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(17v1), b: VertexKey(64v1) }, witness: "(0.5625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(19v1), b: VertexKey(63v1) }, witness: "(0.75, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(21v1), b: VertexKey(62v1) }, witness: "(0.75, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(23v1), b: VertexKey(61v1) }, witness: "(0.5625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(72v1) }, witness: "(0.875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(27v1), b: VertexKey(71v1) }, witness: "(1.0625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(29v1), b: VertexKey(70v1) }, witness: "(1.0625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(31v1), b: VertexKey(69v1) }, witness: "(0.875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(33v1), b: VertexKey(80v1) }, witness: "(1.1875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(35v1), b: VertexKey(79v1) }, witness: "(1.375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(37v1), b: VertexKey(78v1) }, witness: "(1.375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(39v1), b: VertexKey(77v1) }, witness: "(1.1875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(41v1), b: VertexKey(88v1) }, witness: "(1.5, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(43v1), b: VertexKey(87v1) }, witness: "(1.6875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(45v1), b: VertexKey(86v1) }, witness: "(1.6875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(47v1), b: VertexKey(85v1) }, witness: "(1.5, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(10v1), edge: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(12v1), edge: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(14v1), edge: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(16v1), edge: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(18v1), edge: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(20v1), edge: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(22v1), edge: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(24v1), edge: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(26v1), edge: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(28v1), edge: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(32v1), edge: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(34v1), edge: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(36v1), edge: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(38v1), edge: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(40v1), edge: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(42v1), edge: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(44v1), edge: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(46v1), edge: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(48v1), edge: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(13v1), face: FaceKey(35v1) }, witness: "(0.4375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(17v1), face: FaceKey(34v1) }, witness: "(0.34375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(19v1), face: FaceKey(36v1) }, witness: "(0.34375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(22v1), face: FaceKey(37v1) }, witness: "(0.25, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(25v1), face: FaceKey(41v1) }, witness: "(0.75, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(29v1), face: FaceKey(40v1) }, witness: "(0.65625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(31v1), face: FaceKey(42v1) }, witness: "(0.65625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(34v1), face: FaceKey(43v1) }, witness: "(0.5625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(37v1), face: FaceKey(47v1) }, witness: "(1.0625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(41v1), face: FaceKey(46v1) }, witness: "(0.96875, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(43v1), face: FaceKey(48v1) }, witness: "(0.96875, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(46v1), face: FaceKey(49v1) }, witness: "(0.875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(49v1), face: FaceKey(53v1) }, witness: "(1.375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(53v1), face: FaceKey(52v1) }, witness: "(1.28125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(55v1), face: FaceKey(54v1) }, witness: "(1.28125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(58v1), face: FaceKey(55v1) }, witness: "(1.1875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(61v1), face: FaceKey(59v1) }, witness: "(1.6875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(65v1), face: FaceKey(58v1) }, witness: "(1.59375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(67v1), face: FaceKey(60v1) }, witness: "(1.59375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(70v1), face: FaceKey(61v1) }, witness: "(1.5, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(14v1), b: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(15v1), b: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(16v1), b: EdgeKey(84v1) }, witness: "(0.25, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(18v1), b: EdgeKey(81v1) }, witness: "(0.34375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(20v1), b: EdgeKey(83v1) }, witness: "(0.34375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(21v1), b: EdgeKey(82v1) }, witness: "(0.4375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(23v1), b: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(24v1), b: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(26v1), b: EdgeKey(96v1) }, witness: "(0.5625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(27v1), b: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(28v1), b: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(30v1), b: EdgeKey(93v1) }, witness: "(0.65625, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(95v1) }, witness: "(0.65625, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(33v1), b: EdgeKey(94v1) }, witness: "(0.75, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(35v1), b: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(36v1), b: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(108v1) }, witness: "(0.875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(39v1), b: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(40v1), b: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(42v1), b: EdgeKey(105v1) }, witness: "(0.96875, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(44v1), b: EdgeKey(107v1) }, witness: "(0.96875, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(45v1), b: EdgeKey(106v1) }, witness: "(1.0625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(47v1), b: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(48v1), b: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(50v1), b: EdgeKey(120v1) }, witness: "(1.1875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(51v1), b: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(52v1), b: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(54v1), b: EdgeKey(117v1) }, witness: "(1.28125, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(56v1), b: EdgeKey(119v1) }, witness: "(1.28125, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(57v1), b: EdgeKey(118v1) }, witness: "(1.375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(59v1), b: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(60v1), b: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(62v1), b: EdgeKey(132v1) }, witness: "(1.5, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(63v1), b: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(64v1), b: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(66v1), b: EdgeKey(129v1) }, witness: "(1.59375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v1) }, witness: "(1.59375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+## crossing_slots
+solids=1 faces=18 edges=48 vertices=32
+assemble: Ok
+census: Ok
+## nested_islands_105
+solids=1 faces=21 edges=48 vertices=32
+assemble: Ok
+census: Ok
+## nested_islands_106_depth1
+solids=1 faces=10 edges=24 vertices=16
+assemble: Ok
+census: Ok
+## nested_islands_106_depth2
+solids=1 faces=16 edges=36 vertices=24
+assemble: Ok
+census: Ok
+## declared_tangency
+solids=2 faces=18 edges=42 vertices=28
+assemble: Ok
+census: Ok
+## kitchen_sink
+solids=8 faces=48 edges=128 vertices=96
+assemble: Err(AtRest)
+census: 66 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(1v1), b: VertexKey(29v1) }, witness: "(0.0, 0.0, 0.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(1v1), b: VertexKey(92v1) }, witness: "(0.0, 0.0, 0.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(2v1), b: VertexKey(30v1) }, witness: "(1.0, 0.0, 0.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(31v1) }, witness: "(1.0, 1.0, 0.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(32v1) }, witness: "(0.0, 1.0, 0.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(40v1) }, witness: "(0.0, 0.0, 0.625)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(26v1), b: VertexKey(38v1) }, witness: "(0.0, 1.0, 0.625)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(27v1), b: VertexKey(37v1) }, witness: "(1.5, 1.0, 0.625)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(28v1), b: VertexKey(39v1) }, witness: "(1.5, 0.0, 0.625)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(29v1), b: VertexKey(92v1) }, witness: "(0.0, 0.0, 0.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(5v1), edge: EdgeKey(44v1) }, witness: "(0.0, 0.0, 0.375)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(5v1), edge: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.375)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(8v1), edge: EdgeKey(45v1) }, witness: "(0.0, 1.0, 0.375)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(25v1), edge: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.625)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(33v1), edge: EdgeKey(1v1) }, witness: "(0.5, 0.0, 0.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(34v1), edge: EdgeKey(3v1) }, witness: "(0.5, 1.0, 0.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(40v1), edge: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.625)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(91v1), edge: EdgeKey(27v1) }, witness: "(0.0, 0.0, 1.0)" }
+UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(6v1), face: FaceKey(24v1) }, witness: "(1.0, 0.0, 0.375)" }
+UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(7v1), face: FaceKey(21v1) }, witness: "(1.0, 1.0, 0.375)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(2v1), face: FaceKey(19v1) }, witness: "(1.0, 0.5, 0.0)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(6v1), face: FaceKey(24v1) }, witness: "(1.0, 0.0, 0.1875)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(7v1), face: FaceKey(21v1) }, witness: "(1.0, 1.0, 0.1875)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), face: FaceKey(24v1) }, witness: "(0.5, 0.0, 0.375)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(11v1), face: FaceKey(21v1) }, witness: "(0.5, 1.0, 0.375)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), face: FaceKey(22v1) }, witness: "(0.0, 0.5, 0.375)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(41v1) }, witness: "(0.25, 0.0, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(1v1), b: EdgeKey(46v1) }, witness: "(0.75, 0.0, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(3v1), b: EdgeKey(42v1) }, witness: "(0.75, 1.0, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(3v1), b: EdgeKey(47v1) }, witness: "(0.25, 1.0, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(4v1), b: EdgeKey(43v1) }, witness: "(0.0, 0.5, 0.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(5v1), b: EdgeKey(44v1) }, witness: "(0.0, 0.0, 0.1875)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(5v1), b: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.1875)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(8v1), b: EdgeKey(45v1) }, witness: "(0.0, 1.0, 0.1875)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(27v1), b: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.8125)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(37v1), b: EdgeKey(56v1) }, witness: "(1.5, 0.5, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(54v1) }, witness: "(0.0, 0.5, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(39v1), b: EdgeKey(55v1) }, witness: "(0.75, 0.0, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(40v1), b: EdgeKey(53v1) }, witness: "(0.75, 1.0, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(44v1), b: EdgeKey(119v1) }, witness: "(0.0, 0.0, 0.3125)" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(1v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(2v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(3v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(5v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(6v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(14v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(16v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(17v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(18v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(19v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(21v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(22v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(23v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(24v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(5v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(6v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(14v1)), b: Face(FaceKey(46v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(16v1)), b: Face(FaceKey(46v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(17v1)), b: Face(FaceKey(46v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(19v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(21v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(22v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(24v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(1v1)), what: "every vertex of the contained instance lies on the containing instance's boundary — a placement its vertices do not decide" }
+## cut_cylinder
+solids=2 faces=8 edges=12 vertices=8
+assemble: Err(AtRest)
+census: 11 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(-0.5, 0.0, 0.6546681248048116)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(0.5, 0.0, 0.3453318751951884)" }
+CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(6v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(7v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(8v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(6v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(7v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(8v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(6v1)), b: Face(FaceKey(4v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(7v1)), b: Face(FaceKey(4v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+CensusUndecidable { a: Face(FaceKey(4v1)), b: Face(FaceKey(8v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
+## measured_web
+solids=1 faces=6 edges=12 vertices=8
+assemble: Ok
+census: Ok
+## boss_union
+solids=1 faces=10 edges=21 vertices=14
+assemble: Ok
+census: Ok
+## die_fillet
+solids=1 faces=26 edges=48 vertices=24
+assemble: Ok
+census: Ok
+## die_chamfer
+solids=1 faces=26 edges=48 vertices=24
+assemble: Ok
+census: Ok
+## die_pips
+solids=1 faces=8 edges=16 vertices=11
+assemble: Ok
+census: Ok
+## heat_sink_fins
+solids=1 faces=30 edges=60 vertices=40
+assemble: Ok
+census: Ok
+## die_tool
+solids=1 faces=18 edges=36 vertices=26
+assemble: Ok
+census: Ok
+## face_sketch
+solids=1 faces=6 edges=12 vertices=8
+assemble: Ok
+census: Ok
+## part_select
+solids=2 faces=12 edges=28 vertices=20
+assemble: Ok
+census: Ok
+## loft_prism
+solids=1 faces=6 edges=12 vertices=8
+assemble: Ok
+census: Ok
+## die_composed
+solids=1 faces=29 edges=55 vertices=29
+assemble: Ok
+census: Ok
+## die_composed_tour
+solids=1 faces=89 edges=195 vertices=129
+assemble: Ok
+census: Ok
+## plate_param
+solids=1 faces=16 edges=42 vertices=28
+assemble: Ok
+census: Ok
+## kiss_carry
+solids=1 faces=18 edges=42 vertices=28
+assemble: Ok
+census: Ok
+## tube_ring
+solids=1 faces=2 edges=4 vertices=2
+assemble: Ok
+census: Ok
+## tube_arc
+solids=1 faces=4 edges=6 vertices=4
+assemble: Ok
+census: Ok
+## hollow_tube_elbow
+solids=1 faces=6 edges=12 vertices=8
+assemble: Ok
+census: Ok
+## hollow_tube_ring
+solids=1 faces=4 edges=8 vertices=4
+assemble: Ok
+census: Ok
+## heat_sink@10
+solids=11 faces=91 edges=192 vertices=128
+assemble: Err(AtRest)
+census: 125 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(9v1), b: VertexKey(56v1) }, witness: "(0.25, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(11v1), b: VertexKey(55v1) }, witness: "(0.4375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(13v1), b: VertexKey(54v1) }, witness: "(0.4375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(15v1), b: VertexKey(53v1) }, witness: "(0.25, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(17v1), b: VertexKey(64v1) }, witness: "(0.5625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(19v1), b: VertexKey(63v1) }, witness: "(0.75, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(21v1), b: VertexKey(62v1) }, witness: "(0.75, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(23v1), b: VertexKey(61v1) }, witness: "(0.5625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(72v1) }, witness: "(0.875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(27v1), b: VertexKey(71v1) }, witness: "(1.0625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(29v1), b: VertexKey(70v1) }, witness: "(1.0625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(31v1), b: VertexKey(69v1) }, witness: "(0.875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(33v1), b: VertexKey(80v1) }, witness: "(1.1875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(35v1), b: VertexKey(79v1) }, witness: "(1.375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(37v1), b: VertexKey(78v1) }, witness: "(1.375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(39v1), b: VertexKey(77v1) }, witness: "(1.1875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(41v1), b: VertexKey(88v1) }, witness: "(1.5, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(43v1), b: VertexKey(87v1) }, witness: "(1.6875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(45v1), b: VertexKey(86v1) }, witness: "(1.6875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(47v1), b: VertexKey(85v1) }, witness: "(1.5, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(10v1), edge: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(12v1), edge: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(14v1), edge: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(16v1), edge: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(18v1), edge: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(20v1), edge: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(22v1), edge: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(24v1), edge: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(26v1), edge: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(28v1), edge: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(32v1), edge: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(34v1), edge: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(36v1), edge: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(38v1), edge: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(40v1), edge: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(42v1), edge: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(44v1), edge: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(46v1), edge: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(48v1), edge: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(13v1), face: FaceKey(35v1) }, witness: "(0.4375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(17v1), face: FaceKey(34v1) }, witness: "(0.34375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(19v1), face: FaceKey(36v1) }, witness: "(0.34375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(22v1), face: FaceKey(37v1) }, witness: "(0.25, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(25v1), face: FaceKey(41v1) }, witness: "(0.75, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(29v1), face: FaceKey(40v1) }, witness: "(0.65625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(31v1), face: FaceKey(42v1) }, witness: "(0.65625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(34v1), face: FaceKey(43v1) }, witness: "(0.5625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(37v1), face: FaceKey(47v1) }, witness: "(1.0625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(41v1), face: FaceKey(46v1) }, witness: "(0.96875, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(43v1), face: FaceKey(48v1) }, witness: "(0.96875, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(46v1), face: FaceKey(49v1) }, witness: "(0.875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(49v1), face: FaceKey(53v1) }, witness: "(1.375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(53v1), face: FaceKey(52v1) }, witness: "(1.28125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(55v1), face: FaceKey(54v1) }, witness: "(1.28125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(58v1), face: FaceKey(55v1) }, witness: "(1.1875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(61v1), face: FaceKey(59v1) }, witness: "(1.6875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(65v1), face: FaceKey(58v1) }, witness: "(1.59375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(67v1), face: FaceKey(60v1) }, witness: "(1.59375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(70v1), face: FaceKey(61v1) }, witness: "(1.5, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(139v1), face: FaceKey(1v1) }, witness: "(2.0, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(140v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(149v1), face: FaceKey(1v1) }, witness: "(2.125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(150v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(151v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(152v1), face: FaceKey(1v1) }, witness: "(2.125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(161v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(162v1), face: FaceKey(1v1) }, witness: "(2.625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(163v1), face: FaceKey(1v1) }, witness: "(2.625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(164v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(173v1), face: FaceKey(1v1) }, witness: "(2.75, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(174v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(175v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(176v1), face: FaceKey(1v1) }, witness: "(2.75, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(14v1), b: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(15v1), b: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(16v1), b: EdgeKey(84v1) }, witness: "(0.25, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(18v1), b: EdgeKey(81v1) }, witness: "(0.34375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(20v1), b: EdgeKey(83v1) }, witness: "(0.34375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(21v1), b: EdgeKey(82v1) }, witness: "(0.4375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(23v1), b: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(24v1), b: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(26v1), b: EdgeKey(96v1) }, witness: "(0.5625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(27v1), b: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(28v1), b: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(30v1), b: EdgeKey(93v1) }, witness: "(0.65625, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(95v1) }, witness: "(0.65625, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(33v1), b: EdgeKey(94v1) }, witness: "(0.75, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(35v1), b: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(36v1), b: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(108v1) }, witness: "(0.875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(39v1), b: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(40v1), b: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(42v1), b: EdgeKey(105v1) }, witness: "(0.96875, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(44v1), b: EdgeKey(107v1) }, witness: "(0.96875, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(45v1), b: EdgeKey(106v1) }, witness: "(1.0625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(47v1), b: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(48v1), b: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(50v1), b: EdgeKey(120v1) }, witness: "(1.1875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(51v1), b: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(52v1), b: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(54v1), b: EdgeKey(117v1) }, witness: "(1.28125, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(56v1), b: EdgeKey(119v1) }, witness: "(1.28125, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(57v1), b: EdgeKey(118v1) }, witness: "(1.375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(59v1), b: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(60v1), b: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(62v1), b: EdgeKey(132v1) }, witness: "(1.5, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(63v1), b: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(64v1), b: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(66v1), b: EdgeKey(129v1) }, witness: "(1.59375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v1) }, witness: "(1.59375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }
+## heat_sink@40
+solids=41 faces=271 edges=552 vertices=368
+assemble: Err(AtRest)
+census: 125 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(9v1), b: VertexKey(56v1) }, witness: "(0.25, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(11v1), b: VertexKey(55v1) }, witness: "(0.4375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(13v1), b: VertexKey(54v1) }, witness: "(0.4375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(15v1), b: VertexKey(53v1) }, witness: "(0.25, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(17v1), b: VertexKey(64v1) }, witness: "(0.5625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(19v1), b: VertexKey(63v1) }, witness: "(0.75, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(21v1), b: VertexKey(62v1) }, witness: "(0.75, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(23v1), b: VertexKey(61v1) }, witness: "(0.5625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(72v1) }, witness: "(0.875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(27v1), b: VertexKey(71v1) }, witness: "(1.0625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(29v1), b: VertexKey(70v1) }, witness: "(1.0625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(31v1), b: VertexKey(69v1) }, witness: "(0.875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(33v1), b: VertexKey(80v1) }, witness: "(1.1875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(35v1), b: VertexKey(79v1) }, witness: "(1.375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(37v1), b: VertexKey(78v1) }, witness: "(1.375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(39v1), b: VertexKey(77v1) }, witness: "(1.1875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(41v1), b: VertexKey(88v1) }, witness: "(1.5, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(43v1), b: VertexKey(87v1) }, witness: "(1.6875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(45v1), b: VertexKey(86v1) }, witness: "(1.6875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(47v1), b: VertexKey(85v1) }, witness: "(1.5, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(10v1), edge: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(12v1), edge: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(14v1), edge: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(16v1), edge: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(18v1), edge: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(20v1), edge: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(22v1), edge: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(24v1), edge: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(26v1), edge: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(28v1), edge: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(32v1), edge: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(34v1), edge: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(36v1), edge: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(38v1), edge: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(40v1), edge: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(42v1), edge: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(44v1), edge: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(46v1), edge: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(48v1), edge: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(13v1), face: FaceKey(35v1) }, witness: "(0.4375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(17v1), face: FaceKey(34v1) }, witness: "(0.34375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(19v1), face: FaceKey(36v1) }, witness: "(0.34375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(22v1), face: FaceKey(37v1) }, witness: "(0.25, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(25v1), face: FaceKey(41v1) }, witness: "(0.75, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(29v1), face: FaceKey(40v1) }, witness: "(0.65625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(31v1), face: FaceKey(42v1) }, witness: "(0.65625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(34v1), face: FaceKey(43v1) }, witness: "(0.5625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(37v1), face: FaceKey(47v1) }, witness: "(1.0625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(41v1), face: FaceKey(46v1) }, witness: "(0.96875, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(43v1), face: FaceKey(48v1) }, witness: "(0.96875, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(46v1), face: FaceKey(49v1) }, witness: "(0.875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(49v1), face: FaceKey(53v1) }, witness: "(1.375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(53v1), face: FaceKey(52v1) }, witness: "(1.28125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(55v1), face: FaceKey(54v1) }, witness: "(1.28125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(58v1), face: FaceKey(55v1) }, witness: "(1.1875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(61v1), face: FaceKey(59v1) }, witness: "(1.6875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(65v1), face: FaceKey(58v1) }, witness: "(1.59375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(67v1), face: FaceKey(60v1) }, witness: "(1.59375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(70v1), face: FaceKey(61v1) }, witness: "(1.5, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(139v1), face: FaceKey(1v1) }, witness: "(2.0, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(140v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(149v1), face: FaceKey(1v1) }, witness: "(2.125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(150v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(151v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(152v1), face: FaceKey(1v1) }, witness: "(2.125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(161v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(162v1), face: FaceKey(1v1) }, witness: "(2.625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(163v1), face: FaceKey(1v1) }, witness: "(2.625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(164v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(173v1), face: FaceKey(1v1) }, witness: "(2.75, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(174v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(175v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(176v1), face: FaceKey(1v1) }, witness: "(2.75, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(14v1), b: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(15v1), b: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(16v1), b: EdgeKey(84v1) }, witness: "(0.25, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(18v1), b: EdgeKey(81v1) }, witness: "(0.34375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(20v1), b: EdgeKey(83v1) }, witness: "(0.34375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(21v1), b: EdgeKey(82v1) }, witness: "(0.4375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(23v1), b: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(24v1), b: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(26v1), b: EdgeKey(96v1) }, witness: "(0.5625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(27v1), b: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(28v1), b: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(30v1), b: EdgeKey(93v1) }, witness: "(0.65625, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(95v1) }, witness: "(0.65625, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(33v1), b: EdgeKey(94v1) }, witness: "(0.75, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(35v1), b: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(36v1), b: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(108v1) }, witness: "(0.875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(39v1), b: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(40v1), b: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(42v1), b: EdgeKey(105v1) }, witness: "(0.96875, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(44v1), b: EdgeKey(107v1) }, witness: "(0.96875, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(45v1), b: EdgeKey(106v1) }, witness: "(1.0625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(47v1), b: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(48v1), b: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(50v1), b: EdgeKey(120v1) }, witness: "(1.1875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(51v1), b: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(52v1), b: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(54v1), b: EdgeKey(117v1) }, witness: "(1.28125, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(56v1), b: EdgeKey(119v1) }, witness: "(1.28125, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(57v1), b: EdgeKey(118v1) }, witness: "(1.375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(59v1), b: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(60v1), b: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(62v1), b: EdgeKey(132v1) }, witness: "(1.5, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(63v1), b: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(64v1), b: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(66v1), b: EdgeKey(129v1) }, witness: "(1.59375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v1) }, witness: "(1.59375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }
+## heat_sink@160
+solids=161 faces=991 edges=1992 vertices=1328
+assemble: Err(AtRest)
+census: 125 findings
+UndeclaredContact { contact: VertexVertex { a: VertexKey(9v1), b: VertexKey(56v1) }, witness: "(0.25, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(11v1), b: VertexKey(55v1) }, witness: "(0.4375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(13v1), b: VertexKey(54v1) }, witness: "(0.4375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(15v1), b: VertexKey(53v1) }, witness: "(0.25, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(17v1), b: VertexKey(64v1) }, witness: "(0.5625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(19v1), b: VertexKey(63v1) }, witness: "(0.75, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(21v1), b: VertexKey(62v1) }, witness: "(0.75, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(23v1), b: VertexKey(61v1) }, witness: "(0.5625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(72v1) }, witness: "(0.875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(27v1), b: VertexKey(71v1) }, witness: "(1.0625, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(29v1), b: VertexKey(70v1) }, witness: "(1.0625, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(31v1), b: VertexKey(69v1) }, witness: "(0.875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(33v1), b: VertexKey(80v1) }, witness: "(1.1875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(35v1), b: VertexKey(79v1) }, witness: "(1.375, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(37v1), b: VertexKey(78v1) }, witness: "(1.375, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(39v1), b: VertexKey(77v1) }, witness: "(1.1875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(41v1), b: VertexKey(88v1) }, witness: "(1.5, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(43v1), b: VertexKey(87v1) }, witness: "(1.6875, 0.875, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(45v1), b: VertexKey(86v1) }, witness: "(1.6875, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(47v1), b: VertexKey(85v1) }, witness: "(1.5, 0.125, 1.0)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(10v1), edge: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(12v1), edge: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(14v1), edge: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(16v1), edge: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(18v1), edge: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(20v1), edge: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(22v1), edge: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(24v1), edge: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(26v1), edge: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(28v1), edge: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(30v1), edge: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(32v1), edge: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(34v1), edge: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(36v1), edge: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(38v1), edge: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(40v1), edge: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(42v1), edge: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(44v1), edge: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(46v1), edge: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.25)" }
+UndeclaredContact { contact: VertexOnEdge { vertex: VertexKey(48v1), edge: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(13v1), face: FaceKey(35v1) }, witness: "(0.4375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(17v1), face: FaceKey(34v1) }, witness: "(0.34375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(19v1), face: FaceKey(36v1) }, witness: "(0.34375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(22v1), face: FaceKey(37v1) }, witness: "(0.25, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(25v1), face: FaceKey(41v1) }, witness: "(0.75, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(29v1), face: FaceKey(40v1) }, witness: "(0.65625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(31v1), face: FaceKey(42v1) }, witness: "(0.65625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(34v1), face: FaceKey(43v1) }, witness: "(0.5625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(37v1), face: FaceKey(47v1) }, witness: "(1.0625, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(41v1), face: FaceKey(46v1) }, witness: "(0.96875, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(43v1), face: FaceKey(48v1) }, witness: "(0.96875, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(46v1), face: FaceKey(49v1) }, witness: "(0.875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(49v1), face: FaceKey(53v1) }, witness: "(1.375, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(53v1), face: FaceKey(52v1) }, witness: "(1.28125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(55v1), face: FaceKey(54v1) }, witness: "(1.28125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(58v1), face: FaceKey(55v1) }, witness: "(1.1875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(61v1), face: FaceKey(59v1) }, witness: "(1.6875, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(65v1), face: FaceKey(58v1) }, witness: "(1.59375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(67v1), face: FaceKey(60v1) }, witness: "(1.59375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(70v1), face: FaceKey(61v1) }, witness: "(1.5, 0.5, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(139v1), face: FaceKey(1v1) }, witness: "(2.0, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(140v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(149v1), face: FaceKey(1v1) }, witness: "(2.125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(150v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(151v1), face: FaceKey(1v1) }, witness: "(2.3125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(152v1), face: FaceKey(1v1) }, witness: "(2.125, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(161v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(162v1), face: FaceKey(1v1) }, witness: "(2.625, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(163v1), face: FaceKey(1v1) }, witness: "(2.625, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(164v1), face: FaceKey(1v1) }, witness: "(2.4375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(173v1), face: FaceKey(1v1) }, witness: "(2.75, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(174v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.125, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(175v1), face: FaceKey(1v1) }, witness: "(2.9375, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeFacePierce { edge: EdgeKey(176v1), face: FaceKey(1v1) }, witness: "(2.75, 0.875, 0.25)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(14v1), b: EdgeKey(77v1) }, witness: "(0.25, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(15v1), b: EdgeKey(78v1) }, witness: "(0.4375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(16v1), b: EdgeKey(84v1) }, witness: "(0.25, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(18v1), b: EdgeKey(81v1) }, witness: "(0.34375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(20v1), b: EdgeKey(83v1) }, witness: "(0.34375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(21v1), b: EdgeKey(82v1) }, witness: "(0.4375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(23v1), b: EdgeKey(79v1) }, witness: "(0.4375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(24v1), b: EdgeKey(80v1) }, witness: "(0.25, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(26v1), b: EdgeKey(96v1) }, witness: "(0.5625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(27v1), b: EdgeKey(89v1) }, witness: "(0.5625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(28v1), b: EdgeKey(90v1) }, witness: "(0.75, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(30v1), b: EdgeKey(93v1) }, witness: "(0.65625, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(32v1), b: EdgeKey(95v1) }, witness: "(0.65625, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(33v1), b: EdgeKey(94v1) }, witness: "(0.75, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(35v1), b: EdgeKey(91v1) }, witness: "(0.75, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(36v1), b: EdgeKey(92v1) }, witness: "(0.5625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(38v1), b: EdgeKey(108v1) }, witness: "(0.875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(39v1), b: EdgeKey(101v1) }, witness: "(0.875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(40v1), b: EdgeKey(102v1) }, witness: "(1.0625, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(42v1), b: EdgeKey(105v1) }, witness: "(0.96875, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(44v1), b: EdgeKey(107v1) }, witness: "(0.96875, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(45v1), b: EdgeKey(106v1) }, witness: "(1.0625, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(47v1), b: EdgeKey(103v1) }, witness: "(1.0625, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(48v1), b: EdgeKey(104v1) }, witness: "(0.875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(50v1), b: EdgeKey(120v1) }, witness: "(1.1875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(51v1), b: EdgeKey(113v1) }, witness: "(1.1875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(52v1), b: EdgeKey(114v1) }, witness: "(1.375, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(54v1), b: EdgeKey(117v1) }, witness: "(1.28125, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(56v1), b: EdgeKey(119v1) }, witness: "(1.28125, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(57v1), b: EdgeKey(118v1) }, witness: "(1.375, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(59v1), b: EdgeKey(115v1) }, witness: "(1.375, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(60v1), b: EdgeKey(116v1) }, witness: "(1.1875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(62v1), b: EdgeKey(132v1) }, witness: "(1.5, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(63v1), b: EdgeKey(125v1) }, witness: "(1.5, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(64v1), b: EdgeKey(126v1) }, witness: "(1.6875, 0.125, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(66v1), b: EdgeKey(129v1) }, witness: "(1.59375, 0.125, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v1) }, witness: "(1.59375, 0.875, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
+UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }

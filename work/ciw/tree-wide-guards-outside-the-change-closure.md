@@ -2,9 +2,10 @@
 id: tree-wide-guards-outside-the-change-closure
 kind: issue
 title: Tree-wide guards are unreachable from the change closure - two main breaks in one night, and Ev's ruling: the closure reaches them
-status: open
+status: closed
 opened: 2026-09-05
 refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, main-latently-red-at-tier-all, 1829, 1859, 1871, 1884]
+closed: 2026-09-06
 ---
 
 On 2026-09-04 `crates/test-utils/tests/reader_census.rs:538`
@@ -313,3 +314,16 @@ sixth written next week would not have been.
 - Whether the `geom-core` and `editor-core` guards have ever actually
   missed an arrival is **not measured** — only that their reachability
   admits it.
+
+## Closed 2026-09-06
+
+Ev ruled on 2026-09-05 (*"oh yeah the closure should reach tree wide
+guards"*) and the fix landed as `closure-reaches-tree-wide-guards` (PR 1909):
+`scripts/ci-filter.py`'s `PKGS` is the dependent closure plus a read reach,
+so `crates/test-utils/tests/reader_census.rs` is in scope for any change it
+could be invalidated by. What this item leaves unestablished is unchanged and
+is stated above; the one open thread is
+`reach-cannot-follow-every-ascent`, which has its own file.
+
+The F3 question this item was filed beside is NOT closed by it — it is
+`f3-recosting-on-a-public-repo`, which stays open with `needs_ev`.

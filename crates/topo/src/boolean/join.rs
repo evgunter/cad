@@ -112,6 +112,7 @@ use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+use crate::face_normal::face_outward_normal;
 use crate::null::NullFacePair;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -326,7 +327,7 @@ pub(super) fn bool_connect<T: Decide>(
         // normal names a chart, not a material side. The plane as a
         // point set (and hence the section conic, its azimuth window,
         // and the auxiliary surface minted for it) is identical under
-        // a sense flip, so applying `sense_sign` here would rewrite an
+        // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
         let ga = surf_of(&red.a, germ.a_face)?;
@@ -1000,14 +1001,18 @@ fn intersecting_cylinder_axes<T: Decide>(
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
         // coaxial-equal-radius pose was refused at the parallelism
-        // gate, and no coaxiality, torus or conic-carrier question is
-        // asked of two cylinders with meeting axes.
+        // gate, no coaxiality, torus or conic-carrier question is
+        // asked of two cylinders with meeting axes, and no arm this
+        // pair reaches states a locus off the extent it was handed
+        // (the cylinder pair's ellipses stand on the operands
+        // themselves).
         Err(
             geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::CoaxialDeclarationContradicted
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::Carrier(_),
         ) => FrameError::Desync(
             "the declared equal-radius cylinder section refused at the germ pair \
@@ -1357,8 +1362,8 @@ fn choose_roles<T: Decide>(
 /// signs and needs exactly ONE of them threaded. The Newell sum is
 /// winding — read off the run's STORED traversal order, which `revert`
 /// reverses — so it already flips with the sense bit and must not be
-/// touched. The normal is a CHART read standing in for the face's
-/// outward normal, so it is multiplied by `sense_sign`. Threading both
+/// touched. The normal is the face's OUTWARD normal, read through
+/// [`face_outward_normal`] with the sense folded in. Threading both
 /// would cancel (the classic double-count); threading neither leaves
 /// "CCW around the outward normal" meaning "CCW around the chart
 /// normal", the opposite statement on a reversed face — and this
@@ -1371,13 +1376,9 @@ fn ring_run_ccw<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let normal = match body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface).map(|s| (f, s)))
-    {
-        Some((f, geom::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
-        _ => return Err(desync("ring-lane face has no planar carrier")),
-    };
+    let normal = face_outward_normal(body, face)
+        .ok_or(desync("ring-lane face has no planar carrier"))?
+        .vec();
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = body
             .get_half_edge(he)

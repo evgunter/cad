@@ -28,10 +28,11 @@ from pncad import (
     Denotation,
     Doc,
     EntityKind,
+    Expr,
     NamePat,
     Node,
-    Pose,
     PncadError,
+    Pose,
     ReadbackError,
     SegPat,
     SegTag,
@@ -44,9 +45,14 @@ from pncad import (
 def unit_cube(doc):
     """A 1 m cube on the ground plane, rooted at the origin."""
     square = doc.insert(
-        Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+        Node.polygon([
+            (Expr.length_in(0, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(0, m)),
+            (Expr.length_in(1, m), Expr.length_in(1, m)),
+            (Expr.length_in(0, m), Expr.length_in(1, m)),
+        ], plane=doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(square, 1 * m))
+    return doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
 
 def one(found):

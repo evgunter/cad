@@ -728,7 +728,7 @@ mod tests {
     /// are a complete test bed.
     fn eval1(kv: &KnotVector, w: &[f64], x: &[f64], t: f64) -> f64 {
         let span = kv.span_at(t);
-        let n = basis_funs(kv, span, t);
+        let n = basis_funs(span, t);
         let (mut num, mut den) = (0.0, 0.0);
         for (j, nj) in n.iter().enumerate() {
             let i = span.first_control() + j;

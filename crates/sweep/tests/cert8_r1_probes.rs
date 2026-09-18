@@ -15,13 +15,8 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::test_support::stacked_at;
 use topo::{Body, FaceKey};
-
-fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
-}
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
@@ -74,13 +69,19 @@ fn sample(surface: &Surface<f64>, arm_u: f64, arm_v: f64) -> (f64, f64, f64, f64
 
 fn probe(name: &str, surface: &Surface<f64>) {
     let inf = geom_brep::chart_stretch_inf(surface);
+    // A cone has no surface-level sup pair; this probe's fixtures are
+    // spline charts, and a refusal prints as the refusal.
     let sup = geom_brep::chart_stretch_sup(surface);
+    let (sup_u, sup_v) = match sup {
+        Ok(pair) => (pair.0.get(), pair.1.get()),
+        Err(_) => (f64::NAN, geom_brep::chart_stretch_sup_v(surface).get()),
+    };
     let (arm_u, arm_v, rho) = assemble(&inf);
     let mw = 2.0 * (arm_u * arm_v) / (2.0 * (arm_u + arm_v));
     println!(
         "{name}: inf=({:.6},{:.6}) sup=({:.6},{:.6}) area_inf={:.6} rho={:.6} \
          arms=({:.6},{:.6}) unit-square mean width={:.6}",
-        inf.inf_u, inf.inf_v, sup.0, sup.1, inf.area_inf, rho, arm_u, arm_v, mw
+        inf.inf_u, inf.inf_v, sup_u, sup_v, inf.area_inf, rho, arm_u, arm_v, mw
     );
     let (mu, mv, ma, worst) = sample(surface, arm_u, arm_v);
     println!(
@@ -143,7 +144,7 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
         ])]
     };
     let sections = vec![bulged(), bulged()];
-    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1, Tol::witness())
+    let body = sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
     for (_, face) in body.faces() {

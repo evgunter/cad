@@ -13,8 +13,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, InterfaceCrossing,
-    InterfaceRecord, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, load, save,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
+    InterfaceCrossing, InterfaceRecord, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply,
+    load, save,
 };
 use geom_core::Tol;
 
@@ -25,10 +26,13 @@ fn doc_with_a_crossing() -> ProfileDoc {
         id: DocumentId::derive("asm-r2b-schema-part"),
         pin: ContentPin([9u8; 32]),
     };
-    let face = |node, cap| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::Cap(cap)],
+    let face = |node, cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
     };
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {

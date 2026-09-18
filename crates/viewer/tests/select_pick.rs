@@ -27,11 +27,11 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pick::{IdMap, PatchId, PickIndex};
+use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
 use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
-use viewer::{cursor_projection, input, pick};
+use viewer::{cursor_projection, input, marks};
 
 /// A session over the spike plate, evaluated and landed.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
@@ -49,7 +49,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -677,13 +683,13 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
         .expect("no refusal")
         .expect("a hit");
 
-    let nothing = pick::highlight(&index, &Selection::None, None);
+    let nothing = marks::highlight(&index, &Selection::None, None);
     assert_eq!(nothing.selected, IdMap::NOTHING);
     assert_eq!(nothing.hovered, IdMap::NOTHING);
 
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     session.perform(SessionOp::Hover(Some(Hovered::Face(face.clone()))));
-    let lit = pick::highlight(&index, session.selection(), session.hover());
+    let lit = marks::highlight(&index, session.selection(), session.hover());
     assert_ne!(lit.selected, IdMap::NOTHING, "the selected patch is marked");
     assert_eq!(lit.hovered, lit.selected, "the same patch is under both");
     assert_eq!(
@@ -696,7 +702,7 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
     // what "pure function" means here and why no widget retains it.
     assert_eq!(
         lit,
-        pick::highlight(&index, session.selection(), session.hover())
+        marks::highlight(&index, session.selection(), session.hover())
     );
 }
 
@@ -840,7 +846,11 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = index_of(&session);
     assert!(
-        index.current_for(session.landed_generation(), delta()),
+        index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "freshly built, it describes the run on screen"
     );
 
@@ -851,15 +861,31 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     });
     session.pump();
     assert!(
-        !index.current_for(session.landed_generation(), delta()),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
     // the tessellations the picture is drawn from.
     let coarser = delta().scaled(2.0).expect("a positive delta");
     let rebuilt = index_of(&session);
-    assert!(rebuilt.current_for(session.landed_generation(), delta()));
-    assert!(!rebuilt.current_for(session.landed_generation(), coarser));
+    assert!(
+        rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        )
+    );
+    assert!(
+        !rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, coarser))
+        )
+    );
 }
 
 #[test]

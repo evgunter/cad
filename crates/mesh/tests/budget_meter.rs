@@ -19,35 +19,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Vec3};
 use mesh::budget::{self, Mode};
-use sweep::loft_body;
+use sweep::test_support::loft_prism;
 use topo::Body;
 
 use crate::common;
-use common::quad;
 use geom_core::Tol;
 
 /// The tightness floor `the_deviation_pass_samples_and_stays_under_its_certificates`
 /// asserts, and the argument for its value is there.
 const RATIO_FLOOR: f64 = 0.1;
-
-/// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
-/// non-affine trapezoid at z = 1, v-degree 2.
-fn loft_prism() -> Body<f64> {
-    let sections = vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("the corpus loft builds")
-        .body
-}
 
 /// The body's described-NURBS faces, in arena order.
 fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
@@ -66,7 +47,7 @@ fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
 /// must not be a thing a caller can accidentally pay for.
 #[test]
 fn a_disarmed_meter_records_nothing() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     assert!(!budget::armed());
     assert!(budget::deviation_samples().is_none());
     mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
@@ -79,7 +60,7 @@ fn a_disarmed_meter_records_nothing() {
 /// nothing about them.
 #[test]
 fn every_nurbs_face_is_measured_once_and_by_key() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let walls = nurbs_faces(&body);
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     budget::arm(Mode::Sizing);
@@ -204,7 +185,7 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// do not read this row's silence about cylinders as coverage.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     budget::arm(Mode::Deviation {
         samples_per_edge: 6,
     });
@@ -259,7 +240,7 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
 /// must not be an exception to).
 #[test]
 fn arming_the_meter_does_not_change_the_mesh() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let plain = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     budget::arm(Mode::Deviation {
         samples_per_edge: 6,
@@ -285,4 +266,42 @@ fn arming_the_meter_does_not_change_the_mesh() {
         assert_eq!(a.face, b.face);
         assert_eq!(a.triangles, b.triangles);
     }
+}
+
+/// **The lanes run on rayon workers, and never on the caller** — the
+/// row that holds `tessellate`'s per-face dispatch to being D9 idiom 1.
+///
+/// The goldens row next door proves the mesh is the same bytes at one
+/// and four threads. That claim is also true of a tessellator with no
+/// parallelism in it at all, so on its own it cannot tell "the map is
+/// schedule-invariant" from "the map went away". This one can: an
+/// indexed `par_iter` collected by a caller that is not itself a pool
+/// worker injects its job and parks on a latch, so no lane can run on
+/// the calling thread. A serial arm added under some face-count
+/// threshold — the remedy
+/// `work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+/// argues against — would run every lane here and turn this red.
+///
+/// It is a fact about rayon rather than about scheduling luck, which is
+/// why the assertion is on WHERE a lane ran and not on how many
+/// threads shared the work: how many workers a 4-thread pool actually
+/// wakes for a small body is a race, and a row asserting two would be
+/// flaky on a loaded runner.
+#[test]
+fn no_face_lane_runs_on_the_thread_that_called_tessellate() {
+    let body = sweep::test_support::swept_elbow(Tol::witness());
+    budget::arm(Mode::Sizing);
+    mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
+    let threads = budget::lane_threads();
+    let here = budget::lane_ran_on_caller();
+    let _ = budget::take();
+    assert!(
+        threads > 0,
+        "the meter saw no lane at all — it was armed and a body was tessellated"
+    );
+    assert!(
+        !here,
+        "a face's lane ran on the thread that called `tessellate`: the per-face \
+         dispatch is not the parallel map any more (it saw {threads} thread(s))"
+    );
 }

@@ -75,7 +75,16 @@
 //! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
 //! the sanctioned re-inspection), stored circle centers/axes/radii,
 //! and carrier endpoint evaluations — never from endpoint `atan2`
-//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker). The
+//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
+//! endpoint inversions differenced lose the winding and sit on a
+//! branch cut wherever an arc is anchored at the seam or a pole). The
+//! one `atan2` in the module is not an inversion and is the stated
+//! exception: `curved::sphere_wedge_azimuth` takes the polar angle of
+//! one meridian's departure direction in the frame the other meridian
+//! and the face's interior direction span, and its cut — the two
+//! meridians on one great circle — is the pair `props_band_coplanar`
+//! has just decided definitely not present; its doc argues the
+//! interval case and the interval twin pins it. The
 //! boundary is structurally verified to be the M2 iso-parameter
 //! inventory: each carrier's kind, its rim/meridian role, and its
 //! **incidence on the surface** (rim centers on the axis with parallel
@@ -91,7 +100,33 @@
 //!
 //! **The rectangle itself is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
-//! sits at one of the face's two extreme `v`-levels*. The total
+//! sits at one of the face's two extreme `v`-levels*.
+//!
+//! On the sphere it is one of TWO, and the second is about the same
+//! `[lo, hi]` from the other side: *every rim's interior side points
+//! INTO the extent*, `curved::require_rim_interior_sides`
+//! (`props_rim_interior_side`). A level says a latitude the boundary
+//! touches and never says which side of it the material is on, so the
+//! two faces a rim separates fold the same levels; what tells them
+//! apart is the rim's own traversal under the face's sense bit
+//! (`curved::rim_interior_side`). Where the levels are silent
+//! altogether — a rim-only polar cap — that traversal supplies the
+//! missing extreme instead of refusing the face
+//! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
+//! because that is where the extent can be silent and where a face's
+//! complement shares its whole boundary; the linear kinds' rim-only
+//! faces have no extent to name at all.
+//!
+//! **The SHAPE DOOR asks only the first of the two**, and that is a
+//! divergence rather than an oversight: σ reads the face's sense bit
+//! and [`require_iso_rectangle`] is handed a surface and a loop, with
+//! no face, so that it answers a question about the boundary alone.
+//! The executed case is issue 1598's L-shaped complement — `Ok(())`
+//! from the door, `NotIsoRectangle { what: "props_rim_interior_side" }`
+//! from the flux lane, on one face. The door's own docs say what a
+//! consumer that needs the stronger premise reads instead, and the
+//! sense-free residue it could take is
+//! `work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per
@@ -107,10 +142,11 @@
 //!   exemption**, so "every curved kind" is not the claim: the
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
-//!   establish (its meridians all lie on ONE great circle, which is
-//!   where `Δu = π` comes from; its `v`-extent, from the fold that
-//!   carries each arc's span-derived pole extremes) is stated at
-//!   `curved::sphere`, at the arm.
+//!   establish (its meridians all lie on ONE great circle that the loop
+//!   runs once, which is where `Δu = π` comes from — or on two, the
+//!   wedge, whose `Δu` is the azimuth between them on the face's side;
+//!   its `v`-extent, from the fold that carries each arc's span-derived
+//!   pole extremes) is stated at `curved::sphere`, at the arm.
 //! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
 //!   because every one of them reaches a side derivation that rests
 //!   on this premise. It was listed here as a second exemption, on the
@@ -147,10 +183,14 @@
 //!   the per-kind boundary classification and `props_rim_level`, and
 //!   nothing integrated on top — for a consumer whose lane rests on
 //!   the premise without wanting a volume (`mesh`'s swept-rectangle
-//!   walk cites it before walking a face). It ADMITS the rimless
-//!   sphere band the flux lane refuses on `props_band_coplanar`:
-//!   `Δu = π` is the closed form's premise, not the shape's, and the
-//!   door says so at its definition.
+//!   walk cites it before walking a face). It ADMITS every rimless
+//!   sphere band, and the flux lane measures the two it has a lune
+//!   for — the coplanar two-band face (`props_band_coplanar`,
+//!   `Δu = π`) and the wedge (`props_wedge_azimuth`, the azimuth
+//!   between the two meridian half-planes on the face's side) — while
+//!   refusing a rimless boundary that states neither; the premises
+//!   are the closed form's, not the shape's, and the door says so at
+//!   its definition.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
@@ -317,8 +357,13 @@ pub enum PropsError {
     /// A carrier or surface is the unimplemented `Nurbs` placeholder.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
-    /// or a stored-data consistency residual is definitely nonzero.
-    /// The payload names the structural expectation that failed.
+    /// a stored-data consistency residual is definitely nonzero, or a
+    /// stored span is outside certification's per-edge bounds
+    /// `0 < Δt ≤ τ` (`props_meridian_span_forward` /
+    /// `props_meridian_span_winding` on a sphere meridian arc, the
+    /// `props_meridian_pieces_*` names on a reconstructed torus
+    /// meridian) — an arc no closed form here may fold. The payload
+    /// names the structural expectation that failed.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -450,14 +495,26 @@ pub enum PropsError {
 impl core::fmt::Display for PropsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Unimplemented => {
-                f.write_str("integral properties: Nurbs carrier/surface is unimplemented (D3)")
-            }
+            Self::Unimplemented => f.write_str(
+                "integral properties: Nurbs carrier/surface is unimplemented (D3) — valid \
+                 input, unbuilt lane: no closed form here covers a NURBS or Approx carrier, \
+                 so state the face on an analytic surface where it is one; there is nothing \
+                 in the body to repair",
+            ),
             Self::NotIsoRectangle { what } => write!(
                 f,
-                "integral properties: face boundary outside the iso-rectangle inventory ({what})"
+                "integral properties: face boundary outside the iso-rectangle inventory \
+                 ({what}) — the payload says which of the two this is: a boundary outside the \
+                 inventory is valid input on an unbuilt lane and wants the face re-cut to an \
+                 iso-parameter rectangle (a wall merged across iso lines splits back into \
+                 rectangular sub-faces), while a nonzero consistency residual or an \
+                 out-of-bounds stored span is stored data to repair"
             ),
-            Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
+            Self::NappeSpanning => f.write_str(
+                "integral properties: cone face spans both nappes — no construction here \
+                 produces such a face, so report it rather than repairing a body: a cone face \
+                 stays on one nappe",
+            ),
             Self::NotOneChartBranch { edge, what } => write!(
                 f,
                 "integral properties: boundary edge {edge}'s traversed arc leaves one chart \
@@ -486,7 +543,10 @@ impl core::fmt::Display for PropsError {
             ),
             Self::QuadratureUnsupported { what } => write!(
                 f,
-                "integral properties: quadrature input outside the certified inventory: {what}"
+                "integral properties: quadrature input outside the certified inventory: \
+                 {what} — a missing stored cache is one to re-mint; every other blocker named \
+                 here is a lane this build has not certified, so the face wants stating inside \
+                 the certified inventory rather than repairing"
             ),
         }
     }
@@ -503,7 +563,8 @@ impl std::error::Error for PropsError {}
 /// reference (Mäntylä's far-from-origin conditioning remedy).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
-/// `sense_sign` and deliberately must not: `A⃗` is a boundary integral
+/// sense at all — not the bit its curved sibling takes — and
+/// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
 /// is. A planar face's entire flux is `origin·A⃗` (the anchored term
@@ -630,5 +691,74 @@ mod tests {
             1,
             "{msg}"
         );
+    }
+    /// **`PropsError`'s recourse claim, made enforceable** — the same
+    /// row `topo`'s `every_chart_region_arm_names_a_recourse` writes,
+    /// for the carrier tier 3 reaches through
+    /// `ValidationError::VolumeUncomputable { MassPropsError::Face }`.
+    /// That arm renders this error whole and adds nothing, so an arm
+    /// here that states a condition and stops is a message that stops.
+    /// Four of the eight did: `Unimplemented`, `NotIsoRectangle`,
+    /// `NappeSpanning` and `QuadratureUnsupported`.
+    ///
+    /// **This is a floor, not a proof.** A vocabulary check cannot
+    /// tell a recourse from a sentence containing a verb, and a new
+    /// arm whose recourse uses a word not on this list fails it
+    /// honestly — extend the list in the same change. The payloads
+    /// below are chosen to carry no verb of their own, so what the row
+    /// measures is the variant's own clause and not its `what`.
+    #[test]
+    fn every_props_error_arm_names_a_recourse() {
+        const RECOURSE_VERBS: &[&str] = &[
+            "state", "declare", "move", "lower", "loosen", "simplify", "report", "re-cut",
+            "re-mint", "repair",
+        ];
+        let escalated = PropsError::Escalated {
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("props_face_extent"),
+            },
+        };
+        let arms = [
+            PropsError::Unimplemented,
+            PropsError::NotIsoRectangle {
+                what: "props_rim_level",
+            },
+            PropsError::NappeSpanning,
+            PropsError::NotOneChartBranch {
+                edge: 0,
+                what: "azimuth jumps by one half-turn at the pole",
+            },
+            PropsError::DegenerateFace,
+            escalated,
+            PropsError::QuadratureBudget {
+                width_len: 2e-9,
+                target_len: 1e-9,
+                rounds: 3,
+            },
+            PropsError::QuadratureUnsupported {
+                what: "a rational pcurve channel",
+            },
+        ];
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            // The two coincidence arms carry the shared fragment
+            // rather than a clause of their own (the pair is pinned in
+            // `face_extent_pair_carries_the_shared_recourse`).
+            if matches!(
+                arm,
+                PropsError::DegenerateFace | PropsError::Escalated { .. }
+            ) {
+                assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+                continue;
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }

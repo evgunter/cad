@@ -19,7 +19,8 @@ use common::asm;
 use pncad::document::{Alignment, Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
+use viewer::frame;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -48,8 +49,8 @@ fn seat_alignment() -> Alignment {
 /// the session's one committed-edit door.
 fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(a_instance, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(a_instance, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -309,11 +310,11 @@ fn fused_geometry_refuses_both_display_ops_typed() {
         ("probe b", SessionOp::BeginFreeMove { instance: b }),
     ] {
         match session.perform(op).refusal {
-            Some(Refusal::Display(DisplayFault::FusedGeometry {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::FusedGeometry {
                 instance,
                 root,
                 others,
-            })) => {
+            }))) => {
                 assert!(instance == a || instance == b);
                 assert_eq!(root, weld, "the refusal names the fusing root");
                 assert_eq!(others.len(), 1, "…and the other instance");
@@ -338,8 +339,8 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         "disjoint instances certify outright (A5's disjoint half)"
     );
     session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat_alignment(),
     });
@@ -377,7 +378,9 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NoSuchNode { .. }
+            )))
         ),
         "an id the document does not hold is NOT the wrong-kind refusal — \
          the two are spelled apart because a user holding display state on \
@@ -418,7 +421,10 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
             instance: constrained,
         });
         match outcome.refusal {
-            Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+                instance,
+                mates,
+            }))) => {
                 assert_eq!(instance, constrained);
                 assert_eq!(mates.len(), 1, "the refusal lists the constraining mate");
             }
@@ -439,7 +445,9 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotAnInstance { .. }
+            )))
         ),
         "{:?}",
         outcome.refusal
@@ -451,7 +459,9 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NoSuchNode { .. }
+            )))
         ),
         "an id the document does not hold is NOT the wrong-kind refusal — \
          the two are spelled apart because a user holding display state on \
@@ -476,11 +486,14 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     });
     for dx in [0.02, 0.05] {
         let outcome = session.perform(SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([dx, 0.0, 0.0]),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
-    let outcome = session.perform(SessionOp::CommitFreeMove);
+    let outcome = session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let committed = session
         .display()
@@ -553,6 +566,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.0, 0.0, 0.3]),
     });
     session.perform(SessionOp::CancelFreeMove);
@@ -593,7 +607,10 @@ fn a_non_rigid_preview_refuses_typed() {
         // Non-finite.
         Frame::translation([f64::NAN, 0.0, 0.0]),
     ] {
-        let outcome = session.perform(SessionOp::PreviewFreeMove { frame: bad });
+        let outcome = session.perform(SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: bad,
+        });
         assert!(
             matches!(
                 outcome.refusal,
@@ -605,7 +622,9 @@ fn a_non_rigid_preview_refuses_typed() {
     }
     // A rotation IS admitted (the probe is any rigid motion).
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0]),
+        instance: bench.post_b,
+        frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0], common::band())
+            .expect("a literal axis has a definite direction"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
@@ -621,25 +640,28 @@ fn a_landing_mate_discards_the_probe_value() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.04, 0.0, 0.0]),
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     assert!(session.display().free_move_of(bench.post_b).is_some());
 
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -649,7 +671,7 @@ fn a_landing_mate_discards_the_probe_value() {
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies, and what would go red if `prune`
     // paired the right fault with the wrong instance is this.
-    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
         panic!(
             "a mate landing supersedes with its own fault: {}",
             superseded.cause
@@ -726,15 +748,15 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         b: bench.post_a,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.dropped_hides[..] else {
+    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
         panic!(
             "the fuse drops exactly one hide: {:?}",
-            outcome.dropped_hides
+            outcome.withdrawn.dropped_hides
         )
     };
     assert_eq!(dropped.instance, bench.post_b);
     assert!(
-        matches!(dropped.cause, DisplayFault::FusedGeometry { .. }),
+        matches!(dropped.cause, AdmissionFault::FusedGeometry { .. }),
         "and the outcome carries WHY the part is drawn again: {}",
         dropped.cause
     );
@@ -743,7 +765,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         "the hide is gone from the state, not merely reported"
     );
     assert!(
-        outcome.superseded.is_empty(),
+        outcome.withdrawn.superseded.is_empty(),
         "a dropped hide is not a supersession and does not ride that field"
     );
 
@@ -762,18 +784,148 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     );
     let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.dropped_hides[..] else {
+    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
         panic!(
             "the delete drops exactly one hide: {:?}",
-            outcome.dropped_hides
+            outcome.withdrawn.dropped_hides
         )
     };
     assert_eq!(dropped.instance, bench.post_b);
     assert!(
-        matches!(dropped.cause, DisplayFault::NoSuchNode { .. }),
+        matches!(dropped.cause, AdmissionFault::NoSuchNode { .. }),
         "an absent node is spelled apart from a wrong-kind one, because \
          the sentence the user reads is the difference: {}",
         dropped.cause
     );
     assert!(session.display().hidden().is_empty());
+}
+
+/// **A document REPLACEMENT takes every hide and every placement and
+/// reports none of them — by decision, not by omission.**
+///
+/// `DisplayState::prune`'s withdrawals are news because they are a
+/// SIDE EFFECT of an act about something else: the user mated two
+/// parts and lost a hand placement they never offered to give up.
+/// `Open` and `NewDocument` are the act itself — display state is
+/// state of a session over ONE document (G3), so a user who replaces
+/// the document has asked for exactly this, and a per-instance notice
+/// would report the act back to the person who performed it.
+///
+/// The clause at `DisplayState::clear` carries the argument, including
+/// the half that makes it a typing fact rather than a taste in
+/// wording: a `Withdrawn` names an instance and a fault ABOUT a
+/// document, and the only document left to ask is the replacement,
+/// where these ids mean other nodes or none.
+///
+/// **The in-flight drag is the one thing the door no longer takes**,
+/// and the same clause is why: a drag dissolved under the pointer is
+/// the half-acted state a refusal exists to prevent, and the paragraph
+/// above is the reason a REPORT could not have been the answer for it
+/// either. So the door refuses while a probe is in flight
+/// (`SessionOp::permitted_during_free_move`) and takes everything else
+/// in silence once there is no drag to dissolve — which is the split
+/// this row now asserts, in that order.
+///
+/// This row is what goes red if the silence is ever widened back into
+/// an oversight — it asserts both halves, that everything went and
+/// that nothing was said about it — and if the refusal in front of it
+/// is ever removed.
+#[test]
+fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
+    let tol = Tol::witness();
+    let bench = asm::bench("replacequiet", tol);
+    let mut session = asm::open_bench(&bench, tol);
+
+    // One of each kind of display state the door can take: a hide, a
+    // COMMITTED free-move placement, and a drag still in flight.
+    assert!(
+        session
+            .perform(SessionOp::SetInstanceHidden {
+                instance: bench.post_a,
+                hidden: true,
+            })
+            .refusal
+            .is_none()
+    );
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
+            frame: Frame::translation([0.02, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::BeginFreeMove {
+            instance: bench.shelf_i,
+        },
+        SessionOp::PreviewFreeMove {
+            instance: bench.shelf_i,
+            frame: Frame::translation([0.0, 0.03, 0.0]),
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    assert_eq!(session.display().hidden().len(), 1);
+    assert!(session.display().free_move_of(bench.post_b).is_some());
+    assert_eq!(session.display().probing(), Some(bench.shelf_i));
+
+    // With the drag in flight the door does not open at all, and the
+    // refusal names the drag rather than the file: nothing of the
+    // outgoing document is touched, so there is nothing to have been
+    // silent about.
+    let held = session.display().revision();
+    let refused = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(
+        matches!(
+            refused.refusal,
+            Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
+        ),
+        "a replacement under a live probe refuses, in the free move's own \
+         vocabulary: {:?}",
+        refused.refusal
+    );
+    assert!(
+        session.display().hidden().len() == 1
+            && session.display().free_move_of(bench.post_b).is_some()
+            && session.display().probing() == Some(bench.shelf_i)
+            && session.display().revision() == held,
+        "…and takes nothing on the way out — a refusal that cleared \
+         anything would be the defect with a sentence in front of it"
+    );
+
+    // The user ends the drag themselves, which is the remedy the
+    // refusal names.
+    assert!(session.perform(SessionOp::CancelFreeMove).refusal.is_none());
+    assert!(session.display().probing().is_none());
+    let before = session.display().revision();
+
+    // Reopening the SAME file is still a replacement: the session's
+    // subject is installed afresh, and the ids it carries are minted
+    // by that document rather than inherited from the one that went.
+    let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        frame::Withdrawal::all(&outcome.withdrawn).count(),
+        0,
+        "a replacement reports no withdrawal of any kind — asserted \
+         through the one fan-out the chrome uses, so a FOURTH kind is \
+         covered by this row the day it exists: {:?}",
+        outcome.withdrawn
+    );
+    assert!(
+        session.display().hidden().is_empty()
+            && session.display().free_move_of(bench.post_b).is_none(),
+        "…and it took the hide and the committed placement anyway, which \
+         is the asymmetry this row records as decided"
+    );
+    assert!(
+        session.display().revision() > before,
+        "the reset was visible, so the chrome's rebuild key moved — the \
+         one thing the quiet door still says, and it says it to the \
+         chrome rather than to the user"
+    );
 }

@@ -21,10 +21,11 @@
 //! obligations are silently unmet. The READ door is not one of them:
 //! each typed accessor on [`Tools`] matches its own variant and
 //! answers `None` to every other, so an eighth tool that never gets
-//! an accessor compiles clean. The one list a compiler cannot force
-//! is [`ToolKind::ALL`], which nothing outside the test suites reads,
-//! and [`ToolKind::ordinal`] is what makes its completeness checkable
-//! by a row instead of by eye.
+//! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
+//! compiler has to be asked to force either: it is projected from the
+//! enum's own declaration by the crate's `vocabulary!` macro, so an
+//! eighth kind reaches it by construction. Nothing outside the test
+//! suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
@@ -39,65 +40,47 @@ use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
 use crate::matetool::{MateTool, MateToolEvent};
-use crate::pick::PickKinds;
+use crate::pickindex::PickKinds;
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};
+use crate::vocab::vocabulary;
 
-/// Which modal tool — the vocabulary the open/close door and every
-/// notice are addressed in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ToolKind {
-    /// The mate tool (GUI-4): two face picks.
-    Mate,
-    /// The revolve tool: a profile and an axis.
-    Revolve,
-    /// The boolean tool: two bodies.
-    Boolean,
-    /// The split tool: a body and a datum plane.
-    Split,
-    /// The transform tool: one body.
-    Transform,
-    /// The pattern tool: a body and (circular only) an axis.
-    Pattern,
-    /// The blend tool: one body and a SET of its edges.
-    Blend,
-}
+vocabulary! {
+    /// Which modal tool — the vocabulary the open/close door and every
+    /// notice are addressed in.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ToolKind {
+        /// The mate tool (GUI-4): two face picks.
+        Mate,
+        /// The revolve tool: a profile and an axis.
+        Revolve,
+        /// The boolean tool: two bodies.
+        Boolean,
+        /// The split tool: a body and a datum plane.
+        Split,
+        /// The transform tool: one body.
+        Transform,
+        /// The pattern tool: a body and (circular only) an axis.
+        Pattern,
+        /// The blend tool: one body and a SET of its edges.
+        Blend,
+    }
 
-impl ToolKind {
     /// Every kind, for the test suites that sweep them — which are
     /// its only readers. No production code reads it: the chrome names
     /// each kind it offers literally, and which tool is open is a value
     /// ([`OpenTool`]), not a scan over this list.
     ///
-    /// A hand-written list, which is why [`ToolKind::ordinal`] exists:
-    /// `every_tool_kind_is_listed_in_all` reads the two against each
-    /// other, so a variant added to the enum and forgotten here fails a
-    /// row rather than quietly narrowing every sweep.
-    pub const ALL: [Self; 7] = [
-        Self::Mate,
-        Self::Revolve,
-        Self::Boolean,
-        Self::Split,
-        Self::Transform,
-        Self::Pattern,
-        Self::Blend,
-    ];
+    /// It stays `pub` and stays here rather than moving into the suite
+    /// that reads it, because those are integration tests and see only
+    /// this crate's public surface — a suite-local list would be a
+    /// hand-written one again, with nothing forcing it, which is the
+    /// defect this array no longer has.
+    pub const ALL;
+}
 
-    /// A place in [`ToolKind::ALL`], as an exhaustive match — the
-    /// compiler-forced half of that list's completeness.
-    pub fn ordinal(self) -> usize {
-        match self {
-            Self::Mate => 0,
-            Self::Revolve => 1,
-            Self::Boolean => 2,
-            Self::Split => 3,
-            Self::Transform => 4,
-            Self::Pattern => 5,
-            Self::Blend => 6,
-        }
-    }
-
+impl ToolKind {
     /// The tool's name, for sentences and buttons.
     pub fn label(self) -> &'static str {
         match self {

@@ -22,17 +22,13 @@
 
 use crate::common;
 
-use common::{flush_declarations, geometric_cube, prism_z};
+use common::{brick, flush_declarations, geometric_cube};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
     Body, BooleanBody, BooleanResult, subtract_with, validate, validate_closed,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>()
 -> BooleanBody<T> {
@@ -60,7 +56,7 @@ fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::Pcu
 /// The full soundness check, generic over the scalar lane: tiers 1/2,
 /// tier 3′ with the op's own contact records, and a rigid-transform
 /// shake-out (downstream consumers re-certify the result cleanly).
-fn assert_result_sound<T: Decide + topo::PropsQuadLane>(out: &BooleanBody<T>) {
+fn assert_result_sound<T: Decide + topo::PropsQuadLane + geom_core::Bounds>(out: &BooleanBody<T>) {
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(

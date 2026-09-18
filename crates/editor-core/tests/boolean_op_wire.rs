@@ -20,20 +20,17 @@
 //! `persist::kernel_wire::boolean_op`'s module doc; that doc's
 //! "Pinned by test" reaches the *admit* path below, not the refusal.
 //!
-//! The vocabulary is written down ONCE here, in [`EVERY_OPERATION`].
-//! It is still a hand-written literal — safe Rust cannot tie an array
-//! to a variant list without a proc macro, which is why the `with`
-//! module carries a run-time check instead — but one copy is one place
-//! to update when the kernel grows an operation, and the rows below
-//! then cover it without being touched.
+//! The vocabulary this suite runs over is the KERNEL's own
+//! `BooleanOp::ALL`, not a literal restated here: a suite that lists
+//! the operations itself covers the operations it listed, which on the
+//! day the kernel grows one is not the same set as the operations that
+//! exist. `ALL` is pinned against the declaration where it is declared
+//! (`topo::boolean`'s `all_is_every_operation`), so the rows below
+//! widen with the enum without being touched.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{BooleanOp, Node, ProfileProgram, RecipeNodeId};
-
-/// Every operation the vocabulary has, in one place.
-const EVERY_OPERATION: [BooleanOp; 3] =
-    [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
 
 fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
     Node::Boolean {
@@ -60,7 +57,7 @@ fn the_operation_rides_the_wire_as_its_variant_name() {
             BooleanOp::Subtract => r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":null}}"#,
         }
     };
-    for op in EVERY_OPERATION {
+    for &op in BooleanOp::ALL {
         let text = serde_json::to_string(&boolean(op)).unwrap();
         assert_eq!(text, expected(op), "the wire spelling of {op:?} moved");
     }
@@ -69,7 +66,7 @@ fn the_operation_rides_the_wire_as_its_variant_name() {
 /// Both directions, over every operation the vocabulary has.
 #[test]
 fn every_operation_round_trips() {
-    for op in EVERY_OPERATION {
+    for &op in BooleanOp::ALL {
         let node = boolean(op);
         let text = serde_json::to_string(&node).unwrap();
         let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();

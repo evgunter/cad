@@ -2,12 +2,13 @@
 id: klint-row-still-sampled
 kind: issue
 title: The k-lint unification row is still drawn 1-in-5 after the lane/eps un-sampling
-status: review
+status: closed
 opened: 2026-09-04
 parent: reinstate-full-configuration-runs
 pr: 1850
 branch: ciw/unsample-klint
 refs: [1855]
+closed: 2026-09-06
 ---
 
 ## The finding
@@ -103,3 +104,12 @@ Ev, so it is split out to an `[ev]` PR (1855) with its own item,
 `klint-memory-false-after-unsampling`. **Between 1850's merge and 1855's,
 that memory is false and is read at the start of every session.** Stated
 here so the gap is a decision on the record rather than an oversight.
+
+## Closed 2026-09-06
+
+PR 1850. The five feature unifications fan out as five matrix legs
+(`.github/workflows/ci.yml:460`) on every code-tier run, with per-row
+rust-cache keys so the two heaviest legs can save — the shared-lane defect
+this unit found on the way, fixed in the same PR. The `memories/` correction
+it split out is `klint-memory-false-after-unsampling` (PR 1855), and the gap
+between the two merges is on the record there.

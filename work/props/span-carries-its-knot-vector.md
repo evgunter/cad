@@ -2,10 +2,13 @@
 id: span-carries-its-knot-vector
 kind: unit
 title: Consider giving Span its KnotVector — close the unbranded-pairing hole structurally
-status: spec
+status: closed
 opened: 2026-08-13
 github: 475
-refs: [447, 463, 468]
+refs: [475, 463, 468, 447, 1952, coefficients-carry-their-knot-vector]
+pr: 1952
+branch: props/span-knot-vector
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 475
@@ -114,3 +117,41 @@ block PROPS-B1 slot 1). The census (2026-09-05) found no span held
 across a mutation, no storage beyond `SurfaceWindow`, no serialization
 or FFI crossing, ~82 src + 112 test sites over five crates; the
 coefficient↔vector pairing stays open and is filed by the unit.
+
+## Closed
+
+**Ruled A; landed as A** (PR #1952). `Span<'a>` holds `&'a KnotVector`;
+`geom`'s `CurveWindow{2,3}<'a, T>` holds `&'a NurbsCurve{2,3}<T>` and
+`SurfaceWindow<'a, T>` holds `&'a NurbsSurface<T>`. Every door
+restricted to a span takes exactly one structure and reads everything
+from it: `basis_funs(span, t)` and the `hull` span doors in
+`geom-core`, and — after the review — evaluation itself, which moved
+ONTO the two windows (`CurveWindow::eval_in_span(t)`,
+`SurfaceWindow::eval_in_span(u, v)` and siblings). `KnotVector::admits`
+and `NurbsSurface::admits` are deleted: the state they tested is not
+representable.
+
+**The mutation-hold check, which the ruling made A's condition:** no
+site holds a span across a mutation of its own vector. The spline layer
+has no `&mut self` method at all and every knot-algebra door is
+`&self -> Self`, so a refinement is a new binding; the constraint is
+pinned by a `compile_fail,E0506` doctest rather than only observed.
+
+**The deviation the review corrected.** The spec's curve-door paragraph
+asked for the doors to keep taking `(&self, span)` while reading the
+span's vector for the basis. That leaves the control array paired with
+the *curve* and the basis with the *span*, which is not a closed pairing
+at all: it turned a poison route into an index panic for any span from a
+longer vector. The review found it executed; the fix is the structural
+one — no door takes a structure beside a proof about another.
+
+**Residue, filed rather than disclosed:**
+`work/props/coefficients-carry-their-knot-vector.md` — the
+coefficient↔knot-vector pairing at `geom-core`'s free `hull` functions,
+which take a loose `&[E]` beside a span and relate the two by length
+alone. `InteriorKnot` stays crate-private for the same shape.
+
+**Companion note:** `crates/geom-core/README.md`, clause
+**SPLINE-DESIGN S1**, with its row in `docs/DESIGN.md`'s companion
+table. The spec is deleted and ledgered (`docs/DOC-LEDGER.md`,
+"Per-merge deletion — PROPS span's spec").

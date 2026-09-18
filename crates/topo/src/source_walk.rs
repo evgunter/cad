@@ -19,7 +19,7 @@
 //! every consumer's search — runs over blanked text, in which every
 //! comment, string literal and char literal is spaces with byte
 //! positions preserved. That is a structural rule, not a convention:
-//! [`CodeOnly::public_fns`] is a method, so there is no way to run the
+//! [`CodeOnly::fns`] is a method, so there is no way to run the
 //! item scan over un-blanked text, and no way to hand one of the
 //! bracket walks below a view that would make its depth count a
 //! guess.
@@ -90,16 +90,17 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
 /// constructs a needle can hide in — nested block comments, every
 /// string prefix, a lifetime that is not an opening quote — are
 /// modelled and pinned. The type exists for the structural rule the
-/// module docs state: the item scan is [`Self::public_fns`], a
-/// method, so nothing in this walk can read raw text, and the bracket
-/// walks below can assume every bracket they see is a real one.
+/// module docs state: the item scan is [`Self::fns`], a method, so
+/// nothing in this walk can read raw text, and the bracket walks below
+/// can assume every bracket they see is a real one.
 ///
 /// **Two gaps the view does not close, both real and both dormant.**
-/// Blanking does not expand macros, so a `pub fn` inside a
-/// `macro_rules!` body is counted as an item and one inside an
-/// `include!`d file is not seen at all. In `topo/src` today there are
-/// two `macro_rules!`, neither containing a `pub fn`, and no
-/// `include!`.
+/// Blanking does not expand macros, so a `fn` inside a `macro_rules!`
+/// body is counted as an item and one inside an `include!`d file is
+/// not seen at all. In `topo/src` today no `macro_rules!` body contains
+/// a `fn`, and there is no `include!`. **No count of them is written
+/// here**: a number in prose beside a set that grows is a copy that
+/// goes stale in the silent direction, and this one had.
 pub(crate) struct CodeOnly(String);
 
 impl CodeOnly {
@@ -113,15 +114,20 @@ impl CodeOnly {
         &self.0
     }
 
-    /// Every `pub fn` item in this file, as `(name, parameter list,
-    /// body)` — all three slices of the blanked text.
+    /// Every `fn` item with a body in this file — [`FnItem`] per item,
+    /// every slice a view of the blanked text.
     ///
     /// **Scanned on the `fn` token, not on a `pub fn ` literal.** The
     /// literal misses `pub const fn`, `pub async fn`, `pub unsafe fn`
-    /// and `pub extern "C" fn`; walking back from `fn` over the
-    /// qualifiers to a bare `pub` finds all of them and still rejects
-    /// `pub(crate) fn`, whose preceding token is `)`.
-    pub(crate) fn public_fns(&self) -> Vec<(&str, &str, &str)> {
+    /// and `pub extern "C" fn`; scanning the token finds all of them,
+    /// and leaves the visibility to [`FnItem::lead`] rather than
+    /// deciding it in the scan.
+    ///
+    /// **A `fn` token with no name declares no item.** `fn(K) -> V` in
+    /// a parameter list is a function-POINTER type, and skipping it is
+    /// not a dropped item: an item always has a name. Every other
+    /// unreadable head reaches [`gave_up`].
+    pub(crate) fn fns(&self) -> Vec<FnItem<'_>> {
         let code = &self.0;
         let b = code.as_bytes();
         let mut out = Vec::new();
@@ -129,30 +135,42 @@ impl CodeOnly {
         while let Some(rel) = code[at..].find("fn") {
             let kw = at + rel;
             at = kw + 2;
-            if !is_token(b, kw, 2) || !public_qualifiers_precede(b, kw) {
+            if !is_token(b, kw, 2) {
                 continue;
             }
-            // From here the head IS a public `fn`, so every remaining
+            let Some((name, after_name)) = ident_after(code, at) else {
+                continue;
+            };
+            // From here the head IS a named `fn`, so every remaining
             // exit is either a bodiless declaration or a defect. See
             // `gave_up` below: this scan does not get to skip one
             // quietly, because skipping one quietly is what it did —
             // which is why the carve's THIRD answer is read as a
             // defect and not as a declaration.
             let parsed = (|| {
-                let (name, after_name) = ident_after(code, at)?;
                 let open = param_list_start(b, after_name)?;
                 let close = test_utils::source::balanced_end(code, open)?;
                 match test_utils::source::item_body(code, close) {
-                    test_utils::source::ItemBody::Body(body) => Some((name, open, close, body)),
+                    test_utils::source::ItemBody::Body(body) => Some((open, close, body)),
                     _ => None,
                 }
             })();
             match parsed {
-                Some((name, open, close, body)) => {
-                    // The carve includes both braces; the body slice
-                    // this walk hands out never has the closing one.
-                    out.push((name, &code[open..close], &code[body.start..body.end - 1]));
-                    at = body.end;
+                Some((open, close, body)) => {
+                    let (start, end) = (body.start, body.end);
+                    at = end;
+                    out.push(FnItem {
+                        name,
+                        lead: &code[code[..kw].rfind('\n').map_or(0, |n| n + 1)..kw],
+                        params: &code[open..close],
+                        returns: &code[close + 1..start],
+                        // The carve includes both braces; the body
+                        // slice this walk hands out never has the
+                        // closing one.
+                        body: &code[start..end - 1],
+                        span: body,
+                        kw,
+                    });
                 }
                 None if matches!(
                     test_utils::source::item_body(code, at),
@@ -163,9 +181,53 @@ impl CodeOnly {
         }
         out
     }
+
+    /// Every `pub fn` item in this file, as `(name, parameter list,
+    /// body)` — the [`Self::fns`] scan narrowed to the items a bare
+    /// `pub` precedes, across any run of `const` / `async` / `unsafe` /
+    /// `extern` qualifiers. `pub(crate) fn` is rejected: its preceding
+    /// token is `)`.
+    pub(crate) fn public_fns(&self) -> Vec<(&str, &str, &str)> {
+        let b = self.0.as_bytes();
+        self.fns()
+            .into_iter()
+            .filter(|item| public_qualifiers_precede(b, item.kw))
+            .map(|item| (item.name, item.params, item.body))
+            .collect()
+    }
 }
 
-/// A public `fn` head this scan recognised and then could not read.
+/// One `fn` item as the item scan reads it. Every slice is a view of
+/// the [`CodeOnly`] text, so a needle found in one is code and not
+/// prose.
+pub(crate) struct FnItem<'a> {
+    /// The item's name.
+    pub(crate) name: &'a str,
+    /// The item's line up to the `fn` token — where the visibility
+    /// keyword and the qualifiers stand. Visibility is left here rather
+    /// than decided in the scan because the two consumers want opposite
+    /// answers: one keeps the `pub` items, the other asserts an item is
+    /// NOT public.
+    pub(crate) lead: &'a str,
+    /// The parameter list, opening parenthesis included and closing one
+    /// excluded.
+    pub(crate) params: &'a str,
+    /// Everything between the parameter list and the body: the return
+    /// type, and a `where` clause when the item has one.
+    pub(crate) returns: &'a str,
+    /// The body, opening brace included and closing one excluded.
+    pub(crate) body: &'a str,
+    /// The body's byte range in the blanked text, both braces included
+    /// — what a caller needs to say which item a match elsewhere in the
+    /// file fell inside.
+    pub(crate) span: std::ops::Range<usize>,
+    /// The byte offset of the `fn` token.
+    pub(crate) kw: usize,
+}
+
+/// A named `fn` head this scan recognised and then could not read —
+/// public or not, because [`CodeOnly::fns`] returns both and a guard
+/// asserting an item is NOT public is as blind to a dropped one.
 ///
 /// **Loud on purpose.** Every guard built on this walk asserts about
 /// *all* doors, so an item the scan drops is a door with no
@@ -179,7 +241,7 @@ impl CodeOnly {
 /// deliberate: for a reader whose failure mode is *silence*,
 /// loud-and-wrong beats quiet-and-wrong, because quiet-and-wrong is
 /// the defect — a `;` inside `[T; N]` in return position once dropped
-/// every such `pub fn`, and the guards stayed green with no count
+/// every such `fn`, and the guards stayed green with no count
 /// moving at all. **The depth counting in [`body_start`] handles the
 /// constructs someone thought of; this panic is what makes the next
 /// one visible.** If you are here because a legitimate signature does
@@ -190,7 +252,7 @@ fn gave_up(code: &str, kw: usize) -> ! {
     let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
     let snippet: String = code[kw..].chars().take(80).collect();
     panic!(
-        "the item scan recognised a public `fn` at line {line} and could not read it: \
+        "the item scan recognised a named `fn` at line {line} and could not read it: \
          {snippet:?}. It is not allowed to skip one — a dropped item is a door nothing \
          classifies and no count moves for.",
     );
@@ -287,15 +349,77 @@ impl MutationDoor {
     pub(crate) fn code_contains(&self, needle: &str) -> bool {
         self.code.contains(needle)
     }
+
+    /// Whether the door's own body carries a whole-body check as a
+    /// DEBUG ASSERTION — the claim a non-sweeping close makes.
+    ///
+    /// A typed gate (`validate_closed(&work).map_err(…)?`) is
+    /// deliberately not enough: it answers a kernel bug with an error
+    /// return where the operators the door composes used to panic. The
+    /// two needles have to co-occur; neither alone is the claim.
+    pub(crate) fn debug_asserts_the_whole_body(&self) -> bool {
+        self.code_contains("debug_assert")
+            && (self.code_contains("validate_closed(")
+                || self.code_contains("validate_geometric(")
+                || self.code_contains("validate("))
+    }
+
+    /// How this door stands with respect to [`crate::surgery`]: it
+    /// opens a scope, or it does not, and if it opens one it either
+    /// closes it or it does not.
+    pub(crate) fn surgery_posture(&self) -> SurgeryPosture {
+        if !(self.code_contains("begin_surgery(") || self.code_contains("enter_surgery(")) {
+            return SurgeryPosture::NoScope;
+        }
+        if self.code_contains("sweep_and_close(") || self.code_contains("leave_surgery_and_sweep(")
+        {
+            SurgeryPosture::ClosedWithSweep
+        } else if self.code_contains("close_already_checked(")
+            || self.code_contains("leave_surgery(")
+        {
+            SurgeryPosture::ClosedUnderOwnAssertion
+        } else {
+            SurgeryPosture::LeftOpen
+        }
+    }
 }
 
-/// The number of mutation doors in `topo/src`, measured on `main` at
-/// `4f959cb4` and unchanged since. Not asserted exactly — a new door
-/// is normal and this walk is not the place to notice one. It is here
-/// so [`mutation_doors`]' floor is derived from a number rather than
+/// What a door's own text says about the surgery scopes it opens —
+/// [`MutationDoor::surgery_posture`].
+///
+/// **`LeftOpen` is the case this exists for.** A scope opened and not
+/// closed silences the tier-1 postcondition of every operator that
+/// runs on that body afterwards, including operators in later calls,
+/// and nothing at runtime notices: the body validates, the suite
+/// passes, and the check is simply gone. It is a lexical property of
+/// one function body, which is exactly what this walk can see.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum SurgeryPosture {
+    /// The door opens no surgery scope.
+    NoScope,
+    /// It opens one and closes it with the tier-1 sweep — the door's
+    /// postcondition.
+    ClosedWithSweep,
+    /// It opens one and closes it without a sweep, which claims a
+    /// debug assertion of tier 1 or stronger in the door's own body.
+    ClosedUnderOwnAssertion,
+    /// It opens one and closes nothing.
+    LeftOpen,
+}
+
+/// The number of mutation doors [`mutation_doors`] finds in `topo/src`
+/// on the tree this constant is committed with. Not asserted exactly —
+/// a new door is normal and this walk is not the place to notice one.
+/// It is here so that walk's floor is derived from a number rather than
 /// chosen, and so a reader can tell a floor with two doors of slack
 /// from a floor with twenty-seven.
-const DOORS_MEASURED: usize = 37;
+///
+/// **It is re-measured, never left behind.** The floor is this number
+/// less two, so every door added without a re-measurement is another
+/// door the walk may silently lose before anything reds; left far
+/// enough behind, the floor stops being evidence about the walk at all.
+/// Lowering it is only ever correct when doors were deleted.
+const DOORS_MEASURED: usize = 48;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
@@ -366,7 +490,7 @@ pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CodeOnly, DOORS_MEASURED, mutation_doors};
+    use super::{CodeOnly, DOORS_MEASURED, MutationDoor, SurgeryPosture, mutation_doors};
 
     /// **The item scan and the classification, at the one altitude
     /// where either failure was visible.** Text in, doors out.
@@ -444,6 +568,131 @@ pub fn not_a_door(&self) {}
             ],
             "a door was lost, or its body classified from prose"
         );
+    }
+
+    /// **The surgery posture, read off four doors that differ only in
+    /// which calls they make.**
+    ///
+    /// [`MutationDoor::surgery_posture`] is what stands between
+    /// `review_m1_pr5_internal`'s guard and a door that opens a scope
+    /// and closes nothing — the one failure in this area that is
+    /// silent at runtime, because the body still validates and every
+    /// operator after it has simply stopped checking. `left_open`
+    /// below is that door; `prose_only` is the same plant one layer
+    /// down, a body whose only mention of the close is inside a string
+    /// the blanked view erases.
+    #[test]
+    fn the_walk_tells_a_closed_surgery_scope_from_one_left_open() {
+        let src = "
+pub fn swept(&mut self) { let s = self.begin_surgery(); s.sweep_and_close(); }
+pub fn guardless(&mut self) { self.enter_surgery(); self.leave_surgery_and_sweep(); }
+pub fn own_assert(&mut self) { self.enter_surgery(); self.leave_surgery(); }
+pub fn left_open(&mut self) { let s = self.begin_surgery(); s.take(); }
+pub fn prose_only(&mut self) { self.enter_surgery(); let _ = \"leave_surgery()\"; }
+pub fn no_scope(&mut self) { self.mev(site, spec, tol) }
+pub fn backed(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    debug_assert_eq!(validate_closed(self), Ok(())); }
+pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    validate_closed(self).map_err(E)?; }
+";
+        let code = CodeOnly::of(src);
+        let postures: Vec<(&str, SurgeryPosture)> = code
+            .public_fns()
+            .iter()
+            .map(|(n, _, b)| {
+                let door = MutationDoor {
+                    file: std::path::PathBuf::from("x.rs"),
+                    name: (*n).to_string(),
+                    code: (*b).to_string(),
+                };
+                (*n, door.surgery_posture())
+            })
+            .collect();
+        assert_eq!(
+            postures,
+            vec![
+                ("swept", SurgeryPosture::ClosedWithSweep),
+                ("guardless", SurgeryPosture::ClosedWithSweep),
+                ("own_assert", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("left_open", SurgeryPosture::LeftOpen),
+                ("prose_only", SurgeryPosture::LeftOpen),
+                ("no_scope", SurgeryPosture::NoScope),
+                ("backed", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("unbacked", SurgeryPosture::ClosedUnderOwnAssertion),
+            ],
+            "the posture read is wrong, or it is reading prose as a call"
+        );
+        // The second half of the non-sweeping close's claim: the door
+        // debug-asserts a whole body itself. `unbacked` runs the same
+        // validator through a TYPED gate, which is the confusion the
+        // guard exists to refuse — a kernel bug answered with an error
+        // return where the composed operators used to panic.
+        let backing: Vec<(&str, bool)> = code
+            .public_fns()
+            .iter()
+            .map(|(n, _, b)| {
+                let door = MutationDoor {
+                    file: std::path::PathBuf::from("x.rs"),
+                    name: (*n).to_string(),
+                    code: (*b).to_string(),
+                };
+                (*n, door.debug_asserts_the_whole_body())
+            })
+            .filter(|(n, _)| *n == "backed" || *n == "unbacked" || *n == "own_assert")
+            .collect();
+        assert_eq!(
+            backing,
+            vec![("own_assert", false), ("backed", true), ("unbacked", false)],
+            "a typed gate is being read as the door's own debug assertion, or the other \
+             way round"
+        );
+    }
+
+    /// **Every named `fn` item, and nothing that merely spells the
+    /// keyword.**
+    ///
+    /// The scan is this crate's one home for reading its own items, so
+    /// it returns the PRIVATE ones too and leaves visibility in
+    /// `lead` — a guard asserting that an item is not public cannot be
+    /// built on a walk that only returns the public ones, and
+    /// `public_fns` is that same scan narrowed rather than a second
+    /// one.
+    ///
+    /// A function-POINTER type spells `fn` and declares no item. It has
+    /// no name, which is the tell, and reading one as an item is worse
+    /// than a nameless table entry: the carve then runs past the
+    /// pointer's own `-> V` looking for a terminator, finds the NEXT
+    /// item's `{`, and takes that body for its own — so the item after
+    /// a function-pointer type disappears with no count moving. The
+    /// pointer below therefore stands in a struct field, where nothing
+    /// terminates it, with `ctor` behind it: a `;`-terminated pointer
+    /// is read as a bodiless declaration and skipped either way, which
+    /// is the shape that cannot fail.
+    #[test]
+    fn the_item_scan_reads_named_items_only_and_carries_their_visibility() {
+        let src = "
+struct S { namer: fn(K) -> EntityId }
+const fn ctor(he: K) -> Self { Self(he) }
+pub(crate) fn require<K: Key, V>(a: &S<K, V>, id: fn(K) -> EntityId) -> Result<(), E> { a.c(k) }
+pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }
+";
+        let code = CodeOnly::of(src);
+        let read: Vec<(&str, &str, &str)> = code
+            .fns()
+            .iter()
+            .map(|item| (item.name, item.lead.trim(), item.returns.trim()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![
+                ("ctor", "const", "-> Self"),
+                ("require", "pub(crate)", "-> Result<(), E>"),
+                ("open", "pub async unsafe", "-> Option<Live>"),
+            ],
+            "the scan lost an item, read a function-pointer type as one, or mis-carved a head"
+        );
+        let public: Vec<&str> = code.public_fns().iter().map(|(n, _, _)| *n).collect();
+        assert_eq!(public, vec!["open"], "the narrowing over that same scan");
     }
 
     /// The walk over the real tree, which is the only place the two

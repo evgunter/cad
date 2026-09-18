@@ -2,8 +2,12 @@
 id: index-seam-vocabulary-sits-in-the-wrong-module
 kind: issue
 title: evalseam and pick import each other because the index seam's trait lives beside the evaluation seam rather than beside its payload
-status: open
+status: closed
 opened: 2026-09-05
+refs: [index-request-and-index-inputs-are-one-concept-twice, viewer-session-god-module-split]
+closed: 2026-09-06
+branch: view/index-seam
+pr: 2079
 ---
 
 
@@ -37,3 +41,255 @@ So the choice is between the cycle, a third module for the index seam
 alone, and hoisting the payload types. It is a placement question with
 three defensible answers, which is why it is filed rather than fixed
 inside a unit that had a ruling to build.
+
+
+## The three answers costed, and the finding that none of them works
+## (VIEW orchestrator, 2026-09-06 — for Ev)
+
+Written against `origin/main`. `crates/viewer/src/pick.rs` is 2,792
+lines; `evalseam.rs` is 901.
+
+### The cycle, exactly
+
+Two edges, and they are not the same kind of thing.
+
+- `evalseam.rs:112` — `use crate::pick::{PickIndex, PickIndexError}`.
+  This is the index seam needing its own PAYLOAD: what `build_index`
+  returns and what `IndexDone` carries.
+- `pick.rs:64` — `use crate::evalseam::{Generation, IndexDone,
+  IndexRequest, IndexService, InlineIndexer}`.
+
+**The second edge is two different dependencies wearing one `use`
+line**, and separating them is what unlocks everything below:
+
+1. **`Generation` alone**, read at `pick.rs:689` (a FIELD of
+   `PickIndex`), `:758-765` (`current_for`, `generation`) and `:2231`
+   (`IndexInputs`). It is `pub struct Generation(u64)`
+   (`evalseam.rs:126`) with `FIRST`, `next` and `get`, and it depends
+   on **nothing** — not the kernel, not this crate.
+2. **The seam itself** — `IndexRequest`, `IndexDone`, `IndexService`,
+   `InlineIndexer` — read only at `pick.rs:2296-2499`, which is
+   `PickCache`.
+
+### None of the three answers this item offered breaks the cycle
+
+**(a) Keep it.** Costs nothing today. Module cycles are legal Rust and
+the ratified module rule (`crates/viewer/README.md`, *Module
+boundaries*) is about VOCABULARY vs DRIVER and says nothing about
+cycles between vocabularies — so the cycle is not a violation of
+anything, which is worth saying plainly: this is a new question, not an
+enforcement gap. What it costs is that neither module can be read or
+moved without the other, in a crate whose whole architecture programme
+has been about making files readable whole.
+
+**(b) A third module for the index seam alone.** Move `IndexRequest`,
+`IndexDone`, `IndexService`, `InlineIndexer` (and `ThreadIndexer`) into
+`indexseam.rs`. **This does not break the cycle — it relocates it.**
+`IndexDone` carries a `PickIndex`, so `indexseam` → `pick`; `PickCache`
+builds an `IndexRequest`, so `pick` → `indexseam`. It also costs the
+threads rule ("one file owning every join handle and channel", which
+is what makes *no source change above this boundary* checkable) unless
+that rule is restated as "the seam modules own the threads". Strictly
+worse than (a): same cycle, one more module, a weakened rule.
+
+**(c) Hoist the payload types.** As stated — move the seam's request
+and answer types down — it does not reach either, for the same reason:
+`IndexDone` needs `PickIndex`, and `PickIndex` is in `pick`.
+
+**So the item posed a question and offered three answers, none of which
+answers it.** That is the finding, and it is why this went to Ev rather
+than to a lane.
+
+### What the cycle is actually a symptom of
+
+**`pick.rs` holds two layers**, and the seam runs between them:
+
+- an **index data structure** and its queries — `PatchId`, `EdgeId`,
+  `IdMap`, `PartWindows`, `PickIndex`, `PickIndexError`, `EdgePick`,
+  `Highlight`, `highlight`, `edge_overlay`, `focus`,
+  `cursor_projection` (roughly `:78-2230`). This half needs
+  `Generation` and `DisplayTolerance` and nothing else in the crate;
+- a **pick policy / cache** — `IndexInputs`, `PickCache`, `CacheStep`,
+  `IndexLanding`, `NotIndexed`, `unindexed` (roughly `:2230-2792`).
+  This half drives the seam.
+
+The seam sits *above* the first and *below* the second, and both halves
+are in one file, so any edge to either is an edge to both. That is the
+whole cycle.
+
+### (d) The answer that does work, and it is two moves
+
+1. **`Generation` moves to a leaf.** It is a request counter, not part
+   of the evaluation seam's machinery, and it is read by six modules
+   (`pick`, `app`, `lib`, `frame`, `evalseam`, `session`). It depends
+   on nothing, so it can sit below everything — its own small module,
+   or beside `DisplayTolerance` in `scene`, which likewise imports
+   nothing from this crate.
+2. **`pick.rs` splits at the layer boundary above**, the index data
+   structure into its own module and the policy staying in `pick`.
+
+The result is acyclic and each module keeps a coherent job:
+
+    generation  ←  pickindex  ←  evalseam  ←  pick
+
+`evalseam` keeps BOTH seams and therefore both sets of threads, so the
+threads rule is untouched — which is the property (b) had to give up.
+
+**Move 1 without move 2 is not enough**: `PickIndex` would still be in
+the same file as `PickCache`, so `evalseam` → `pick` → `evalseam`
+survives on the seam types. **Move 2 without move 1 is not enough
+either**: `pickindex` needs `Generation`, so `pickindex` → `evalseam` →
+`pickindex`. They only work together, which is the thing this write-up
+exists to say.
+
+### What it costs
+
+Move 1 is small: one type, six import sites, no behaviour.
+
+Move 2 is a real split of a 2,792-line file — mechanical in kind (unit
+1c did exactly this to `session.rs` and `app.rs` and changed no
+assertion), but it is the larger half of the work and it touches a file
+`crates/viewer/tests/*` reaches into. Unit 1c's precedent says the cost
+is bounded and the shape is known.
+
+**The honest alternative is (a).** The cycle harms nothing today; it is
+a legibility cost, not a defect, and this program has larger items open
+against `frame.rs` (2,481 lines, eight concerns) than against this. If
+the answer is "not now", the useful outcome is that this write-up
+replaces the item's three non-answers so the next reader does not cost
+them again.
+
+### What I am NOT proposing
+
+Nothing about `IndexRequest` and `IndexInputs` being one concept twice
+— that is `index-request-and-index-inputs-are-one-concept-twice`, and
+its own analysis says the two types are **not** redundant, because
+`IndexRequest` owns its copies so the worker holds nothing borrowed
+from a session. The cheap answer there (state the relationship at each
+type) is independent of this and can be taken by any lane.
+
+### The question for Ev
+
+Take (d), or take (a) and close this as answered-not-fixed? I lean (d)
+if the split lands as its own unit rather than riding another, and (a)
+if the answer is that VIEW has better things to do — but the one thing
+that should not survive is the item's current text, which offers three
+answers that do not work.
+
+
+## RULED: (d) (Ev, PR 2076, 2026-09-06)
+
+> (d) sounds good!
+
+So the unit is the two moves, and they land together because neither
+breaks the cycle alone:
+
+1. **`Generation` to a leaf** — its own module, or beside
+   `DisplayTolerance` in `scene`; the lane picks and argues.
+2. **`pick.rs` splits at the layer boundary** — the index data
+   structure and its queries out, the policy (`PickCache`,
+   `IndexInputs`, `CacheStep`, `IndexLanding`, `NotIndexed`,
+   `unindexed`) staying in `pick`.
+
+Target shape: `generation ← pickindex ← evalseam ← pick`, acyclic, with
+`evalseam` keeping BOTH seams and therefore both sets of threads.
+
+**It is a move, so no assertion changes.** Unit 1c is the precedent and
+the standard — it split `session.rs` and `app.rs` with no test file
+touched and no assertion changed, and
+`docs/prompts/implementer-discipline.md` §3 forbids a behaviour change
+smuggled through a mechanical one. A `pub use` shim left behind is what
+`session-shims-and-test-imports` is still open about, so this unit
+re-points its callers rather than leaving two spellings of every moved
+path.
+
+`crates/viewer/tests/*` is VIEW's territory now (Ev, in-chat,
+2026-09-04), so the test-side re-pointing is this unit's to do rather
+than announce.
+
+## Closed
+
+Both moves landed together, as (d) requires.
+
+**`Generation` went to its own module, `crates/viewer/src/generation.rs`,
+not into `scene`.** The ruling offered either. `scene` qualifies on the
+one property the analysis tested — it imports nothing from this crate —
+but that is not the property `Generation` has: `generation.rs` imports
+nothing AT ALL, kernel included, and `scene` names `bvh`,
+`pncad::mesh` and six kernel types. A leaf whose whole argument is
+that it sits below everything states that in its own file rather than
+inside a module with a manifest of dependencies. `scene`'s charter is
+also written down and does not cover it — *"what the viewport draws,
+tessellated at a display tolerance"* — so the README's own map row for
+`src/scene.rs` would have had to gain a request counter, and each of
+the six modules that import `Generation` (`pick`, `pickindex`, `app`,
+`frame`, `evalseam`, `session`) would import a display module to name
+one.
+`DisplayTolerance` earns its place in `scene` because δ is what a
+tessellation is drawn at; a generation is not about drawing.
+
+**The boundary fell exactly where the analysis put it**, and it was
+verified rather than trusted: over `pick.rs:2213-2618` (the cache half)
+the only names reaching back into the other half are `PickIndex` and
+`PickIndexError`, and the index half reaches forward **not at all** —
+the one mention of `IndexInputs` it appeared to carry was in the module
+header sentence, which the cache half took with it. The in-file
+`mod tests` is `PartWindows`/`IdMap`'s and moved with the structure it
+checks, unedited. #2079's style review put a whitespace-sensitive
+sorted-line diff over it: one line removed, 43 added, all doc-header
+and import lines; no visibility, signature, `derive`, field or `impl`
+changed; `#[test]` count 531 both sides; `Generation` byte-identical.
+
+So `crates/viewer/src/pickindex.rs` holds the index and every query
+over it (`PatchId`, `EdgeId`, `PickKinds`, `EDGE_PICK_RADIUS_PX`,
+`IdMap`, `IdMapError`, `PickIndexError`, `DrawnKind`, `PartWindows`,
+`PickIndex`, `EdgePick`, `PickError`, `EdgeNameFault`, `Highlight`,
+`highlight`, `EdgeOverlay`, `edge_overlay`, `edge_segments`,
+`edge_id_segments`, `focus`, `cursor_projection`) and `pick.rs` keeps
+the index's LIFECYCLE (`IndexInputs`, `PickCache`, `CacheStep`,
+`IndexLanding`, `NotIndexed`, `unindexed`). The seam modules chain
+`generation ← pickindex ← evalseam ← pick`, and `generation.rs` has no
+`use crate::` line at all.
+
+**The boundary is stateful-against-pure, not index-against-policy**,
+and the first draft of both module headers said the second. The picking
+POLICY — `op_for`, `op_under`, `hovered_for`'s edge-beats-face rule,
+the miss rule — is in `pickindex`, so `pick.rs` calling itself *the
+policy half of picking* was false; what it holds is a cache. The
+headers now say so, and whether the two module NAMES should move to
+match is `pick-and-pickindex-are-named-against-their-contents`, which
+this unit declines: a rename is not a move, and the second split that
+item's answer depends on is not taken here either.
+
+**It is a move.** No test file changed except its import and path
+lines; no assertion was touched. Callers were re-pointed rather than
+shimmed — there is no `pub use` bridging the old spellings, so
+`session-shims-and-test-imports` gains nothing from this.
+
+The README's *Module boundaries* gained **The seam modules are a chain;
+the crate is not acyclic**, which is now the one home for why neither
+move works alone AND for the ring this unit does not break
+(`pick → pickindex → session → pick`, held open on purpose by the
+`IndexInputs` hoist —
+`seam-split-leaves-a-cycle-through-the-session`). Three *Where in the
+code* / vocabulary rows were false about where these types live and are
+corrected: GQ7 picking, the evaluation seam, and `session::op`'s reader
+list, which named `pick` for a `SessionOp` reader that is `pickindex`.
+
+Residue, filed rather than described: every tracker citation of
+`crates/viewer/src/pick.rs:NNNN` moved. VIEW's own live rows are
+re-pointed and the other programs' are announced, on the existing
+`stale-file-citations-after-the-split`, which is where this program
+keeps that class.
+
+Not taken, deliberately:
+`index-request-and-index-inputs-are-one-concept-twice`. Its own
+reasoning survives this unit untouched — `IndexRequest` owns its copies
+because the worker holds them across a thread, `IndexInputs` borrows a
+landing — and it is still that item's to take. **This unit changed
+nothing about it**: the two types were already in different modules at
+the merge base (`evalseam.rs` and `pick.rs`) and both stayed exactly
+where they were, so an earlier draft of this section claiming the split
+*"does put the two types in different modules"* was false and is struck
+rather than repaired (`the-split-did-not-separate-indexrequest-and-
+indexinputs`).

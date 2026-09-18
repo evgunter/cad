@@ -10,12 +10,18 @@
 //!   welds a cluster and AQ8's unreachability covers it — asserted in
 //!   both directions, exactly as `asm_r2b_assembly::row5_a` does for a
 //!   plain edge;
-//! - a mate whose end is a NESTED pattern head is outside the
-//!   vocabulary, welds nothing, and so genuinely reaches a cut's
-//!   opposite sides — and the AQ8 (b)-SKIP ruling makes it contribute
+//! - a mate whose end is a pattern head its name UNDERQUALIFIES — one
+//!   `Instance(i)` over a two-level nest — is outside the vocabulary,
+//!   welds nothing, and so genuinely reaches a cut's opposite sides — and the AQ8 (b)-SKIP ruling makes it contribute
 //!   no crossing. This is the reachable construction that tells a gate
 //!   asking the vocabulary apart from one merely matching a head's
 //!   spelling.
+//!
+//! - a mate whose reference is read at an operand the walk cannot
+//!   reach its head from is outside the vocabulary too, and here the
+//!   head IS a live instance — so this is the shape a gate matching a
+//!   head's spelling gets WRONG in the other direction, minting a
+//!   record for a mate that never solved.
 //!
 //! That SKIP ruling is `crates/editor-core/ASSEMBLY.md`'s AQ8 clause.
 //!
@@ -34,11 +40,9 @@ use editor_core::{
     MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     content_pin, split,
 };
+use fixture::resolver::{PART_BODY, in_part};
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// The unit cube `[0,1]³`, as a whole part document.
 fn block(label: &str) -> ProfileDoc {
@@ -66,21 +70,6 @@ fn block_ref(label: &str) -> DocRef {
     DocRef { id: doc.id(), pin }
 }
 
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }),
-        }],
-    }
-}
-
 /// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
 /// node as head and the master's own name under the qualifier.
 fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
@@ -89,7 +78,7 @@ fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
         node: pattern,
         path: vec![RoleSeg::Instance {
             i,
-            of: Box::new(master),
+            of: master.into(),
         }],
     }
 }
@@ -105,8 +94,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -317,18 +306,26 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End)),
+        crate::fixture::head(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
         "ids remap through the recorded map; the copy index does not"
     );
-    let RoleSeg::Instance { i, .. } = a.path[0] else {
+    let RoleSeg::Instance { i, .. } = a.name.path[0] else {
         panic!("the head keeps its Instance(i) qualifier");
     };
     assert_eq!(i, COPY, "the structural index is not in the map's domain");
 }
 
-/// A NESTED pattern head — a pattern of a pattern — is outside A11's
-/// member vocabulary, so the mate is not an edge, welds nothing, and
-/// its two ends DO reach opposite sides of an accepted cut.
+/// A head whose name qualifies FEWER copy levels than the walk meets
+/// is outside A11's member vocabulary, so the mate is not an edge,
+/// welds nothing, and its two ends DO reach opposite sides of an
+/// accepted cut.
+///
+/// A nested COPY is a member: the walk consumes one `Instance(i)`
+/// qualifier per pattern level, and a name that wears one at each
+/// level resolves through the nest. The name here wears ONE over a
+/// two-level nest — the name a nested pattern's table never mints —
+/// so the walk consumes the outer level and then meets the inner
+/// pattern where the name has already said its head is the instance.
 ///
 /// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
 /// AQ8 clause):
@@ -338,12 +335,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// row that separates a gate asking the member vocabulary from one
 /// matching a head's SPELLING: admitting `Node::Pattern` by shape mints
 /// a record here, for a mate the cluster graph never welded.
-///
-/// Whether a nested head should instead RESOLVE is a live design
-/// question (issue 1411); this row pins today's answer at this door and
-/// settles nothing about it.
 #[test]
-fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
+fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-n-leg")));
     let (doc, inner) = insert(
@@ -367,7 +360,7 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_copy(outer, 1, in_part(leg, CapEnd::End)),
                 in_part(top, CapEnd::Start),
             ),
         },
@@ -378,7 +371,7 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
     assert_eq!(
         editor_core::clusters(&doc),
         vec![vec![leg], vec![top]],
-        "a nested head welds nothing, which is what makes the cut below legal"
+        "an underqualified head welds nothing, which is what makes the cut below legal"
     );
 
     // And so the cut IS accepted, with the mate's ends on opposite
@@ -387,6 +380,79 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
         &doc,
         &cut([leg, inner, outer]),
         DocumentId::derive("fix-xs-nested-part"),
+        Tol::witness(),
+    )
+    .expect("nothing tears: the cut is a union of whole clusters");
+    assert!(
+        crossings(&out.remainder, out.instance).is_empty(),
+        "a mate that is not an edge says nothing about the seam (AQ8 SKIP)"
+    );
+}
+
+/// A reference whose OPERAND cannot reach its head is outside A11's
+/// member vocabulary even though the head is a live
+/// `InstantiatePart`: the walk runs from the operand DOWN the
+/// consuming edges, and a stranded operand stops it before the head is
+/// ever reached.
+///
+/// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
+/// AQ8 clause): such a mate contributes NO crossing however its names
+/// fall across the cut, because it never solved and a record minted
+/// from it would be trusted-at-rest state.
+///
+/// This is the shape that separates the vocabulary from a head's
+/// SPELLING in the direction the nested-pattern row cannot reach.
+/// There the head is a `Pattern`, so a gate matching
+/// `Node::InstantiatePart` skips it for the right answer by accident;
+/// here the head IS an `InstantiatePart` and only the walk knows the
+/// reference resolves to nothing. A gate spelling the head kind mints
+/// a crossing record on this document.
+#[test]
+fn a_stranded_operand_over_an_instance_head_contributes_no_crossing() {
+    let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
+    let (doc, _datum) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    // A live instance that consumes nothing: it neither places nor
+    // projects `leg`, so no walk from it reaches `leg`. It is authored
+    // FIRST so that `leg` lands on the id the part product's own body
+    // answers to, which makes the cut below exactly the a-side's
+    // derivation set.
+    let (doc, stranger) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-other")));
+    let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-leg")));
+    assert_eq!(leg, PART_BODY, "the a-side name derives from `leg` alone");
+    let (doc, top) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-top")));
+    let mut node = seat(in_part(leg, CapEnd::End), in_part(top, CapEnd::Start));
+    let Node::Mate { a, .. } = &mut node else {
+        panic!("a seat is a mate");
+    };
+    *a = crate::fixture::head_at(stranger, (*a.name).clone());
+    let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+    let mate = mate.unwrap();
+
+    // Not an edge: the a-side resolves to no member, so the mate welds
+    // nothing and the three instances stay singleton clusters. That is
+    // what makes the cut below legal rather than torn.
+    assert_eq!(
+        editor_core::reading_edges(&doc),
+        vec![(mate, top)],
+        "the stranded a-side reads at no member, so only the b-side is an A12 edge end"
+    );
+    assert_eq!(
+        editor_core::clusters(&doc),
+        vec![vec![stranger], vec![leg], vec![top]],
+        "welding nothing, the mate leaves every instance its own cluster"
+    );
+
+    // The cut is accepted and the mate's two names fall on OPPOSITE
+    // sides of it — the a-side wholly inside, the b-side outside — so
+    // the crossing loop reaches its `inside` test with a straddle. The
+    // gate is the only thing between that straddle and a minted record.
+    let out = split(
+        &doc,
+        &cut([leg]),
+        DocumentId::derive("fix-xs-stranded-part"),
         Tol::witness(),
     )
     .expect("nothing tears: the cut is a union of whole clusters");

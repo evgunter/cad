@@ -2,10 +2,11 @@
 id: klint-memory-false-after-unsampling
 kind: issue
 title: memories/agent-lane-operations.md says the k-lint row is sampled; PR 1850 makes that false
-status: review
+status: closed
 opened: 2026-09-04
 pr: 1855
 branch: ciw/klint-memory-correction
+closed: 2026-09-06
 ---
 
 
@@ -106,3 +107,10 @@ So the sampling material is **cut**, not rewritten. Net **−9 lines**
 
 `grep -rn "sampl\|klint_row\|klint=" memories/` leaves only the three
 lines in point 2, which are the intended ones.
+
+## Closed 2026-09-06
+
+PR 1855, on Ev's ruling of 2026-09-04: the sampling material is cut, not
+rewritten. `memories/agent-lane-operations.md` no longer teaches a drawn
+k-lint row, the `CI-Config:` bookkeeping is one live rule, and the
+ask-for-a-row advice is gone.

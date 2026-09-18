@@ -140,6 +140,14 @@ pub fn framed_square(
     inserted(&doc, square(plane, side), tol)
 }
 
+/// **The witnessed band a placement axis is decided under** — what
+/// `Frame::rotate_then_translate` asks the direction door with. Rows
+/// whose axis is a literal pass this and unwrap; a row whose SUBJECT
+/// is the axis decision reads the refusal instead.
+pub fn band() -> pncad::geom_core::Band {
+    pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
+}
+
 /// A length literal.
 pub fn len(metres: f64) -> Expr {
     Expr::literal(metres, Dimension::Length).expect("a finite length")
@@ -420,3 +428,12 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
     dir
 }
+
+// The mate-head helpers are `crate::fixture`'s, re-exported rather than
+// re-written: `tests/fixture/` is editor-core's tree, symlinked into
+// this one and mounted by this binary's root, so a second body here
+// would be a second definition of one fixture claim — and
+// `pncad::document::SitedFace` IS `editor_core::SitedFace`, the façade
+// re-exporting the kernel's type rather than wrapping it. A suite says
+// `common::head` as before.
+pub use crate::fixture::{head, head_at};

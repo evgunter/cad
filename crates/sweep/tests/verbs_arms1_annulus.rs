@@ -67,11 +67,6 @@ fn dome(r: f64) -> Body<f64> {
     revolved(dome_profile(r), Revolution::Full)
 }
 
-/// The closed plane–sphere rim of radius `rim_r` (to 1e-6).
-fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
-}
-
 fn census(body: &Body<f64>) -> (usize, usize, usize) {
     (
         body.vertices().count(),
@@ -91,7 +86,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         (4, 8, 4),
         "the dome is four walls, four latitude rims and four seams"
     );
-    let rim = closed_rim_of_radius(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let out = fillet_edges(&source, &[rim], 0.05, tol())
         .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
@@ -141,7 +136,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 #[test]
 fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     let source = dome(1.0);
-    let rim = closed_rim_of_radius(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
@@ -182,7 +177,7 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
 #[test]
 fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
     let body = dome(1.0);
-    let rim = closed_rim_of_radius(&body, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0);
     let e = body.get_edge(rim).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (t0, t1) = c.params();
@@ -215,7 +210,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
 #[test]
 fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
     let source = dome(1.0);
-    let rim = closed_rim_of_radius(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let band_face = out.band_faces[0];
     let fd = out.body.get_face(band_face).unwrap();
@@ -254,7 +249,7 @@ fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
 fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let r = 0.05f64;
     let source = dome(1.0);
-    let rim = closed_rim_of_radius(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let out = fillet_edges(&source, &[rim], r, tol()).unwrap();
     let props = mass_properties(&out.body, tol()).expect("mass properties must compute");
     assert_eq!(
@@ -336,7 +331,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 #[test]
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
-    let rim = closed_rim_of_radius(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let mut out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("the filleted dome is tier-3 valid");
     let band_face = out.band_faces[0];

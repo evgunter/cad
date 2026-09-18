@@ -53,8 +53,12 @@ is S-TCOST's. Neither is touched here.
 **Three items, re-homed at opening** (header edit and `git mv`, ids
 unchanged):
 
-1. **`territory-cannot-see-a-path-two-programs-both-claim`** (E, the
-   opener) — `territory` reports a changed path another program owns
+1. **`territory-cannot-see-a-path-two-programs-both-claim`** — **CLOSED
+   2026-09-11**; both candidates landed, the lint rule in its warning
+   phase, and the error flip is
+   `double-claim-lint-rule-waits-on-the-tests-seam`. The reasoning the
+   item opened with is kept below because the decision it reached is
+   the one that shipped. (E, the opener) — `territory` reports a changed path another program owns
    only when the branch's own program does *not* claim it, so the one
    case that matters — two programs claiming one path — is the one case
    it is silent on. Found by FIX tripping it on `transform.rs` against
@@ -165,13 +169,27 @@ owns the instruments.
 
 ## Order
 
-`territory-cannot-see-a-path-two-programs-both-claim` first (E, and
-everyone's fence depends on it), with the `[ev]` PR for the A/B
-stopping rule opened **in parallel on day one** rather than behind it —
-it is a spend that is running now, and the answer is Ev's, not a lane's.
-Then the two routing items, which are announcements rather than work.
-Then the first register re-survey, which is the honest measure of
-whether custody is worth anything.
+**As executed (2026-09-11).** The opener landed, and with it the three
+other executable rows — `parked-on-an-int-is-invisible-to-the-fired-trigger-rule`,
+`work-set-accepts-a-scalar-for-a-list-field` and
+`perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger`
+— as one PR, because each is a small edit to `scripts/work.py` or to a
+document this program owns and three of them detect the same class.
+`work/meta/log.md` carries what landed and the one decision taken
+unilaterally (both new detectors warn where an error was specified; the
+tree violates each rule today in rows this program may not edit).
+
+**What the parallel `[ev]` PR cost by not being opened.** The A/B
+stopping-rule question was to go out *"in parallel on day one rather
+than behind it"*. It did not, and it is now seven days behind the
+opener rather than beside it — the spend it names has been running that
+whole time. It is the next action on this program and nothing precedes
+it.
+
+Then the two routing items, which are announcements rather than work,
+and the two residues filed at the opener's landing. Then the first
+register re-survey, which is the honest measure of whether custody is
+worth anything.
 
 ## Review posture
 

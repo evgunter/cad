@@ -15,6 +15,8 @@
 //!   `block ∪ cylinder`), which is pinned beside them;
 //! - a cap carrying a RING (the bored D-rod): the plan checks the
 //!   supports for rings, not the cap;
+//! - a SUPPORT carrying a ring (a pocket sunk into the flat): the plan's
+//!   support gate refuses it, typed — the one row that pins that gate;
 //! - a cap rim requested beside its crease: a typed refusal (the
 //!   battery's, not the surgery's);
 //! - a flat past the axis (`ROD_FLAT < 0`): the section's fillet arc
@@ -31,16 +33,13 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_section_cut,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
+    rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 const R: f64 = ROD_FILLET;
-/// The groove / sunk-rod cylinder's radius and its axis depth below the
-/// block's top plane.
-const RC: f64 = 0.5;
-const S: f64 = 0.3;
 /// The block's length along the ruling.
 const L: f64 = 1.0;
 
@@ -87,10 +86,10 @@ fn block() -> Body<f64> {
     extruded(SketchPlane::xy(), vec![rect(-1.0, 1.0, -1.0, 0.0)], L)
 }
 
-/// A cylinder of radius [`RC`] about the line `(0, −S, z)`, over
+/// A cylinder of radius [`ROD_R`] about the line `(0, −ROD_FLAT, z)`, over
 /// `z ∈ [z0, z0 + len]`.
 fn cylinder(z0: f64, len: f64) -> Body<f64> {
-    let disc = profile::circle(Point2::new(0.0, -S), RC, tol()).expect("a disc");
+    let disc = profile::circle(Point2::new(0.0, -ROD_FLAT), ROD_R, tol()).expect("a disc");
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     extruded(plane, vec![disc.into()], len)
 }
@@ -153,23 +152,20 @@ fn carve_ruled(source: &Body<f64>, what: &str) -> f64 {
     volume(&out.body) - vol0
 }
 
-/// The block's top edge with the rod's section cut into it (the major
-/// arc dipping below `y = 0`) or standing on it (the minor arc rising
+/// The block's top edge with the rod's section cut into it (the wall
+/// arc dipping below `y = 0`) or standing on it (the section arc rising
 /// above): one profile loop, extruded along the ruling, so the block's
-/// two end faces are the transverse caps.
+/// two end faces are the transverse caps. The cylinder is the rod's own
+/// — radius [`ROD_R`], axis [`ROD_FLAT`] below the block's top plane —
+/// so the chord it cuts is [`rod_chord_at`]'s.
 fn block_with_section(sunk: bool) -> Body<f64> {
-    let xv = (RC * RC - S * S).sqrt();
-    // The arc from (xv, 0) to (−xv, 0) about (0, −S). Travelling the
-    // loop counter-clockwise the arc runs from +xv to −xv: counter-
-    // clockwise about the centre for the rising minor arc (positive
-    // bulge), clockwise for the dipping major arc (negative bulge).
-    let minor = 2.0 * (xv / RC).asin();
-    let sweep = if sunk {
-        minor
-    } else {
-        core::f64::consts::TAU - minor
-    };
-    let bulge = (sweep / 4.0).tan() * if sunk { 1.0 } else { -1.0 };
+    let c = rod_chord_at(ROD_FLAT);
+    let xv = c.half;
+    // The arc from (xv, 0) to (−xv, 0) about (0, −ROD_FLAT). Travelling
+    // the loop counter-clockwise the arc runs from +xv to −xv: counter-
+    // clockwise about the centre for the rising section arc (positive
+    // bulge), clockwise for the dipping wall arc (negative bulge).
+    let bulge = if sunk { c.section_bulge } else { -c.wall_bulge };
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(Point2::new(-1.0, -1.0), 0.0),
         ProfileVertex::new(Point2::new(1.0, -1.0), 0.0),
@@ -183,8 +179,8 @@ fn block_with_section(sunk: bool) -> Body<f64> {
 
 /// The area of the rod's section above the block's top plane.
 fn cap_above() -> f64 {
-    let minor = 2.0 * ((RC * RC - S * S).sqrt() / RC).asin();
-    0.5 * RC * RC * (minor - minor.sin())
+    let minor = 2.0 * ((ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt() / ROD_R).asin();
+    0.5 * ROD_R * ROD_R * (minor - minor.sin())
 }
 
 /// **The boolean builds neither ruled fixture on a block** — the groove
@@ -217,7 +213,7 @@ fn the_boolean_builds_neither_the_groove_nor_the_sunk_rod() {
 fn a_groove_lip_carves_with_the_cylinder_material_outside() {
     let source = block_with_section(false);
     validate_geometric(&source, tol()).expect("the grooved block is tier-3 valid");
-    let expect = (2.0 - (core::f64::consts::PI * RC * RC - cap_above())) * L;
+    let expect = (2.0 - (core::f64::consts::PI * ROD_R * ROD_R - cap_above())) * L;
     assert!(
         (volume(&source) - expect).abs() < 1e-12,
         "the groove's own volume: {} vs {expect}",
@@ -226,9 +222,9 @@ fn a_groove_lip_carves_with_the_cylinder_material_outside() {
     let dv = carve_ruled(&source, "groove");
     // The ball rests inside the material: under the plane by r, outside
     // the cylinder by r.
-    let c = (((RC + R).powi(2) - (S - R).powi(2)).sqrt(), -R);
-    let v = ((RC * RC - S * S).sqrt(), 0.0);
-    let a = section_area(c, (0.0, -S), RC, R, v, -1.0);
+    let c = (((ROD_R + R).powi(2) - (ROD_FLAT - R).powi(2)).sqrt(), -R);
+    let v = ((ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt(), 0.0);
+    let a = section_area(c, (0.0, -ROD_FLAT), ROD_R, R, v, -1.0);
     assert!(
         (a - 0.005625893891207202).abs() < 1e-12,
         "the oracle's own value at this fixture: {a}"
@@ -257,9 +253,9 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
     let dv = carve_ruled(&source, "sunk rod");
     // The ball rests in the void: above the plane by r, outside the
     // cylinder by r.
-    let c = (((RC + R).powi(2) - (S + R).powi(2)).sqrt(), R);
-    let v = ((RC * RC - S * S).sqrt(), 0.0);
-    let a = section_area(c, (0.0, -S), RC, R, v, -1.0);
+    let c = (((ROD_R + R).powi(2) - (ROD_FLAT + R).powi(2)).sqrt(), R);
+    let v = ((ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt(), 0.0);
+    let a = section_area(c, (0.0, -ROD_FLAT), ROD_R, R, v, -1.0);
     assert!(
         (a - 0.0002949786679543043).abs() < 1e-12,
         "the oracle's own value at this fixture: {a}"
@@ -272,15 +268,86 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
     );
 }
 
+/// **A SUPPORT carrying a ring refuses at the ruled plan.** The row above
+/// puts a ring on the CAP, which the plan does not check; this one puts
+/// a ring on the flat — a shallow square pocket sunk into it, inside the
+/// flat's own extent and clear of the caps and the cylinder — so the
+/// PLANE support of both creases carries a ring. `RuledPlan::plan`'s
+/// support gate (`if !fd.rings.is_empty()`) refuses it, typed, with the
+/// recourse that is true of it — a curved-support carve does not carry
+/// rings through. Before this row the gate was pinned by nothing
+/// (FILLET-SPLIT review: neutered, every H7 row stayed green). Measured
+/// at the fix pass: with the gate neutered THIS fixture is still
+/// refused, but later and for a different reason — the ring check's
+/// circle-only arm (`ring_circle`, "a ring edge's carrier is not a
+/// circle"), whose recourse talks about circle rings and blends on the
+/// face, not about the ruled carve — so what the row pins is that the
+/// support gate answers first, in its own words.
+#[test]
+fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
+    let rod = rod_with_flat(tol());
+    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let pocket = extruded(
+        plane,
+        vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
+        0.2,
+    );
+    let source = topo::subtract(&rod, &pocket, tol())
+        .expect("the pocket sinks into the flat")
+        .body()
+        .expect("a body remains")
+        .body
+        .clone();
+    validate_geometric(&source, tol()).expect("the pocketed rod is tier-3 valid");
+    let ringed: Vec<_> = source
+        .faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        ringed.len(),
+        1,
+        "exactly the flat carries the pocket as a ring"
+    );
+    let creases = rod_creases(&source);
+    assert_eq!(
+        creases.len(),
+        2,
+        "the pocket adds no cylinder–plane line edge"
+    );
+    for crease in &creases {
+        let (a, b) = {
+            let e = source.get_edge(*crease).unwrap();
+            let face = |he| {
+                let lp = source.get_half_edge(he).unwrap().parent_loop;
+                source.get_loop(lp).unwrap().face
+            };
+            (face(e.he_plus), face(e.he_minus))
+        };
+        assert!(
+            a == ringed[0] || b == ringed[0],
+            "each crease has the ringed flat as a support"
+        );
+    }
+    let err = fillet_edges(&source, &creases, R, tol())
+        .expect_err("a ruled band whose support carries a ring is refused");
+    assert!(
+        matches!(
+            &err.error,
+            BlendError::UnsupportedChain { detail, .. }
+                if detail.contains("support face carries a ring")
+        ),
+        "refused by `RuledPlan::plan`'s support gate and nothing earlier: {err}"
+    );
+}
+
 /// The D-profile rod at an arbitrary flat offset (the unit's helper is
 /// pinned to `ROD_FLAT`), optionally with a coaxial bore.
 fn d_rod(flat: f64, bore: Option<f64>) -> Body<f64> {
-    let y = (ROD_R * ROD_R - flat * flat).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(flat));
-    let bulge = (theta / 4.0).tan();
+    let c = rod_chord_at(flat);
     let mut loops = vec![ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(flat, y), bulge),
-        ProfileVertex::new(Point2::new(flat, -y), 0.0),
+        ProfileVertex::new(Point2::new(flat, c.half), c.wall_bulge),
+        ProfileVertex::new(Point2::new(flat, -c.half), 0.0),
     ])];
     if let Some(b) = bore {
         loops.push(

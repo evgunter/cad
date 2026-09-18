@@ -44,8 +44,8 @@
 //! adds a third of the same shape: match this family's arm, call this
 //! family's emitter, destructure the bundle, export the walls, refuse
 //! every other arm by name. What differs is the last two steps only —
-//! `Extruded::side_faces` is already the per-loop wall list, while
-//! `Revolved::walls` is per canonical SEGMENT and optional. The shared
+//! `Extruded::side_faces` mints one wall per canonical segment, while
+//! `Revolved::walls` is per canonical segment and OPTIONAL. The shared
 //! part is not extractable while the record arm, the bundle type and
 //! the emitter are all per family: a generic body would take three
 //! function pointers and a match it cannot write, which is the
@@ -71,15 +71,21 @@ use crate::node::RecipeNodeId;
 /// attached through — the wall swept from a profile edge is the entity
 /// that stores that edge's radius — and because reading them out of a
 /// family's own bundle is exactly what [`ProfileVerb::read`] is for.
-/// They are grouped by loop and not flattened: which loop a wall came
-/// from is what says which of the profile's radii it carries.
+/// They keep BOTH of the record's indices, loop and canonical segment:
+/// which profile edge a wall was swept from is what says which of the
+/// profile's radii it carries, and a chain loop's radii differ per
+/// edge.
 pub(crate) struct SweptOut<T: Decide> {
     /// The swept body, moved out of the record.
     pub(crate) body: Body<T>,
     /// The names, emitted before the record was taken apart.
     pub(crate) table: Arc<NameTable>,
-    /// The wall faces, per canonical profile loop.
-    pub(crate) walls: Vec<Vec<FaceKey>>,
+    /// The wall faces, per canonical profile loop and then per
+    /// canonical segment of that loop. `None` is a POSITION and not a
+    /// hole to close: a segment that minted no wall (a revolve's
+    /// on-axis edge) still occupies its index, which is what keeps the
+    /// list alignable with a per-segment token list.
+    pub(crate) walls: Vec<Vec<Option<FaceKey>>>,
 }
 
 /// A profile verb's record reader: this node's id, the record the run
@@ -95,11 +101,11 @@ pub(crate) type RecordReader<T> =
 ///
 /// `A` is the argument shape of this verb's payload (see the module
 /// docs). Every field is direct per-instance data: a function pointer
-/// per instance, no match over a verb vocabulary anywhere in this file.
+/// per instance, no match over the kernel's verb vocabulary anywhere in this file.
 pub(crate) struct ProfileVerb<T: Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and
-    /// classified revolution, becomes a [`Verb`] payload.
+    /// classified revolution, becomes a [`verbs::Verb`] payload.
     pub(crate) build: fn(A) -> Verb<T>,
     /// This verb's record reader — its family's own arm of the closed
     /// channel, its emitter, and its wall export.
@@ -123,72 +129,74 @@ fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>))
     Verb::Revolve { axis, revolution }
 }
 
-/// A wrong-family refusal, in the naming vocabulary the blends' and the
-/// boolean's use for the same class. The sentence is the
-/// correspondence's own ([`ProfileVerb::foreign_record`]).
-fn foreign(what: &'static str) -> NodeErrorKind {
-    NodeErrorKind::Naming(names::NamingError::Emission { what })
+/// The extrude family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn extrude_record<T: Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
+    match record {
+        VerbRecord::Extrude(built) => Some(built),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
+    }
+}
+
+/// The revolve family's arm of the record channel, the same shape.
+fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
+    match record {
+        VerbRecord::Revolve(built) => Some(built),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
+    }
 }
 
 /// The extrude's reader. Names FIRST — the emitter reads the whole
 /// bundle — then takes the bundle apart, so nothing is cloned and the
-/// body is moved rather than copied.
+/// body is moved rather than copied. The record comes out of the
+/// channel through [`super::read_record`], the one home of the
+/// foreign-family refusal.
 fn read_extrude<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
-    match record {
-        VerbRecord::Extrude(built) => {
-            let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
-            let Extruded {
-                body, side_faces, ..
-            } = built;
-            Ok(SweptOut {
-                body,
-                table,
-                walls: side_faces,
-            })
-        }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Revolve(_) => {
-            Err(foreign(foreign_record))
-        }
-    }
+    let built = super::read_record(record, extrude_record, foreign_record)?;
+    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    let Extruded {
+        body, side_faces, ..
+    } = built;
+    Ok(SweptOut {
+        body,
+        table,
+        // One wall per canonical segment, every one of them minted:
+        // an extruded segment always sweeps a face.
+        walls: side_faces
+            .into_iter()
+            .map(|loop_| loop_.into_iter().map(Some).collect())
+            .collect(),
+    })
 }
 
 /// The revolve's reader. Its walls are per canonical segment and
-/// OPTIONAL — an on-axis segment sweeps no wall at all — so the absent
-/// ones are dropped rather than represented: a flow attaches to faces,
-/// and a segment that minted none has none to attach to.
-///
-/// **The flatten DESTROYS the segment index**, and that is the door to
-/// widen the day a per-segment source is declared. Today every wall of
-/// a loop carries that loop's one radius, so which segment a wall came
-/// from is not a question the attach asks; a chain loop's per-step arc
-/// radii are per segment, and honouring them means keeping the
-/// `Option` positions here — an absent wall is a position, not a hole
-/// to close — so that a token list indexed by canonical segment lines
-/// up with them. `LoopProgram::carrier_radius` carries the rest of
-/// that obligation, the content key's half included.
+/// OPTIONAL — an on-axis segment sweeps no wall at all — and both the
+/// index and the `None` are kept: the attach is per profile edge, so a
+/// segment that minted no wall has to stay a position in the list
+/// rather than shifting every later segment's wall onto the wrong
+/// edge.
 fn read_revolve<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
-    match record {
-        VerbRecord::Revolve(built) => {
-            let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
-            let Revolved { body, walls, .. } = built;
-            let walls = walls
-                .into_iter()
-                .map(|loop_| loop_.into_iter().flatten().collect())
-                .collect();
-            Ok(SweptOut { body, table, walls })
-        }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Extrude(_) => {
-            Err(foreign(foreign_record))
-        }
-    }
+    let built = super::read_record(record, revolve_record, foreign_record)?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let Revolved { body, walls, .. } = built;
+    Ok(SweptOut { body, table, walls })
 }
 
 /// The extrude's correspondence.

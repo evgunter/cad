@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{SOLID_FIXTURES, census, expect_sidecar, fixture, import_body};
+use common::{SOLID_FIXTURES, arena_census, expect_sidecar, fixture, import_body};
 use geom_core::Tol;
 
 /// Row 1 per fixture: census against the sidecar's `KERNEL_*` fields
@@ -26,7 +26,7 @@ fn committed_corpus_row(name: &str) {
     let (body, _eps) = import_body(name);
     let expect = expect_sidecar(name);
     assert_eq!(
-        census(&body),
+        arena_census(&body),
         (
             expect.solids,
             expect.shells,
@@ -167,8 +167,8 @@ fn fixed_point() {
             panic!("{name}: re-import lost the solid");
         };
         assert_eq!(
-            census(&body1),
-            census(&body2),
+            arena_census(&body1),
+            arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
         let v1 = topo::mass_properties(&body1, Tol::witness())

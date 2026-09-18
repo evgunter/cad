@@ -20,28 +20,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this file is empty.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): review_fillet_e3_probes.rs \
-         contributes NO certified coverage in this run."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the E3 blend-refusal probes",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
-    use geom_core::{Band, Decide, Interval, MarginDiag, Real, Sign, Tol, Vec3};
+    use crate::common::approx::band;
+    use geom_core::{Decide, Interval, MarginDiag, Real, Sign, Vec3};
     use sweep::blend::BlendError;
     use sweep::blend::battery::{chain_g1, face_clearance};
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::{FaceKey, VertexKey};
-
-    fn band() -> Band {
-        let tol = Tol::witness();
-        Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
-    }
 
     /// The SAME kind of reading — a point bracket — becomes a
     /// different `MarginDiag` variant depending on which twin carries

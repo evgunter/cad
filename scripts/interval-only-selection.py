@@ -204,7 +204,7 @@ def term(kind, s):
     `test(foo)` is a SUBSTRING match in nextest's grammar, so a test
     named `foo` would also drag in `foo_and_more`. And the value is
     unquoted because nextest 0.9.140's quoted form does not match here
-    (verified against the pinned binary: `binary_id(=geom-core::all)`
+    (verified against that binary: `binary_id(=geom-core::all)`
     matches, `binary_id(="geom-core::all")` reports "no binary IDs
     matched"). Unquoted is safe for Rust test paths — but only for
     those, so anything outside the safe alphabet is a hard error rather

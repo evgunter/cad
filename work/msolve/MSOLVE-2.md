@@ -2,10 +2,12 @@
 id: MSOLVE-2
 kind: unit
 title: The member chain: nested patterns and sibling distinctness at every level
-status: parked
+status: closed
 opened: 2026-09-05
-blocked_on: [MSOLVE-1]
 refs: [nested-pattern-mate-heads-refuse]
+branch: msolve/2-member-chain
+closed: 2026-09-06
+pr: 2039
 ---
 
 
@@ -40,3 +42,33 @@ with a sentence at `member_of`.
   carry the `Walk` in `by_pair`'s value.
 - `mate/solve.rs` is 1300 lines with the member vocabulary as its
   first third; split `mate/member.rs` out when the chain lands.
+
+## Spec (2026-09-05)
+
+`docs/MSOLVE-2-SPEC.md`. What the read of the landed walk changed:
+a pattern over a pattern does not evaluate (`wire_pattern` takes one
+body), so the reachable nested shape runs through `Node::Part {
+Instance(i) }` — the third identity-transparent node is the road, not
+a side decision. Dispatches after MSOLVE-4 (they share `mate/solve.rs`
+only at the key's consumer; sequenced for the lane, not for a
+dependency).
+
+## Closed (2026-09-06, PR 2039)
+
+Landed: `Member.copy` is the chain of copies, derived from the walk's
+placers (one source); the walk admits `Part { Instance(_) }` as a
+pose-neutral pass-through and repeats the pattern arm at every level;
+the per-reference checks that need evaluation — the `Part`'s index
+against the name (`MateFault::PartSelectsAnotherCopy`), the index
+against the count — run at the solve's walk site for every reference
+of every mate, so a declaring mate's mismatch refuses too; one walk per
+reference per solve, carried in the pair's value; one weld predicate
+for `clusters` and the solve; `mate/member.rs` holds the vocabulary;
+the viewer reads the innermost master; the seat oracle and the mate
+test helpers live in the shared fixture. Measured: a pattern over a
+pattern does not evaluate, so the nest runs through `Part`; the gate's
+`Vanished` on a mate read below a pattern reproduces one level deeper
+(pinned; its issue stands). Reviews: correctness APPROVE-WITH-FIXES
+with the one MAJOR above; style no MAJOR. Residue with files: the
+viewer cannot author a `Part` (`work/issues/`), the copied test
+helpers on the resolver-stub issue.

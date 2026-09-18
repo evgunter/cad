@@ -105,7 +105,7 @@ pub enum Hovered {
     /// A face under the cursor.
     Face(FaceSelection),
     /// An edge under the cursor — within
-    /// [`crate::pick::EDGE_PICK_RADIUS_PX`] of it, which is what makes
+    /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, which is what makes
     /// an edge reachable at all where its own face fills the pixel.
     Edge(EdgeSelection),
 }

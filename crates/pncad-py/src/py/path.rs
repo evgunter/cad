@@ -116,8 +116,8 @@ impl StartToken {
 }
 
 /// Travel sense about a centre — structural, never a value.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSweep {
     /// Counterclockwise (positive included angle; positive bulge).
     Ccw,
@@ -137,8 +137,8 @@ impl ArcSweep {
 /// Which half-plane of the departure tangent a DERIVED carrier centre
 /// sits on — structural, the one discrete bit the endpoint-free and
 /// radius modes carry. `Left` of travel curves the arc counterclockwise.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSide {
     /// Centre on the left of travel (counterclockwise arc).
     Left,
@@ -948,23 +948,6 @@ point_state!(
             leg_end_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
                 .clone()
                 .arc_fillet_arc(si, r, s2, tol)))
-        }
-
-        /// Continue the incoming ARC carrier to an authored on-carrier
-        /// point, minting a STRUCTURAL subdivision vertex. The junction
-        /// is a same-carrier identity, so no junction check runs and
-        /// nothing is declared tangent.
-        fn arc_continue(
-            &self,
-            py: Python<'_>,
-            target: (Length, Length),
-        ) -> PyResult<PathDirectedPoint> {
-            let tol = Tol::witness();
-            self.0
-                .clone()
-                .arc_continue(pt(target), tol)
-                .map(PathDirectedPoint)
-                .map_err(|err| path_err(py, &err))
         }
     }
 );

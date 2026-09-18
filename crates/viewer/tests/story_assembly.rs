@@ -44,10 +44,10 @@ use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
-use viewer::pick::PickIndex;
+use viewer::pickindex::PickIndex;
 use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
 };
@@ -165,9 +165,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
+            instance,
             frame: Frame::translation(at),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -454,6 +455,7 @@ fn the_windmill_story() {
     for op in [
         SessionOp::BeginFreeMove { instance: hub_i },
         SessionOp::PreviewFreeMove {
+            instance: hub_i,
             frame: Frame::translation([0.0, 0.0, 0.2]),
         },
         SessionOp::CancelFreeMove,
@@ -488,10 +490,10 @@ fn the_windmill_story() {
     let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -501,7 +503,7 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -558,7 +560,10 @@ fn the_windmill_story() {
     // the mate that binds it.
     let refused = session.perform(SessionOp::BeginFreeMove { instance: hub_i });
     match refused.refusal {
-        Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+        Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+            instance,
+            mates,
+        }))) => {
             assert_eq!(instance, hub_i);
             assert!(mates.contains(&seat_mate), "the refusal names the mate");
         }
@@ -647,10 +652,10 @@ fn the_windmill_story() {
     let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -660,7 +665,7 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -726,17 +731,17 @@ fn the_windmill_story() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(superseded.instance, sail_b, "and so does the second's");
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

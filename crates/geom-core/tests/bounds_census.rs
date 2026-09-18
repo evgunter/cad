@@ -55,7 +55,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Why a sole bracket bound is sound at this door — the column a grep
 /// cannot compute, and the reason this file is a roster rather than a
@@ -234,18 +234,17 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
-        subject: "anchor_span",
-        why: HandedOff(
-            "Track V's, as `map_refusal` below; the arc-fillet ladder's presentation \
-             sort key, whose own doc states the argument — it is read off the diagnostic \
-             channel, the sort is stable so the order is a function of the inputs (D9), \
-             and the permuted entries carry identical payloads",
-        ),
-    },
-    Site {
-        path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
-        why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
+        why: Selection(
+            "the refusal-payload door. Its reads are payload fields and a message-site branch, \
+             plus the anchor-fit arm's SELECTION of which overrunning candidate (through \
+             `fillet_select::nearest_candidate`, whose dominance and selection-rule arguments \
+             carry it) and which of its legs the payload is about — off the diagnostic channel, \
+             among constructions already classified on the value channel. What is selected is a \
+             payload that stops rather than a quantity re-entering the computation, so nothing \
+             downstream branches on it; the locally-constant clause is not what carries this \
+             site, the ladder's own argument is, and the site says so",
+        ),
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
@@ -395,21 +394,6 @@ const ROSTER: &[Site] = &[
         ),
     },
 ];
-
-/// The repository root: this crate's directory, two levels up. The
-/// both-ways resolution is [`test_utils::source::crate_dir`]'s, shared.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
-}
 
 /// Is this bound spelled as the bracket door alone?
 fn is_sole_bracket(bound: &str) -> bool {
@@ -597,9 +581,29 @@ fn is_ident(b: u8) -> bool {
 /// is written or removed — which is the whole instrument: the rule that
 /// prescribes the sole bound now has something that watches the class,
 /// and it is not the gate (which cannot see this form by construction).
+/// The roster names each `(path, subject)` ONCE. Two rows for one door with
+/// two dispositions are not a stronger census but a contradiction it cannot
+/// see — measured 2026-09-05, when two lanes fixed one red in parallel and
+/// `anchor_span` sat in the roster as both `HandedOff` and `Payload` while
+/// this file stayed green.
+#[test]
+fn the_roster_names_each_door_once() {
+    let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut dup: Vec<(&str, &str)> = Vec::new();
+    for site in ROSTER {
+        if !seen.insert((site.path, site.subject)) {
+            dup.push((site.path, site.subject));
+        }
+    }
+    assert!(
+        dup.is_empty(),
+        "the roster lists these doors more than once (one door, one disposition): {dup:?}"
+    );
+}
+
 #[test]
 fn every_sole_bracket_bound_door_is_in_the_roster() {
-    let root = repo_root();
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
     let found = walk(&root);
     let listed: BTreeSet<(String, String)> = ROSTER
         .iter()

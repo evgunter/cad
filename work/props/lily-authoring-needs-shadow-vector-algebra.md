@@ -2,11 +2,13 @@
 id: lily-authoring-needs-shadow-vector-algebra
 kind: unit
 title: API friction — authoring the lily naturally meant building a shadow vector algebra beside Vec3
-status: spec
+status: closed
 branch: props/lily-vec3
 opened: 2026-08-20
 github: 796
 refs: [757, 758, 759, 787, D79]
+pr: 1954
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 796
@@ -87,3 +89,37 @@ An E rider: single style review, outside the A/B experiment.
 ## Home
 
 `work/issues/`: the question is about `geom_core::Vec3`'s surface — kernel ground LIB's `keep_out` explicitly cedes to VERBS and SEAT, neither of whose charters names it — while the demo-side half is already carried by the code-quality row `D79`, which cites this issue as its reason.
+
+## Closed (2026-09-05, #1954)
+
+**The answer is the layer, not a door.** The census found every tuple
+helper had an exact door already; what pushed the author to tuples is
+that `Real` has no mixed-scalar arithmetic, so authoring into
+`Vec3<S>` puts an `S::from_f64` on every literal. `demos/tour/src/lily.rs`
+now composes the scene at `f64` in `Vec3<f64>`/`Point3<f64>` through
+`normalize`, `dot`, `cross`, `reject_from`, `Mat3::rotation_about` and
+the operators, and lifts at the door two ways: the kernel's own
+`pncad::authoring::{p2, v2, p3, v3}` where the components are written
+at the call, `map(S::from_f64)` where an already-composed `f64` value
+crosses. Readback is `map(S::f)`. The file's header states that rule as
+its invariant. `rot`, `nrm`, `v3`/`pt3`, `blade_frame`'s and `bud`'s
+hand-rolled Gram–Schmidt, the two radial-frame builders, the
+`v_sub`/`v_dot`/`v_cross`/`v_len` family, `Section::outline`'s 2-D
+tuple algebra and `review_probes::cross_norm` are all gone.
+`D79`(b) and the `S130`(b) text it mirrors are deleted with it.
+
+**Geometry, measured**: nine of the fifteen lily bodies are
+byte-identical in STEP and STL and no other scene in the tour changed a
+byte; six moved by ulps (≤4.2e-15 m), and every one of those traces to
+`reject_from`'s triple-product association at exactly two call sites —
+respelling only those two subtractively makes all 143 artefacts
+byte-identical to the merge base. The render lanes report no drift.
+
+**Two spec statements were argued rather than met** (both in the PR):
+its helper census missed two sites, and its single `map` spelling for
+the lift is right only for composed values. Residue outside the fence
+is filed: `work/issues/tour-scenes-lift-componentwise-not-through-map.md`
+(the rest of the tour, and the stale `demos/tour/Cargo.lock`) and
+`work/props/vec3-point3-const-and-conversion-doors.md` (no `const fn`
+constructor, no `Vec → Point` door — the two spellings this file could
+not route through a door).

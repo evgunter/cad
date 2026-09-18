@@ -25,11 +25,21 @@ What IS covered today, so the gap is stated precisely:
 - **Planar, between vertices** — check 5 (sample containment against adjacent planar faces).
 - **Planar, orientation half** — check 6 (loop-role winding against the outward normal, line-bounded loops).
 - **Curved analytic, orientation half** — check 6's curved arm (M6-6: boundary material side vs the sense bit).
+- **Planar, the loop-NESTING half** — check 9's nesting arm
+  (`ValidationError::RingOutsideOuter`): a face's ring lies strictly inside that
+  face's own outer loop, decided by the crate's trilean containment walk over the
+  ring's vertices. Added by `tier3-accepts-a-ring-outside-its-outer-loop`. It
+  reaches a face on a `Plane` whose outer loop is in `boolean::contain`'s
+  `Polygon` class (no arc anywhere, so the walked polygon IS the loop's
+  region) and is silent on every arc-bearing class and on any non-planar face
+  (`work/topo/check-9-nesting-is-line-bounded-only.md`).
 
 What remains uncovered:
 
 - containment against **curved** surfaces;
-- the **region-bounding** statement for arc-bounded planar faces and for curved faces;
+- the **region-bounding** statement for curved faces, and for the planar loop
+  classes check 9's nesting arm is silent on (the disc class and the no-walk
+  class);
 - the curved arm's documented residuals — the rimless sphere band; NURBS faces; the quadrature-owned conic-trimmed walls (whose boundary parse refuses typed and is therefore exempt: such a body's flips, single-face and whole-body, certify green today, executed on the tilted-section cylinder and pinned as residual).
 
 ## Why it is a marker and not a plan
@@ -38,7 +48,9 @@ No design work is proposed here and none is implied. The item is real, it is uns
 
 ## Cited from
 
-- `crates/topo/src/validate.rs` — `validate_geometric`'s not-yet-checked list (the bullet above)
+- `crates/topo/src/validate.rs` — `validate_geometric`'s not-yet-checked list (the
+  bullet above, which now records check 9's nesting arm as covering the planar
+  nesting half and names the arm's own residue as sitting inside this deferral)
 - `crates/topo/src/validate.rs` — `ValidationError::PlanarBoundaryResidual`'s doc
 - `crates/topo/src/validate.rs` — the tier-3 check-5 rustdoc and its in-body check-list comment
 

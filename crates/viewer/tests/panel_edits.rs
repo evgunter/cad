@@ -242,6 +242,8 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     let mut previews = 0usize;
     for step in 1..=4 {
         let outcome = session.perform(SessionOp::PreviewGesture {
+            node: extrude,
+            slot: SlotId::Distance,
             value: 0.008 + f64::from(step) * 0.001,
         });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
@@ -272,7 +274,10 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
         Ok(SlotValue::Continuous(0.008))
     );
 
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert_eq!(session.history().len(), before + 1, "one undo step");
 
@@ -313,14 +318,17 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     let mut last = 0.0;
     for step in 1..=5 {
         last = 0.008 + f64::from(step) * 0.002;
-        let outcome = session.perform(SessionOp::PreviewGesture { value: last });
+        let outcome = session.perform(SessionOp::PreviewParamGesture {
+            name: name.clone(),
+            value: last,
+        });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
         previews += outcome.previewed.len();
         assert_eq!(session.history().len(), before, "and mints no history");
     }
     assert_eq!(previews, 5);
 
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
@@ -363,7 +371,10 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewGesture { value: 1.0 })
+            .perform(SessionOp::PreviewParamGesture {
+                name: pncad::document::ParamName::new("no-such-parameter"),
+                value: 1.0
+            })
             .refusal,
         Some(Refusal::NoGesture)
     ));
@@ -388,7 +399,11 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
             node: extrude,
             slot: SlotId::Distance,
         },
-        SessionOp::PreviewGesture { value: 0.02 },
+        SessionOp::PreviewGesture {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: 0.02,
+        },
     ];
     let mut shown: Option<Refusal> = None;
     for op in batch {
@@ -408,28 +423,50 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
-/// **Five refusals a panel can provoke render as sentences** — five,
-/// named, and not a claim about the vocabulary.
+/// **Six refusals a panel can provoke render as sentences** — six,
+/// named, and not a claim about the vocabulary. Each is a real op
+/// through a real door, so the rendering asserted is the one a person
+/// reads.
 ///
-/// The title used to say "every refusal" while the body exercised the
-/// `Io` arm alone, which is why it stayed green while `Refusal::Edit`
-/// rendered a `{:?}`-quoted parameter name into the status line. Each
-/// row below is now a real op through a real door, so the rendering
-/// asserted is the one a person reads.
+/// **The universal is not asserted here, because a sample cannot hold
+/// it.** `Refusal` has 18 arms and one of them is `Edit`, which
+/// forwards ~50 sub-variants, so what decides the rendering is the
+/// payload's variant one level down — `crates/pncad-py/src/
+/// prose_census.rs` states exactly that failure mode, and a roster
+/// that picks its own samples excludes the failing mode by
+/// construction. The two vocabulary-wide halves live elsewhere, and
+/// are named here so this row is not read as holding them:
 ///
-/// **The universal is not restored, because it is not true.**
-/// `Refusal` has 18 arms and this walks 5; worse, one of them is
-/// `Edit`, which forwards ~50 sub-variants, so what decides the
-/// rendering is the payload's variant one level down —
-/// `crates/pncad-py/src/prose_census.rs` states exactly that failure
-/// mode, and a roster that picks its own samples excludes the failing
-/// mode by construction. It is excluded here too: `EditError`'s
-/// metadata arms (`MetaNotSet`, `MetaNonFinite`, `MetaUnversioned`,
-/// `RebindMetadataCollision`) render a `key: String` through `Debug`,
-/// so `!contains('"')` is FALSE of them today and this row cannot see
-/// it. What covers a claim of that shape is a source census over the
-/// tree, not a sample: `work/view/refusal-has-no-all-to-walk.md`
-/// carries the gap and the two censuses that already exist.
+/// * **that every arm renders at all** is the compiler's.
+///   `Display for Refusal` and `Refusal::rank` are exhaustive matches
+///   with no wildcard, so a nineteenth arm reds both until it is
+///   given a sentence and a rank. That is the obligation an `ALL`
+///   over this vocabulary was wanted for, and the type has it already
+///   — which is why there is no `Refusal::ALL` to walk.
+/// * **that no rendering carries the field-brace fingerprint** is
+///   `prose_census`'s, a census over SITES rather than samples.
+///
+/// The shape asserted below is F6's — editor-core's ratified `Display`
+/// contract (`crates/editor-core/tests/display_contract.rs`): no
+/// brace, no `Debug` field punctuation, no variant identifier, and
+/// never simply the dump — **plus a quotation mark**, which F6 does
+/// not list and this row asserts anyway.
+///
+/// That extra clause is the one that catches the case this row exists
+/// for. A `{:?}` over a `String` or a `ParamName` renders `"width"`:
+/// no brace, no field punctuation, and the identifier it leaks is the
+/// PAYLOAD's rather than the arm's, so every F6 clause passes over it
+/// and so does `assert_ne!(rendered, format!("{:?}"))`, which compares
+/// whole strings and cannot see a `Debug` fragment sitting inside
+/// prose.
+///
+/// It is asserted OF THESE SIX ARMS and is not a rule over the
+/// vocabulary — the distinction this row is built on. `EditError`'s
+/// metadata arms quote a user's key on purpose and `MetaUnversioned`
+/// names the D7 `"v"` field by writing it, so a census extended to a
+/// blanket quote ban would red correct prose. A tripwire over named
+/// samples can be stricter than the contract; a claim over a
+/// vocabulary cannot.
 #[test]
 fn refusals_render_as_sentences() {
     let tol = Tol::witness();
@@ -484,20 +521,59 @@ fn refusals_render_as_sentences() {
         .refusal
         .expect("a profile has no radius slot");
 
-    for (arm, rendered) in [
-        ("Io", io.to_string()),
-        ("Edit", edit.to_string()),
-        ("NoSuchParam", lookup.to_string()),
-        ("WrongNodeKind", kind.to_string()),
-        ("NoSuchSlot", slot.to_string()),
+    // The arm whose sentence is composed OUTSIDE `Display` — through
+    // `Refusal::exists_wording`, shared with the add-parameter form's
+    // pre-click notice — and therefore outside the source census,
+    // which reads `impl Display` bodies.
+    //
+    // **The ASKED-for dimension differs from the declared one**, and
+    // it has to: this arm exists to name what already stands there
+    // (`create_param` reads `existing.dim()`), and a fixture that
+    // asks for the dimension it declared cannot tell that apart from
+    // an arm forwarding the request — which is the one mistake the
+    // refusal guards, `SetDocParam` being create-or-replace at the
+    // API. `thickness` is declared a length; this asks for an angle.
+    let exists = session
+        .perform(SessionOp::CreateParam {
+            name: common::thickness_param(),
+            value: pncad::document::DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+        })
+        .refusal
+        .expect("creating over a declared name refuses");
+    let shown = exists.to_string();
+    assert!(
+        shown.contains("(length)"),
+        "the dimension is the quantity's noun, not its variant identifier: {shown}"
+    );
+    assert!(
+        !shown.contains("angle"),
+        "and it is the EXISTING declaration's, not the one asked for: {shown}"
+    );
+
+    for (arm, refusal) in [
+        ("Io", &io),
+        ("Edit", &edit),
+        ("NoSuchParam", &lookup),
+        ("WrongNodeKind", &kind),
+        ("NoSuchSlot", &slot),
+        ("ParamExists", &exists),
     ] {
+        let rendered = refusal.to_string();
         assert!(
-            !rendered.contains('{') && !rendered.contains('"'),
+            !rendered.contains('{')
+                && !rendered.contains('"')
+                && !rendered.contains("node:")
+                && !rendered.contains("name:"),
             "{arm} is a sentence, not a debug dump: {rendered}"
         );
         assert!(
             !rendered.contains(arm),
             "{arm} leaves its variant name standing: {rendered}"
+        );
+        assert_ne!(
+            rendered,
+            format!("{refusal:?}"),
+            "{arm} renders as its own dump"
         );
     }
 
@@ -532,7 +608,11 @@ fn an_abandoned_gesture_leaves_no_trace() {
         node: extrude,
         slot: SlotId::Distance,
     });
-    session.perform(SessionOp::PreviewGesture { value: 0.03 });
+    session.perform(SessionOp::PreviewGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: 0.03,
+    });
     session.perform(SessionOp::CancelGesture);
     assert_eq!(session.history().len(), before);
     assert_eq!(
@@ -561,7 +641,11 @@ fn a_gesture_over_a_driven_slot_is_refused_before_it_starts() {
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewGesture { value: 1.0 })
+            .perform(SessionOp::PreviewGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: 1.0
+            })
             .refusal,
         Some(Refusal::NoGesture)
     ));

@@ -61,7 +61,7 @@ use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceErro
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
@@ -98,7 +98,7 @@ use crate::validate::decide;
 /// call, the sector-shape rungs, the departure trileans — is
 /// sense-invariant GIVEN that value and must not multiply again: those
 /// sites pair it with the STORED orbit order, which `revert` reverses
-/// together with the sense bit, so a second `sense_sign` factor would
+/// together with the sense bit, so a second sense fold would
 /// cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
@@ -252,7 +252,7 @@ pub fn classify_neighborhood<T: Decide>(
                     // The reference side here is the SPLIT PLANE's
                     // normal: an operation input that DEFINES
                     // Above/Below, belonging to no face and with no
-                    // `sense_sign` to fold in. Its type says so —
+                    // `sense` bit to fold in. Its type says so —
                     // `enters_material`'s face slot would not accept
                     // it, and this slot does not accept a bare vector.
                     match geom_brep::enters_material_order2(
@@ -302,7 +302,17 @@ pub fn classify_neighborhood<T: Decide>(
             arm,
             bisector: wide,
             ..
-        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(sliver)?;
+        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(
+            |fault| match fault {
+                SectorFault::NonFiniteChord => {
+                    SplitReduceError::NonFiniteSectorChord { vertex, face }
+                }
+                SectorFault::UnderflowedChord => {
+                    SplitReduceError::UnderflowedSectorChord { vertex, face }
+                }
+                SectorFault::Rung(diag) => sliver(diag),
+            },
+        )?;
         if let Some(bisector) = wide {
             let margin = Margin::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {

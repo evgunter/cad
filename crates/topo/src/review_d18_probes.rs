@@ -257,7 +257,10 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
 /// row-4 arm: it asserts the panic it caught said `"postcondition"`,
 /// on the stated premise that *"Both `assert_euler_postcondition`
 /// messages carry the literal asserted below; no `unreachable!` message
-/// does."* The premise is true today and is held by nothing — one
+/// does."* Every postcondition message in the crate carries it — the
+/// operator's delta message, the shared tier-1 one, and the
+/// door-level sweep in [`crate::surgery`]. The premise is true today
+/// and is held by nothing — one
 /// `unreachable!` whose message happens to contain the word would make
 /// the discriminator pass on exactly the failure it exists to catch,
 /// silently. This row is that premise as a gate.
@@ -301,8 +304,9 @@ fn d18_no_unreachable_message_can_impersonate_the_postcondition() {
     assert!(
         postcondition_messages >= 2,
         "the walk found {postcondition_messages} postcondition assertion \
-         message(s); expected at least the two in \
-         `assert_euler_postcondition` — the walk is not reading topo/src"
+         message(s); expected at least the operators' delta and tier-1 \
+         messages (`assert_euler_postcondition` and the shared helper it \
+         calls in `crate::surgery`) — the walk is not reading topo/src"
     );
     assert!(
         offenders.is_empty(),

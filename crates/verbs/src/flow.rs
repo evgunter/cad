@@ -69,6 +69,8 @@ pub enum ScalarParam {
     /// extent and reaches no stored field), so a full revolve has
     /// nothing to declare rather than a row that does not apply.
     RevolveAngle,
+    /// [`Verb::Shell`]'s `thickness`.
+    ShellThickness,
 }
 
 impl ScalarParam {
@@ -78,6 +80,7 @@ impl ScalarParam {
         Self::ChamferDistance,
         Self::ExtrudeDistance,
         Self::RevolveAngle,
+        Self::ShellThickness,
     ];
 
     /// Which verb the parameter belongs to.
@@ -88,6 +91,7 @@ impl ScalarParam {
             Self::ChamferDistance => VerbKind::Chamfer,
             Self::ExtrudeDistance => VerbKind::Extrude,
             Self::RevolveAngle => VerbKind::Revolve,
+            Self::ShellThickness => VerbKind::Shell,
         }
     }
 }
@@ -99,11 +103,12 @@ impl ScalarParam {
 /// vocabulary reaches: a profile edge's carrier radius. The VALUE is
 /// per edge — the wall swept from an edge stores that edge's radius
 /// and no other edge's, which is what makes the flow honourable per
-/// minted wall — but the ADDRESS the document holds it at need not be
-/// that fine, and today it is not: a carrier loop is drawn at one
-/// radius, so every edge it replays to reads the same expression at
-/// one per-LOOP slot. A per-edge address is what a loop form with more
-/// than one radius would need, and no consumer has one.
+/// minted wall — and the ADDRESS is per edge too, composed rather than
+/// held: the document holds a radius at a per-STEP slot, and which
+/// edges a step drew is the replay's own record
+/// (`editor_core::ProfileProgram::segment_radii`). A carrier loop is
+/// one step drawn at one radius, so every edge of it reads the same
+/// expression; a chain's arc steps each read their own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EdgeScalar {
     /// The radius of a CIRCULAR profile edge — the arc's carrier
@@ -138,6 +143,7 @@ impl FlowSource {
         Self::Param(ScalarParam::ChamferDistance),
         Self::Param(ScalarParam::ExtrudeDistance),
         Self::Param(ScalarParam::RevolveAngle),
+        Self::Param(ScalarParam::ShellThickness),
         Self::ProfileEdge(EdgeScalar::Radius),
     ];
 }
@@ -163,10 +169,11 @@ pub enum RoleFamily {
     /// edge (`Extruded::side_faces`, `Revolved::walls`). The family
     /// whose rows are addressed BY THE OPERAND's entities rather than
     /// by the verb's — which is what lets an operand-carried source be
-    /// honoured at all. The record groups the rows by LOOP, and that
-    /// is the grouping the flow's consumer keys on, because the
-    /// address the document holds a carrier radius at is per loop
-    /// ([`EdgeScalar`]).
+    /// honoured at all. The record keys the rows by LOOP and then by
+    /// canonical SEGMENT, and both indices are what the flow's
+    /// consumer keys on: the scalar is per edge ([`EdgeScalar`]), so a
+    /// wall's token is its own edge's and a segment that minted no
+    /// wall holds its position rather than shifting the rest.
     SweptWalls,
 }
 
@@ -321,6 +328,42 @@ const REVOLVE_FLOW: &[ParamFlow] = &[
 /// birth record, so it is a statement about a run.
 const BOOLEAN_FLOW: &[ParamFlow] = &[];
 
+/// **The split has NO scalar parameters either, and its empty flow
+/// says so for a reason of its own.** The payload is a plane — a
+/// point and a unit normal, a DATUM value read off a datum node
+/// upstairs — and a placement is not a scalar: no document slot
+/// evaluates to a number that the split carries into anything it
+/// mints. What it mints is section faces, and a section face's
+/// carrier is a plane, whose stored data is a placement and nothing
+/// else — `SurfaceField::belongs_to` names no field for the plane
+/// kind — so even a scalar that reached one would have no field to
+/// land in. `ScalarParam` gains no split variant, which is what keeps
+/// the exhaustiveness census true; `tests/param_flow.rs` asserts this
+/// emptiness beside a real split record, so it is a statement about a
+/// run and not an untested constant.
+const SPLIT_FLOW: &[ParamFlow] = &[];
+
+/// **The shell's thickness reaches no stored field, and the row is
+/// present and empty for the reason [`ParamFlow`] gives.**
+///
+/// It is not an extent like the sweeps' — the wall really is a
+/// distance, and it really does move geometry. What it does not do is
+/// land in a field this declaration can name. Every cavity carrier the
+/// verb mints is the operand's own chart offset inward: a plane's
+/// stored data is a placement, so the thickness moves an origin and
+/// becomes nothing; a cylinder's or a sphere's cavity twin stores
+/// `r − t`, and a torus's `minor_radius − t` — DERIVED numbers, the
+/// operand's field minus the parameter, never the parameter. VS-Q3
+/// gives v1 no source for a derived field: the channel attaches the
+/// identity of the expression a parameter IS, and `r − t` is the
+/// identity of neither `r` nor `t`. So the honest row is the empty one,
+/// and the day the channel learns to carry a derivation the row is
+/// where the answer goes.
+const SHELL_FLOW: &[ParamFlow] = &[ParamFlow {
+    source: FlowSource::Param(ScalarParam::ShellThickness),
+    fields: &[],
+}];
+
 impl VerbKind {
     /// This verb's parameter→field flow, one row per scalar parameter.
     #[must_use]
@@ -331,6 +374,8 @@ impl VerbKind {
             Self::Extrude => EXTRUDE_FLOW,
             Self::Revolve => REVOLVE_FLOW,
             Self::Boolean(_) => BOOLEAN_FLOW,
+            Self::Split => SPLIT_FLOW,
+            Self::Shell => SHELL_FLOW,
         }
     }
 }
@@ -357,10 +402,11 @@ mod all_census {
     #[test]
     fn all_is_every_scalar_parameter() {
         let variants = match ScalarParam::FilletRadius {
-            ScalarParam::FilletRadius => 4,
-            ScalarParam::ChamferDistance => 4,
-            ScalarParam::ExtrudeDistance => 4,
-            ScalarParam::RevolveAngle => 4,
+            ScalarParam::FilletRadius => 5,
+            ScalarParam::ChamferDistance => 5,
+            ScalarParam::ExtrudeDistance => 5,
+            ScalarParam::RevolveAngle => 5,
+            ScalarParam::ShellThickness => 5,
         };
         for (i, param) in ScalarParam::ALL.iter().enumerate() {
             assert!(
@@ -388,10 +434,11 @@ mod all_census {
                 ScalarParam::FilletRadius
                 | ScalarParam::ChamferDistance
                 | ScalarParam::ExtrudeDistance
-                | ScalarParam::RevolveAngle => 5,
+                | ScalarParam::RevolveAngle
+                | ScalarParam::ShellThickness => 6,
             },
             FlowSource::ProfileEdge(edge) => match edge {
-                EdgeScalar::Radius => 5,
+                EdgeScalar::Radius => 6,
             },
         };
         for (i, source) in FlowSource::ALL.iter().enumerate() {

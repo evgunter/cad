@@ -2,8 +2,9 @@
 id: closure-tier-scope-hides-whole-tree-census-tests
 kind: issue
 title: A closure-tier run seeded outside geom-core never executes geom-core's whole-tree census tests, so a door added elsewhere can land with the census red
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-06
 ---
 
 
@@ -28,3 +29,27 @@ manifest key); (b) such tests move to a tooling root that every tier
 runs (`scripts/gates/` already runs on every tier); (c) `ci-filter.py`
 treats a change under any path a census names as seeding the census's
 crate. Which tests are tree-walking is the first thing to census.
+
+## Closed 2026-09-06 — answered by PR 1909, which built option (c)
+
+The filer's option (c) — *"`ci-filter.py` treats a change under any path a
+census names as seeding the census's crate"* — is what
+`closure-reaches-tree-wide-guards` landed, derived from what each crate's
+sources open rather than from a named list.
+
+Measured on this tree, not inferred. A change to
+`crates/profile/src/path/arc_fillet.rs` — the instance above — now classifies
+`TIER=closure` with
+
+    PKGS=bvh,editor-core,geom-core,mesh,pncad,pncad-py,profile,step-export,
+         step-import,stl,sweep,test-utils,topo,verbs,viewer
+
+so `geom-core` is in scope and `crates/geom-core/tests/bounds_census.rs`
+builds and runs. A `crates/viewer/src/tree.rs`-only change — the smallest
+closure in the tree — still pins `bvh, editor-core, geom-core, pncad-py,
+test-utils`, which is the reach itself.
+
+The class the filer states is answered the same way and by the same
+mechanism: a tree-walking test is reached because of what it reads. What the
+reach cannot follow is `reach-cannot-follow-every-ascent`, open on this
+slate with the ascents enumerated.

@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-05
 refs: [camera-fold-clears-status-line]
+branch: view/news-and-badges
+rides_with: the-news-vocabulary-has-no-expiry
 ---
 
 ## What this is

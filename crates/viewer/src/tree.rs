@@ -25,13 +25,24 @@
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
 //!
-//! The fault itself resolves that: every `MateFault` arm but
-//! [`MateFault::Band`] names its subject, and the subject is a mate
-//! node (`blamed_mates` holds that carve-out). So a row whose id the
-//! fault NAMES is the cause and stays `Failed`; a row the same fault
-//! merely reached is [`RowStatus::Poisoned`] through the mate that is
-//! named — the only thing read being which node the kernel's own
-//! words point at.
+//! The fault itself resolves that wherever it names a subject, and
+//! that subject is a mate node (`blamed_mates` is the reading). So a
+//! row whose id the fault NAMES is the cause and stays `Failed`; a row
+//! the same fault merely reached is [`RowStatus::Poisoned`] through
+//! the mate that is named — the only thing read being which node the
+//! kernel's own words point at.
+//!
+//! **[`MateFault::Band`] names none, and it is the arm that still
+//! reaches rows.** A band is the RUN's tolerance, not a decision about
+//! any node: with no band the solve decides nothing, and faults every
+//! mate and every instance in the DOCUMENT — across cluster
+//! boundaries, and including instances no mate touches — with one
+//! shared cause. No row is more at fault than another, so nothing here
+//! picks one and every row it reached keeps its own `Failed`. That
+//! reading is honest about blame and poor about scope, and improving
+//! it wants a status saying "the run, not this row" rather than a
+//! culprit invented here
+//! (`work/chrome/band-refusal-still-badges-every-row.md`).
 //!
 //! # Order and depth
 //!
@@ -180,6 +191,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Shell { .. } => "Shell",
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Loft { .. } => "Loft",
@@ -262,7 +274,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
         None => RowStatus::Unevaluated,
         Some(NodeResult::Ok(_)) => RowStatus::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error, ev).unwrap_or_else(|| RowStatus::Failed {
+            downstream_of_mate(id, error).unwrap_or_else(|| RowStatus::Failed {
                 message: error.to_string(),
             })
         }
@@ -274,7 +286,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// was.
 ///
 /// Named rather than composed inside a render pass, so the wording has
-/// one home and can be asserted on (`app::indeterminate_wording`'s
+/// one home and can be asserted on ([`crate::app::indeterminate_wording`]'s
 /// rule). Honest for BOTH of [`RowStatus::Poisoned`]'s producers
 /// because both point at a row this same tree badges `Failed`, where
 /// the payload's own words are read once instead of once per row the
@@ -304,7 +316,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
             message: None,
         };
     };
-    downstream_of_mate(through, error, ev).unwrap_or(RowStatus::Poisoned {
+    downstream_of_mate(through, error).unwrap_or(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),
     })
@@ -316,8 +328,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// Exhaustive on purpose: a fault arm the kernel grows must decide
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
-/// [`MateFault::Band`] and [`MateFault::PosesOfAnotherDocument`] name
-/// none, and every row they reached keeps its own `Failed`.
+///
+/// Two arms name none, and they get an arm each because they are not
+/// the same case: one reaches rows and one cannot reach any.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -326,14 +339,25 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
+        | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
+        | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
-        // Neither names a mate: no band, no decisions, so no mate is
-        // more at fault than any other; and a solve read against the
-        // wrong document blames the pairing, not a node — that arm is
-        // raised by `SolvedPoses::placement` and never recorded in a
-        // solve's fault map, so no row here can carry it.
-        MateFault::Band { .. } | MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
+        // **The arm that reaches rows and blames none.** No band, no
+        // decisions, so no mate is more at fault than any other — and
+        // the refusal is the run's, reaching every mate and every
+        // instance in the document rather than one cluster's.
+        MateFault::Band { .. } => Vec::new(),
+        // A solve read against the wrong document blames the pairing,
+        // not a node — and it is the mispairing itself, so there is no
+        // node to name. `SolvedPoses::placement` raises it before it
+        // reads the fault map, and `eval` maps that refusal onto the
+        // instance's own `Failed`, so the fault-map route is not what
+        // keeps it off a row. **DI3 is**: the evaluation solves and
+        // evaluates the SAME document, so the pairing this arm reports
+        // never holds and the empty answer here is unreachable rather
+        // than a reading a user meets.
+        MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.
@@ -350,23 +374,19 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// The downstream reading of a node's own `Failed`, when a mate
 /// refusal reached it without naming it.
 ///
-/// `None` — the row keeps its own `Failed` — on every guard below,
-/// of which the last is the load-bearing one: no mate the fault names
-/// is failing in THIS evaluation.
+/// `None` — the row keeps its own `Failed` — when the failure is not
+/// a mate refusal, when the fault names this very node, and when it
+/// names no mate at all ([`MateFault::Band`], the module header's
+/// second section).
 ///
-/// That guard keeps [`RowStatus::Poisoned`]'s walkable-in-one-hop
-/// invariant true here rather than assumed. What it catches is a named
-/// mate reading `Ok` — the only other reading available, since mates
-/// are DAG leaves and so are never `Poisoned` — which happens in the
-/// very evaluation carrying the fault, because a mate's memo key does
-/// not carry the solve and a cluster that breaks around an unedited
-/// mate does not re-run it. Pointing at a green row would send the
-/// user nowhere and drop the message they can act on.
-fn downstream_of_mate(
-    id: RecipeNodeId,
-    error: &NodeError,
-    ev: &Evaluation<f64>,
-) -> Option<RowStatus> {
+/// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
+/// walkable-in-one-hop invariant holds because the kernel's answer is
+/// consistent: a mate's content key carries the solve's answer, so a
+/// mate the fault names is `Failed` in the evaluation carrying that
+/// fault — never `Ok` off a stale memo, and never `Poisoned`, since
+/// mates are DAG leaves. A row here that pointed at a green row would
+/// be that inconsistency surfacing, not a case to absorb.
+fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> {
     let NodeErrorKind::Mate(fault) = &error.kind else {
         return None;
     };
@@ -374,11 +394,8 @@ fn downstream_of_mate(
     if blamed.contains(&id) {
         return None;
     }
-    // The first named mate the run agrees is failing, in the fault's
-    // own order.
-    let through = blamed
-        .into_iter()
-        .find(|mate| ev.result(*mate).and_then(NodeResult::error).is_some())?;
+    // The first mate the fault names, in the fault's own order.
+    let through = blamed.into_iter().next()?;
     Some(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),

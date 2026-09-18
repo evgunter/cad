@@ -76,7 +76,6 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::LineTo(_)
             | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
-            | Step::ArcContinue(_)
             | Step::Fillet { .. }
             | Step::FarEndTo(_)
             | Step::CloseTo
@@ -423,13 +422,22 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     assert_eq!(pinned(two).vertices().len(), 2);
 }
 
-/// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
-/// the half-disc's equator vertex).** Two quarter arcs on ONE carrier:
-/// the first authored (`arc_to(Bulge { .. })` with bulge tan(π/8)), the
-/// second a structural subdivision — same carrier, derived bulge, no
-/// junction claim, nothing declared tangent. Replays bit-identically.
+/// **The half-disc equator through the lattice's own spelling** (the
+/// need `arc_continue` served, re-authored — BOOL-10, Ev's ruling of
+/// 2026-09-13: the sixth round already admits adjacent same-carrier
+/// arcs as declared tangent joints, so no second verb and no split form
+/// is needed). Two quarter arcs on ONE carrier: the first authored
+/// (`arc_to(Bulge { .. })`, bulge tan(π/8)), the second
+/// `.tangent().tangent_arc_to(p)` — its joint DECLARED, its arc derived
+/// from the inherited tangent and the authored target. The table is
+/// the one the retired verb produced, bit for bit: the equator vertex
+/// is the authored `(0.5, 0)` exactly, and the derived bulge is the
+/// value `arc_continue` derived (measured before its removal:
+/// `0x3fda827999fcef33`, one ulp above tan(π/8) — the tangent-chord
+/// derivation's rounding, which both spellings share). The one
+/// difference from the retired verb is the joint: DECLARED now.
 #[test]
-fn arc_continue_subdivides_the_carrier_structurally() {
+fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     use profile::Bulge;
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
@@ -442,60 +450,38 @@ fn arc_continue_subdivides_the_carrier_structurally() {
             Tol::witness(),
         )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .tangent()
+        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
-        vec![Verb::At, Verb::ArcTo, Verb::ArcContinue, Verb::LineTo],
-        "the subdivision records as its own verb, storing only the authored target"
+        vec![
+            Verb::At,
+            Verb::ArcTo,
+            Verb::Tangent,
+            Verb::TangentArcTo,
+            Verb::LineTo
+        ],
     );
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 3);
-    // The derived bulge continues the SAME carrier: a quarter of the
-    // r = 0.5 circle about the origin, tan(π/8) up to the tangent-chord
-    // derivation's rounding.
-    let b = lowered.vertices()[1].bulge();
-    assert!(
-        (b - q).abs() < 1e-15,
-        "continuation bulge ≈ tan(π/8), got {b}"
+    let v1 = lowered.vertices()[1];
+    assert_eq!(
+        (v1.pos().x.to_bits(), v1.pos().y.to_bits()),
+        (0.5f64.to_bits(), 0.0f64.to_bits()),
+        "the equator vertex is the authored point exactly"
     );
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "a subdivision vertex claims nothing — same-carrier identity, not tangency"
+    assert_eq!(lowered.vertices()[0].bulge().to_bits(), q.to_bits());
+    assert_eq!(
+        v1.bulge().to_bits(),
+        0x3fda827999fcef33,
+        "the derived bulge is the retired verb's, bit for bit (got {:#x})",
+        v1.bulge().to_bits()
     );
+    assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
-}
-
-/// `arc_continue` refusals: a straight incoming leg has nothing to
-/// subdivide; an off-carrier target is contradictory authored data.
-#[test]
-fn arc_continue_refuses_lines_and_off_carrier_targets() {
-    use profile::Bulge;
-    let after_line = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0), Tol::witness())
-        .unwrap();
-    match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
-        Err(PathError::ArcContinueNeedsArcCarrier) => {}
-        other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
-    }
-    let q = std::f64::consts::FRAC_PI_8.tan();
-    let after_arc = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: q,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
-        Err(PathError::ArcContinueOffCarrier { .. }) => {}
-        other => panic!("an off-carrier target must refuse, got {other:?}"),
-    }
 }
 
 // ------------------------------------------------------------------
@@ -537,6 +523,46 @@ fn every_table_verb_is_replayed_by_the_corpus() {
          — every row's driver arm must be exercised by a record->replay chain, \
          so add one to `coverage_corpus` (see this test's rustdoc)"
     );
+}
+
+/// **Every verb names itself in the authoring spelling, and no two
+/// verbs name themselves the same.**
+///
+/// `Verb`'s `Display` is what a surface writing a sentence about the
+/// step a person authored renders it through
+/// (`crates/viewer/src/sketch.rs`'s preview refusal is the one in the
+/// tree), so the two ways it can silently stop being that are the two
+/// this row pins, both anchored on [`Verb::ALL`] so a verb the table
+/// gains arrives pinned:
+///
+/// - a word that is the VARIANT IDENTIFIER — what a `stringify!` in
+///   the macro, or a plain `Debug` forward, would give. The author
+///   wrote `line_to`; a refusal naming `LineTo` is naming the table's
+///   coordinate, which is [`ReplayError`]'s sentence and not this one;
+/// - a word SHARED with another verb, which a copied literal on a new
+///   row gives. Two rows rendering alike makes the refusal ambiguous
+///   about which step it is refusing, and nothing else in the tree
+///   would notice.
+#[test]
+fn every_verb_says_its_authoring_spelling_and_says_it_uniquely() {
+    let mut said: Vec<(String, Verb)> = Vec::new();
+    for verb in Verb::ALL {
+        let word = verb.to_string();
+        assert_ne!(
+            word,
+            format!("{verb:?}"),
+            "`{verb:?}` renders as its own variant identifier — the authoring \
+             spelling is the word a person wrote, and the identifier is what \
+             `ReplayError` deliberately renders instead"
+        );
+        if let Some((_, other)) = said.iter().find(|(w, _)| *w == word) {
+            panic!(
+                "`{verb:?}` and `{other:?}` both say \"{word}\" — a refusal naming \
+                 that word cannot say which step it refused"
+            );
+        }
+        said.push((word, *verb));
+    }
 }
 
 /// **Every arc mode the vocabulary declares is exercised by a

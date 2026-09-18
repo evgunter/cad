@@ -57,6 +57,8 @@ mod common;
 mod budget_meter;
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
+#[path = "d9_mesh_goldens.rs"]
+mod d9_mesh_goldens;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
@@ -81,6 +83,8 @@ mod issue685_nu1_sizing;
 mod issue896_pole_guard;
 #[path = "issue897_s65_cost.rs"]
 mod issue897_s65_cost;
+#[path = "k_funnel_composition.rs"]
+mod k_funnel_composition;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -113,6 +117,10 @@ mod mesh8r1_probes;
 mod mesh8r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
+#[path = "patch_memo.rs"]
+mod patch_memo;
+#[path = "perf1_torus_sizing.rs"]
+mod perf1_torus_sizing;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]
@@ -158,14 +166,7 @@ mod revolves;
 #[path = "wedge.rs"]
 mod wedge;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 /// **The ε inventory — `sizing::SizingTols`'s ledger written as a gate rather
 /// than as a sentence.**
@@ -201,6 +202,15 @@ fn every_suite_file_is_aggregated() {
 ///   pinned here so a second one moves this number. The four
 ///   operations are DEFINED in this file and called in none of it, so
 ///   its read column is empty; a definition is not a read. 1 + 1 = 2.
+/// - **`memo.rs` — 4 carriers, no reads.** The patch memo's key
+///   FOLDS ε: `FaceInputs::eps` (the field declaration), its
+///   initialiser `eps: ambient.eps` (two tokens — the field, and a
+///   raw f64 taken from the ambient `Tolerance`, NOT from `Eps`: it
+///   is bytes for a digest, never a band), and the key writer's
+///   `w.f64(self.eps)`. Nothing here decides against ε; the fold is
+///   what makes an ε change miss every face, so the memo can never
+///   serve a patch meshed under another band. 1 + 2 + 1 = 4, and no
+///   operation.
 /// - **`curved.rs` — 6 carriers, no reads.** Two hand-offs out of
 ///   `SizingTols` (`walk::loop_polygon`, `require_swept_rectangle`),
 ///   two `eps` parameters, one hand-off to `entries_off_bbox`, and
@@ -233,7 +243,7 @@ fn every_suite_file_is_aggregated() {
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
 ///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an [`Eps`], and
+///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
 ///   this row walks `crates/mesh/src` alone. The two spellings are
 ///   held together by `walk::tests::the_two_spellings_of_the_band_
 ///   agree` instead.
@@ -385,8 +395,9 @@ fn the_eps_inventory_is_pinned() {
     // The four operations, in the order the read column reports them.
     const OPS: [&str; 4] = ["separates", "coincident", "dominates", "pad"];
     // (file, ε CARRIER tokens, one READ count per op above).
-    const PINNED: [(&str, usize, [usize; 4]); 5] = [
+    const PINNED: [(&str, usize, [usize; 4]); 6] = [
         ("curved.rs", 6, [0, 0, 0, 0]),
+        ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
         ("trimmed.rs", 1, [0, 0, 0, 1]),
@@ -466,3 +477,5 @@ fn the_eps_inventory_is_pinned() {
 }
 #[path = "r2_mesh7_probes.rs"]
 mod r2_mesh7_probes;
+#[path = "r2_sense_e2e.rs"]
+mod r2_sense_e2e;

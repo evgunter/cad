@@ -27,9 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::k_stats::{
-    Verdict, decide, decide_flagged, decide_invariant, start_verdict_log, take_verdict_log,
-};
+use geom_core::k_stats::{Bracket, Escalation, Verdict, decide, decide_flagged, decide_invariant};
 use geom_core::{Band, Margin, Sign};
 
 fn band() -> Band {
@@ -42,7 +40,7 @@ fn band() -> Band {
 fn the_three_doors_share_one_verdict_stream_in_decision_order() {
     let b = band();
     let mid = f64::midpoint(b.zero(), b.escalate());
-    start_verdict_log();
+    let bracket = Bracket::open();
     assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
     assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
     assert_eq!(
@@ -50,17 +48,19 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
         Ok(Sign::Positive)
     );
     // One indeterminate per door: escalated outcomes are not verdicts,
-    // so none of these may appear or shift the positions after them.
-    assert!(decide("door_d", Margin::of(mid), b).is_err());
-    assert!(decide_flagged("door_e", mid, b, "test fixture: door interleaving").is_err());
-    assert!(decide_invariant("door_f", mid, b).is_err());
+    // so none of these may appear or shift the positions after them —
+    // they are the frame's OTHER channel, in their own decision order.
+    let d = decide("door_d", Margin::of(mid), b).unwrap_err();
+    let e = decide_flagged("door_e", mid, b, "test fixture: door interleaving").unwrap_err();
+    let f = decide_invariant("door_f", mid, b).unwrap_err();
     assert_eq!(
         decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
         Ok(Sign::Zero)
     );
     assert_eq!(decide("door_h", Margin::of(-1.0f64), b), Ok(Sign::Negative));
+    let recorded = bracket.finish();
     assert_eq!(
-        take_verdict_log(),
+        recorded.verdicts,
         vec![
             Verdict {
                 predicate: "door_a",
@@ -83,6 +83,22 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
                 sign: Sign::Negative
             },
         ]
+    );
+    assert_eq!(
+        recorded.escalations,
+        vec![
+            Escalation { source: d },
+            Escalation { source: e },
+            Escalation { source: f },
+        ]
+    );
+    assert_eq!(
+        recorded
+            .escalations
+            .iter()
+            .map(Escalation::predicate)
+            .collect::<Vec<_>>(),
+        ["door_d", "door_e", "door_f"]
     );
 }
 

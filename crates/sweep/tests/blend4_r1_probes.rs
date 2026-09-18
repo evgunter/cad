@@ -286,6 +286,9 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
         })
         .collect();
     coords.sort_unstable();
+    // The byte-wise FNV-1a of `common::fnv1a`, accumulated IN PLACE
+    // over a coordinate stream this never materialises as bytes. Its
+    // own copy for that reason, not for want of a home.
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for c in coords.iter().flatten() {
         for b in c.to_le_bytes() {

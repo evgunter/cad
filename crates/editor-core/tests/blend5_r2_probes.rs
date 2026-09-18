@@ -28,8 +28,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, NameTable, Node, ProfileDoc,
+    RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom::Surface;
@@ -89,14 +89,7 @@ fn pr_profile() -> Vec<(f64, f64)> {
 /// Fillet the latitude rim at profile vertex `v` of the given lantern.
 fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern_with(profile_pts);
-    let rim = StableName {
-        kind: EntityKind::Edge,
-        node: revolve,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex: v,
-        })],
-    };
+    let rim = editor_core::band_rim(revolve, 0, v);
     insert(
         doc,
         Node::Fillet {
@@ -200,7 +193,7 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
             "{name}: {n} band-trim names, the digest suite's comment says {want}"
         );
     }
-    assert_eq!(got.len(), 26, "the registry the comment counts over");
+    assert_eq!(got.len(), 28, "the registry the comment counts over");
 }
 
 /// The pinned invariant on the lantern's BASE rim (profile vertex 1:

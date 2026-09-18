@@ -92,7 +92,7 @@ pub fn document() -> CorpusDoc {
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,
-        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Start)))],
+        path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
     };
     let decl = r.insert(Node::declare_rest(vec![(
         cavity_floor,

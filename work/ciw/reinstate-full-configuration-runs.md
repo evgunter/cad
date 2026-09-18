@@ -2,11 +2,12 @@
 id: reinstate-full-configuration-runs
 kind: unit
 title: Reinstate full configuration runs in place of the lane/eps sampling draw
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1796]
 pr: 1823
 branch: ciw/reinstate-full-runs
+closed: 2026-09-06
 ---
 
 ## The ask, and who authorised it
@@ -124,3 +125,11 @@ premise RESTORED by this change and is worth more than it was.
 The workflow's own run shows twelve `test (…)` jobs across two lanes and
 three eps rows, `ci-filter.py --selftest` asserts the two dimensions are not
 sampled, and the prose that documented the sampling as live no longer does.
+
+## Closed 2026-09-06
+
+PR 1823. `LANE` and `EPS` are unsampled: twelve `test (…)` jobs across two
+lanes and three eps rows on every code-tier run, `ci-filter.py --selftest`
+asserting neither dimension is drawn, and the prose that documented the
+sampling as live retired with it. Its residue,
+`interval-only-selection-premise-restored`, is open on this slate.

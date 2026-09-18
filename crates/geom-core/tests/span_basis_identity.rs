@@ -49,7 +49,7 @@ use span_fixtures::vectors;
 
 /// The walk `basis_rows_match_the_pinned_baseline` performs below: per
 /// vector, per **nonempty** span, per `t` in `[u_s, midpoint, u_{s+1}]`,
-/// the `basis_funs` row followed by `ders_basis_funs(.., 2)`'s
+/// the `basis_funs` row followed by `ders_basis_funs(2)`'s
 /// first-derivative row.
 // Kept one row per line: rustfmt would otherwise explode each row to one
 // hex literal per line, turning a 100-line table into a 600-line one.
@@ -186,9 +186,9 @@ fn basis_rows_match_the_pinned_baseline() {
             let Some(span) = k.span(index) else { continue };
             let (a, b) = (k.knots()[index], k.knots()[index + 1]);
             for t in [a, 0.5 * (a + b), b] {
-                next(&basis_funs::<f64>(&k, span, t), "basis", name, index, t);
+                next(&basis_funs::<f64>(span, t), "basis", name, index, t);
                 next(
-                    &ders_basis_funs::<f64>(&k, span, t, 2)[1],
+                    &ders_basis_funs::<f64>(span, t, 2)[1],
                     "ders[1]",
                     name,
                     index,

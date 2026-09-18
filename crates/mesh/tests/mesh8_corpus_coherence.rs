@@ -23,7 +23,15 @@
 //!    wild or FreeCAD corpora — the same blind spot the deleted
 //!    detectors disclosed and this row inherits unchanged. The
 //!    `demos/tour` corpus is a separate cargo project and is not
-//!    reachable from a workspace suite either.
+//!    reachable from a workspace suite either. **For the
+//!    rim-continuation condition the import half of that blind spot
+//!    is closed, measured**: `import_step` refuses a rim row stated at
+//!    two levels at its pcurve re-mint (`pcurve_loop_continuity`, the
+//!    same v gap at the same band) at every ε row, so no imported body
+//!    can add a rim-continuation positive to any corpus; its only
+//!    reachable witness is a rim-only cap through the Euler doors,
+//!    which this corpus cannot contain because the walk does not mesh
+//!    it (`topo/tests/mesh12_rim_row_reach.rs`, issue 1615).
 //! 2. **Every body here goes through the ISO WALK, and the
 //!    examination has no shape door.** It reads faces the walk never
 //!    walks, and `zero findings` says nothing about those. The

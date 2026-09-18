@@ -33,7 +33,7 @@ fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
 }
 
 fn assert_area(kind: &str, edges: &[LoopEdge<f64>], exact: f64) {
-    match curved_face(&sphere(), edges, 1.0, band()) {
+    match curved_face(&sphere(), edges, true, band()) {
         Ok(fc) => {
             let rel = (fc.area - exact).abs() / exact;
             assert!(
@@ -142,13 +142,8 @@ fn probe_interval_pole_anchored_hemisphere_certifies() {
         great(0.0, h, 3.0 * h, 0, 1),
         great(0.0, 3.0 * h, 5.0 * h, 1, 0),
     ];
-    let fc = curved_face(
-        &sphere::<Interval>(),
-        &edges,
-        Interval::from_f64(1.0),
-        band(),
-    )
-    .expect("pole-anchored hemisphere must certify at interval");
+    let fc = curved_face(&sphere::<Interval>(), &edges, true, band())
+        .expect("pole-anchored hemisphere must certify at interval");
     let exact = 2.0 * PI * RS * RS;
     let (lo, hi) = (fc.area.lo(), fc.area.hi());
     assert!(
@@ -170,13 +165,8 @@ fn probe_interval_half_cap_certifies() {
         great(0.0, PI - b, 1.0, 1, 2),
         great(0.0, 1.0, b, 2, 0),
     ];
-    let fc = curved_face(
-        &sphere::<Interval>(),
-        &edges,
-        Interval::from_f64(1.0),
-        band(),
-    )
-    .expect("split half-cap must certify at interval");
+    let fc = curved_face(&sphere::<Interval>(), &edges, true, band())
+        .expect("split half-cap must certify at interval");
     let exact = RS * RS * PI * (1.0 - 0.5_f64.sin());
     let (lo, hi) = (fc.area.lo(), fc.area.hi());
     assert!(
@@ -189,11 +179,17 @@ fn probe_interval_half_cap_certifies() {
 // The rim lever — separations spanning the band
 // ------------------------------------------------------------------
 
-/// The 893 staircase at rim separations spanning the band: chords of
+/// The 893 step at rim separations spanning the band: chords of
 /// `0.25·zero` and `0.5·zero` accept (one level by this ε);
 /// `10·escalate` and `1000·escalate` refuse by the named predicate;
 /// the seam between `zero` and `escalate` may go either way but must
-/// REFUSE typed (Escalated), never accept-and-measure the staircase.
+/// REFUSE typed (Escalated), never accept-and-measure the step. Each
+/// rung is stated the way the certified world can state it: above the
+/// band the step is a meridian edge (the staircase); at and below the
+/// escalation band that edge's span is one certification refuses or
+/// escalates as not forward (re-decided at the parse as
+/// `props_meridian_span_forward`), so the two rims meet at a junction
+/// instead and the rung asks `props_rim_level` alone.
 #[test]
 fn probe_near_polar_separation_ladder() {
     let b = band();
@@ -208,15 +204,25 @@ fn probe_near_polar_separation_ladder() {
     ];
     for (sep, want) in ladder {
         let dv = sep / RS;
-        let edges = vec![
-            rim(0.2, -1.0, 1.0, 0, 1),
-            great(1.0, 0.2, v2, 1, 2),
-            rim(v2, 1.0, 0.0, 2, 3),
-            great(0.0, v2, v2 - dv, 3, 4),
-            rim(v2 - dv, 0.0, -1.0, 4, 5),
-            great(-1.0, v2 - dv, 0.2, 5, 0),
-        ];
-        let got = curved_face(&sphere(), &edges, 1.0, b);
+        let edges = if want == "refuse-iso" {
+            vec![
+                rim(0.2, -1.0, 1.0, 0, 1),
+                great(1.0, 0.2, v2, 1, 2),
+                rim(v2, 1.0, 0.0, 2, 3),
+                great(0.0, v2, v2 - dv, 3, 4),
+                rim(v2 - dv, 0.0, -1.0, 4, 5),
+                great(-1.0, v2 - dv, 0.2, 5, 0),
+            ]
+        } else {
+            vec![
+                rim(0.2, -1.0, 1.0, 0, 1),
+                great(1.0, 0.2, v2, 1, 2),
+                rim(v2, 1.0, 0.0, 2, 3),
+                rim(v2 - dv, 0.0, -1.0, 3, 4),
+                great(-1.0, v2 - dv, 0.2, 4, 0),
+            ]
+        };
+        let got = curved_face(&sphere::<f64>(), &edges, true, b);
         match want {
             "accept" => {
                 got.unwrap_or_else(|e| panic!("sep {sep:e}: sub-band step refused: {e:?}"));
@@ -259,7 +265,7 @@ fn probe_lever_is_latitude_uniform() {
         ];
         assert!(
             matches!(
-                curved_face(&sphere(), &edges, 1.0, b),
+                curved_face(&sphere::<f64>(), &edges, true, b),
                 Err(PropsError::NotIsoRectangle {
                     what: "props_rim_level"
                 })
@@ -274,20 +280,28 @@ fn probe_lever_is_latitude_uniform() {
 // ------------------------------------------------------------------
 
 /// A polar CAP — one full rim at latitude `b`, no meridians: the pole
-/// is in the face INTERIOR and no edge's span can fold it. Recording
-/// the disposition: the extent fix cannot see this face (its only
-/// level list is `{sin b}`), so it must refuse `DegenerateFace` — the
-/// same lo == hi artifact the no-split twin just retired, one arm
-/// over. Executed to pin what is true at this head.
+/// is in the face INTERIOR and no edge's span can fold it. This probe
+/// recorded the refusal that became issue 1250; the disposition it
+/// records now is the served one. No edge's SPAN folds the pole
+/// still — what names it is the rim's TRAVERSAL, `+u` here, whose
+/// interior side is `+v`, so the extent is `[sin b, +1]` and the face
+/// measures the spherical cap `2πR²(1 − sin b)`. Traversed the other
+/// way the same rim bounds the ball minus that cap. The rows that own
+/// the mechanism are `props_sphere_pole_side.rs`; this one keeps the
+/// probe's own before/after.
 #[test]
 fn probe_full_polar_cap_disposition() {
-    let b = 0.5;
-    let edges = vec![rim(b, 0.0, 2.0 * PI, 0, 0)];
-    let got = curved_face(&sphere(), &edges, 1.0, band());
-    assert!(
-        matches!(got, Err(PropsError::DegenerateFace)),
-        "recording the cap disposition changed: {got:?}"
-    );
+    let b: f64 = 0.5;
+    for (u0, u1, exact) in [
+        (0.0, 2.0 * PI, 2.0 * PI * RS * RS * (1.0 - b.sin())),
+        (2.0 * PI, 0.0, 2.0 * PI * RS * RS * (1.0 + b.sin())),
+    ] {
+        let edges = vec![rim(b, u0, u1, 0, 0)];
+        let got = curved_face(&sphere::<f64>(), &edges, true, band())
+            .unwrap_or_else(|e| panic!("the cap disposition changed: {e:?}"));
+        let rel = (got.area - exact).abs() / exact;
+        assert!(rel < 1e-12, "cap {u0}->{u1}: area {} vs {exact}", got.area);
+    }
 }
 
 /// A GENUINE near-polar rectangular band (both rims at the extremes,
@@ -311,7 +325,7 @@ fn probe_near_polar_true_rectangle_disposition() {
         rim(v2, 1.0, 0.0, 2, 3),
         great(0.0, v2, v1, 3, 0),
     ];
-    let got = curved_face(&sphere(), &edges, 1.0, b);
+    let got = curved_face(&sphere::<f64>(), &edges, true, b);
     assert!(
         got.is_err(),
         "recording: the near-polar true rectangle now returns {got:?}"

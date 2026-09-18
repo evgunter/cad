@@ -4,7 +4,7 @@ kind: issue
 title: where a curved wall-clearance gate can call the E7 engine from (the shell verb sits below it)
 status: open
 opened: 2026-09-03
-refs: [shell-curved-wall-clearance-window, M10-5, 1055, 1191]
+refs: [shell-curved-wall-clearance-window, 1638, 1055, 1191]
 ---
 
 ## The valve M10-5 left open

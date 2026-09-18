@@ -273,6 +273,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let flipped = replay_guided(&program, &other, tol())
         .expect("the other pocket is a valid fillet of the same legs");
@@ -305,9 +306,24 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// interval channel's enclosure width — the configuration whose two
 /// lanes `fillet_select` says may legally disagree, so the ladder here
 /// genuinely has no answer of its own to fall back on. Told the other
-/// index, the lane builds the other pocket; a pass that re-ran the
-/// ladder could not, since the ladder's answer does not depend on what
-/// it is told.
+/// index, the lane answers differently; a pass that re-ran the ladder
+/// could not, since the ladder's answer does not depend on what it is
+/// told.
+///
+/// **What "differently" is allowed to be.** Usually the other pocket,
+/// built and separated from this one. But the other pocket is a fillet
+/// like any other, and the path door now reads every fillet it emits
+/// the way `Profile::validate` will: at a tight epsilon on the
+/// enclosure lane the other pocket's joint clearance is an enclosure
+/// straddling zero and wider than the band, so the door escalates it —
+/// and so does validation, on the very loop this row used to build
+/// (`carrier_circles_internal`, enclosure ±2.4e-12 against a band of
+/// (1e-12, 1e-11)). A refusal there is therefore not a lost row: it is
+/// the consumption, stated more sharply than geometry can state it.
+/// The ladder's own answer is the recorded one, which builds; a pass
+/// that ignored the record would have built it whatever it was told,
+/// so an outcome that differs from the recorded one AT ALL is the
+/// claim.
 ///
 /// This is the row a two-survivor ranking at `Interval` was waiting on.
 /// It could not be written while the advance gate's zero swept angle
@@ -377,25 +393,51 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
-    let flipped = replay_guided(&lifted, &other, tol())
-        .expect("the other pocket is a valid fillet of the same legs");
-    // Same arity, and the two pockets are SEPARATED — not merely
-    // different bits, which an enclosure lane cannot honestly claim:
-    // some vertex's y enclosures are disjoint, so no single geometry
-    // lies in both answers and the pick provably moved with the record.
-    assert_eq!(nominal.vertices().len(), flipped.vertices().len());
-    let moved = nominal
-        .vertices()
-        .iter()
-        .zip(flipped.vertices())
-        .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
-    assert!(
-        moved,
-        "the guided pass produced an overlapping pocket after being told the other \
-         one — it is ranking rather than consuming, which is the whole hazard this \
-         machinery exists to foreclose"
-    );
+    match replay_guided(&lifted, &other, tol()) {
+        // The other pocket built: same arity, and the two are
+        // SEPARATED — not merely different bits, which an enclosure
+        // lane cannot honestly claim: some vertex's y enclosures are
+        // disjoint, so no single geometry lies in both answers and the
+        // pick provably moved with the record.
+        Ok(flipped) => {
+            assert_eq!(nominal.vertices().len(), flipped.vertices().len());
+            let moved = nominal
+                .vertices()
+                .iter()
+                .zip(flipped.vertices())
+                .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
+            assert!(
+                moved,
+                "the guided pass produced an overlapping pocket after being told the other \
+                 one — it is ranking rather than consuming, which is the whole hazard this \
+                 machinery exists to foreclose"
+            );
+        }
+        // The other pocket is one this run's tolerance cannot certify.
+        // The pass still CONSUMED the record: told the recorded index it
+        // built, told the other it refused, and the refusal is about
+        // that other pocket's own geometry — a typed authoring refusal,
+        // not a lattice violation.
+        Err(refused) => {
+            let ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &refused.kind
+            else {
+                panic!(
+                    "told the other index the lane refused, which is consumption — but the \
+                     refusal must be the door relaying a stored-form classification, not \
+                     any other refusal and not a lattice violation: {refused:?}"
+                );
+            };
+            assert_eq!(
+                source.predicate,
+                Some("carrier_circles_internal"),
+                "the other pocket's joint is an arc/arc clearance the enclosure lane cannot \
+                 certify at this eps; another predicate here is a different finding: \
+                 {refused:?}"
+            );
+        }
+    }
 }
 
 /// A record whose fit sign disagrees with what this scalar classifies
@@ -414,6 +456,7 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
             },
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let err = replay_guided(&program, &lie, tol()).expect_err("the fit sign is contradicted");
     let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
@@ -429,6 +472,100 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
         StructureRefusalKind::Flipped {
             recorded: DecisionValue::Sign(_),
             found: DecisionValue::Sign(_),
+        }
+    ));
+}
+
+/// **A record whose per-step segment span this pass did not reproduce
+/// refuses TYPED, naming the step** — the span is consumed the way a
+/// fillet decision is, not carried along unread.
+///
+/// The span a lane could actually move is the one a fit gate decides
+/// (an exact fit emits the arc alone where an overrun emits a straight
+/// leg before it), and under guidance the fit signs come from the
+/// record, so the elaboration cannot drift there on its own. What this
+/// row pins is that the comparison HAPPENS: a record claiming a step
+/// reached one more segment than it did is refused rather than
+/// accepted, which is the state in which a future arm could emit a
+/// different chain under a record that says otherwise.
+#[test]
+fn a_lying_step_span_refuses_typed_naming_the_step() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let step = structure
+        .steps
+        .iter()
+        .position(|s| !s.is_empty())
+        .expect("some step of the lens produced a segment");
+    let mut lie = structure.clone();
+    lie.steps[step] = profile::StepSpan::new(
+        structure.steps[step].start(),
+        structure.steps[step].end() + 1,
+    );
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
+        }
+    ));
+    // Both sides reach the sentence as words, through the span's own
+    // `Display` — the vocabulary rule the refusal payloads all follow.
+    let rendered = refusal.to_string();
+    for want in [
+        format!("the segments step {step} produced"),
+        structure.steps[step].to_string(),
+        lie.steps[step].to_string(),
+    ] {
+        assert!(rendered.contains(&want), "{rendered:?} is missing {want:?}");
+    }
+    assert!(
+        !rendered.contains("StepSpan"),
+        "the Debug spelling leaked into the sentence: {rendered}"
+    );
+}
+
+/// **A lying span on a `circle_split` record refuses typed, naming the
+/// step** — the CARRIER case, which is why the comparison sits at
+/// `replay_guided` rather than inside the guide.
+///
+/// The row above is authored on a chain, and a chain reaches the guide.
+/// A complete-loop carrier form never takes a guide at all: it mints
+/// its `ClosedLoop` and its `ReplayStructure::carrier(n)` directly, so
+/// a record and an elaboration that disagreed about the subdivision
+/// count would pass unread if the check lived one level in.
+#[test]
+fn a_lying_step_span_on_a_carrier_form_refuses_typed() {
+    let program = vec![profile::Step::CircleSplit {
+        centre: p2(0.0, 0.0),
+        radius: 1.0,
+        n: 4,
+        phase: 0.0,
+    }];
+    let (loop_, structure) = replay_recording(&program, tol()).expect("the carrier replays");
+    assert_eq!(structure.steps.len(), 1, "one authored step");
+    assert_eq!(
+        structure.steps[0],
+        profile::StepSpan::new(0, loop_.vertices().len()),
+        "the carrier's one step reaches every segment"
+    );
+    let mut lie = structure.clone();
+    lie.steps[0] = profile::StepSpan::new(0, loop_.vertices().len() - 1);
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step: 0 });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
         }
     ));
 }
@@ -458,7 +595,7 @@ fn a_record_from_another_program_refuses_at_its_shape() {
 /// luck on inputs that happen to be easy.
 #[test]
 fn guided_validation_runs_no_canonicalization_decide() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     const PINNED: [&str; 3] = ["canonical_order_x", "canonical_order_y", "loop_orientation"];
     // A rectangle, so that the control genuinely reaches all three: two
     // of its vertices share an x, which is the only way the y rung of
@@ -466,9 +603,9 @@ fn guided_validation_runs_no_canonicalization_decide() {
     let p = profile(vec![rect(0.0, 0.0, 3.0, 2.0)]);
     let (_, canonical) = p.validate_recording(tol()).expect("records");
 
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = p.validate(tol()).expect("validates");
-    let plain = take_verdict_log();
+    let plain = bracket.finish().verdicts;
     let ran: Vec<&str> = PINNED
         .into_iter()
         .filter(|n| plain.iter().any(|v| v.predicate == *n))
@@ -479,12 +616,16 @@ fn guided_validation_runs_no_canonicalization_decide() {
         "the unguided validation is the control and must run all three; it ran {ran:?}"
     );
 
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = p.validate_guided(tol(), &canonical).expect("is guided");
-    let guided = take_verdict_log();
+    let recorded = bracket.finish();
+    let guided = recorded.verdicts;
+    // Both channels: a pinned predicate that ESCALATED rather than
+    // decided would still have been asked, and asking is the leak.
     let leaked: Vec<&'static str> = guided
         .iter()
         .map(|v| v.predicate)
+        .chain(recorded.escalations.iter().map(|e| e.predicate()))
         .filter(|n| PINNED.contains(n))
         .collect();
     assert!(
@@ -510,19 +651,21 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     // than at module scope, where the default build carries them unused.
     use common::lift;
     use geom_core::Interval;
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     use profile::Profile;
     let p = annulus();
     let (_, canonical) = p.validate_recording(tol()).expect("records at f64");
     let lifted: Profile<Interval> = lift(&p);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let vp = lifted
         .validate_guided(tol(), &canonical)
         .expect("the interval lane certifies the pinned canonical form");
-    let log = take_verdict_log();
+    let recorded = bracket.finish();
+    let log = recorded.verdicts;
     for name in ["canonical_order_x", "canonical_order_y", "loop_orientation"] {
         assert!(
-            !log.iter().any(|v| v.predicate == name),
+            !log.iter().any(|v| v.predicate == name)
+                && !recorded.escalations.iter().any(|e| e.predicate() == name),
             "the interval lane reached {name}, which it is not supposed to be asked"
         );
     }

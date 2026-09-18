@@ -268,7 +268,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             center: centre,
             radius,
         };
-        core.push_arc(anchor, bulge, carrier)?;
+        core.push_arc(anchor, bulge)?;
         let chord = (anchor - head).norm_squared().sqrt();
         leg_end_tip(anchor, dir, radius.min(chord), Some(carrier))
     } else {
@@ -363,7 +363,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             tol,
         )?;
     }
-    Ok(core.clone().build())
+    core.clone().build(tol)
 }
 
 // ------------------------------------------------------------------
@@ -1195,7 +1195,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             center: leg.centre,
             radius: (at - leg.centre).norm_squared().sqrt(),
         };
-        self.core.push_arc(leg.end, leg.bulge, carrier)?;
+        self.core.push_arc(leg.end, leg.bulge)?;
         let arm = carrier.radius.min(leg.chord);
         Ok(in_state(
             self.core,

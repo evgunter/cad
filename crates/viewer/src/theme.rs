@@ -4,12 +4,9 @@
 //! crate: **the palette is a value, and rendering is a view of it.**
 //! Nothing here names `egui` or `wgpu`, which is what makes this a
 //! non-`app` module — the palette compiles, and is asserted on, in
-//! ordinary headless CI with no toolkit graph present. `app` maps a
-//! [`Theme`] onto the chrome and `gpu` feeds it to the shader;
-//! neither of them decides what any colour *is*. (Named, not linked:
-//! both modules sit behind the `app` feature, so an intra-doc link to
-//! either breaks rustdoc exactly in the headless pass this header
-//! celebrates — issue #1330.)
+//! ordinary headless CI with no toolkit graph present. [`crate::app`]
+//! maps a [`Theme`] onto the chrome and [`crate::gpu`] feeds it to the
+//! shader; neither of them decides what any colour *is*.
 //!
 //! # Where a colour comes from
 //!
@@ -110,7 +107,14 @@ impl Mark {
     /// The mix runs in *linear* light because that is where the
     /// shader's `mix` runs; doing it in sRGB would measure a screen
     /// nobody is looking at.
-    pub fn over(&self, body: Rgba8) -> Rgba8 {
+    ///
+    /// `None` when [`Mark::strength`] is not a number: `body` and
+    /// `tint` are bytes and reach linear light finite whatever they
+    /// say, so the strength is the mix's one way of having no answer.
+    /// The registry's own strengths are held to `[0, 1]` by
+    /// `tests/theme.rs`, but the field is public and the check is over
+    /// the registry rather than at this door.
+    pub fn over(&self, body: Rgba8) -> Option<Rgba8> {
         let [br, bg, bb] = linear(body);
         let [tr, tg, tb] = linear(self.tint);
         let t = self.strength;
@@ -508,13 +512,18 @@ pub fn linear(color: Rgba8) -> [f32; 3] {
 /// The inverse of [`linear`], for the composited colours the safety
 /// check measures — the mix happens in light, the answer is stated in
 /// the space the palette is written in.
-pub fn from_linear(linear: [f32; 3]) -> Rgba8 {
+///
+/// `None` when any of the three is not a number, which is
+/// [`channel_to_srgb8`]'s answer carried up: a colour with a channel
+/// nothing computed is not a colour, and the caller is the only place
+/// that can say what to do about it.
+pub fn from_linear(linear: [f32; 3]) -> Option<Rgba8> {
     let [r, g, b] = linear;
-    Rgba8::opaque(
-        channel_to_srgb8(r),
-        channel_to_srgb8(g),
-        channel_to_srgb8(b),
-    )
+    Some(Rgba8::opaque(
+        channel_to_srgb8(r)?,
+        channel_to_srgb8(g)?,
+        channel_to_srgb8(b)?,
+    ))
 }
 
 /// One 8-bit sRGB channel as linear light. The IEC 61966-2-1 curve,
@@ -531,14 +540,30 @@ fn channel_to_linear(channel: u8) -> f32 {
 }
 
 /// One linear channel as 8-bit sRGB, clamped: a mix of two in-gamut
-/// colours stays in gamut, but the clamp is what makes that a
-/// property of the arithmetic rather than an assumption about it.
-fn channel_to_srgb8(channel: f32) -> u8 {
+/// colours stays in gamut, and the clamp is what makes that a
+/// property of the arithmetic rather than an assumption about it —
+/// for every channel the clamp can order.
+///
+/// **`None` for the one it cannot.** `f32::clamp` returns `self` when
+/// `self` is a `NaN`, and `NaN as u8` is `0`, so a channel nothing
+/// computed used to leave here as a legitimate pure black — the far
+/// end of every distance the colourblind check takes, handed back as
+/// if it had been measured.
+///
+/// The test is `is_nan` and not `is_finite` deliberately, because the
+/// two values differ in exactly the property the clamp needs: an
+/// infinity is ORDERED, sits above the whole gamut, and clamps to the
+/// top of it correctly. A `NaN` has no order, so there is no bound to
+/// put it under and no channel to answer.
+fn channel_to_srgb8(channel: f32) -> Option<u8> {
+    if channel.is_nan() {
+        return None;
+    }
     let c = channel.clamp(0.0, 1.0);
     let encoded = if c <= 0.003_130_8 {
         12.92 * c
     } else {
         1.055 * c.powf(1.0 / 2.4) - 0.055
     };
-    (encoded * 255.0).round() as u8
+    Some((encoded * 255.0).round() as u8)
 }

@@ -3,8 +3,20 @@
 //!
 //! Today it holds:
 //!
+//! - [`census`], the one declared-set-against-witnessed-set
+//!   comparison, so a suite whose subject is a list kept in step by
+//!   hand does not keep a second copy of the comparator that way too.
+//! - [`f6`], the ratified `Display` contract's predicate — a refusal
+//!   renders as a sentence and never as its own `Debug` dump — with the
+//!   variant identifier read off the value rather than written down
+//!   beside the assertion. The field punctuation is NOT: it is the
+//!   caller's hand-written roster, and [`f6`]'s own module docs argue
+//!   why deriving it was tried and refused.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`mod@roster`], the weld between a file's `//!` roster of its own
+//!   `#[test]` rows and the rows libtest says the binary holds — one
+//!   ident per row, so a retired name is a compile error.
 //! - [`source`], the SHARED Rust lexer for guards that pin a claim
 //!   about the code against the code — three views of a file (code
 //!   only, code with literals, prose alone) plus the traversals and
@@ -34,7 +46,10 @@
 #[cfg(test)]
 mod panic_capture;
 
+pub mod census;
+pub mod f6;
 pub mod fuzz;
+pub mod roster;
 pub mod source;
 pub mod tightness;
 pub mod vacuity;

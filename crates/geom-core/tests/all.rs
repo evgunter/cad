@@ -65,6 +65,16 @@ mod cert3r1_poison_detail;
 mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
+#[path = "coeffs_bit_identity.rs"]
+mod coeffs_bit_identity;
+#[path = "coeffs_bit_identity_ext.rs"]
+mod coeffs_bit_identity_ext;
+#[path = "coeffs_bit_identity_interval.rs"]
+mod coeffs_bit_identity_interval;
+#[path = "coeffs_pair_identity.rs"]
+mod coeffs_pair_identity;
+#[path = "d290_r2_probes.rs"]
+mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
@@ -123,17 +133,14 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym_drive_memo.rs"]
+mod sym_drive_memo;
+#[path = "sym_rule_e_rows.rs"]
+mod sym_rule_e_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "cert4r2_probes.rs"]
 mod cert4r2_probes;
@@ -148,6 +155,8 @@ mod cert4r1_probe_period;
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]
 mod r2_cert3_probes;
+#[path = "rate_pair_doors.rs"]
+mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
@@ -164,5 +173,24 @@ mod unit_segment;
 #[path = "props1_evidence.rs"]
 mod props1_evidence;
 
+#[path = "m10_8_r1_sym_probes.rs"]
+mod m10_8_r1_sym_probes;
 #[path = "props1_review_rows.rs"]
 mod props1_review_rows;
+
+#[path = "m10_8_r2_sym_probes.rs"]
+mod m10_8_r2_sym_probes;
+
+#[path = "m10_9_r1_sym_probes.rs"]
+mod m10_9_r1_sym_probes;
+
+#[path = "m10_9_r2_sym_probes.rs"]
+mod m10_9_r2_sym_probes;
+
+#[path = "m10_10_atan2_interval.rs"]
+mod m10_10_atan2_interval;
+
+#[path = "m10_10_r1_sym_probes.rs"]
+mod m10_10_r1_sym_probes;
+#[path = "m10_10_r2_probes.rs"]
+mod m10_10_r2_probes;

@@ -26,14 +26,21 @@ use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    editor_core::evaluate(
+    let ev = editor_core::evaluate(
         doc,
         None,
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 /// An axis-aligned block on the xy plane at height z0, extruded dz.
@@ -123,8 +130,8 @@ fn kiss_vertex_names(
         ),
     );
     (
-        vname(u, RoleSeg::FromA(Box::new(va))),
-        vname(u, RoleSeg::FromB(Box::new(vb))),
+        vname(u, RoleSeg::FromA(va.into())),
+        vname(u, RoleSeg::FromB(vb.into())),
     )
 }
 
@@ -299,7 +306,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     // start cap lies in the SAME plane (z = 0.5) — declared.
     let floor1 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b1, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, decl) = insert(
@@ -339,7 +346,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc: &doc,
         eval: &ev,
     };
-    let wrapped_floor1 = fname(s2, RoleSeg::FromA(Box::new(floor1)));
+    let wrapped_floor1 = fname(s2, RoleSeg::FromA(floor1.into()));
     let merged_row: StableName = ev
         .value(s2)
         .unwrap()
@@ -530,7 +537,8 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         .count();
     assert!(
         pure_seam_vertices >= 2,
-        "expected the pure-seam-vertex naming arm to fire (single-line          seam vertices), got {pure_seam_vertices}"
+        "expected the pure-seam-vertex naming arm to fire (single-line \
+         seam vertices), got {pure_seam_vertices}"
     );
 }
 
@@ -724,7 +732,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     );
     let floor2 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b2, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(
@@ -769,4 +777,209 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         })
         .count();
     assert!(junctions >= 1, "expected junction-named vertices");
+}
+
+/// **The declare door asks WHAT the pair denotes before it asks how
+/// many entities answer to either name** — PORT-DOORS-1's rule
+/// (`assembly::resolve_face`) at a second door.
+///
+/// A pair the v1 vocabulary has no step for is unsupported however
+/// many entities answer to either name, so the refusal that names
+/// both kinds must not be preempted by the tie. Two same-operand
+/// faces are such a pair (v1 threads face pairs across operands
+/// only); the rows below declare one with a TIED name in it and one
+/// with two unique names, and pin that the two documents get the same
+/// refusal. Before the order changed, the tied one was told to narrow
+/// a reference that would still have had no step however narrow it
+/// was made.
+#[test]
+fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
+    use editor_core::Entry;
+
+    // The symmetric U cutter's N2 tie.
+    let (doc, us) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "m4_pr5_declare_tie_before_kind",
+        Tol::witness(),
+    ));
+    let ev1 = run(&doc);
+    let table = ev1
+        .value(us)
+        .expect("the U subtract evaluates")
+        .name_table
+        .clone();
+    let tied: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Tied(_))).then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    let uniques: Vec<StableName> = table
+        .iter()
+        .filter(|(n, e)| n.kind == EntityKind::Face && matches!(e, Entry::Unique(_)))
+        .map(|(n, _)| n.clone())
+        .take(2)
+        .collect();
+    let [u1, u2] = <[StableName; 2]>::try_from(uniques).expect("two unique face names");
+    // Without this the rows below would pass for the wrong reason:
+    // the point is that a name SEVERAL entities answer to reaches the
+    // pair's own refusal.
+    assert!(
+        matches!(table.lookup(&tied), Some(Entry::Tied(c)) if c.len() >= 2),
+        "the declared name must really be tied for this row to test anything"
+    );
+
+    let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
+    let mut doc = doc;
+    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: us,
+                b: mate,
+                declare: Some(decl),
+            },
+        )
+    };
+    let with_tie;
+    let all_unique;
+    (doc, with_tie) = union_of(doc, (tied.clone(), u1.clone()));
+    (doc, all_unique) = union_of(doc, (u1.clone(), u2.clone()));
+    let ev = run(&doc);
+
+    let refusal = |node: RecipeNodeId| -> String {
+        match ev.nodes.get(&node) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::DeclareUnsupportedPair {
+                    kinds,
+                    cross_operand,
+                } => {
+                    assert_eq!(
+                        *kinds,
+                        (EntityKind::Face, EntityKind::Face),
+                        "the refusal names the pair's two kinds"
+                    );
+                    assert!(
+                        !*cross_operand,
+                        "both names resolve in the SAME operand — that is what makes the \
+                         face pair unsupported"
+                    );
+                    e.kind.to_string()
+                }
+                other => {
+                    panic!("an unsupported pair must refuse DeclareUnsupportedPair, got {other:?}")
+                }
+            },
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        refusal(with_tie),
+        refusal(all_unique),
+        "the tie makes no difference to a pair the vocabulary has no step for"
+    );
+}
+
+/// **A tie on the first name waits behind every per-name fault on the
+/// second** — the cross-name half of the declare door's order, and the
+/// part the `ladder` does NOT decide (it ranks within one name's walk).
+///
+/// The rule is that the tie is the one per-name refusal the PAIR's
+/// kind question outranks, and a pair question cannot be asked until
+/// both names have landed; so `NodeGone` and `Vanished` on the SECOND
+/// name are now raised where the first name's tie used to preempt
+/// them. Both are visible in Python — `resolve_error_tag` moves from
+/// `ambiguous` to `node_gone` and to `vanished` — so both are pinned
+/// here rather than left to the PR body.
+#[test]
+fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
+    use editor_core::{DocEdit, Entry};
+
+    let (doc, us) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "m4_pr5_declare_cross_name_order",
+        Tol::witness(),
+    ));
+    let ev1 = run(&doc);
+    let table = ev1
+        .value(us)
+        .expect("the U subtract evaluates")
+        .name_table
+        .clone();
+    let tied: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Tied(_))).then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    assert!(
+        matches!(table.lookup(&tied), Some(Entry::Tied(c)) if c.len() >= 2),
+        "the first declared name must really be tied for this row to test anything"
+    );
+
+    // A third body, named by the pair and then DELETED: rung 1 on the
+    // second name. Its cap is a FACE, so the pair is a supported
+    // cross-operand face pair and the kind question does not preempt.
+    let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
+    let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
+    // A face name at a LIVE node that names no row there: rung 3.
+    let absent = fname(us, wall(97));
+    assert!(
+        table.lookup(&absent).is_none(),
+        "the vanished probe must name no row, or it pins nothing"
+    );
+
+    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: us,
+                b: mate,
+                declare: Some(decl),
+            },
+        )
+    };
+    let mut doc = doc;
+    let with_gone;
+    let with_absent;
+    (doc, with_gone) = union_of(doc, (tied.clone(), fname(ghost, RoleSeg::Cap(CapEnd::End))));
+    (doc, with_absent) = union_of(doc, (tied.clone(), absent));
+    let doc = doc
+        .apply(&DocEdit::DeleteNode { id: ghost }, Tol::witness())
+        .expect("the ghost block is deletable")
+        .doc;
+    let ev = run(&doc);
+
+    // The VARIANT, not a substring of `Debug` — and spelled with the
+    // words `pncad`'s `resolve_error_tag` uses, because the tag is
+    // what a Python caller branches on and is what moved.
+    let rung = |node: RecipeNodeId| -> &'static str {
+        use editor_core::resolve::ResolveError;
+        match ev.nodes.get(&node) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::DeclareResolve { error } => match &**error {
+                    ResolveError::NodeGone { .. } => "node_gone",
+                    ResolveError::Vanished { .. } => "vanished",
+                    ResolveError::Ambiguous { .. } => "ambiguous",
+                },
+                other => panic!(
+                    "the second name's own fault must be raised, not the first name's tie: \
+                     got {other:?}"
+                ),
+            },
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        rung(with_gone),
+        "node_gone",
+        "a deleted second name outranks the first name's tie"
+    );
+    assert_eq!(
+        rung(with_absent),
+        "vanished",
+        "a second name that names nothing here outranks the first name's tie"
+    );
 }

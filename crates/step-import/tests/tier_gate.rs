@@ -268,9 +268,22 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
-    // The AMBIENT sweep only, at this file's own ε_in: two cells at the
-    // rational-flux stall, one at the aggregate gate's
-    // convergence-ambiguity escalation.
+    // The AMBIENT sweep only, at this file's own ε_in: three cells,
+    // all at the pcurve MINT on the l-bracket wall's ARC rim.
+    //
+    // They used to be the RATIONAL FLUX STALL at the two fine bands
+    // and the convergence predicate's ESCALATION at the coarse one —
+    // both the at-rest gate chasing a PRECISION, finished since
+    // Tier 3's check 7 reads a SIGN (this file's volume enclosure
+    // excludes zero at round 0 at every band) — and then the ladder's
+    // `#389` gap those had masked. That gap is RETIRED (#388):
+    // degree-1 carriers promote to `Curve3::Line` and the promoted
+    // slit holds its wall's boundary-column candidate in either
+    // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
+    // witness). What every band meets now is the frontier past it:
+    // wall `#382` states four u spans while its rim circles are
+    // three-arc rationals, and the imported-chart arc-rim
+    // construction refuses the mint (`MapResidual`).
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -281,15 +294,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
-    // The coarse band reaches the GATE now and escalates there: the
-    // enclosure lands ~1% under the loose `1024·ε` target, inside the
-    // convergence predicate's ambiguity band. The `#389` ladder gap
-    // that used to sit behind this cell is RETIRED (#388): the edge
-    // holds its reversed wall-column candidate, pinned by
-    // `r1_dm1_probe`'s tripwire and the l-bracket witness.
-    (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
-    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-6, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-12, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -337,16 +344,14 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells.
 const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
-/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
-/// quadrature converges there — it quarters cleanly per refinement
-/// round — and what it runs out of is the FIXED round budget, inside a
-/// factor of two. Named specifically so the gate's preamble (which a
-/// tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
-/// dm1's coarse-band sub-reason: the convergence predicate declines to
-/// decide, by name, so a regression that turned this into a silent
-/// answer (or into a different door) fails the cell.
+/// dm1's former coarse-band sub-reason: the convergence predicate
+/// declines to decide, by name. **No cell reaches it any more** — the
+/// gate stops on a definite SIGN before the round whose width lands in
+/// the predicate's ambiguity band. Kept, not deleted, for the reason
+/// the gap constant was kept and then needed: an escalation is a
+/// real outcome of this lane and would become reachable again the
+/// moment anything at the gate moves.
+#[allow(dead_code)]
 const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
 // dm1's `#389` polyline gap ("edge #389: no intensional description
 // certifies", with an empty attempt list) is RETIRED, by execution and
@@ -355,6 +360,14 @@ const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeter
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
+/// dm1's cell, every band: past the retired gap, the pcurve MINT on
+/// the l-bracket wall's ARC rim refuses — wall `#382` states four u
+/// spans while its rim circles are three-arc rationals, so the
+/// imported-chart arc-rim construction's image misses its chart by
+/// more than the band (`MapResidual`, the typed mint residual). Named
+/// specifically so a refusal that drifted to a different door cannot
+/// stand in.
+const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The S58 iso-rectangle predicate, by name: *every rim sits at one of
@@ -366,22 +379,22 @@ const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
 const SEAM_HALFPLANE_DEFINITE: &str =
-    "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
+    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band";
 /// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: &str =
-    "SeamHalfplane at sample 0 escalated: predicate 'carrier_in_seam_halfplane' indeterminate";
+const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
+     indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which.
 const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
      precondition fails";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: &str =
-    "ParamSpan (not a sampled check) escalated: predicate 'interval_span_forward' indeterminate";
+const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
+     'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
-     definitely exceeds";
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+     sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`

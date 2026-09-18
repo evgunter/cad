@@ -257,14 +257,22 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// contact's own reach, so a misalignment is priced as the
 /// displacement it induces where the verdict is consumed.
 ///
+/// `sense_plus`/`sense_minus` are the two faces' `Face::sense` BITS,
+/// passed through to the `geom_brep` doors that mint the outward
+/// normals themselves; a bit rather than a `T` ±1 for the reason
+/// [`geom_brep::OutwardNormal`]'s doc gives at its one constructor.
+/// (Named that way round on purpose: the constructor's own spelling in
+/// a file under `topo/src` reds `face_normal.rs`'s anti-re-fork row,
+/// which reads raw text.)
+///
 /// # Errors
 ///
 /// [`Indeterminate`] naming the predicate that could not decide.
 pub(crate) fn classify_shared_rim<T: Decide>(
     s_plus: &geom::Surface<T>,
-    sense_plus: T,
+    sense_plus: bool,
     s_minus: &geom::Surface<T>,
-    sense_minus: T,
+    sense_minus: bool,
     rim: Rim<T>,
     extent: T,
     band: Band,
@@ -522,6 +530,56 @@ mod redfirst {
         );
     }
 
+    /// **The two sense words route the same geometry to different
+    /// arms**, which is what makes the door's `sense` parameters
+    /// load-bearing rather than decoration. The unit sphere about the
+    /// origin and the coaxial unit cylinder are tangent all along the
+    /// equator. With both chart normals kept, the two outward normals
+    /// agree: one material side, the π seam. Reverse the cylinder and
+    /// they oppose — the sphere's material is inside it, the
+    /// cylinder's is outside — so together they fill everything except
+    /// the crescent between the two sheets, which is the wedge-2π
+    /// knife slit.
+    #[test]
+    fn the_two_senses_route_a_tangent_rim_to_different_arms() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let equator = Rim {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let same = classify_shared_rim(&sphere, true, &cylinder, true, equator, 2.0, band())
+            .expect("the equator tangency routes");
+        let opposed = classify_shared_rim(&sphere, true, &cylinder, false, equator, 2.0, band())
+            .expect("and so does its reversed reading");
+        assert_eq!(
+            same,
+            RimRouting::Seam,
+            "aligned material sides are the seam"
+        );
+        assert_eq!(
+            opposed,
+            RimRouting::Cusp(geom_brep::MaterialWedge::Slit),
+            "the crescent between the sheets is the void, so the material is the slit"
+        );
+        assert_ne!(
+            same, opposed,
+            "anti-vacuity: a door that ignored its sense bits would answer the same twice"
+        );
+    }
+
     /// RED-FIRST (MAJ-1): a unit sphere cut by z = 0.6 is a DEFINITE
     /// 53-degree crossing, not a tangency. The routing must not call
     /// it a seam.
@@ -544,13 +602,13 @@ mod redfirst {
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let got = classify_shared_rim(&sphere, 1.0, &plane, 1.0, rim, 1.6, band());
+        let got = classify_shared_rim(&sphere, true, &plane, true, rim, 1.6, band());
         println!("transverse rim answers {got:?}");
         assert!(
             !matches!(got, Ok(RimRouting::Seam)),
             "a definite 53-degree crossing is not a smooth seam: {got:?}"
         );
-        let flipped = classify_shared_rim(&sphere, 1.0, &plane, -1.0, rim, 1.6, band());
+        let flipped = classify_shared_rim(&sphere, true, &plane, false, rim, 1.6, band());
         println!("transverse rim, reversed sense, answers {flipped:?}");
         assert!(
             !matches!(flipped, Ok(RimRouting::Cusp(_))),
@@ -616,7 +674,15 @@ mod r2_probes {
     /// weakened — a `Seam` here would red it again.
     #[test]
     fn r2_a_plainly_transverse_rim_is_not_classified_as_a_seam() {
-        let got = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
+        let got = classify_shared_rim(
+            &sphere(),
+            true,
+            &cut_plane(1.0),
+            true,
+            cut_rim(),
+            1.6,
+            band(),
+        );
         println!("[r2] transverse sphere/plane rim routes to {got:?}");
         assert_eq!(
             got.expect("the routing answers rather than escalating"),
@@ -638,12 +704,20 @@ mod r2_probes {
     /// them differ again reds here however it did it.
     #[test]
     fn r2_the_same_crossing_cannot_flip_arm_with_the_stored_normal() {
-        let up = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
+        let up = classify_shared_rim(
+            &sphere(),
+            true,
+            &cut_plane(1.0),
+            true,
+            cut_rim(),
+            1.6,
+            band(),
+        );
         let down = classify_shared_rim(
             &sphere(),
-            1.0,
+            true,
             &cut_plane(-1.0),
-            1.0,
+            true,
             cut_rim(),
             1.6,
             band(),

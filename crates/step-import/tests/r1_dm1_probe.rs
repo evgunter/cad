@@ -21,18 +21,22 @@
 //! 3. **the placement layer is now BEHIND the geometry** — dm1's
 //!    remaining refusal is reachable only once every instance's frame
 //!    was read and applied. Since #327 (stage-1 CURVE recognition)
-//!    that refusal has moved AGAIN, and past the whole D7 ladder: the
+//!    that refusal has moved AGAIN, and into the D7 ladder: the
 //!    file's rational-quadratic rim carriers are recognized as circles
-//!    and promoted, every edge of every instance adopts, every pcurve
-//!    mints and certifies, and the first thing that refuses is the
-//!    SHARED AT-REST GATE — `VolumeUncomputable` /
-//!    `QuadratureBudget` on the rational cylinder wall. That lane is
-//!    no longer missing and the miss is no longer a floor — the
-//!    enclosure quarters cleanly per refinement round — but the round
-//!    budget is fixed, and this wall is still inside a factor of two
-//!    of the ambient target when it runs out. This probe pins where
-//!    the frontier actually is, so a claim that it moved has to be
-//!    executable too.
+//!    and promoted, every instance's frame is read and applied, and
+//!    the first thing that refuses is the ladder itself, on edge
+//!    `#389` — a two-point degree-1 polyline offered ZERO candidates
+//!    (`work/exch/step-import-degree-one-line-promotion.md`).
+//!
+//!    It refused at the SHARED AT-REST GATE until tier 3's check 7
+//!    began certifying a SIGN. That gate was chasing a PRECISION: the
+//!    rational cylinder wall's enclosure is inside a factor of two of
+//!    the ambient `1024·ε` target when the fixed round budget runs
+//!    out, and at a coarse band lands just under it and escalates.
+//!    Neither is a statement about the body's orientation, which is
+//!    what check 7 reads, and dm1's enclosure excludes zero at round 0
+//!    at every band. This probe pins where the frontier actually is,
+//!    so a claim that it moved has to be executable too.
 //!
 //! Per-instance placement CORRECTNESS (each frame on its own component
 //! and no other) is pinned where a file that IMPORTS can carry it:
@@ -49,8 +53,9 @@
 //! entity-naming check moved into the `TierInvalid` arm below), and
 //! `review_probes_m7_3`'s V6 first-refusal-site probe is retired — it
 //! asserted a strict subset of this row. `tier_gate.rs` still sweeps
-//! the file at three ε_in values and pins BOTH ε cells' message
-//! fragments there.
+//! the file at three ε_in values and pins all three cells' message
+//! fragments there; they are one fragment now, the arc-rim mint's
+//! (`MapResidual` — the frontier past the `#389` gap #388 retired).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -85,45 +90,48 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     assert_eq!(transforms, 7, "one per occurrence");
     assert_eq!(breps, 3, "three component representations, seven instances");
 
-    // (1) and (3): the disposition — a two-cell claim, because the
-    // ambient band selects which frontier is first (see the coarse
-    // arm below).
-    let coarse = geom_core::Tol::witness().get().eps > 1e-9;
+    // (1) and (3): the disposition — ONE cell at every ambient band
+    // since check 7 stopped selecting a frontier by precision. The
+    // at-rest arm below is kept for the claim inside it, not because a
+    // band reaches it.
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
         }
-        // **The ladder does not refuse dm1 at any measured band** —
-        // this arm is a TRIPWIRE now, not a cell. The `#389` polyline
-        // gap that was the coarse band's first refusal (a two-point
-        // `QUASI_UNIFORM_CURVE` offered ZERO candidates) is retired by
-        // #388: degree-1 carriers promote to `Curve3::Line`, and a
-        // promoted slit holds its wall's boundary-column candidate in
-        // either traversal order —
-        // `the_l_bracket_alone_adopts_its_reversed_slit` below is the
-        // executed witness on this file's own records. If a gate
+        // **The ladder does not refuse dm1 at any band** — this arm
+        // is a TRIPWIRE, not a cell. The `#389` polyline gap (a
+        // two-point `QUASI_UNIFORM_CURVE` offered ZERO candidates —
+        // once masked by the at-rest gate's precision chase, then,
+        // when check 7 began certifying a SIGN, dm1's first refusal
+        // at every band) is retired by #388: degree-1 carriers
+        // promote to `Curve3::Line`, and a promoted slit holds its
+        // wall's boundary-column candidate in either traversal order
+        // — `the_l_bracket_alone_adopts_its_reversed_slit` below is
+        // the executed witness on this file's own records. If a gate
         // change ever re-exposes the ladder here, the state must be
         // re-measured, not re-derived from this comment.
         Err(StepImportError::Adoption { id, attempts }) => {
             panic!(
-                "the D7 ladder does not refuse dm1 at any measured band (#388 retired \
-                 the polyline gap; the flux gate refuses earlier at all three ε): \
-                 #{id}, {} candidate(s)",
+                "the D7 ladder does not refuse dm1 at any band (#388 retired \
+                 the polyline gap): #{id}, {} candidate(s)",
                 attempts.len()
             )
         }
-        // **Every band reaches the gate.** At the fine bands the gate
-        // refuses on the round budget. At the COARSE band it refuses
-        // by ESCALATING: the enclosure lands about 1% under the loose
-        // `1024·ε` target, which puts the convergence margin inside
-        // the predicate's own ambiguity band, and `props_quad_converged`
-        // declines to call it either way (D4, escalate-never-guess).
-        //
-        // The refusing solid is the FIRST-PROCESSED component (the
-        // occurrence order's, not the entity order's), so no band
-        // reaches the l-bracket component that carries `#389`; that
-        // edge's adoption is witnessed on the pruned single-component
-        // text below instead.
+        // **The frontier past the retired gap: the pcurve MINT on the
+        // l-bracket wall's ARC rim** (`MapResidual` — wall `#382`
+        // states four u spans while its rim circles are three-arc
+        // rationals; the l-bracket witness below pins the same
+        // frontier on the pruned text). Reached only because check 7
+        // certifies a SIGN (the at-rest gate admits every component's
+        // enclosure at round 0) AND `#389` adopts (#388): the two
+        // former frontiers each stood in front of this one.
+        Err(StepImportError::Pcurves { source }) => {
+            let shown = source.to_string();
+            assert!(
+                shown.contains("MapResidual"),
+                "the frontier past the retired gap is the arc-rim mint's residual: {shown}"
+            );
+        }
         Err(StepImportError::TierInvalid { solid, errors }) => {
             // Adopted from `wild::wild_refusals_are_typed_and_name_their_class`,
             // which no longer imports this file. INVARIANT: every
@@ -136,13 +144,10 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
             );
             let shown = StepImportError::TierInvalid { solid, errors }.to_string();
-            let budget = shown.contains("the certified quadrature enclosure cannot reach the");
-            let escalated = shown.contains("predicate 'props_quad_converged' indeterminate");
             assert!(
-                if coarse { escalated } else { budget },
-                "the frontier is the rational patch-flux lane either way — the round \
-                 budget at a fine band, the convergence predicate's ambiguity band at \
-                 a coarse one: {shown}"
+                !shown.contains("the certified quadrature enclosure cannot reach the"),
+                "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \
+                 precision, which is what the sign level removed: {shown}"
             );
         }
         other => panic!("dm1's refusal has moved out of the at-rest gate; got {other:?}"),

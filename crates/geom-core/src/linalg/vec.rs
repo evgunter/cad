@@ -5,6 +5,7 @@
 //! that add, negate, and scale. Locations are [`super::Point2`] /
 //! [`super::Point3`].
 
+use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::real::Real;
@@ -30,8 +31,10 @@ pub struct Vec3<T: Real> {
 }
 
 impl<T: Real> Vec2<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 
@@ -103,6 +106,26 @@ impl<T: Real> Vec2<T> {
         self.norm_squared().sqrt()
     }
 
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √2·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs())
+    }
+
     /// The unit vector in this direction, exactly `self / self.norm()`
     /// (one division per component).
     ///
@@ -115,6 +138,21 @@ impl<T: Real> Vec2<T> {
     /// `norm_squared` to 0 and blow the result up to ±∞ (not NaN). Both
     /// ends are far outside the session box (D4 ¶4), same posture as
     /// `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
@@ -136,16 +174,41 @@ impl<T: Real> Vec2<T> {
 }
 
 impl<T: Real> Vec3<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T, z: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
 
     /// The same vector read at another scalar: `f` applied to each
     /// component, in `x, y, z` order (see [`Vec2::map`]).
+    ///
+    /// ONE body with [`Self::try_map`]: this is that walk under an `f`
+    /// that cannot refuse, so there is a single statement of which
+    /// component goes where and the two directions cannot disagree
+    /// about it.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec3<U> {
-        Vec3::new(f(self.x), f(self.y), f(self.z))
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
+        self.try_map(|c| Ok::<U, Infallible>(f(c)))
+            .unwrap_or_else(|never| match never {})
+    }
+
+    /// The same vector read at another scalar where the read may
+    /// REFUSE: `f` applied to each component in `x, y, z` order, and
+    /// the FIRST refusal returned — no component after it is
+    /// consulted. Structural like [`Self::map`], which is this walk
+    /// with an `f` that cannot refuse: no arithmetic, so exact
+    /// whenever `f` is.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Vec3<U>, E> {
+        Ok(Vec3::new(f(self.x)?, f(self.y)?, f(self.z)?))
     }
 
     /// The zero vector (the additive identity).
@@ -219,6 +282,26 @@ impl<T: Real> Vec3<T> {
         self.norm_squared().sqrt()
     }
 
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √3·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs()).max(self.z.abs())
+    }
+
     /// The unit vector in this direction, exactly `self / self.norm()`
     /// (one division per component).
     ///
@@ -229,6 +312,21 @@ impl<T: Real> Vec3<T> {
     /// below ~1e-162 underflow `norm_squared` to 0 and blow the result up
     /// to ±∞ (not NaN). Both ends are far outside the session box
     /// (D4 ¶4), same posture as `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
@@ -470,7 +568,11 @@ impl<T: Real> Vec3<T> {
     /// non-unit input yields a well-defined but non-orthonormal pair
     /// (no poison, no check — same posture as unit-`dir` curve data;
     /// tier-3 certification owns the invariant). A poisoned input
-    /// propagates poison.
+    /// propagates poison. A caller holding the fact as a type calls
+    /// [`UnitVec3::orthonormal_basis`](super::UnitVec3::orthonormal_basis)
+    /// instead; this bare door remains for the callers that normalize
+    /// a carrier direction under the at-rest rule without deciding
+    /// its length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let s = T::one().copysign(self.z);
         let r = T::one() / (T::one() + self.z.abs());

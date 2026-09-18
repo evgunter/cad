@@ -171,8 +171,8 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     session.perform(SessionOp::AddMate {
-        a: common::asm::in_part(bench.post_b, &bench.post_top),
-        b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
     });

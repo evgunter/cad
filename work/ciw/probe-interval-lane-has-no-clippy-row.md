@@ -2,8 +2,9 @@
 id: probe-interval-lane-has-no-clippy-row
 kind: issue
 title: the probe+interval feature combination has no clippy row anywhere, and four unused imports have accumulated in it
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-06
 ---
 
 
@@ -70,3 +71,24 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed 2026-09-06 — the row landed under a different item's number
+
+`.github/workflows/ci.yml:2109` `clippy-all-features` runs
+`cargo clippy --workspace --all-targets --all-features -- -D warnings`, and
+`crates/geom-brep/Cargo.toml:15,22` declare both `interval` and `probe`, so
+`--all-features` is a superset of the `--features probe,interval` point this
+item asked for. The four imports named above are the four that row was made
+to catch, and PR 1795 trimmed them in the same change.
+
+**This item and `geom-brep-test-unused-edgedescription-import` are the same
+finding filed twice**, by two lanes that could not see each other — the exact
+duplicate shape `docs/prompts/implementer-discipline.md` §6 describes. Unit 6
+was dispatched from the other one; nobody noticed this one was also
+discharged. Recorded rather than passed over, because the cost was a live row
+on the board for two days and could as easily have been a second
+implementation.
+
+The blind spot this leaves is the row's own, declared at the job:
+`--all-features` is one point, not the powerset, so `probe` WITHOUT
+`interval` is still unlinted. That is not what this item asked for.

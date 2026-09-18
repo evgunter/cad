@@ -45,6 +45,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_core::spline::SplineError;
 use geom_core::{Affine3, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
@@ -434,7 +435,11 @@ fn adopt_edges(
             fs_minus,
             tol,
             &mut candidates,
-        );
+        )
+        .map_err(|source| StepImportError::WallColumnStructure {
+            id: edge_id,
+            source,
+        })?;
         if fs_plus != fs_minus {
             // The IsoCurve rung (M7-3): a NURBS-carried edge between
             // two described NURBS walls is the loft/sweep wall–wall
@@ -549,11 +554,15 @@ fn adopt_edges(
                         p_end,
                         tol,
                     )
-                    .map_err(|residual| {
-                        StepImportError::RimOffWallBoundary {
+                    .map_err(|refusal| match refusal {
+                        ArcRimRefusal::Residual(residual) => StepImportError::RimOffWallBoundary {
                             id: edge_id,
                             residual,
-                        }
+                        },
+                        ArcRimRefusal::ChartRow(source) => StepImportError::WallColumnStructure {
+                            id: edge_id,
+                            source,
+                        },
                     })?;
                 }
             }
@@ -710,6 +719,17 @@ fn adopt_edges(
 /// this rung, promotion would strip exactly this class of its only
 /// candidate and the import would refuse strictly earlier than the
 /// unpromoted file does.
+///
+/// # Errors
+///
+/// [`SplineError`] — the wall's boundary column would not re-wrap as a
+/// curve. That is a STRUCTURAL fact about the stored surface, not this
+/// rung's negative answer: the rung's negatives are a carrier that is
+/// neither NURBS nor a promoted line, a wall that is not a described
+/// NURBS chart, and a column the carrier matches neither bitwise
+/// (NURBS) nor through the banded vertex match (line), all of which
+/// return an unchanged candidate list. The caller reports it as
+/// [`StepImportError::WallColumnStructure`].
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn iso_curve_candidates(
     body: &Body<f64>,
@@ -720,7 +740,13 @@ fn iso_curve_candidates(
     fs_minus: topo::SurfaceKey,
     tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
-) {
+) -> Result<(), SplineError> {
+    // Carriers outside the rung's vocabulary — neither the bitwise
+    // NURBS match nor the promoted-line vertex match — take no
+    // candidates and read no wall columns.
+    if !matches!(spec.carrier, Curve3::Nurbs(_) | Curve3::Line { .. }) {
+        return Ok(());
+    }
     let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
         &[fs_plus]
     } else {
@@ -734,9 +760,13 @@ fn iso_curve_candidates(
             if wp.is_placeholder() {
                 continue;
             }
-            let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end) else {
-                continue;
-            };
+            // Not a rung condition: `boundary_iso_u` is a control-net
+            // copy, and the only refusal it can build is a weight on
+            // the extracted column that is not positive and finite —
+            // which `geom::NurbsSurface::new` already refuses of the
+            // whole net. Carried out to the ladder rather than read as
+            // "not this shape".
+            let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
             // The column's `u` is the payload's own KNOT domain end
             // (#327), never a `[0, 1]` literal: an imported chart
             // carries the file's parameterization, where `u = 1` is
@@ -784,10 +814,13 @@ fn iso_curve_candidates(
                         ));
                     }
                 }
+                // Gated above: only NURBS and Line carriers reach the
+                // wall loop.
                 _ => {}
             }
         }
     }
+    Ok(())
 }
 
 /// The promoted-LINE column match ([`iso_curve_candidates`]'s Line
@@ -971,7 +1004,9 @@ fn mapped_self_description(
 /// re-certifies every line rim against the wall besides.
 ///
 /// `Err` carries the best (smallest) worst-sample deviation over both
-/// boundary candidates, for the typed refusal.
+/// boundary candidates, for the typed refusal — or, where a boundary
+/// column will not extract at all, that structural refusal instead
+/// (see [`ArcRimRefusal`]).
 fn arc_rim_on_wall_boundary(
     wall: &geom::NurbsSurface<f64>,
     carrier: &Curve3<f64>,
@@ -980,7 +1015,7 @@ fn arc_rim_on_wall_boundary(
     p_start: Point3<f64>,
     p_end: Point3<f64>,
     tol: Tol,
-) -> Result<(), f64> {
+) -> Result<(), ArcRimRefusal> {
     let Curve3::Circle {
         center,
         axis,
@@ -999,7 +1034,7 @@ fn arc_rim_on_wall_boundary(
         || !(axis_norm.is_finite() && axis_norm > 0.0)
         || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
     {
-        return Err(f64::INFINITY);
+        return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
     let a_hat = axis / axis_norm;
     let u_hat = u_ref / u_ref_norm;
@@ -1009,9 +1044,12 @@ fn arc_rim_on_wall_boundary(
     let slack = eps / radius;
     let mut best = f64::INFINITY;
     for end in [false, true] {
-        let Ok(iso) = geom_brep::boundary_iso_v(wall, end) else {
-            continue;
-        };
+        // Not a gate verdict: the column IS the locus the rim claims
+        // to be, so a column that will not extract leaves this gate
+        // with nothing to meter against — and a `continue` here would
+        // charge the wall's broken control net to the rim as a
+        // deviation it never had (`f64::INFINITY` when both ends go).
+        let iso = geom_brep::boundary_iso_v(wall, end).map_err(ArcRimRefusal::ChartRow)?;
         let (d0, d1) = iso.domain();
         let q0 = iso.eval(d0);
         let q1 = iso.eval(d1);
@@ -1054,7 +1092,25 @@ fn arc_rim_on_wall_boundary(
         }
         best = best.min(worst);
     }
-    Err(best)
+    Err(ArcRimRefusal::Residual(best))
+}
+
+/// Why [`arc_rim_on_wall_boundary`] did not certify — the two are
+/// different claims and the ladder reports them as different
+/// refusals.
+enum ArcRimRefusal {
+    /// The gate ran and the rim is off the column: the best (smallest)
+    /// worst-sample deviation over both boundary candidates, in
+    /// meters. This is the gate's own verdict.
+    Residual(f64),
+    /// A wall boundary column would not re-wrap as a curve, so the
+    /// gate has no locus to meter the rim against. A weight on that
+    /// column is not a positive finite number — a state
+    /// `geom::NurbsSurface::new` refuses of the whole net, so no body
+    /// this reader assembles reaches it — and the refusal names the
+    /// offending weight rather than being reported as a rim
+    /// deviation.
+    ChartRow(SplineError),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a

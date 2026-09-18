@@ -20,20 +20,24 @@
 //!   triangles, and [`Mesh::triangles`] is those same patches
 //!   concatenated in the fixed order the STL writers walk.
 //!
+//! The per-edge boundary polylines cross in that same index alphabet
+//! ([`Mesh::boundaries`]): the surface is drawn from the triangles and
+//! the MODEL's edges from these, which is what a wireframe or a
+//! hidden-line view is made of.
+//!
 //! What does NOT cross is the mesh's back-references. `FacePatch::face`,
 //! `BoundaryPolyline::edge` and the two vertex back-references are
 //! arena keys (`FaceKey`, `EdgeKey`, `VertexKey`), and keeping those
 //! unnameable is what the whole curation is for — so a patch is
-//! addressable by INDEX here and the per-edge boundary polylines,
-//! whose only content beside indices is those keys, are not bound at
-//! all.
+//! addressable by INDEX here, and a polyline is a run of position
+//! indices with nothing else in it.
 //!
 //! **The door from a patch to a `StableName` is the honest shape, and
-//! since LIB-B-PICKING it exists on both sides**: `NodePick`'s
-//! `patch_names` / `boundary_names` (`py/pick.rs`) answer one name per
-//! patch and per polyline, in mesh order, with the key never leaving
-//! the kernel. That is what makes a patch INDEX a usable handle rather
-//! than a dead end — it is the argument of `NodePick`, not of this
+//! it exists on both sides**: `NodePick`'s `patch_names` /
+//! `boundary_names` (`py/pick.rs`) answer one name per patch and per
+//! polyline, in mesh order, with the key never leaving the kernel.
+//! That is what makes a patch or a polyline INDEX a usable handle
+//! rather than a dead end — it is the argument of `NodePick`, not of this
 //! module, because only a value that owns its pairing may invert a
 //! key at all.
 //!
@@ -51,12 +55,10 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{ErrorClass, StlRefusal};
 use crate::py::quantity::Length;
 use crate::py::typed_err;
-use crate::tags::{
-    binary_header_error_tag, solid_name_error_tag, stl_error_tag, tessellate_error_tag,
-};
+use crate::tags::tessellate_error_tag;
 use pncad::mesh;
 use pncad::stl;
 
@@ -143,14 +145,132 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     typed_err(py, ErrorClass::Tessellate, err.to_string(), &fields)
 }
 
-/// Raise `StlError` with the writer's own message and a stable
-/// `variant`.
-fn stl_err(py: Python<'_>, variant: &str, message: String) -> PyErr {
+/// Raise `StlError` with the refusing party's own message, a stable
+/// `variant`, and the arm's payload.
+///
+/// Every attribute is present on every arm and `None` where that arm
+/// does not carry it, so `getattr` never raises and a caller reads
+/// the payload without first branching on `variant`.
+///
+/// `detail` is one concept under two spellings — the underlying
+/// reporter's own words, whether that reporter is the output sink or
+/// the UTF-8 decoder — and crosses on one name.
+///
+/// The `variant` is [`crate::tags::stl_refusal_tag`] over the whole
+/// refusal, read once above the match: this door's arms decide the
+/// PAYLOAD, and the word is the tag module's for every arm including
+/// the boundary's own. That is what puts each of them where the tag
+/// inventory reads it. It pins those words; it does not stop a raise
+/// site elsewhere spelling one, and what makes this the only site is
+/// that nothing else raises `ErrorClass::StlExport`.
+fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
+    use StlRefusal as R;
+    use stl::{BinaryHeaderError as H, SolidNameError as N, StlError as W};
+
+    let variant = crate::tags::stl_refusal_tag(refusal);
+
+    let none = || py.None();
+    // A field whose own construction failed degrades to `None` rather
+    // than replacing the export's refusal with a boundary one.
+    let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    // `u64`'s conversion is INFALLIBLE (its error type is
+    // `Infallible`), so this one degrades nowhere: the match is total.
+    let int = |n: u64| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+
+    let (message, triangle, index, count, character, len, detail) = match refusal {
+        R::Write(err @ W::DegenerateTriangle { triangle: t }) => (
+            err.to_string(),
+            obj((t[0], t[1], t[2])
+                .into_pyobject(py)
+                .map(|v| v.into_any().unbind())),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::IndexOutOfRange { index: i }) => (
+            err.to_string(),
+            none(),
+            int(u64::from(*i)),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::TooManyTriangles { count: c }) => (
+            err.to_string(),
+            none(),
+            none(),
+            int(*c as u64),
+            none(),
+            none(),
+            none(),
+        ),
+        R::Write(err @ W::Io(source)) => (
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&source.to_string()),
+        ),
+        R::Name(err @ N::Unrepresentable { character: c }) => (
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            text(&c.to_string()),
+            none(),
+            none(),
+        ),
+        R::Header(err @ H::TooLong { len: bytes }) => (
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*bytes as u64),
+            none(),
+        ),
+        R::Header(err @ H::SniffsAscii) => (
+            err.to_string(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        R::NotUtf8(source) => (
+            format!("stl export: the ASCII writer emitted non-UTF-8 bytes: {source}"),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&source.to_string()),
+        ),
+    };
     typed_err(
         py,
         ErrorClass::StlExport,
         message,
-        &[("variant", PyString::new(py, variant).unbind().into_any())],
+        &[
+            ("variant", text(variant)),
+            ("triangle", triangle),
+            ("index", index),
+            ("count", count),
+            ("character", character),
+            ("len", len),
+            ("detail", detail),
+        ],
     )
 }
 
@@ -209,6 +329,37 @@ impl Mesh {
         self.inner.patches.iter().map(|p| p.triangles.len()).sum()
     }
 
+    /// **Every edge's chord polyline**, as index sequences into
+    /// `positions`, in the kernel's edge order — the alphabet
+    /// `triangles` speaks, one polyline per model edge.
+    ///
+    /// This is what a wireframe or a hidden-line view is drawn from:
+    /// the surface is the triangles, the MODEL's edges are these. Each
+    /// polyline runs in its edge's intrinsic direction and carries at
+    /// least two indices; consecutive pairs are the segments. An edge
+    /// that closes on itself repeats its single vertex index at both
+    /// ends, so a closed edge is `line[0] == line[-1]` — decided on
+    /// indices, never on coordinates, exactly as watertightness is.
+    ///
+    /// The polylines are answered whole rather than one at a time,
+    /// because unlike a patch there is no concatenated spelling for
+    /// them to be separable FROM: a run of indices means nothing once
+    /// it is joined to the next edge's. Their POSITION in this list is
+    /// the handle `NodePick.boundary_names` inverts, entry for entry,
+    /// the way patch order pairs with `NodePick.patch_names`.
+    ///
+    /// The polyline's source edge and its two vertices are arena keys
+    /// and stay in the kernel, which is why this is indices and not a
+    /// value class: there would be nothing else in it.
+    #[getter]
+    fn boundaries(&self) -> Vec<Vec<u32>> {
+        self.inner
+            .boundaries
+            .iter()
+            .map(|line| line.points.clone())
+            .collect()
+    }
+
     /// One face's triangles, by patch index — the addressability the
     /// `Mesh` value promises. The face itself is an arena key and does
     /// not cross, so the index is the handle.
@@ -228,29 +379,30 @@ impl Mesh {
     /// a character outside the printable ASCII the single-line grammar
     /// admits refuses here, as `StlError` with a
     /// `solid_name_unrepresentable` variant, rather than being
-    /// sanitized into a file no parser can read.
-    #[pyo3(signature = (solid_name=""))]
-    fn to_stl_ascii(&self, py: Python<'_>, solid_name: &str) -> PyResult<String> {
-        let name = stl::SolidName::new(solid_name)
-            .map_err(|err| stl_err(py, solid_name_error_tag(&err), err.to_string()))?;
+    /// sanitized into a file no parser can read. Omitted, the name is
+    /// the Rust default — the generic part name `AsciiOptions::default`
+    /// carries, so the file this door writes with no arguments is the
+    /// file a Rust caller gets with none. Its options are a literal
+    /// naming every field, held to `AsciiOptions` by the surface
+    /// census's options roster.
+    #[pyo3(signature = (solid_name=None))]
+    fn to_stl_ascii(&self, py: Python<'_>, solid_name: Option<&str>) -> PyResult<String> {
+        let defaults = stl::AsciiOptions::default();
+        let options = stl::AsciiOptions {
+            solid_name: solid_name
+                .map(stl::SolidName::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Name(&err)))?
+                .unwrap_or(defaults.solid_name),
+        };
         let mut out = Vec::new();
-        stl::write_ascii(
-            &self.inner,
-            &stl::AsciiOptions { solid_name: name },
-            &mut out,
-        )
-        .map_err(|err| stl_err(py, stl_error_tag(&err), err.to_string()))?;
+        stl::write_ascii(&self.inner, &options, &mut out)
+            .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         // The writer emits ASCII by construction (the name is
         // validated printable-ASCII and the numbers are formatted), so
         // a decode failure here would be a kernel defect, surfaced
         // rather than lossily replaced.
-        String::from_utf8(out).map_err(|err| {
-            stl_err(
-                py,
-                "not_utf8",
-                format!("stl export: the ASCII writer emitted non-UTF-8 bytes: {err}"),
-            )
-        })
+        String::from_utf8(out).map_err(|err| stl_err(py, StlRefusal::NotUtf8(&err)))
     }
 
     /// Write binary STL and answer the bytes.
@@ -259,14 +411,27 @@ impl Mesh {
     /// conventionally the producer. It is validated: a header that
     /// does not fit, or one that would make the file sniff as ASCII
     /// STL, refuses here as `StlError` rather than being truncated or
-    /// written.
-    #[pyo3(signature = (header=""))]
-    fn to_stl_binary<'py>(&self, py: Python<'py>, header: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let header = stl::BinaryHeader::new(header)
-            .map_err(|err| stl_err(py, binary_header_error_tag(&err), err.to_string()))?;
+    /// written. Omitted, the header is the Rust default — the
+    /// producer text `BinaryOptions::default` carries, not 80 zero
+    /// bytes. Its options are a literal naming every field, held to
+    /// `BinaryOptions` by the surface census's options roster.
+    #[pyo3(signature = (header=None))]
+    fn to_stl_binary<'py>(
+        &self,
+        py: Python<'py>,
+        header: Option<&str>,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let defaults = stl::BinaryOptions::default();
+        let options = stl::BinaryOptions {
+            header: header
+                .map(stl::BinaryHeader::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Header(&err)))?
+                .unwrap_or(defaults.header),
+        };
         let mut out = Vec::new();
-        stl::write_binary(&self.inner, &stl::BinaryOptions { header }, &mut out)
-            .map_err(|err| stl_err(py, stl_error_tag(&err), err.to_string()))?;
+        stl::write_binary(&self.inner, &options, &mut out)
+            .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         Ok(PyBytes::new(py, &out))
     }
 

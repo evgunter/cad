@@ -20,8 +20,15 @@ that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
 of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
 `test (…)` jobs, each naming its lane, its eps row and its shard — and all five
 `k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
-The python suite, the gates, the discipline and parity rows and the render lanes
-are unchanged and still run on every code-tier run. Three things follow for you:
+The gates, the discipline and parity rows and the render lanes are unchanged and
+still run on every code-tier run. **The python suite runs whenever a seed is a
+crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
+which on this tree is every workspace member except two: `viewer`, which sits
+above the wheel, and `test-utils`, which reaches the bindings along a
+dev-dependency edge `maturin build` does not follow. A closure seeded only in
+one of those two skips it; everything else buys it. The `change filter` job's
+log prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it
+went. Three things follow for you:
 
 - **A green run means green at all six lane/eps points and all five k-lint
   unifications.** That is what the job list shows: if you cannot see twelve
@@ -66,6 +73,29 @@ one tree — hosted does all three now — and what it still adds is its opt-in
 `--nightly` row. Reach for it before a merge that would be expensive to get
 wrong, not routinely.
 
+**A row you DEMOTE to the nightly is verified AT the demotion.** Moving a
+check out of the per-PR gate into `.github/workflows/nightly.yml` costs it the
+thing that made it trustworthy: every PR ran it, so a mistake in the move
+surfaced in minutes on the branch that made it. In the nightly it surfaces at
+the next fire, to nobody, and **a row that fails to run at all reports the same
+green as a row that ran and passed**. So before the per-PR copy is deleted,
+`workflow_dispatch` the demoted job on the demoting PR's head, read the STEP
+that does the work rather than the job name, and name the run id in the PR
+body. Three rows demoted on 2026-09-03 first executed two nights later,
+unattended, and happened to be correct; a fourth (`c5263958`) had unbalanced
+quotes and never ran at all, and was caught only because a person read a log.
+
+**The same holds one level in, for a `--selftest`.** A guard sited only in a
+scheduled workflow is exercised only on a schedule, which is the same defect
+with a smaller subject. A script's inputs are `scripts/*.py` or `scripts/*.sh`
+— not a file class `scripts/ci-filter.py` reads as TIER=docs — so the change
+set that can break its selftest is exactly the change set the per-PR gate runs
+on, and that is where the row belongs. `scripts/check-ci-mirror-parity.py`'s
+claim 4 has a second arm that refuses a `--selftest` mode NO WORKFLOW invokes
+— a row in `local-scripts/` does not count, because every hosted job deletes
+that tree. That is the floor, not this rule: it cannot tell a per-PR row from
+a nightly one, and you can.
+
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.
 
@@ -107,9 +137,36 @@ When you do run locally:
   artefacts into its branch history — unfixable under merge-only rules except
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
+- **`--workspace` is not every cargo root, and the roots outside it are
+  not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
+  `tools` and `interval-transcendentals`, so
+  `cargo clippy --workspace --all-targets` — the natural check before a
+  push — compiles nothing under them. **Do not carry a count in your
+  head**, this bullet's included: `scripts/doc-gate.sh --print-roots`
+  derives the list, and a root has landed before with every prose count
+  in the repo left saying the old number. Two of those roots,
+  `demos/tour` and `demos/wild`, are ordinary consumers of the public
+  API, so a signature change breaks them the way it breaks a user: two
+  lanes in one hour changed a return type, re-spelled every caller
+  `--workspace` could see, and learned from CI that `demos/tour/tests/`
+  was still red. Those two and the `tools/*` roots are fmt+clippy'd on
+  every code-tier run and by `local-scripts/ci-local.sh`, so the gate
+  catches you even when your own check does not. **The other two are
+  weaker than that**: `benches` gets rustfmt in the PR gate and its only
+  clippy is a `nightly.yml` row with no local mirror, and
+  `interval-transcendentals`' clippy runs only when the change filter
+  buys that job. A green PR is not a claim about either. The cheap
+  version when you are not running the local gate is
+  `(cd demos/tour && cargo clippy --all-targets -- -D warnings)` and the
+  same in `demos/wild`.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.
+
+**Write assertions a bug could break.** Name the runtime value that would make
+one false; where there is none — a predicate over things fixed at compile time,
+or one its neighbours already subsume — it is documentation, and deleting it is
+the repair.
 
 ## 3. Baselines, demos, and the status quo
 
@@ -167,39 +224,28 @@ conversions it had just added.
 
 ## 6. Filing what you find outside your fence
 
-A sweep that works turns up defects that are not yours. **They go in your
-report and your PR description — not into another program's tracker
-directory.**
+A sweep that works turns up defects that are not yours. **File them, on the
+slate of the program whose ground they land on, in the same PR that found
+them** — no permission, no routing through anyone. `work/README.md` settles
+it: *"a finding goes straight onto the slate of the program whose ground it
+lands on"* (`:117`), and *"a lane does not need the owner's permission to put
+a finding where it belongs"* (`:146`). `work/issues/` is the last resort it
+has always been, for a finding with no obvious owner.
 
-`work/<program>/` is that program's slate. Filing there from a unit branch is
-a cross-program handoff made by diff, and `work/README.md`'s one-file-one-item
-rule makes two programs editing one item a merge conflict *by design*. Your own
-program's slate is yours to file on; someone else's is the orchestrator's, on
-the away channel.
+`python3 scripts/work.py territory --files -` says who owns a path. Grep that
+program's directory first: if a row already covers your finding, add your
+evidence to it rather than opening a second — one file per item, so a
+duplicate costs someone a merge conflict.
 
-There is a second reason, and it is the one that actually bites: **you cannot
-tell whether the item already exists.** Two lanes in one session filed the same
-inherited CI red into two different programs' directories, on the same day the
-issue was filed and routed by a third — each lane re-derived the provenance
-correctly and neither could see the others. The orchestrator could. Report it;
-let the party with the whole board place it.
+**Filing is not optional, and a PR body is not a slate.** *"Disclosing a
+residue is therefore not scheduling it — give it its own file at the moment
+you disclose it"* holds on every slate, not just your own. A finding left in
+a PR body is gone once the owning program closes and its directory is
+deleted.
 
-Reporting it is not a lesser outcome. A finding with a named file and line in a
-PR body warns every reader of that PR; a duplicate item on the wrong slate
-warns nobody and costs a merge.
+Say in your report which rows you filed and where.
 
-**This says where a finding goes, never whether it gets a file**, and the two
-questions read as one until they come apart. `work/README.md` is equally
-binding the other way: *"Disclosing a residue is therefore not scheduling it —
-give it its own file at the moment you disclose it."* Both hold at once,
-because they are about different slates. **Inside your own program's fence a
-disclosed residue owes a file in the same PR that discloses it**, and a
-sentence in a merged PR body is not one. **Outside it, reporting IS the
-filing act** — you hand it over and the orchestrator writes the file, in
-`work/issues/` when no program obviously owns it. What neither document
-permits is the third thing, which is what actually happens: disclosed in a PR
-body, filed nowhere, by a lane that read this section as an exemption from
-`work/README.md`'s. When a program's directory is deleted at close, the PR
-body is not a slate and the finding is gone. (Read as a conflict by the T-2
-style review, 2026-09-04; it is not one, and this paragraph exists because it
-reads like one.)
+## 7. Citations
+
+**Cite by name; line numbers rot.** A number may ride along beside the
+name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.

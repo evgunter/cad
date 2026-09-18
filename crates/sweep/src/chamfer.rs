@@ -23,7 +23,8 @@
 //!    convexity-sign constancy, corner configuration — transfer
 //!    unchanged and keep their `fillet3_*` names, because they measure
 //!    the same margins over the same inputs.
-//! 3. **The corner and band geometry** ([`crate::blend::surgery`]):
+//! 3. **The corner and band geometry** (the blank phase's corner plan,
+//!    `blend::open::planar`):
 //!    the feet are where the two incident trimlines cross on each
 //!    support rather than the ball's rest contacts, and the corner
 //!    patch is the plane through those three feet.

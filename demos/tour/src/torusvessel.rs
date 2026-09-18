@@ -96,6 +96,8 @@ use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::topo::EulerCounts;
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, ShellError};
 
 use crate::{SceneBody, Stop, View};
@@ -144,11 +146,6 @@ const R_WAISTED: f64 = 12.0 / 64.0;
 /// every junction below is transversal by a wide margin rather than by
 /// a hair, and the clearance gate is nowhere near it.
 const WALL: f64 = 1.0 / 128.0;
-
-/// The NURBS fit tolerance `shell` would hand its approximating lane.
-/// Unread here: every wall of this vessel is analytic, so the offsets
-/// are closed forms and nothing is fitted.
-const FIT_TOL: f64 = 1e-6;
 
 /// The chord budget: an absolute sagitta, half the hollow ring's on a
 /// body of about the ring's size. The vessel is `3/8` m tall and its
@@ -362,19 +359,9 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-fn census(body: &Body<f64>) -> (usize, usize, usize) {
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-    )
-}
-
-fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = census(body);
-    let r: usize = body.faces().map(|(_, x)| x.rings.len()).sum();
-    let s = body.shells().count();
-    s as i64 - (v as i64 - e as i64 + f as i64 - r as i64) / 2
+fn census(body: &Body<f64>) -> (i64, i64, i64) {
+    let EulerCounts { v, e, f, .. } = euler_counts(body);
+    (v, e, f)
 }
 
 /// **The sense assertion, run on a built body**: the cavity's torus
@@ -397,10 +384,63 @@ fn assert_offset_sense(hollow: &Body<f64>, centre_rho: f64, what: &str) {
     );
 }
 
+/// **The scene's wall** — the SECTIONED vessel's rim, attempted for
+/// real on every pass and pinned by its own typed refusal, in the
+/// shape `lily::wall_probes` and `klein::wall_probes` carry theirs.
+///
+/// It builds its own quarter revolve rather than taking one: the
+/// probe's operands are made immediately above it and read by nothing
+/// after it, so there is no body here that `stops` and this function
+/// have to agree about. (The teapot's pair cannot be written this way
+/// — its walls are attempted on document NODES whose refusal payload
+/// the panel's note quotes, so probe and caption must read ONE
+/// evaluation and `teapot::wall_probes` takes it as an argument.)
+fn wall_probes(tol: Tol) {
+    // ---- WALL 1: the SECTIONED vessel's rim ----
+    //
+    // A quarter turn of the same meridian — the cutaway a catalogue
+    // wants. The moved meridian cap stands a wall off the axis and
+    // parallel to it, and a plane in that posture cuts a torus in a
+    // SPIRIC quartic, which `Curve3` cannot carry.
+    let quarter = revolved(
+        meridian(R_BELLIED, ArcSweep::Ccw, tol),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol,
+    );
+    assert_eq!(
+        pncad::topo::validate_geometric(&quarter, tol),
+        Ok(()),
+        "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
+    );
+    let sectioned = pncad::topo::shell(&quarter, WALL, tol);
+    crate::walls::wall(
+        "torus-walled vessel",
+        1,
+        "hollow the vessel SECTIONED — a quarter turn of the same meridian, whose \
+         moved meridian cap cuts the torus band in a spiric quartic",
+        sectioned,
+        |e| {
+            matches!(
+                e,
+                ShellError::Face { error, .. }
+                    if matches!(
+                        &**error,
+                        pncad::topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
+                            if *what == "a circular edge between two charts whose centre is off the axis"
+                    )
+            )
+        },
+        "VERBS-RIMCAP's PR-2 has funded the torus half of the rim carrier. Retire this \
+         probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
+         — they are one gate — and ship the sectioned vessel as this scene's third \
+         panel, which is the picture it was always for",
+    );
+}
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let body = bellied(tol);
     assert_eq!(census(&body), (14, 26, 14), "the vessel's operand census");
-    assert_eq!(genus(&body), 0, "a vessel is a ball");
+    assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
     assert_eq!(
         pncad::topo::validate_geometric(&body, tol),
         Ok(()),
@@ -426,7 +466,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // no torus arm, so this body fell to the per-chart loop and the C5
     // table refused its plane x torus pair. It is ATTEMPTED live on
     // every pass, exactly as the wall it replaced was.
-    let sealed = pncad::topo::shell(&body, WALL, FIT_TOL, tol)
+    let sealed = pncad::topo::shell(&body, WALL, tol)
         .expect("a torus-walled vessel hollows through the axial door's torus arm")
         .body;
     assert_eq!(
@@ -441,7 +481,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the operand's 14/26/14 twice — the cavity is that same boundary offset inward \
          and inserted whole through the shared void door"
     );
-    assert_eq!(genus(&sealed), 0, "a sealed hollow is genus 0");
+    assert_eq!(
+        euler_counts(&sealed).genus(),
+        Ok(0),
+        "a sealed hollow is genus 0"
+    );
     assert_offset_sense(&sealed, R_BELLIED, "the bellied vessel");
 
     // The corner solves, against the closed forms derived above. Both
@@ -514,7 +558,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = waisted(tol);
     assert_eq!(census(&twin), (14, 26, 14), "the twin's operand census");
-    let twin_hollow = pncad::topo::shell(&twin, WALL, FIT_TOL, tol)
+    let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
         .body;
     assert_eq!(
@@ -556,9 +600,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // operand's own clearance gate on the two SHOULDER annuli, which
     // face each other across the belly at Y_SHOULDER - Y_FOOT.
     let below = Y_SHOULDER - Y_FOOT - WALL;
-    pncad::topo::shell(&body, below / 2.0, FIT_TOL, tol)
+    pncad::topo::shell(&body, below / 2.0, tol)
         .expect("a wall just under half the shoulders' clearance hollows");
-    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, FIT_TOL, tol)
+    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, tol)
         .expect_err("two walls that consume the shoulders' whole clearance leave no cavity");
     let ShellError::WallClearance {
         gap,
@@ -586,7 +630,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the mouth is ONE plane worn by two half-discs — a full revolve's seam cut — \
          and the rim lift moves a chart as one"
     );
-    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, FIT_TOL, tol)
+    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, tol)
         .expect("the vessel opens at its mouth")
         .body;
     assert_eq!(
@@ -594,10 +638,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the cup: tier 3"
     );
-    let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+    let counts = euler_counts(&cup);
     assert_eq!(
-        (rings, genus(&cup), cup.shells().count()),
-        (1, 0, 1),
+        (counts.r, counts.genus(), counts.s),
+        (1, Ok(0), 1),
         "ONE rim annulus carrying ONE ring, genus 0 as `topo::shell`'s docs promise a \
          cup is, and the cavity fused into the boundary"
     );
@@ -665,13 +709,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the merged cup: tier 3"
     );
+    let counts = euler_counts(&cup);
     assert_eq!(
-        (
-            cup.faces().map(|(_, f)| f.rings.len()).sum::<usize>(),
-            genus(&cup),
-            cup.shells().count()
-        ),
-        (5, 0, 1),
+        (counts.r, counts.genus(), counts.s),
+        (5, Ok(0), 1),
         "the merge mints four annulus rings beside the rim's and moves no locus, so the \
          genus is where it was"
     );
@@ -682,45 +723,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props_m.volume
     );
 
-    // ---- WALL 1: the SECTIONED vessel's rim ----
-    //
-    // A quarter turn of the same meridian — the cutaway a catalogue
-    // wants. The moved meridian cap stands a wall off the axis and
-    // parallel to it, and a plane in that posture cuts a torus in a
-    // SPIRIC quartic, which `Curve3` cannot carry.
-    let quarter = revolved(
-        meridian(R_BELLIED, ArcSweep::Ccw, tol),
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
-        tol,
-    );
-    assert_eq!(
-        pncad::topo::validate_geometric(&quarter, tol),
-        Ok(()),
-        "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
-    );
-    let sectioned = pncad::topo::shell(&quarter, WALL, FIT_TOL, tol);
-    crate::walls::wall(
-        "torus-walled vessel",
-        1,
-        "hollow the vessel SECTIONED — a quarter turn of the same meridian, whose \
-         moved meridian cap cuts the torus band in a spiric quartic",
-        sectioned,
-        |e| {
-            matches!(
-                e,
-                ShellError::Face { error, .. }
-                    if matches!(
-                        &**error,
-                        pncad::topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                            if *what == "a circular edge between two charts whose centre is off the axis"
-                    )
-            )
-        },
-        "VERBS-RIMCAP's PR-2 has funded the torus half of the rim carrier. Retire this \
-         probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
-         — they are one gate — and ship the sectioned vessel as this scene's third \
-         panel, which is the picture it was always for",
-    );
+    // The scene's one wall, attempted for real.
+    wall_probes(tol);
 
     let (sv, se, sf) = census(&sealed);
     let (cv, ce, cf) = cup_after;
@@ -794,9 +798,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  same rim family is BUILT — a plane cuts a sphere in a circle, always, \
                  and `torax_the_sphere_lune_rim_solves_in_closed_form` carries it — \
                  but a sphere lune still does not reach `shell`, at a different door \
-                 again: the flux arm's props_band_coplanar premise cannot give tier 3 \
-                 the volume its +V invariant needs \
-                 (`torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
+                 again: the operand's own wall measures (the rim-free wedge arm), and \
+                 it is the CAVITY's lens face — bounded by the moved caps' \
+                 off-centre sections — whose volume the flux arm cannot give tier 3 \
+                 (`props_meridian_great`; \
+                 `torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
                  SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
                  has closed forms for planar faces only, so this multi-shell CURVED \
                  solid refuses CurvedShellClassification — declared at the body and \
@@ -904,4 +910,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::plain("torusvesselcup", [0.76, 0.48, 0.36], cup)],
         },
     ]
+}
+
+#[cfg(test)]
+mod wall_probes_run_here {
+    //! The scene's wall, driven by the TEST SUITE.
+    //!
+    //! [`wall_probes`] is where the sectioned vessel's hollow is
+    //! attempted; until this test existed its only caller was
+    //! [`stops`], whose only caller is `main.rs`'s render walk. So the
+    //! frontier this scene pins was exercised when somebody RENDERED
+    //! the tour and never under `cd demos/tour && cargo test --release`
+    //! — the command CI's "demos tour suite" row runs. The rim carrier
+    //! could grow the torus arm, or the refusal could move to a
+    //! different variant, with the suite green either way.
+    //!
+    //! It has to be an in-bin test: `demo-tour` is bin-only (no
+    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
+    //! can name `torusvessel::wall_probes` at all. `lily`, `klein` and
+    //! `teapot` carry theirs for the same reason.
+    //!
+    //! There is nothing here to assert that the probe does not already
+    //! assert: `crate::walls::wall` panics on BOTH off-nominal
+    //! outcomes — a different refusal, and no refusal at all. Running
+    //! it IS the check.
+
+    use super::*;
+
+    #[test]
+    fn the_sectioned_vessels_wall_is_attempted_by_the_suite() {
+        wall_probes(Tol::witness());
+    }
 }

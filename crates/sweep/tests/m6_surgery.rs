@@ -21,6 +21,7 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
+use topo::readback::euler_counts;
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
@@ -356,13 +357,13 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     // The log must be installed BEFORE the build (it records through
     // `decide` as the surgery runs) and taken straight after, so the
     // certification battery below runs unlogged exactly as it did.
-    start_verdict_log();
+    let bracket = Bracket::open();
     let die = composed_die();
-    let log = take_verdict_log();
+    let log = bracket.finish().verdicts;
     assert!(
         log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
         "K-FUNNEL: fillet3_ring_clearance never reached the funnel"
@@ -519,6 +520,9 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         assert_eq!(f.rings.len(), n, "ring count carried");
         assert_eq!(f.sense, sense, "sense bit carried (S12)");
     }
-    let total: usize = out.body.faces().map(|(_, f)| f.rings.len()).sum();
-    assert_eq!(total, 21, "all 21 pip rims survive as rings");
+    assert_eq!(
+        euler_counts(&out.body).r,
+        21,
+        "all 21 pip rims survive as rings"
+    );
 }

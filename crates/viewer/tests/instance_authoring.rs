@@ -27,7 +27,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -157,9 +157,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     for op in [
         SessionOp::BeginFreeMove { instance: shelf_i },
         SessionOp::PreviewFreeMove {
+            instance: shelf_i,
             frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance: shelf_i },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -168,17 +169,17 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The shipped mate tool's op takes them from here.
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(post_i, &bench.post_top),
-        b: asm::in_part(shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(post_i, &bench.post_top)),
+        b: common::head(asm::in_part(shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -188,7 +189,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == shelf_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -251,7 +252,7 @@ fn a_session_with_no_backing_file_refuses_and_names_the_recourse() {
 
     // The chooser opens anyway and shows that refusal where the list
     // would be — a door that cannot open says so.
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     assert!(chooser.dir().is_none());
     match chooser.offered() {
         Err(Refusal::NoDocumentDirectory) => {}
@@ -439,7 +440,7 @@ fn a_directory_that_lost_the_open_documents_own_file_lists_nothing() {
         entries.is_empty(),
         "nothing on offer, not even the open document: {entries:?}"
     );
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     assert_eq!(chooser.offered().expect("the scan succeeds").len(), 0);
 }
 
@@ -510,7 +511,7 @@ fn a_duplicate_id_refuses_at_the_chooser_and_at_the_op() {
     );
 
     // At the chooser: no list, the store's sentence in its place.
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     match chooser.offered() {
         Err(refusal @ Refusal::Workspace(_)) => {
             assert_eq!(refusal.to_string(), expected.to_string());
@@ -535,7 +536,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
     let bench = asm::bench("gauth3-snapshot", tol);
     let (session, _) = authored_session(&bench, "gauth3-snapshot-asm", tol);
 
-    let mut chooser = PartChooser::opened(&session);
+    let mut chooser = PartChooser::opened(session.part_census());
     let before = chooser.offered().expect("the directory scans").len();
     assert_eq!(chooser.dir(), Some(bench.dir.as_path()));
 
@@ -549,7 +550,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
         "the held listing is the scan it was taken from"
     );
 
-    chooser.rescan(&session);
+    chooser.rescan(session.part_census());
     let after = chooser.offered().expect("the directory scans").len();
     assert_eq!(after, before + 1, "rescan re-reads the directory");
 }

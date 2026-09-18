@@ -32,7 +32,7 @@ fn n1r2_c24_timing() {
     for (p, interior) in [(2usize, 3usize), (3, 8), (5, 8), (7, 8)] {
         let c = curve(p, interior);
         let kv = c.knots();
-        let spans: Vec<_> = (0..kv.knots().len()).filter_map(|i| kv.span(i)).collect();
+        let spans: Vec<_> = (0..kv.knots().len()).filter_map(|i| c.span(i)).collect();
         let ts: Vec<f64> = (0..64).map(|i| (i as f64 + 0.5) / 64.0).collect();
         let pick = |i: u32| {
             let t = ts[(i as usize) % ts.len()];
@@ -51,19 +51,19 @@ fn n1r2_c24_timing() {
         };
         let eval = time(&|i| {
             let (s, t) = pick(i);
-            black_box(c.eval_in_span(s, black_box(t)));
+            black_box(s.eval_in_span(black_box(t)));
         });
         let d1 = time(&|i| {
             let (s, t) = pick(i);
-            black_box(c.deriv_in_span(s, black_box(t)));
+            black_box(s.deriv_in_span(black_box(t)));
         });
         let ders = time(&|i| {
             let (s, t) = pick(i);
-            black_box(c.ders_in_span(s, black_box(t)));
+            black_box(s.ders_in_span(black_box(t)));
         });
         let d2 = time(&|i| {
             let (s, t) = pick(i);
-            black_box(c.deriv2_in_span(s, black_box(t)));
+            black_box(s.deriv2_in_span(black_box(t)));
         });
         println!(
             "degree {p} ({interior} interior): eval_in_span {eval:.0} ns, deriv_in_span {d1:.0} ns, ders_in_span {ders:.0} ns, deriv2_in_span {d2:.0} ns"

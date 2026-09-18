@@ -476,28 +476,29 @@ fn a_valueless_node_is_empty_not_an_error() {
 }
 
 // ------------------------------------------------------------------
-// 4. The mirrors cannot drift.
+// 4. The kind sets, through the document layer's re-export.
 // ------------------------------------------------------------------
 
-/// `ALL_SURFACE_KINDS` is the iteration order of a `SurfaceKindSet`,
-/// and the bitset's exhaustive `surface_bit` match is the compile-time
-/// tripwire. This pins the pair: every listed kind is a member of the
-/// set built from the whole list, exactly once.
+/// The kind sets carry exactly their members, reached through the
+/// document layer's re-export: a set built from the whole mirror holds
+/// every kind on it, the empty set holds none, and a singleton
+/// iterates back to the one kind it was built from.
+///
+/// **This does not pin the mirrors against their enums** — both sides
+/// of such an equality would be derived from the list under test, so a
+/// kind missing from the list would be missing from both. That census
+/// lives beside the lists, as the two `census!` invocations in
+/// `topo::query`'s test module — where it is the compiler, not an
+/// assertion, that reds when a list falls behind its enum.
 #[test]
-fn the_surface_kind_mirror_is_complete() {
+fn kind_sets_carry_exactly_their_members() {
     let all = SurfaceKindSet::of(editor_core::ALL_SURFACE_KINDS);
-    assert_eq!(
-        all.iter().count(),
-        editor_core::ALL_SURFACE_KINDS.len(),
-        "a kind added to SurfaceKind must be added to ALL_SURFACE_KINDS",
-    );
     for k in editor_core::ALL_SURFACE_KINDS {
         assert!(all.contains(k));
         assert!(!SurfaceKindSet::default().contains(k));
-        assert_eq!(SurfaceKindSet::just(k).iter().count(), 1);
+        assert_eq!(SurfaceKindSet::just(k).iter().next(), Some(k));
     }
     let curves = CurveKindSet::of(CurveKind::ALL);
-    assert_eq!(curves.iter().count(), CurveKind::ALL.len());
     for k in CurveKind::ALL {
         assert!(curves.contains(k));
         assert_eq!(CurveKindSet::just(k).iter().next(), Some(k));

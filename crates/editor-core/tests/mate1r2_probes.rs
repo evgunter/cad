@@ -13,69 +13,23 @@
 //!   tree CHILD (the `oc.inverse()` arm);
 //! - P4: an out-of-range copy index on a DECLARING (non-tree) mate —
 //!   the solve never derives its offset, so what refuses, and where?
-//! - P5: a nested pattern head (pattern of a pattern) refuses
-//!   `DanglingHead`, as the PR discloses.
+//! - P5: a nested pattern head (pattern of a pattern) is a member,
+//!   its copy chain carrying both levels.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive,
-    MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, solve_document,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, assemble, solve_document,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, scl, step};
 use geom_core::Tol;
 
-// ---- Substrate (as in the unit's own suite) ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -100,32 +54,13 @@ fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }),
-        }],
-    }
-}
-
 fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: pattern,
         path: vec![RoleSeg::Instance {
             i,
-            of: Box::new(master),
+            of: master.into(),
         }],
     }
 }
@@ -145,8 +80,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -296,7 +231,7 @@ fn cluster_frame() -> Frame {
 /// never read into the expectation.
 #[test]
 fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r2-obl-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r2-obl-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
@@ -373,7 +308,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
 /// an oracle independent of this reviewer's own algebra.
 #[test]
 fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r2-loopf-leg"), Tol::witness());
     let top_ref = store.insert(
         block_part("r2-loopf-top", (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
@@ -439,7 +374,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
     // NOTE: the pattern direction is a DOCUMENT-coordinate map applied
     // outside the placement, so the copies march along document x̂ even
     // though the leg is rotated; the top must land so both seats hold.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     match &result {
         Ok(_) => {}
@@ -463,7 +398,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
 /// composed by hand: `T(s1·x̂ − s2·ŷ) ∘ T([0,0,1])`.
 #[test]
 fn r2_two_patterns_tree_edge_composes_both_offsets() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let l1 = store.insert(leg_part("r2-twop-l1"), Tol::witness());
     let l2 = store.insert(leg_part("r2-twop-l2"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-twop"), Tol::witness());
@@ -532,7 +467,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 /// rel(leg) = O_c⁻¹ ∘ rep = T([−2, 0, −1]).
 #[test]
 fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let top_ref = store.insert(leg_part("r2-rev-top"), Tol::witness());
     let leg_ref = store.insert(leg_part("r2-rev-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
@@ -580,15 +515,18 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
 
 // ---- P4: an out-of-range copy on a DECLARING mate ----
 
-/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, but as the
-/// SECOND (non-tree) mate of the pair graph — the solve never derives
-/// its offset (only tree edges reach `derived_offset`), so the
-/// committed fence row does not cover this shape. The document must
-/// still refuse somewhere typed, or the nonsense declaration would
-/// verify silently.
+/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, as the SECOND
+/// (non-tree) mate of the pair graph.
+///
+/// It refuses at the SOLVE, naming the pattern — not "somewhere" and
+/// not at the gate. The index-against-the-count check is a fact about
+/// a REFERENCE, so it runs where the solve reads each reference,
+/// once per side of every live mate; a check sited in the offset
+/// would have run on this mate only if the spanning tree had happened
+/// to take its pair as an edge.
 #[test]
-fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
-    let mut store = StubStore::default();
+fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r2-oor-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r2-oor-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-oor"), Tol::witness());
@@ -630,37 +568,46 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
 
     let poses = solve_document(&doc, Tol::witness());
-    let solve_fault = poses.fault(m1).cloned();
-    let role = poses.role(m1);
-
-    let ev = run(&doc, &opts(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    // The probe's assertion: SOMETHING typed refuses this document —
-    // either the solve faults the mate, or the gate refuses.
-    let gate_refused = result.is_err();
+    let fault = poses
+        .fault(m1)
+        .cloned()
+        .expect("an out-of-range copy refuses at the solve, tree edge or not");
     assert!(
-        solve_fault.is_some() || gate_refused,
-        "an out-of-range DECLARING copy must refuse somewhere: solve fault {solve_fault:?}, \
-         role {role:?}, gate {result:?}"
+        matches!(
+            fault,
+            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+        ),
+        "the refusal names the pattern whose count the index is past: {fault:?}"
     );
-    // Record the shape for the report (printed on failure of the next
-    // assertion if the refusal is somewhere surprising).
-    eprintln!(
-        "P4 shape: solve fault = {solve_fault:?}, role = {role:?}, gate = {:?}",
-        result.as_ref().err()
+    assert_eq!(
+        poses.role(m1),
+        Some(editor_core::MateRole::Refused),
+        "and the mate is refused, not carried as a live declaration"
     );
-    let _ = m0;
+    // The well-formed sibling is unaffected: one mate's refusal is
+    // not the pair's, and not the document's.
+    assert_eq!(poses.role(m0), Some(editor_core::MateRole::Determining));
+    assert!(poses.fault(m0).is_none());
+    let _ = (store, m0);
 }
 
 // ---- P5: a nested pattern head ----
 
 /// PROBE (claim 7): a pattern of a pattern — the head resolves through
-/// the OUTER pattern whose input is the inner pattern, not a live
-/// instance. The PR discloses this refuses `DanglingHead`; hold it to
-/// that.
+/// the OUTER pattern whose input is the inner pattern, and on down
+/// through the inner one to the instance that mints the name. Both
+/// `Instance(i)` qualifiers are in the name and the walk consumes
+/// both, so the reference is a MEMBER and the solve places it.
+///
+/// (The document does not GATHER: `Node::Pattern` takes one body and
+/// a pattern's value is many, so the outer pattern refuses
+/// `WrongOperand` at the evaluation. That fence is the node
+/// vocabulary's, not the member vocabulary's, and the shape a user
+/// builds a nested copy through is `Part { Instance(i) }` between the
+/// two patterns — `msolve2_member_chain`'s ground.)
 #[test]
-fn r2_nested_pattern_head_refuses_dangling() {
-    let mut store = StubStore::default();
+fn r2_nested_pattern_head_is_a_member() {
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r2-nest-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r2-nest-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-nest"), Tol::witness());
@@ -701,15 +648,17 @@ fn r2_nested_pattern_head_refuses_dangling() {
     );
     let mate = mate.expect("the mate mints");
     let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(mate).expect("a nested pattern head refuses");
     assert!(
-        matches!(
-            fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
-        ),
-        "a nested pattern head is outside the vocabulary: {fault:?}"
+        poses.fault(mate).is_none(),
+        "a nested pattern head resolves through both levels: {:?}",
+        poses.fault(mate)
     );
-    let _ = store;
+    assert_eq!(
+        poses.role(mate),
+        Some(editor_core::MateRole::Determining),
+        "the nested copy's reference places its pair"
+    );
+    let _ = (store, inner);
 }
 
 // ---- P6: plain-document pose bits (cross-revision instrument) ----
@@ -720,7 +669,7 @@ fn r2_nested_pattern_head_refuses_dangling() {
 /// `mate/` sources checked out (claim 2, absent-by-construction).
 #[test]
 fn r2_plain_document_pose_bits() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let a_ref = store.insert(leg_part("r2-bits-a"), Tol::witness());
     let b_ref = store.insert(leg_part("r2-bits-b"), Tol::witness());
     let c_ref = store.insert(leg_part("r2-bits-c"), Tol::witness());

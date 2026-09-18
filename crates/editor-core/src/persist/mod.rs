@@ -22,10 +22,28 @@
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
 //! invalidates nothing. A NEWER document carrying a field this build
-//! lacks refuses (every wire type is `deny_unknown_fields`): a stale
-//! reader must not silently drop data. A BREAKING change — a field
-//! made required, a spelling retired — refuses naming the field. The
-//! recourse is the one sentence it always was, and it is also on
+//! lacks refuses **where the wire type owning the field carries
+//! `deny_unknown_fields`**: a stale reader must not silently drop
+//! data. The precondition is the ATTRIBUTE and not the field — a
+//! declaration with a named field and no attribute takes the stray key
+//! and drops it — and this format does not carry the attribute
+//! everywhere its own rule needs one. `MatePrimitive`'s `PlanarRest`
+//! is the known hole
+//! (`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
+//! is that instance;
+//! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+//! is the class, and holds the question of what would detect the next
+//! one — a tracker path deleted at its program's close resolves through
+//! `docs/DOC-LEDGER.md`),
+//! so the rule above is what this format means by a stale reader and
+//! not a property its types enforce everywhere it is asserted. Where a
+//! declaration has no named field ANYWHERE the attribute is inert: a
+//! unit or tuple-variant enum refuses an unknown VARIANT
+//! unconditionally, with it or without it. A BREAKING change — a field
+//! made required, a spelling retired — refuses naming the field or the
+//! variant, and owes the attribute nothing: a field this build
+//! requires and does not find refuses under its own name. The recourse
+//! is the one sentence it always was, and it is also on
 //! [`PersistError::HeaderId`], because a document from before the
 //! `id:` line is a file this build cannot read too.
 //!
@@ -109,7 +127,7 @@ pub mod hexbytes;
 pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
-mod wire;
+pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
@@ -134,6 +152,15 @@ struct FileBody {
 /// A loaded document: the parsed snapshot, the parsed edit log, and
 /// the REPLAYED result (snapshot + edits through [`apply`]'s doors —
 /// the document's current state).
+///
+/// There is no column for the maintenance the replayed edits
+/// performed, by the load boundary: the loaded document IS the state,
+/// and each edit's [`crate::Applied::maintenance`] was that edit's
+/// report to the caller who applied it, its effect already in the
+/// document (a rewritten registry; a stranded name the next evaluation
+/// reports typed). [`Doc::replay`](crate::Doc::replay) draws the same
+/// line, and DM7's round-trip row is the evidence the discard loses
+/// nothing.
 #[derive(Debug)]
 pub struct Loaded {
     /// The snapshot as saved.
@@ -260,8 +287,11 @@ pub enum PersistError {
     /// grown since does NOT land here — it loads; an OLDER document
     /// missing a field since made required lands here naming it; a
     /// NEWER document carrying a field this build lacks lands here
-    /// naming it (`deny_unknown_fields` — a stale reader must not
-    /// silently drop data). The recourse is [`REGENERATE_RECOURSE`].
+    /// naming it **where the owning wire type carries
+    /// `deny_unknown_fields`**, and is silently dropped where it does
+    /// not — the module docs state the rule, the hole in it and the
+    /// row that tracks the hole. The recourse is
+    /// [`REGENERATE_RECOURSE`].
     Unreadable {
         /// Line within the body (serde_json's 1-based position).
         line: usize,
@@ -318,7 +348,7 @@ impl core::fmt::Display for PersistError {
                 node.0
             ),
             Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {:?}: {fault}", name.0)
+                write!(f, "persist: document parameter {name}: {fault}")
             }
             Self::DisplayUnit {
                 name,
@@ -326,9 +356,8 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {:?} is declared {declared:?} but its display \
-                 unit measures {unit:?}",
-                name.0
+                "persist: document parameter {name} is declared {declared} but its display \
+                 unit measures {unit}"
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::HeaderId { found } => {

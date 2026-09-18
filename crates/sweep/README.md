@@ -33,7 +33,8 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery; open chains, ladder rims, annulus rims across seams | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
@@ -128,13 +129,18 @@ foot is minted by the LADDER's strut (`HostFoot::Strut`) because the
 merge consumed the host's seam and left the crossing TRIVALENT. The tag
 does not fire at such a crossing — there is no seam there to make a
 seam vertex — and the subset request that does refuse names the whole
-rim, which carves. **Two conditions on that host, and they are what the
-recourse states**: it carries no RING of its own, and the rim is its
-WHOLE outer cycle. A merged cap that is an ANNULUS meets neither and
-refuses (`work/fillet/hostless-rim-on-a-ringed-host-refuses.md`); a
-CURVED single face carrying every arc is authorable through `topo`'s
-`kef` and refuses at the half-band gate on both routes
-(`work/fillet/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
+rim, which carves. **One condition on that host, and it is what the
+recourse states**: the rim is its WHOLE outer cycle. A RING of the host
+is not a second condition but a clearance — the band's host trim
+becomes that face's new outer boundary, so a ring carries through
+exactly when the trim CONTAINS it, metered before any mutation under
+`fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
+pass, which meters every ring of every touched support face against
+every blend trimline in closed form). A merged cap that is an ANNULUS
+therefore carves on both its rims, one call each. A CURVED single face
+carrying every arc is authorable through `topo`'s `kef` and refuses at
+the half-band gate on both routes
+(`work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
@@ -158,8 +164,9 @@ own extent, the lever the shared-ruling hypothesis is metered at). The
 band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
 (`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
-the tag). The carve (the ruled-band section of `blend/surgery.rs`,
-beside the blank and rim phases) mints no strut: the cap's two
+the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
+`blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
+mints no strut: the cap's two
 rim edges are split at the trimlines' feet, the arc is `mef`'d across
 the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the

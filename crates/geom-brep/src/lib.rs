@@ -82,49 +82,55 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, SecondOrder, classify_dihedral,
-    classify_material_pairing, folded_lever_arm, material_kappa_rel, tangent_second_order,
+    DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
+    classify_dihedral, classify_material_pairing, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
 pub use implicit::{
-    circle_residual_curvature_bound, circle_residual_extremes, curvature_lever_arm,
-    implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
+    ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
+    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
 };
 pub use intersect::{
-    CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PairRoute, PlaneConeSection,
-    PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung,
-    SectionError, SphereSphereSection, SurfaceKind, cylinder_cylinder_section,
-    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    plane_torus_section, route, sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
-pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
-pub use offset::{ConeOffset, OffsetError, offset_surface};
+pub use nurbs_iso::{
+    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
+};
+pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{
-    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
-    certify_offset_over, fit_offset, recertify_approx,
+    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
+    certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
+    fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartStretchInf, ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate,
-    PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_inf,
-    chart_stretch_sup,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve,
+    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
 pub use ssi::{
-    Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
-    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
+    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
+    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
