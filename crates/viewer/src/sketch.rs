@@ -1107,42 +1107,17 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
     Some(((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS))
 }
 
-/// **How big the tip marks in a profile preview are**, in sketch-plane
-/// metres: a fraction of the whole preview's extent.
+/// **How big a tip mark in a profile preview is, in PIXELS** — the
+/// cross-tick through a vertex; the heading arrow's tip sits this far
+/// ahead of it.
 ///
-/// Relative rather than absolute because a preview has no fixed scale
-/// — a 2 mm boss and a 2 m plate go through this same form — and
-/// relative to the WHOLE preview rather than to each loop, so a bore's
-/// marks match its outer's. A preview with no extent at all (a single
-/// authored point, nothing yet) has nothing to take a fraction of and
-/// gets no marks; a cross of size zero would be no mark anyway.
-pub fn tip_mark(loops: &[PreviewLoop]) -> f64 {
-    let points = loops.iter().flat_map(|drawn| drawn.points.iter());
-    let mut lo = [f64::INFINITY; 2];
-    let mut hi = [f64::NEG_INFINITY; 2];
-    for point in points {
-        for axis in 0..2 {
-            lo[axis] = lo[axis].min(point[axis]);
-            hi[axis] = hi[axis].max(point[axis]);
-        }
-    }
-    let diagonal = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
-    if diagonal.is_finite() && diagonal > 0.0 {
-        diagonal * TIP_MARK_FRACTION
-    } else {
-        0.0
-    }
-}
-
-/// The share of a preview's diagonal one tip mark spans — small enough
-/// that a dense chain does not become a field of crosses, large enough
-/// to read against the geometry it sits on. The heading tick is twice
-/// this again, because a direction has to be long enough to have one.
-///
-/// Set by looking: at 0.025 it was under a pixel on a profile filling
-/// a third of the viewport, which is a mark nobody can see — and a
-/// sketch plane seen at a grazing angle foreshortens whatever is left.
-const TIP_MARK_FRACTION: f64 = 0.07;
+/// Screen-sized, like every datum glyph (`datums`), because a tip mark
+/// is an annotation on the chain and not a part of it: it has to read
+/// at whatever zoom the chain is being looked at. A mark sized against
+/// the model's extent is a fixed length in metres, so zooming in on a
+/// small feature of a large profile blows the marks up across it, and
+/// zooming out shrinks them below a pixel.
+pub const TIP_MARK_PX: f64 = 20.0;
 
 /// **Which way the chain leaves the vertex at `at`** — a unit vector,
 /// or `None` where there is no next point to take one from.
