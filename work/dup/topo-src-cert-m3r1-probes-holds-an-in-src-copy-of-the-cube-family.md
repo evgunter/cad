@@ -62,3 +62,31 @@ One thing does NOT delete with them: `cert_m3r1_probes.rs` also carries
 `face_surface_of_he`, which `tests/common`'s
 `describe_as_intersections` spells as a local closure. Whichever home
 wins, that helper is one function, not two.
+
+## The "copied verbatim" claim went staler again (2026-09-18, `dup/one-prism-builder`)
+
+`cert_m3r1_probes.rs:49`'s *"`topo/tests/common::geometric_cube`, copied
+verbatim (in-crate)"* is now wrong **twice over**, and neither is a
+defect — the bodies are still equal, proved byte-for-byte by that
+unit's before/after dumps. It is doc rot, and it is worth recording
+because it is the second time the same sentence has decayed without
+anyone touching either file's code:
+
+- **Link 1 (PR #2727)** made `tests/common`'s `geometric_cube` a thin
+  caller of a shared `cube_ops`, so the in-`src` copy stopped being a
+  copy of the named function and became a copy of what that function
+  used to be.
+- **This unit** goes further: `tests/common`'s `geometric_cube` is now
+  four lines over `prism_ops` at `UNIT_SQUARE`, N-general, while the
+  in-`src` copy is still the unrolled eight-corner ladder with `a`,
+  `b`, `cc`, `d` spelled out. Nothing about them is verbatim any more
+  except the body they build.
+
+Nothing in `crates/topo/src/` was touched to fix it — out of this
+unit's fence, and the sentence is the mover's to correct when the
+family lands in `src/test_support_impl.rs`. The lesson for whoever
+does: **a doc comment naming another file's function as its source
+rots every time that function is refactored**, and this one has no
+guard. If the in-`src` copy survives the move at all, the claim it
+carries should be one a test can check (the two build equal bodies)
+rather than one only a reader can.

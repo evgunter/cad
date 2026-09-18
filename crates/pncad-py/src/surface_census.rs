@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use pncad::document::EvalOptions;
-use pncad::profile::{ArcMode, Verb};
+use pncad::profile::{ArcMode, TargetKind, Verb};
 use pncad::step_export::StepOptions;
 use pncad::step_import::ImportOptions;
 use pncad::stl::{AsciiOptions, BinaryOptions};
@@ -73,8 +73,9 @@ struct Stub {
     /// `tests/test_binding_census.py` compares its rosters in.
     names: BTreeSet<String>,
     /// Each `def`'s source text from `def` to its closing paren,
-    /// keyed by the same qualified name.
-    defs: BTreeMap<String, String>,
+    /// keyed by the same qualified name — one text per `@overload`,
+    /// because the overloads of one verb take different types.
+    defs: BTreeMap<String, Vec<String>>,
     /// Top-level `NAME = <rhs>` right-hand sides — the stub's private
     /// `TypeAlias`es, which is where the admissibility unions live.
     aliases: BTreeMap<String, String>,
@@ -234,7 +235,7 @@ impl Stub {
                 }
                 let qualified = qualify(name, &class);
                 names.insert(qualified.clone());
-                defs.entry(qualified).or_insert(block);
+                defs.entry(qualified).or_insert_with(Vec::new).push(block);
             } else if trimmed.starts_with('@') {
                 continue;
             } else if let Some(colon) = trimmed.find(':') {
@@ -290,6 +291,7 @@ impl Stub {
         let mut text: String = self
             .defs
             .values()
+            .flatten()
             .map(|block| parameter_text(block))
             .collect::<Vec<_>>()
             .join("\n");
@@ -310,28 +312,27 @@ impl Stub {
         }
     }
 
-    /// The parameter names of one `def`.
+    /// The parameter names of one `def`, over all its overloads.
     fn parameters(&self, qualified: &str) -> BTreeSet<String> {
-        let Some(block) = self.defs.get(qualified) else {
-            return BTreeSet::new();
-        };
         let mut params = BTreeSet::new();
-        let mut depth = 0;
-        let mut piece = String::new();
-        for ch in parameter_text(block).chars() {
-            match ch {
-                '(' | '[' => depth += 1,
-                ')' | ']' => depth -= 1,
-                ',' if depth == 0 => {
-                    params.insert(leading_ident(&piece).to_owned());
-                    piece.clear();
-                    continue;
+        for block in self.defs.get(qualified).into_iter().flatten() {
+            let mut depth = 0;
+            let mut piece = String::new();
+            for ch in parameter_text(block).chars() {
+                match ch {
+                    '(' | '[' => depth += 1,
+                    ')' | ']' => depth -= 1,
+                    ',' if depth == 0 => {
+                        params.insert(leading_ident(&piece).to_owned());
+                        piece.clear();
+                        continue;
+                    }
+                    _ => {}
                 }
-                _ => {}
+                piece.push(ch);
             }
-            piece.push(ch);
+            params.insert(leading_ident(&piece).to_owned());
         }
-        params.insert(leading_ident(&piece).to_owned());
         params.remove("");
         params
     }
@@ -460,6 +461,20 @@ fn mode_class(mode: ArcMode) -> &'static str {
     }
 }
 
+/// **The target roster.** The Python class a caller passes to aim a
+/// leg at each target form; a form `TargetKind` gains stops this
+/// function compiling.
+///
+/// `None` for an authored point, which is a coordinate tuple and not a
+/// class: the forms with a class are the `Start` tokens, one each.
+fn target_class(kind: TargetKind) -> Option<&'static str> {
+    match kind {
+        TargetKind::Point => None,
+        TargetKind::Start => Some("StartToken"),
+        TargetKind::StartArriving => Some("ArrivesTangentToken"),
+    }
+}
+
 /// **Where one roster's spellings are looked for in the stub.**
 ///
 /// A verb is bound by being a DECLARED name; an options field is bound
@@ -559,6 +574,7 @@ fn options_doors() -> Vec<Roster> {
     let ImportOptions {
         eps_in: _,
         declared_contacts: _,
+        examine_chart_coherence: _,
     } = &import;
 
     let ascii = AsciiOptions::default();
@@ -614,6 +630,26 @@ fn options_doors() -> Vec<Roster> {
                         would_be: &["declared_contacts"],
                         reason: "its element type `ImportContact` has no Python spelling, so \
                                  the keyword would take a list of nothing a caller can build",
+                    },
+                ),
+                // The flag is a `bool` a Python keyword could carry
+                // trivially; what it cannot carry is the ANSWER. The
+                // field it turns on reports a `topo::CoherenceReport`
+                // on `StepImport::Solid`, and that type has no Python
+                // spelling, so a bound keyword would set a switch
+                // whose result `ImportReport` does not expose — a
+                // caller could ask and never read. **So the pair is
+                // unbound together**: binding the flag without the
+                // report is the shape this census exists to prevent,
+                // and the decay check is what stops that reason
+                // outliving the fact.
+                (
+                    "examine_chart_coherence",
+                    Spelling::NotBound {
+                        would_be: &["examine_chart_coherence"],
+                        reason: "the report it produces (`topo::CoherenceReport`) has no Python \
+                                 spelling and no field on `ImportReport`, so the keyword would \
+                                 set a switch whose answer a caller cannot read",
                     },
                 ),
             ],
@@ -877,6 +913,45 @@ fn every_arc_mode_has_a_python_spelling() {
     );
 }
 
+/// **The target census.** Every target form's token is a class
+/// `pncad.pyi` declares AND some signature admits — the mode census's
+/// two halves, over the other vocabulary a leg's end is spelled in.
+///
+/// SOME signature, not each closer's: which verbs take which token is
+/// the `ty` fixtures' claim (`tests/ty_fixtures/legal.py`), and the
+/// binding's runtime extraction is `tests/test_paths.py`'s.
+#[test]
+fn every_target_form_has_a_python_spelling() {
+    let stub = stub();
+    let reach = stub.signature_reach();
+    let classes: Vec<&str> = TargetKind::ALL
+        .iter()
+        .filter_map(|k| target_class(*k))
+        .collect();
+    assert!(
+        !classes.is_empty(),
+        "no target form has a class, so this census reads nothing"
+    );
+    let undeclared: Vec<&str> = classes
+        .iter()
+        .copied()
+        .filter(|c| !stub.declares(c))
+        .collect();
+    assert!(
+        undeclared.is_empty(),
+        "pncad.pyi declares no class for these target forms: {undeclared:?}"
+    );
+    let unreachable: Vec<&str> = classes
+        .iter()
+        .copied()
+        .filter(|c| !mentions(&reach, c))
+        .collect();
+    assert!(
+        unreachable.is_empty(),
+        "these target tokens appear in no signature, so no verb admits them: {unreachable:?}"
+    );
+}
+
 /// **The options census.** Every field of every ROSTERED options
 /// struct is a keyword of its door, or recorded as deliberately
 /// withheld. Which structs are rostered is
@@ -1015,7 +1090,11 @@ fn the_stub_scanner_reads_what_it_claims() {
          _Alias: TypeAlias = Bulge | Via\n\
          class Widget:\n    \
          def wrapped(\n        self,\n        spec: _Alias,\n    ) -> None: ...\n    \
-         def plain(self) -> ReturnedOnly: ...\n\
+         def plain(self) -> ReturnedOnly: ...\n    \
+         @overload\n    \
+         def over(self, a: First) -> None: ...\n    \
+         @overload\n    \
+         def over(self, b: Later) -> None: ...\n\
          def free(x: int) -> None: ...\n",
     );
     assert!(!stub.declares("NotADeclaration"), "prose read as a class");
@@ -1028,7 +1107,16 @@ fn the_stub_scanner_reads_what_it_claims() {
         ["self", "spec"].iter().map(|s| (*s).to_owned()).collect(),
         "a wrapped signature's parameters"
     );
+    assert_eq!(
+        stub.parameters("Widget.over"),
+        ["self", "a", "b"].iter().map(|s| (*s).to_owned()).collect(),
+        "every overload's parameters, not the first's"
+    );
     let reach = stub.signature_reach();
+    assert!(
+        mentions(&reach, "Later"),
+        "a LATER overload's types are in the reach"
+    );
     assert!(
         mentions(&reach, "Bulge"),
         "an alias named in a signature is resolved into the reach"

@@ -31,7 +31,7 @@ use core::f64::consts::TAU;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
-    RecipeNodeId, SlotId,
+    RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
@@ -614,7 +614,12 @@ fn profile_refusals_are_typed_at_the_door() {
         Notation::CANONICAL,
     );
     assert!(
-        matches!(non_finite, Err(DimensionError::NonFiniteLiteral)),
+        matches!(
+            non_finite,
+            Err(RecordedProgramError::Literal(
+                DimensionError::NonFiniteLiteral
+            ))
+        ),
         "{non_finite:?}"
     );
 
@@ -775,6 +780,30 @@ fn extrude_and_revolve_require_their_node_kinds() {
             refused.refusal
         );
     }
+
+    // The add-datum door, for the axis a revolve takes: its frame is
+    // a pick, and a plane datum or a feature is not a frame. Nothing
+    // lands.
+    let before = session.committed_doc().order().len();
+    for wrong in [extrude, plane] {
+        let refused = session.perform(SessionOp::AddDatum {
+            datum: DatumSpec::AxisInPlane {
+                plane: wrong,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
+            },
+        });
+        assert!(
+            matches!(
+                refused.refusal,
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
+                    if node == wrong
+            ),
+            "{:?}",
+            refused.refusal
+        );
+    }
+    assert_eq!(session.committed_doc().order().len(), before);
 
     // The happy path inserts the revolve with both references.
     let revolve = insert(

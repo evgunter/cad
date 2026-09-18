@@ -556,6 +556,23 @@ BOUND_AS = {
     # row's shape — a curated enum flattened onto its carrier's
     # attribute.
     "ClusterMaintenance": "Maintenance.variant",
+    # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
+    # `StepImport::Solid::coherence` hands a Rust caller the kernel's
+    # report whole and its discriminants are closed enums meant to be
+    # matched. Python receives the same facts through the OTHER
+    # consumer of the same kernel door — `CheckId::ChartCoherence`,
+    # whose evidence rows publish them — so each of the three below is
+    # the `NodeErrorKind` row's shape again, a curated type flattened
+    # onto its carrier's attributes.
+    #
+    # `CoherenceCondition` and `Unexaminable` share `chart_variant`
+    # because the tag alphabets are disjoint by construction and
+    # `tags.rs` says so; `CoherenceFinding`'s four numbers are four
+    # attributes of the same evidence row and `metres` is the one the
+    # claim is about.
+    "CoherenceCondition": "CheckEvidence.chart_variant",
+    "Unexaminable": "CheckEvidence.chart_variant",
+    "CoherenceFinding": "CheckEvidence.metres",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
@@ -736,10 +753,11 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
-    # `CurvePromotion::kind`, the same rule one row over. One word
-    # today (`circle`) and a map rather than a literal because the
-    # recognizer's named exclusions — line-as-degree-1, ellipse, helix,
-    # open arcs — each land here when their follow-up does.
+    # `CurvePromotion::kind`, the same rule one row over. Two words
+    # (`circle`, `line` — the degree-1 follow-up, #388) and a map
+    # rather than a literal because the recognizer's remaining named
+    # exclusions — ellipse, helix, open arcs — each land here when
+    # their follow-up does.
     "PromotedCurveKind": "CurvePromotion.kind",
     # THE OP FAMILIES' REFUSALS, at the same spelling and under the
     # same rule, applied at the carrier that holds the most of them.
@@ -1995,6 +2013,17 @@ NOT_BOUND = {
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
+    # The two CONTAINERS of the chart-coherence vocabulary whose three
+    # discriminants sit in `BOUND_AS` above. Python never holds
+    # either: the registry resident flattens the report into one
+    # `CheckFinding` per finding and one per unexamined loop, so the
+    # facts cross as rows of `ChecksReport.findings` rather than as a
+    # report object, and `Unexamined`'s face and loop are arena keys,
+    # which do not cross at all. The import door's own channel is
+    # unbound on the Python side for the reason `surface_census.rs`
+    # records against `examine_chart_coherence`.
+    "CoherenceReport": SHAPE,
+    "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,

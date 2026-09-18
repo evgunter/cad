@@ -5,7 +5,7 @@ title: The axis-aligned box is built two ways in two homes; the shared home is t
 status: parked
 opened: 2026-09-16
 refs: [topo-tests-brick-copies]
-blocked_on: [topo-one-builder-subsumes-the-cube-and-prism-sequences]
+blocked_on: [thread-the-tolerance-through-the-prism-fixture-family]
 ---
 
 
