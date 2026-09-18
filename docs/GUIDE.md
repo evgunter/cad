@@ -4,12 +4,6 @@
 questions, and export them. It is a library first — everything below
 runs headless, from Rust or from Python, with no GUI in the loop.
 
-One honest note before anything else: **`pncad` is a placeholder
-name.** The project has not been named yet (design question Q9). The
-crate, the Python module, and the prose all say `pncad` today, and
-all of it will be renamed together when the real name is chosen. The
-placeholder is deliberately greppable.
-
 What makes this kernel different from a modelling toolkit you may
 have used before is that **it refuses**. When two faces coincide and
 you have not said they coincide, when a fillet has no corner to sit
@@ -36,8 +30,11 @@ the *document* layer — nodes, edits, evaluation — rather than
 wrapping the Rust authoring calls one for one. Section 2.8 shows why
 that is a deliberate design choice and not a shortfall.
 
-Nothing is published to crates.io or PyPI yet — the project is
-unnamed, so there is nothing to publish under. Build from source.
+Nothing is published to crates.io or PyPI yet, because the project
+has no name to publish under: **`pncad` is a placeholder** (design
+question Q9). The crate, the Python module and the prose all say
+`pncad` today and will be renamed together when the real name is
+chosen; the placeholder is deliberately greppable. Build from source.
 
 ### 1.2 Rust: build, and a first model in a dozen lines
 
@@ -157,17 +154,13 @@ stores the canonical row because there is no notation to keep.
 
 - Section 2 is the canonical journey, end to end, in both languages.
 - Section 3 is parametric modelling — the document layer proper.
-- The corpus index (`docs/guide/examples.md`) maps every worked
-  example in the repo to what it demonstrates.
-- The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
-  vocabulary, layer by layer.
-- Selecting entities (`docs/guide/selecting.md`) is how you name a
-  face or an edge so a later step can refer to it.
-- Assemblies (`docs/guide/assembly.md`) is the step past one
-  document: a workspace of parts, instances of them, mates, and the
-  gate that says the result is valid at rest.
-- The north-star audit (`docs/guide/north-star-audit.md`) says
-  exactly which demos Python can author today.
+- Section 4 indexes the companion pages — the worked-example corpus,
+  the refusal vocabulary, selecting entities, meshing, assemblies —
+  and is the only list of them, so that it cannot drift from a second
+  copy up here.
+
+If you are here because something already refused and you want to read
+the error rather than the journey, skip to `docs/guide/fail-loud.md`.
 
 ## 2. The canonical journey
 

@@ -69,6 +69,15 @@ elimination and this sentence is the record of that** — a better home
 may exist and the row should move to it rather than be built here out
 of inertia.
 
+## Ev's requests — high priority
+
+Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
+order below**: Ev asked for these directly, so they are taken before
+anything else on this slate. Each row carries Ev's note verbatim.
+
+- `save-as-opens-at-the-filesystem-root`
+- `editing-a-profile-does-not-share-the-create-forms-interface`
+
 ## Order
 
 E-first, and the three sibling successors are file-disjoint from this

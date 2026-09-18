@@ -27,16 +27,10 @@
 //! the refusal legitimately retires.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::halfcap_fixture as fixture;
+
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
-
-fn fixture(name: &str) -> String {
-    let path = format!(
-        "{}/tests/fixtures/halfcap/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
-}
 
 /// The generator's parameters, SI: R = 10 mm, base latitude 0.5 rad.
 const R: f64 = 0.010;

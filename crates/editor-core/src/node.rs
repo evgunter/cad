@@ -242,6 +242,53 @@ impl StepArg {
             Self::DirX | Self::DirY | Self::Bulge | Self::Bulge2 => Dimension::Scalar,
         }
     }
+
+    /// **Whether an expression in this role is a RADIUS** — the length
+    /// an arc is drawn at, as against a coordinate or a distance
+    /// travelled.
+    ///
+    /// The distinction is the vocabulary's own and belongs beside
+    /// [`StepArg::dimension`], which cannot make it: every radius is a
+    /// `Length` and so is every coordinate. A consumer asking "which of
+    /// this step's arguments could name the radius of an edge it drew"
+    /// asks here rather than keeping a list of variant names, so a role
+    /// added to this enum is answered by the author of that role and
+    /// not silently missed.
+    ///
+    /// The match is exhaustive and takes no wildcard arm: a new role
+    /// fails to compile until it is dispositioned.
+    #[must_use]
+    pub fn is_radius(self) -> bool {
+        match self {
+            Self::Radius | Self::CarrierRadius | Self::CarrierRadius2 => true,
+            Self::PointX
+            | Self::PointY
+            | Self::TargetX
+            | Self::TargetY
+            | Self::ViaX
+            | Self::ViaY
+            | Self::CenterX
+            | Self::CenterY
+            | Self::DirX
+            | Self::DirY
+            | Self::AngleVal
+            | Self::TurnVal
+            | Self::Length
+            | Self::Bulge
+            | Self::Phase
+            | Self::SweepVal
+            | Self::ArcLenVal
+            | Self::Center2X
+            | Self::Center2Y
+            | Self::Via2X
+            | Self::Via2Y
+            | Self::Target2X
+            | Self::Target2Y
+            | Self::SweepVal2
+            | Self::ArcLenVal2
+            | Self::Bulge2 => false,
+        }
+    }
 }
 
 /// The NAMED expression-slot identities (spec D5: a per-node-type
@@ -752,6 +799,63 @@ pub enum Datum {
 /// gave: a crossing is whatever KIND of edge crossed, and mates are
 /// the only kind of edge that can cross today. A second kind extends
 /// this enum rather than retrofitting a shape onto the first.
+///
+/// **A crossing's two references are FACE names** ([`FaceName`]), the
+/// kind fixed by the type as a mate head's is. A crossing is written
+/// out of the two heads of a mate ([`SitedFace`]s), so the fields are
+/// face names by construction, and this is the record SAYING what the
+/// split guarantees rather than the readers re-asking it. The wire
+/// asks the question once, in `FaceName`'s `Deserialize`, so a file
+/// whose crossing names an edge refuses at the load door's parse; the
+/// split's own re-wrap is one call at this boundary rather than one
+/// per reader.
+///
+/// **A crossing cannot be built from a bare name**, which is the whole
+/// claim, pinned where a claim about types belongs:
+///
+/// ```compile_fail,E0308
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     mate: editor_core::RecipeNodeId(0),
+///     class: editor_core::ContactClass::Rest,
+///     outer: named(editor_core::EntityKind::Edge),
+///     inner: named(editor_core::EntityKind::Edge),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
+///
+/// The RUNNING twin below — the same body, differing only in that the
+/// two references are made through [`FaceName::new`] — is why that
+/// block proves anything; [`SitedFace`]'s doc states the rule, for the
+/// pair it states it about.
+///
+/// ```
+/// let face = || {
+///     editor_core::FaceName::new(named(editor_core::EntityKind::Face))
+///         .expect("a face name is a face")
+/// };
+///
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     mate: editor_core::RecipeNodeId(0),
+///     class: editor_core::ContactClass::Rest,
+///     outer: face(),
+///     inner: face(),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum InterfaceCrossing {
@@ -763,7 +867,7 @@ pub enum InterfaceCrossing {
     /// is the reference that moved into the part, spelled in the
     /// PART's own names — unwrapped, because that is what the part's
     /// product answers to and re-verification resolves against. The
-    /// wrapped form (`outer_head / InPart{ inner }`) is what the
+    /// wrapped form (`outer / InPart{ inner }`) is what the
     /// remainder's mate now reads, and re-wrapping is the split's
     /// rebind, so storing the wrapper twice would be storing a
     /// derivable fact.
@@ -773,10 +877,11 @@ pub enum InterfaceCrossing {
         /// The class the crossing declares.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
-        /// The remainder-side reference.
-        outer: StableName,
-        /// The part-side reference, in the part's own names.
-        inner: StableName,
+        /// The remainder-side reference — the one the mate keeps.
+        outer: FaceName,
+        /// The part-side reference, in the part's own names — the one
+        /// that moved, remapped into the part's node numbering.
+        inner: FaceName,
     },
 }
 
@@ -1057,9 +1162,9 @@ impl SitedRef {
 /// whose head is a bare [`StableName`] does not compile, so no door
 /// downstream has a document to refuse.
 ///
-/// The three boundaries that turn data into names — the wire, the
-/// Python binding, and the viewer's picked face — call
-/// [`FaceName::new`] and answer its refusal in their own vocabulary.
+/// Where a face name comes from is [`FaceName`]'s own doc: the three
+/// boundaries that turn DATA into one, and the single in-crate door
+/// that re-derives one without re-asking the kind.
 ///
 /// **`at` is an A12 READING edge** — never consuming, or the mated
 /// bodies would leave A10's root set. It names the OPERAND the mate is
@@ -3161,22 +3266,17 @@ impl<P> Node<P> {
                     if &*r.name != from {
                         continue;
                     }
-                    // A head's kind is the type's (`FaceName`), and a
-                    // rebind never crosses entity kinds — its door
-                    // refuses that pair — so `to` is a face whenever
-                    // it can replace a head at all. A `to` that is not
-                    // is this crate's bug: asserted here, and answered
-                    // by rewriting nothing, which leaves the count at
-                    // zero and the rebind refusing `RebindNoReferences`
-                    // rather than writing a head the type forbids.
-                    let Ok(next) = FaceName::new(to.clone()) else {
-                        debug_assert!(
-                            false,
-                            "a rebind reached a mate head across entity kinds: \
-                             `DocEdit::Rebind` refuses that pair at its own door"
-                        );
-                        continue;
-                    };
+                    // A head's kind is the TYPE's, not this rewrite's:
+                    // `DocEdit::Rebind` refuses a cross-kind pair at
+                    // its own door, so what `to` contributes here is
+                    // its DERIVATION. That is the one re-derivation
+                    // door (`FaceName::map_derivation`), which cannot
+                    // change a kind — so there is no arm to assert
+                    // away, and `Infallible` is the whole of what can
+                    // go wrong.
+                    let Ok(next) = r.name.map_derivation(|_, _| {
+                        Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
+                    });
                     let at_mint = r.at == r.name.node;
                     r.name = next;
                     if at_mint {
