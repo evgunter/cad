@@ -2,9 +2,11 @@
 id: thread-the-tolerance-through-the-prism-fixture-family
 kind: issue
 title: Link 2: thread tol through the prism fixture family, which witness-not-ambient forces before the move
-status: open
+status: closed
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
+closed: 2026-09-18
+pr: 2839
 ---
 
 

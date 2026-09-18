@@ -435,3 +435,66 @@ byte-identical pair inside one test binary. Every instrument this
 program has used keys on a builder (`mvfs(`, `find_half_edge(seed`, a
 name); **none can see a duplicated profile *literal***. The class needs
 an instrument that greps the constant, not the construction.
+
+### Link 2 landed (2026-09-18, PR #2839) — and the row's own count was a file read twice
+
+`tol: Tol` threaded through the prism fixture family, **727 call sites
+across 75 files**, every one passing `Tol::witness()`.
+
+**The gate premise was re-confirmed rather than inherited.** Planting a
+`Tol::witness()` in `test_support_impl.rs` fired
+`witness-not-ambient.sh` at the named line; reverting returned it green
+over **436** source files, against 434 two days earlier — the
+production set grew by two while nobody was looking, which is the
+reason to re-check a premise rather than cite it.
+
+**The count was wrong in a new way.** This row said "24 across the
+family with 17 in this file", which reads as a total against a
+subtotal. It was neither: both are the **same file at different
+commits** — 24 before S-DUP, 17 after link 1, 10 after link 1b, which
+is where link 2 found it. Link 1b had already done the larger half of
+link 2's work before link 2 was written. A lane taking the row at its
+word would have hunted seven witnesses outside the file and found none.
+**Five units in, every count has been wrong; this is the first one
+wrong about its own SHAPE rather than its magnitude.**
+
+**Why this was safely style tier, stated better by the lane than by the
+brief.** `Tol::witness()` returns `Self(())` — `Tol` is a ZST with
+exactly one inhabitant, so `tol == Tol::witness()` at every threaded
+site **by construction**, not by convention. The unit is provably
+verdict-neutral rather than merely tested-green. Verified at
+`crates/geom-core/src/tolerance.rs`. Three independent checks anyway:
+that argument, the `cube_doors_agree` guard link 1b built for exactly
+this, and a whitespace-normalised differ finding 71 of 75 changed files
+byte-identical once witness calls and commas are stripped (the other
+four being the threaded signatures and three rustfmt reflows).
+
+**Two operational findings worth carrying forward.**
+
+- **The compiler is an enumerator, and one configuration is not the
+  set.** Default went green with 727 sites rewritten; `--features
+  interval` then produced **42 more** and `probe` **7 more**. A lane
+  that stopped at `cargo test -p topo` would have pushed a red branch.
+- **rustc's missing-argument placeholder has two spellings** —
+  `/* Tol */` where the type is imported, `/* geom_core::Tol */` where
+  it is not. A rewrite keyed on the first leaves literal placeholders
+  that are a **parse error**, so the compiler stops before reporting
+  the remaining sites and repeated passes converge on a fixed point
+  that is not green. Caught by reading error TEXT, not error counts.
+
+**Two corrections to things this orchestrator wrote.** The
+`cert_m3r1_probes` copy does not unblock with link 2 on a gate
+argument: `lib.rs:169` mounts it `#[cfg(test)] mod`, so the gate never
+reads it and its twelve witnesses are legal and stay legal — what
+forces that copy is **namability**, not the gate. And link 3's
+destination is not settled: `crates/topo/src/fixtures.rs` already
+exists, already holds fixture vocabulary, already carries the
+`#![allow]` with its argument, and already has the post-link-2
+signature; it is `pub(crate)`, which is precisely why
+`tests/common/mod.rs` exists separately. Recorded on link 3's row as
+one of three options, with the measurement that decides between them.
+
+**Link 3 is now open** — its last blocker closed, so the row is
+dispatchable rather than parked. That is the third face of
+`work/README.md`'s fired-trigger rule this program has hit: re-park,
+re-park, and now simply open.

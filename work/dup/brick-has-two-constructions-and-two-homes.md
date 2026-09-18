@@ -2,10 +2,9 @@
 id: brick-has-two-constructions-and-two-homes
 kind: issue
 title: The axis-aligned box is built two ways in two homes; the shared home is topo's, not sweep's
-status: parked
+status: open
 opened: 2026-09-16
 refs: [topo-tests-brick-copies]
-blocked_on: [thread-the-tolerance-through-the-prism-fixture-family]
 ---
 
 
@@ -426,3 +425,41 @@ legal where they sit, and the gate is not what unblocks that copy.
 What unblocks it is namability alone, exactly as this row says: nothing
 in `src/` can name `tests/common`. Link 3 should not expect the gate to
 force the issue there.
+
+## A home already exists in `src/`, and link 3's destination question is sharper than this row states
+
+Found while adjudicating link 2 (2026-09-18). **`crates/topo/src/fixtures.rs`
+exists** — 40 KB of fixture vocabulary, mounted `pub(crate) mod fixtures;`
+at `lib.rs:158`, carrying the file-level
+`#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]`
+with its argument written out (*"Test-support code: panicking is a
+test's failure mechanism (L5), and fixture unwraps are on keys the
+fixture itself just minted"*), and exporting a `prism(n, tol)` whose
+signature link 2 just converged the `tests/` family onto.
+
+It is **`pub(crate)`**, which is exactly why `tests/common/mod.rs`
+exists separately: a `tests/` binary is a separate crate and cannot
+name a `pub(crate)` item. So the two homes are not rivals by accident —
+one is unreachable from the other by construction.
+
+**This row says the family moves to `src/test_support_impl.rs`. That is
+now one of at least three options**, and link 3 has to choose rather
+than inherit:
+
+1. `test_support_impl.rs` — this row's original answer, gated and
+   already re-exported as `topo::test_support`.
+2. **`fixtures.rs`, made nameable** — it already holds fixture
+   vocabulary, already carries the `#![allow]` with its reason, and
+   already has the post-link-2 signature. The change is its visibility,
+   not its contents.
+3. A **sibling module** re-exported through `test_support`, which is
+   what link 2's lane recommended on the ground that an inner
+   `#![allow]` scopes to its module and `ArenaCounts` — the one item in
+   `test_support_impl.rs` with a non-test consumer, the D1 debug
+   postcondition — compiles clean without it and should not inherit a
+   blanket allow it does not earn.
+
+Option 2 was invisible to this row when it was written, and it is the
+one that would make the move smallest. **Measure before choosing**: how
+much of `fixtures.rs` duplicates what `tests/common/mod.rs` holds is
+unknown and is the number that decides it.
