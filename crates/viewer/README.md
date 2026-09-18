@@ -1889,9 +1889,9 @@ allowed — the decision `scripts/doc-gate.sh`'s header argues and its own
 selftest pins. **A module-scoped private `const` or `fn` does not**, and
 `--document-private-items` does not change that: the flag decides what
 rustdoc RENDERS, while a path is resolved by ordinary visibility, and
-`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+`crate::gpu::EDGE_CLIP_Z_LIFT` is not a path anyone outside `gpu` may
 write. Measured by planting it: the all-features pass errors
-*"no item named `EDGE_CLIP_Z_SHRINK` in module `gpu`"*. So
+*"no item named `EDGE_CLIP_Z_LIFT` in module `gpu`"*. So
 `pickindex.rs`'s and `gpu.rs`'s deliberate pointer pair over their two
 slack constants stays NAMED at both ends — the one population this
 section's linking rule cannot reach, and the reason is visibility rather

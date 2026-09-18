@@ -43,14 +43,22 @@ fn view_from(eye: [f64; 3]) -> View {
     view_at(eye, [0.0, 0.0, 0.0])
 }
 
-/// A view from `eye` pointed at `look_at`.
+/// A view from `eye` pointed at `look_at`, a 1280x800 window with
+/// world +z up on screen — or +y, looking along z, where +z has no
+/// screen direction.
 fn view_at(eye: [f64; 3], look_at: [f64; 3]) -> View {
     let height = 800.0;
+    let along_z = eye[0] == look_at[0] && eye[1] == look_at[1];
     View {
         eye: Point3::new(eye[0], eye[1], eye[2]),
         look_at: Point3::new(look_at[0], look_at[1], look_at[2]),
         metres_per_pixel_at_one_metre: 2.0 * (core::f64::consts::FRAC_PI_8).tan() / height,
-        viewport_px: 1280.0,
+        up: if along_z {
+            Vec3::new(0.0, 1.0, 0.0)
+        } else {
+            Vec3::new(0.0, 0.0, 1.0)
+        },
+        window_px: [1280.0, height],
     }
 }
 
@@ -387,7 +395,7 @@ fn no_zoom_leaves_the_eye_inside_a_grid_cell() {
         );
         // And the drawing itself covers the window at that distance.
         let segments = &draws(&doc, tol, [0.0, 0.0, height])[0].segments;
-        let window = per_pixel * view.viewport_px;
+        let window = per_pixel * view.window_px[0];
         assert!(
             reach(segments, [0.0, 0.0, 0.0]) >= window * 0.5,
             "at {height:.5} m the patch reached {:.5} m, inside the {window:.5} m window",
@@ -395,6 +403,69 @@ fn no_zoom_leaves_the_eye_inside_a_grid_cell() {
         );
         height *= 0.5;
     }
+}
+
+/// **A plane seen at a grazing angle is ruled across the window and
+/// out toward its horizon**, not in a square that ends partway up it.
+///
+/// The eye is a metre from the looked-at point and five degrees above
+/// the plane. The two bottom corners of the window look down onto the
+/// plane, and where they land has to be inside the ruling; the top of
+/// the window looks above the horizon, so the ruling runs away from
+/// the eye until cells shrink below legibility — several metres here.
+///
+/// **The value that makes this false** is a patch sized as if the
+/// plane faced the eye: 2.2 windows at the looked-at depth, which
+/// reaches about 1.5 m along the plane and ends in plain view.
+#[test]
+fn a_grazing_view_is_ruled_to_the_window_and_toward_the_horizon() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    let elevation = 5.0_f64.to_radians();
+    let eye = [0.0, -elevation.cos(), elevation.sin()];
+    let view = view_at(eye, [0.0, 0.0, 0.0]);
+    let segments = &drawn_under(&doc, tol, view)[0].segments;
+    let ruled: Vec<[f64; 3]> = segments
+        .chunks_exact(2)
+        .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+        .flatten()
+        .copied()
+        .collect();
+    assert!(!ruled.is_empty(), "the plane ruled nothing");
+    let bound = |axis: usize, pick: fn(f64, f64) -> f64, start: f64| {
+        ruled.iter().map(|p| p[axis]).fold(start, pick)
+    };
+    let (x_lo, x_hi) = (
+        bound(0, f64::min, f64::INFINITY),
+        bound(0, f64::max, f64::NEG_INFINITY),
+    );
+    let (y_lo, y_hi) = (
+        bound(1, f64::min, f64::INFINITY),
+        bound(1, f64::max, f64::NEG_INFINITY),
+    );
+    // The window's bottom corners, cast onto the plane by hand: the
+    // view looks along +y and down, with +x to the right.
+    let forward = [0.0, elevation.cos(), -elevation.sin()];
+    let up = [0.0, elevation.sin(), elevation.cos()];
+    let half_x = view.window_px[0] * 0.5 * view.metres_per_pixel_at_one_metre;
+    let half_y = view.window_px[1] * 0.5 * view.metres_per_pixel_at_one_metre;
+    for side in [-1.0_f64, 1.0] {
+        let dir = [
+            side * half_x,
+            forward[1] - up[1] * half_y,
+            forward[2] - up[2] * half_y,
+        ];
+        let t = -eye[2] / dir[2];
+        let hit = [eye[0] + dir[0] * t, eye[1] + dir[1] * t];
+        assert!(
+            (x_lo..=x_hi).contains(&hit[0]) && (y_lo..=y_hi).contains(&hit[1]),
+            "the window's bottom corner sees {hit:?}, outside the ruling \
+             x {x_lo:.3}..{x_hi:.3}, y {y_lo:.3}..{y_hi:.3}",
+        );
+    }
+    assert!(
+        y_hi > 2.5,
+        "the ruling stops {y_hi:.3} m along the plane, in plain view below the horizon",
+    );
 }
 
 /// **The pitch holds still, and only steps.**
@@ -738,7 +809,7 @@ fn an_axis_is_drawn_along_its_direction() {
     let foot = eye[2];
     assert!(a[2] < foot && b[2] > foot, "{a:?} .. {b:?} misses the eye");
     let view = view_from(eye);
-    let window = view.metres_per_pixel_at_one_metre * 0.15 * view.viewport_px;
+    let window = view.metres_per_pixel_at_one_metre * 0.15 * view.window_px[0];
     assert!(
         (b[2] - a[2]) > window,
         "the axis spanned {:.4} m against a {window:.4} m window",
@@ -973,11 +1044,11 @@ fn a_datum_at_the_eye_draws_no_mark() {
     }
 }
 
-/// **A window whose larger side is not a number of pixels rules no
+/// **A window whose width is not a number of pixels rules no
 /// patch**, while the marks that do not measure in windows stay.
 ///
-/// [`View::viewport_px`] is the caller's number, and the patch is the
-/// one mark sized from it — so this is the door where a viewport that
+/// [`View::window_px`] is the caller's number, and the patch is the
+/// one plane mark sized from it — so this is the door where a viewport that
 /// is not one has to be refused, and the normal tick, which is sized
 /// in pixels at the origin, is the mark that proves the refusal was
 /// the patch's alone.
@@ -989,7 +1060,7 @@ fn a_datum_at_the_eye_draws_no_mark() {
 fn a_viewport_that_is_not_a_number_of_pixels_rules_nothing() {
     let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
     let mut view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
-    view.viewport_px = f64::NAN;
+    view.window_px[0] = f64::NAN;
     let segments = &drawn_under(&doc, tol, view)[0].segments;
     // The plane is z = 0, so a ruled line is the pair that stays on
     // it and the normal tick is the pair that leaves it — the shape
@@ -1008,24 +1079,22 @@ fn a_viewport_that_is_not_a_number_of_pixels_rules_nothing() {
     );
 }
 
-/// **A patch that contains no multiple of the pitch rules NO line**,
-/// where a patch that contains exactly one rules that one.
+/// **A window that sees less than one cell rules the whole cells
+/// around what it sees**, and never nothing.
 ///
-/// The two are the same integer zero out of `last - first`, and a
-/// float→int cast cannot separate them: it saturates, so a negative
-/// difference reads as the count that means "one line fits".
+/// The ruling rounds its region OUTWARD to lattice lines, so a window
+/// inside one cell draws that cell's four sides, and a window
+/// straddling a lattice line draws the two cells either side of it —
+/// three lines a direction. Rounded inward, the first window would
+/// rule no line at all: the plane would be on screen with nothing
+/// drawn to say so, which is the hole view-relative sizing exists to
+/// close.
 ///
-/// **The value that makes this false** is a line at `2 * pitch`,
-/// `0.005 m` from a patch about `9e-4 m` wide — a ruling of a patch
-/// that lies entirely between two lattice lines.
-///
-/// **Both aims are driven**, because "ruled none" is satisfied by
-/// anything that declines to rule at all: a guard that refused a
-/// four-pixel viewport outright would turn the first half green for
-/// the wrong reason. The second half is the same view moved onto a
-/// lattice line, where one line per direction is the answer.
+/// **The value that makes this false** is a ruling that rounds either
+/// end inward: the first aim then loses both of its lines per
+/// direction, the second its outer two.
 #[test]
-fn a_patch_between_two_lattice_lines_rules_neither() {
+fn a_window_inside_one_cell_rules_that_cell() {
     let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
     // The eye a fixed tenth of a metre above the looked-at point, so
     // the pitch does not move as the aim does and can be solved for
@@ -1034,22 +1103,20 @@ fn a_patch_between_two_lattice_lines_rules_neither() {
     let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
     // Aimed at the middle of a cell, then at a lattice line. The
     // plane's normal is +z, so `basis` gives `u = +y` and `v = -x`
-    // and a look_at of `[-a, a, 0]` puts both patch coordinates at
+    // and a look_at of `[-a, a, 0]` puts both plane coordinates at
     // `a`.
-    for (multiple, want) in [(1.5_f64, 0), (2.0, 2)] {
+    for (multiple, want) in [(1.5_f64, 4), (2.0, 6)] {
         let aim = multiple * pitch;
         let look_at = [-aim, aim, 0.0];
         let mut view = view_at([look_at[0], look_at[1], 0.1], look_at);
-        view.viewport_px = 4.0;
-        // The premise, asserted rather than assumed, and read from
-        // the module rather than restated: the patch's half-width is
-        // `viewport_px * patch_cover() * 0.5 * per_pixel`, so a
-        // four-pixel window's patch is a thousandth of a cell and
-        // holds at most the one lattice line it straddles.
-        let half = view.viewport_px * datums::patch_cover() * 0.5 * per_pixel;
+        view.window_px = [4.0, 4.0];
+        // The premise, asserted rather than assumed: looking straight
+        // down, a four-pixel window sees a square two pixels' worth of
+        // plane either side of the aim, well inside half a cell.
+        let half = 2.0 * per_pixel;
         assert!(
             half < pitch * 0.5,
-            "this row needs a patch narrower than a cell: {half:e} m against {pitch:e} m",
+            "this row needs a window narrower than a cell: {half:e} m against {pitch:e} m",
         );
         let segments = &drawn_under(&doc, tol, view)[0].segments;
         let ruled: Vec<_> = segments
@@ -1059,9 +1126,48 @@ fn a_patch_between_two_lattice_lines_rules_neither() {
         assert_eq!(
             ruled.len(),
             want,
-            "a patch centred {multiple} pitches from the origin ruled {} lines: {:?}",
+            "a window centred {multiple} pitches from the origin ruled {} lines: {:?}",
             ruled.len(),
             ruled.first(),
+        );
+    }
+}
+
+/// **What `datum_view` answers for a window it takes**: the camera's
+/// eye, target and up, the window's two sides in their own order, and
+/// the vertical field over the vertical pixel count.
+///
+/// Through the door, because every other row here drives a
+/// hand-built [`View`] (`view_at`) and so agrees with the door by
+/// construction and never through it. A wide window and a tall one,
+/// so a door that swapped the sides, or scaled by the larger one,
+/// reds one of them.
+#[test]
+fn datum_view_reports_the_camera_and_the_window_it_is_given() {
+    let camera = common::framed(16.0 / 9.0);
+    for (width_px, height_px) in [(1280.0, 720.0), (600.0, 900.0)] {
+        let view = datum_view(
+            &camera,
+            ViewportSize {
+                width_px,
+                height_px,
+            },
+        )
+        .expect("a finite window with area has a view");
+        assert_eq!(view.window_px, [width_px, height_px]);
+        // Component-wise: the geometry types carry no `PartialEq`.
+        let (eye, target, up) = (camera.eye(), camera.target(), camera.up());
+        assert_eq!([view.eye.x, view.eye.y, view.eye.z], [eye.x, eye.y, eye.z]);
+        assert_eq!(
+            [view.look_at.x, view.look_at.y, view.look_at.z],
+            [target.x, target.y, target.z],
+        );
+        assert_eq!([view.up.x, view.up.y, view.up.z], [up.x, up.y, up.z]);
+        let scale = 2.0 * (camera.fov_y() * 0.5).tan() / height_px;
+        assert!(
+            (view.metres_per_pixel_at_one_metre - scale).abs() <= scale * 1.0e-15,
+            "a {width_px} x {height_px} window scaled {} against {scale}",
+            view.metres_per_pixel_at_one_metre,
         );
     }
 }
@@ -1218,11 +1324,8 @@ fn a_hand_built_view_that_is_not_pixels_still_draws_no_invented_mark() {
             eye: Point3::new(0.0, 0.0, 0.15),
             look_at: Point3::new(0.0, 0.0, 0.0),
             metres_per_pixel_at_one_metre: 2.0 * (core::f64::consts::FRAC_PI_8).tan() / height_px,
-            viewport_px: if width_px.is_nan() || height_px.is_nan() {
-                f64::NAN
-            } else {
-                width_px.max(height_px)
-            },
+            up: Vec3::new(0.0, 1.0, 0.0),
+            window_px: [width_px, height_px],
         };
         let (doc, tol) = evaluated(one_of_each([0.0, 0.0, 0.0]));
         let drawn = drawn_under(&doc, tol, view);
@@ -1431,7 +1534,7 @@ fn a_datum_that_drew_some_of_itself_has_not_vanished() {
     // and stays. The same view the ruling row beside this one uses.
     let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
     let mut view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
-    view.viewport_px = f64::NAN;
+    view.window_px[0] = f64::NAN;
     let drawn = drawn_draws(&doc, tol, view);
     assert_eq!(drawn.drawn.len(), 1, "one plane");
     let ruled = drawn.drawn[0]

@@ -15,7 +15,9 @@ doc block spliced onto another one, or onto itself — and one of them
 leaves a function undocumented. Line numbers are as of PR 1776's head;
 the function names are the durable anchors.
 
-1. **`tip_mark`, `app.rs:255` — a doc line spliced onto itself.** The
+1. **Discharged by #2829, which deleted `tip_mark` (tip marks are
+   now sized in pixels, `sketch::TIP_MARK_PX`).** Kept for the record:
+   **`tip_mark`, `app.rs:255` — a doc line spliced onto itself.** The
    line reads
    `/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane`
    — one summary, twice, with the second copy's `///` in the middle of
