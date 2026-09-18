@@ -3703,3 +3703,8 @@ accepted), 228 mod 3 = **0** ⇒ fable position 0 — slots
 `docs/EXCH-H1-SPEC.md`). Slots 1–2 bank for the next EXCH units.
 This record merges to main when the block concludes, per the
 branch-side shape.
+
+Slot 0 (fable) CONCLUDED 2026-09-17 at EXCH-H1's merge (#1798;
+row on main, ordinal 2100, sample #220, pair tally-excluded per
+3(e)). Slots 1–2 (opus, opus) remain banked for the next EXCH
+kernel units.
