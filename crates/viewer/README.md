@@ -968,10 +968,10 @@ device half installs is held by nothing here and cannot be: a render
 state wants an adapter, which is the same wall
 `gpu`'s `every_pass_builds_on_a_real_device` stands at.
 
-Three items move out of `app` to modules that already own their
+Two items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
-`tip_mark` with `heading` to `sketch` — all three are geometry over
-values the receiving module already defines, and none names `egui`.
+`heading` to `sketch` — both are geometry over values the receiving
+module already defines, and neither names `egui`.
 
 ### What a vocabulary reads, it is handed
 
