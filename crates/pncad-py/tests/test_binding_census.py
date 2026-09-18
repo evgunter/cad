@@ -736,10 +736,11 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
-    # `CurvePromotion::kind`, the same rule one row over. One word
-    # today (`circle`) and a map rather than a literal because the
-    # recognizer's named exclusions — line-as-degree-1, ellipse, helix,
-    # open arcs — each land here when their follow-up does.
+    # `CurvePromotion::kind`, the same rule one row over. Two words
+    # (`circle`, `line` — the degree-1 follow-up, #388) and a map
+    # rather than a literal because the recognizer's remaining named
+    # exclusions — ellipse, helix, open arcs — each land here when
+    # their follow-up does.
     "PromotedCurveKind": "CurvePromotion.kind",
     # THE OP FAMILIES' REFUSALS, at the same spelling and under the
     # same rule, applied at the carrier that holds the most of them.
