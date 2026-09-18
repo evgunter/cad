@@ -1862,6 +1862,14 @@ impl DocSession {
     /// Insert one datum node with literal slots
     /// ([`SessionOp::AddDatum`]).
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
+        // An axis in a sketch names its frame by PICK, so it is gated
+        // at this door by kind, as the add-profile door gates its
+        // plane.
+        if let DatumSpec::AxisInPlane { plane, .. } = &datum
+            && let Err(refusal) = self.require_kind(*plane, NodeKindWanted::Frame)
+        {
+            return OpOutcome::refused(refusal);
+        }
         self.commit(DocEdit::InsertNode {
             node: datum_node(datum),
         })

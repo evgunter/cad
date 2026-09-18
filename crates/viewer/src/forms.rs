@@ -91,70 +91,64 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 }
 
 vocabulary! {
-    /// The add-datum form's kind choice — one form, and **four of
-    /// [`crate::session::DatumSpec`]'s five arms**. An enum rather
-    /// than an index into a label list, so every consumer matches
-    /// exhaustively and a fifth kind cannot leave a silent wildcard
-    /// arm behind.
+    /// The add-datum form's kind choice — one form, and **every arm of
+    /// [`crate::session::DatumSpec`]**. An enum rather than an index
+    /// into a label list, so every consumer matches exhaustively and a
+    /// new kind cannot leave a silent wildcard arm behind.
     ///
-    /// The arm this does not offer is `AxisInPlane`, a sketch axis:
-    /// it needs a frame PICK before it has coordinates, which is not
-    /// what this form collects. So the mirror is deliberately partial
-    /// in one direction — every kind here lowers to a spec
-    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
-    /// every spec has a kind here.
+    /// `AxisInPlane` is the one kind that needs a PICK as well as
+    /// numbers: its frame is a document node, chosen from the frames
+    /// the document holds, and its origin and direction are that
+    /// frame's own 2-D coordinates. It is what the revolve tool's axis
+    /// seat takes, so without it here that seat could not be filled
+    /// from the running application.
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
     /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
     /// DRAWN, which partitions the datum VALUES rather than selecting
     /// among the specs. This crate already spells a form's choice
     /// apart from the thing chosen among that way
-    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]), and
-    /// this was the one form choice that did not. The two carry the
-    /// same four members today only because `AxisInPlane` happens to
-    /// be both the spec this form does not author and the value that
-    /// tag collapses onto `Axis` — nothing holds that identity and
-    /// nothing should, since a datum that drew distinctly but needed a
-    /// PICK to author would be a member there and none here. `ALL` is
-    /// this side's alone in consequence: it is the radio row's
-    /// offering, in form order, and a drawing's tag claims no such
-    /// thing.
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]). The
+    /// two do not have the same members: an axis in a sketch is its
+    /// own choice here, because authoring one takes a frame pick, and
+    /// is drawn as the axis it is, so the draw tag has no member for
+    /// it. `ALL` is this side's alone in consequence: it is the radio
+    /// row's offering, in form order, and a drawing's tag claims no
+    /// such thing.
     ///
-    /// **A partial mirror, told when `DatumSpec` grows.** The
-    /// direction the compiler already held is kind-to-spec:
-    /// `pane::create`'s lowering match is exhaustive over
-    /// this enum, so a choice with no spec to lower to does not
-    /// build. Spec-to-kind was held by nothing, so a `DatumSpec` arm
-    /// this form SHOULD offer could arrive with no form edit and
-    /// nothing saying so — not hypothetical, since `AxisInPlane` is
-    /// exactly that, and the revolve tool ships with a seat no form
-    /// can fill in consequence.
-    /// The `partial_mirror!` invocation below is the roster that now
-    /// classifies every `DatumSpec` arm as offered here or as
-    /// deliberately absent with its reason. It takes the `onto` shape
-    /// rather than a seat roster because the offering is an ENUM whose
-    /// `ALL` is projected from its declaration, so naming a
-    /// counterpart there already says the radio row draws it
+    /// **Held to `DatumSpec` by a roster.** The direction the compiler
+    /// already held is kind-to-spec: `pane::create`'s lowering match
+    /// is exhaustive over this enum, so a choice with no spec to lower
+    /// to does not build. The `partial_mirror!` invocation below holds
+    /// spec-to-kind: every `DatumSpec` arm is classified as offered
+    /// here or as deliberately absent with its reason, so a new arm
+    /// cannot arrive with no form edit and nothing saying so. Every
+    /// arm is offered today and the absent section is empty. It takes
+    /// the `onto` shape rather than a seat roster because the offering
+    /// is an ENUM whose `ALL` is projected from its declaration, so
+    /// naming a counterpart there already says the radio row draws it
     /// (`crates/viewer/src/vocab.rs`).
     ///
     /// **That roster holds nothing between this enum and
-    /// [`crate::datums::DatumKind`]**, which stay two types whose four
-    /// members match by coincidence: what it mirrors is `DatumSpec`,
+    /// [`crate::datums::DatumKind`]**: what it mirrors is `DatumSpec`,
     /// and the draw tag is not party to it.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
-    /// a stated direction on it.
+    /// a stated direction on it — and the axis in a sketch sits next to
+    /// the axis for the same reason.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum DatumKindChoice {
         /// A plane datum.
         Plane = "plane",
         /// A sketch frame — an oriented plane.
         Frame = "frame",
-        /// An axis datum.
+        /// An axis datum, in world coordinates.
         Axis = "axis",
+        /// An axis written in a picked sketch frame — a revolve's axis.
+        AxisInPlane = "axis in sketch",
         /// A point datum.
         Point = "point",
     }
@@ -169,16 +163,10 @@ partial_mirror! {
         Plane { .. } => Plane,
         Axis { .. } => Axis,
         Point { .. } => Point,
+        AxisInPlane { .. } => AxisInPlane,
         Frame { .. } => Frame,
     ],
-    absent [
-        AxisInPlane { .. } => "its frame is a PICK and not a field, and \
-                               this form authors plain numbers; making it \
-                               authorable moves this entry to the offered \
-                               section and grows the enum above by one, \
-                               which is what the revolve tool's unfillable \
-                               seat asks for",
-    ],
+    absent [],
 }
 
 vocabulary! {

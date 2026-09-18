@@ -20,7 +20,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::ProfileShape;
+use crate::session::{DatumSpec, ProfileShape};
 use crate::sketch::{self, PathStep, PathTarget};
 
 /// Transient text a panel is mid-edit on.
@@ -99,6 +99,21 @@ pub(crate) struct Drafts {
     pub(crate) datum_u: [f64; 3],
     /// The frame form's sketch +y axis.
     pub(crate) datum_v: [f64; 3],
+    /// **The frame an axis-in-sketch is written in** — `None` until
+    /// one is picked, for [`Self::profile_plane`]'s reason: the frame
+    /// is a document node, so the form names one that exists.
+    ///
+    /// Its own pick rather than the profile form's, because the two
+    /// forms are filled in separately. A revolve does need both nodes
+    /// written against the SAME frame, which the form says beside the
+    /// picker.
+    pub(crate) datum_frame: Option<RecipeNodeId>,
+    /// The axis-in-sketch form's point on the axis, metres, in the
+    /// picked frame's 2-D coordinates.
+    pub(crate) datum_in_frame_origin: [f64; 2],
+    /// Its direction in the same coordinates (unitless). Opens as the
+    /// frame's +y, the axis a profile drawn beside it turns about.
+    pub(crate) datum_in_frame_direction: [f64; 2],
     /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
@@ -217,6 +232,9 @@ impl Default for Drafts {
             datum_direction: [0.0, 0.0, 1.0],
             datum_u: [1.0, 0.0, 0.0],
             datum_v: [0.0, 1.0, 0.0],
+            datum_frame: None,
+            datum_in_frame_origin: [0.0; 2],
+            datum_in_frame_direction: [0.0, 1.0],
             length_unit: quantity::M,
             angle_unit: quantity::PI,
             profile_shape: None,
@@ -345,6 +363,50 @@ impl Drafts {
     pub(crate) fn lengths(&self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
         Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
     }
+
+    /// **The add-datum form's drafts as a spec**, for the kind chosen:
+    /// lengths in the form's notation, a normal or a direction
+    /// dimensionless. `None` for an axis in a sketch whose frame is not
+    /// picked yet — the form holds its button until it is.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub(crate) fn datum_spec(&self) -> Result<Option<DatumSpec>, DimensionError> {
+        Ok(Some(match self.datum_kind {
+            DatumKindChoice::Plane => DatumSpec::Plane {
+                origin: self.lengths(self.datum_origin)?,
+                normal: scalars(self.datum_direction)?,
+            },
+            DatumKindChoice::Frame => DatumSpec::Frame {
+                origin: self.lengths(self.datum_origin)?,
+                u: scalars(self.datum_u)?,
+                v: scalars(self.datum_v)?,
+            },
+            DatumKindChoice::Axis => DatumSpec::Axis {
+                origin: self.lengths(self.datum_origin)?,
+                direction: scalars(self.datum_direction)?,
+            },
+            DatumKindChoice::AxisInPlane => {
+                let Some(plane) = self.datum_frame else {
+                    return Ok(None);
+                };
+                let [ox, oy] = self.datum_in_frame_origin;
+                let [dx, dy] = self.datum_in_frame_direction;
+                DatumSpec::AxisInPlane {
+                    plane,
+                    origin: [self.length(ox)?, self.length(oy)?],
+                    direction: [
+                        Expr::literal(dx, Dimension::Scalar)?,
+                        Expr::literal(dy, Dimension::Scalar)?,
+                    ],
+                }
+            }
+            DatumKindChoice::Point => DatumSpec::Point {
+                position: self.lengths(self.datum_origin)?,
+            },
+        }))
+    }
 }
 
 /// Three dimensionless literals — a normal, a direction, a rotation
@@ -396,5 +458,72 @@ impl std::fmt::Display for CommitFault {
             Self::Seat(error) => error.fmt(f),
             Self::Dimension(error) => error.fmt(f),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::RecipeNodeId;
+
+    use super::Drafts;
+    use crate::forms::DatumKindChoice;
+    use crate::seats::Seat;
+    use crate::session::author::datum_node;
+    use crate::session::{NodeKindWanted, admits};
+
+    /// **Every seat a datum fills can be filled from the add-datum
+    /// form.** Each choice the form offers is lowered from its default
+    /// drafts, with a frame picked, and every datum seat must admit at
+    /// least one of the nodes that produces — the question the seat's
+    /// own gate asks of a pick.
+    ///
+    /// The frame id is arbitrary: `admits` reads the node's kind, and
+    /// whether the id names a frame is the add-datum door's question.
+    #[test]
+    fn every_datum_seat_is_fillable_from_the_add_datum_form() {
+        let authorable: Vec<_> = DatumKindChoice::ALL
+            .into_iter()
+            .map(|(datum_kind, _)| {
+                let drafts = Drafts {
+                    datum_kind,
+                    datum_frame: Some(RecipeNodeId(0)),
+                    ..Drafts::default()
+                };
+                let spec = drafts.datum_spec().expect("the default drafts are finite");
+                datum_node(spec.expect("a frame is picked"))
+            })
+            .collect();
+        for seat in Seat::ALL {
+            let wanted = seat.wants();
+            match wanted {
+                // Made by the add-profile form and by the ops that
+                // produce bodies, not by this one.
+                NodeKindWanted::Profile | NodeKindWanted::Body => continue,
+                NodeKindWanted::Axis
+                | NodeKindWanted::SketchAxis
+                | NodeKindWanted::Plane
+                | NodeKindWanted::Frame => {}
+            }
+            assert!(
+                authorable.iter().any(|node| admits(Some(node), wanted)),
+                "the {} seat wants {} and no add-datum choice authors one",
+                seat.name(),
+                wanted.name(),
+            );
+        }
+    }
+
+    /// An axis in a sketch with no frame picked lowers to nothing,
+    /// rather than to a spec naming some frame the person did not pick.
+    #[test]
+    fn an_axis_in_a_sketch_waits_for_its_frame() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::AxisInPlane,
+            ..Drafts::default()
+        };
+        assert!(matches!(drafts.datum_spec(), Ok(None)));
     }
 }

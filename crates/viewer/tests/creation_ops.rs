@@ -776,6 +776,30 @@ fn extrude_and_revolve_require_their_node_kinds() {
         );
     }
 
+    // The add-datum door, for the axis a revolve takes: its frame is
+    // a pick, and a plane datum or a feature is not a frame. Nothing
+    // lands.
+    let before = session.committed_doc().order().len();
+    for wrong in [extrude, plane] {
+        let refused = session.perform(SessionOp::AddDatum {
+            datum: DatumSpec::AxisInPlane {
+                plane: wrong,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
+            },
+        });
+        assert!(
+            matches!(
+                refused.refusal,
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
+                    if node == wrong
+            ),
+            "{:?}",
+            refused.refusal
+        );
+    }
+    assert_eq!(session.committed_doc().order().len(), before);
+
     // The happy path inserts the revolve with both references.
     let revolve = insert(
         &mut session,

@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{AxisSense, BooleanOp, DimensionError, DocumentId, MatePrimitive};
+use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -18,12 +18,12 @@ use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
-use crate::session::{DatumSpec, SessionOp};
+use crate::session::SessionOp;
 use crate::sketch::{self, PreviewError};
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, fresh_step, length_picker, number_field, path_step_fields, unit_field,
-    unit_vec3_row, vec3_row,
+    angle_picker, fresh_step, length_picker, number_field, path_step_fields, point_fields,
+    unit_field, unit_vec3_row, vec3_row,
 };
 
 /// **The smallest pattern count the form offers.**
@@ -35,6 +35,34 @@ use crate::widgets::{
 /// the slot afterwards, and a cap here would be a limit the document
 /// does not have.
 pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
+
+/// **A form's frame pick**: a combo over the document's frames, or a
+/// line saying there are none. One widget for every form that writes
+/// against a frame, so they name frames one way.
+fn frame_picker(
+    ui: &mut egui::Ui,
+    label: &str,
+    salt: &str,
+    frames: &[RecipeNodeId],
+    picked: &mut Option<RecipeNodeId>,
+) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        if frames.is_empty() {
+            ui.weak("none in this document — add a frame datum first");
+        } else {
+            let shown =
+                picked.map_or_else(|| "pick one".to_owned(), |id| format!("feature {}", id.0));
+            egui::ComboBox::from_id_salt(salt)
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    for id in frames {
+                        ui.selectable_value(picked, Some(*id), format!("feature {}", id.0));
+                    }
+                });
+        }
+    });
+}
 
 impl ViewerBehavior<'_> {
     /// The creation section (GAUTH-1): the add-datum, add-profile and
@@ -302,8 +330,13 @@ impl ViewerBehavior<'_> {
         ui.separator();
     }
 
-    /// The add-datum form: one kind choice, two vector rows, one
+    /// The add-datum form: one kind choice, the kind's fields, one
     /// [`SessionOp::AddDatum`] on commit.
+    ///
+    /// Every kind but one is numbers alone. An axis in a sketch also
+    /// names the frame its coordinates are written in, picked from the
+    /// document's frames the way the add-profile form picks its plane,
+    /// and the button waits until one is picked.
     pub(crate) fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
@@ -312,35 +345,18 @@ impl ViewerBehavior<'_> {
             }
         });
         let kind = self.drafts.datum_kind;
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                match kind {
-                    DatumKindChoice::Point => "position",
-                    DatumKindChoice::Plane | DatumKindChoice::Axis | DatumKindChoice::Frame => {
-                        "origin"
-                    }
-                },
-                self.drafts.length_unit.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.datum_origin,
-            );
-            length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
-        });
         match kind {
-            DatumKindChoice::Plane => vec3_row(
-                ui,
-                "normal",
-                UNIT_DRAG_SPEED,
-                &mut self.drafts.datum_direction,
-            ),
-            DatumKindChoice::Axis => vec3_row(
-                ui,
-                "direction",
-                UNIT_DRAG_SPEED,
-                &mut self.drafts.datum_direction,
-            ),
+            DatumKindChoice::Plane => {
+                self.datum_origin_row(ui, "origin");
+                vec3_row(
+                    ui,
+                    "normal",
+                    UNIT_DRAG_SPEED,
+                    &mut self.drafts.datum_direction,
+                );
+            }
             DatumKindChoice::Frame => {
+                self.datum_origin_row(ui, "origin");
                 vec3_row(ui, "x axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_u);
                 vec3_row(ui, "y axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_v);
                 // What the form does to the y axis before it becomes a
@@ -350,32 +366,61 @@ impl ViewerBehavior<'_> {
                 // discovers by measuring the model.
                 ui.label("y is squared against x; the normal is x × y");
             }
-            DatumKindChoice::Point => {}
+            DatumKindChoice::Axis => {
+                self.datum_origin_row(ui, "origin");
+                vec3_row(
+                    ui,
+                    "direction",
+                    UNIT_DRAG_SPEED,
+                    &mut self.drafts.datum_direction,
+                );
+            }
+            DatumKindChoice::AxisInPlane => {
+                let frames = self.frames();
+                frame_picker(
+                    ui,
+                    "in frame",
+                    "datum_frame",
+                    &frames,
+                    &mut self.drafts.datum_frame,
+                );
+                let unit = self.drafts.length_unit.def();
+                ui.horizontal(|ui| {
+                    ui.label("origin");
+                    point_fields(ui, unit, &mut self.drafts.datum_in_frame_origin);
+                    length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("direction");
+                    for component in &mut self.drafts.datum_in_frame_direction {
+                        ui.add(number_field(component, UNIT_DRAG_SPEED));
+                    }
+                });
+                // The same-frame rule is the revolve's, and a person
+                // authoring this axis is about to meet it: say it here
+                // rather than at the revolve's refusal.
+                ui.label("x and y are the frame's own; a revolve needs its profile on this frame");
+            }
+            DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
-        if ui.button("Add datum").clicked() {
-            // The origin is a Length triple in the form's notation; a
-            // normal or a direction is dimensionless and has none.
-            let datum = (|| -> Result<DatumSpec, DimensionError> {
-                let origin = self.drafts.lengths(self.drafts.datum_origin)?;
-                Ok(match kind {
-                    DatumKindChoice::Plane => DatumSpec::Plane {
-                        origin,
-                        normal: scalars(self.drafts.datum_direction)?,
-                    },
-                    DatumKindChoice::Axis => DatumSpec::Axis {
-                        origin,
-                        direction: scalars(self.drafts.datum_direction)?,
-                    },
-                    DatumKindChoice::Point => DatumSpec::Point { position: origin },
-                    DatumKindChoice::Frame => DatumSpec::Frame {
-                        origin,
-                        u: scalars(self.drafts.datum_u)?,
-                        v: scalars(self.drafts.datum_v)?,
-                    },
-                })
-            })();
+        let unpicked = kind == DatumKindChoice::AxisInPlane && self.drafts.datum_frame.is_none();
+        if unpicked {
+            ui.weak("pick a frame to write the axis in");
+        }
+        if ui
+            .add_enabled(!unpicked, egui::Button::new("Add datum"))
+            .clicked()
+        {
+            let datum = self.drafts.datum_spec();
             match datum {
-                Ok(datum) => self.ops.push(SessionOp::AddDatum { datum }),
+                Ok(Some(datum)) => self.ops.push(SessionOp::AddDatum { datum }),
+                // Unreachable while the button waits on the pick, and
+                // said rather than dropped: the enabling condition and
+                // the lowering are two pieces of code.
+                Ok(None) => {
+                    self.notices
+                        .push(frame::tool_news("add datum: no frame picked"));
+                }
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
@@ -385,6 +430,31 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// The add-datum form's 3-D Length row — an origin or a position —
+    /// with the form's unit picker beside it.
+    fn datum_origin_row(&mut self, ui: &mut egui::Ui, label: &str) {
+        ui.horizontal(|ui| {
+            unit_vec3_row(
+                ui,
+                label,
+                self.drafts.length_unit.def(),
+                FIELD_DRAG_SPEED,
+                &mut self.drafts.datum_origin,
+            );
+            length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+        });
+    }
+
+    /// **Every frame the landed document holds**, in document order —
+    /// what a form's frame picker offers. Empty with no landed
+    /// document, which the picker says rather than hides.
+    fn frames(&self) -> Vec<RecipeNodeId> {
+        self.session
+            .landed_pair()
+            .map(|(doc, _)| sketch::frames(doc))
+            .unwrap_or_default()
     }
 
     /// The add-profile form: a template shape with Length fields, one
@@ -418,32 +488,14 @@ impl ViewerBehavior<'_> {
         // and mean a constant; a profile's plane is a node now, so this
         // names one — and a document with no frame in it says so rather
         // than conjuring one.
-        let frames = self
-            .session
-            .landed_pair()
-            .map(|(doc, _)| sketch::frames(doc))
-            .unwrap_or_default();
-        ui.horizontal(|ui| {
-            ui.label("on frame");
-            if frames.is_empty() {
-                ui.weak("none in this document — add a frame datum first");
-            } else {
-                let current = self.drafts.profile_plane;
-                let label =
-                    current.map_or_else(|| "pick one".to_owned(), |id| format!("feature {}", id.0));
-                egui::ComboBox::from_id_salt("profile_plane")
-                    .selected_text(label)
-                    .show_ui(ui, |ui| {
-                        for id in &frames {
-                            ui.selectable_value(
-                                &mut self.drafts.profile_plane,
-                                Some(*id),
-                                format!("feature {}", id.0),
-                            );
-                        }
-                    });
-            }
-        });
+        let frames = self.frames();
+        frame_picker(
+            ui,
+            "on frame",
+            "profile_plane",
+            &frames,
+            &mut self.drafts.profile_plane,
+        );
         let shape = self.drafts.profile_shape;
         let mut blocked: Option<&'static str> = None;
         // Stated before the shape check so the FIRST thing a person is
