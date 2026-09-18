@@ -74,3 +74,12 @@ kernel side has been paying it longer and may have found something.
 Nine enums, all in `crates/viewer/src`: `forms.rs` (five), `tools.rs`,
 `seats.rs`, `combine.rs`, `blend.rs`. Any future `vocabulary!` site
 joins them.
+
+## The population moved (2026-09-17)
+
+`PathVerb` and `ArcMode` are no longer declared through `vocabulary!`.
+The path form now uses the kernel's `profile::Verb` and
+`profile::ArcMode` directly (branch `viewer/path-form-uses-kernel-step`),
+so the two largest hand-formatted bodies are gone. `vocab.rs`'s own
+count says eight declarers. The row's subject, that rustfmt does not
+reach the bodies that remain, is unchanged.

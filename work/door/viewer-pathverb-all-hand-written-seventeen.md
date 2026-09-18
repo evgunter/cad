@@ -2,10 +2,12 @@
 id: viewer-pathverb-all-hand-written-seventeen
 kind: issue
 title: The viewer's PathVerb::ALL is a hand-written seventeen against a nineteen-verb kernel vocabulary, with no census
-status: open
+status: closed
 opened: 2026-09-01
 github: 1492
 refs: [1475, 1493]
+closed: 2026-09-17
+branch: viewer/path-form-uses-kernel-step
 ---
 
 ## From GitHub issue 1492
@@ -247,3 +249,20 @@ The class estimate stands at **M**, and for the reason the cut gave
 a *viewer* vocabulary, since a projection already forces them; what is
 undecided is only whether each kernel verb the GUI omits is omitted on
 purpose.
+
+## Closed (2026-09-17, branch `viewer/path-form-uses-kernel-step`)
+
+By option 1, on Ev's call in chat that the GUI should use the kernel's
+own step type rather than a copy of it. `PathVerb`, `PathStep`,
+`PathTarget` and `ArcSpec` are deleted: the path form holds
+`profile::Step<f64>`, its verb combo walks `profile::Verb::ALL` and
+shows each verb's own `Display`, the arc-mode picker walks
+`profile::ArcMode::ALL` and the target control
+`profile::TargetKind::ALL`. What the viewer still writes per verb is
+its starting step (`sketch::fresh_step`) and its fields
+(`widgets::path_step_fields`), both exhaustive on the kernel's types,
+so a verb the transition table gains fails the viewer's build until it
+has both. `ContinueTo`, `Circle` and `CircleSplit` are offered, and
+the lattice (`sketch::admits_at`) decides where. The GUI does not
+narrow the vocabulary, so the census option 2 asked for has nothing to
+classify.
