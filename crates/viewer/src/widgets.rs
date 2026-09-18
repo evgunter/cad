@@ -24,8 +24,8 @@ use pncad::profile::{ArcData, ArcMode, ArcSide, ArcSweep, Step, Target, TargetKi
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, UNIT_DRAG_SPEED, arc_mode_label,
-    target_kind_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
+    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -456,8 +456,11 @@ pub(crate) fn target_fields(
     if kind != before {
         *target = sketch::fresh_target(kind);
     }
-    if let Target::Point(point) = target {
-        point_fields(ui, unit, point);
+    // Exhaustive, so a form that grows a payload has to be given its
+    // fields here before this compiles.
+    match target {
+        Target::Point(point) => point_fields(ui, unit, point),
+        Target::Start | Target::StartArriving => {}
     }
 }
 
@@ -666,7 +669,15 @@ pub(crate) fn path_step_fields(
             ui.label("centre");
             point_fields(ui, length_unit, centre);
             named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
-            ui.add(number_field(n, COUNT_DRAG_SPEED).prefix("n "));
+            // Bounded both ways. Below two the lattice refuses, and
+            // the form does not offer that; above the cap the preview
+            // would build the whole subdivision every frame, and a
+            // typed count is enough to exhaust memory doing it.
+            ui.add(
+                number_field(n, COUNT_DRAG_SPEED)
+                    .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
+                    .prefix("n "),
+            );
             named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);
         }
         // Structural verbs: the verb IS the whole step.

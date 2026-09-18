@@ -233,6 +233,19 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
     }
 }
 
+/// The fewest subdivisions the `circle_split` count field offers —
+/// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
+/// refuses below two at replay).
+pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
+
+/// The most subdivisions the `circle_split` count field offers.
+///
+/// A product cap and not the kernel's: the kernel takes any count, but
+/// the form's preview replays the loop every frame, and replaying it
+/// builds one vertex per subdivision. A thousand vertices is far past
+/// any subdivision a seam is aligned with and still cheap to redraw.
+pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
+
 /// One drag tick of a LENGTH field, in metres — half a millimetre.
 /// The creation forms' and the property panel's alike ([`drag_tick`]
 /// is where the panel picks it), so one gesture over a length cannot

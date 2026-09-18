@@ -38,7 +38,7 @@
 //! have an arc whose radius or centre is not a number — a finite
 //! bulge near the bottom of the exponent range, or two vertices whose
 //! midpoint overflows. And it is not a literal's, because every
-//! literal involved passed [`DimensionError`] already. It is the
+//! literal involved passed the literal door already. It is the
 //! flattener's, it is answered by
 //! [`PreviewError::Unflattenable`], and it exists because this module
 //! is the one place that turns a loop into coordinates.
@@ -62,13 +62,14 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 /// authored verb by verb.
 ///
 /// **The templates are not the vocabulary; they are shortcuts into
-/// it.** A circle is its own thing — a seamless closed carrier no
-/// chain of legs can spell — and a rectangle is four `line_to`s
-/// somebody would otherwise type. Everything else a profile can be is
+/// it.** A circle is the one-step path `circle(centre, r)`, and it
+/// lowers as exactly that; a rectangle is four `line_to`s somebody
+/// would otherwise type. Everything else a profile can be is
 /// [`ProfileShape::Path`], which carries the algebra's whole verb set.
 ///
-/// The session lowers each arm to its [`LoopProgram`] form and
-/// refuses a non-finite field typed; a degenerate loop (zero radius,
+/// [`loop_program`] lowers each arm to its [`LoopProgram`] form and
+/// refuses typed what does not lower (a non-finite field, a
+/// complete-loop verb inside a chain); a degenerate loop (zero radius,
 /// zero width) and an ill-typed lattice walk both refuse through the
 /// edit door's own authoring-time check, exactly as a hand-written
 /// program would.
@@ -127,7 +128,7 @@ pub enum ProfileShape {
 /// moment a verb was picked — which reads as the form rejecting the
 /// verb rather than waiting for its number.
 pub fn fresh_step(verb: Verb) -> Step<f64> {
-    let point = Point2::new(0.01, 0.0);
+    let target = fresh_target(TargetKind::Point);
     let arc = fresh_arc(ArcMode::Radius);
     match verb {
         Verb::At => Step::At(Point2::origin()),
@@ -137,10 +138,10 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
         Verb::Cusp => Step::Cusp,
         Verb::Turn => Step::Turn(0.0),
         Verb::Line => Step::Line(0.01),
-        Verb::LineTo => Step::LineTo(Target::Point(point)),
-        Verb::ContinueTo => Step::ContinueTo(Target::Point(point)),
+        Verb::LineTo => Step::LineTo(target),
+        Verb::ContinueTo => Step::ContinueTo(target),
         Verb::ArcTo => Step::ArcTo(arc),
-        Verb::TangentArcTo => Step::TangentArcTo(Target::Point(point)),
+        Verb::TangentArcTo => Step::TangentArcTo(target),
         Verb::Fillet => Step::Fillet { radius: 0.001 },
         Verb::FilletArc => Step::FilletArc {
             radius: 0.001,
@@ -155,7 +156,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
             radius: 0.001,
             spec2: arc,
         },
-        Verb::FarEndTo => Step::FarEndTo(point),
+        Verb::FarEndTo => Step::FarEndTo(Point2::new(0.01, 0.0)),
         Verb::CloseTo => Step::CloseTo,
         Verb::Circle => Step::Circle {
             centre: Point2::origin(),
@@ -222,10 +223,10 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// angle unit, carried into every literal a lowering mints.
 ///
 /// It exists because the units are a fact about the PERSON at the
-/// keyboard rather than about any one field (`app`'s drafts say so),
-/// and threading two units through a dozen recursive lowering
-/// functions as loose arguments is how one of them ends up
-/// canonical by accident.
+/// keyboard rather than about any one field (`app`'s drafts say so):
+/// a form writes every literal it mints in one notation, so the
+/// notation is one value handed to the lowering rather than a unit per
+/// field.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Notation {
     /// Every `Length` literal is written in this.
@@ -280,23 +281,17 @@ impl Notation {
 /// Lower one template shape to its loop program, minting every literal
 /// in `notation`.
 ///
-/// **The circle is built here rather than through
-/// `LoopProgram::circle`**, which is the one thing in this function a
-/// reader will want to fold back: that constructor takes `f64` and
-/// mints CANONICAL literals, so routing through it would drop the
-/// notation this function exists to carry. It stays the right door for
-/// a caller with nothing to remember.
-///
-/// The rectangle DOES route through [`LoopProgram::polygon_expr`],
-/// which takes corners that are already `Expr` and mints nothing, so
-/// the notation rides through it untouched and the polygon expansion
-/// is written once for the workspace.
-///
 /// A path lowers through the document layer's own lift,
 /// [`LoopProgram::from_recorded_with_notation`] — the door that takes
 /// a PATHS recording to its document form for every other authoring
 /// surface — so there is no second verb-by-verb lowering here to fall
-/// behind the vocabulary.
+/// behind the vocabulary. The circle template IS a path (one `circle`
+/// step) and lowers as one.
+///
+/// The rectangle routes through [`LoopProgram::polygon_expr`] instead,
+/// which takes corners that are already `Expr` and mints nothing, so
+/// the notation rides through it untouched and the polygon expansion
+/// is written once for the workspace.
 ///
 /// # Errors
 ///
@@ -311,10 +306,15 @@ pub fn loop_program(
     notation: Notation,
 ) -> Result<LoopProgram, RecordedProgramError> {
     match shape {
-        ProfileShape::Circle { centre, radius } => Ok(LoopProgram::Circle {
-            centre: notation.point(*centre)?,
-            radius: notation.length(*radius)?,
-        }),
+        ProfileShape::Circle { centre, radius } => loop_program(
+            &ProfileShape::Path {
+                steps: vec![Step::Circle {
+                    centre: Point2::new(centre[0], centre[1]),
+                    radius: *radius,
+                }],
+            },
+            notation,
+        ),
         ProfileShape::Rectangle { width, height } => {
             let (hw, hh) = (width / 2.0, height / 2.0);
             // Counter-clockwise from the lower-left corner — the same
@@ -516,12 +516,14 @@ impl ProfilePreview {
 /// Distinct from [`ProfilePreview::invalid`], which is a preview that
 /// WAS drawn and did not validate: these are the failures with no
 /// geometry behind them — a field that is not a number or a path that
-/// is not a program's shape, an expression that will not resolve, a walk the lattice does not admit, a leg
-/// whose geometry has no answer.
+/// is not a program's shape, an expression that will not resolve, a
+/// walk the lattice does not admit, a leg whose geometry has no
+/// answer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PreviewError {
-    /// The shape did not lower: a field is not a finite number, or a
-    /// complete-loop verb sits inside a chain.
+    /// The shape did not lower ([`loop_program`]'s refusals): a field
+    /// is not a finite number, or a complete-loop verb sits inside a
+    /// chain.
     Lowering(RecordedProgramError),
     /// A program expression did not resolve.
     Resolve {

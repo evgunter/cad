@@ -435,3 +435,10 @@ are decoration. **A citation nobody follows cannot go stale
 visibly**, which is why the population here is found by a census and
 never by a reader.
 
+## Two rows describe code that no longer exists (2026-09-17, #2830)
+
+The `docs/BOOL-10-SPEC.md` and `viewer-pathverb-all-hand-written-seventeen`
+rows cite `PathVerb` and its `ALL` table. #2830 deletes `PathVerb`: the
+path form walks `profile::Verb::ALL`, drawn in `pane/create.rs` with
+fields from `widgets.rs`. Any re-citation should name those. The
+`viewer-pathverb` row itself is closed.

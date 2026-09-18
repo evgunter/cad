@@ -20,13 +20,13 @@
 use crate::common;
 
 use common::{insert, len, shape};
-use pncad::document::LoopProgram;
 use pncad::document::{Doc, ValuePayload};
+use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcData, ArcMode, SketchPlane, Step, Target, TargetKind, TipState, Verb};
 use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, PreviewError, admits_at, preview};
+use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well
@@ -366,12 +366,16 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
 /// The census the form's vocabulary deserves, keyed on the KERNEL's
 /// own lists: each verb the transition table declares is taken at the
 /// step the form starts it as (`sketch::fresh_step`) and put through
-/// the door that mints its `Expr` slots, so a verb that lowers to a
-/// dimension mismatch — a radius minted as an angle — is caught here
-/// rather than at somebody's first click. The same goes for each arc
-/// mode inside `arc_to` and each target form inside `line_to` and a
-/// bulge arc. The WALK is not the subject: each step is lowered alone
-/// and is not asked to be a legal chain.
+/// the door that mints its `Expr` slots, so a starting step the lift
+/// refuses — a placeholder that is not a finite literal, a
+/// complete-loop verb filed as a chain step — is caught here rather
+/// than at somebody's first click. The same goes for each arc mode
+/// inside `arc_to` and each target form inside `line_to` and a bulge
+/// arc. The WALK is not the subject: each step is lowered alone and is
+/// not asked to be a legal chain. Which DIMENSION each argument is
+/// minted at is the lift's own table, and
+/// `a_path_authored_in_millimetres_remembers_its_notation` below is the
+/// row that reads it back.
 #[test]
 fn every_authoring_verb_lowers_to_its_recorded_step() {
     let mut steps: Vec<Step<f64>> = Verb::ALL
@@ -402,6 +406,61 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
             (_, LoopProgram::Chain(lowered)) => assert_eq!(lowered.len(), 1, "{verb}"),
             (verb, program) => panic!("{verb} lowered to {program:?}"),
         }
+    }
+}
+
+/// **A path takes the form's notation at every argument that has
+/// one**: its lengths remember millimetres and its angles degrees, and
+/// a dimensionless argument is written as any dimensionless literal
+/// is, because it has one spelling.
+///
+/// The notation is written over whatever arguments the lifted program
+/// reports holding, so a row that only read one length would not
+/// notice an angle left canonical, or a bulge given a unit.
+#[test]
+fn a_path_authored_in_millimetres_remembers_its_notation() {
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+    let path = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(0.0, 0.001)),
+            Step::Angle(0.5),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(0.01, 0.0)),
+                b: 0.5,
+            }),
+        ],
+    };
+    let LoopProgram::Chain(lowered) = sketch::loop_program(&path, mm).expect("finite literals")
+    else {
+        panic!("a chain lowers to a chain");
+    };
+    let written = |expr: &pncad::document::Expr| expr.display_unit().map(|unit| unit.symbol());
+    let [
+        ProgramStep::At([x, y]),
+        ProgramStep::Angle(theta),
+        ProgramStep::Toward { dx, dy },
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point([tx, ty]),
+            b,
+        }),
+    ] = lowered.as_slice()
+    else {
+        panic!("the steps lower one for one: {lowered:?}");
+    };
+    for length in [x, y, tx, ty] {
+        assert_eq!(written(length), Some("mm"));
+    }
+    assert_eq!(written(theta), Some("deg"));
+    // A dimensionless argument is written the one way a dimensionless
+    // literal is, whatever the form's notation says.
+    let plain = pncad::document::Expr::literal(1.0, pncad::document::Dimension::Scalar)
+        .expect("a finite scalar");
+    for scalar in [dx, dy, b] {
+        assert_eq!(written(scalar), written(&plain));
     }
 }
 

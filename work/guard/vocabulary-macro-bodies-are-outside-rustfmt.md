@@ -1,7 +1,7 @@
 ---
 id: vocabulary-macro-bodies-are-outside-rustfmt
 kind: issue
-title: rustfmt does not reach inside a macro_rules! invocation, so nine viewer enums are formatted by hand
+title: rustfmt does not reach inside a macro_rules! invocation, so eight viewer enums are formatted by hand
 status: open
 opened: 2026-09-06
 ---
