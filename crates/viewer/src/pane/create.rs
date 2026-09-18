@@ -5,6 +5,7 @@
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DimensionError, DocumentId, MatePrimitive};
+use pncad::profile::Verb;
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -12,7 +13,7 @@ use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
 };
 use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
@@ -22,7 +23,7 @@ use crate::session::{DatumSpec, SessionOp};
 use crate::sketch::{self, PreviewError};
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, fresh_step, length_picker, number_field, path_step_fields, unit_field,
+    angle_picker, length_picker, new_row_step, number_field, path_step_fields, unit_field,
     unit_vec3_row, vec3_row,
 };
 
@@ -665,9 +666,8 @@ impl ViewerBehavior<'_> {
         // the same reason the moves are: the probe that decides which
         // verbs a combo may offer reads the WHOLE list, and it cannot
         // borrow it while a row holds a mutable slice of it.
-        let mut rebind: Option<(usize, PathVerb)> = None;
+        let mut rebind: Option<(usize, Verb)> = None;
         let mut insert: Option<usize> = None;
-        let notation = self.drafts.notation();
         let tol = self.session.tol();
         let last = self.drafts.profile_path.len().saturating_sub(1);
         for index in 0..self.drafts.profile_path.len() {
@@ -717,9 +717,9 @@ impl ViewerBehavior<'_> {
                 {
                     insert = Some(index + 1);
                 }
-                let verb = PathVerb::of(&self.drafts.profile_path[index]);
+                let verb = self.drafts.profile_path[index].verb();
                 egui::ComboBox::from_id_salt(("path_verb", index))
-                    .selected_text(verb.label())
+                    .selected_text(verb.to_string())
                     .width(120.0)
                     .show_ui(ui, |ui| {
                         // Asked once per OPEN combo, never per frame:
@@ -727,9 +727,9 @@ impl ViewerBehavior<'_> {
                         // candidate verb, which is cheap but not free,
                         // and a closed combo has nobody to show it to.
                         let mut chain = self.drafts.profile_path.clone();
-                        for (option, label) in PathVerb::ALL {
-                            chain[index] = option.fresh();
-                            let refusal = sketch::admits_at(&chain, index, notation, tol).err();
+                        for &option in Verb::ALL {
+                            chain[index] = sketch::fresh_step(option);
+                            let refusal = sketch::admits_at(&chain, index, tol).err();
                             // `add_enabled` on the widget itself, not
                             // an `add_enabled_ui` around it: the
                             // reason a choice is greyed out is told
@@ -738,17 +738,17 @@ impl ViewerBehavior<'_> {
                             // response shows nothing.
                             let row = ui.add_enabled(
                                 refusal.is_none(),
-                                egui::Button::selectable(option == verb, label),
+                                egui::Button::selectable(option == verb, option.to_string()),
                             );
                             match refusal {
                                 Some((state, _refused)) => {
-                                    // The label the combo shows, not
-                                    // the kernel verb's `Debug`: the
-                                    // sentence is about the row a
-                                    // reader is looking at.
+                                    // The verb's `Display`, which is
+                                    // the word the combo shows, not
+                                    // its `Debug`: the sentence is
+                                    // about the row a reader is
+                                    // looking at.
                                     row.on_disabled_hover_text(format!(
-                                        "{} is not well-typed here — the tip is {}",
-                                        label,
+                                        "{option} is not well-typed here — the tip is {}",
                                         sketch::tip_state_words(state),
                                     ));
                                 }
@@ -764,13 +764,13 @@ impl ViewerBehavior<'_> {
             });
         }
         if let Some((index, verb)) = rebind {
-            self.drafts.profile_path[index] = verb.fresh();
+            self.drafts.profile_path[index] = sketch::fresh_step(verb);
         }
         if let Some(index) = remove {
             self.drafts.profile_path.remove(index);
         }
         if let Some(at) = insert {
-            self.drafts.profile_path.insert(at, fresh_step(at));
+            self.drafts.profile_path.insert(at, new_row_step(at));
         }
         if let Some((from, to)) = swap {
             self.drafts.profile_path.swap(from, to);
@@ -788,7 +788,7 @@ impl ViewerBehavior<'_> {
             // a second one only asked the question a frame earlier.
             if self.drafts.profile_path.is_empty() {
                 if ui.button("Add step").clicked() {
-                    self.drafts.profile_path.push(fresh_step(0));
+                    self.drafts.profile_path.push(new_row_step(0));
                 }
             } else if ui.button("Clear").clicked() {
                 self.drafts.profile_path.clear();

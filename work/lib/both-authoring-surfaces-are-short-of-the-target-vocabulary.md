@@ -111,3 +111,18 @@ which names the same `Tgt::of`/`program_target` shape from a different
 angle — a false claim in `sketch.rs`'s prose that the lowering breaks
 when the document vocabulary grows. That row is the instance; this one
 is still the class and the ruling.
+
+## The ruling, and the viewer half (2026-09-17)
+
+**Ev, in chat, 2026-09-17: the omission was not deliberate** ("indeed
+it was not deliberate to leave out declared arrival"). That answers
+this row's question. The authoring surfaces are meant to carry the
+declared tangent arrival, so what is left is carrying it.
+
+The viewer half is closed on branch `viewer/path-form-uses-kernel-step`.
+`PathTarget` is deleted, and the path form edits the kernel's own
+`Target<f64>` through a control that walks `TargetKind::ALL`, so
+`StartArriving` is offered at every target and the lattice refuses the
+verb and mode rows that do not take it. **Two short spellings remain,
+both in `pncad-py`** (`PyTarget`, `Tgt`), and this row now owns only
+those.

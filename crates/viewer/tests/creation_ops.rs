@@ -31,7 +31,7 @@ use core::f64::consts::TAU;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
-    RecipeNodeId, SlotId,
+    RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
@@ -614,7 +614,12 @@ fn profile_refusals_are_typed_at_the_door() {
         Notation::CANONICAL,
     );
     assert!(
-        matches!(non_finite, Err(DimensionError::NonFiniteLiteral)),
+        matches!(
+            non_finite,
+            Err(RecordedProgramError::Literal(
+                DimensionError::NonFiniteLiteral
+            ))
+        ),
         "{non_finite:?}"
     );
 

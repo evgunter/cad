@@ -659,7 +659,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`NO_CHOOSER_BACKEND`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -968,10 +968,10 @@ device half installs is held by nothing here and cannot be: a render
 state wants an adapter, which is the same wall
 `gpu`'s `every_pass_builds_on_a_real_device` stands at.
 
-Three items move out of `app` to modules that already own their
+Two items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
-`tip_mark` with `heading` to `sketch` — all three are geometry over
-values the receiving module already defines, and none names `egui`.
+`heading` to `sketch` — both are geometry over values the receiving
+module already defines, and neither names `egui`.
 
 ### What a vocabulary reads, it is handed
 
@@ -1567,31 +1567,24 @@ taste nor a count of readers: **does anything walk the table for its
 WORDS?** If something does, the words are table data — they belong in
 the declaration, and the walk reads each entry's word off the entry it
 already holds. If nothing does, they are not table data at all and a
-method beside the enum is the whole of it. Being asked for one value's
-word does not force the split: a labelled vocabulary declares
-`fn label;` under its `ALL` and the macro projects that accessor from
-the same list as a match, so the closed face of a combo is served
-without a second ordered reading.
+method beside the enum is the whole of it.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the ten declared by `vocabulary!`, so a
-loop over `Theme::ALL` or `pncad`'s `Axis3::ALL` is outside it — read
+a vocabulary's `ALL` — one of the eight declared by `vocabulary!`, so a
+loop over `Theme::ALL`, `pncad`'s `Axis3::ALL` or the path form's
+`profile::Verb::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
 `tests/`, because the discriminator is about the words and a word read
 in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Seven of the ten are walked under `src/` for their words, and all
-seven ask for one.** Each binds `(value, label)` and puts that label on the control
-it draws: `pane::create`'s datum row (`:309`), profile row (`:409`),
-path-verb combo (`:727`), pattern-rule row (`:989`), pattern-output row
-(`:995`) and blend-kind row (`:1093`), and `widgets::arc_fields`' mode
-picker (`:300`). So all seven are LABELLED, and there is no shorter
-account of them than the sweep itself: their words are table data
-because a table walk reads them. `PathVerb` and `ArcMode` additionally
-declare `fn label;` under their `ALL`, for a combo's closed face; the
-other five are never asked for one value's word and carry no accessor.
+**Five of the eight are walked under `src/` for their words, and all
+five ask for one.** Each binds `(value, label)` and puts that label on the control
+it draws: `pane::create`'s datum row, profile row, pattern-rule row,
+pattern-output row and blend-kind row. So all five are LABELLED, and
+there is no shorter account of them than the sweep itself: their words
+are table data because a table walk reads them.
 
 **`ToolKind`, `Seat` and `WithdrawalKind` are the remaining three, and
 are BARE.** `WithdrawalKind` is walked under `src/` and is bare anyway,
@@ -1617,8 +1610,8 @@ those two already have rather than deciding it — and is the only thing
 the `tests/` half of the scope has yet had to report.
 
 **Neither shape holds a second ordered list of the words.** A labelled
-vocabulary's `ALL` and its `label` are projected from one list of
-tokens, so the order and the reading are each declared once; a bare one
+vocabulary's `ALL` carries each word beside its variant, so the order
+and the reading are each declared once; a bare one
 carries no word in its table, and its method is the only place its
 words are written.
 
@@ -1629,7 +1622,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all ten are formatted by hand. Demonstrated rather
+variant docs of all eight are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -1690,7 +1683,7 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the ten are quiet without an entry. What the gate reads is this
+the eight are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
 two-kinds list above — the list the sentence *"Two kinds of list
@@ -1889,9 +1882,9 @@ allowed — the decision `scripts/doc-gate.sh`'s header argues and its own
 selftest pins. **A module-scoped private `const` or `fn` does not**, and
 `--document-private-items` does not change that: the flag decides what
 rustdoc RENDERS, while a path is resolved by ordinary visibility, and
-`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+`crate::gpu::EDGE_CLIP_Z_LIFT` is not a path anyone outside `gpu` may
 write. Measured by planting it: the all-features pass errors
-*"no item named `EDGE_CLIP_Z_SHRINK` in module `gpu`"*. So
+*"no item named `EDGE_CLIP_Z_LIFT` in module `gpu`"*. So
 `pickindex.rs`'s and `gpu.rs`'s deliberate pointer pair over their two
 slack constants stays NAMED at both ends — the one population this
 section's linking rule cannot reach, and the reason is visibility rather

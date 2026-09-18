@@ -2,8 +2,10 @@
 id: viewer-sketch-claims-a-compile-break-a-probe-verb-does-not-cause
 kind: issue
 title: sketch.rs's lowering says a document verb breaks it at compile; a probe verb compiles clean, and PathTarget/Tgt::of have the same shape
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
+branch: viewer/path-form-uses-kernel-step
 ---
 
 
@@ -77,3 +79,17 @@ sentence while reading which compile checks survive the collapse of
 `editor-core`'s wire mirrors. `crates/viewer/src/sketch.rs` is
 `chrome`'s and `view`'s by `work.py territory`; filed on CHROME's
 slate, which carries the viewer's other doc-comment-premise rows.
+
+## Closed (2026-09-17, branch `viewer/path-form-uses-kernel-step`)
+
+The sentence is gone with the function it headed. The viewer no longer
+has a step vocabulary to lower: a path is `profile::Step<f64>` and
+lowers through `editor-core`'s own lift
+(`LoopProgram::from_recorded_with_notation`), which is exhaustive on
+the kernel step and tied to the document vocabulary by
+`editor-core/tests/switch_program_vocabulary.rs`. A kernel verb reaches
+the form with no edit and breaks `sketch::fresh_step` and
+`widgets::path_step_fields` until it is given a starting step and
+fields. `PathTarget`/`program_target` went too. The `pncad-py`
+`Tgt::of` instance is unchanged and stays on LIB's class row,
+`work/lib/both-authoring-surfaces-are-short-of-the-target-vocabulary.md`.

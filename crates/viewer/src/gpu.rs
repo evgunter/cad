@@ -50,6 +50,16 @@
 //! startup is therefore load-bearing, not a preference; [`DEPTH_BITS`]
 //! is the one place it is spelled.
 //!
+//! **Depth is reversed** (`Camera::projection_matrix`): 1 is the near
+//! plane, 0 is infinitely far, and every pipeline here compares
+//! `Greater` (`GreaterEqual` for the marks). The painter's clear value
+//! is not configurable and 1.0 is the wrong one for that, so the
+//! callback's first draw is a viewport-covering triangle that writes 0
+//! with `Always` and no colour (`ViewportRenderer::depth_reset`). It is
+//! bounded by the pane's viewport and scissor like every other draw in
+//! the callback, so it resets this pane's depth and nothing else. The
+//! id pass owns its own depth texture and clears it to 0 directly.
+//!
 //! # Culling is off, on purpose
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
@@ -180,6 +190,10 @@ const UNIFORM_BYTES: u64 = core::mem::size_of::<Uniforms>() as u64;
 /// the life of the render state.
 pub(crate) struct ViewportRenderer {
     pipeline: wgpu::RenderPipeline,
+    /// Writes depth 0 over the pane before anything is drawn: see the
+    /// module docs' Depth section for why the pass's own clear is not
+    /// the one this renderer needs.
+    depth_reset: wgpu::RenderPipeline,
     uniforms: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     geometry: Option<Geometry>,
@@ -344,14 +358,15 @@ struct SegmentVertex {
 /// makes the two triangles a quad rather than a bow tie.
 const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 
-/// The edge pass's depth nudge: a dimensionless multiplicative shrink
+/// The edge pass's depth nudge: a dimensionless multiplicative lift
 /// applied to clip-space z in `vs_edge`, before the perspective
-/// divide.
+/// divide. Depth is reversed (`Camera::projection_matrix`), so a
+/// LARGER z is nearer the eye.
 ///
 /// Applied in the vertex shader, not as pipeline `DepthBiasState`:
 /// WebGPU validation forbids a depth bias on non-triangle topology,
 /// so a line pipeline that asks for one refuses to build at all. On a
-/// float depth buffer the shrink is worth a handful of quanta at
+/// float depth buffer the lift is worth a handful of quanta at
 /// every depth — an f32's ulp steps per binade, so `z * k * 2^-23`
 /// lands between k/2 and k quanta depending on where `z` sits within
 /// its binade — never exactly "k quanta", but enough either way to
@@ -365,7 +380,7 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// era's two, because a vertex-shader nudge has no slope-scaled half —
 /// the extra quanta stand in for what `slope_scale` gave a line lying
 /// on a steeply-angled facet. The pass writes no depth, so an
-/// over-large shrink could only make a mark show through geometry it
+/// over-large lift could only make a mark show through geometry it
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
@@ -382,10 +397,10 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// and the mark thins on exactly the edges width was buying. The
 /// nudge is still small enough that a mark cannot climb over
 /// unrelated geometry: the pass writes no depth, so the worst an
-/// over-large shrink could do is show a mark through a surface in
+/// over-large lift could do is show a mark through a surface in
 /// front of it, and at 1e-5 relative that surface would have to be
 /// within a thousandth of a percent of the edge's own depth.
-const EDGE_CLIP_Z_SHRINK: f32 = 1.0e-5;
+const EDGE_CLIP_Z_LIFT: f32 = 1.0e-5;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -497,7 +512,7 @@ impl ViewportRenderer {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
+                depth_compare: Some(wgpu::CompareFunction::Greater),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -515,10 +530,53 @@ impl ViewportRenderer {
             multiview_mask: None,
             cache: None,
         });
+        let depth_reset = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("viewer_depth_reset_pipeline"),
+            // Derived from the entry points, which bind nothing.
+            layout: None,
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_depth_reset"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Always),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &module,
+                entry_point: Some("fs_depth_reset"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                // The pass's colour target, written by nobody: this
+                // draw is for the depth it leaves behind.
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::empty(),
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
         let id = IdPass::new(device, &module, &bind_group_layout, &layout);
         let edges = EdgePass::new(device, &module, &layout, target_format);
         Self {
             pipeline,
+            depth_reset,
             uniforms,
             bind_group,
             geometry: None,
@@ -644,7 +702,8 @@ impl ViewportRenderer {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth_view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
+                        // Reversed depth: 0 is infinitely far.
+                        load: wgpu::LoadOp::Clear(0.0),
                         store: wgpu::StoreOp::Discard,
                     }),
                     stencil_ops: None,
@@ -759,7 +818,7 @@ impl IdPass {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
                 depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
+                depth_compare: Some(wgpu::CompareFunction::Greater),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -872,16 +931,16 @@ impl EdgePass {
                 depth_write_enabled: Some(false),
                 // The polyline's chord points ARE mesh positions the
                 // triangles share, so a mark lands exactly on the
-                // surface's own depth: `LessEqual` plus the vertex
-                // shader's `EDGE_CLIP_Z_SHRINK` nudge is what keeps it
+                // surface's own depth: `GreaterEqual` plus the vertex
+                // shader's `EDGE_CLIP_Z_LIFT` nudge is what keeps it
                 // from z-fighting with the facet it borders. The
                 // nudge stays in the shader rather than moving to
                 // `DepthBiasState` now that the topology would admit
                 // one: the widened quad needs the SAME depth its
-                // endpoints have (see `EDGE_CLIP_Z_SHRINK`), and a
+                // endpoints have (see `EDGE_CLIP_Z_LIFT`), and a
                 // slope-scaled bias over a quad that is flat in
                 // screen space is not that.
-                depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -1163,6 +1222,13 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         // The pane's viewport rectangle is already set by egui's own
         // renderer before a callback is invoked, so the clip-space
         // mapping here is the pane's, not the window's.
+        //
+        // Depth first: the pass arrived cleared to 1.0, which under
+        // reversed depth is the NEAREST value, so it is reset to 0
+        // (infinitely far) over the pane before anything tests
+        // against it.
+        render_pass.set_pipeline(&renderer.depth_reset);
+        render_pass.draw(0..3, 0..1);
         render_pass.set_pipeline(&renderer.pipeline);
         render_pass.set_bind_group(0, &renderer.bind_group, &[]);
         render_pass.set_vertex_buffer(0, geometry.positions.slice(..));
@@ -1233,7 +1299,7 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_MARK_PREVIEW}}", &EDGE_MARK_PREVIEW.to_string())
         .replace("{{EDGE_MARK_DATUM}}", &EDGE_MARK_DATUM.to_string())
-        .replace("{{EDGE_CLIP_Z_SHRINK}}", &format!("{EDGE_CLIP_Z_SHRINK:e}"))
+        .replace("{{EDGE_CLIP_Z_LIFT}}", &format!("{EDGE_CLIP_Z_LIFT:e}"))
 }
 
 const SHADER: &str = r#"
@@ -1370,10 +1436,11 @@ fn vs_edge(
     var clip_a = uniforms.view_projection * vec4<f32>(a, 1.0);
     var clip_b = uniforms.view_projection * vec4<f32>(b, 1.0);
     // The mark pass's depth nudge, in the shader rather than as a
-    // pipeline bias: a relative shrink of clip z, worth a few
-    // float-depth quanta at any depth; see EDGE_CLIP_Z_SHRINK.
-    clip_a.z *= 1.0 - {{EDGE_CLIP_Z_SHRINK}};
-    clip_b.z *= 1.0 - {{EDGE_CLIP_Z_SHRINK}};
+    // pipeline bias: a relative lift of clip z (toward the eye, depth
+    // being reversed), worth a few float-depth quanta at any depth;
+    // see EDGE_CLIP_Z_LIFT.
+    clip_a.z *= 1.0 + {{EDGE_CLIP_Z_LIFT}};
+    clip_b.z *= 1.0 + {{EDGE_CLIP_Z_LIFT}};
 
     let half_viewport = max(uniforms.edge.xy, vec2<f32>(1.0, 1.0)) * 0.5;
     // abs(w), not w: an endpoint behind the eye has a negative w, and
@@ -1457,6 +1524,20 @@ fn vs_id(
     return out;
 }
 
+// One triangle covering the whole viewport at depth 0 — the reversed
+// depth's "infinitely far" — for `ViewportRenderer::depth_reset`.
+@vertex
+fn vs_depth_reset(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
+    let x = f32((index << 1u) & 2u) * 2.0 - 1.0;
+    let y = f32(index & 2u) * 2.0 - 1.0;
+    return vec4<f32>(x, y, 0.0, 1.0);
+}
+
+@fragment
+fn fs_depth_reset() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+}
+
 @fragment
 fn fs_id(in: IdOut) -> @location(0) u32 {
     return in.id;
@@ -1500,7 +1581,7 @@ mod tests {
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_MARK_PREVIEW}}",
             "{{EDGE_MARK_DATUM}}",
-            "{{EDGE_CLIP_Z_SHRINK}}",
+            "{{EDGE_CLIP_Z_LIFT}}",
             "{{ENCODE_SRGB}}",
         ] {
             assert!(
@@ -1712,9 +1793,9 @@ mod tests {
                 .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
 
         // THE CENSUS, BOUND TO THE SOURCE. "Every pipeline" is a claim
-        // only if something notices a new one: all three of this
+        // only if something notices a new one: all four of this
         // file's `create_render_pipeline` calls are reached from
-        // `ViewportRenderer::new`, and a fourth built lazily in a
+        // `ViewportRenderer::new`, and a fifth built lazily in a
         // frame path this row never enters would leave the row green
         // and its name unchanged.
         //
@@ -1729,8 +1810,8 @@ mod tests {
             test_utils::source::code_only(include_str!("gpu.rs"))
                 .matches(".create_render_pipeline(")
                 .count(),
-            3,
-            "this module no longer builds exactly the three pipelines `ViewportRenderer::new` \
+            4,
+            "this module no longer builds exactly the four pipelines `ViewportRenderer::new` \
              builds. Route the new one through `new` so this row covers it, or narrow this \
              row's claim and its count together."
         );
@@ -1753,7 +1834,7 @@ mod tests {
                 error.map_or_else(String::new, |e| e.to_string()),
             );
             drop(renderer);
-            println!("  {target_format:?}: shaded, id and edge pipelines built");
+            println!("  {target_format:?}: shaded, depth-reset, id and edge pipelines built");
         }
     }
 }

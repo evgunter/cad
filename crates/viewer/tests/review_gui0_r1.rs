@@ -161,11 +161,11 @@ fn assert_camera_contract(camera: &Camera, provenance: impl Fn() -> String) {
         camera.yaw()
     );
     assert!(
-        camera.near() > 0.0 && camera.near() < camera.far(),
-        "[{}] depth range not ordered: near {} far {}",
+        camera.near() > 0.0 && camera.near() < camera.distance(),
+        "[{}] near plane not between eye and target: near {} distance {}",
         provenance(),
         camera.near(),
-        camera.far()
+        camera.distance()
     );
     let (r, u, f) = (camera.right(), camera.up(), camera.forward());
     for (name, v) in [("right", r), ("up", u), ("forward", f)] {

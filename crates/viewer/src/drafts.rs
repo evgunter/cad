@@ -12,8 +12,11 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId, SlotId,
+    BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId,
+    RecordedProgramError, SlotId,
 };
+use pncad::geom_core::Point2;
+use pncad::profile::{Step, Target};
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 use crate::blend::BlendKindChoice;
@@ -21,7 +24,7 @@ use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
 use crate::session::ProfileShape;
-use crate::sketch::{self, PathStep, PathTarget};
+use crate::sketch;
 
 /// Transient text a panel is mid-edit on.
 ///
@@ -137,7 +140,7 @@ pub(crate) struct Drafts {
     /// chain is supposed to look like, and this one is four verbs a
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
-    pub(crate) profile_path: Vec<PathStep>,
+    pub(crate) profile_path: Vec<Step<f64>>,
     /// The circle form's centre, metres.
     pub(crate) profile_centre: [f64; 2],
     /// The circle form's radius, metres.
@@ -221,11 +224,11 @@ impl Default for Drafts {
             angle_unit: quantity::PI,
             profile_shape: None,
             profile_path: vec![
-                PathStep::At([0.0, 0.0]),
-                PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
-                PathStep::LineTo(PathTarget::Point([0.01, 0.01])),
-                PathStep::LineTo(PathTarget::Point([0.0, 0.01])),
-                PathStep::LineTo(PathTarget::Start),
+                Step::At(Point2::origin()),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
+                Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+                Step::LineTo(Target::Start),
             ],
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
@@ -307,8 +310,9 @@ impl Drafts {
     ///
     /// # Errors
     ///
-    /// A non-finite field (the literal door's refusal).
-    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, DimensionError> {
+    /// A non-finite field, or a path that is not a program's shape
+    /// ([`sketch::loop_program`]'s refusals).
+    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
         self.profile_loops()
             .iter()
             .map(|shape| sketch::loop_program(shape, self.notation()))
