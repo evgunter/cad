@@ -54,15 +54,15 @@ fn the_tangent_graze_resolves_past_first_order() {
     // those predicates. What remains is the documented one-sided
     // graze residue, refused DOWNSTREAM (the degenerate section /
     // finish net) — a tangent plane cannot two-side a convex body.
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     let body = cylinder_body();
     let plane = SplitPlane {
         origin: Point3::new(0.5, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = split(&body, &plane, Tol::witness());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
         "tangent_sector_order2",
@@ -252,7 +252,8 @@ fn a_g2_underdetermined_join_must_not_carry() {
         if matches!(c.carrier(), geom::Curve3::Line { .. }) {
             assert!(
                 matches!(c.description(), geom_brep::EdgeDescription::Chart(_)),
-                "an under-determined locus has no intrinsic description to                  carry, so the strut is a chart image: {:?}",
+                "an under-determined locus has no intrinsic description to \
+                 carry, so the strut is a chart image: {:?}",
                 c.description()
             );
             assert!(

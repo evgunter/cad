@@ -13,6 +13,7 @@ use mesh::tessellate;
 use mesh::validate::check_mesh;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -32,10 +33,11 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 
 /// A prism whose sketch frame is skewed by ν (the unit's own carrier).
 fn skewed(nu: f64, loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_from_axes(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, nu),
         Vec3::new(0.0, 1.0, 0.0),
+        Tol::witness(),
     );
     extrude(
         &validated(plane, loops),

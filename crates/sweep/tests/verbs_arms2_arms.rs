@@ -36,9 +36,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::oracles::sigma;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
+use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
 
@@ -280,15 +282,14 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
         let mut centers = Vec::new();
         for senses in [(true, true), (false, false), (true, false), (false, true)] {
             let (blend, center) = row.blend(radius, senses);
-            let side = |b: bool| if b { 1.0 } else { -1.0 };
             for (s, sense, which) in [(&row.a, senses.0, "first"), (&row.b, senses.1, "second")] {
                 let d = signed_dist(s, center);
                 assert!(
-                    (d + radius * side(sense)).abs() < EPS,
+                    (d + radius * sigma(sense)).abs() < EPS,
                     "{} {senses:?}: the ball centre is {d} from its {which} support, \
                      wanted {}",
                     row.arm.name(),
-                    -radius * side(sense)
+                    -radius * sigma(sense)
                 );
             }
             // The trimlines are the contact loci: on the support, at
@@ -455,6 +456,8 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             1.0,
             radius,
             sphere_sense,
+            // A CONVEX chain: the ball rests on the material side of both.
+            Convexity::Convex,
         );
         let sheet = Meridian {
             origin: p3(0.0, 0.0, 0.0),
@@ -551,5 +554,130 @@ fn the_refusal_roster_names_every_arm_and_nothing_else() {
         have, want,
         "the SpineUnsupported roster and the arm table disagree: roster {have:?}, arms \
          {want:?}"
+    );
+}
+
+/// **The spine-kind recourse names a kind and a family for every arm.**
+/// [`FILLET3_SPINE_KIND_RECOURSE`] states the door's extent in the
+/// order the door itself tests it: the four support KINDS the arm
+/// table traces, and then the two FAMILIES those kinds may meet in.
+/// This row is what makes that one door rather than two spellings of
+/// one — for every fillet arm, both of its
+/// [`BlendArm::kinds`] must appear in the sentence's KIND CLAUSE, and
+/// the family it belongs to (read off the arm's own
+/// [`BlendArm::is_coaxial_torus`] / [`BlendArm::is_ruled`] predicates,
+/// never off a re-split of the display name) must be named after it.
+///
+/// **The kind clause is the sentence's first `;`-delimited segment**,
+/// the same idiom the assembly sentence's open clause is read by. Its
+/// four words are a kind SET, not the eleven-pair roster: the pairs
+/// live in the refusal's payload and are checked by the row above.
+///
+/// Three ways to go red, all of them the defect this row exists for:
+/// an arm whose support kind the sentence does not name; an arm in
+/// neither family, which is a third family owing the sentence a third
+/// clause; and — the negative half — `torus` appearing among the named
+/// kinds, which would endorse the coaxial torus–plane rim the door
+/// refuses on kind (`review_blend3_r3_probes` follows that refusal).
+#[test]
+fn the_spine_kind_recourse_names_a_family_for_every_arm() {
+    // The sentence's KIND CLAUSE: everything before its first
+    // semicolon. The families and the leftovers come after it, so a
+    // kind word found here is one the sentence admits as a SUPPORT.
+    let kind_clause = FILLET3_SPINE_KIND_RECOURSE
+        .split(';')
+        .next()
+        .expect("the sentence's kind clause is its first ;-delimited segment");
+
+    // The phrase the sentence must carry for each family, keyed by the
+    // arm's own predicates rather than by anything parsed out of a
+    // name.
+    let family = |arm: BlendArm| -> Option<&'static str> {
+        if arm.is_coaxial_torus() {
+            Some("a rim they share as coaxial surfaces of revolution")
+        } else if arm.is_ruled() || arm.is_plane_plane() {
+            // Both mint a cylinder band about a straight spine; the
+            // plane–plane pair reaches its closed form before the
+            // shared-sheet reduction, but a caller reading the sentence
+            // is told about the request, not the branch.
+            Some("along a ruling shared by two supports that are each a plane or a cylinder")
+        } else {
+            None
+        }
+    };
+
+    // Collect every failure and report the SET, so one run names all of
+    // them rather than the first.
+    let mut missing_kind: Vec<(BlendArm, &'static str)> = Vec::new();
+    let mut no_family: Vec<BlendArm> = Vec::new();
+    let mut missing_family: Vec<(BlendArm, &'static str)> = Vec::new();
+    let mut kinds_off_name: Vec<(BlendArm, &'static str)> = Vec::new();
+
+    for arm in BlendArm::ALL {
+        // `kinds()` is a second spelling of what `name()`'s pair half
+        // says; tie them here so it cannot drift.
+        let pair = arm
+            .name()
+            .split(" \u{2192}")
+            .next()
+            .expect("every arm's name states its pair");
+        for kind in arm.kinds() {
+            if !pair.contains(kind) {
+                kinds_off_name.push((arm, kind));
+            }
+        }
+
+        // The strip is the CHAMFER's arm, refused by its own early
+        // return ([`BlendError::ChamferArmUnsupported`]) before any
+        // analytic-arm classification, so no caller reads THIS sentence
+        // about it.
+        if arm == BlendArm::PlanePlaneStrip {
+            continue;
+        }
+
+        for kind in arm.kinds() {
+            if !kind_clause.contains(kind) {
+                missing_kind.push((arm, kind));
+            }
+        }
+        match family(arm) {
+            None => no_family.push(arm),
+            Some(phrase) => {
+                if !FILLET3_SPINE_KIND_RECOURSE.contains(phrase) {
+                    missing_family.push((arm, phrase));
+                }
+            }
+        }
+    }
+
+    assert!(
+        kinds_off_name.is_empty(),
+        "BlendArm::kinds disagrees with the pair half of BlendArm::name: {kinds_off_name:?}"
+    );
+    assert!(
+        missing_kind.is_empty(),
+        "the spine-kind recourse's kind clause does not name a support kind these arms \
+         blend: {missing_kind:?}\n  clause: {kind_clause}"
+    );
+    assert!(
+        no_family.is_empty(),
+        "these arms are in neither family the sentence names, which is a third family \
+         owing it a clause: {no_family:?}"
+    );
+    assert!(
+        missing_family.is_empty(),
+        "the spine-kind recourse does not name the family these arms belong to: \
+         {missing_family:?}\n  {FILLET3_SPINE_KIND_RECOURSE}"
+    );
+
+    // **The negative half.** A torus support is refused on KIND — the
+    // meridian reduction has no torus row — so the kind clause must not
+    // name one, whatever the rest of the sentence says about torus
+    // BANDS. Without this, widening the clause to "…or a torus" would
+    // pass every assert above and re-open the defect the item closed.
+    assert!(
+        !kind_clause.contains("torus"),
+        "a torus support is refused on kind; the kind clause must not admit one: \
+         {kind_clause}"
     );
 }

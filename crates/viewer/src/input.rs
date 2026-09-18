@@ -32,7 +32,7 @@
 //!
 //! **The primary (left) button selects, and a plain drag of it moves
 //! no camera.** It is the button click-to-select takes — the first of
-//! `crates/viewer/README.md` G3's four items — so it is bound to
+//! `crates/viewer/GUI-DESIGN.md` G3's four items — so it is bound to
 //! [`PickAction::Select`] and, unmodified, to nothing in the
 //! navigation vocabulary. Navigation lives on middle and secondary,
 //! which is mainstream CAD convention independently of that.
@@ -52,6 +52,9 @@
 //! a drag moves the camera and picks nothing, a click picks and moves
 //! nothing — but that is a property of the default bindings, not an
 //! invariant either function enforces on the other.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use crate::camera::{Camera, CameraOp, Folded};
 
@@ -119,7 +122,7 @@ pub enum ViewportEvent {
 /// The **cursor** half of the input mapping, beside [`CameraOp`]'s
 /// navigation half: a value naming a query, with no ray and no scene
 /// in it. Turning one into a selection needs a camera and an
-/// evaluation, which is [`crate::pick::PickIndex`]'s job.
+/// evaluation, which is [`crate::pickindex::PickIndex`]'s job.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PickAction {
     /// Move the transient hover to whatever is under this cursor.
@@ -251,11 +254,19 @@ impl InputMap {
 /// It is worth being exact about what this does and does not reserve,
 /// because the name "preset" invites the wrong reading. [`InputMap`]
 /// binds MICE: two rate scalars and four buttons. **There is no
-/// keyboard-binding vocabulary in this crate at all** — no key
-/// denotes an operation anywhere, so a modal or vim-shaped preset is
-/// not a row that can be added here. It needs that vocabulary built
-/// first: which key means which `CameraOp`/`SessionOp`, how modal
-/// state is held, how a chord is represented.
+/// keyboard-binding vocabulary in this crate at all** — so a modal or
+/// vim-shaped preset is not a row that can be added here. It needs
+/// that vocabulary built first: which key means which
+/// `CameraOp`/`SessionOp`, how modal state is held, how a chord is
+/// represented.
+///
+/// **One key is read, and reading is not binding.**
+/// [`crate::widgets::drag_gesture_ops`] asks whether Escape was
+/// pressed on the frame a drag ended, because `egui` ends a drag on
+/// Escape and on nothing else and the chrome would otherwise report
+/// that abandonment as a release. The key is the toolkit's already;
+/// what the branch decides is which of two things the toolkit did, not
+/// which operation a key denotes.
 ///
 /// What this reserves is the door and the naming: a preferences file
 /// may say which preset it wants, an unknown name is refused rather

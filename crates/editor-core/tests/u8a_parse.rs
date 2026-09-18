@@ -477,15 +477,12 @@ proptest! {
     /// Any text the grammar can produce parses, lands on the expected
     /// dimension, and its parse is total under the params table —
     /// constructor refusals cannot fire on dimension-correct source.
+    /// The dimensions generated are [`Dimension::ALL`], so the span
+    /// the property covers is the lattice's.
     #[test]
     fn grammar_generated_text_parses_to_the_expected_dimension(
-        (dim, src) in prop_oneof![
-            Just(Dimension::Length),
-            Just(Dimension::Angle),
-            Just(Dimension::Scalar),
-            Just(Dimension::Count),
-        ]
-        .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
+        (dim, src) in proptest::sample::select(&Dimension::ALL[..])
+            .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
     ) {
         let mut params = BTreeMap::new();
         params.insert(ParamName::new("S"), Dimension::Scalar);
@@ -719,16 +716,12 @@ fn a_negative_literal_is_the_one_shape_this_grammar_cannot_spell() {
 proptest! {
     /// The round trip over the grammar's whole generated span: any
     /// source the generator emits parses, unparses, and reparses to
-    /// the identical tree and the identical literal bits.
+    /// the identical tree and the identical literal bits. The span is
+    /// every dimension ([`Dimension::ALL`]), read rather than listed.
     #[test]
     fn any_grammar_text_survives_a_parse_unparse_parse(
-        src in prop_oneof![
-            Just(Dimension::Length),
-            Just(Dimension::Angle),
-            Just(Dimension::Scalar),
-            Just(Dimension::Count),
-        ]
-        .prop_flat_map(|dim| arb_text_of(dim, 3)),
+        src in proptest::sample::select(&Dimension::ALL[..])
+            .prop_flat_map(|dim| arb_text_of(dim, 3)),
     ) {
         let mut params = BTreeMap::new();
         params.insert(ParamName::new("S"), Dimension::Scalar);

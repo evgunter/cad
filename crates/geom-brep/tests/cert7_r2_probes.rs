@@ -27,7 +27,9 @@ use core::f64::consts::FRAC_PI_2;
 use std::sync::Arc;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset, recertify_approx};
+use geom_brep::offset_fit::{
+    approx_offset_surface_at, certify_offset_at, fit_offset_at, recertify_approx_at,
+};
 use geom_core::Point3;
 
 use crate::shared::fixture::{arc_weight, kv2, quarter_cylinder};
@@ -82,12 +84,12 @@ fn r2_ellipse_of_revolution_wall_through_the_storage_door() {
     let wall = ellipse_wall(2.0, 1.0, 0.2, 1.2);
     let d = 0.05;
     let tol = 1e-3;
-    let s = approx_offset_surface(Arc::new(wall.clone()), d, tol, band())
+    let s = approx_offset_surface_at(Arc::new(wall.clone()), d, tol, band())
         .unwrap_or_else(|e| panic!("the ellipse wall refused through the storage door: {e}"));
     let geom::Surface::Approx(approx) = s else {
         panic!("the storage door returned a non-Approx variant");
     };
-    let cert = recertify_approx(&approx, tol, band()).unwrap();
+    let cert = recertify_approx_at(&approx, tol, band()).unwrap();
     let worst = sampled_residual(&wall, approx.fit(), d);
     assert!(
         worst <= cert.hull_sup,
@@ -116,7 +118,7 @@ fn r2_hostile_uniform_weight_scales_contain_or_refuse() {
             exact.weights().iter().map(|w| w * k).collect(),
         )
         .unwrap();
-        match certify_offset(&base, &scaled, d, 1e-3, band()) {
+        match certify_offset_at(&base, &scaled, d, 1e-3, band()) {
             Ok(cert) => {
                 assert!(
                     cert.hull_sup >= worst,
@@ -137,7 +139,7 @@ fn r2_hostile_uniform_weight_scales_contain_or_refuse() {
 fn r2_hostile_alternating_weights_contain_or_refuse() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.25;
-    let (fit, _) = fit_offset(&base, d, 1e-3, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-3, band()).unwrap();
     let n = fit.weights().len();
     let weights: Vec<f64> = (0..n)
         .map(|i| if i % 2 == 0 { 0.1 } else { 10.0 })
@@ -150,7 +152,7 @@ fn r2_hostile_alternating_weights_contain_or_refuse() {
     )
     .unwrap();
     let worst = sampled_residual(&base, &hostile, d);
-    match certify_offset(&base, &hostile, d, worst * 4.0, band()) {
+    match certify_offset_at(&base, &hostile, d, worst * 4.0, band()) {
         Ok(cert) => {
             assert!(
                 cert.hull_sup >= worst,

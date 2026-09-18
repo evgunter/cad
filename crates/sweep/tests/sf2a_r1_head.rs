@@ -8,12 +8,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use crate::common::approx::band;
+use geom_core::{Point3, Tol, Vec3};
 use topo::{Body, ChartMove, FaceKey, ReplaceFaceError};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// The chamfered cube: an all-planar body every one of whose vertices
 /// has FOUR distinct planes (one cube face, two strips, one corner

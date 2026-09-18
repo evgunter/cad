@@ -26,7 +26,9 @@ import pncad
 from pncad import (
     CapEnd,
     Doc,
+    DocEdit,
     EntityKind,
+    Expr,
     HitTestError,
     NamePat,
     Node,
@@ -56,10 +58,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                ((x + 0.0) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + side) * m),
-                ((x + 0.0) * m, (y + side) * m),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -68,7 +70,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), 1 * m))
+    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1, m)))
 
 
 def straight_down(x=0.5, y=0.5, z=3.0, scale=1.0):
@@ -82,15 +84,15 @@ def one(found):
     return found[0]
 
 
-def top_cap(ev, node):
-    """The name of `node`'s top cap face — the selector door's answer,
+def end_cap(ev, node):
+    """The name of `node`'s end cap face — the selector door's answer,
     which is the oracle a pick is checked against."""
     return one(
         ev.select(
             node,
             Selector.of(
                 NamePat.of_kind(EntityKind.Face).seg(
-                    SegPat.tag(SegTag.Cap).side(CapEnd.Top)
+                    SegPat.tag(SegTag.Cap).side(CapEnd.End)
                 )
             ),
         )
@@ -107,11 +109,11 @@ class TestTheRayAnswersAName(unittest.TestCase):
         self.pick = NodePick.build(self.ev, self.cube, 0, DELTA)
 
     def test_the_picked_face_is_the_one_the_selector_names(self):
-        # The oracle: `select` says which name the top cap carries, and
+        # The oracle: `select` says which name the end cap carries, and
         # the ray has to agree. Two doors, one alphabet.
         hit = self.ev.pick_face([self.pick], straight_down())
         self.assertIsInstance(hit, PickHit)
-        self.assertEqual(hit.name, top_cap(self.ev, self.cube))
+        self.assertEqual(hit.name, end_cap(self.ev, self.cube))
 
     def test_the_picked_name_is_a_materializers_own_text(self):
         hit = self.ev.pick_face([self.pick], straight_down())
@@ -134,6 +136,21 @@ class TestTheRayAnswersAName(unittest.TestCase):
         self.assertAlmostEqual(py.meters, 0.5, places=12)
         self.assertAlmostEqual(pz.meters, 1.0, places=12)
 
+    def test_the_interval_brackets_t_and_scales_with_the_direction(self):
+        # `t_lo <= t <= t_hi` off a real pick, read the way a consumer
+        # reads it. The interval is the ray's own parameter too, so
+        # doubling the direction halves all three ends together --
+        # a hit's three numbers are one claim, not three.
+        hit = self.ev.pick_face([self.pick], straight_down())
+        self.assertLessEqual(hit.t_lo, hit.t)
+        self.assertLessEqual(hit.t, hit.t_hi)
+        # A transversal pick on a well-conditioned cap is certified to
+        # far better than a part in a thousand of its own parameter.
+        self.assertLess(hit.t_hi - hit.t_lo, 1e-3 * hit.t)
+        doubled = self.ev.pick_face([self.pick], straight_down(scale=2.0))
+        self.assertAlmostEqual(doubled.t_lo, hit.t_lo / 2.0, places=12)
+        self.assertAlmostEqual(doubled.t_hi, hit.t_hi / 2.0, places=12)
+
     def test_t_is_in_units_of_the_rays_own_direction(self):
         # Twice the direction, half the parameter, same point — the
         # documented meaning of `t`, and the reason it is a bare float
@@ -155,7 +172,7 @@ class TestTheRayAnswersAName(unittest.TestCase):
         # be the answer.
         sideways = Ray((3 * m, 0.5 * m, 0.5 * m), (-1.0, 0.0, 0.0))
         hit = self.ev.pick_face([self.pick], sideways)
-        self.assertNotEqual(hit.name, top_cap(self.ev, self.cube))
+        self.assertNotEqual(hit.name, end_cap(self.ev, self.cube))
         self.assertIn(hit.name, self.ev.all_faces(self.cube))
         self.assertAlmostEqual(hit.point[0].meters, 1.0, places=12)
 
@@ -223,7 +240,15 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         doc = Doc()
         lower = unit_cube(doc)
         upper = doc.insert(
-            Node.transform(lower, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(lower, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         ev = evaluate(doc)
         picks = [
@@ -245,7 +270,7 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         # other way when the list is reversed.
         doc = Doc()
         first = unit_cube(doc)
-        second = doc.insert(Node.extrude(square(doc), 1 * m))
+        second = doc.insert(Node.extrude(square(doc), Expr.length_in(1, m)))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -343,7 +368,15 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         knife = doc.insert(
-            Node.datum_plane((0.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+            Node.datum_plane((
+                Expr.length_in(0.5, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ))
         )
         cut = doc.insert(Node.split(cube, knife))
         ev = evaluate(doc)
@@ -360,7 +393,22 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
 
 
 class TestTheIndexRefusesTyped(unittest.TestCase):
-    """`NodePickError`, arm by arm."""
+    """`NodePickError`, arm by arm.
+
+    ONE arm is not here, and its absence is a fact about the arm
+    rather than about this class. `mesh_index` reports a tessellated
+    mesh whose triangles index outside their own position buffer — a
+    kernel bug, not anything a caller can author — so no test below
+    can provoke it. Its two words (`mesh_index` on `variant`,
+    `position_out_of_range` on `index_variant`) and its three numbers
+    (`patch`, `triangle`, `index`) are pinned in Rust, where the
+    payload can be constructed:
+    `src/tests.rs::picking_refusal_tags_are_stable` and
+    `every_pick_arm_projects_the_index_numbers_it_carries`. What the
+    rows below own is the other half of "present on every arm": that
+    the three attributes EXIST, and read `None`, on the arms a caller
+    can actually reach.
+    """
 
     def setUp(self):
         self.doc = Doc()
@@ -375,7 +423,15 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
     def test_a_node_that_never_draws_refuses_not_a_body(self):
         doc = Doc()
         datum = doc.insert(
-            Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+            Node.datum_plane((
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         )
         ev = evaluate(doc)
         err = self.refusal(lambda: NodePick.build(ev, datum, 0, DELTA))
@@ -415,7 +471,15 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         # reads the payload without first branching on `variant`.
         doc = Doc()
         datum = doc.insert(
-            Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+            Node.datum_plane((
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         )
         ev = evaluate(doc)
         for call in (
@@ -425,8 +489,27 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         ):
             err = self.refusal(call)
             with self.subTest(variant=err.variant):
-                for field in ("variant", "node", "through", "kind", "body"):
+                for field in (
+                    "variant",
+                    "node",
+                    "through",
+                    "kind",
+                    "body",
+                    "index_variant",
+                    "patch",
+                    "triangle",
+                    "index",
+                ):
                     self.assertTrue(hasattr(err, field), field)
+                # The index arm is the only one that carries these,
+                # and none of these three is that arm — so they read
+                # `None` rather than being absent, and a caller
+                # assembling a bug report needs no branch on
+                # `variant` to find that out.
+                self.assertIsNone(err.index_variant)
+                self.assertIsNone(err.patch)
+                self.assertIsNone(err.triangle)
+                self.assertIsNone(err.index)
 
     def test_the_refusal_is_a_pncad_error(self):
         err = self.refusal(lambda: NodePick.build(self.ev, self.cube, 9, DELTA))
@@ -447,7 +530,15 @@ class TestThePickRefusesTyped(unittest.TestCase):
         cube = unit_cube(doc)
         before = evaluate(doc)
         later_node = doc.insert(
-            Node.transform(cube, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(cube, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -466,7 +557,15 @@ class TestThePickRefusesTyped(unittest.TestCase):
         cube = unit_cube(doc)
         before = evaluate(doc)
         later_node = doc.insert(
-            Node.transform(cube, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(cube, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -480,6 +579,98 @@ class TestThePickRefusesTyped(unittest.TestCase):
         self.assertIsNot(HitTestError, NodePickError)
         self.assertTrue(issubclass(HitTestError, PncadError))
         self.assertTrue(issubclass(NodePickError, PncadError))
+
+
+class TestThePickIndexPairsWithItsDocument(unittest.TestCase):
+    """An index is built from ONE evaluation and then handed a SECOND
+    at every name door. Node ids are minted per document, so a twin
+    recipe's evaluation answers every lookup out of its own tables —
+    other geometry's names, in patch order, with nothing marked. The
+    doors refuse it instead, under the word the gather, the checks and
+    the name-level edit door already answer with.
+
+    A LATER evaluation of the SAME document is admitted: a pairing is
+    about identity, never about a version."""
+
+    def setUp(self):
+        self.doc = Doc()
+        self.cube = unit_cube(self.doc)
+        self.ev = evaluate(self.doc)
+        self.pick = NodePick.build(self.ev, self.cube, 0, DELTA)
+        # The twin: the same recipe under a second identity, so it
+        # mints the same node ids and answers the same lookups.
+        self.twin = Doc()
+        twin_cube = unit_cube(self.twin)
+        self.assertEqual(twin_cube, self.cube, "the twins mint one id")
+        self.assertNotEqual(self.twin.id, self.doc.id, "two documents")
+        self.twin_ev = evaluate(self.twin)
+
+    def test_the_twins_tables_would_have_answered(self):
+        # The premise, so the refusals below are the only thing between
+        # a consumer and another document's names.
+        own = self.pick.patch_names(self.ev)
+        self.assertTrue(all(isinstance(n, str) for n in own))
+        self.assertEqual(
+            set(own), set(self.twin_ev.all_faces(self.cube)),
+            "the twin's tables carry names for the very same lookups",
+        )
+
+    def test_patch_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.patch_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_boundary_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.boundary_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_pick_face_refuses_a_target_of_another_document(self):
+        # The standing ladder would NOT have caught this: the twin has
+        # an Ok value for the same node id, so the ray would have
+        # resolved to a name out of the twin's table.
+        self.assertIsNotNone(self.twin_ev.value(self.cube))
+        self.assertIsNotNone(self.ev.pick_face([self.pick], straight_down()))
+        with self.assertRaises(HitTestError) as caught:
+            self.twin_ev.pick_face([self.pick], straight_down())
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_a_later_evaluation_of_the_same_document_is_admitted(self):
+        # The INDEXED node is edited — its own extrusion distance — so
+        # the later run recomputes and re-tessellates the very body the
+        # index was built from and the index is a picture behind. That
+        # is the stale case the pairing admits, and the Rust row
+        # `a_later_evaluation_of_the_same_document_is_admitted` draws it
+        # the same way; a second, unrelated solid would leave this
+        # node's value untouched and prove nothing about staleness.
+        self.doc.apply(
+            DocEdit.set_param(self.cube, "distance", Expr.length_in(2, m))
+        )
+        later = evaluate(self.doc)
+        # The premise, through the doors: the node's own body moved, so
+        # an index built on the later run hits the cap at t = 1 where
+        # the stale one still hits it at t = 2.
+        rebuilt = NodePick.build(later, self.cube, 0, DELTA)
+        self.assertAlmostEqual(
+            later.pick_face([rebuilt], straight_down()).t, 1.0, places=12
+        )
+        self.assertAlmostEqual(
+            later.pick_face([self.pick], straight_down()).t, 2.0, places=12,
+            msg="the admitted index is a picture behind, and says so",
+        )
+        self.assertEqual(
+            self.pick.patch_names(later), self.pick.patch_names(self.ev)
+        )
+        self.assertEqual(
+            self.pick.boundary_names(later), self.pick.boundary_names(self.ev)
+        )
+        self.assertIsNotNone(later.pick_face([self.pick], straight_down()))
 
 
 class TestThePickedNameIsUsable(unittest.TestCase):
@@ -501,7 +692,7 @@ class TestThePickedNameIsUsable(unittest.TestCase):
                     cube,
                     Selector.of(
                         NamePat.of_kind(EntityKind.Face).seg(
-                            SegPat.tag(SegTag.Cap).side(CapEnd.Top)
+                            SegPat.tag(SegTag.Cap).side(CapEnd.End)
                         )
                     ),
                 )

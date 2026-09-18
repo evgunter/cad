@@ -34,7 +34,13 @@ pub enum FaceContainment {
 }
 
 /// Typed refusal of [`contfp`].
-#[derive(Debug)]
+///
+/// `Clone`/`PartialEq` because a consumer CARRIES this refusal rather
+/// than restating it: the tier-3′ census holds it inside
+/// [`CensusUnsupportedCause::Containment`](crate::CensusUnsupportedCause::Containment),
+/// and [`ValidationError`](crate::ValidationError) is a cloneable,
+/// comparable value.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
@@ -64,6 +70,49 @@ impl From<PointInLoopError> for ContainError {
         }
     }
 }
+
+// Each arm names WHAT STOPPED and the repair that moves it, because a
+// consumer that carries this refusal renders it verbatim and adds no
+// sentence of its own. The three non-escalated arms want three
+// different repairs — re-model the loop, move the point or lower ε,
+// repair the body — so one shared tail would name the wrong one for
+// two of them.
+//
+// `Escalated` delegates to [`Indeterminate`]'s own `Display`, which
+// already composes the named predicate, the margin it metred and the
+// shared two-tolerance recourse; restating any of that here would
+// double it.
+impl core::fmt::Display for ContainError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Escalated(diag) => write!(f, "contfp: {diag}"),
+            Self::RayExhausted => write!(
+                f,
+                "contfp: every direction of the parity schedule grazed the face's \
+                 boundary, so no ray read a definite crossing count — the point sits \
+                 within ε of the boundary at this tolerance; move the point off the \
+                 boundary or lower the tolerance"
+            ),
+            Self::Corrupt => write!(
+                f,
+                "contfp: the face's topology is not a walkable cycle of resolvable \
+                 geometry — a loop, half-edge, vertex or point reference does not \
+                 resolve; repair the body's topology before asking it a containment \
+                 question"
+            ),
+            Self::ArcLoopUnsupported { r#loop } => write!(
+                f,
+                "contfp: loop {loop:?} bears arcs and has fewer than three vertices, so \
+                 the polygon through them has zero area and no available walk expresses \
+                 its region — refused rather than answered from a polygon that is not \
+                 the region; split an arc so the loop carries three vertices, or model \
+                 the region as a disc of one circle"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ContainError {}
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
 /// with unit plane normal `normal`) against the face. Sweep order is
@@ -97,7 +146,9 @@ pub fn contfp<T: Decide>(
     let inside = |lk| -> Result<LoopContainment, ContainError> {
         match loop_shape(body, lk, band)? {
             LoopShape::Disc(disc) => disc_side(disc, q, band),
-            LoopShape::Parity => Ok(point_in_loop(body, lk, normal, q, band)?),
+            LoopShape::Polygon | LoopShape::ArcParity => {
+                Ok(point_in_loop(body, lk, normal, q, band)?)
+            }
             LoopShape::NoWalk => Err(ContainError::ArcLoopUnsupported { r#loop: lk }),
         }
     };
@@ -128,16 +179,34 @@ pub fn contfp<T: Decide>(
 
 /// Which walk can express a loop's region — the question [`contfp`]'s
 /// interior/exterior step must answer before it asks any other.
-enum LoopShape<T: geom_core::Real> {
+///
+/// Visible to the crate because it is the classification tier 3's
+/// check 9 gates its nesting arm on as well: the same question, about
+/// the same loops, and a second spelling of it was a second answer to
+/// maintain.
+pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
     Disc(LoopCircle<T>),
-    /// The ray-parity walk's polygon IS this loop's region, or is a
-    /// sound stand-in for it: no arc anywhere (the polygon is the
-    /// region exactly), or arcs over at least three vertices, where
-    /// the polygon is a proper region and the walk has been measured
-    /// correct (a slot, a rounded rectangle).
-    Parity,
+    /// No arc anywhere: the ray-parity walk's polygon IS this loop's
+    /// region, exactly.
+    Polygon,
+    /// Arc-bearing over at least three vertices: the polygon through
+    /// them is a proper region and the parity walk has been measured
+    /// correct on it at the shapes reviewed (a slot, a rounded
+    /// rectangle) — but it is NOT this loop's region, and saying so is
+    /// this variant's whole job. An arc bowing OUTWARD leaves region
+    /// between the polygon and the boundary, and a point there reads
+    /// `Out` when it is in: measured on a bored D-rod's transverse
+    /// cap, whose major arc dips past the chord its vertices span and
+    /// whose bore sits in the lune between them.
+    ///
+    /// [`contfp`] walks it anyway — one point's verdict, the posture
+    /// it has always taken, with #1076 owning the general case. A
+    /// consumer that would REFUSE a body on an `Out` must not: tier
+    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] alone
+    /// for exactly that reason.
+    ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
     /// AREA, so the parity walk answers `Out` for every interior
@@ -152,7 +221,7 @@ enum LoopShape<T: geom_core::Real> {
 /// The circle a disc-class loop bounds — its own type, because three
 /// components of one datum read better named than positional.
 #[derive(Clone, Copy)]
-struct LoopCircle<T: geom_core::Real> {
+pub(crate) struct LoopCircle<T: geom_core::Real> {
     /// The circle's centre.
     center: Point3<T>,
     /// Its plane normal (sign-free: only `cross` reads it).
@@ -176,13 +245,16 @@ struct LoopCircle<T: geom_core::Real> {
 ///   region is that circle's disc exactly; [`disc_side`] decides it.
 ///   The planar analog of the curved door's iso-bounded class
 ///   ([`curved_face_containment`]).
-/// - **[`LoopShape::Parity`]** — no arc at all (the polygon IS the
-///   region), or arcs over ≥ 3 vertices, where the polygon is a proper
-///   region and the walk is measured correct at the shapes reviewed (a
-///   slot, a rounded rectangle). Unproven in general: an arc bowing
-///   outward puts region between the polygon and the boundary, and
-///   only the ≥ 3-vertex shapes actually measured are relied on here
-///   (#1076 owns the general case).
+/// - **[`LoopShape::Polygon`]** — no arc at all: the polygon IS the
+///   region.
+/// - **[`LoopShape::ArcParity`]** — arcs over ≥ 3 vertices, where the
+///   polygon is a proper region and the walk is measured correct at
+///   the shapes reviewed (a slot, a rounded rectangle). Unproven in
+///   general: an arc bowing outward puts region between the polygon
+///   and the boundary (#1076 owns the general case). Separated from
+///   [`LoopShape::Polygon`] because that gap is a different answer for
+///   a consumer that refuses on `Out` than for one that classifies a
+///   point.
 /// - **[`LoopShape::NoWalk`]** — arc-bearing over < 3 vertices, where
 ///   the polygon has zero area and the answer is demonstrably wrong.
 ///
@@ -202,7 +274,12 @@ struct LoopCircle<T: geom_core::Real> {
 /// [`curved_face_containment`] does — an in-band margin is not a
 /// licence to fall through to a walk whose domain this loop is
 /// outside.
-fn loop_shape<T: Decide>(
+///
+/// # Errors
+///
+/// [`ContainError`] — a carrier-agreement escalation, or a loop this
+/// walk cannot read.
+pub(crate) fn loop_shape<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
@@ -273,7 +350,8 @@ fn loop_shape<T: Decide>(
     Ok(match (one_circle, circle) {
         (true, Some(c)) => LoopShape::Disc(c),
         _ if bears_arc && vertices < 3 => LoopShape::NoWalk,
-        _ => LoopShape::Parity,
+        _ if bears_arc => LoopShape::ArcParity,
+        _ => LoopShape::Polygon,
     })
 }
 
@@ -961,7 +1039,7 @@ mod tests {
                 assert!(
                     matches!(
                         loop_shape(&body, lk, band).expect("the box walks"),
-                        LoopShape::Parity
+                        LoopShape::Polygon
                     ),
                     "a straight-edged loop bounds no disc and needs no gate"
                 );

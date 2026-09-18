@@ -23,16 +23,13 @@
 
 use crate::revolve_common;
 
+use crate::common::approx::band;
 use geom_core::{Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use revolve_common::*;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid};
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
-}
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
     point_in_solid(body, q, band(), Tol::witness()).unwrap()

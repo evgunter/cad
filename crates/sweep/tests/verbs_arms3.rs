@@ -42,6 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::oracles::sigma;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
@@ -71,9 +72,10 @@ const RIM_R: f64 = 0.8;
 /// `(0, ∓0.6)`, bored on-axis at `0.6` so the profile stays ANNULAR and
 /// every latitude rim is one closed edge.
 ///
-/// Its equator at radius `0.8` is the sphere×sphere rim — CONVEX, which
-/// is the configuration the composition surgery carves (a concave rim's
-/// blend adds material, and that door is elsewhere). Every crossing is
+/// Its equator at radius `0.8` is the sphere×sphere rim — CONVEX, so its
+/// band removes material (a concave sphere×sphere rim, a snowman's
+/// waist, carves through the same door and adds it —
+/// `review_arms2_r1_probes`). Every crossing is
 /// exact in binary: both `(0.6, ±0.2)` and `(0.8, 0)` are 3-4-5 points
 /// of their own sphere.
 fn lentil() -> Body<f64> {
@@ -227,17 +229,18 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
-    let trace = |y: f64, side: f64| SupportTrace::Round {
+    let trace = |y: f64, side: bool| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: SPHERE_R,
         side,
     };
-    for (sa, sb) in [(1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0)] {
+    for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+        let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(
             sheet.rim,
             sheet.sheet_normal(),
-            trace(-HALF_SEP, sa),
-            trace(HALF_SEP, sb),
+            trace(-HALF_SEP, side_a),
+            trace(HALF_SEP, side_b),
             r,
         );
         // The two offset radii, and the crossing they imply: the axial
@@ -319,8 +322,9 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // so on its own metered predicate.
     for seam in seams {
         match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
-            Err(BlendError::TangentialEdge { margin, .. }) => assert!(
-                margin == 0.0,
+            Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
+                (margin.predicate, margin.value()),
+                ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
             ),
             other => panic!("a co-surface seam refuses as a tangency, got {other:?}"),

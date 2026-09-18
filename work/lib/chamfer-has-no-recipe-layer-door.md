@@ -2,10 +2,11 @@
 id: chamfer-has-no-recipe-layer-door
 kind: issue
 title: chamfer_edges has no recipe-layer door - no Node::chamfer, so no rebuild, no names, no selectors
-status: open
+status: closed
 opened: 2026-08-22
 github: 918
 refs: [708]
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 918
@@ -29,3 +30,15 @@ Also decide there whether chamfer strips and corner patches need `RoleSeg` varia
 ## Home
 
 Recipe doors are LIB's by charter (`docs/RECIPE-DOORS-DESIGN.md`, chamfer landed as G16), and S-BLEND's own charter ceded the recipe layer to LIB.
+
+## Closed (2026-09-04, the DESIGN.md editing pass)
+
+Delivered by LIB-G16: `Node::Chamfer` sits beside `Node::Fillet` in
+`crates/editor-core/src/node.rs`, its evaluation arm and emitter ship
+(`names/emit_blend.rs` — `emit_fillet` / `emit_chamfer` are two doors
+over one blend translation, so the #708 tie-deferral shape is shared
+rather than duplicated), and `crates/editor-core/tests/lib_g16_chamfer_node.rs`
+pins the die-with-chamfer document's rebuild, names and closed-form
+oracles. The "schema version" step in *What closing it takes* no
+longer exists as a mechanism (DESIGN.md Band 4: no hand-maintained
+schema version pre-release).

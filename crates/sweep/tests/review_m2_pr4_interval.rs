@@ -15,7 +15,9 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Point3, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{validate, validate_closed, validate_geometric};
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
@@ -98,12 +100,9 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
-    let v = t.body.vertices().count() as isize;
-    let e = t.body.edges().count() as isize;
-    let f = t.body.faces().count() as isize;
-    let r: isize = t.body.faces().map(|(_, fc)| fc.rings.len() as isize).sum();
-    assert_eq!((v, e, f, r), (20, 30, 12, 2));
-    assert_eq!(v - e + f - r, 0); // genus 1
+    let counts = euler_counts(&t.body);
+    assert_eq!((counts.v, counts.e, counts.f, counts.r), (20, 30, 12, 2));
+    assert_eq!(counts.genus(), Ok(1));
     // Both caps carry the ring.
     assert_eq!(t.body.get_face(t.top).unwrap().rings.len(), 1);
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
@@ -138,12 +137,9 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // Genus 1: the ring path ran end to end at the interval scalar.
-    let v = t.body.vertices().count() as isize;
-    let e = t.body.edges().count() as isize;
-    let f = t.body.faces().count() as isize;
-    let r: isize = t.body.faces().map(|(_, fc)| fc.rings.len() as isize).sum();
-    assert_eq!((v, e, f, r), (16, 24, 10, 2));
-    assert_eq!(v - e + f - r, 0);
+    let counts = euler_counts(&t.body);
+    assert_eq!((counts.v, counts.e, counts.f, counts.r), (16, 24, 10, 2));
+    assert_eq!(counts.genus(), Ok(1));
 }
 
 /// FIXED (was `interval_rotated_placement_refuses_honestly_pre_b1_fix`):
@@ -162,7 +158,7 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
     let two_thirds = Interval::from_f64(2.0) / Interval::from_f64(3.0);
     let u = Vec3::new(two_thirds, two_thirds, third);
     let v = Vec3::new(third, Interval::from_f64(0.0) - two_thirds, two_thirds);
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_from_axes(
         Point3::new(
             Interval::from_f64(0.25),
             Interval::from_f64(-0.5),
@@ -170,6 +166,7 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
         ),
         u,
         v,
+        Tol::witness(),
     );
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = Profile::new(plane, vec![lp])

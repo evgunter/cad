@@ -33,7 +33,8 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use test_utils::fuzz;
-use viewer::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator, ThreadEvaluator};
+use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
+use viewer::generation::Generation;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
@@ -458,7 +459,11 @@ fn a_drag_of_any_length_commits_exactly_one_edit_and_one_undo_step() {
         let mut last = 0.0;
         for _ in 0..steps {
             last = rng.range(0.001, 0.05);
-            let outcome = session.perform(SessionOp::PreviewGesture { value: last });
+            let outcome = session.perform(SessionOp::PreviewGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: last,
+            });
             assert!(
                 outcome.committed.is_empty(),
                 "a preview committed ({})",
@@ -472,7 +477,10 @@ fn a_drag_of_any_length_commits_exactly_one_edit_and_one_undo_step() {
                 fuzz::replay()
             );
         }
-        let outcome = session.perform(SessionOp::CommitGesture);
+        let outcome = session.perform(SessionOp::CommitGesture {
+            node: extrude,
+            slot: SlotId::Distance,
+        });
         assert_eq!(
             outcome.committed.len(),
             1,
@@ -510,7 +518,11 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
         node: extrude,
         slot: SlotId::Distance,
     });
-    session.perform(SessionOp::PreviewGesture { value: 0.042 });
+    session.perform(SessionOp::PreviewGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: 0.042,
+    });
     assert_eq!(
         distance_of(session.doc(), extrude),
         SlotValue::Continuous(0.042),
@@ -731,18 +743,25 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             assert_eq!(*through, bad, "the poison names the failed ancestor");
             assert_eq!(
                 message.as_deref(),
-                Some(expected.as_str()),
-                "a poisoned row reports the ANCESTOR's typed error verbatim"
+                Some(viewer::tree::downstream_wording(bad).as_str()),
+                "a poisoned row points at the ancestor's row and recites nothing"
             );
         }
         other => panic!("expected a poisoning, got {other:?}"),
     }
-    // No status carries a string this crate composed: every message in
-    // the tree is one of the evaluation's own renderings.
+    // No row invents a failure: what went wrong is the evaluation's
+    // own rendering, on the row that owns it, and every other line in
+    // the tree is the one pointer this crate writes.
     for row in &rows {
         if let Some(message) = row.status.message() {
+            let allowed = match &row.status {
+                viewer::tree::RowStatus::Poisoned { through, .. } => {
+                    viewer::tree::downstream_wording(*through)
+                }
+                _ => expected.clone(),
+            };
             assert_eq!(
-                message, expected,
+                message, allowed,
                 "an unexpected message appeared in the tree: {message}"
             );
         }

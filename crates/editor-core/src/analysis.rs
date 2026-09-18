@@ -348,6 +348,26 @@ pub trait AxisScalar: geom_core::Real {
     /// The tightest enclosure of the offset span `[lo, hi]`, or `None`
     /// when this scalar cannot represent it.
     fn axis(lo: f64, hi: f64) -> Option<Self>;
+
+    /// The same axis, with the PARAMETER'S NAME in hand — the door
+    /// [`param_env_over`] calls (E12).
+    ///
+    /// The default DELEGATES to [`AxisScalar::axis`] and discards the
+    /// name, so every existing scalar is unaffected by this seam: `f64`,
+    /// `Probe`, `Interval` and `Dual<T>` bind exactly the value they
+    /// bound before, bit for bit. The one implementor that overrides it
+    /// is `geom_core::Sym<T>`, whose whole business is that a parameter
+    /// occurrence is a NAMED symbol rather than an anonymous enclosure —
+    /// two occurrences of one parameter have to be one indeterminate,
+    /// and only the name can say that they are.
+    ///
+    /// The name is a `&ParamName` rather than a `&str` because the
+    /// caller has one and the identity being carried is the document's,
+    /// not a string's.
+    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
+        let _ = name;
+        Self::axis(lo, hi)
+    }
 }
 
 /// A point scalar carries only a degenerate axis, and the comparison is
@@ -380,6 +400,47 @@ impl AxisScalar for geom_core::Probe {
 impl AxisScalar for geom_core::Interval {
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         Some(geom_core::Interval::from_bounds(lo, hi))
+    }
+}
+
+/// **The symbolic tier binds the axis as a SYMBOL** — the one door that
+/// introduces an indeterminate ([`AxisScalar::axis_named`]).
+///
+/// The value channel is the base scalar's own offset enclosure, so the
+/// numbers are the ones an un-wrapped run would carry; what is added is
+/// that `nominal + offset` is an affine expression in a named symbol
+/// rather than an opaque interval, which is the whole of what makes an
+/// identity cancel downstream.
+///
+/// [`AxisScalar::axis`] — the unnamed door — mints no PARAMETER symbol,
+/// because without a name there is nothing to key one by: two calls
+/// could not be recognised as the same parameter, and calling them one
+/// symbol would claim an identity nobody stated. It answers the base
+/// scalar's axis through [`geom_core::Sym::opaque`], which gives each
+/// call its OWN indeterminate — so everything built from it decides
+/// numerically, and two axes minted this way never cancel against each
+/// other.
+///
+/// That last clause is load-bearing and it was got wrong once: while
+/// `opaque` handed every untracked value one shared id, two `axis`
+/// calls were one unknown, and their difference was the zero polynomial
+/// — a symbolic `Zero` on two enclosures that are not equal. Distinct
+/// unknowns are the only sound answer here; an unnamed axis is
+/// something the tier knows NOTHING about, and "nothing" is not
+/// "the same as its neighbour".
+impl<T: AxisScalar> AxisScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        T::axis(lo, hi).map(geom_core::Sym::opaque)
+    }
+
+    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
+        // The bracket goes with the value: it is the one value the
+        // symbolic tier reads (rule C's sign read, `geom_core::sym`).
+        T::axis(lo, hi)
+            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::of(&name.0), v, lo, hi))
     }
 }
 
@@ -450,6 +511,18 @@ impl SeedScalar for geom_core::Interval {
     }
 }
 
+/// The symbolic tier is an expression channel, not a tangent bundle: it
+/// carries whatever its base scalar carries, which for every scalar it
+/// is instantiated at is no tangent at all.
+impl<T: SeedScalar> SeedScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn seed(_lifted: Self) -> Option<Self> {
+        None
+    }
+}
+
 /// A dual is the tangent bundle (DL1): the seed is the base scalar's
 /// exact `1.0` on the tangent channel, beside whatever the value channel
 /// already carries — the nominal at `Dual64`, the leaf's enclosure at
@@ -495,20 +568,17 @@ impl core::fmt::Display for SeedError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the seed names {:?}, which is not a parameter of this document",
-                param.0
+                "the seed names {param}, which is not a parameter of this document"
             ),
             Self::CountParam { param } => write!(
                 f,
-                "the seed names {:?}, a Count parameter — structural parameters are fixed \
-                 under any error analysis and carry no derivative axis",
-                param.0
+                "the seed names {param}, a Count parameter — structural parameters are fixed \
+                 under any error analysis and carry no derivative axis"
             ),
             Self::TangentUnrepresentable { param } => write!(
                 f,
-                "parameter {:?} is seeded and this evaluation scalar carries no tangent \
-                 channel — a sensitivity pass needs a dual",
-                param.0
+                "parameter {param} is seeded and this evaluation scalar carries no tangent \
+                 channel — a sensitivity pass needs a dual"
             ),
         }
     }
@@ -671,14 +741,13 @@ impl core::fmt::Display for ParamBoxError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the parameter box names {:?}, which is not a continuous parameter of this document",
-                param.0
+                "the parameter box names {param}, which is not a continuous parameter of this \
+                 document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => write!(
                 f,
-                "parameter {:?} spans offsets [{lo}, {hi}] and this evaluation scalar carries no \
-                 such value — a widened box needs an enclosing scalar",
-                param.0
+                "parameter {param} spans offsets [{lo}, {hi}] and this evaluation scalar carries \
+                 no such value — a widened box needs an enclosing scalar"
             ),
         }
     }
@@ -878,10 +947,16 @@ pub fn param_env_over<T: AxisScalar, P>(
         let v = match *p {
             DocParam::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(name).map_or((0.0, 0.0), BoxAxis::span);
-                let offset = T::axis(lo, hi).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
-                    param: name.clone(),
-                    lo,
-                    hi,
+                // The NAMED door (E12): a scalar that tracks parameter
+                // occurrences symbolically needs to know which parameter
+                // this is; every other scalar's default discards the
+                // name and binds exactly what it bound before.
+                let offset = T::axis_named(name, lo, hi).ok_or_else(|| {
+                    ParamBoxError::AxisUnrepresentable {
+                        param: name.clone(),
+                        lo,
+                        hi,
+                    }
                 })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
@@ -914,9 +989,8 @@ impl core::fmt::Display for MeasureUnavailable {
         match self {
             Self::BandHasNoMeasure { param } => write!(
                 f,
-                "parameter {:?} carries a band: worst-case limits with no shape, so it \
-                 prices nothing — state a distribution to ask for mass",
-                param.0
+                "parameter {param} carries a band: worst-case limits with no shape, so it \
+                 prices nothing — state a distribution to ask for mass"
             ),
         }
     }

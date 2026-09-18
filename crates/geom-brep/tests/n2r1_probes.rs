@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::band;
+use core::num::NonZeroUsize;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
 use geom_core::{RingInterval, Tol};
@@ -16,7 +17,7 @@ use geom_core::{RingInterval, Tol};
 /// caught it; now it reaches here. Report what LEAVES the door.
 #[test]
 fn probe_masquerading_net_through_the_props_quadrature_door() {
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let p = |x: f64, y: f64, z: f64| {
         [
             RingInterval::point(x),
@@ -57,7 +58,7 @@ fn probe_masquerading_net_through_the_props_quadrature_door() {
 /// which channel carries the poison.
 #[test]
 fn probe_masquerading_net_poisoned_in_z_through_the_same_door() {
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let p = |x: f64, y: f64, z: f64| {
         [
             RingInterval::point(x),

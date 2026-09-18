@@ -21,7 +21,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
-use sweep::test_support::cube;
+use sweep::test_support::{cube, disc_of_arcs};
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, EdgeKey};
@@ -59,18 +59,10 @@ fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 /// A circular prism: two half-arc profile segments extruded, so every
-/// rim edge has a plane and a CYLINDER for supports.
+/// rim edge has a plane and a CYLINDER for supports — the homed
+/// `disc_of_arcs` at two arcs.
 fn cylinder(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a circular prism")
-        .body
+    disc_of_arcs(2, r, h, Tol::witness())
 }
 
 /// **The chamfer-purity claim, in one place**: a chamfer refusal's
@@ -295,7 +287,13 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
         .expect_err("a co-surface seam has no definite wedge side");
     match err.error {
         BlendError::TangentialEdge { margin, .. } => {
-            assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, geom_core::Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam's sine is structurally zero"
+            );
         }
         ref other => panic!("expected the shared tangential arm, got {other:?}"),
     }

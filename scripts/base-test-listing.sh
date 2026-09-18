@@ -6,9 +6,11 @@
 # WHY IT IS A SCRIPT AND NOT TWO `run:` BLOCKS. The lookup is ~60 lines of
 # shell and the default and interval lanes need the same 60 lines against a
 # different archive. Written inline it was copied verbatim into both jobs and
-# had already drifted in one string — and only ONE LANE RUNS PER RUN under
-# configuration sampling, so the copy that did not run was untested by
-# construction: every hosted green was a green for one of them.
+# had already drifted in one string. Under the 2026-08-22 lane sampling only
+# ONE LANE RAN PER RUN, so the copy that did not run was untested by
+# construction and every hosted green was a green for one of them. Both lanes
+# run again since 2026-09-04 and one copy is still the right shape: two copies
+# would differ in one string and nothing would ever exercise the difference.
 #
 # THE GUARDS LIVE HERE FOR THE SAME REASON, and it is the sharper half. The
 # defect this file is shaped around actually happened hosted (run 33343519165):

@@ -75,7 +75,9 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane,
+        + editor_core::MinClearanceLane
+        + editor_core::eval::SectionScalar
+        + editor_core::ShellLane,
 {
 }
 
@@ -99,7 +101,9 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane,
+        + editor_core::MinClearanceLane
+        + editor_core::eval::SectionScalar
+        + editor_core::ShellLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -119,7 +123,9 @@ where
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
-        + editor_core::MinClearanceLane,
+        + editor_core::MinClearanceLane
+        + editor_core::eval::SectionScalar
+        + editor_core::ShellLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

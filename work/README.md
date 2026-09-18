@@ -17,15 +17,13 @@ the one channel to Ev (below).
 work/
   README.md            this contract
   STATUS.md            GENERATED on main by CI — never hand-edited
+  issues/README.md     this directory's signpost (unparsed)
   issues/<name>.md     issues no program owns yet (kind: issue)
   <program>/
     program.md         the program: charter, prefix, band, territory
     plan.md            the plan (narrative; present state only)
     log.md             the log (append-only narrative; its tail is
                        the program's story, never its slate)
-    process-observations.md
-                       code-quality only: the C1–C27 observations
-                       (narrative, unparsed)
     <ID>.md            one file per item: unit, issue or ruling
 ```
 
@@ -55,7 +53,8 @@ needs_ev: true             # a question for Ev is open on an [ev] PR
 opened: 2026-09-02
 closed:                    # date; required once status is closed
 refs: [S330, 1588]         # related items or numbers, no semantics
-track: R                   # code-quality only: the track letter
+track: R                   # historical: the code-quality track letter,
+                           # on the rows that still carry one
 github: 1601               # migrated GitHub issue number, if any
 ---
 ```
@@ -65,7 +64,10 @@ Program headers carry, in addition: `area` (`kernel`, `api`, `gui`,
 (the away-channel role tag), `ab_band` (the A/B ordinal band, claimed
 in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 (prose pointers, one string each), and `blocks` (id blocks a program
-allocates from, code-quality only).
+allocates from). **No open program carries `blocks`, and none should**:
+an item's id comes from its name, not from a per-track number block.
+The block scheme belonged to the 2026-08 findings register and left the
+tree with it (`docs/DOC-LEDGER.md`, sweep 11).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -77,43 +79,141 @@ and a PR), `issue` (a defect or finding, not yet a unit), `ruling` (a
 question only Ev answers; never work).
 
 **status** of an item: `open` → `spec` → `dispatched` → `review` →
-`closed`, plus `parked` (waits on a named trigger, so `blocked_on`
-must be non-empty). A ruling is `open` or `closed`. A program is
-`open` or `closed`; a closed program may hold only closed items.
+`closed`, plus two ways of being not-now:
+
+- `parked` — **waits on a named trigger**, so `blocked_on` must be
+  non-empty and every id in it must resolve. The trigger is an item or
+  a PR: something that can fire, and that lint can see has fired.
+- `deferred` — **ratified as not-now**, with the ratification cited in
+  the body. No `blocked_on`: a deferred row is not waiting for anything
+  to happen, it has been decided against for now, and lint refuses a
+  `blocked_on` on one (a row that waits on a trigger is `parked`).
+  **The citation is prose and nothing checks it.** A ratification lives
+  in a README clause or a design doc, not in an item id, so there is no
+  reference for `lint` to resolve and no field pretending otherwise; a
+  reviewer reads the row and judges whether the ratification it names
+  says what it claims. What the tracker guarantees about a deferred row
+  is only this: it is not dispatchable, and it is not blocked either.
+
+Neither counts as available work: `STATUS.md` gives each its own column
+so a not-now row can never be read off the board as dispatchable, and
+neither is listed as stale for going untouched. A ruling is `open` or
+`closed`. A program is `open` or `closed`; a closed program may hold
+only closed items.
 
 ## Rules
 
 - **One file, one item.** Two programs editing one item is a merge
   conflict, and that is the cross-program handoff surfacing, not a
   bug. Re-parent or re-home by editing the header, never by copying.
+  **An item's directory is the program that owns it** — `work.py` reads
+  ownership from nowhere else — so a program claiming another's item
+  MOVES the file into its own directory in the PR that claims it,
+  keeping the id, and sets `parent:` to the unit that carries it. This
+  is how a finding reaches its owner. `work/code-quality/` used to be
+  where one waited for a claim; it left the tracker on 2026-09-11
+  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
+  gone to the eleven programs opened for them, so **a finding now goes
+  straight onto the slate of the program whose ground it lands on**, and
+  `work/issues/` is the last resort it always was. A `keep_out` clause
+  saying a claimed row stays where it was is the thing to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory for as long as it is open. Migrated code-quality rows
-  keep the row ids they were cited by (`D102`, `S330`, `C15`).
+  its directory for as long as it is open. The rows migrated from the
+  2026-08 findings register keep the ids they were cited by (`D102`,
+  `S330`, `C15`) wherever they now live; nothing mints new ones in that
+  shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —
   `program.md`, `plan.md` and `log.md` go, and so does the ratified
   exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
   SHA they are recoverable at, and that ledger entry is the program's
-  done-state of record. Residue is re-homed to a live program or to
-  `work/issues/` before the sweep, not left behind in the closed
-  directory. **That sweep sees items, not sentences**: a residue a
+  done-state of record. Residue is re-homed before the sweep, never
+  left behind in the closed directory: to a live program whose charter
+  it fits, or to a new program opened for it when the residue coheres
+  into a track of its own (a dozen items on one territory are a
+  successor's opening slate, and the closing program opens it).
+  `work/issues/` is the last resort, for residue that genuinely
+  coheres with no live or new track — an unsorted pile of related
+  items there is what the sweep exists to prevent. (Ev, 2026-09-06.)
+  **That sweep sees items, not sentences**: a residue a
   lane discloses inside its own item's `## Closed` prose reads as a
   record of work done, not as an open thread, so it is invisible to
   the re-homing and dies with the directory. Disclosing a residue is
   therefore not scheduling it — **give it its own file at the moment
   you disclose it**, on this program's slate or in `work/issues/`, and
   let the Closed section point at that file.
+- **`work/issues/` is for issues with no home yet, not a waiting room.**
+  When the owning program is clear, file the item straight onto that
+  program's slate — a lane does not need the owner's permission to put
+  a finding where it belongs, and routing it through `issues/` only
+  delays the owner seeing it. `issues/` is for the genuine case: a
+  finding whose owner is undecided or disputed. Claiming one MOVES the
+  file (header edit and `git mv`), never copies it. (Ev, 2026-09-04.)
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.
 - **References resolve.** Every id in `parent`, `blocked_on`,
   `rides_with` and `refs` names a file that exists. Ints are PR or
   issue numbers and are not checked.
+- **A fired trigger is not a blocker.** A `parked` row whose
+  `blocked_on` names a CLOSED item has had its trigger fire, and a
+  resolving reference is no evidence the row is still blocked. Two
+  cases, because the two say different things:
+  - **every blocker closed — a lint ERROR.** `parked` is simply false
+    of the row and the board is lying about it. Re-park it on what
+    actually gates it, open it, or defer it.
+  - **a fired entry beside a live one — a lint WARNING.** The row is
+    genuinely still blocked, so its status is true and only the entry
+    is stale; prune the fired entry.
+
+  The cost of the error is real and was accepted deliberately (Ev,
+  2026-09-04): one-file-one-item means the program closing a trigger
+  cannot un-park another program's rows in the same PR, so a closing
+  PR can red `main` for rows it does not own. The answer is to fix the
+  stale rows, not to soften the check.
+
+  **A number reaches the rule too, and only ever as a warning.** Ints
+  in `blocked_on` are PR or issue numbers that the tracker does not
+  resolve against GitHub — but a migrated issue carries its number on
+  the item that replaced it (`github:`), and that mapping is in the
+  tree. A number matching exactly one such item is read as that item,
+  and if it is closed the row is named. It is a **warning** in both
+  shapes above, never the error, because the author wrote a number and
+  the tracker matched it: a naming is a claim about a row, a match is
+  an inference about one, and an inference does not get to red `main`
+  for a program that cannot see it. A number matching no `github:`, or
+  two, stays unchecked as every int did before. The fix a warning asks
+  for is to name the item instead of the number, after which the rule
+  reads it directly and the error applies.
 - **Territory is a glob list** on the program, and every glob matches
   at least one tracked path. `scripts/work.py territory --base main`
   reads a branch's prefix and its diff and names every path another
-  program owns. It warns; it does not block.
+  program owns, **and every path the branch's own program claims that
+  another open program claims too** — those read differently ("owned
+  by X" against "also claimed by X; a double claim, not a crossing")
+  because they are different facts. It warns; it does not block.
+- **Two open programs may claim one path only if BOTH `keep_out`s name
+  the other.** An overlap written on both sides is a handoff a lane can
+  announce; an overlap written on one side or neither is a live
+  conflict, and the program that was there first is the one that cannot
+  see it. `lint` measures this at rest — every open program's globs
+  against `git ls-files` — and names each unrecorded pair with the
+  count of paths it shares.
+
+  This is a **warning today and an error when the tree can carry one.**
+  Most pairs are unrecorded at any moment, the bulk of them the
+  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
+  crate's tests by design, and one-file-one-item means no single program
+  may write the missing clauses. An error would red `main` the day it
+  landed for rows its author may not edit. **No count is stated here —
+  `work.py lint` prints the current one**, and it moves: the figure grew
+  by nine pairs in the ninety minutes between this PR opening and its
+  first merge-forward, when S-TCOST split and S-TINT took half its
+  territory.
+  The flip, and the question of whether the `*/tests/*` seam is written
+  once per program or taught to the check once, is
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not

@@ -1,11 +1,13 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
+mod analysis;
 mod assembly;
-mod checks;
-mod doc;
+pub(crate) mod checks;
+pub(crate) mod doc;
 mod expr;
 mod flush;
 mod mate;
+mod measure;
 mod mesh;
 mod path;
 mod pick;
@@ -38,14 +40,46 @@ pyo3::create_exception!(
     EditError,
     PncadError,
     "The document layer refused an edit (unknown node, cycle, slot \
-     dimension mismatch, ...)."
+     dimension mismatch, ...). Carries `variant`, which edit refused, \
+     and `inner_variant`, the arm of the refusal that edit carries — \
+     `None` where it carries none. `EvaluationError` states why the \
+     second word is a second attribute.\n\n\
+     The rest is the refusing arm's PAYLOAD, present on every arm and \
+     `None` where that arm does not carry it: `node`, `input` and \
+     `referenced_by` (the node the refusal is about, a node it names, \
+     a node downstream that references it), `slot`, `param`, `name`, \
+     `key`, `expected` and `found` (the dimension the door required \
+     and the one it was offered), `kind`, `from_kind`, `to_kind`, \
+     `count`, `first`, `again`, `value`, `offered`, `determinant`, \
+     `path`, `value_path` and `pin`.\n\n\
+     ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
+     differently the concept's clearest word wins — `expected`/ \
+     `found` carry `declared`/`referenced` and `measured`/`bound` \
+     too. Where two arms name two concepts the same they are spelled \
+     apart: a short list's `found` is a COUNT and rides `count`, \
+     because one attribute carries one type."
 );
 pyo3::create_exception!(
     pncad,
     EvaluationError,
     PncadError,
     "A node failed to evaluate, or was poisoned by an upstream \
-     failure. Carries `node` and, for a poisoning, `through`."
+     failure. Carries `node` and, for a poisoning, `through` — plus \
+     the two words that say what refused: `kind` and \
+     `inner_kind`.\n\n\
+     TWO WORDS BECAUSE THERE ARE TWO ENUMS. `kind` is the CARRIER's \
+     discriminant — `revolve`, `tube`, `shell` — fixed by the node's \
+     kind before any payload is read, and what a caller branching on \
+     the op ladder holds. `inner_kind` is the kernel refusal's OWN \
+     arm, which exists only once the carrier has said which refusal \
+     it holds: `wall_exceeds_radius` under `tube`, `sliver_rim` \
+     under `revolve`. Neither is a coarser spelling of the other, so \
+     each is projected where it lives; folding them into one \
+     vocabulary would move every shipped `kind` value and leave a \
+     caller splitting words by prefix.\n\n\
+     `inner_kind` is `None` where the refusal has no arms, and where \
+     `kind` is already the payload's own word (a mate, part or \
+     placement-rule fault reads its discriminant straight through)."
 );
 pyo3::create_exception!(
     pncad,
@@ -54,7 +88,15 @@ pyo3::create_exception!(
     "A body failed a topological or geometric validator. From the \
      validate doors it carries `door`, the gate that refused, and \
      `failure_count`, how many refusals it collected; from \
-     `mass_properties` it carries `reason` instead."
+     `mass_properties` it carries `reason` instead.\n\n\
+     `Body.validate_geometric_measured` raises through both halves: \
+     the gate's shape when tier 3 refuses, and the \
+     `mass_properties` shape when the gate passed and the \
+     measurement could not reach its target. That second refusal \
+     carries `volume_lo`, `volume_hi` and `surface_area` beside \
+     `reason` — the sign-level bracket the gate DID certify, which \
+     is the whole of what the quadrature is entitled to say about \
+     such a body. They are `None` on every other refusal."
 );
 pyo3::create_exception!(
     pncad,
@@ -143,7 +185,16 @@ pyo3::create_exception!(
     "A save or load the persistence doors refused (bad header, \
      unknown schema, unparseable body, a snapshot or edit log that \
      fails the shared validator, ...). Carries `variant`, the stable \
-     tag of the refusing arm."
+     tag of the refusing arm, plus every arm's payload as \
+     attributes — `None` where the arm does not carry one.\n\n\
+     Four arms wrap a refusal of their own (a profile-program fault, \
+     a distribution fault, a snapshot invariant, a replayed edit's \
+     `EditError`), and its word rides beside the carrier's on \
+     `inner_variant`; the nested refusal's own payload is the inner \
+     door's surface. `detail` is the underlying reporter's own words \
+     wherever an arm has one, `document` the document's recorded ε \
+     wherever an arm reports it, and `site` the kernel's prose for \
+     where a non-finite float sits."
 );
 pyo3::create_exception!(
     pncad,
@@ -172,23 +223,39 @@ pyo3::create_exception!(
     StlError,
     PncadError,
     "An STL export refused. Carries `variant`, the stable tag of the \
-     refusing arm.\n\n\
+     refusing arm, plus the arm's payload as attributes — `None` \
+     where the arm does not carry one.\n\n\
      Three Rust refusals share this class because they refuse the same \
      CALL: the writers' own `StlError` (`degenerate_triangle`, \
      `index_out_of_range`, `too_many_triangles`, `io`), and the two \
      validated option newtypes, which are keyword arguments here — \
      `solid_name_unrepresentable`, `binary_header_too_long`, \
      `binary_header_sniffs_ascii`. The tags share one namespace, so \
-     which of the three refused is readable off `variant`."
+     which of the three refused is readable off `variant`.\n\n\
+     The payload: `triangle`, `index`, `count`, `character`, `len`, \
+     and `detail` — the underlying reporter's own words, whether \
+     that reporter is the output sink or the UTF-8 decoder."
 );
 pyo3::create_exception!(
     pncad,
     StepImportError,
     PncadError,
     "A STEP text the importer refused, or one that parsed to a \
-     non-solid. Carries `variant` (`refused` or `wireframe`); \
-     per-variant field projection is deferred with the rest of the \
-     read-back surface."
+     non-solid. Carries `variant` — the importer's own refusal tag, \
+     one word per arm — or `wireframe`, which is not a refusal at \
+     all: the file parsed, to something this door does not adopt. \
+     Carries `promoted_kind` beside it, present on every arm and \
+     `None` where that arm does not carry it.\n\n\
+     `recognition_ambiguous` neither forwards nor withholds. The word \
+     names the CONDITION — a face that cannot import without \
+     promotion sits on a surface whose recognition estimator is \
+     ill-conditioned at the file's own tolerance — and \
+     `promoted_kind` says which analytic kind's estimator declined, \
+     `plane` or `cylinder`. The two lead different places: a plane \
+     that will not certify is a flatness question at the import \
+     tolerance, a cylinder that will not is an ill-conditioned axis \
+     and wants more of the patch. The entity ids and the conditioning \
+     margin are in the message."
 );
 pyo3::create_exception!(
     pncad,
@@ -367,9 +434,9 @@ pyo3::create_exception!(
     NodePickError,
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through`, `kind` and \
-     `body`, each present on every arm and `None` where that arm does \
-     not carry it.\n\n\
+     tag of the refusing arm, plus `node`, `through`, `kind`, `body`, \
+     `index_variant`, `patch`, `triangle` and `index`, each present on \
+     every arm and `None` where that arm does not carry it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
@@ -380,10 +447,14 @@ pyo3::create_exception!(
      prose. What a forwarded arm does not bring is the inner refusal's \
      extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
      `requested` and `note` stay on `TessellateError`, where \
-     `Body.tessellate` raises them. `mesh_index` is the arm with \
-     nothing to forward: its payload type is deliberately absent from \
-     the façade, so it crosses as one tag plus the kernel's own prose, \
-     which states the offending patch, triangle and index."
+     `Body.tessellate` raises them. `mesh_index` neither forwards nor \
+     withholds: the word names the door whose invariant broke — the \
+     pick INDEX's — and `index_variant` carries the payload's own \
+     discriminant beside it, `position_out_of_range` today, with the \
+     three numbers that arm carries: `patch` and `triangle` locate the \
+     offending triangle in the mesh value, `index` is the position it \
+     referenced outside the buffer. The payload's own type is not \
+     raisable, so this is the only door those numbers cross."
 );
 pyo3::create_exception!(
     pncad,
@@ -415,7 +486,111 @@ pyo3::create_exception!(
      the Rust door returns: a direction that was not DEFINITELY \
      usable (coincident eye and target, a roll reference along the \
      aim, a zero mirror normal), or a tolerance yielding no usable \
-     band. Carries `variant`, the stable tag of the refusing arm."
+     band. Carries `variant`, the stable tag of the refusing arm — \
+     which names the offending INPUT, so nothing else spells that \
+     fact — plus the arm's payload as attributes, `None` where the \
+     arm does not carry one.\n\n\
+     A margin that landed in the ambiguity band carries the \
+     classifier's diagnostic: `margin` (or `margin_low` / \
+     `margin_high` for an enclosure), the band's `zero` and \
+     `escalate`, and the deciding `predicate`. A definite zero \
+     carries none of it. The band arm carries its own word on \
+     `inner_variant`, with `field` and `value` beside it."
+);
+
+pyo3::create_exception!(
+    pncad,
+    DistributionFault,
+    PncadError,
+    "A `Distribution` constructor was handed offsets that break an \
+     E2 invariant. Carries `variant` (the stable tag), and `field`, \
+     `sigma`, `lo`, `hi` — the arms' payloads, present on every arm \
+     and `None` where that arm does not carry one.\n\n\
+     The kernel's own `Distribution::check` decides this, so a \
+     distribution Python accepts is one the edit door and the \
+     persistence validator accept too. Raised EARLY, at the value \
+     rather than at the edit: the same fault reaches `EditError` as \
+     `invalid_distribution` when a document is loaded or edited \
+     another way."
+);
+pyo3::create_exception!(
+    pncad,
+    MeasureUnavailable,
+    PncadError,
+    "A mass could not be priced: the parameter carries a BAND, which \
+     states limits without a shape. Carries `variant` and `param`, \
+     the parameter that blocked the pricing.\n\n\
+     A refusal, not an absence. `band` is the author saying they know \
+     the extremes and not the distribution, and promoting it to a \
+     uniform would be a strictly stronger claim than they made — so \
+     the door refuses anything whose answer would depend on the \
+     shape, and answers only the two cases every measure on the band \
+     agrees about."
+);
+pyo3::create_exception!(
+    pncad,
+    MeasureNodeFault,
+    PncadError,
+    "`Node.measure` was handed an expression that reads a reference \
+     the node does not carry. Carries `variant` (the stable tag), \
+     `verb` (which primitive reads it), `index` (the out-of-range \
+     one) and `refs` (how many the node carries).\n\n\
+     The kernel's own `Node::measure` decides this — the one \
+     construction door, running the check the edit door and the load \
+     door's re-check both run — so a measure Python accepts is one a \
+     document accepts. Raised EARLY, at the node rather than at the \
+     edit: the same fault reaches `EditError` as `measure_malformed` \
+     when a document is loaded or edited another way."
+);
+pyo3::create_exception!(
+    pncad,
+    MeasureUnavailableAt,
+    PncadError,
+    "A measure whose answer is an ENCLOSURE, read at a build whose \
+     scalar is a point. Carries `variant`, `verb`, `scalar` and \
+     `door` — the primitive, the scalar this build ran at, and the \
+     door that CAN answer.\n\n\
+     Not `MeasureUnavailable`, which is the analysis lane refusing to \
+     price a mass over a band. This is the measurement lane, and it \
+     is a typed ABSENCE rather than a failure: the measure node \
+     evaluated fine and has no value, which is why an assertion over \
+     it reports `Unevaluated` carrying this same reason instead of \
+     being poisoned. A `min_clearance` at `f64` is the whole of it \
+     today — a station pair found by a point-scalar search is an \
+     upper bound on the minimum rather than the minimum, and \
+     reporting one would be a degradation ERROR-DESIGN E7 forbids by \
+     name."
+);
+pyo3::create_exception!(
+    pncad,
+    McRefusal,
+    PncadError,
+    "A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1). Carries \
+     `variant` (the stable tag), and `param`, `node` and `cause` — the \
+     arms' payloads, present on every arm and `None` where that arm \
+     does not carry one.\n\n\
+     Three ways a run has no estimate: a varying parameter carries a \
+     BAND, which states limits without a shape and cannot be drawn \
+     from (`band_has_no_measure`, `param`); the request asked for zero \
+     samples, and an estimator over no draws has no estimate \
+     (`no_samples`); or the document does not build at its nominal, so \
+     there is nothing to replay (`nominal_does_not_build`, `node` and \
+     `cause`).\n\n\
+     The band arm's `variant` is `MeasureUnavailable`'s own word, \
+     because it carries that refusal: the lane refuses the WHOLE run \
+     naming the parameter rather than sampling the rest, since a mean \
+     over a subset of the parameters is an estimate of a different \
+     document."
+);
+pyo3::create_exception!(
+    pncad,
+    AnalysisPolicyError,
+    PncadError,
+    "An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is \
+     not a finite number strictly inside `(0, 1)`. Carries `variant` \
+     and `mass`, the requested share.\n\n\
+     Mass 1 asks for an infinite box and mass 0 for an empty one, and \
+     neither is a box."
 );
 
 /// Raise the exception class [`ErrorClass`] names, with `fields`
@@ -447,9 +622,22 @@ pyo3::create_exception!(
 /// D9's converse says a detectable bug state panics; what the check
 /// cannot see is a door no test reaches.
 ///
-/// **One door raises through [`typed_err_kernel_authored`] instead**,
-/// and the split is what keeps this assertion meaningful rather than
-/// negotiable — see that function for the whole argument.
+/// **The second thing enforced in one place: a class that carries a
+/// discriminant mints it here.** [`ErrorClass::Evaluation`] holds a
+/// [`crate::errors::EvalReason`] and [`ErrorClass::Validation`] a
+/// [`crate::errors::ValidationRefusal`]; [`class_discriminant`] says
+/// which attribute each writes and what word, and [`raise_typed`]
+/// writes it — not the raise site, which cannot name either class
+/// without naming a variant and therefore cannot spell a word of its
+/// own. A site that passes one of those attributes anyway is
+/// overwritten by the minted word, for the attribute the refusal in
+/// hand writes, and named by the assertion below for EITHER attribute
+/// the class mints onto; that is the one gap the type cannot close,
+/// since the payload is a list of `(&str, Py<PyAny>)` pairs and any
+/// name is spellable in it. The assertion reads
+/// [`ClassDiscriminant::attributes`], which is why a `reason` passed
+/// beside a `ValidationError` whose refusal writes `door` is caught
+/// rather than reaching Python untouched.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -463,59 +651,29 @@ pub(crate) fn typed_err(
          message belongs: {message}",
         class.class_name()
     );
+    // Over the class's WHOLE attribute set, not the one word this
+    // value writes: `ValidationError` mints onto two attributes and a
+    // site spelling the other one would otherwise survive the raise.
+    let minted = class_discriminant(class);
+    debug_assert!(
+        minted.is_none_or(|d| !fields.iter().any(|(name, _)| d.attributes.contains(name))),
+        "{}'s `{}` is minted from the discriminant its class carries; a \
+         raise site that passes one too is spelling a Python-visible \
+         word where no inventory reads it",
+        class.class_name(),
+        minted.map_or("", |d| spelled_discriminant(&d, fields).unwrap_or(""))
+    );
     raise_typed(py, class, message, fields)
 }
 
-/// Raise a typed refusal whose message is a kernel `Display` the
-/// BINDING did not compose — the prose assertion does not run.
+/// The class table and the attribute loop.
 ///
-/// The rule [`typed_err`] enforces is "the binding never authors a
-/// `Debug` dump", and every door in this crate obeys it. What
-/// [`crate::errors::reads_as_prose`] actually detects is narrower: the
-/// struct-brace fingerprint anywhere in the finished string, whoever
-/// put it there. Those coincide at every raise but one.
-///
-/// `Body::run_validator` joins `topo::ValidationError`'s own `Display`
-/// over every finding, and the kernel composes three of that enum's
-/// forty-odd arms out of `Debug`:
-/// `UndeclaredContact` renders its `CensusContact` as `{contact:?}`
-/// and carries a `witness` field the kernel documents as "a debug
-/// rendering of the witnessing position" (`census::witness` is
-/// `format!("{p:?}")`), and `StaleContactDeclaration` renders its
-/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
-/// so binding the fourth validator rung is what first reached them —
-/// and the assertion's own disclosure ("what the check cannot see is
-/// a door no test reaches") is exactly what happened.
-///
-/// The three available moves, and why this is the one taken.
-/// Re-rendering the arms here would invent a second vocabulary for a
-/// diagnosis the kernel already words, and the witness position is an
-/// opaque `String` no consumer can re-derive — so a faithful binding
-/// would have to DROP the coordinate that makes the finding
-/// actionable. Suppressing the fingerprint by editing the kernel's
-/// text would defeat the check with the very byte it looks for.
-/// Fixing the rendering is a `crates/topo` change, which is a kernel
-/// need and is filed rather than taken
-/// (`work/lib/tier-3-prime-findings-render-through-debug.md`); until
-/// it lands, the honest thing is to hand the reader every byte the
-/// kernel diagnosed and to say here, once, why the guard is not run.
-///
-/// This is not a general escape hatch and must not become one: it has
-/// ONE caller, the message it takes is `ValidationError::to_string()`
-/// by construction, and the text it currently produces is PINNED in
-/// the Python suite — so the kernel fix turns that pin red rather
-/// than landing silently.
-pub(crate) fn typed_err_kernel_authored(
-    py: Python<'_>,
-    class: ErrorClass,
-    message: impl Into<String>,
-    fields: &[(&str, Py<PyAny>)],
-) -> PyErr {
-    raise_typed(py, class, message.into(), fields)
-}
-
-/// The construction itself, shared by the two doors above so the
-/// class table and the attribute loop have one home.
+/// Split out from [`typed_err`] when a second raising door existed. It
+/// has one caller now, so the split buys no sharing; it stays because
+/// the two halves answer different questions — this one maps a class to
+/// a Python exception type and hangs the payload on it, while
+/// [`typed_err`] decides whether a message is fit to raise at all. A
+/// reader looking for either finds it without the other.
 fn raise_typed(
     py: Python<'_>,
     class: ErrorClass,
@@ -524,8 +682,8 @@ fn raise_typed(
 ) -> PyErr {
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
-        ErrorClass::Evaluation => EvaluationError::new_err(message),
-        ErrorClass::Validation => ValidationError::new_err(message),
+        ErrorClass::Evaluation(_) => EvaluationError::new_err(message),
+        ErrorClass::Validation(_) => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
@@ -552,6 +710,12 @@ fn raise_typed(
         ErrorClass::NodePick => NodePickError::new_err(message),
         ErrorClass::Checks => ChecksError::new_err(message),
         ErrorClass::Enforce => CheckRefusal::new_err(message),
+        ErrorClass::Distribution => DistributionFault::new_err(message),
+        ErrorClass::Measure => MeasureUnavailable::new_err(message),
+        ErrorClass::MeasureNode => MeasureNodeFault::new_err(message),
+        ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
+        ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
+        ErrorClass::Mc => McRefusal::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -562,7 +726,117 @@ fn raise_typed(
             return set_failed;
         }
     }
+    // The class's OWN discriminant, after the raise site's fields so
+    // that the word the class carries is the word Python reads even
+    // where a site spelled one beside it (`typed_err` asserts that it
+    // did not).
+    if let Some(minted) = class_discriminant(class)
+        && let Err(set_failed) = value.setattr(
+            minted.attribute,
+            pyo3::types::PyString::new(py, minted.word),
+        )
+    {
+        return set_failed;
+    }
     PyErr::from_value(value.clone().into_any())
+}
+
+/// What a class mints for itself: the attributes its own discriminant
+/// can write, and the one this value writes with the word it writes
+/// there.
+#[derive(Clone, Copy)]
+struct ClassDiscriminant {
+    /// **Every** attribute this class's discriminant writes, over all
+    /// of that discriminant's variants — one word for
+    /// [`crate::errors::EvalReason`], two for
+    /// [`crate::errors::ValidationRefusal`], whose four door refusals
+    /// and one measurement refusal do not write the same one. It is
+    /// the set a raise site of this class may not spell, and it is
+    /// wider than `attribute` on purpose.
+    attributes: &'static [&'static str],
+    /// The attribute THIS value writes, which is one of `attributes`.
+    attribute: &'static str,
+    /// The word written there, from the discriminant's exhaustive map.
+    word: &'static str,
+}
+
+/// The attribute a class's own carried discriminant is written to, and
+/// the word written there — `None` for a class that carries none.
+///
+/// The two classes that carry one are the two whose discriminant is
+/// this crate's decision rather than a kernel refusal's tag, and
+/// carrying it is what takes the choice of word away from the raise
+/// site: a site cannot name the class without naming a variant, and the
+/// word is minted here from the exhaustive map rather than read off the
+/// field list. Every other class's `variant` or `reason` is a kernel
+/// enum's word, taken from that enum's own map at the raise.
+///
+/// **Exhaustive, with no wildcard arm.** A class that carries a
+/// discriminant and is not named here would fall into a `None` the
+/// assertion in [`typed_err`] reads as "nothing to check", so the
+/// generalised assertion above is only as general as this table: the
+/// next carrying class has to be written in, and the compiler is what
+/// says so. Every class-keyed match in this crate is exhaustive for the
+/// same reason.
+fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
+    match class {
+        ErrorClass::Evaluation(reason) => Some(ClassDiscriminant {
+            attributes: crate::errors::EvalReason::ATTRIBUTES,
+            attribute: crate::errors::EvalReason::ATTRIBUTE,
+            word: crate::tags::eval_reason_tag(reason),
+        }),
+        ErrorClass::Validation(refusal) => Some(ClassDiscriminant {
+            attributes: crate::errors::ValidationRefusal::ATTRIBUTES,
+            attribute: refusal.attribute(),
+            word: crate::tags::validation_refusal_tag(refusal),
+        }),
+        ErrorClass::Edit
+        | ErrorClass::Dimension
+        | ErrorClass::FmtQuantity
+        | ErrorClass::Literal
+        | ErrorClass::Parse
+        | ErrorClass::Eval
+        | ErrorClass::Persist
+        | ErrorClass::Export
+        | ErrorClass::Tessellate
+        | ErrorClass::StlExport
+        | ErrorClass::StepImport
+        | ErrorClass::Path
+        | ErrorClass::Select
+        | ErrorClass::Frame
+        | ErrorClass::Identity
+        | ErrorClass::Workspace
+        | ErrorClass::Mate
+        | ErrorClass::Assembly
+        | ErrorClass::Product
+        | ErrorClass::Split
+        | ErrorClass::Inline
+        | ErrorClass::Update
+        | ErrorClass::Readback
+        | ErrorClass::HitTest
+        | ErrorClass::NodePick
+        | ErrorClass::Checks
+        | ErrorClass::Enforce
+        | ErrorClass::Distribution
+        | ErrorClass::Measure
+        | ErrorClass::MeasureNode
+        | ErrorClass::MeasureUnavailableAt
+        | ErrorClass::AnalysisPolicy
+        | ErrorClass::Mc => None,
+    }
+}
+
+/// Which of a class's own attributes a raise site spelled, if any —
+/// the name the assertion in [`typed_err`] reports.
+fn spelled_discriminant(
+    minted: &ClassDiscriminant,
+    fields: &[(&str, Py<PyAny>)],
+) -> Option<&'static str> {
+    minted
+        .attributes
+        .iter()
+        .copied()
+        .find(|attribute| fields.iter().any(|(name, _)| name == attribute))
 }
 
 /// Python bindings for the pncad B-rep CAD kernel.
@@ -609,6 +883,15 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("NodePickError", py.get_type::<NodePickError>())?;
     m.add("ChecksError", py.get_type::<ChecksError>())?;
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
+    m.add("DistributionFault", py.get_type::<DistributionFault>())?;
+    m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
+    m.add("MeasureNodeFault", py.get_type::<MeasureNodeFault>())?;
+    m.add(
+        "MeasureUnavailableAt",
+        py.get_type::<MeasureUnavailableAt>(),
+    )?;
+    m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
+    m.add("McRefusal", py.get_type::<McRefusal>())?;
 
     quantity::register(m)?;
     path::register(m)?;
@@ -627,6 +910,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;
+    analysis::register(m)?;
+    measure::register(m)?;
 
     // Build-provenance surface. The persistence format carries no
     // schema version to publish here (the persist module docs say

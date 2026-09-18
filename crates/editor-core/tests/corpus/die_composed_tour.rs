@@ -4,11 +4,14 @@
 //! `die_composed` beside it is the surgery at its smallest honest
 //! size: one pip, one rim, fourteen selected edges. The tour builds
 //! the same surgery at the size a person actually sees — twenty-one
-//! pips cut in one grouped tool, then two `Node::Fillet` sites over
-//! it: twelve box edges, and forty-two rim arcs whose names are twenty
-//! pairwise unions deep. Every property the small document pins holds
-//! here at a scale where a naming or selection defect has room to show
-//! itself.
+//! pips fused by ONE `Node::Union` into one grouped tool, then two
+//! `Node::Fillet` sites over it: twelve box edges, and forty-two rim
+//! arcs whose names carry the member each came from and nothing about
+//! where it sits in the list. Every property the small document pins
+//! holds here at a scale where a naming or selection defect has room
+//! to show itself — and this is the document
+//! `docm3_union::removing_any_pip_leaves_both_die_fillets_resolving`
+//! drops a pip from, which is what the member keying is for.
 //!
 //! # Which of the tour's dice this is
 //!
@@ -88,7 +91,7 @@
 use std::path::Path;
 
 use editor_core::{
-    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, header_document_id,
+    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, load, save,
 };
 use geom_core::Tol;
 
@@ -130,21 +133,47 @@ fn edits() -> Vec<DocEdit<ProfileProgram>> {
             path.display()
         )
     });
-    // The header goes through the persistence layer's own parser, so
-    // the id line is validated by the code that writes it rather than
-    // by a second reader here.
-    let id = header_document_id(&text)
-        .unwrap_or_else(|e| panic!("the tour die document's header refuses: {e:?} — {recourse}"));
+    // The whole file goes through the persistence layer's own loader,
+    // so the id line, the schema and the log are read by the code that
+    // writes them rather than by a second reader here. That loader
+    // also reconciles the file's recorded ε against the process's, and
+    // this corpus runs at every CI ε row; the log is ε-independent
+    // bytes, so the ε line is re-stamped to the process's own first,
+    // the way the viewer's fixture rows re-stamp theirs.
+    let tol = Tol::witness();
+    let loaded = load(&restamped_at_process_epsilon(&text), tol)
+        .unwrap_or_else(|e| panic!("the tour die document refuses to load: {e:?} — {recourse}"));
     assert_eq!(
-        id,
-        ProfileDoc::empty_derived(DOC_LABEL, Tol::witness()).id(),
+        loaded.doc.id(),
+        ProfileDoc::empty_derived(DOC_LABEL, tol).id(),
         "the committed document is not the tour's `{DOC_LABEL}` document — {recourse}"
     );
-    let (_, body) = text.split_once('\n').expect("an id line");
-    let mut value: serde_json::Value = serde_json::from_str(body)
-        .unwrap_or_else(|e| panic!("the tour die document's body refuses: {e} — {recourse}"));
-    serde_json::from_value(value["edits"].take())
-        .unwrap_or_else(|e| panic!("the tour die document's edit log refuses: {e} — {recourse}"))
+    loaded.edits
+}
+
+/// `text` with its one `"epsilon":` line replaced by the line the
+/// persistence layer writes for the process's own ε.
+fn restamped_at_process_epsilon(text: &str) -> String {
+    let tol = Tol::witness();
+    let probe: ProfileDoc = ProfileDoc::empty_derived("tour-corpus-epsilon-probe", tol);
+    let probe_text = save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_epsilon(line))
+        .expect("a saved document records its ε");
+    assert_eq!(
+        text.lines().filter(|l| is_epsilon(l)).count(),
+        1,
+        "the tour die document carries exactly one ε line"
+    );
+    let mut out: String = text
+        .lines()
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    out.push('\n');
+    out
 }
 
 /// The first `Transform` in the log — the +Z face's single pip, which
@@ -186,8 +215,9 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "die_composed_tour",
-        about: "the demo tour's die: 21 pips cut in one grouped tool, then 12 box edges \
-                and 42 rim arcs blended behind names 20 unions deep",
+        about: "the demo tour's die: 21 pips fused by one n-ary union and cut in one \
+                grouped tool, then 12 box edges and 42 rim arcs blended behind \
+                member-keyed names",
         edits,
         doc,
         result: Some(composed),
@@ -196,9 +226,15 @@ pub fn document() -> CorpusDoc {
         // D2's incremental probe, `die_composed`'s bump at this
         // document's scale: slide the top face's pip. The cube chain,
         // the master ball and the twenty other placements are reused;
-        // the union tool below this pip, the cut and both surgeries
-        // recompute. The slide mints and retires no edge, so both
-        // frozen selections still resolve.
+        // the union tool, the cut and both surgeries recompute. The
+        // slide mints and retires no edge, so both frozen selections
+        // still resolve.
+        //
+        // The cone is FIVE nodes, and it used to be twenty-four: the
+        // tool is one `Node::Union` now, so a bumped pip invalidates
+        // that one node rather than every pairwise union standing
+        // above it in a chain. The flat operator is what buys that —
+        // the same fact the naming gets, counted in recompute.
         bump: DocEdit::SetParam {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),

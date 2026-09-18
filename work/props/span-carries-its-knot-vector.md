@@ -1,11 +1,14 @@
 ---
 id: span-carries-its-knot-vector
-kind: issue
+kind: unit
 title: Consider giving Span its KnotVector — close the unbranded-pairing hole structurally
-status: open
+status: closed
 opened: 2026-08-13
 github: 475
-refs: [447, 463, 468]
+refs: [475, 463, 468, 447, 1952, coefficients-carry-their-knot-vector]
+pr: 1952
+branch: props/span-knot-vector
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 475
@@ -68,3 +71,87 @@ Refs: #447 (deferred the brand), #463 (deleted the guards that were masking it),
 ## Home
 
 `work/issues/`: the scope is the `geom-core` spline layer and its consumers, ground no open program's `paths` covers, and the decision is a DESIGN.md question rather than a code-quality row.
+
+## Question for Ev (PROPS orchestrator, 2026-09-05)
+
+**Which of A, B or C?** This is the plan's `[ev]` ruling for the item,
+asked now because the answer gates an L-class sweep and nothing else
+about the item waits on code.
+
+What changed since the filing: CERT-N3 (#1879) adds two more consumers
+of the unbranded pairing (`spline::algebra::union_refinements` and
+`NurbsCurve::refine_to_union`, where a knot crosses vectors by design
+and `refine_plan` re-validates it against the vector it lands in), and
+`SurfaceWindow` (#468) still carries the same hole one dimension up.
+No live caller mis-pairs today; the hole is a panic-shaped obligation
+carried in prose across four PRs.
+
+**Recommendation: A** — `Span<'a>` holds `&'a KnotVector`, the entry
+points drop their `kv` parameter, and the mismatch becomes
+unrepresentable (the D2 addendum's row 0, available and local: one
+lifetime through `Span`, `SpanSet` and a method-level lifetime on
+`SpanLocate`). Cost is one pointer and the constraint that a `Span` is
+a borrow — nothing may hold one across a mutation of its curve. That
+constraint is checked FIRST in the sweep: if any live site holds a span
+across a mutation, the unit stops and reports, and the answer falls to
+C with the docs saying so. B (an invariant-lifetime brand) is
+rejected for the reason the item gives: a `with_knots(|kv| …)` scope at
+every entry into the spline layer is an ergonomic tax on an API-first
+kernel that A does not charge. C is the fallback, not the
+recommendation: "the pairing is always local" is true today and
+unenforced, which is the accumulation the item was filed to stop.
+
+If A: the unit lands the sweep (`geom-core` spline layer, `geom`
+curves and surfaces incl. `SurfaceWindow`, `geom-brep`, `mesh`; the
+same call-site set the newtype sweep touched three times) and a
+companion note beside the code (`crates/geom-core/README.md`'s spline
+clause, present tense), and closes this item. Dispatch waits for
+CERT-N3's `spline/` edits to merge.
+
+**RULED: A** (Ev, in-chat, 2026-09-05: "A and B both sound ok, so if
+you recommend A then that works"). The item is a unit: the sweep per
+§Scope, the mutation-hold check first, `crates/geom-core/README.md`'s
+spline clause as the companion note. CERT-N3 (#1879) merged 2026-09-05 04:08; the unit is cut against the
+post-N3 `spline/` layer: spec `docs/PROPS-SPAN-SPEC.md` (binding; L,
+block PROPS-B1 slot 1). The census (2026-09-05) found no span held
+across a mutation, no storage beyond `SurfaceWindow`, no serialization
+or FFI crossing, ~82 src + 112 test sites over five crates; the
+coefficient↔vector pairing stays open and is filed by the unit.
+
+## Closed
+
+**Ruled A; landed as A** (PR #1952). `Span<'a>` holds `&'a KnotVector`;
+`geom`'s `CurveWindow{2,3}<'a, T>` holds `&'a NurbsCurve{2,3}<T>` and
+`SurfaceWindow<'a, T>` holds `&'a NurbsSurface<T>`. Every door
+restricted to a span takes exactly one structure and reads everything
+from it: `basis_funs(span, t)` and the `hull` span doors in
+`geom-core`, and — after the review — evaluation itself, which moved
+ONTO the two windows (`CurveWindow::eval_in_span(t)`,
+`SurfaceWindow::eval_in_span(u, v)` and siblings). `KnotVector::admits`
+and `NurbsSurface::admits` are deleted: the state they tested is not
+representable.
+
+**The mutation-hold check, which the ruling made A's condition:** no
+site holds a span across a mutation of its own vector. The spline layer
+has no `&mut self` method at all and every knot-algebra door is
+`&self -> Self`, so a refinement is a new binding; the constraint is
+pinned by a `compile_fail,E0506` doctest rather than only observed.
+
+**The deviation the review corrected.** The spec's curve-door paragraph
+asked for the doors to keep taking `(&self, span)` while reading the
+span's vector for the basis. That leaves the control array paired with
+the *curve* and the basis with the *span*, which is not a closed pairing
+at all: it turned a poison route into an index panic for any span from a
+longer vector. The review found it executed; the fix is the structural
+one — no door takes a structure beside a proof about another.
+
+**Residue, filed rather than disclosed:**
+`work/props/coefficients-carry-their-knot-vector.md` — the
+coefficient↔knot-vector pairing at `geom-core`'s free `hull` functions,
+which take a loose `&[E]` beside a span and relate the two by length
+alone. `InteriorKnot` stays crate-private for the same shape.
+
+**Companion note:** `crates/geom-core/README.md`, clause
+**SPLINE-DESIGN S1**, with its row in `docs/DESIGN.md`'s companion
+table. The spec is deleted and ledgered (`docs/DOC-LEDGER.md`,
+"Per-merge deletion — PROPS span's spec").

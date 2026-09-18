@@ -55,8 +55,9 @@
 //! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
 //!   recourse now reaches the author exactly once, from the store's
 //!   own `Display`; `update_door` is what holds that count down.
-//!   Two refusals still carry no recourse sentence at all
-//!   (`refusals`), filed as its own item.
+//!   All four refusals the walk prints end on a recourse sentence,
+//!   each asserted here against the library's own constant
+//!   (`refusals`).
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -72,18 +73,22 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
+    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
+    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    MatePrimitive, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, UNDER_RECOURSE, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
 use pncad::topo::Body;
+use pncad::topo::EulerCounts;
+use pncad::topo::readback::euler_counts;
 use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_to_store};
 
 use crate::{SceneBody, Stop, View};
@@ -162,6 +167,28 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
     parse_expr(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
 }
 
+/// A mate head, read at the instance the name is qualified by.
+///
+/// A mate declares a contact between two FACES, and the kernel says so
+/// in the type: `Node::Mate` takes `SitedFace`s, whose names are
+/// `pncad::document::FaceName`s. A caller holding a `StableName` from
+/// a selection door asks for one and handles the refusal — which for
+/// this tour is the same loud panic every other authoring helper here
+/// uses, because a demo that named an edge would be a demo with a bug
+/// in it.
+///
+/// **Spelled by full path**, because this binary also uses
+/// `tess_meter::FaceName` (`main.rs`'s face-name tokens): two
+/// unrelated types with one short name, and a bare `FaceName` here
+/// would be read as either. `tess-meter`'s is a validated text token
+/// for a mesh report; this one is a `StableName` whose kind is
+/// `Face`.
+fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
+    let name = pncad::document::FaceName::new(in_part(instance, local))
+        .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
+    SitedFace::at_mint(name)
+}
+
 /// Inserts a node and returns its minted id.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
@@ -192,7 +219,7 @@ fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         kind: local.kind,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(local.clone()),
+            of: local.clone().into(),
         }],
     }
 }
@@ -212,15 +239,11 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, tol)
 }
 
-/// The structural census the A4 acceptance identity compares: solids,
+/// The structural census the A4 acceptance identity compares: shells,
 /// faces, edges, vertices of a whole product.
-fn census(body: &Body<f64>) -> (usize, usize, usize, usize) {
-    (
-        body.shells().count(),
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+fn census(body: &Body<f64>) -> (i64, i64, i64, i64) {
+    let EulerCounts { v, e, f, s, .. } = euler_counts(body);
+    (s, f, e, v)
 }
 
 /// A product's volume, by bits — the other half of the identity.
@@ -390,7 +413,9 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 [0.0, 1.0, 0.0],
                 -PI / 2.0,
                 [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-            ),
+                Band::linear(tol).expect("the demo's tolerance forms a band"),
+            )
+            .expect("the post lies down about +y"),
         },
         tol,
     );
@@ -454,8 +479,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(post_a, post_top),
-            b: in_part(shelf_i, shelf_bottom),
+            a: head(post_a, post_top),
+            b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -470,8 +495,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(shelf_i, shelf_bottom),
-            b: in_part(post_b, post_top),
+            a: head(shelf_i, shelf_bottom),
+            b: head(post_b, post_top),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -534,8 +559,8 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
     let parts = Parts {
         post: reference(&post),
         shelf: reference(&shelf),
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     };
     (ws, parts)
 }
@@ -585,7 +610,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // wrappers deep — pattern index, then instance, then the part's
     // own cap.
     let cap_of_part =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
@@ -845,8 +870,8 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// printed with the recourse the library itself gave.
 ///
 /// Fail-loud is the design, so each of these is EVIDENCE: a refusal
-/// that stopped being typed, or stopped naming its subject, breaks
-/// this walk.
+/// that stopped being typed, stopped naming its subject, or stopped
+/// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -873,6 +898,14 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         matches!(fault, MateFault::Under { .. }),
         "an under-determined tree mate is the UNDER refusal, got {fault:?}"
     );
+    // Every one of the four ends on its own recourse sentence, and
+    // each is asserted against the library's constant rather than
+    // against re-typed prose. That is the ladder's exit criterion, met
+    // here where a user reads it.
+    assert!(
+        fault.to_string().contains(UNDER_RECOURSE),
+        "the refusal carries its recourse verbatim"
+    );
     println!("   (1) under-determined: {fault}");
 
     // (2) CONTRADICTORY. Two mates on ONE pair intersect their cosets
@@ -890,8 +923,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: in_part(contra.post_a, post_top),
-            b: in_part(contra.shelf_i, shelf_bottom),
+            a: head(contra.post_a, post_top),
+            b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
@@ -913,6 +946,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(fault, MateFault::Contradictory { .. }),
         "an empty coset intersection is the CONTRADICTORY refusal, got {fault:?}"
+    );
+    assert!(
+        fault.to_string().contains(CONTRADICTORY_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (2) contradictory: {fault}");
 
@@ -960,8 +997,16 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
-        matches!(err, AssemblyError::NoAtRestRecord { .. }),
+        matches!(&err, AssemblyError::Mint { refusals }
+            if !refusals.is_empty()
+                && refusals
+                    .iter()
+                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
         "the class table's mint half is what refuses, got {err}"
+    );
+    assert!(
+        err.to_string().contains(NO_AT_REST_RECORD_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (3) outside v1's at-rest vocabulary: {err}");
 
@@ -1618,54 +1663,4 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         },
         bodies: vec![stand_body, layout_body],
     }]
-}
-
-/// The four AUTHORED documents of this scene, written into `dir` as a
-/// workspace and nothing more: the two parts, the flat-pack layout,
-/// and the mated stand — each pinning the version of the parts the
-/// store holds when this returns.
-///
-/// [`stops`] is the walk, and a walk MOVES the store: its update door
-/// resaves the shelf as a thicker board on purpose, so the state it
-/// leaves behind is a store whose assemblies pin a version that is no
-/// longer there. That is the right end state for a demo about the pin
-/// gate and the wrong one for a corpus, which is why this door exists
-/// beside it rather than inside it. Same authoring functions, so
-/// there is still exactly one place these documents are written.
-pub fn corpus(dir: &Path, tol: Tol) {
-    let (mut ws, parts) = workspace(dir, tol);
-    let (layout, _, _) = layout_doc(parts.post, parts.shelf, tol);
-    ws.create(&layout, tol).expect("the layout is stored");
-    let stand = stand_doc(
-        parts.post,
-        parts.shelf,
-        &parts.post_top,
-        &parts.shelf_bottom,
-        MatePrimitive::FrameCoincidence,
-        tol,
-    );
-    ws.create(&stand.doc, tol).expect("the stand is stored");
-
-    // A store names its files by IDENTITY, which is a hash — so a
-    // consumer that wants "the layout" needs the one thing the scan
-    // cannot tell it. The manifest is that and nothing else: the label
-    // each identity was derived from, beside the documents it names.
-    // Not a `.pncad`, so the scan ignores it.
-    let mut manifest = String::new();
-    for (label, id) in [
-        ("post", parts.post.id),
-        ("shelf", parts.shelf.id),
-        ("layout", layout.id()),
-        ("stand", stand.doc.id()),
-    ] {
-        manifest.push_str(&format!("{label} {}\n", id.hex()));
-    }
-    std::fs::write(dir.join("MANIFEST"), &manifest).expect("the manifest writes");
-
-    println!(
-        "assembly corpus → {} ({} document(s))",
-        dir.display(),
-        ws.documents().len()
-    );
-    print!("{manifest}");
 }

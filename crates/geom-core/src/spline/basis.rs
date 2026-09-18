@@ -8,30 +8,21 @@
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
-//! **Checked, not structural.** A [`Span`] is proven nonempty and in
-//! range *for the vector it was drawn from*, but it carries no borrow
-//! of that vector, so a span of some **other** `KnotVector` is a
-//! representable input here. Every entry point below therefore asks
-//! [`KnotVector::admits`] first and returns an **all-poison** row for a
-//! span this `kv` does not admit (fail-loud, D4) — never an
-//! out-of-bounds knot read and never a row divided by a zero knot gap.
+//! **Structural.** A [`Span`] borrows the knot vector it is a proof
+//! about, and every entry point below reads its knots from that
+//! borrow — [`Span::knots`] — and takes no second vector. So there is
+//! no pairing to check and no refusal to answer: the span's own
+//! invariants are invariants of the very knots being read.
 //!
-//! What the check buys here, exactly. Degree agreement gives
-//! `span.index() >= kv.first_span()`, which keeps the low knot read
-//! `u[span + 1 + r − j] >= u[span + 1 − p]` at a non-negative index,
-//! and makes the returned row the same length as the window the caller
-//! will index with. `span.index() <= kv.last_span()` bounds the high
-//! reads — `u[span + p]` here, `u[i + p + 1]` in the derivative ladder
-//! — at `u.len() − 1`, exactly. Nonemptiness is what the division
-//! safety note below rests on: it is the `> 0` in
-//! `knots[span+1] − knots[span] > 0`, and a foreign span can be an
-//! empty span of *this* vector even when both index bounds hold.
-//!
-//! What the check does **not** buy is the right vector: a span from a
-//! different vector of the same degree and control count, nonempty at
-//! that index in both, is admitted, and the answer is then this
-//! vector's polynomial on the wrong span rather than a refusal
-//! ([`KnotVector::admits`] states the residue).
+//! What they give, exactly. `span.index() >= kv.first_span()` (the
+//! window base is `index − degree`, subtracted at construction) keeps
+//! the low knot read `u[span + 1 + r − j] >= u[span + 1 − p]` at a
+//! non-negative index, and makes the returned row the same length as
+//! the window the caller will index with. `span.index() <=
+//! kv.last_span()` bounds the high reads — `u[span + p]` here,
+//! `u[i + p + 1]` in the derivative ladder — at `u.len() − 1`,
+//! exactly. Nonemptiness is what the division safety note below rests
+//! on: it is the `> 0` in `knots[span+1] − knots[span] > 0`.
 //!
 //! Within a span the result is the span's polynomial: for `t` outside
 //! the span's knot interval the values are the **polynomial extension**
@@ -50,24 +41,18 @@
 //! would widen enclosures at the interval scalar (and could put 0 in a
 //! denominator enclosure that is structurally positive).
 
-use super::knots::{KnotVector, Span};
+use super::knots::Span;
 use crate::real::Real;
-
-/// All-poison row — the total outcome for a span `kv` does not admit
-/// (module docs: the span contract).
-fn poison_row<T: Real>(len: usize) -> Vec<T> {
-    vec![T::from_f64(f64::NAN); len]
-}
 
 /// The `p + 1` nonvanishing basis functions
 /// `N_{span−p,p}(t), …, N_{span,p}(t)` on `span` (Book A2.2 shape,
 /// structure-denominator form — module docs).
 ///
-/// Total: a span `kv` does not admit ([`KnotVector::admits`]) returns
-/// an all-poison row of the same length, and a poisoned `t` propagates
-/// through the arithmetic. Division safety: every denominator is
+/// Total: a poisoned `t` propagates through the arithmetic, and there
+/// is no other route out. Division safety: every denominator is
 /// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
-/// which is exactly the nonemptiness [`KnotVector::admits`] checks.
+/// which is exactly the nonemptiness the span carries about these
+/// knots.
 ///
 /// That estimate is why the inner loop stops at `r = j − 1` and the
 /// level's high end is written after it as `n[j] = saved`. It needs
@@ -76,14 +61,12 @@ fn poison_row<T: Real>(len: usize) -> Vec<T> {
 /// span's own gap, and at a clamped end (where those knots coincide) it
 /// is exactly zero — so folding the tail write into the loop for
 /// uniformity computes `0/0` and poisons the row.
-pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
+pub fn basis_funs<T: Real>(span: Span<'_>, t: T) -> Vec<T> {
+    let kv = span.knots();
     let p = kv.degree();
-    if !kv.admits(span) {
-        return poison_row(p + 1);
-    }
     // The index, once — the recursion below reads knots around it. Its
-    // range facts (`span ≥ p`, `span + 1 < len`) hold against THIS `kv`
-    // by the check above, not by the `Span`'s own construction.
+    // range facts (`span ≥ p`, `span + 1 < len`) are the `Span`'s own
+    // construction invariants, about these very knots.
     let span = span.index();
     let u = kv.knots();
     let mut n = vec![T::zero(); p + 1];
@@ -117,18 +100,15 @@ pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
 /// enters only in the stored basis triangle and the final ascending-`j`
 /// accumulation `Σ a_{k,j}·N_{i+j,p−k}`, scaled by `p!/(p−k)!`.
 ///
-/// Total in the same way [`basis_funs`] is: a span `kv` does not admit
-/// yields `n_ders + 1` all-poison rows.
-pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T, n_ders: usize) -> Vec<Vec<T>> {
+/// Total in the same way [`basis_funs`] is.
+pub fn ders_basis_funs<T: Real>(span: Span<'_>, t: T, n_ders: usize) -> Vec<Vec<T>> {
+    let kv = span.knots();
     let p = kv.degree();
-    if !kv.admits(span) {
-        return (0..=n_ders).map(|_| poison_row(p + 1)).collect();
-    }
     // The window's base, subtracted once inside `Span`, and the index
-    // the knot reads are centred on. Both are in range for THIS `kv` by
-    // the check above: the ladder's highest read is `u[i + p + 1]` at
-    // `i = base + p = span.index()`, which `admits` bounds at
-    // `u.len() − 1` exactly.
+    // the knot reads are centred on. Both are in range for these knots
+    // by the span's construction: the ladder's highest read is
+    // `u[i + p + 1]` at `i = base + p = span.index()`, and
+    // `index <= last_span()` puts that at `u.len() − 1` exactly.
     let base = span.first_control();
     let span = span.index();
     let u = kv.knots();
@@ -210,6 +190,7 @@ pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T, n_ders: usize
 mod tests {
     use super::*;
     use crate::dual::Dual64;
+    use crate::spline::knots::KnotVector;
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
         KnotVector::clamped(knots.to_vec(), p).unwrap()
@@ -221,7 +202,7 @@ mod tests {
     fn bezier_span_matches_bernstein_closed_form() {
         let k = kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3);
         let t = 0.3;
-        let n = basis_funs(&k, k.span(3).unwrap(), t);
+        let n = basis_funs(k.span(3).unwrap(), t);
         let binom = [1.0, 3.0, 3.0, 1.0];
         for (i, b) in binom.iter().enumerate() {
             let expect = b * t.powi(i as i32) * (1.0 - t).powi((3 - i) as i32);
@@ -238,7 +219,7 @@ mod tests {
         let k = kv(&[0.0, 0.0, 0.0, 1.0, 2.5, 4.0, 4.0, 4.0], 2);
         for t in [0.0, 0.4, 1.0, 1.7, 2.5, 3.9, 4.0] {
             let span = k.span_at(t);
-            let ders = ders_basis_funs(&k, span, t, 3);
+            let ders = ders_basis_funs(span, t, 3);
             let sum0: f64 = ders[0].iter().sum();
             assert!((sum0 - 1.0).abs() < 1e-14, "Σ N = {sum0} at t = {t}");
             for (kk, row) in ders.iter().enumerate().skip(1) {
@@ -255,11 +236,11 @@ mod tests {
         let k = kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 3.0, 3.0, 3.0, 3.0], 3);
         for t in [0.2, 0.99, 1.0, 2.4] {
             let span = k.span_at(t);
-            let ders = ders_basis_funs(&k, span, t, 2);
-            let dual = basis_funs(&k, span, Dual64::variable(t));
+            let ders = ders_basis_funs(span, t, 2);
+            let dual = basis_funs(span, Dual64::variable(t));
             let h = 1e-7;
-            let lo = basis_funs(&k, span, t - h);
-            let hi = basis_funs(&k, span, t + h);
+            let lo = basis_funs(span, t - h);
+            let hi = basis_funs(span, t + h);
             for r in 0..=3 {
                 // Dual channel agrees exactly (same recursion).
                 assert!(

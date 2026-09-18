@@ -207,9 +207,16 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Declared-licensed merge groups the output stage SKIPPED as
-    /// outside the never-elide inventory (M4 PR 5): faces + the
-    /// actual refusing diagnostics. The skip is visible HERE — a
+    /// Merge groups the output stage did NOT glue, as outside the
+    /// never-elide inventory (M4 PR 5), and declared surface pairs
+    /// the door has no rung for (a non-planar carrier) — the record's
+    /// faces plus the typed
+    /// [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
+    /// that stopped each, carried whole. WHICH groups are recorded
+    /// here rather than refusing the whole call is the regime's own
+    /// statement, at
+    /// [`MergeCoplanarOutcome::skipped`](crate::merge_faces::MergeCoplanarOutcome::skipped),
+    /// and is not restated here. The skip is visible HERE — a
     /// consumer can see what was not glued and why; the skipped
     /// faces' in-plane descriptions are re-checked against the
     /// actual adjacency before the result ships (review F1/F2).
@@ -512,7 +519,17 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    let connected = match bool_connect(&mut red, a, b, band, tol) {
+    // The join carves both reduction operands through the Euler
+    // operators; one scope per operand body, and what certifies the
+    // result is `gate` below, over the body they are finished into.
+    // The pair is guardless because the join takes the whole
+    // reduction — `BooleanReduction::enter_join_surgery` carries the
+    // argument — and `red` is a local of this pipeline, so a refusal
+    // on the way drops it.
+    red.enter_join_surgery();
+    let connected = bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    let connected = match connected {
         Ok(c) => c,
         Err(
             err @ (BooleanError::Join(_)
@@ -541,7 +558,14 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
-    let mut body = fin.body;
+    // The zip, the merge, the re-description and the closing mint are
+    // one door's surgery (`crate::surgery`): the operators inside them
+    // do not each re-derive the whole body, and `gate` below — tier 1
+    // AND tier 2 over the result, on every build — is what this door
+    // pays instead. The guard owns the borrow, so a refusal on the way
+    // closes the scope by dropping it.
+    let mut finished = fin.body;
+    let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
@@ -579,6 +603,8 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
+    body.sweep_and_close();
+    let body = finished;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
@@ -881,7 +907,10 @@ pub(super) fn describe_minted_edges<T: Decide>(
     // those groups' classification anticipated did NOT happen, so
     // their in-plane cut edges may carry descriptions citing
     // no-longer-adjacent surfaces — they must be re-checked against
-    // the ACTUAL adjacency below).
+    // the ACTUAL adjacency below). A declared pair the door declined
+    // (a non-planar carrier) enters this worklist through the same
+    // field: its faces were left as the zip shipped them, and their
+    // boundaries are re-checked here for the same reason.
     let group_faces = merged
         .groups
         .iter()
@@ -2056,7 +2085,7 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
                 }
             }
         }
-        *out = rebuilt.ok_or(corrupt("re-cut produced no body"))?;
+        out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
 }

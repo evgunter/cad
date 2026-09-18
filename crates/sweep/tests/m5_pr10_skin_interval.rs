@@ -15,7 +15,7 @@ use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec3};
-use sweep::skin::{lift_surface, make_compatible, segment_curve, skin, skin_parameters};
+use sweep::skin::{make_compatible, segment_curve, skin, skin_parameters};
 
 fn ring() -> f64 {
     Band::linear(Tol::witness())
@@ -49,7 +49,7 @@ fn the_interval_lane_encloses_the_same_definitional_surface() {
     let compat = strip();
     let params = skin_parameters(&compat).expect("parameters");
     let exact = skin(&compat, 2).expect("skins");
-    let lifted = lift_surface::<Interval>(&exact).expect("lifts");
+    let lifted = exact.map_scalar(Interval::from_f64);
 
     assert_eq!(lifted.knots_u().knots(), exact.knots_u().knots());
     assert_eq!(lifted.knots_v().knots(), exact.knots_v().knots());

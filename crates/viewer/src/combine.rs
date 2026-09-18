@@ -17,11 +17,15 @@
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
 //! [`crate::seats`]'s, and are not restated here.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::{PatternRuleSpec, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **The boolean tool**: two sequential body picks and one operation
 /// choice, committing one [`SessionOp::AddBoolean`].
@@ -216,36 +220,35 @@ impl TransformTool {
     }
 }
 
-/// **What a pattern's placements come out as** — the pattern form's
-/// output choice, and the only difference between its two nodes.
-///
-/// [`Node::Pattern`] and [`Node::PlacedUnion`] share one rule
-/// vocabulary and one per-instance naming, and differ in their RESULT:
-/// N bodies that stay separate, or ONE body that is their union. That
-/// is a node-kind fork rather than a flag on one node (spec D3 forbids
-/// a variant forking a node's result type), so the choice picks the
-/// door — the shape `BlendKindChoice` takes for fillet and chamfer.
-///
-/// **Fusing is not free.** A [`Node::PlacedUnion`] certifies its
-/// placements disjoint and refuses typed on its own badge when it
-/// cannot, where a [`Node::Pattern`] over the same rule builds
-/// regardless: the choice is between two honest answers, not between
-/// a strict door and a lax one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PatternOutputChoice {
-    /// N separate bodies ([`Node::Pattern`]).
-    #[default]
-    Instances,
-    /// ONE body, the union of the prototype at every placement
-    /// ([`Node::PlacedUnion`]).
-    Fused,
-}
+vocabulary! {
+    /// **What a pattern's placements come out as** — the pattern form's
+    /// output choice, and the only difference between its two nodes.
+    ///
+    /// [`Node::Pattern`] and [`Node::PlacedUnion`] share one rule
+    /// vocabulary and one per-instance naming, and differ in their RESULT:
+    /// N bodies that stay separate, or ONE body that is their union. That
+    /// is a node-kind fork rather than a flag on one node (spec D3 forbids
+    /// a variant forking a node's result type), so the choice picks the
+    /// door — the shape `BlendKindChoice` takes for fillet and chamfer.
+    ///
+    /// **Fusing is not free.** A [`Node::PlacedUnion`] certifies its
+    /// placements disjoint and refuses typed on its own badge when it
+    /// cannot, where a [`Node::Pattern`] over the same rule builds
+    /// regardless: the choice is between two honest answers, not between
+    /// a strict door and a lax one.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum PatternOutputChoice {
+        /// N separate bodies ([`Node::Pattern`]).
+        #[default]
+        Instances = "instances",
+        /// ONE body, the union of the prototype at every placement
+        /// ([`Node::PlacedUnion`]).
+        Fused = "fused",
+    }
 
-impl PatternOutputChoice {
     /// Both choices with their button labels — the chrome's radio row
     /// and a test that sweeps them.
-    pub const ALL: [(Self, &'static str); 2] =
-        [(Self::Instances, "instances"), (Self::Fused, "fused")];
+    pub const ALL;
 }
 
 /// **The pattern tool**: a body pick, and — for the circular rule
@@ -467,12 +470,15 @@ pub fn transform_node(
 /// The rule this tracks is the evaluator's single-body OPERAND door
 /// (`eval::wire::body_operand`): a `Body` payload, or a boolean's
 /// non-empty result. A split's two sides and a pattern's instances are
-/// the cases that matter — each is SEVERAL bodies, and selecting one of
-/// them needs a vocabulary the recipe does not yet have, so a seat
-/// filled with one refuses at the door rather than after the edit
-/// lands. That the sentences those seats would spell ("union the upper
-/// half of that split") are ordinary ones is issue #1394, which widens
-/// at this function when the operand vocabulary answers it.
+/// the cases that matter — each is SEVERAL bodies, so a seat filled
+/// with one refuses at the door rather than after the edit lands. The
+/// recipe's way of saying which of them is meant is [`Node::Part`]
+/// (`crates/editor-core/REFERENCES.md` DM3): a projection of one half
+/// or one
+/// instance, which evaluates to ONE `Body` value and is admitted here
+/// for exactly that reason. "Union the upper half of that split" is
+/// therefore a Part of the split at a boolean seat; the door that
+/// authors one is CHROME's.
 ///
 /// **Tracks, and is not equal to, in two named directions.** A node
 /// this admits may still refuse downstream — an empty boolean result is
@@ -508,8 +514,17 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        // A thin solid is ONE body: the cavity is a void inside it,
+        // exactly as the hollow tube's is.
+        | Node::Shell { .. }
         | Node::Boolean { .. }
+        // ONE body out, exactly as the pair union it generalizes: the
+        // members are folded, not collected.
+        | Node::Union { .. }
         | Node::Transform { .. }
+        // ONE body out of a split's or a pattern's value — the
+        // projection is what makes one of several bodies a body.
+        | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. } => true,
         Node::Datum(_)

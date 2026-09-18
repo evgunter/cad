@@ -1,7 +1,9 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
 //! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
-//! from its INTENT parameters: spine centre/axis/reference direction,
-//! major radius, an arc window (or a full ring), and the tube's minor
+//! from its INTENT parameters: the spine FRAME (an [`OrthoFrame`] —
+//! its origin the ring centre, its `w` the spine axis, its `u` the
+//! reference radial the window is measured from), the major radius, an
+//! arc window (or a full ring), and the tube's minor
 //! radius — **stored exactly**, with no profile→bulge→radius
 //! arithmetic anywhere on the path. This is what retires the lily
 //! findings' silent sketch-frame placement (finding 11) and the
@@ -34,8 +36,8 @@
 //! circle — a second directly constructed traversal at the inner
 //! radius, fed to the same revolve machinery as a hole loop. The
 //! solid door's exact-intent posture carries over unchanged for the
-//! outer wall (`major_radius`, `minor_radius`, centre, axis, `u_ref`
-//! stored verbatim); the inner wall stores `minor_radius - wall`,
+//! outer wall (`major_radius`, `minor_radius` and the frame's origin
+//! and axes stored verbatim); the inner wall stores `minor_radius - wall`,
 //! ONE IEEE subtraction of the caller's own two numbers rather than
 //! a profile→bulge→radius reconstruction, so a caller recovers it by
 //! writing the same subtraction.
@@ -57,7 +59,8 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
+    Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
@@ -85,16 +88,6 @@ pub enum TubeWindow<T> {
 pub enum TubeError {
     /// The run's tolerance could not form a classification band.
     Band(BandError),
-    /// The spine axis is not unit length at tolerance (the door
-    /// STORES the given axis — it never normalizes silently, so a
-    /// non-unit axis must refuse instead).
-    NonUnitAxis,
-    /// The reference direction is not unit length at tolerance (same
-    /// store-exactly posture).
-    NonUnitURef,
-    /// Axis and reference direction are not perpendicular at
-    /// tolerance: no honest chart frame stores both exactly.
-    FrameNotOrthogonal,
     /// The window is degenerate (zero/sliver span) or reversed.
     DegenerateWindow,
     /// The window reaches (or exceeds) one full period: an exactly
@@ -150,7 +143,7 @@ pub enum TubeError {
         /// between the two stored radii did not clear it.
         eps: f64,
     },
-    /// A frame/window/wall classification escalated.
+    /// A window or wall classification escalated.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
@@ -171,7 +164,7 @@ const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_
 ///
 /// A wall escalation names the hollow door outright. Everything else
 /// on this enum is reachable through BOTH doors — the band is the
-/// run's, the frame and window predicates are shared verbatim, and
+/// run's, the window predicates are shared verbatim, and
 /// the revolve machinery is one body of code — so those arms say
 /// "tube door" rather than picking one and being wrong half the time.
 /// (The alternative, threading a hollow flag onto every arm, would
@@ -195,21 +188,6 @@ impl core::fmt::Display for TubeError {
         let door = door(self);
         match self {
             Self::Band(e) => write!(f, "{door}: {e}"),
-            Self::NonUnitAxis => write!(
-                f,
-                "{door}: the spine axis is not unit length at tolerance — inputs \
-                 are stored exactly, so the door refuses rather than normalizing"
-            ),
-            Self::NonUnitURef => write!(
-                f,
-                "{door}: the reference direction is not unit length at tolerance \
-                 — inputs are stored exactly, so the door refuses rather than normalizing"
-            ),
-            Self::FrameNotOrthogonal => write!(
-                f,
-                "{door}: axis and reference direction are not perpendicular at \
-                 tolerance — no honest chart frame stores both exactly"
-            ),
             Self::DegenerateWindow => write!(
                 f,
                 "{door}: the arc window is degenerate or reversed (t1 must \
@@ -261,26 +239,18 @@ impl std::error::Error for TubeError {}
 /// arms, which only [`tube_along_arc_hollow`] can raise; the
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
-/// [`TubeError::Revolve`].
+/// [`TubeError::Revolve`]. Nothing here refuses the FRAME: an
+/// [`OrthoFrame`] is orthonormal by its type, decided at whichever
+/// mint built it, so the axis and the reference radial arrive as facts
+/// rather than as claims this door has to re-examine.
 pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    build(
-        center,
-        axis,
-        u_ref,
-        major_radius,
-        window,
-        minor_radius,
-        None,
-        tol,
-    )
+    build(frame, major_radius, window, minor_radius, None, tol)
 }
 
 /// The hollow tube body: `minor_radius` is the OUTER minor radius and
@@ -299,44 +269,45 @@ pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
 /// [`TubeError::WallGapCollapsed`]) are decided FIRST, before
 /// anything is minted, and their verdicts are what the full period's
 /// cavity insertion carries as its containment evidence.
-// The solid door's seven intent parameters plus the wall — the list
-// IS the door, and bundling any subset of it into a struct would hide
-// which numbers the body stores verbatim.
-#[allow(clippy::too_many_arguments)]
+// The solid door's intent parameters plus the wall — the list IS the
+// door, and bundling any subset of the radii and the window into a
+// struct would hide which numbers the body stores verbatim. The frame
+// is not such a subset: it is one intent, an origin and a spin, and it
+// arrives carrying the decision that its axes are orthonormal.
 pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
     wall: T,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    build(
-        center,
-        axis,
-        u_ref,
-        major_radius,
-        window,
-        minor_radius,
-        Some(wall),
-        tol,
-    )
+    build(frame, major_radius, window, minor_radius, Some(wall), tol)
 }
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
 fn build<T: Decide + geom_brep::PcurveFittedLane>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
     wall: Option<T>,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
+    // The frame's three axes, in this door's words: `w` is the SPINE
+    // AXIS, `u` the reference radial the window's angles are measured
+    // from, and `v = w × u` the radial a quarter turn on, which is
+    // what a windowed start direction rotates `u` towards. All three
+    // are read VERBATIM off the frame — the door never normalizes,
+    // because the mint already did, and it never re-crosses a leg the
+    // frame carries. The sketch placement's own third column is
+    // `x_dir × axis`, a different product with the other sign, and is
+    // formed below.
+    let center = frame.origin();
+    let axis = frame.w().get();
+    let u_ref = frame.u().get();
+    let v_ref = frame.v().get();
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
@@ -397,31 +368,6 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
         }
     };
 
-    let unit = |v: Vec3<T>, err: TubeError| -> Result<(), TubeError> {
-        match decide(
-            "tube_frame_unit",
-            Margin::levered(v.norm() - T::one(), arm),
-            band,
-        )
-        .map_err(esc)?
-        {
-            Sign::Zero => Ok(()),
-            Sign::Positive | Sign::Negative => Err(err),
-        }
-    };
-    unit(axis, TubeError::NonUnitAxis)?;
-    unit(u_ref, TubeError::NonUnitURef)?;
-    match decide(
-        "tube_frame_orthogonal",
-        Margin::levered(axis.dot(u_ref), arm),
-        band,
-    )
-    .map_err(esc)?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return Err(TubeError::FrameNotOrthogonal),
-    }
-
     // ---- The window (mirrors revolve's angle classification). ----
     let (theta, full) = match window {
         TubeWindow::Full => (T::tau(), true),
@@ -451,7 +397,7 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
         TubeWindow::Full => u_ref,
         TubeWindow::Arc { t0, .. } => {
             let (s, c) = t0.sin_cos();
-            u_ref * c + axis.cross(u_ref) * s
+            u_ref * c + v_ref * s
         }
     };
     let normal = x_dir.cross(axis);
@@ -459,7 +405,7 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
         Mat3::from_cols(x_dir, axis, normal),
         center - Point3::origin(),
     );
-    let frame = AxisFrame::build(
+    let sketch_frame = AxisFrame::build(
         place,
         &RevolveAxis {
             origin: Point2::new(T::zero(), T::zero()),
@@ -495,14 +441,15 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
         classes.push(
-            super::axis::classify_loop(segs, &frame, li, true, band).map_err(TubeError::Revolve)?,
+            super::axis::classify_loop(segs, &sketch_frame, li, true, band)
+                .map_err(TubeError::Revolve)?,
         );
     }
 
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes, theta, band, tol)
+        full::build_full(&sketch_frame, &loops, &classes, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes, theta, true, band, tol)
+        partial::build_partial(&sketch_frame, &loops, &classes, theta, true, band, tol)
     }
     .map_err(TubeError::Revolve)?;
     // The same final pass as every constructor since M6-3: stored

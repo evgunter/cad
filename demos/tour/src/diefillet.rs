@@ -38,7 +38,7 @@
 // carries two units and a dimensionless axis in the same recipe.
 //
 // It also shows the OTHER authoring door. `ring` types its numbers in
-// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every length
+// the unit it means (`Expr::length_in(300.0, MM)`); every length
 // here is DERIVED from the die's geometry, already in canonical metres,
 // and only its notation is being chosen — which is `canonical_in`, and
 // is exactly the shape a GUI form has, where the draft is canonical
@@ -51,8 +51,7 @@ use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
-    SurfaceKindSet, ValuePayload, WrittenAngle, WrittenLength, all_edges, apply, evaluate,
-    select_where,
+    SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -80,7 +79,7 @@ fn len(v: f64) -> Expr {
 /// An angle the face table states IN DEGREES — a quarter turn is `90`,
 /// and the recipe says so.
 fn ang(degrees: f64) -> Expr {
-    Expr::written_angle(WrittenAngle::in_unit(degrees, DEG)).expect("an angle")
+    Expr::angle_in(degrees, DEG).expect("an angle")
 }
 fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a scalar")
@@ -279,53 +278,50 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
-    // The group discipline used to be load-bearing: cutting the pips
-    // one at a time presented a body already carrying a TRIMMED sphere
-    // face as the next operand, which the extent scan refused. It is a
-    // CHOICE now — a trimmed sphere face is served through the sphere
-    // chart's own [azimuth] × [latitude] window, and the closed-group
-    // certificate is asked only where it is used — and the reason to
-    // keep it is the one below, which is about the recipe layer rather
-    // than the kernel.
+    // The 21 placements are the MEMBERS of ONE `Node::Union`, which is
+    // how the recipe layer says "these bodies, fused". A union names
+    // each pip by its own member EDGE, so a pip's rim name records
+    // nothing about the other twenty and dropping one pip leaves their
+    // names — and the rim fillet's frozen selection — standing. That
+    // is the acceptance row this scene exists to carry
+    // (`docm3_union::removing_any_pip_leaves_both_die_fillets_resolving`).
     //
-    // NAMED GAP (2026-08-14): the recipe layer's only way to assemble
-    // a multi-shell body is a PAIRWISE `Node::Boolean(Union)`, so a
-    // 21-shell tool costs twenty union nodes and leaves the last
-    // ball's names twenty `FromA`/`FromB` segments deep. A group-union
-    // node (or a union that takes a list) would say this in one.
-    // Recorded in `docs/M8-LOG.md` beside the meridian gap.
-    let mut tool: Option<RecipeNodeId> = None;
-    for p in placements() {
-        let pip = insert(
-            doc,
-            Node::Transform {
-                input: ball,
-                translation: p.centre.map(len),
-                rotation_axis: p.axis.map(scl),
-                rotation_angle: ang(p.angle),
-            },
-            tol,
-        );
-        tool = Some(match tool {
-            None => pip,
-            Some(acc) => insert(
+    // Fusing them as a group is also what keeps the cut off the extent
+    // scan's refusal path: cutting the pips one at a time presents a
+    // body already carrying a TRIMMED sphere face as the next operand.
+    // That is a CHOICE rather than a requirement — a trimmed sphere
+    // face is served through the sphere chart's own [azimuth] ×
+    // [latitude] window, and the closed-group certificate is asked only
+    // where it is used.
+    let members: Vec<RecipeNodeId> = placements()
+        .into_iter()
+        .map(|p| {
+            insert(
                 doc,
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: acc,
-                    b: pip,
-                    declare: None,
+                Node::Transform {
+                    input: ball,
+                    translation: p.centre.map(len),
+                    rotation_axis: p.axis.map(scl),
+                    rotation_angle: ang(p.angle),
                 },
                 tol,
-            ),
-        });
-    }
+            )
+        })
+        .collect();
+    let tool = insert(
+        doc,
+        Node::Union {
+            members,
+            declare: None,
+        },
+        tol,
+    );
     insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
-            b: tool.expect("21 pips"),
+            b: tool,
             declare: None,
         },
         tol,
@@ -555,7 +551,9 @@ pub fn corpus_text(tol: Tol) -> String {
 /// The deletion goes through the ordinary edit door, so the root list
 /// is maintained by `roots::on_delete` rather than asserted here, and
 /// the remaining document is exactly the recipe that builds the die:
-/// 49 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// The 21 pips are the members of ONE `Node::Union`, so the node count
+/// is the pips, the blank and the two blends — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)
@@ -645,7 +643,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank)],
+            bodies: vec![
+                SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
+            ],
         },
         Stop {
             name: "diepips",
@@ -673,7 +673,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped)],
+            bodies: vec![
+                SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
+            ],
         },
         Stop {
             name: "diecomposed",
@@ -704,11 +706,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain(
-                "diecomposed",
-                [0.85, 0.63, 0.46],
-                composed,
-            )],
+            bodies: vec![
+                SceneBody::plain("diecomposed", [0.85, 0.63, 0.46], composed)
+                    .named(&ev, die.composed),
+            ],
         },
     ]
 }

@@ -35,17 +35,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_brep::SurfaceKind;
-use geom_core::{Band, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, FaceContainment, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A unit-radius sphere band swept through `turn` radians about world
 /// Y. Its sphere face's boundary is two meridian great-circle arcs
@@ -465,14 +462,13 @@ fn the_balls_two_bands_each_answer_for_their_own_half() {
 /// interior and its own boundary, where before the whole body was
 /// refused as a partial sphere face.
 ///
-/// The EXTERIOR is a different question and it stops one door further
+/// The EXTERIOR is a different question, answered one door further
 /// on, for a reason that has nothing to do with the chart: a ray from
 /// outside a quarter ball can miss the body entirely, and the verdict
-/// is then the at-infinity side, read off the body's signed volume —
-/// which the closed-form props lane will not certify for a rimless
-/// band whose meridians lie on two different great circles. That
-/// refusal is pinned here in its honest form, naming the volume rather
-/// than reporting a healthy body as broken.
+/// is then the at-infinity side, read off the body's signed volume,
+/// which the closed-form props lane gives a rimless band whose
+/// meridians lie on two different great circles (the wedge arm). The
+/// verdict is pinned here as `Out`.
 #[test]
 fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
     let body = lune(Revolution::Partial(core::f64::consts::FRAC_PI_2));
@@ -488,15 +484,13 @@ fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
         SolidContainment::OnBoundary,
         "on the sphere face"
     );
-    let err = point_in_solid(&body, at(ch, OUT_AZ, 1.0, 0.5), b, t)
-        .expect_err("the at-infinity side needs a volume props will not certify");
-    assert!(
-        matches!(err, PointInSolidError::VolumeUncertified),
-        "{err:?}"
+    // The at-infinity side is read off the body's signed volume, which
+    // the props lane certifies for the lune (the wedge arm).
+    assert_eq!(
+        point_in_solid(&body, at(ch, OUT_AZ, 1.0, 0.5), b, t).unwrap(),
+        SolidContainment::Out,
+        "outside the swept quarter, at the ball's radius"
     );
-    let msg = err.to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
-    assert!(msg.contains("hardcodes"), "{msg}");
 }
 
 /// A trimmed sphere face with a RIM is the other half of the class, and

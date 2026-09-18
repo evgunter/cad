@@ -142,7 +142,8 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     let mi: NurbsSurface<Interval> = masq.map_scalar(Interval::from_f64);
     assert!(!mi.is_placeholder());
     let s = Surface::Nurbs(Arc::new(mi));
-    let sup = geom_brep::chart_stretch_sup(&s);
+    // Spline charts, not cones: the door answers a pair here.
+    let sup = geom_brep::chart_stretch_sup(&s).unwrap();
     let inf = geom_brep::chart_stretch_inf(&s);
     let show = |x: Interval| {
         format!(
@@ -154,8 +155,8 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     };
     eprintln!(
         "[class 3 Interval x-poison] sup_u={} sup_v={}",
-        show(sup.0),
-        show(sup.1)
+        show(sup.0.get()),
+        show(sup.1.get())
     );
     eprintln!(
         "[class 3 Interval x-poison] inf_u={} inf_v={} sup_u={} sup_v={} area_inf={}",
@@ -167,11 +168,11 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     );
     // Placeholder at Interval for comparison.
     let ph = Surface::<Interval>::nurbs_placeholder();
-    let sp = geom_brep::chart_stretch_sup(&ph);
+    let sp = geom_brep::chart_stretch_sup(&ph).unwrap();
     eprintln!(
         "[class 3 Interval placeholder] sup_u={} sup_v={}",
-        show(sp.0),
-        show(sp.1)
+        show(sp.0.get()),
+        show(sp.1.get())
     );
 }
 
@@ -252,7 +253,7 @@ fn n2r2_class11_class4_mint_pcurves() {
 #[test]
 fn n2r2_class10_replace_face_offset() {
     let (mut body, wall, _) = masqueraded(poison_x);
-    let r = topo::replace_face_offset(&mut body, wall, 0.1, 1e-6, band(), tol());
+    let r = topo::replace_face_offset(&mut body, wall, 0.1, band(), tol());
     eprintln!("[class 10 x-poison] replace_face_offset -> {r:?}");
 }
 

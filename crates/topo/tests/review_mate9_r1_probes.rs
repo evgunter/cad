@@ -110,19 +110,19 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         0.5,
         0.54,
     );
-    let spike: common::Prism<f64> = common::prism_z(
-        &[(0.45, 0.30), (0.55, 0.30), (0.55, 0.38), (0.45, 0.38)],
-        0.40,
-        0.60,
-    );
+    let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60));
     let post_top = post.top_face;
     let mut body = post.body;
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike.body, Tol::witness()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike, Tol::witness()).unwrap();
 
-    let dive_witness = |w: &String| w.contains("x: 0.45,") || w.contains("x: 0.55,");
-    let at_seat_level = |w: &String| w.contains("z: 0.5 ");
+    // The witness is a coordinate triple, and a crossing witness may
+    // carry a trailing side-verdict clause after it — so both probes
+    // match INSIDE the triple rather than anchoring on its end. The
+    // `)` in the z probe is what separates z = 0.5 from z = 0.54.
+    let dive_witness = |w: &String| w.contains("(0.45,") || w.contains("(0.55,");
+    let at_seat_level = |w: &String| w.contains(", 0.5)");
 
     // Bare: the two diving crossings at seat level are reported
     // (alongside the cap's two in-plane crossings and the z = 0.54

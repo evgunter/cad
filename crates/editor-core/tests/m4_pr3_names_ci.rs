@@ -77,21 +77,18 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// The pinned die digest (update ONLY on a ratified naming change —
 /// this is the replay-identity family's naming member).
 ///
-/// RE-PINNED twice, both times for the same reason — the fixture's
-/// AUTHORING moved node ids, while the naming vocabulary stood still.
-///
-/// At M4 PR 5 the die began DECLARING its 21 flush pip contacts (F5 —
-/// Declare nodes between each Transform/Subtract pair), 56 nodes → 77.
-/// Here, a profile's sketch plane became a document node, so each of
-/// the die's seven distinct face frames is a node the document did not
-/// have, and every id after the first shifted again. A `StableName`
-/// carries the id of the node that minted it, so the tables move
-/// wholesale; nothing about what the names SAY changed.
-const DIE_TABLE_DIGEST: u64 = 0xd773_3105_3f8a_87fe;
+/// The digest feeds each name's `Debug` encoding, so TWO independent
+/// things move it: what the names SAY (the role vocabulary's
+/// spelling) and which node ids they carry (a `StableName` holds the
+/// id of the node that minted it, so any authoring change that
+/// renumbers nodes moves every row). The companion below tells the
+/// two apart only in part — it drops the entry keys, not the ids — so
+/// a re-pin states which of the two it is.
+const DIE_TABLE_DIGEST: u64 = 0xfdf3_d13d_4782_a4e5;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0xce7f_2339_f296_6e64;
+const DIE_NAMES_DIGEST: u64 = 0xc4e5_6d52_f732_d1c7;
 
 #[test]
 fn die_name_tables_are_golden() {

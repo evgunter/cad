@@ -44,7 +44,7 @@ use pncad::profile::path::{HasAng, HasPos, NoAng, NoPos, Plain, WithIncoming};
 use super::quantity::{Angle, Length};
 use super::typed_err;
 use crate::errors::ErrorClass;
-use crate::tags::{path_error_tag, recorded_program_error_tag};
+use crate::tags::{corner_reason_tag, path_error_tag, recorded_program_error_tag};
 use pncad::tolerance::Tol;
 
 /// The lattice's runtime value, at one state.
@@ -52,15 +52,40 @@ type Path<P, A> = pf::PartialPath<f64, P, A>;
 type KPathError = pf::PathError<f64>;
 
 /// The kernel's refusal, raised where the verb was written.
+///
+/// `variant` is the refusal's stable tag; `corners` is the
+/// `no_corner_of_pair` envelope projected as a list of
+/// `(x, y, reason)` rows — one per REFUSING corner, which is not the
+/// same as one per derived corner (a pair derives up to two) — in the
+/// kernel's own order (nearest the bracketing anchors first), with
+/// `reason` the entry's own tag. Every attribute is set on every arm,
+/// `None` where the arm carries no corner list, so handling reads
+/// `err.corners` without first branching on `err.variant`.
 fn path_err(py: Python<'_>, err: &KPathError) -> PyErr {
+    let corners = match err {
+        pf::PathError::NoCornerOfPair { corners, .. } => {
+            let rows: Vec<(f64, f64, &'static str)> = corners
+                .iter()
+                .map(|c| (c.at.x, c.at.y, corner_reason_tag(&c.reason)))
+                .collect();
+            match rows.into_pyobject(py) {
+                Ok(list) => list.unbind().into_any(),
+                Err(failed) => return failed,
+            }
+        }
+        _ => py.None(),
+    };
     typed_err(
         py,
         ErrorClass::Path,
         err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, path_error_tag(err)).unbind().into_any(),
-        )],
+        &[
+            (
+                "variant",
+                PyString::new(py, path_error_tag(err)).unbind().into_any(),
+            ),
+            ("corners", corners),
+        ],
     )
 }
 
@@ -91,8 +116,8 @@ impl StartToken {
 }
 
 /// Travel sense about a centre — structural, never a value.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSweep {
     /// Counterclockwise (positive included angle; positive bulge).
     Ccw,
@@ -112,8 +137,8 @@ impl ArcSweep {
 /// Which half-plane of the departure tangent a DERIVED carrier centre
 /// sits on — structural, the one discrete bit the endpoint-free and
 /// radius modes carry. `Left` of travel curves the arc counterclockwise.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSide {
     /// Centre on the left of travel (counterclockwise arc).
     Left,
@@ -923,23 +948,6 @@ point_state!(
             leg_end_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
                 .clone()
                 .arc_fillet_arc(si, r, s2, tol)))
-        }
-
-        /// Continue the incoming ARC carrier to an authored on-carrier
-        /// point, minting a STRUCTURAL subdivision vertex. The junction
-        /// is a same-carrier identity, so no junction check runs and
-        /// nothing is declared tangent.
-        fn arc_continue(
-            &self,
-            py: Python<'_>,
-            target: (Length, Length),
-        ) -> PyResult<PathDirectedPoint> {
-            let tol = Tol::witness();
-            self.0
-                .clone()
-                .arc_continue(pt(target), tol)
-                .map(PathDirectedPoint)
-                .map_err(|err| path_err(py, &err))
         }
     }
 );

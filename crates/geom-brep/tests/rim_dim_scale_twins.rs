@@ -58,7 +58,6 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
-use geom_core::Band;
 use geom_core::k_stats::{self, Probe};
 
 /// `cone_trunc`'s proportions at `scale` metres per source-unit:
@@ -124,7 +123,7 @@ fn cone_patch(scale: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
 fn rim_group_margins(scale: f64) -> (Vec<f64>, f64) {
     let (surface, edges) = cone_patch(scale);
     k_stats::start_recording();
-    let got = curved_face(&surface, &edges, Probe(1.0), band());
+    let got = curved_face(&surface, &edges, true, band());
     let samples = k_stats::take_samples();
     let contribution = got.expect("truncated-cone wall patch computes");
     let margins = samples
@@ -314,7 +313,7 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
 /// `props_rim_level` margins (absolute), plus whether it refused.
 fn rim_level_margins(surface: &Surface<Probe>, edges: &[LoopEdge<Probe>]) -> (Vec<f64>, bool) {
     k_stats::start_recording();
-    let got = curved_face(surface, edges, Probe(1.0), band());
+    let got = curved_face(surface, edges, true, band());
     let samples = k_stats::take_samples();
     let margins = samples
         .iter()

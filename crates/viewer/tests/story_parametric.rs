@@ -33,8 +33,8 @@ use core::f64::consts::PI;
 
 use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, ParamName, ProfileProgram, RecipeNodeId,
-    SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
+    RecipeNodeId, SlotId, StepArg,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -200,8 +200,13 @@ fn the_parametric_living_walk() {
 
     // ── 3. The two doors partition the edit's semantics, typed.
     // Create over a declared name refuses `ParamExists` carrying what
-    // already stands there; a value write to an undeclared name — here
-    // a typo — refuses `NoSuchParam`. Neither commits or mints history.
+    // already stands there — a layer-3 narrowing of an edit that is
+    // create-or-replace, so no door below refuses it. A value write to
+    // an undeclared name — here a typo — is refused by the EDIT door
+    // instead: `DocEdit::SetDocParamValue` carries an existing
+    // declaration forward and says so, `EditError::DocParamNotDeclared`
+    // naming the parameter and the recourse ("declare it first").
+    // Neither commits or mints history.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {
         name: taper.clone(),
@@ -227,8 +232,12 @@ fn the_parametric_living_walk() {
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
-        Some(Refusal::NoSuchParam(ref name)) => assert_eq!(name.0, "tapper"),
-        ref other => panic!("expected NoSuchParam, got {other:?}"),
+        Some(Refusal::Edit(ref error)) => match **error {
+            // The door rides along now; this row is about the NAME.
+            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.0, "tapper"),
+            ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
+        },
+        ref other => panic!("expected the edit door's refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty());
     assert_eq!(session.history().len(), before, "and mints no history");
@@ -451,9 +460,10 @@ fn the_parametric_living_walk() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.committed.is_empty(), "a probe commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
-    let (target, bounds) = session.bounds().expect("the probe landed").clone();
+    let reading = session.bounds().expect("the probe landed").clone();
+    let bounds = reading.bounds;
     assert_eq!(
-        target,
+        reading.target,
         BoundsTarget::Param {
             name: taper.clone()
         }
@@ -548,7 +558,11 @@ fn the_parametric_living_walk() {
     );
     let mut previews = 0usize;
     for value in [0.014, 0.016, 0.013] {
-        let outcome = session.perform(SessionOp::PreviewGesture { value });
+        let outcome = session.perform(SessionOp::PreviewGesture {
+            node: lamp,
+            slot: SlotId::Distance,
+            value,
+        });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
         previews += outcome.previewed.len();
         assert_eq!(
@@ -568,7 +582,10 @@ fn the_parametric_living_walk() {
         Ok(SlotValue::Continuous(LAMP_H)),
         "the committed document still says the old one"
     );
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert_eq!(session.history().len(), before + 1, "one undo step");
     let landed = row_of(session.committed_doc(), lamp, SlotId::Distance);
@@ -614,7 +631,10 @@ fn the_parametric_living_walk() {
             .is_none()
     );
     for value in [0.032, 0.04, 0.036] {
-        let outcome = session.perform(SessionOp::PreviewGesture { value });
+        let outcome = session.perform(SessionOp::PreviewParamGesture {
+            name: height.clone(),
+            value,
+        });
         assert!(outcome.committed.is_empty());
         assert_eq!(outcome.previewed.len(), 1);
     }
@@ -646,7 +666,9 @@ fn the_parametric_living_walk() {
         ),
         "other edits refuse typed while the drag holds the document"
     );
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitParamGesture {
+        name: height.clone(),
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
@@ -686,8 +708,16 @@ fn the_parametric_living_walk() {
             .refusal
             .is_none()
     );
-    session.perform(SessionOp::PreviewGesture { value: 0.02 });
-    session.perform(SessionOp::PreviewGesture { value: 0.025 });
+    session.perform(SessionOp::PreviewGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+        value: 0.02,
+    });
+    session.perform(SessionOp::PreviewGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+        value: 0.025,
+    });
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
     assert_eq!(session.history().len(), before, "no trace in history");
     assert_eq!(

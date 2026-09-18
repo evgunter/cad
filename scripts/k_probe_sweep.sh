@@ -131,7 +131,13 @@ finish_run() {
 # below exist to catch.
 feats_for() {
   case "$1" in
-    m10_3_driver_k_probe_interval) echo probe,interval ;;
+    # Every suite here needs BOTH features for the same reason: it
+    # instantiates a `probe` scalar inside an `interval` service (the E6
+    # driver, or `Sym<Interval>` from the symbolic tier), so under
+    # `probe` alone the file compiles to NOTHING and the selection over
+    # it runs and skips zero tests.
+    m10_3_driver_k_probe_interval|m10_7_r1_retag_probe|m10_7_r2_sym_probes)
+      echo probe,interval ;;
     *) echo probe ;;
   esac
 }

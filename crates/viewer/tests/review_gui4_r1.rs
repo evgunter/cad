@@ -48,7 +48,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::matetool::{MateChoice, MateTool, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, FaceSelection, Refusal, SessionOp};
@@ -113,7 +113,7 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
 
 /// Pick one face through the real cursor path under the session's
 /// display view.
-fn pick(session: &DocSession, index: &viewer::pick::PickIndex, ray: &Ray) -> FaceSelection {
+fn pick(session: &DocSession, index: &viewer::pickindex::PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("a landed evaluation");
     index
         .face_at_for(eval, ray, &session.display_view())
@@ -145,7 +145,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // a mate solves, so a rotated instance can only be arranged from
     // outside. (A finding in its own right; here it is just why this
     // fixture exists.)
-    let rotated = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, [-0.05, 0.04, 0.0]);
+    let rotated = Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        FRAC_PI_2,
+        [-0.05, 0.04, 0.0],
+        common::band(),
+    )
+    .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
@@ -295,17 +301,23 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     // world x ∈ [0.06, 0.08], y ∈ [0, 0.02] before the probe; the turn
     // sends (x, y) ↦ (−y, x), and the shift moves it to a fresh spot.
     let shift = [0.20, -0.10, 0.0];
-    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift);
+    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift, common::band())
+        .expect("a literal axis has a definite direction");
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
-    let outcome = session.perform(SessionOp::PreviewFreeMove { frame: probe });
+    let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: probe,
+    });
     assert!(
         outcome.refusal.is_none(),
         "a rotation is a rigid motion: {:?}",
         outcome.refusal
     );
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     let view = session.display_view();
 
     // Where the probed post's top-cap centre is DRAWN: take the
@@ -388,9 +400,12 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.05, 0.0, 0.0]),
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     session.perform(SessionOp::SetInstanceHidden {
         instance: bench.post_b,
         hidden: true,
@@ -436,14 +451,31 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 
     // Mate it: the probe is discarded and reported in the same outcome.
     let first = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
-    assert_eq!(first.superseded, vec![bench.post_b]);
+    let [superseded] = &first.withdrawn.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            first.withdrawn.superseded
+        )
+    };
+    assert_eq!(superseded.instance, bench.post_b);
+    assert!(
+        matches!(
+            &superseded.cause,
+            AdmissionFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
+    );
     assert!(session.display().free_move_of(bench.post_b).is_none());
     session.pump();
 
@@ -452,8 +484,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // a refusal. Both outcomes are acceptable; a green tree over a
     // second unresolved constraint is not.
     let second = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
@@ -477,7 +509,10 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
             })
             .refusal
         {
-            Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+                instance,
+                mates,
+            }))) => {
                 assert_eq!(instance, constrained);
                 assert!(!mates.is_empty(), "the refusal names its mates");
             }
@@ -701,8 +736,8 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat(),
     });
@@ -744,9 +779,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // Preview / commit / cancel with no gesture: typed, all three.
     for op in [
         SessionOp::PreviewFreeMove {
+            instance: bench.post_a,
             frame: Frame::translation([0.01, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_a,
+        },
         SessionOp::CancelFreeMove,
     ] {
         assert!(
@@ -777,9 +815,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // A bit-exact identity preview commits NOTHING — "probed to exactly
     // where the document draws it" must not leave a marked part.
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_a,
         frame: Frame::IDENTITY,
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_a,
+    });
     assert!(
         session.display().free_move_of(bench.post_b).is_none(),
         "an identity commit leaves no entry"
@@ -795,28 +836,48 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         "…and nothing is marked distinct"
     );
 
-    // A gesture in flight when a mate lands on its instance dies — and
-    // the death is NOT reported in `superseded` (which carries only
-    // committed values). The next gesture op is the only place a caller
-    // learns it, and it is typed.
+    // A gesture in flight when a mate lands on its instance dies, and
+    // the death is REPORTED — in `killed_gesture`, not in `superseded`,
+    // because nothing substituted for a placement the document was
+    // never asked for. The fault that killed it travels with it, so
+    // the chrome can say why instead of the user learning it by
+    // starting another gesture and reading that refusal.
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        outcome.superseded.is_empty(),
-        "an in-flight gesture's death is not reported as a supersession — \
-         recorded here as the current behaviour, not endorsed: {:?}",
-        outcome.superseded
+        outcome.withdrawn.superseded.is_empty(),
+        "an in-flight gesture's death is not a SUPERSESSION: nothing \
+         substituted for it, and it committed nothing to substitute \
+         for: {:?}",
+        outcome.withdrawn.superseded
+    );
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the killed gesture is reported, with the fault that killed it");
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(
+            killed.cause,
+            AdmissionFault::MateConstrained { instance, ref mates }
+                if instance == bench.post_b && mates.len() == 1
+        ),
+        "the cause is the landing mate, carried from the predicate that \
+         decided rather than re-derived: {}",
+        killed.cause
     );
     assert!(
         session.display().probing().is_none(),
@@ -824,7 +885,11 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     );
     assert!(
         matches!(
-            session.perform(SessionOp::CommitFreeMove).refusal,
+            session
+                .perform(SessionOp::CommitFreeMove {
+                    instance: bench.post_b
+                })
+                .refusal,
             Some(Refusal::Display(DisplayFault::NoFreeMove))
         ),
         "the commit that would have landed it refuses typed rather than \
@@ -1011,10 +1076,14 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     );
     session.perform(SessionOp::BeginFreeMove { instance });
     session.perform(SessionOp::PreviewFreeMove {
+        instance,
         frame: Frame::translation([0.5, 0.0, 0.0]),
     });
     assert!(
-        session.perform(SessionOp::CommitFreeMove).refusal.is_none(),
+        session
+            .perform(SessionOp::CommitFreeMove { instance })
+            .refusal
+            .is_none(),
         "the probe commits"
     );
     assert!(
@@ -1046,7 +1115,9 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
                     hidden: true,
                 })
                 .refusal,
-            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotAnInstance { .. }
+            )))
         ),
         "so the drawn thing has no display identity at all"
     );

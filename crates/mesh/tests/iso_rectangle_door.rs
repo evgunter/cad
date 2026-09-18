@@ -30,9 +30,9 @@
 //! door, and the walk it would otherwise have received collapses onto
 //! one rim level and IS its own bounding box — the spatial check admits
 //! it, which is the defeat the qualification recorded and the door now
-//! closes. A rimless lune (the partial sphere wedge) keeps meshing:
-//! the door is the shape predicate, not the flux lane's `Δu = π`
-//! premise.
+//! closes. A rimless lune (the partial sphere wedge) meshes and
+//! measures: the door is the shape predicate, and the flux lane reads
+//! the lune's own width.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,15 +86,15 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
     );
 }
 
-/// The divergence between the SHAPE door and the flux lane, pinned in
-/// both directions: the partial sphere wedge is a rimless lune — a
-/// chart rectangle `[0, θ] × [−π/2, π/2]` — so the door admits it and
-/// it meshes exactly as before, while `mass_properties` refuses the
-/// same body for the flux lane's own reason (`Δu = π`,
-/// `props_band_coplanar`), which is a closed-form premise and not a
-/// statement about the shape.
+/// The SHAPE door and the flux lane answer the same rimless lune on
+/// their own premises: the partial sphere wedge is a chart rectangle
+/// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
+/// `mass_properties` measures it by the flux lane's own reading of the
+/// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
+/// unit ball over `θ = 2`, volume `(2/3)·θ`. The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
-fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
+fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let body = sphere_wedge(2.0);
     let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).expect("the lune meshes");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -113,17 +113,13 @@ fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
         Ok(()),
         "a rimless lune is a chart rectangle"
     );
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("the flux lane measures the lune by its meridian pair")
+        .volume;
+    let exact = 2.0 / 3.0 * 2.0;
     assert!(
-        matches!(
-            topo::mass_properties(&body, Tol::witness()),
-            Err(topo::MassPropsError::Face {
-                source: PropsError::NotIsoRectangle {
-                    what: "props_band_coplanar"
-                },
-                ..
-            })
-        ),
-        "the flux lane refuses the same face for its own Δu = π premise"
+        (volume - exact).abs() / exact < 1e-12,
+        "the wedge of the unit ball over θ = 2: volume {volume:.15e} != {exact:.15e}"
     );
 }
 
@@ -166,11 +162,10 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
         .map(|(fk, f)| {
             let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
             let surface = body.get_surface(f.surface).unwrap();
-            let sense = if f.sense { 1.0 } else { -1.0 };
             (
                 fk,
                 geom_brep::props::require_iso_rectangle(surface, &outer, band),
-                geom_brep::props::curved_face(surface, &outer, sense, band)
+                geom_brep::props::curved_face(surface, &outer, f.sense, band)
                     .map(|c| (c.flux.to_bits(), c.area.to_bits())),
                 geom_brep::props::boundary_material_sign(surface, &outer, band),
             )
@@ -190,12 +185,27 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
 /// side: zero ulps apart). The mesh is the unsplit donut's up to the
 /// seam column, which is chorded per sub-edge: every position the two
 /// meshes do not share lies on the seam minor circle, and both are
-/// watertight.
+/// watertight. The split column carries the split vertex, which the
+/// unsplit column carries only when its chord schedule happens to
+/// sample that parameter (an even chord count halved lands on it
+/// bitwise — the same `t0 + span·f` the split evaluates), so the
+/// position COUNT is the unsplit's plus one or plus zero — read off
+/// the unsplit mesh rather than assumed — while the seam column's
+/// other points still differ in their last ulps either way.
 #[test]
 fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
     let tol = Tol::witness();
     let base = donut();
-    let (body, _) = split_seam_donut(&[0.5]);
+    let (body, (t0, t1)) = split_seam_donut(&[0.5]);
+    let split_point = {
+        let (_, edge) = base.edges().next().unwrap();
+        let curve = base
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
+        curve.carrier().eval(t0 + 0.5 * (t1 - t0))
+    };
     let mp0 = topo::mass_properties(&base, tol).expect("the unsplit donut measures");
     let mp = topo::mass_properties(&body, tol).expect("the split-seam donut measures");
     assert_eq!(
@@ -262,9 +272,21 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
         a.len(),
         b.len()
     );
-    // The split column carries the split vertex, which the unsplit
-    // column need not: one extra position, on the seam.
-    assert_eq!(m.positions.len(), m0.positions.len() + 1);
+    // The split column carries the split vertex; the unsplit column
+    // carries it iff its schedule sampled the split parameter.
+    let sampled_unsplit = a
+        .binary_search(&[
+            split_point.x.to_bits(),
+            split_point.y.to_bits(),
+            split_point.z.to_bits(),
+        ])
+        .is_ok();
+    assert_eq!(
+        m.positions.len(),
+        m0.positions.len() + usize::from(!sampled_unsplit),
+        "the split adds the split vertex and nothing else (unsplit schedule sampled it: \
+         {sampled_unsplit})"
+    );
 }
 
 /// **The fold's premise, pinned.** The pieces of a split edge partition

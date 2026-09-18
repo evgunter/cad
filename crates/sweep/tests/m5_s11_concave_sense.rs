@@ -1,6 +1,7 @@
 //! M5 S11 acceptance: constructors mint the honest orientation bit.
 //!
-//! S10 made a face's outward normal `sense_sign · chart_normal` and
+//! S10 made a face's outward normal the chart normal negated where
+//! `sense` is `false`, and
 //! proved the consumers read the bit; S11 makes the CONSTRUCTORS write
 //! it honestly. A swept wall whose material lies against its surface's
 //! chart normal — extrude's concave arc walls and their hole-loop kin,
@@ -55,22 +56,19 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use crate::common::approx::band;
 use common::orient::{
     along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point3, Vec3};
+use geom_core::{Affine3, OrthoFrame, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::test_support::swept_elbow_lofted;
 use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::props::mass_properties(body, Tol::witness())
@@ -799,11 +797,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         p2(1.1, 1.35),
         p2(0.9, 1.35),
     ]);
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.3),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

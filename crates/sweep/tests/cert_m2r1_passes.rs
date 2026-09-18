@@ -126,7 +126,11 @@ pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     out
 }
 
-fn dump<T: PropsQuadLane + core::fmt::Debug>(scalar: &str, name: &str, body: &Body<T>) {
+fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug>(
+    scalar: &str,
+    name: &str,
+    body: &Body<T>,
+) {
     let tol = Tol::witness();
     let _ = Band::linear(tol).unwrap();
     println!(
@@ -238,7 +242,7 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         ("ring_on_outer_vessel", vessel, 0.4),
         ("ring_on_outer_tube", tube, 0.40),
     ] {
-        let mut sealed = topo::shell(&body, t, 1e-6, tol).expect("sealed shell").body;
+        let mut sealed = topo::shell(&body, t, tol).expect("sealed shell").body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -249,7 +253,7 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, 1e-6, band, tol).unwrap();
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, band, tol).unwrap();
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).unwrap();
         }

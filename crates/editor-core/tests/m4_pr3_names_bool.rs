@@ -18,14 +18,21 @@ use editor_core::{
 use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
 use geom_core::Tol;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
+    let ev = evaluate::<f64>(
         doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -91,26 +98,18 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             .is_some()
     );
     // M4 PR 5 (N3/D5, the Merged lane LIVE): the declared flush caps
-    // GLUE — the operands' top caps retire into one `Merged` row whose
+    // GLUE — the operands' end caps retire into one `Merged` row whose
     // constituents are exactly the two FromX-wrapped cap names, sorted.
     let mut cap_constituents = vec![
         name1(
             EntityKind::Face,
             u,
-            RoleSeg::FromA(Box::new(name1(
-                EntityKind::Face,
-                a,
-                RoleSeg::Cap(CapEnd::Top),
-            ))),
+            RoleSeg::FromA(name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)).into()),
         ),
         name1(
             EntityKind::Face,
             u,
-            RoleSeg::FromB(Box::new(name1(
-                EntityKind::Face,
-                b,
-                RoleSeg::Cap(CapEnd::Top),
-            ))),
+            RoleSeg::FromB(name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into()),
         ),
     ];
     cap_constituents.sort_unstable();
@@ -142,9 +141,9 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             }),
         );
         let seg = if wrap_a {
-            RoleSeg::FromA(Box::new(inner))
+            RoleSeg::FromA(inner.into())
         } else {
-            RoleSeg::FromB(Box::new(inner))
+            RoleSeg::FromB(inner.into())
         };
         assert!(
             matches!(
@@ -200,8 +199,8 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     );
     let ev = run(&doc);
     let t = table(&ev, sub);
-    let top = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
-    // Exactly two fragments of A's top cap, SideOf-qualified, with
+    let end = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    // Exactly two fragments of A's end cap, SideOf-qualified, with
     // DISTINCT vectors (each Unique — no tie: the slot walls
     // discriminate).
     let frags: Vec<&StableName> = t
@@ -210,7 +209,7 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
             let is_frag = n.kind == EntityKind::Face
                 && matches!(
                     n.path.first(),
-                    Some(RoleSeg::FromA(inner)) if **inner == top
+                    Some(RoleSeg::FromA(inner)) if **inner == end
                 )
                 && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)

@@ -2,12 +2,13 @@
 id: retire-render-automatic-matplotlib-fallback
 kind: issue
 title: render.sh — retire the automatic matplotlib fallback; a crashed scene must fail loudly, not become a green preview
-status: review
+status: closed
 opened: 2026-08-19
 github: 629
 refs: [221, 224, 331, 626]
 pr: 1745
 branch: ciw/retire-matplotlib-fallback
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 629
@@ -83,3 +84,11 @@ Filed from the SMELL-SCAN wave-1b lane; found while diagnosing a red on #626, no
 ## Home
 
 `work/issues/`: `demos/render.sh` and `.github/workflows/render.yml` are S-QA's gate ground and S-QA is closed; no open program's `paths` reaches the render lanes.
+
+## Closed 2026-09-06
+
+PR 1745. `demos/render.sh:792` refuses when `freecadcmd` is absent and exits
+1, naming `--matplotlib` as the deliberate preview lane rather than falling
+into it; the header at `:62` keeps the uncommittable-preview argument. Ev's
+step order held — the script fails nonzero first, the workflow assert step
+went after.

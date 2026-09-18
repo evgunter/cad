@@ -62,8 +62,8 @@ fn geometric_cube_passes_all_three_tiers() {
 
 /// **M5 S10 acceptance row: tier 3 is the sense gate (check 6).**
 ///
-/// A face's outward normal is `Face::sense_sign()` times its surface's
-/// chart normal, and by the interior-left rule its outer loop winds
+/// A face's outward normal is its surface's chart normal with
+/// `Face::sense` folded in, and by the interior-left rule its outer loop winds
 /// CCW about that outward normal. So `sense` and the stored winding
 /// are two encodings of ONE fact, and check 6 — the loop's Newell
 /// functional against the outward normal — is precisely the gate that

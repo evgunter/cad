@@ -20,13 +20,15 @@
 use crate::common::cavity::{cavity_edges, vented_cavity};
 use crate::common::oracles::rounded_box_volume;
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, FILLET3_CORNER_RECOURSE};
+use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The fillet radius, meters.
@@ -58,7 +60,7 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 fn the_concave_arm_rests_the_ball_in_the_void_at_depth_r() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, false);
+    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
     assert!(
         (ball.center - p(r, r, r)).norm() < 1e-15,
         "the concave rest is at (r, r, r), got {:?}",
@@ -86,7 +88,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
     let r = 0.2;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.6, 0.0, 0.8)];
     let verts = [p(0.0, 0.0, 0.0); 3];
-    let concave = corner_ball(verts, normals, r, false);
+    let concave = corner_ball(verts, normals, r, Convexity::Concave);
     for (i, n) in normals.iter().enumerate() {
         let depth = (concave.center - verts[i]).dot(*n);
         assert!(
@@ -95,7 +97,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
         );
     }
     assert!((concave.independence - 0.8).abs() < 1e-15);
-    let convex = corner_ball(verts, normals, r, true);
+    let convex = corner_ball(verts, normals, r, Convexity::Convex);
     assert!(
         (convex.independence - concave.independence).abs() < 1e-15,
         "independence is side-blind"
@@ -116,7 +118,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
 fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, false);
+    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
     for n in normals {
         let convex_formula = ball.center + n * r;
         let off = (convex_formula - p(0.0, 0.0, 0.0)).dot(n);
@@ -149,7 +151,7 @@ fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
     let mean = (normals[0] + normals[1] + normals[2]).normalize();
-    for (convex, patch_centre) in [(true, mean), (false, -mean)] {
+    for (convex, patch_centre) in [(Convexity::Convex, mean), (Convexity::Concave, -mean)] {
         let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, convex);
         let Surface::Sphere { axis, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
@@ -194,7 +196,7 @@ fn filleted_cavity_volume() -> f64 {
 /// walls the patch is an iso-parameter rectangle wherever the chart
 /// aims, so the downstream machinery is chart-placement-tolerant).
 /// The chart fold's guards are the plan-level mirror pin
-/// (`blend::surgery::tests::a_corner_plan_takes_its_links_convexity`)
+/// (`blend::open::planar::tests::a_corner_plan_takes_its_links_convexity`)
 /// and the carved-body seam/quarter-turn pin
 /// (`review_blend4_r2_probes::r2_the_octant_charts_seam_and_quarter_turn_are_feet_on_both_sides`).
 #[test]
@@ -231,19 +233,16 @@ fn the_filleted_cavity() {
         );
     }
 
-    let (nv, ne, nf) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
+    let counts = euler_counts(&out_body);
     assert_eq!(
-        (nv, ne, nf),
+        (counts.v, counts.e, counts.f),
         (36, 66, 34),
         "census — the same carve topology as the chamfered cavity"
     );
+    assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        nv as i64 - ne as i64 + nf as i64 - 2,
-        2,
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
 
@@ -267,7 +266,6 @@ fn the_filleted_cavity() {
 /// mesh.
 fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64>, Vec3<f64>)> {
     let f = body.get_face(face).expect("a minted face");
-    let s = f.sense_sign::<f64>();
     let radial = |q: Point3<f64>| match body.get_surface(f.surface).expect("its surface") {
         Surface::Cylinder { origin, axis, .. } => {
             let d = q - *origin;
@@ -289,7 +287,7 @@ fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64
                 .get_vertex(vk)
                 .and_then(|x| body.get_point(x.point))
                 .expect("a boundary vertex's point");
-            (q, radial(q) * s)
+            (q, OutwardNormal::from_chart(radial(q), f.sense).vec())
         })
         .collect()
 }

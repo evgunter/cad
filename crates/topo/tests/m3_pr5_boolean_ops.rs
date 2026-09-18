@@ -15,7 +15,7 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::{ArenaCounts, arena_counts};
@@ -23,10 +23,6 @@ use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate, validate_closed, validate_geometric,
 };
-
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// A public declared boolean op as a value (M4 PR 5: the corpus
 /// declares its intended flush contacts — recipe intent, test form).

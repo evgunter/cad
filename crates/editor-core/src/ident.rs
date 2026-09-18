@@ -180,3 +180,33 @@ impl fmt::Display for DocRef {
         write!(f, "{}@{}", self.id, &pin[..PIN_PREFIX_HEX])
     }
 }
+
+/// **Two document ids that were supposed to be one** (DI3): `expected`
+/// is the document the door is about, `found` the document the handed
+/// value is actually of.
+///
+/// One payload for every pairing refusal, because every door that
+/// checks a pairing asks the SAME question and their answers must not
+/// be able to drift apart in shape. Each wraps this in its own arm,
+/// keeping its own name and its own tag at the Python boundary.
+///
+/// WHICH doors those are is `crates/editor-core/ASSEMBLY.md`'s A2a and
+/// is not restated here: the set grows as a door is built, and a
+/// second copy of it is a second thing to keep true.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mispaired {
+    /// The document the door is a statement about.
+    pub expected: DocumentId,
+    /// The document the handed evaluation or solve is of.
+    pub found: DocumentId,
+}
+
+/// **The pairing predicate**: `None` when the pairing holds.
+///
+/// The one place the comparison is spelled. It is `!=` on a
+/// [`DocumentId`] and nothing more — deliberately, since a pairing is
+/// about IDENTITY and never about a version (a pin would make a
+/// re-saved document a different document to its own evaluation).
+pub(crate) fn mispaired(expected: DocumentId, found: DocumentId) -> Option<Mispaired> {
+    (expected != found).then_some(Mispaired { expected, found })
+}

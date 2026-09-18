@@ -206,7 +206,7 @@ fn stale_program_refs_refuse_vanished() {
         kind: EntityKind::Edge,
         node: BODY,
         path: vec![RoleSeg::RimEdge(
-            CapEnd::Top,
+            CapEnd::End,
             ProfileEdgeRef {
                 loop_index: 0,
                 segment: 9, // the program has 4 segments
@@ -225,7 +225,7 @@ fn stale_program_refs_refuse_vanished() {
         kind: EntityKind::Edge,
         node: BODY,
         path: vec![RoleSeg::RimEdge(
-            CapEnd::Top,
+            CapEnd::End,
             ProfileEdgeRef {
                 loop_index: 0,
                 segment: 0,

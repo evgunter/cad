@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point3, Vec3};
+use pncad::authoring::{p3, polygon};
 use pncad::profile::{Profile, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanResultKind};
@@ -27,19 +27,14 @@ use pncad::topo::{Body, BooleanResultKind};
 use crate::booleans::{Verdict, check, describe, expect_seamed};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::geom_core::{OrthoFrame, Tol};
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
 /// a rectangle on a z-offset xy sketch plane extruded up.
 pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<S> {
-    // Algebra-authored (LIB-U2 PR-2): the same four corners, said as
-    // a `line_to` chain closing at `Start`.
-    let lp = crate::paths::path_polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol);
-    let plane = SketchPlane::from_frame(
-        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(z.0)),
-        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
-        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
-    );
+    let lp =
+        polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol).expect("slab rectangle");
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol)
         .expect("slab profile validation");

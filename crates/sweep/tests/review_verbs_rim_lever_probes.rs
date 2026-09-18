@@ -53,6 +53,9 @@ test_utils::gated_to![
     "crates/sweep/src/extrude.rs",
     "crates/sweep/src/test_support.rs",
     "crates/geom-core/src/predicate.rs",
+    // The fixtures this suite builds its bodies from: a change there is a
+    // change to what every row here asserts on.
+    "crates/sweep/tests/common/",
 ];
 
 use crate::common::approx::band;
@@ -391,7 +394,8 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         );
         match fillet_edges(&ball, &[seam], r * 0.05, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                margin, 0.0,
+                (margin.predicate, margin.value()),
+                ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral sine is structurally zero (r={r})"
             ),
             other => {

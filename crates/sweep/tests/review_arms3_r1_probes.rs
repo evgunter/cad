@@ -20,13 +20,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, Surface};
+use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{arcs_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, transform_rigid, validate_geometric};
 
 fn tol() -> Tol {
@@ -62,24 +62,6 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
     };
     let (a, b) = (face(e.he_plus), face(e.he_minus));
     if a <= b { (a, b) } else { (b, a) }
-}
-
-/// Every circular edge with carrier radius `r` whose two supports are
-/// DIFFERENT surfaces (excludes chart seams), anywhere in space.
-fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, .. } if (radius - r).abs() < 1e-9 => Some(k),
-                _ => None,
-            }
-        })
-        .filter(|k| {
-            let (a, b) = supports(body, *k);
-            a != b
-        })
-        .collect()
 }
 
 /// The band face's torus datum.
@@ -146,7 +128,7 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
     assert!((spheres[0].0).abs() < 1e-9 && (spheres[0].1 - 1.0).abs() < 1e-9);
     assert!((spheres[1].0 - 2.1).abs() < 1e-9 && (spheres[1].1 - 1.7).abs() < 1e-9);
 
-    let arcs = rims_of_radius(&source, 0.8);
+    let arcs = rim_arcs_at(&source, 0.8, 0.6);
     assert_eq!(arcs.len(), 1, "one closed sphere-sphere rim");
     let out = fillet_edges(&source, &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the unequal equator fillets, got {e:?}"));
@@ -198,7 +180,10 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
         tol(),
     )
     .unwrap();
-    let arcs = rims_of_radius(&posed, 0.8);
+    // The rim rides the pose: a rigid map keeps its radius and carries
+    // its centre to the translation, so the station is the posed
+    // frame's own.
+    let arcs = rim_arcs_at(&posed, 0.8, -0.2);
     assert_eq!(arcs.len(), 1, "the equator rim survives the re-pose");
     let out = fillet_edges(&posed, &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the re-posed equator fillets, got {e:?}"));
@@ -259,7 +244,7 @@ fn a_bitten_ball_crater_rim_folds_opposite_senses() {
     let source = bitten_ball();
     let ry: f64 = 0.2125 / 0.3;
     let rim_r = (1.0 - ry * ry).sqrt();
-    let arcs = rims_of_radius(&source, rim_r);
+    let arcs = rim_arcs_at(&source, rim_r, ry);
     assert_eq!(arcs.len(), 1, "one closed crater rim");
     let out = fillet_edges(&source, &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the crater rim fillets, got {e:?}"));
@@ -287,7 +272,7 @@ fn a_bitten_ball_crater_rim_folds_opposite_senses() {
 fn a_contained_offset_pose_refuses_typed() {
     let source = bitten_ball();
     let ry: f64 = 0.2125 / 0.3;
-    let arcs = rims_of_radius(&source, (1.0 - ry * ry).sqrt());
+    let arcs = rim_arcs_at(&source, (1.0 - ry * ry).sqrt(), ry);
     match fillet_edges(&source, &arcs, 0.13, tol()).map_err(|r| r.error) {
         Ok(_) => panic!("no ball rests on both supports at r = 0.13"),
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
@@ -303,7 +288,7 @@ fn a_contained_offset_pose_refuses_typed() {
 #[test]
 fn an_oversized_ball_on_the_lentil_refuses_typed() {
     let source = symmetric_lentil();
-    let arcs = rims_of_radius(&source, 0.8);
+    let arcs = rim_arcs_at(&source, 0.8, 0.0);
     match fillet_edges(&source, &arcs, 0.45, tol()).map_err(|r| r.error) {
         Ok(_) => panic!("no ball of r = 0.45 rests on both lentil walls"),
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
@@ -325,7 +310,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(0.8, 0.0, 0.0),
     };
-    let trace = |y: f64, side: f64| SupportTrace::Round {
+    let trace = |y: f64, side: bool| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: 1.0,
         side,
@@ -335,8 +320,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let at_tangency = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, 1.0),
-        trace(0.6, 1.0),
+        trace(-0.6, true),
+        trace(0.6, true),
         0.4,
     );
     // The half-chord square is an EXACT zero only in real arithmetic;
@@ -351,8 +336,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let past = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, 1.0),
-        trace(0.6, 1.0),
+        trace(-0.6, true),
+        trace(0.6, true),
         0.45,
     );
     assert!(
@@ -368,12 +353,12 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         SupportTrace::Round {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            side: 1.0,
+            side: true,
         },
         SupportTrace::Round {
             center: Point3::new(0.0, 0.15, 0.0),
             radius: 0.9,
-            side: -1.0,
+            side: false,
         },
         0.125,
     );
@@ -481,9 +466,18 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
             .any(|(_, f)| matches!(source.get_surface(f.surface), Some(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
-    let arcs = rims_of_radius(&source, 0.9);
-    assert_eq!(arcs.len(), 2, "two torus-plane rims");
-    match fillet_edges(&source, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
+    // Two rims share this radius — the barrel's top at y = 0.6 and its
+    // bottom at y = 0 — so the STATION is what names one, and the
+    // request is the TOP rim, whole.
+    for station in [0.0, 0.6] {
+        assert_eq!(
+            arcs_at(&source, 0.9, station).len(),
+            1,
+            "one torus-plane rim at y = {station}"
+        );
+    }
+    let arcs = rim_arcs_at(&source, 0.9, 0.6);
+    match fillet_edges(&source, &arcs, 0.03, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineUnsupported { supports, .. }) => {
             assert!(
                 supports.contains("sphere–sphere"),
@@ -524,7 +518,7 @@ fn spinning_top() -> Body<f64> {
 #[test]
 fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     let body = spinning_top();
-    let arcs = rims_of_radius(&body, 0.6);
+    let arcs = rim_arcs_at(&body, 0.6, 0.45);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
     match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
         Err(

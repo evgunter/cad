@@ -30,6 +30,20 @@
 //! layer's questions, asked at replay — by the edit door on commit,
 //! and by [`preview`] before it, which is the same ladder run for the
 //! picture instead of for the verdict.
+//!
+//! **A fourth question is judged here and belongs to neither list:
+//! whether a replayed loop can be DRAWN.** It is not the profile
+//! layer's, because a loop can be a perfectly good profile and still
+//! have an arc whose radius or centre is not a number — a finite
+//! bulge near the bottom of the exponent range, or two vertices whose
+//! midpoint overflows. And it is not a literal's, because every
+//! literal involved passed [`DimensionError`] already. It is the
+//! flattener's, it is answered by
+//! [`PreviewError::Unflattenable`], and it exists because this module
+//! is the one place that turns a loop into coordinates.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
@@ -173,10 +187,6 @@ pub enum PathStep {
     /// `tangent_arc_to(target)` — an arc leaving along the bound
     /// direction and ending at `target`.
     TangentArcTo(PathTarget),
-    /// `arc_continue(p)` — a structural vertex ON the incoming
-    /// carrier: the declared-subdivision verb, which splits an arc
-    /// without changing it.
-    ArcContinue([f64; 2]),
     /// `.fillet(r)` — round the corner with radius `r`, line in, line
     /// out.
     Fillet(f64),
@@ -432,7 +442,6 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
         PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target, n)?),
         PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec, n)?),
         PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
-        PathStep::ArcContinue(p) => ProgramStep::ArcContinue(n.point(p)?),
         PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),
         PathStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
             radius: n.length(radius)?,
@@ -473,22 +482,29 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
 /// It reads the LANDED value rather than resolving the frame's
 /// expressions again: this is a picture, the evaluation already
 /// produced the placement, and a second derivation is a second answer
-/// waiting to disagree with the first. (The kernel's own f64 read is a
-/// different question — see `wire::profile_plane_f64` — and is about
-/// structure selection, not about drawing.)
+/// waiting to disagree with the first. The kernel reads by that same
+/// rule and asks a different question: `wire::profile_plane_f64` takes
+/// the `f64` placement the frame's own evaluation minted and carried
+/// (`NodeValue::placement`), which is for structure selection and not
+/// for drawing. The two differ in WHICH answer they take off the
+/// frame's value, not in whether they take one.
 pub fn frame_placement(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !matches!(doc.node(frame), Some(Node::Datum(Datum::Frame { .. }))) {
+    // Either frame kind: what is drawn is the landed VALUE, which both
+    // produce.
+    if !matches!(
+        doc.node(frame),
+        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+    ) {
         return None;
     }
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
-    else {
+    let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
         return None;
     };
-    Some(SketchPlane::from_frame(*origin, u.get(), v.get()))
+    Some(SketchPlane::from_frame(*f))
 }
 
 /// **Every frame datum in the document, in document order** — what the
@@ -501,7 +517,12 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::Frame { .. }))))
+        .filter(|id| {
+            matches!(
+                doc.node(*id),
+                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+            )
+        })
         .collect()
 }
 
@@ -623,6 +644,25 @@ pub enum PreviewError {
         /// The ill-typed verb, `None` for end-of-program.
         verb: Option<Verb>,
     },
+    /// A bulged segment replayed, and the arc it stands for cannot be
+    /// drawn: its radius, its swept angle, its centre or its start
+    /// angle is not a finite number, so no point along it is one
+    /// either.
+    ///
+    /// **Separate from [`PreviewError::Geometry`]**, which carries the
+    /// DRIVER's refusal about a leg somebody authored. This one is the
+    /// flattener's own, about the picture rather than the profile: the
+    /// loop replayed and validation may well have a verdict on it, and
+    /// what has no answer is how to draw it.
+    Unflattenable {
+        /// Which loop could not be drawn.
+        loop_: usize,
+        /// The ordinal of its vertex whose outgoing segment refused
+        /// — the loop's OWN vertex, not the authored step, because
+        /// one step can contribute several and the flattener walks
+        /// what replay produced.
+        vertex: usize,
+    },
     /// A leg's geometry refused — the driver's own rendered refusal.
     Geometry {
         /// Which loop refused.
@@ -634,6 +674,13 @@ pub enum PreviewError {
     },
 }
 
+// The preview's sentence is about the step the author is looking at,
+// so both halves of the (state, verb) pair are named in the author's
+// vocabulary: the verb through `profile::Verb`'s own `Display` — the
+// same word the row's combo shows, so a verb cannot be picked under
+// one name and refused under another — and the state through
+// [`tip_state_words`]. `profile`'s `ReplayError` renders the same pair
+// as the table's COORDINATE and says there why that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -647,7 +694,7 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb:?} is not well-typed there — the tip is {}",
+                    "loop {loop_} step {step}: {verb} is not well-typed there — the tip is {}",
                     tip_state_words(*state)
                 ),
                 None => write!(
@@ -657,6 +704,11 @@ impl core::fmt::Display for PreviewError {
                     tip_state_words(*state)
                 ),
             },
+            Self::Unflattenable { loop_, vertex } => write!(
+                f,
+                "loop {loop_} vertex {vertex}: the arc leaving it has no drawable \
+                 shape — its radius, sweep or centre is not a number"
+            ),
             Self::Geometry {
                 loop_,
                 step,
@@ -702,7 +754,12 @@ impl core::error::Error for PreviewError {}
 /// unclosed chain whose provisional close is itself ill-typed — a tip
 /// with a direction and no position, an arc arrival still waiting for
 /// a binder — reports the ORIGINAL end-of-program refusal, never one
-/// belonging to the appended step.
+/// belonging to the appended step. A loop that replays and whose arcs
+/// have no drawable shape is [`PreviewError::Unflattenable`] — the
+/// one refusal here that is about the PICTURE rather than the
+/// profile, and the reason it is a refusal rather than a loop drawn
+/// short is that a preview is what a form shows instead of the
+/// geometry.
 pub fn preview(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
@@ -777,15 +834,17 @@ pub fn preview(
     let polylines = loops
         .iter()
         .zip(&closed_flags)
-        .map(|(lp, closed)| {
-            let (points, vertices) = flatten(lp, chord);
-            PreviewLoop {
+        .enumerate()
+        .map(|(loop_, (lp, closed))| {
+            let (points, vertices) = flatten(lp, chord)
+                .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
+            Ok(PreviewLoop {
                 points,
                 vertices,
                 closed: *closed,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, PreviewError>>()?;
     // A profile is what validation has a verdict about, and an
     // unfinished chain is not one. Validating the provisional close
     // would report on a leg the author never wrote.
@@ -928,7 +987,14 @@ const MAX_ARC_POINTS: usize = 256;
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
 /// and invents no second convention.
-fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> (Vec<[f64; 2]>, Vec<usize>) {
+///
+/// # Errors
+///
+/// The vertex ordinal of the first bulged segment whose arc frame is
+/// not numbers a point can be computed from. **Refused rather than
+/// skipped**: a segment dropped here would leave the loop drawn with a
+/// leg it does not have, which is the same defect one door along.
+fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let vertices = loop_.vertices();
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
     // Where each real vertex landed among the subdivisions. A caller
@@ -967,34 +1033,190 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> (Vec<[f64; 2]>, Vec<usize>) 
             (from.y + to.y) / 2.0 + ny * apothem,
         ];
         let start = (from.y - centre[1]).atan2(from.x - centre[0]);
-        for point in 1..arc_points(radius, theta, chord) {
-            let angle = start + theta * (point as f64) / (arc_points(radius, theta, chord) as f64);
+        // **Every point below is `centre + radius·(cos, sin)` of an
+        // angle built from `start` and `theta`**, so those four are
+        // what have to BE numbers, and they are asked before any of
+        // them is used. The two guards above this block — `bulge ==
+        // 0.0` and `half == 0.0 || sin_half == 0.0` — are the
+        // degenerate segments a loop legitimately holds, and a value
+        // that is not a number takes neither side of either: a `NaN`
+        // is not equal to zero, so it reads as an ordinary arc all the
+        // way to the coordinates.
+        //
+        // `radius` carries `centre` with it. `apothem` is
+        // `±radius·cos(θ/2)` written as `half / tan(θ/2)`, so it is
+        // bounded by `radius`; a `half` that is not finite makes
+        // `radius` not finite too. What `radius` does NOT carry is the
+        // chord's own midpoint, which overflows on its own for two
+        // vertices near the top of the exponent range — hence
+        // `centre`, and `start` after it.
+        let Some(count) = arc_points(radius, theta, chord)
+            .filter(|_| centre[0].is_finite() && centre[1].is_finite() && start.is_finite())
+        else {
+            return Err(index);
+        };
+        for point in 1..count {
+            let angle = start + theta * (point as f64) / (count as f64);
             out.push([
                 centre[0] + radius * angle.cos(),
                 centre[1] + radius * angle.sin(),
             ]);
         }
     }
-    (out, at)
+    Ok((out, at))
 }
 
 /// How many chords one arc of `radius` sweeping `theta` needs to sag
-/// less than `chord`.
+/// less than `chord`, or `None` when the three are not numbers to
+/// answer from.
 ///
 /// The sagitta of a sub-arc of angle φ is `r(1 - cos(φ/2))`, so the
 /// admissible φ inverts that; a `chord` at or past the diameter asks
 /// for no subdivision at all and gets the one-segment floor.
-fn arc_points(radius: f64, theta: f64, chord: f64) -> usize {
+///
+/// **The three guards below order their inputs, and the finite test is
+/// what makes that an assumption they are allowed to make.** A `NaN`
+/// takes NEITHER side of `chord <= 0.0`, of `ratio <= -1.0` or of
+/// `step <= 0.0`, so every one of them used to fall through; the
+/// arithmetic past them then answered `(NaN).ceil() as usize`, which
+/// is `0`, which `clamp(1, MAX)` lifted to the one-segment floor. An
+/// arc whose subdivision could not be computed was drawn as an arc
+/// that needs one segment. An unbounded radius fell through in the
+/// other direction and reached the cap, and its points are `±inf` or
+/// `NaN` however many of them are drawn.
+///
+/// [`MAX_ARC_POINTS`] is still the answer for a genuinely coarse
+/// request, and `1` for a genuinely flat one; `None` is neither, which
+/// is the whole point of it being a third answer rather than one of
+/// those two.
+fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
+    if !(radius.is_finite() && theta.is_finite() && chord.is_finite()) {
+        return None;
+    }
     if chord <= 0.0 || radius <= 0.0 {
-        return MAX_ARC_POINTS;
+        return Some(MAX_ARC_POINTS);
     }
     let ratio = 1.0 - chord / radius;
     if ratio <= -1.0 {
-        return 1;
+        return Some(1);
     }
     let step = 2.0 * ratio.clamp(-1.0, 1.0).acos();
     if step <= 0.0 {
-        return MAX_ARC_POINTS;
+        return Some(MAX_ARC_POINTS);
     }
-    ((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)
+    Some(((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS))
+}
+
+/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// metres: a fraction of the whole preview's extent.
+///
+/// Relative rather than absolute because a preview has no fixed scale
+/// — a 2 mm boss and a 2 m plate go through this same form — and
+/// relative to the WHOLE preview rather than to each loop, so a bore's
+/// marks match its outer's. A preview with no extent at all (a single
+/// authored point, nothing yet) has nothing to take a fraction of and
+/// gets no marks; a cross of size zero would be no mark anyway.
+pub fn tip_mark(loops: &[PreviewLoop]) -> f64 {
+    let points = loops.iter().flat_map(|drawn| drawn.points.iter());
+    let mut lo = [f64::INFINITY; 2];
+    let mut hi = [f64::NEG_INFINITY; 2];
+    for point in points {
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(point[axis]);
+            hi[axis] = hi[axis].max(point[axis]);
+        }
+    }
+    let diagonal = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
+    if diagonal.is_finite() && diagonal > 0.0 {
+        diagonal * TIP_MARK_FRACTION
+    } else {
+        0.0
+    }
+}
+
+/// The share of a preview's diagonal one tip mark spans — small enough
+/// that a dense chain does not become a field of crosses, large enough
+/// to read against the geometry it sits on. The heading tick is twice
+/// this again, because a direction has to be long enough to have one.
+///
+/// Set by looking: at 0.025 it was under a pixel on a profile filling
+/// a third of the viewport, which is a mark nobody can see — and a
+/// sketch plane seen at a grazing angle foreshortens whatever is left.
+const TIP_MARK_FRACTION: f64 = 0.07;
+
+/// **Which way the chain leaves the vertex at `at`** — a unit vector,
+/// or `None` where there is no next point to take one from.
+///
+/// The next flattened point, which is the tangent to within the chord
+/// tolerance the preview was flattened at. At the LAST vertex of an
+/// open chain there is no leaving direction, so the INCOMING one is
+/// answered instead: that tip is where the chain currently ends, and
+/// the heading a reader wants there is the one it arrived on.
+pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
+    let (from, to) = if at + 1 < points.len() {
+        (points[at], points[at + 1])
+    } else if closed && points.len() > 1 {
+        (points[at], points[0])
+    } else if at > 0 {
+        (points[at - 1], points[at])
+    } else {
+        return None;
+    };
+    let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
+    let length = dx.hypot(dy);
+    (length > 0.0).then(|| [dx / length, dy / length])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::arc_points;
+
+    /// **A count the arithmetic could not compute is not a count.**
+    ///
+    /// `f64::clamp` returns `self` for a `NaN` and `NaN as usize` is
+    /// `0`, so a subdivision that could not be computed used to arrive
+    /// as the one-segment floor — indistinguishable from the arc that
+    /// genuinely needs one segment. An infinite radius arrived as the
+    /// cap, indistinguishable from the arc that genuinely needs 256.
+    ///
+    /// What this row holds is that DISTINCTION, not the absence of a
+    /// `NaN`: the poisoned answer is compared against one of each
+    /// legitimate answer the door gives — the floor, the cap, and an
+    /// ordinary count between them — because an assertion that only
+    /// said "not a number came back" would pin neither.
+    #[test]
+    fn an_arc_that_cannot_be_measured_gets_no_count() {
+        let floor = arc_points(1.0, 1.0, 2.0);
+        let cap = arc_points(1.0, core::f64::consts::TAU, 1.0e-6);
+        let ordinary = arc_points(1.0, 1.0, 0.1);
+        let legitimate = [floor, cap, ordinary];
+        for (what, radius, theta, chord) in [
+            ("a radius", f64::NAN, 1.0, 0.1),
+            ("a swept angle", 1.0, f64::NAN, 0.1),
+            ("a chord tolerance", 1.0, 1.0, f64::NAN),
+            ("an unbounded radius", f64::INFINITY, 1.0, 0.1),
+        ] {
+            let answer = arc_points(radius, theta, chord);
+            assert!(
+                !legitimate.contains(&answer),
+                "{what} that is not a number answered {answer:?}",
+            );
+        }
+    }
+
+    /// The three legitimate answers this door gives are three
+    /// different answers, which is what makes the row above a test of
+    /// anything: comparing against a set whose members had collapsed
+    /// would pass over a door that answers one value for everything.
+    #[test]
+    fn the_legitimate_answers_are_distinct() {
+        let floor = arc_points(1.0, 1.0, 2.0);
+        let cap = arc_points(1.0, core::f64::consts::TAU, 1.0e-6);
+        let ordinary = arc_points(1.0, 1.0, 0.1);
+        assert_ne!(floor, ordinary, "the floor and an ordinary count");
+        assert_ne!(ordinary, cap, "an ordinary count and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
+    }
 }

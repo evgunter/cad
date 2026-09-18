@@ -45,11 +45,25 @@ use super::tests::{RoundtripTally, run_properties};
 /// teardown to empty arenas + empty provenance maps.
 ///
 /// How much of property (c) ran is checked, and the check is
-/// per-step: the two documented irreversible-by-one-op subcases
-/// live in [`roundtrip`]'s `Kev`/`Kef` arms only, so a selection on
-/// any other choice must execute, and `run_properties` asserts
-/// exactly that as each step happens. **That per-step assertion is
-/// the whole of the bar.**
+/// per-step: every documented no-re-make subcase lives in an arm
+/// `OpChoice::may_skip_roundtrip_at` admits, so a selection on any
+/// other choice must execute, and `run_properties` asserts exactly
+/// that as each step happens. **That per-step assertion is the whole
+/// of the bar.**
+///
+/// **What the bar cannot see, and what was done about it.** The
+/// admission used to be per-KIND (`may_skip_roundtrip`), and a
+/// per-kind bar is blind to a skip that WIDENS inside one arm: every
+/// `Kev` was admitted, so `skipped <= skippable` read identically
+/// whether the `Kev` skip covered the mirror adjacency alone or every
+/// fan merge — and it read identically across the change that did
+/// exactly that (`seqgen`'s taxonomy: 28 mirror skips before, 97 skips
+/// after, over the pinned streams). For `Kev` the admission is now
+/// per-SITE — the strut and segment kills MUST execute — so the bar
+/// moves with a widening of that arm. The other three arms
+/// (`Kef`, `KfmrhFuse`, `Movefac`) are still per-kind and still blind
+/// in the same way; a widening inside one of them would go unreported
+/// here.
 ///
 /// The totals below are two different things, and the difference
 /// matters more than either:
@@ -64,7 +78,9 @@ use super::tests::{RoundtripTally, run_properties};
 ///   tally is accumulated, the second from the per-step assertion
 ///   that has already run. Neither can independently go red; they
 ///   are here to state the shape of the tally for a reader, and
-///   nothing more.
+///   nothing more. `skippable` is no tighter than the per-step
+///   admission it is accumulated from, so the blindness stated above
+///   is its blindness too.
 ///
 /// No numeric threshold is asserted, because there is no number to
 /// assert: proptest seeds its RNG from entropy, so every run draws a
@@ -72,12 +88,21 @@ use super::tests::{RoundtripTally, run_properties};
 /// 331/325/6/43, 333/328/5/51 and 351/345/6/47 for
 /// selected/executed/skipped/skippable — a threshold would have
 /// pinned that spread, not a property.
+///
+/// **The case count rides `CAD_FUZZ_EFFORT`** through
+/// [`test_utils::fuzz::scaled`], like every other count in the tree
+/// (`memories/test-suite-cost.md`): 48 is the smoke level a gated run
+/// should cost, and depth is one env var away rather than an edit.
+/// The vector LENGTH is deliberately left alone — it sets the shape of
+/// a body the walk reaches, not how many bodies it draws, and scaling
+/// it would buy depth by changing what is sampled.
 #[test]
 fn random_op_sequences_hold_all_properties() {
     let tally = std::cell::Cell::new(RoundtripTally::default());
+    let cases = u32::try_from(test_utils::fuzz::scaled(48)).unwrap_or(u32::MAX);
     proptest!(
         ProptestConfig {
-            cases: 48,
+            cases,
             ..ProptestConfig::default()
         },
         |(decisions in proptest::collection::vec(

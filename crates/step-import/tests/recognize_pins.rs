@@ -129,8 +129,8 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
     let (base, base_promos) = solid(&orig, "stated knots");
     let (body, promos) = solid(&mutated, "quasi-uniform");
     assert_eq!(
-        common::census(&base),
-        common::census(&body),
+        common::arena_census(&base),
+        common::arena_census(&body),
         "census identical across the vocabulary"
     );
     assert_eq!(
@@ -479,9 +479,14 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }
         // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
         // seam certifies but the rational wall's flux cannot reach
-        // `1024·ε`, the shared at-rest gate refuses TYPED with the
-        // measured width. That is a DIFFERENT refusal from the retired
-        // bank — the lane ran, and said how far it got.
+        // `1024·ε`, a caller wanting the NUMBER is refused TYPED with
+        // the measured width. That is a DIFFERENT refusal from the
+        // retired bank — the lane ran, and said how far it got.
+        //
+        // Tier 3's own check 7 no longer makes that refusal (it reads
+        // a SIGN), so a body reaching this arm is one whose aggregate
+        // tier-3′ gate asked for the number, or one whose sign was
+        // undecided when the schedule ran out.
         Err(refusal @ StepImportError::TierInvalid { .. }) => {
             let shown = format!("{refusal:?}");
             assert!(

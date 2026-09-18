@@ -17,11 +17,15 @@
 //! them; the moved faces keep their own birth records (re-homing is not
 //! a re-birth). Serves ch. 14 `splitfinish` / ch. 15 `setopfinish`
 //! component distribution (M3 PRs 3 and 5).
+//!
+//! [`Body::move_shells_to_new_solid`] is the same kind of door one
+//! level up: shells re-homed into a new solid, minted with
+//! [`Provenance::MoveShells`]; nothing about a shell's faces changes.
 
 use geom_core::Decide;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
+use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
@@ -188,6 +192,126 @@ impl<T: Decide> Body<T> {
         }
         Ok(result)
     }
+
+    /// Moves `shells` — some, not all, of ONE solid's shells — into a
+    /// **new solid** and returns it. Not an Euler operator: it
+    /// re-partitions ownership, like [`Body::movefac`] one level up.
+    /// The moved shells keep their keys and their faces; what changes
+    /// is their `solid` back-pointer and the two solids' shell lists.
+    ///
+    /// **Determinism (D9)**: the new solid's shell list is `shells` in
+    /// the order given; the source solid keeps its remaining shells in
+    /// their relative order. **Minting order** (exact): the one solid,
+    /// recorded as [`Provenance::MoveShells`] naming the source — nothing
+    /// else is minted or killed.
+    ///
+    /// Tier-1 preservation: shells move **whole**, so every edge's two
+    /// faces stay in one shell and every shell's complex is untouched;
+    /// both solids keep at least one shell (pass 9's floor).
+    ///
+    /// **Ownership, not material coherence.** Nothing here reads which
+    /// shell is an outer boundary and which a cavity: moving a lone
+    /// void mints a solid with no outer shell, and tier 3 accepts it
+    /// (`shell5_r2_probes::r2_the_new_door_mints_a_solid_with_no_outer_shell`).
+    /// A caller owns the pairing it moves.
+    ///
+    /// # Errors
+    ///
+    /// All checks precede any mutation (atomic).
+    /// [`EulerOpError::NoShellsNamed`] on an empty list;
+    /// [`EulerOpError::ShellRepeated`] when a shell is named twice;
+    /// [`EulerOpError::StaleKey`] if a shell, its solid, or the solid's
+    /// own listing of it does not resolve;
+    /// [`EulerOpError::ShellsAcrossSolids`] if the shells are not all in
+    /// one solid; [`EulerOpError::SolidWouldEmpty`] if the list is every
+    /// shell of that solid.
+    pub fn move_shells_to_new_solid(
+        &mut self,
+        shells: &[ShellKey],
+    ) -> Result<SolidKey, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+
+        // ---- Preconditions, read-only. ----
+        let &[first, ..] = shells else {
+            return Err(EulerOpError::NoShellsNamed);
+        };
+        let owner_of = |body: &Self, shell: ShellKey| -> Result<SolidKey, EulerOpError> {
+            Ok(body
+                .get_shell(shell)
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Shell(shell),
+                })?
+                .solid)
+        };
+        let source = owner_of(self, first)?;
+        for (i, &shell) in shells.iter().enumerate() {
+            if shells[..i].contains(&shell) {
+                return Err(EulerOpError::ShellRepeated { shell });
+            }
+            if owner_of(self, shell)? != source {
+                return Err(EulerOpError::ShellsAcrossSolids {
+                    shell: first,
+                    other: shell,
+                });
+            }
+        }
+        let listed = self
+            .get_solid(source)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Solid(source),
+            })?
+            .shells
+            .clone();
+        // A shell whose back-pointer names `source` but which `source`
+        // does not list is an ownership desync (tier 1's pass 7); the
+        // op refuses rather than building on it.
+        for &shell in shells {
+            if !listed.contains(&shell) {
+                return Err(EulerOpError::StaleKey {
+                    key: EntityId::Shell(shell),
+                });
+            }
+        }
+        if listed.iter().all(|s| shells.contains(s)) {
+            return Err(EulerOpError::SolidWouldEmpty { solid: source });
+        }
+
+        // ---- Mutation (infallible from here on). ----
+        let new_solid = self.add_solid(
+            Solid {
+                shells: shells.to_vec(),
+            },
+            Provenance::MoveShells { solid: source },
+        );
+        for &shell in shells {
+            let Some(shell_data) = self.get_shell_mut(shell) else {
+                unreachable!(
+                    "move_shells_to_new_solid: every named shell resolved in the plan phase \
+                     and this op kills no shell"
+                )
+            };
+            shell_data.solid = new_solid;
+        }
+        let Some(source_data) = self.get_solid_mut(source) else {
+            unreachable!(
+                "move_shells_to_new_solid: `source` resolved in the plan phase and this op \
+                 kills no solid"
+            )
+        };
+        source_data.shells.retain(|s| !shells.contains(s));
+
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                solids: 1,
+                ..ArenaDelta::ZERO
+            },
+            "move_shells_to_new_solid",
+        );
+        Ok(new_solid)
+    }
 }
 
 #[cfg(test)]
@@ -348,6 +472,85 @@ mod tests {
             .find(|&(k, _)| k != seed_face && k != promoted_face)
             .map(|(_, f)| f.shell);
         assert_eq!(digon_partner, Some(shell));
+    }
+
+    /// The solid re-partition: the distributed digon shell moves into
+    /// a solid of its own; keys, faces and the other shell are
+    /// untouched; the new solid records `Provenance::MoveShells`
+    /// naming the source; tier 1 holds on both solids.
+    #[test]
+    fn move_shells_to_new_solid_splits_one_solid_in_two() {
+        let (mut body, shell, seed_face, promoted_face) = detached_digon();
+        let shells = body.movefac(shell).unwrap();
+        let (source, _) = body.solids().next().unwrap();
+        let moved = body.move_shells_to_new_solid(&[shells[1]]).unwrap();
+        assert_ne!(moved, source);
+        assert_eq!(body.solids().count(), 2);
+        assert_eq!(body.get_solid(source).unwrap().shells, vec![shells[0]]);
+        assert_eq!(body.get_solid(moved).unwrap().shells, vec![shells[1]]);
+        assert_eq!(body.get_shell(shells[0]).unwrap().solid, source);
+        assert_eq!(body.get_shell(shells[1]).unwrap().solid, moved);
+        assert_eq!(body.get_face(seed_face).unwrap().shell, shells[0]);
+        assert_eq!(body.get_face(promoted_face).unwrap().shell, shells[1]);
+        assert_eq!(
+            body.provenance(crate::EntityId::Solid(moved)),
+            Some(&Provenance::MoveShells { solid: source })
+        );
+        assert_eq!(validate_closed(&body), Ok(()));
+    }
+
+    /// Every precondition refuses typed with the body untouched: an
+    /// empty list, a stale shell, a repeated shell, shells of two
+    /// solids, and a list that is every shell of its solid.
+    #[test]
+    fn move_shells_to_new_solid_refuses_typed_at_each_precondition() {
+        let cube = ops_cube(Tol::witness());
+        let mut body = cube.body;
+        let only = cube.seed.shell;
+        let other = body.mvfs(p(9.0)).unwrap().shell;
+        let before = deep_snapshot(&body);
+        let rows: [(&[ShellKey], EulerOpError); 5] = [
+            (&[], EulerOpError::NoShellsNamed),
+            (
+                &[ShellKey::default()],
+                EulerOpError::StaleKey {
+                    key: EntityId::Shell(ShellKey::default()),
+                },
+            ),
+            (&[only, only], EulerOpError::ShellRepeated { shell: only }),
+            (
+                &[only, other],
+                EulerOpError::ShellsAcrossSolids { shell: only, other },
+            ),
+            (
+                &[only],
+                EulerOpError::SolidWouldEmpty {
+                    solid: body.get_shell(only).unwrap().solid,
+                },
+            ),
+        ];
+        for (shells, want) in rows {
+            let err = body.move_shells_to_new_solid(shells).unwrap_err();
+            assert_eq!(err, want, "shells {shells:?}");
+            assert_eq!(
+                deep_snapshot(&body),
+                before,
+                "shells {shells:?}: body untouched"
+            );
+        }
+    }
+
+    /// Determinism (D9): replaying the identical history (including
+    /// the solid re-partition) yields byte-identical bodies.
+    #[test]
+    fn move_shells_to_new_solid_replay_is_byte_identical() {
+        let build = || {
+            let (mut body, shell, _, _) = detached_digon();
+            let shells = body.movefac(shell).unwrap();
+            body.move_shells_to_new_solid(&[shells[1]]).unwrap();
+            body
+        };
+        assert_eq!(deep_snapshot(&build()), deep_snapshot(&build()));
     }
 
     /// Cross-solid kfmrh stays a typed error (two mvfs seeds in one

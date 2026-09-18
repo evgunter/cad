@@ -469,7 +469,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`MinClearanceLane::LANE`]).
+        /// ([`crate::lane::Lane::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.
@@ -514,10 +514,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 ///
 /// The engine that computes it is the interval lane's
 /// ([`crate::clearance::min_separation`]) and so is the only `Some`.
-pub trait MinClearanceLane: geom_core::Real {
-    /// This lane's own name, for the refusal that names it.
-    const LANE: &'static str;
-
+pub trait MinClearanceLane: crate::lane::Lane {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
     ///
@@ -583,8 +580,6 @@ impl core::error::Error for MinClearanceRefusal {}
 /// A point scalar has no enclosure to answer with. The whole content of
 /// the trait, at the lane where it bites.
 impl MinClearanceLane for f64 {
-    const LANE: &'static str = "f64";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -597,8 +592,6 @@ impl MinClearanceLane for f64 {
 /// exactly what `f64` carries — here, nothing.
 #[cfg(feature = "probe")]
 impl MinClearanceLane for geom_core::Probe {
-    const LANE: &'static str = "Probe";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -615,10 +608,8 @@ impl MinClearanceLane for geom_core::Probe {
 /// the same typed absence a plain f64 build does.
 impl<T: geom_core::Real> MinClearanceLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: geom_core::Real,
+    geom_core::Dual<T>: crate::lane::Lane,
 {
-    const LANE: &'static str = "Dual";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -631,8 +622,6 @@ where
 /// bracket, at the shipped dials.
 #[cfg(feature = "interval")]
 impl MinClearanceLane for geom_core::Interval {
-    const LANE: &'static str = "Interval";
-
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
@@ -662,12 +651,41 @@ impl MinClearanceLane for geom_core::Interval {
     }
 }
 
+/// **The symbolic tier has no clearance lane, and the absence is a
+/// DISCLOSED limitation rather than a design position** (E12's unit,
+/// deviation D3; issue `symbolic-tier-and-clearance-engine`).
+///
+/// Every other lane the tier composes with is scalar-generic and runs
+/// at `Sym<T>` unaltered. This one is not: [`crate::clearance`]'s engine
+/// is written at [`geom_core::Interval`] concretely — its selection type
+/// borrows a `&Body<Interval>` and its inner subdivision is spelled in
+/// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and
+/// stripping one would need a scalar remap of a whole body, which no
+/// door in `topo` offers today.
+///
+/// `None` is therefore the honest answer, and it behaves exactly as the
+/// point scalars' `None` does: `min_clearance` refuses TYPED at this
+/// lane, naming it, instead of reporting a number it did not compute. A
+/// document carrying that measure drives with the symbolic tier off
+/// (`DriveConfig::symbolic.enabled = false`) and says so; nothing
+/// silently degrades.
+impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: crate::lane::Lane,
+{
+    fn min_separation(
+        _a: &MinClearanceOperand<'_, Self>,
+        _b: &MinClearanceOperand<'_, Self>,
+    ) -> Option<Result<Self, MinClearanceRefusal>> {
+        None
+    }
+}
+
 /// Which way an [`Assertion`](crate::Node::Assertion) constrains its
 /// measure (E10).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum AssertionDir {
     /// The measured quantity must be at least the bound.
     AtLeast,
@@ -721,6 +739,25 @@ pub enum AssertionVerdict<T> {
     },
 }
 
+impl<T> AssertionVerdict<T> {
+    /// The same verdict with both numbers taken through `f` — the door
+    /// a lane that evaluated at a WRAPPED scalar reports through, so a
+    /// consumer sees the enclosure and not the wrapper.
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> AssertionVerdict<U> {
+        match self {
+            Self::Holds { measured, bound } => AssertionVerdict::Holds {
+                measured: f(measured),
+                bound: f(bound),
+            },
+            Self::Violated { measured, bound } => AssertionVerdict::Violated {
+                measured: f(measured),
+                bound: f(bound),
+            },
+            Self::Unevaluated { reason } => AssertionVerdict::Unevaluated { reason },
+        }
+    }
+}
+
 /// Why an assertion produced no verdict.
 ///
 /// The upstream-FAILURE lanes are NOT here: a failed or poisoned
@@ -754,16 +791,39 @@ pub enum UnevaluatedReason {
         verb: &'static str,
         /// The endpoint the arm would have read.
         endpoint: &'static str,
-        /// The tracker item whose fix retires this refusal.
+        /// The tracker item the refusal points a reader at. **Not the
+        /// item whose fix retires it** — see [`WINDOW_TIGHTENING`],
+        /// which narrows the superset on the clearance sweep's side
+        /// and retires nothing here.
         recourse: &'static str,
     },
 }
 
-/// **The tracker item that retires [`UnevaluatedReason::WindowSuperset`]**:
-/// tightening a carrier window to its trimmed face needs the trim
-/// boundary in chart coordinates. Named from the type so the recourse
+/// **The tracker item this refusal points a reader at**, and which
+/// retires nothing on this path: a carrier window cut to the chart
+/// boundary of its trimmed face. Named from the type so the pointer
 /// travels with the refusal instead of living in a reader's memory.
-pub const WINDOW_TIGHTENING: &str = "work/m10/clearance-window-tightening-needs-chart-boundary.md";
+///
+/// **What it bought, and where.** The clearance SWEEP's windows are
+/// cut and its cells dropped. The path that raises
+/// [`UnevaluatedReason::WindowSuperset`] is
+/// `min_clearance -> clearance::min_separation`, and **no window on
+/// that path is tightened at all**: minting a description inside an
+/// evaluation records the boundary walk's funnel rows in the leaf's
+/// census while the `f64` witness build never walks, so every leaf of
+/// a drive over such a document refuses `flip_crossing`
+/// (`work/trim/min-separation-tightening-crosses-the-drive.md`).
+///
+/// **And it would not retire the refusal even there.** The refusal
+/// retires when `m = M` — when the set the engine measures over is the
+/// trimmed face exactly. A tightened window is not that: a cell
+/// straddling the described boundary, or lying within `K · ε` of it,
+/// is KEPT, because the description is a certificate and every
+/// rounding in it keeps the cell. So `hi` would remain a minimum over
+/// a superset and the two unsound arms would still refuse. The
+/// recourse that retires them is exact-region cells,
+/// `work/trim/exact-region-cells-for-lower-bound-only.md`.
+pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs-chart-boundary.md";
 
 /// **How much of a measured enclosure is certified for the thing the
 /// measure NAMES**, as against the carrier the engine subdivided.
@@ -789,7 +849,9 @@ pub const WINDOW_TIGHTENING: &str = "work/m10/clearance-window-tightening-needs-
 /// | `AtMost c` | `Holds` | `hi` | **no** |
 ///
 /// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
-/// rather than answering; [`WINDOW_TIGHTENING`] retires the refusal.
+/// rather than answering; [`WINDOW_TIGHTENING`] narrows the superset
+/// on the clearance sweep's side, leaves this path's windows
+/// untightened, and retires the refusal in neither place.
 /// Both gating directions survive: a clearance requirement (`AtLeast`)
 /// still certifies, and a maximum-gap requirement (`AtMost`) still
 /// fails loudly.

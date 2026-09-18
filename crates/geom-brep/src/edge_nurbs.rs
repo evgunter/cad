@@ -47,21 +47,34 @@
 //! wanders off the true foot path enlarges the bound it must pass.
 //! A wrong `P` cannot launder a wrong carrier: it can only refuse.
 //!
-//! # The static lane split
+//! # Which scalars may derive this certificate
 //!
 //! Limbs 2 and 3 are C9-ring bounds and the foot point is a bracket
-//! read, so the honest signature is `T: Decide + Bounds`
-//! (`geom_core::Bounds`'s compound-allowlist note, M6-2). The split is
-//! expressed as [`EdgeNurbsLane`] in the ratified
-//! [`crate::PcurveFittedLane`] / `topo::props::PropsQuadLane` shape:
-//! certified impls for `f64`, the telemetry probe and the interval
-//! scalar, a **refusing** impl for `geom_core::Dual` (which may not
-//! certify — D1, 2026-08-19; it carries the value channel's bracket
-//! and that is not the right to mint a C9-ring bound), and `Bounds`
-//! kept out of `topo`'s signatures.
+//! read, so the honest signature is
+//! `T: Decide + Bounds + CertifiedEnclosure`
+//! (`geom_core::Bounds`'s compound-allowlist note, M6-2), and
+//! [`plane_nurbs_limbs`] carries it. That bound is the whole split: it
+//! admits `f64`, the telemetry probe and the interval scalar, and it
+//! does not admit `geom_core::Dual`, which may not certify (D1,
+//! 2026-08-19 — it carries the value channel's bracket, and that is
+//! not the right to mint a C9-ring bound). A dual does not receive a
+//! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
+//! default signatures because the capability is injected at a separate
+//! door ([`crate::certify::NurbsLane`]) rather than raised into the
+//! shared machinery.
+//!
+//! **The symbolic tier rides the same bound and needs no arm of its
+//! own** (`geom_core::sym`): `Sym<T>` implements
+//! [`geom_core::Bounds`], `geom_core::CertifiedEnclosure` and
+//! `geom_core::Decide` exactly when its base scalar does, so
+//! `Sym<T>` satisfies this signature for every certifying `T` — the
+//! limbs are the base scalar's, run at `Sym<T>`. The tier changes how
+//! one class of margin decides and nothing about the certificate, and
+//! a bound says that without an impl to write.
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::spline::SplineError;
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::CERT_SAMPLES;
@@ -95,14 +108,6 @@ pub struct PlaneNurbsLimbs<T: Real> {
 /// the measured number when one exists.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlaneNurbsRefusal {
-    /// This scalar has no certified lane ([`EdgeNurbsLane`]'s refusing
-    /// side): it may not certify, so the C9 ring the hull bounds live
-    /// in is not reachable from it (D1, 2026-08-19 — a dual carries a
-    /// bracket but not the right to certify with it).
-    LaneUnsupported {
-        /// The scalar lane, named.
-        scalar: &'static str,
-    },
     /// The foot-point projection did not converge at a schedule
     /// sample. Never a best-effort foot.
     FootPointInconclusive {
@@ -165,13 +170,6 @@ pub enum PlaneNurbsRefusal {
 impl core::fmt::Display for PlaneNurbsRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::LaneUnsupported { scalar } => write!(
-                f,
-                "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (it may not certify, so the exact-arithmetic ring the hull bounds live in \
-                 is out of reach — replay the body at f64, the telemetry probe, or the interval \
-                 scalar)"
-            ),
             Self::FootPointInconclusive {
                 sample,
                 last_distance,
@@ -213,41 +211,75 @@ impl core::fmt::Display for PlaneNurbsRefusal {
     }
 }
 
-/// **Which scalars can derive the plane × NURBS edge certificate** —
-/// the static lane split (module docs).
-pub trait EdgeNurbsLane: Decide {
-    /// Certifies the declared `carrier` as the intersection locus of
-    /// `plane` and `wall` (module docs for the three limbs).
-    ///
-    /// `extent` is the edge's honest spatial extent — the lever arm the
-    /// uniqueness tube's margin is metered at, and the scale its radius
-    /// ladder starts from.
-    ///
-    /// # Errors
-    ///
-    /// [`PlaneNurbsRefusal`], carrying the measured bound whenever one
-    /// exists. The refusing lane returns
-    /// [`PlaneNurbsRefusal::LaneUnsupported`] and instantiates none of
-    /// the certified machinery.
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal>;
-
-    /// The lane's name, for the typed refusal's text.
-    fn lane_name() -> &'static str;
-}
-
-/// The certified lane's body, shared by every bracket-carrying scalar.
+/// **The certified plane × NURBS derivation** — the whole of what a
+/// scalar with certification rights can prove about this edge class,
+/// and the function the doors inject ([`crate::certify::NurbsLane`]).
 ///
 /// The operand ORDER is load-bearing exactly as it is in the fitted
 /// pcurve lane: the NURBS wall is operand **b**, because
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
-fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], carrying the measured bound whenever one
+/// exists. Every refusal here is about the GEOMETRY: a scalar that may
+/// not certify does not receive one, because it cannot name this
+/// function. The bound is the split, and a dual fails it on
+/// [`geom_core::CertifiedEnclosure`] — it has carried
+/// [`geom_core::Bounds`] since D1 (2026-08-19) and that is not the
+/// right to mint a C9-ring bound:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<Dual64>,
+///     plane: &Surface<Dual64>,
+///     wall: &NurbsSurface<Dual64>,
+///     extent: Dual64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The row above fails on the BOUND and not on a path or a spelling,
+/// and the row below is what says so: it differs in the scalar alone,
+/// every name resolving the same way.
+///
+/// ```
+/// use geom_core::Band;
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<f64>,
+///     plane: &Surface<f64>,
+///     wall: &NurbsSurface<f64>,
+///     extent: f64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The symbolic tier is admitted by the same bound and needs no arm of
+/// its own, which is the whole of what a per-scalar impl would have
+/// said here:
+///
+/// ```
+/// use geom_core::{Band, Sym};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn symbolic(
+///     carrier: &NurbsCurve3<Sym<f64>>,
+///     plane: &Surface<Sym<f64>>,
+///     wall: &NurbsSurface<Sym<f64>>,
+///     extent: Sym<f64>,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     plane: &Surface<T>,
     wall: &NurbsSurface<T>,
@@ -351,7 +383,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// image is EVIDENCE, and what makes it sound is that its consumer
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
 ///
-/// **Two consumers, one producer.** [`lane`] certifies the image as
+/// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
 /// [`crate::PcurveFittedLane::general_image`] hands the same image to
 /// the pcurve mint, where it becomes a stored
@@ -362,7 +394,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// carry — so there is one producer and both call it.
 ///
 /// `per_sample` is a hook run at every schedule sample in order, with
-/// the sample index and its foot; it is where [`lane`] puts its
+/// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its
 /// transversality sweep, so that adding this second consumer did not
 /// move the order in which two refusals of the same run can fire. The
 /// mint passes a hook that does nothing.
@@ -371,8 +403,9 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
 /// whose projection does not converge (never a best-effort foot),
-/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation, or
-/// whatever `per_sample` returns.
+/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation or
+/// for a degenerate carrier interval (the domain door's refusal, which
+/// `PcurveFit` does not carry), or whatever `per_sample` returns.
 pub(crate) fn chart_image<T, F>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
@@ -383,11 +416,11 @@ where
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
     if wall.is_placeholder() {
-        // The same refusal [`lane`] states before it gets here, kept at
+        // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
         // the producer too: the mvfs placeholder is a mid-surgery "no
         // description yet" fact, and projecting onto it would return
-        // feet of a surface that does not exist. `lane` still checks
-        // first, so its own refusal ORDER is unchanged.
+        // feet of a surface that does not exist. `plane_nurbs_limbs`
+        // still checks first, so its own refusal ORDER is unchanged.
         return Err(PlaneNurbsRefusal::Unsupported {
             what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
                    surface to derive a chart image on",
@@ -396,12 +429,22 @@ where
     let (t0, t1) = carrier.domain();
     // The schedule is a SUPERSET of the certificate's own
     // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at
-    // parameters the image passes through exactly.
+    // parameters the image passes through exactly. Its ends are the
+    // carrier's ends ASSIGNED: the image is re-expressed on `[t0, t1]`
+    // exactly (`on_carrier_domain`), so the foot its last knot carries
+    // has to be the projection at `t1` itself, and `t0 + (t1 − t0)·1`
+    // is an ulp off `t1` in general.
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
         let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
-        let t = t0 + (t1 - t0) * frac;
+        let t = if i == 0 {
+            t0
+        } else if i == PXN_FIT_SAMPLES - 1 {
+            t1
+        } else {
+            t0 + (t1 - t0) * frac
+        };
         let p = carrier.eval(T::from_f64(t));
         let proj = wall
             .project(p)
@@ -416,7 +459,7 @@ where
     }
     let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
         .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    on_carrier_domain(&image, t0, t1).ok_or(PlaneNurbsRefusal::PcurveFit)
+    on_carrier_domain(&image, t0, t1).map_err(|_| PlaneNurbsRefusal::PcurveFit)
 }
 
 /// **The certified foot of ONE point** on a NURBS wall, in the wall's
@@ -553,32 +596,23 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 }
 
 /// The `f64`-structure chart image re-expressed on the carrier's own
-/// parameter domain: the interpolation's clamped `0 → 1` knots mapped
-/// affinely onto `[t0, t1]`, control points lifted to the caller's
-/// scalar.
+/// parameter domain and lifted to the caller's scalar — two
+/// operations, in that order: the interpolation's clamped `0 → 1`
+/// knots onto `[t0, t1]` through the curve's own domain door (ends
+/// exact, interior affine, at `f64`), then the control net through
+/// `T::from_f64` as a structural lift. The rescale is the only step
+/// that can refuse — the lift carries a validated curve's net verbatim
+/// — so the `Result` is the knot door's alone.
 ///
-/// The map's own rounding is not a soundness question — the image is
-/// evidence that limb 2 bounds, not a certified quantity (module
+/// The knot map's own rounding is not a soundness question — the image
+/// is evidence that limb 2 bounds, not a certified quantity (module
 /// docs).
 fn on_carrier_domain<T: Real>(
     image: &NurbsCurve2<f64>,
     t0: f64,
     t1: f64,
-) -> Option<NurbsCurve2<T>> {
-    let span = t1 - t0;
-    let knots: Vec<f64> = image
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + span * k)
-        .collect();
-    let knots = geom_core::spline::KnotVector::clamped(knots, image.degree()).ok()?;
-    let control = image
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
-    NurbsCurve2::new(knots, control, image.weights().to_vec()).ok()
+) -> Result<NurbsCurve2<T>, SplineError> {
+    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_f64))
 }
 
 /// The SSI refusal, in this lane's vocabulary.
@@ -611,77 +645,134 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     }
 }
 
-impl EdgeNurbsLane for f64 {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::spline::KnotVector;
+
+    use super::*;
+
+    /// A unit-domain image with the structure a lift must carry
+    /// verbatim: degree 2, a double interior knot, non-unit weights.
+    fn image() -> NurbsCurve2<f64> {
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point2::new(0.0, 0.0),
+            Point2::new(0.3, 1.1),
+            Point2::new(1.2, 0.9),
+            Point2::new(1.7, -0.4),
+            Point2::new(2.5, 0.2),
+            Point2::new(3.0, 1.0),
+        ];
+        let weights = vec![1.0, 0.7, 1.3, 2.0, 0.9, 1.0];
+        NurbsCurve2::new(knots, control, weights).unwrap()
     }
 
-    fn lane_name() -> &'static str {
-        "f64"
-    }
-}
+    /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an
+    /// ulp above `0.9`, so a computed end would miss it.
+    const CARRIER: (f64, f64) = (0.3, 0.9);
 
-#[cfg(feature = "probe")]
-impl EdgeNurbsLane for geom_core::Probe {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
+    /// The rescale is the rescale and the lift is the lift, at `f64`:
+    /// the carrier-domain image's domain is `(t0, t1)` bit for bit,
+    /// its knots are the domain door's and its net and weights the
+    /// source's verbatim, it is the SOURCE reparametrized — equal to
+    /// the source at the pulled-back parameter, bit for bit at the
+    /// ends and to the evaluator's rounding between them — and the
+    /// only refusal is the knot door's, named as the domain's.
+    #[test]
+    fn on_carrier_domain_at_f64_pins_the_domain_carries_the_structure_and_reparametrizes() {
+        let image = image();
+        let (t0, t1) = CARRIER;
+        let lifted = on_carrier_domain::<f64>(&image, t0, t1).unwrap();
+        let (lo, hi) = lifted.domain();
+        assert_eq!((lo.to_bits(), hi.to_bits()), (t0.to_bits(), t1.to_bits()));
+        assert_eq!(lifted.knots(), &image.knots().on_domain(t0, t1).unwrap());
+        let net = |c: &[Point2<f64>]| {
+            c.iter()
+                .map(|p| (p.x.to_bits(), p.y.to_bits()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(net(lifted.control()), net(image.control()));
+        assert_eq!(lifted.weights(), image.weights());
+
+        // The ends, bit for bit: exact end multiplicity makes every de
+        // Boor weight 0 or 1 there on BOTH sides, so the two
+        // evaluations run the same arithmetic over the same net — which
+        // is exactly what a domain an ulp off `t1` would break.
+        let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+        assert_eq!(bits(lifted.eval(t0)), bits(image.eval(0.0)));
+        assert_eq!(bits(lifted.eval(t1)), bits(image.eval(1.0)));
+        // Between them, at the dyadic samples whose pull-back
+        // `(t − t0)/(t1 − t0)` is exact, so both sides evaluate the same
+        // mathematical parameter and only the evaluator's rounding
+        // (the mapped knots' included) separates them.
+        let mut compared = 0_u32;
+        for i in 1..16_u32 {
+            let s = f64::from(i) / 16.0;
+            let t = t0 + (t1 - t0) * s;
+            if (t - t0) / (t1 - t0) != s {
+                continue;
+            }
+            compared += 1;
+            let (p, q) = (lifted.eval(t), image.eval(s));
+            assert!(
+                (p.x - q.x).abs() < 1e-14 && (p.y - q.y).abs() < 1e-14,
+                "s = {s}: {p:?} vs {q:?}"
+            );
+        }
+        assert_eq!(
+            compared, 5,
+            "the exact pull-backs among the 15 interior samples"
+        );
+
+        assert!(matches!(
+            on_carrier_domain::<f64>(&image, t0, t0),
+            Err(SplineError::DomainInvalid { .. })
+        ));
     }
 
-    fn lane_name() -> &'static str {
-        "telemetry probe"
-    }
-}
+    #[cfg(feature = "interval")]
+    mod interval {
+        use geom_core::{Bounds, Interval};
 
-#[cfg(feature = "interval")]
-impl EdgeNurbsLane for geom_core::interval::Interval {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
-    }
+        use super::*;
 
-    fn lane_name() -> &'static str {
-        "interval"
-    }
-}
+        /// The sampled parameters of the carrier interval, ends
+        /// included (the last an ulp past `t1`, which both sides
+        /// evaluate as the closed last span).
+        fn samples() -> impl Iterator<Item = f64> {
+            let (t0, t1) = CARRIER;
+            (0..=16_u32).map(move |i| t0 + (t1 - t0) * (f64::from(i) / 16.0))
+        }
 
-/// The dual lane: STATICALLY no plane × NURBS certificate — this impl
-/// instantiates none of the certified machinery (module docs). A dual
-/// body simply never adopts this edge class, because the bound that
-/// would certify it cannot be built there.
-impl<T> EdgeNurbsLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Decide,
-{
-    fn plane_nurbs_limbs(
-        _carrier: &NurbsCurve3<Self>,
-        _plane: &Surface<Self>,
-        _wall: &NurbsSurface<Self>,
-        _extent: Self,
-        _band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        Err(PlaneNurbsRefusal::LaneUnsupported {
-            scalar: Self::lane_name(),
-        })
-    }
-
-    fn lane_name() -> &'static str {
-        "dual"
+        /// The interval half of the lift row: the lifted enclosure
+        /// brackets the `f64` domain-door curve at every sample, and
+        /// tightly — the lift adds no width (every control bracket is
+        /// a point), so what remains is the evaluator's own rounding.
+        #[test]
+        fn on_carrier_domain_at_interval_brackets_the_f64_curve() {
+            let image = image();
+            let (t0, t1) = CARRIER;
+            let lifted = on_carrier_domain::<Interval>(&image, t0, t1).unwrap();
+            let want = image.on_domain(t0, t1).unwrap();
+            assert_eq!(lifted.knots(), want.knots());
+            for t in samples() {
+                let p = lifted.eval(Interval::from_f64(t));
+                let q = want.eval(t);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y)] {
+                    assert!(
+                        enclosure.lo() <= source && source <= enclosure.hi(),
+                        "t = {t}: lifted {name} = [{}, {}] must contain {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "t = {t}: {name} too wide"
+                    );
+                }
+            }
+        }
     }
 }

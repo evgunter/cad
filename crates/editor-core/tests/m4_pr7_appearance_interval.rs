@@ -70,7 +70,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's
-    // top cap (resolves in A's own table).
+    // end cap (resolves in A's own table).
     let ev: Evaluation<f64> = run(&doc);
     let uni_face = ev
         .value(uni)
@@ -98,7 +98,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
             StableName {
                 kind: EntityKind::Face,
                 node: a,
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
             Attr::Color(Rgba8::opaque(200, 10, 10)),
         ),
@@ -109,7 +109,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
             StableName {
                 kind: EntityKind::Face,
                 node: uni,
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             },
             Attr::Visibility(false),
         ),

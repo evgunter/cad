@@ -12,6 +12,7 @@
 )]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+use core::num::NonZeroUsize;
 
 use crate::shared::tol::band;
 use geom::Curve3;
@@ -263,7 +264,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     use geom_core::spline::KnotVector;
     let band = band();
     let eps = 1e-9;
-    let kv = KnotVector::unit_segment(3);
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let p = |x: f64, y: f64, z: f64| {
         [
             RingInterval::point(x),

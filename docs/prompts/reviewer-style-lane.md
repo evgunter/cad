@@ -7,6 +7,9 @@ review, alongside the claims to falsify you were handed.
 must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
 a skipped read is visible in the output rather than invisible.
 
+**Every finding carries one, including those filed under "off-target" or "worth
+mentioning".**
+
 Dispatcher-facing material — why this lane exists, how to calibrate it, and how
 to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.
 
@@ -42,6 +45,14 @@ deliberate:
   on the correctness lane. Style findings are recorded, not gating — so
   raising one costs the author nothing but attention, and you should raise
   more rather than fewer.
+- **When the diff is itself a fix for a structural finding, check whether
+  the fix mints a fresh instance of the defect it closes.** This held on
+  every unit of two whole tracks of structural-fix work: a lane closing a
+  duplication introduces a new copy, a lane closing a hand-written list
+  adds a hand-written census, a lane closing an unguarded reader writes an
+  unguarded reader. **Naming the trap in the PR body does not prevent it**
+  — authors did name it, and did it anyway. Only a reader who did not write
+  the fix has ever caught it, which is you.
 
 ---
 

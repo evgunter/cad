@@ -12,62 +12,16 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node,
-    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
-    StableName, clusters, content_pin, evaluate, solve_document,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Expr, Frame,
+    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, clusters, solve_document,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, scl, step};
 use geom_core::Tol;
 
-// ---- Substrate (mirrors the unit suite's stub resolver) ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -92,27 +46,13 @@ fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(cap)],
-            }),
-        }],
-    }
-}
-
 fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: pattern,
         path: vec![RoleSeg::Instance {
             i,
-            of: Box::new(master),
+            of: master.into(),
         }],
     }
 }
@@ -132,8 +72,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame(origin, [0.0, 0.0, 1.0]),
@@ -183,7 +123,7 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 #[test]
 fn r1_conjugation_through_a_non_identity_cluster_frame() {
     let spacing = 2.0;
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-conj-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-conj-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-conj"), Tol::witness());
@@ -204,8 +144,8 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -270,7 +210,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         world.translation
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -323,7 +263,7 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// `F ∘ O_i` differ badly for this pair, as the row asserts.
 #[test]
 fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-obl-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-obl-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-obl"), Tol::witness());
@@ -359,8 +299,8 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -427,7 +367,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
 /// there is no representation in which one copy could hold a pose.
 #[test]
 fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-freedom-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-freedom-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-freedom"), Tol::witness());
@@ -448,8 +388,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -523,7 +463,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
             },
         ),
     ] {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let a_ref = store.insert(leg_part(&format!("r1-bits-{tag}-a")), Tol::witness());
         let b_ref = store.insert(leg_part(&format!("r1-bits-{tag}-b")), Tol::witness());
         let c_ref = store.insert(leg_part(&format!("r1-bits-{tag}-c")), Tol::witness());
@@ -538,8 +478,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
             doc,
             DocEdit::InsertNode {
                 node: seat_mate(
-                    in_part(a, CapEnd::Top),
-                    in_part(b, CapEnd::Bottom),
+                    in_part(a, CapEnd::End),
+                    in_part(b, CapEnd::Start),
                     [0.0, 0.0, 1.0],
                     sense,
                 ),
@@ -550,8 +490,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
                 doc,
                 DocEdit::InsertNode {
                     node: seat_mate(
-                        in_part(b, CapEnd::Top),
-                        in_part(c, CapEnd::Bottom),
+                        in_part(b, CapEnd::End),
+                        in_part(c, CapEnd::Start),
                         [0.25, 0.0, 1.0],
                         AxisSense::Aligned,
                     ),
@@ -612,7 +552,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
 /// which branch the fixture actually takes, so the claim is checkable.
 #[test]
 fn r1_which_branch_does_the_consistent_loop_row_take() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-loopbranch-leg"), Tol::witness());
     let top_ref = store.insert(
         block_part("r1-loopbranch-top", (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
@@ -636,8 +576,8 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -647,14 +587,14 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = editor_core::assemble(&doc, &ev, Tol::witness());
     let branch = match &result {
         Ok(a) => format!("Ok(minted = {})", a.minted.len()),
@@ -673,15 +613,25 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
 // suite does not build: a NESTED pattern and a pattern of a TRANSFORM.
 // ---------------------------------------------------------------
 
-/// The PR body discloses that "nested patterns and pattern-of-transform
-/// refuse `DanglingHead`". The committed fence row builds neither — it
-/// builds an out-of-range copy index and a pattern of an EXTRUDE. These
-/// two rows build the disclosed shapes, so the disclosure is checked
-/// rather than taken on trust.
+/// The two shapes the member vocabulary is asked about by name, built
+/// rather than taken on trust: a pattern of a PATTERN under a name
+/// that carries ONE `Instance(i)` qualifier, which refuses
+/// `DanglingHead`, and a pattern of a TRANSFORM, which places. The
+/// fence row beside this one builds neither — it builds an
+/// out-of-range copy index and a pattern of an EXTRUDE.
+///
+/// **The first half is a NAME row, not a nesting row.** A nested copy
+/// is a member: the walk consumes one `Instance(i)` qualifier per
+/// pattern level and a two-level nest wears two. This name wears one,
+/// which is the name a nested pattern's table never mints, so the
+/// walk consumes the outer level and then meets the inner pattern
+/// where the name has already said its head is the instance. The
+/// nested copy under its OWN name is `mate1r2_probes`' P5 and
+/// `msolve2_member_chain`'s ground.
 #[test]
-fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
+fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() {
     // (a) a pattern OF A PATTERN of an instance.
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-nested-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-nested-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-nested"), Tol::witness());
@@ -713,8 +663,8 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(outer, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -722,18 +672,25 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
     );
     let m = m.expect("the mate mints");
     let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(m).expect("a nested pattern head refuses");
+    let fault = poses
+        .fault(m)
+        .expect("a one-level name over a nest refuses");
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
+            // The walk consumes the outer pattern's qualifier, which
+            // leaves it at the inner pattern under a name whose head
+            // is the INSTANCE — so the inner pattern is a node the
+            // name does not say a copy of, and no member stands there.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
-        "a nested pattern refuses DanglingHead at the OUTER pattern: {fault:?}"
+        "a one-level name over a nested pattern refuses at the inner \
+         pattern: {fault:?}"
     );
     let _ = store;
 
     // (b) a pattern of a TRANSFORM of an instance.
-    let mut store2 = StubStore::default();
+    let mut store2 = PartStore::default();
     let leg2 = store2.insert(leg_part("r1-xform-leg"), Tol::witness());
     let top2 = store2.insert(leg_part("r1-xform-top"), Tol::witness());
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
@@ -763,8 +720,8 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
         doc2,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pat, 1, in_part(li, CapEnd::Top)),
-                in_part(ti, CapEnd::Bottom),
+                in_copy(pat, 1, in_part(li, CapEnd::End)),
+                in_part(ti, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -772,39 +729,45 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
     );
     let m2 = m2.expect("the mate mints");
     let poses2 = solve_document(&doc2, Tol::witness());
-    let fault2 = poses2
-        .fault(m2)
-        .expect("a pattern-of-transform head refuses");
+    // A pattern OF A TRANSFORM resolves: the walk goes from the
+    // operand through the pattern's `Instance(i)` and on through the
+    // transform to the minting instance, and the offset composes
+    // `M(i) ∘ T`. Both nodes place a body; only the pattern renames
+    // one, and admission is decided on POSE transparency, not on
+    // naming transparency.
     assert!(
-        matches!(
-            fault2,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == pat
-        ),
-        "a pattern of a transform refuses DanglingHead at the pattern: {fault2:?}"
+        poses2.fault(m2).is_none(),
+        "a pattern of a transform resolves: {:?}",
+        poses2.fault(m2)
     );
-    let _ = store2;
+    assert_eq!(
+        poses2.role(m2),
+        Some(editor_core::MateRole::Determining),
+        "and it places its pair"
+    );
+    let _ = (store2, pat);
 }
 
 // ---------------------------------------------------------------
-// PROBE 7 — the fence is position-dependent: an out-of-range copy
-// index refuses as a TREE edge but not as a DECLARING one.
+// PROBE 7 — the fence is NOT position-dependent: an out-of-range copy
+// index refuses whether its pair is a tree edge or a declaring one.
 // ---------------------------------------------------------------
 
-/// `derived_offset` — the door that rejects an index at or past the
-/// count, an unevaluable slot, a degenerate direction and an explicit
-/// rule — is reached ONLY from `pair_left_factor`, which
-/// `solve_cluster` calls only on TREE edges. A non-tree (declaring)
-/// mate never has its member's offset derived, so the same malformed
-/// head that refuses `DanglingHead` in the committed fence row goes
-/// unrefused when a sibling seat gets the tree edge first.
+/// The index-against-the-count check runs where the solve READS each
+/// reference — once per side of every live mate — so a malformed head
+/// refuses in either position.
 ///
-/// The committed row `out_of_vocabulary_pattern_heads_still_refuse_
-/// dangling` builds the copy-5-of-2 head as the document's ONLY mate,
-/// i.e. exactly in the position where the check runs. This row builds
-/// the same malformed head in the other position.
+/// It used to live in `derived_offset`, which is reached only from
+/// `pair_left_factor`, which `solve_cluster` calls only on TREE
+/// edges: the same malformed head that refused `DanglingHead` as a
+/// document's only mate went unrefused when a well-formed sibling
+/// took the tree edge first. The committed row
+/// `out_of_vocabulary_pattern_heads_still_refuse_dangling` builds it
+/// in the first position; this row builds it in the second, and the
+/// two now agree.
 #[test]
-fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
-    let mut store = StubStore::default();
+fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-escape-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-escape-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-escape"), Tol::witness());
@@ -826,8 +789,8 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -839,8 +802,8 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -852,31 +815,23 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
     let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.role(good), Some(MateRole::Determining));
 
-    // The observation: in the committed row this exact head refuses
-    // `DanglingHead`. Here it does not — it is recorded as a healthy
-    // DECLARING mate and carried to the gate as a real declaration.
-    let fault = poses.fault(bad);
-    let role = poses.role(bad);
-    println!("R1-OBSERVED malformed declaring head: fault={fault:?} role={role:?}");
-    assert_eq!(
-        fault, None,
-        "documenting the asymmetry: the out-of-range copy is NOT refused here"
+    let fault = poses
+        .fault(bad)
+        .cloned()
+        .expect("the out-of-range copy refuses in this position too");
+    assert!(
+        matches!(
+            fault,
+            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+        ),
+        "the refusal names the pattern whose count the index is past: {fault:?}"
     );
     assert_eq!(
-        role,
-        Some(MateRole::Declaring),
-        "and it is carried as a live declaration"
+        poses.role(bad),
+        Some(MateRole::Refused),
+        "and it is not carried to the gate as a live declaration"
     );
-
-    // What the downstream gate makes of it — the question that decides
-    // whether the escape is merely a misplaced fence or a real hole.
-    let ev = run(&doc, &opts(store));
-    let at_gate = editor_core::assemble(&doc, &ev, Tol::witness());
-    let summary = match &at_gate {
-        Ok(a) => format!("Ok(minted = {})", a.minted.len()),
-        Err(e) => format!("Err({e})"),
-    };
-    println!("R1-OBSERVED escaped head at the gate: {summary}");
+    let _ = store;
 }
 
 // ---------------------------------------------------------------
@@ -898,7 +853,7 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
 /// On this branch it prints no fault at all.
 #[test]
 fn r1_reproduce_the_quoted_red_first_fault() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-red-first-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-red-first-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-red-first"), Tol::witness());
@@ -919,8 +874,8 @@ fn r1_reproduce_the_quoted_red_first_fault() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Opposed,
             ),

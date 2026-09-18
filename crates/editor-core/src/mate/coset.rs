@@ -146,11 +146,37 @@ impl PartialEq for Subgroup {
 
 impl PartialEq for Coset {
     fn eq(&self, other: &Self) -> bool {
-        let m = |x: &Affine3<f64>| [x.linear.c0, x.linear.c1, x.linear.c2, x.translation];
-        self.subgroup == other.subgroup
-            && m(&self.representative)
+        // Two levels are bound by name: a field added to `Coset` is
+        // an E0027 at the two patterns below, and one added to the
+        // `Affine3` it carries — or to the `Mat3` inside it — is an
+        // E0027 inside `m`.
+        //
+        // **The leaf is not tied here and this comment used to say it
+        // was.** A fourth component on `Vec3` compiles this crate
+        // clean: the four vectors go to `vec_eq`, which is a file
+        // away and reads three components by name. That arm is
+        // `work/census/componentwise-equality-of-the-linear-types-is-hand-listed.md`,
+        // measured by a style review rather than by an instrument.
+        let m = |x: &Affine3<f64>| {
+            let Affine3 {
+                linear,
+                translation,
+            } = x;
+            let Mat3 { c0, c1, c2 } = linear;
+            [*c0, *c1, *c2, *translation]
+        };
+        let Self {
+            subgroup,
+            representative,
+        } = self;
+        let Self {
+            subgroup: other_subgroup,
+            representative: other_representative,
+        } = other;
+        subgroup == other_subgroup
+            && m(representative)
                 .into_iter()
-                .zip(m(&other.representative))
+                .zip(m(other_representative))
                 .all(|(a, b)| vec_eq(a, b))
     }
 }
@@ -585,7 +611,9 @@ fn member_of(
     let checks: Vec<(&'static str, f64)> = match g {
         // The empty set holds nothing, and no margin decides that —
         // the answer is structural, so it never reaches the funnel.
-        Subgroup::Empty => return Ok(Err(("mate_member_empty", f64::INFINITY))),
+        Subgroup::Empty => {
+            return Ok(Err((super::MATE_MEMBER_EMPTY, f64::INFINITY)));
+        }
         Subgroup::Se3 => Vec::new(),
         Subgroup::Trivial => vec![
             (

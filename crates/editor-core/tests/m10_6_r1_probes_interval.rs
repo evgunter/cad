@@ -29,7 +29,7 @@
 //!    over it reading a certified `Violated` on a pair that holds.
 //! 2. The unary elaboration (D8): `min_clearance(body, body)` on one
 //!    body is the selection's self-clearance.
-//! 3. `VerdictVector::certifying` moves the witness-vector key of every
+//! 3. `drive::certifying_vector` moves the witness-vector key of every
 //!    assertion-carrying document (claim 1's "bit-identical keys" for
 //!    documents without `min_clearance`).
 //! 4. `report_key` omits the drive/MC config, so two different reports
@@ -54,19 +54,33 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     ClearanceQuery, MinSepSelection, MinSeparationConfig, Selection, clearance_over, min_separation,
 };
-use editor_core::drive::{DriveConfig, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node,
-    NodeResult, ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg,
+    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef,
     UnevaluatedReason, UnitSym, ValuePayload, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
 use fixture::{Recorder, len};
+
+/// The clearance engine has no lane at the symbolic identity tier
+/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
+/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
+/// document asks for the numeric-only replay BY NAME. It is a disclosed
+/// limitation of the tier, not a property of these fixtures: with the
+/// tier on the driver refuses this document up front rather than
+/// certifying leaves whose clearance measure was never computed.
+fn numeric_lane() -> DriveConfig {
+    DriveConfig {
+        symbolic: SymbolicDials::off(),
+        ..DriveConfig::default()
+    }
+}
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -188,8 +202,8 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::Top))),
-                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Bottom))),
+                SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+                SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
         .expect("both indices in range"),
@@ -255,6 +269,19 @@ fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
 /// it asserts the SHAPE of the looseness (the window's `LIFT` inside
 /// the bracket) so a fix that tightens windows turns it red and says
 /// so, rather than letting the counterexample above silently pass.
+///
+/// **TRIM-3 PR-2 tightened the clearance SWEEP's windows and did not
+/// turn this row red**, which is a finding rather than an oversight.
+/// This door runs INSIDE an evaluation, called by the `min_clearance`
+/// measure primitive, and MINTING a description there records the
+/// boundary walk's own funnel rows in the leaf's census while the
+/// `f64` witness build never walks at all — so the two builds differ
+/// `0 -> N` on every box and every leaf refuses `flip_crossing`
+/// (measured:
+/// seven M10-6/R2 drive rows lose their certified leaf). The bracket is
+/// therefore still the window's `LIFT`, `Certified::LowerBoundOnly`
+/// still refuses the two unsound arms, and the recourse is
+/// `work/trim/min-separation-tightening-crosses-the-drive.md`.
 #[test]
 fn the_notch_bracket_is_the_windows_not_the_faces() {
     let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);
@@ -452,8 +479,8 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("in range"),
@@ -482,7 +509,7 @@ fn uniform() -> Distribution {
 fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document() {
     let (doc, _, _) = web_plate(1.0, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let witness = eval_over::<f64>(&doc, None);
     let full = VerdictVector::of(&witness);
     let shipped = verdict.witness_vector();
@@ -516,7 +543,7 @@ fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document
 fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under() {
     let (doc, measure, assertion) = web_plate(2.0, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -598,7 +625,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4,
-            ..DriveConfig::default()
+            ..numeric_lane()
         },
         Tol::witness(),
     )
@@ -608,7 +635,7 @@ fn report_key_tells_two_budgets_apart() {
         &analyzed,
         &DriveConfig {
             max_leaves: 4096,
-            ..DriveConfig::default()
+            ..numeric_lane()
         },
         Tol::witness(),
     )
@@ -621,11 +648,11 @@ fn report_key_tells_two_budgets_apart() {
     let slice = 7u128;
     let starved_cfg = DriveConfig {
         max_leaves: 4,
-        ..DriveConfig::default()
+        ..numeric_lane()
     };
     let full_cfg = DriveConfig {
         max_leaves: 4096,
-        ..DriveConfig::default()
+        ..numeric_lane()
     };
     let k_starved = report_key(
         "verdict",
@@ -736,8 +763,8 @@ fn neck_dir(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
             ],
         )
         .expect("in range"),
@@ -765,7 +792,7 @@ fn neck_dir(
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let (doc, assertion) = neck_dir(0.3, 9, uniform(), AssertionDir::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
     let leaf = &verdict.certified()[0];
     let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
@@ -781,7 +808,7 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
 fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let leaf = &verdict.certified()[0];
     let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
     match assertion_verdict(&ev, assertion) {
@@ -819,7 +846,7 @@ fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..DriveConfig::default()
+            ..numeric_lane()
         },
         Tol::witness(),
     )
@@ -849,7 +876,7 @@ fn a_wide_box_overruns_a_zero_budget() {
         &analyzed,
         &DriveConfig {
             max_leaves: 64,
-            ..DriveConfig::default()
+            ..numeric_lane()
         },
         Tol::witness(),
     )
@@ -896,8 +923,8 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("in range"),
@@ -912,8 +939,7 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         MassBasis::Forced { by } => assert_eq!(by, vec![name("lift")]),
         other => panic!("{other:?}"),
     }
-    let verdict =
-        drive(&r.doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(), budget.serialize());
     assert!(budget.render().contains("FORCED, not priced: lift"));
@@ -1009,8 +1035,8 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
-                MeasureRef::at_mint(fixture::fname(base, fixture::wall(3))),
+                SitedRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
+                SitedRef::at_mint(fixture::fname(base, fixture::wall(3))),
             ],
         )
         .expect("in range"),
@@ -1024,7 +1050,7 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(
+                SitedRef::new(
                     post,
                     editor_core::StableName {
                         kind: editor_core::EntityKind::Body,
@@ -1032,7 +1058,7 @@ fn bracket(
                         path: vec![RoleSeg::OutputBody],
                     },
                 ),
-                MeasureRef::at_mint(editor_core::StableName {
+                SitedRef::at_mint(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
                     node: base,
                     path: vec![RoleSeg::OutputBody],
@@ -1062,7 +1088,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
     eprintln!("== drive\n{}", verdict.render(&analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -1193,7 +1219,7 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), tol).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("== band budget\n{}", budget.render());
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
@@ -1324,7 +1350,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         )
         .expect("exact atom");
         faces.sort();
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
     let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
@@ -1341,7 +1367,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     });
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
-    let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), tol).expect("builds");
     assert!(!verdict.certified().is_empty());
     let report = stackup(&r.doc, measure, &analyzed, &verdict, None, true, tol).expect("stackup");
     eprintln!(

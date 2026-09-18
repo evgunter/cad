@@ -21,8 +21,9 @@ or out of a document.
 Everything below runs. The Python blocks are executed by
 `crates/pncad-py/tests/test_guide.py`; the doors' own suites are
 `crates/pncad-py/tests/test_workspace.py`,
-`test_assembly_eval.py` and `test_assembly_author.py`, and the same
-scene in Rust is `demos/tour/src/assembly.rs`.
+`test_assembly_eval.py` and `test_assembly_author.py` (which build
+one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
+in Rust is `demos/tour/src/assembly.rs`.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
@@ -47,15 +48,27 @@ recorded edit.
 
 A **`Workspace`** is where the documents live: a directory of
 `*.pncad` files, scanned by each file's `id:` header line and never
-its body. Its write side is deliberately two doors — `create` and
-`resave` — and there is no general mutation API.
+its body. Its write side is deliberately small — `create` and
+`resave` for the refactorings, and `save_at` and
+`save_as_new_document` for the two acts a save is — and there is no
+general mutation API. A save at a path KEEPS the document's identity
+and refuses typed rather than letting a copy claim it a second time;
+saving it as a NEW document mints a fresh id, an explicit fork.
 
 ```python
 import tempfile
 
 from pncad import (
-    PIN_MISMATCH_RECOURSE, ContentPin, Doc, DocRef, Node, Workspace,
-    WorkspaceError, content_pin, m,
+    ContentPin,
+    Doc,
+    DocRef,
+    Expr,
+    Node,
+    PIN_MISMATCH_RECOURSE,
+    Workspace,
+    WorkspaceError,
+    content_pin,
+    m,
 )
 
 
@@ -63,8 +76,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -132,21 +145,51 @@ document order (their **gauge**); every other member's pose is
 frame, and why zero-anchor and multi-anchor states are
 unrepresentable here rather than merely refused.
 
-`Node.mate(a, b, class_, alignment)` is one node carrying both halves
-of "these two parts meet here": the placement constraint the solve
-folds, and the contact declaration the gate mints. `a` and `b` are
-instance-qualified entity names — the text `Evaluation.select` answers
-with when you query it on an instantiate node, so no name is ever
-composed by hand.
+`Node.mate(a_at, a, b_at, b, class_, alignment)` is one node carrying
+both halves of "these two parts meet here": the placement constraint
+the solve folds, and the contact declaration the gate mints.
+
+Each side is TWO things. `a` and `b` are instance-qualified entity
+names — the text `Evaluation.select` answers with when you query it on
+an instantiate node, so no name is ever composed by hand. `a_at` and
+`b_at` are the **operands**: the nodes those names are read at, which
+is to say the geometry the mate is talking about. They are the
+instances themselves in the plain case. They diverge the moment
+something PLACES an instance — a `Node.transform` moves a body and
+mints no name of its own, so the name alone cannot tell a mate on the
+instance from a mate on the transformed instance, and the operand is
+what does. The solve walks from the operand down to the minting
+instance and composes the map of everything it passes.
 
 ```python
 import tempfile
 
 from pncad import (
-    Alignment, AxisSense, CapEnd, ContactClass, Doc, DocEdit, DocRef,
-    EditError, EntityKind, Frame, MateFrame, MatePrimitive, NamePat,
-    Node, SegPat, SegTag, Selector, Workspace, clusters, content_pin,
-    evaluate, gauge_of, m, reading_edges,
+    Alignment,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EditError,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    NamePat,
+    Node,
+    SegPat,
+    SegTag,
+    Selector,
+    Workspace,
+    clusters,
+    content_pin,
+    evaluate,
+    gauge_of,
+    m,
+    reading_edges,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -157,8 +200,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -205,9 +248,9 @@ post_b = stand.insert(Node.instantiate_part(post_ref))
 # The mate references, SELECTED rather than spelled: evaluate against
 # the store, then ask each instantiate node for its face.
 ev = evaluate(stand, resolver=store)
-a_top = instance_cap(ev, post_a, CapEnd.Top)
-b_top = instance_cap(ev, post_b, CapEnd.Top)
-shelf_underside = instance_cap(ev, shelf_i, CapEnd.Bottom)
+a_top = instance_cap(ev, post_a, CapEnd.End)
+b_top = instance_cap(ev, post_b, CapEnd.End)
+shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
 # its OWN part's coordinates. The posts sit flush with the shelf's
@@ -223,10 +266,16 @@ def seat(a, b):
 
 
 mate_a = stand.insert(
-    Node.mate(a_top, shelf_underside, ContactClass.Rest, seat(post_seat, seat_a))
+    Node.mate(
+        post_a, a_top, shelf_i, shelf_underside, ContactClass.Rest,
+        seat(post_seat, seat_a),
+    )
 )
 mate_b = stand.insert(
-    Node.mate(shelf_underside, b_top, ContactClass.Rest, seat(seat_b, post_seat))
+    Node.mate(
+        shelf_i, shelf_underside, post_b, b_top, ContactClass.Rest,
+        seat(seat_b, post_seat),
+    )
 )
 
 # The two mates couple all three instances into ONE cluster, gauged
@@ -240,7 +289,8 @@ assert list(stand.placements()) == [post_a]
 
 # A mate's references are NOT recipe edges — inserting one transfers
 # no root. What couples the graph is the reading edges, recomputed
-# from the name heads every time and never stored.
+# every time by walking from each reference's OPERAND down to the
+# instance that minted its name, and never stored.
 assert set(reading_edges(stand)) == {
     (mate_a, post_a), (mate_a, shelf_i), (mate_b, shelf_i), (mate_b, post_b),
 }
@@ -319,8 +369,18 @@ the assembly.
 import tempfile
 
 from pncad import (
-    Doc, DocEdit, DocRef, EvaluationError, Frame, Node, Workspace,
-    content_pin, evaluate, m, product,
+    Doc,
+    DocEdit,
+    DocRef,
+    EvaluationError,
+    Expr,
+    Frame,
+    Node,
+    Workspace,
+    content_pin,
+    evaluate,
+    m,
+    product,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -331,8 +391,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -405,8 +465,15 @@ consequence is a workflow you will hit on your first day:
 import tempfile
 
 from pncad import (
-    Doc, DocRef, EvaluationError, Node, Workspace, content_pin,
-    evaluate, m,
+    Doc,
+    DocRef,
+    EvaluationError,
+    Expr,
+    Node,
+    Workspace,
+    content_pin,
+    evaluate,
+    m,
 )
 
 
@@ -414,8 +481,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -489,10 +556,31 @@ against the geometry it claims.
 import tempfile
 
 from pncad import (
-    Alignment, AxisSense, CapEnd, ContactClass, Doc, DocEdit, DocRef,
-    EntityKind, Frame, MateFrame, MatePrimitive, MateRole, NamePat,
-    Node, SegPat, SegTag, Selector, Workspace, assemble, content_pin,
-    evaluate, m, product, solve_document,
+    Alignment,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    MateRole,
+    NamePat,
+    Node,
+    SegPat,
+    SegTag,
+    Selector,
+    Workspace,
+    assemble,
+    content_pin,
+    evaluate,
+    m,
+    product,
+    solve_document,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -503,8 +591,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -550,11 +638,13 @@ def bench(primitive=None, class_=ContactClass.Rest):
         return Alignment(x, y, fold, AxisSense.Aligned)
 
     m_a = doc.insert(
-        Node.mate(instance_cap(ev, a, CapEnd.Top), instance_cap(ev, s, CapEnd.Bottom),
+        Node.mate(a, instance_cap(ev, a, CapEnd.End),
+                  s, instance_cap(ev, s, CapEnd.Start),
                   class_, align(post_seat, seat_a))
     )
     m_b = doc.insert(
-        Node.mate(instance_cap(ev, s, CapEnd.Bottom), instance_cap(ev, b, CapEnd.Top),
+        Node.mate(s, instance_cap(ev, s, CapEnd.Start),
+                  b, instance_cap(ev, b, CapEnd.End),
                   class_, align(seat_b, post_seat))
     )
     return doc, (a, s, b), (m_a, m_b)
@@ -612,11 +702,34 @@ or widen a declaration you did not make.
 import tempfile
 
 from pncad import (
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, Doc,
-    DocEdit, DocRef, EntityKind, Frame, MateFrame, MatePrimitive,
-    MateSide, NamePat, Node, ProductError, SegPat, SegTag, Selector,
-    UNDER_RECOURSE, Workspace, assemble, content_pin, evaluate, m,
-    product, solve_document,
+    Alignment,
+    AssemblyError,
+    AxisSense,
+    CapEnd,
+    ContactClass,
+    Doc,
+    DocEdit,
+    DocRef,
+    EditError,
+    EntityKind,
+    Expr,
+    Frame,
+    MateFrame,
+    MatePrimitive,
+    NamePat,
+    Node,
+    ProductError,
+    SegPat,
+    SegTag,
+    Selector,
+    UNDER_RECOURSE,
+    Workspace,
+    assemble,
+    content_pin,
+    evaluate,
+    m,
+    product,
+    solve_document,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -627,8 +740,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -673,8 +786,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.Top),
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        post_i, instance_cap(ev, post_i, CapEnd.End),
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.planar_rest(0 * m),
                   AxisSense.Aligned),
@@ -696,8 +809,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.Top),
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        post_i, instance_cap(ev, post_i, CapEnd.End),
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Tangent,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
@@ -707,34 +820,34 @@ try:
     assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "no_at_rest_record"
-    assert refusal.mate == mate
-    assert refusal.class_ == ContactClass.Tangent
+    # `refusals` is EVERY mate that did not mint, in document order,
+    # so two broken mates are two repairs from one call.
+    assert refusal.variant == "unminted_mates"
+    (row,) = refusal.refusals
+    assert row.variant == "no_at_rest_record"
+    assert row.mate == mate
+    assert row.class_ == ContactClass.Tangent
 
-# 3. A REFERENCE THAT IS NOT A FACE. A mate declares a FACE PAIR; an
-#    edge is a different statement, refused rather than widened — and
-#    the refusal says which side, and what the name did denote.
+# 3. A HEAD THAT IS NOT A FACE — refused where the mate is BUILT, not
+#    at the gate. A mate declares a FACE PAIR, and the kernel says so
+#    in the TYPE of a head, so a Rust caller cannot write this mate at
+#    all. Python holds names as opaque text, so `Node.mate` asks the
+#    same constructor on your behalf and refuses at the call.
 doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
-mate = doc.insert(
+try:
     Node.mate(
-        edge,
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        post_i, edge,
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
     )
-)
-try:
-    assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
-except AssemblyError as refusal:
-    assert refusal.variant == "mate_reference_refused"
-    assert refusal.mate == mate and refusal.side == MateSide.A
-    assert refusal.why.variant == "ref_not_a_face"
-    assert refusal.why.kind == "edge"
-    assert refusal.why.width is None      # a tie would carry one
+except EditError as refusal:
+    assert refusal.variant == "mate_head_not_a_face"
+    assert "edge" in str(refusal)
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
 #    produced no body, so the GATHER refuses before the gate runs —
@@ -746,7 +859,7 @@ try:
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
     assert refusal.variant == "root_failed"
-    assert refusal.node is not None and refusal.mate is None
+    assert refusal.node is not None and refusal.refusals is None
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
@@ -768,8 +881,13 @@ names the minted declaration it is about, by the two stable names the
 mate was authored in — the recourse is in the error. `uncertified` is the declared
 direction's **frontier**: nothing refuted, nothing undeclared, the
 census simply declined to certify, so nothing was decided either way.
-Everything else — `mate_reference_refused`, `no_at_rest_record`, and
-the gather's own tags — refuses before any verdict exists.
+Everything else refuses before any verdict exists:
+`unminted_mates` (this document's own mates that did not mint),
+`carried_mint_refusal` (the same for mates of documents below it), and
+the gather's own tags. The two mint arms carry `refusals` — **every**
+mate that did not mint, in document order, never just the first — and
+each row carries its own word, `mate_reference_refused` or
+`no_at_rest_record`.
 
 That middle group is worth internalising, because it is the one place
 on this page where a refusal is not a statement about your model. A
@@ -798,9 +916,22 @@ refuses `part_pin_mismatch` rather than splicing the version on disk.
 import tempfile
 
 from pncad import (
-    Doc, DocEdit, DocRef, Frame, InlineError, Node, SplitError,
-    Workspace, content_pin, evaluate, inline, m, product,
-    random_document_id, split,
+    Doc,
+    DocEdit,
+    DocRef,
+    Expr,
+    Frame,
+    InlineError,
+    Node,
+    SplitError,
+    Workspace,
+    content_pin,
+    evaluate,
+    inline,
+    m,
+    product,
+    random_document_id,
+    split,
 )
 
 
@@ -808,8 +939,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -907,8 +1038,16 @@ state.
 import tempfile
 
 from pncad import (
-    Doc, DocRef, Node, UpdateError, Workspace, content_pin, m,
-    mixed_pins, update_references,
+    Doc,
+    DocRef,
+    Expr,
+    Node,
+    UpdateError,
+    Workspace,
+    content_pin,
+    m,
+    mixed_pins,
+    update_references,
 )
 
 
@@ -916,8 +1055,8 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, height * m))
+    profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 

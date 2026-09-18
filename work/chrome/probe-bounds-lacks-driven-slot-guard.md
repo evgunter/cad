@@ -2,12 +2,13 @@
 id: probe-bounds-lacks-driven-slot-guard
 kind: issue
 title: ProbeBounds on an expression-driven slot lacks the DrivenByExpression guard its sibling doors have
-status: review
+status: closed
 opened: 2026-09-01
 github: 1458
 refs: [1183]
 branch: chrome/probe-bounds-lacks-driven-slot-guard
 pr: 1746
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1458

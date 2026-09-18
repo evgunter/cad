@@ -6,6 +6,7 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
@@ -15,9 +16,12 @@ const RING: f64 = 5.0;
 
 fn full_torus(major: f64) -> Body<f64> {
     tube_along_arc(
-        Point3::origin(),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         major,
         TubeWindow::Full,
         TUBE,
@@ -121,9 +125,9 @@ fn r2_recount_the_routing_price_from_the_verdict_log() {
     let a = full_torus(RING);
     let b = full_torus(RING + 2.0 * TUBE);
     let d = decls(&a, &b, ContactClass::Tangent);
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let err = topo::union_with(&a, &b, &d, Tol::witness()).expect_err("refuses");
-    let log = geom_core::k_stats::take_verdict_log();
+    let log = bracket.finish().verdicts;
     let mut by: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     for v in &log {
         *by.entry(v.predicate).or_default() += 1;

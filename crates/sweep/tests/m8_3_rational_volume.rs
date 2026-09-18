@@ -142,16 +142,19 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
 /// the `Certified` branch.
 ///
 /// Tier 3 itself runs the +V invariant, which CONSUMES the quadrature,
-/// and it is now the SAME quadrature this row measures: the row takes
-/// `validate_geometric_certificate`, which returns the enclosure check
-/// 7 decided on, so the tier-3 verdict and the volume bracket cost one
-/// certificate between them instead of two. Its consequence for the
-/// order: the gate is what runs unconditionally now, and the posture
-/// is read off its verdict — a budget refusal arrives as the single
-/// `VolumeUncomputable` the match below names, which is an honest
-/// tier-3 refusal exactly as it was when the two calls were separate,
-/// and any OTHER verdict in that vector is the tier-3 break the
-/// `TIER-3` label used to catch.
+/// and it is the SAME quadrature this row measures: the row takes
+/// `validate_geometric_certificate`, which returns the certificate
+/// check 7 decided on, and continues it to the reporting target — so
+/// the tier-3 verdict and the volume bracket cost one certificate
+/// between them instead of two.
+///
+/// **The gate and the posture are now two different questions**, and
+/// the order below says so. Check 7 certifies this body's SIGN, which
+/// is definite at every ε here, so tier 3 admits the rational wall
+/// UNCONDITIONALLY — a tier-3 refusal is a break, at every ε row, and
+/// no longer something a tight ε can honestly produce. The ε posture
+/// is then read off the CONTINUATION, which is the caller that wants
+/// the number and the only one the fixed schedule can honestly refuse.
 #[test]
 fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let loft = loft_body::<f64>(
@@ -175,19 +178,14 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // than two runs of it.
     let gated = topo::validate_geometric_certificate(&loft, Tol::witness());
     // TIER 3: tier 3 certifies a rational-wall body (M8-3 flip of
-    // #288/#276) — or refuses through CHECK 7 ALONE, the quadrature's
-    // honest frontier at a tight ε. Any other verdict in the vector is
-    // a break, and this match is where the tier-3 pin says so.
-    let got: Result<MassProperties<f64>, MassPropsError> = match &gated {
-        Ok(props) => Ok(*props),
-        Err(errors) => match errors.as_slice() {
-            [topo::ValidationError::VolumeUncomputable { source }] => Err(source.clone()),
-            other => panic!(
-                "TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276): \
-                 {other:?}"
-            ),
-        },
-    };
+    // #288/#276) at EVERY ε — its check 7 reads a sign, and this
+    // body's sign is definite. Any verdict in the vector is a break.
+    let gated = gated.unwrap_or_else(|errors| {
+        panic!("TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276): {errors:?}")
+    });
+    // The ε posture is the CONTINUATION's: the caller that wants the
+    // number is the one the fixed schedule can honestly refuse.
+    let got: Result<MassProperties<f64>, MassPropsError> = gated.refine_to_target();
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",

@@ -32,7 +32,9 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::mate_fault_tag;
+use crate::tags::{
+    class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -45,10 +47,14 @@ fn meters(v: (Length, Length, Length)) -> [f64; 3] {
     [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
 }
 
+/// One bare metre figure as the length it is.
+fn length(m: f64) -> Length {
+    Length(pncad::quantity::Length::from_meters(m))
+}
+
 /// Metres out.
 fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
-    let len = |x: f64| Length(pncad::quantity::Length::from_meters(x));
-    (len(v[0]), len(v[1]), len(v[2]))
+    (length(v[0]), length(v[1]), length(v[2]))
 }
 
 /// A kernel point as three lengths.
@@ -122,9 +128,12 @@ impl MateFrame {
     /// The rigid placement this frame denotes: local +Z is `axis`,
     /// the local origin is `origin`, roll fixed by `reference`.
     ///
-    /// Raises `FrameError` when the axis has no definite direction or
-    /// the reference has no definite perpendicular offset from it —
-    /// the same refusal the solve meets, reachable BEFORE authoring
+    /// Raises `FrameError` when the axis has no definite direction,
+    /// when the reference has no definite perpendicular offset from
+    /// it, or — asked before either sign — when the axis's length or
+    /// that perpendicular offset is not a finite number, whose
+    /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
+    /// The same refusal the solve meets, reachable BEFORE authoring
     /// the mate that would carry it.
     fn placement(&self, py: Python<'_>) -> PyResult<Frame> {
         let tol = Tol::witness();
@@ -150,8 +159,8 @@ impl MateFrame {
 ///
 /// `Opposed` is what kills every π-flip ambiguity: the senses are
 /// AUTHORED, never inferred.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::AxisSense` variant of the same name"
@@ -178,8 +187,8 @@ impl AxisSense {
 }
 
 /// Which side of a mate a diagnostic is about.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateSide` variant of the same name"
@@ -242,10 +251,14 @@ impl MatePrimitive {
     }
 
     /// The primitive's stable tag: `frame_coincidence`, `coaxial`,
-    /// `planar_rest`, `clocking`.
+    /// `planar_rest` or `clocking` — one word per constructor on this
+    /// class, spelled the same way, so the vocabulary is the class's
+    /// own staticmethods.
+    // The map is `crate::tags::mate_primitive_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        primitive_tag(self.0)
+        mate_primitive_tag(self.0)
     }
 
     /// The planar rest's signed standoff, `None` for every other
@@ -254,11 +267,10 @@ impl MatePrimitive {
     /// branch on `variant` first.
     #[getter]
     fn offset(&self) -> Option<Length> {
+        use d::MatePrimitive as P;
         match self.0 {
-            d::MatePrimitive::PlanarRest { offset } => {
-                Some(Length(pncad::quantity::Length::from_meters(offset)))
-            }
-            _ => None,
+            P::PlanarRest { offset } => Some(Length(pncad::quantity::Length::from_meters(offset))),
+            P::FrameCoincidence | P::Coaxial | P::Clocking => None,
         }
     }
 
@@ -271,19 +283,8 @@ impl MatePrimitive {
             d::MatePrimitive::PlanarRest { offset } => {
                 format!("MatePrimitive.planar_rest({offset} m)")
             }
-            other => format!("MatePrimitive.{}()", primitive_tag(other)),
+            other => format!("MatePrimitive.{}()", mate_primitive_tag(other)),
         }
-    }
-}
-
-/// The stable tag for a mate primitive. Exhaustive over the kernel
-/// enum, so a primitive added there stops this build.
-fn primitive_tag(primitive: d::MatePrimitive) -> &'static str {
-    match primitive {
-        d::MatePrimitive::FrameCoincidence => "frame_coincidence",
-        d::MatePrimitive::Coaxial => "coaxial",
-        d::MatePrimitive::PlanarRest { .. } => "planar_rest",
-        d::MatePrimitive::Clocking => "clocking",
     }
 }
 
@@ -352,12 +353,23 @@ impl Alignment {
 
     /// The **lever arm** this mate's angular decisions turn on: the
     /// largest distance in its own authored data over which an angular
-    /// error accumulates into a gap. Floored at one metre, so a mate
-    /// authored AT the origin cannot claim an arbitrarily tight
-    /// angular threshold.
+    /// error accumulates into a gap.
+    ///
+    /// `None` when the alignment names a scale but names one too small
+    /// to lever anything: a lever of `L` makes the smallest decidable
+    /// tilt `ε/L`, so a datum at a nanometre buys a threshold of a whole
+    /// radian, and a verdict there is vacuous rather than tight. The
+    /// solve records that case as the `mate_datum_too_small_to_lever`
+    /// fault; this getter is the same fact read off the alignment, so it
+    /// answers with an absence rather than raising. An alignment that
+    /// names NO scale at all is not this case — it borrows the session
+    /// box's scale and answers with a number.
     #[getter]
-    fn lever_arm(&self) -> Length {
-        Length(pncad::quantity::Length::from_meters(self.0.lever_arm()))
+    fn lever_arm(&self) -> Option<Length> {
+        self.0
+            .lever_arm()
+            .ok()
+            .map(|m| Length(pncad::quantity::Length::from_meters(m)))
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -367,7 +379,7 @@ impl Alignment {
     fn __repr__(&self) -> String {
         format!(
             "Alignment(primitive={}, sense={:?}, clocking={:?})",
-            primitive_tag(self.0.primitive),
+            mate_primitive_tag(self.0.primitive),
             self.0.sense,
             self.0.clocking
         )
@@ -391,14 +403,13 @@ pub(crate) struct ClassAdmission(d::ClassAdmission);
 
 #[pymethods]
 impl ClassAdmission {
-    /// The stable tag: `mints`, `no_at_rest_record`, `not_admitted`.
+    /// The stable tag: `mints`, `no_at_rest_record` or
+    /// `not_admitted`, the three the stub lists for this attribute.
+    // The map is `crate::tags::class_admission_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::ClassAdmission::Mints => "mints",
-            d::ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
-            d::ClassAdmission::NotAdmitted => "not_admitted",
-        }
+        class_admission_tag(&self.0)
     }
 
     /// Whether both doors admit the class: the solve folds it AND the
@@ -449,8 +460,8 @@ pub(crate) fn class_admission(
 // ---- The solve's read side ----
 
 /// What a mate did in the solve.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::MateRole` variant of the same name"
@@ -491,48 +502,53 @@ pub(crate) struct Subgroup(d::Subgroup);
 #[pymethods]
 impl Subgroup {
     /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
-    /// `revolute`, `trivial`, `empty`.
+    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
+    /// this attribute. `empty` is the contradictory answer and
+    /// `trivial` the fully located one.
+    // The map is `crate::tags::subgroup_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::Subgroup::Se3 => "se3",
-            d::Subgroup::Planar { .. } => "planar",
-            d::Subgroup::Cylindrical { .. } => "cylindrical",
-            d::Subgroup::Prismatic { .. } => "prismatic",
-            d::Subgroup::Revolute { .. } => "revolute",
-            d::Subgroup::Trivial => "trivial",
-            d::Subgroup::Empty => "empty",
-        }
+        subgroup_tag(&self.0)
     }
 
     /// The plane's unit normal, for `planar`.
     #[getter]
     fn normal(&self) -> Option<(f64, f64, f64)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Planar { normal } => Some(direction(normal)),
-            _ => None,
+            S::Planar { normal } => Some(direction(normal)),
+            S::Se3
+            | S::Cylindrical { .. }
+            | S::Prismatic { .. }
+            | S::Revolute { .. }
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 
     /// A point on the axis, for `cylindrical` and `revolute`.
     #[getter]
     fn point(&self) -> Option<(Length, Length, Length)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Cylindrical { point: p, .. } | d::Subgroup::Revolute { point: p, .. } => {
-                Some(point(p))
-            }
-            _ => None,
+            S::Cylindrical { point: p, .. } | S::Revolute { point: p, .. } => Some(point(p)),
+            // `planar` and `prismatic` are point-free on purpose, as
+            // the class doc says; the three remaining arms have no
+            // geometry to be based at.
+            S::Planar { .. } | S::Prismatic { .. } | S::Se3 | S::Trivial | S::Empty => None,
         }
     }
 
     /// The unit direction, for `cylindrical`, `prismatic`, `revolute`.
     #[getter]
     fn direction(&self) -> Option<(f64, f64, f64)> {
+        use d::Subgroup as S;
         match self.0 {
-            d::Subgroup::Cylindrical { direction: v, .. }
-            | d::Subgroup::Prismatic { direction: v }
-            | d::Subgroup::Revolute { direction: v, .. } => Some(direction(v)),
-            _ => None,
+            S::Cylindrical { direction: v, .. }
+            | S::Prismatic { direction: v }
+            | S::Revolute { direction: v, .. } => Some(direction(v)),
+            S::Se3 | S::Planar { .. } | S::Trivial | S::Empty => None,
         }
     }
 
@@ -546,10 +562,26 @@ impl Subgroup {
 /// document.
 ///
 /// Every payload attribute is present on every arm, `None` where the
-/// arm does not carry it: `mate`, `side`, `head`, `instance`,
-/// `parent`, `child`, `residual`, `held`, `added`, `predicate`,
-/// `clash`, `what`. The human message is the kernel's own prose,
-/// available as `str(fault)`.
+/// arm does not carry it: `mate`, `side`, `head`, `placer`, `error`,
+/// `instance`, `parent`, `child`, `residual`, `held`, `added`,
+/// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
+/// `expected_document`, `found_document`, `inner_variant`, `margin`,
+/// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
+/// `lever_tilt`, `lever_arm`, `extent`, `floor`. The human message is
+/// the kernel's own prose, available as `str(fault)`.
+///
+/// **The classifier's words are the frame door's words.** `margin` /
+/// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
+/// `value` and `predicate` are spelled here exactly as
+/// [`super::place::frame_err`] spells them, because an escalation a
+/// mate reports and one a frame constructor reports are the same
+/// value; the fork itself is `crate::escalation`, which both doors
+/// call.
+///
+/// The thirty-one read off ONE record, [`crate::mate_payload`], whose
+/// match over the kernel enum is exhaustive with no wildcard: a fault
+/// arm added there is a compile error rather than a mate that every
+/// accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFault(pub(crate) d::MateFault);
@@ -562,127 +594,234 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the two arms whose
-    /// subject is not one mate (`mate_band`, and `mate_contradictory`,
-    /// which names `held` and `added` instead).
+    /// The mate the fault is about, `None` for the three arms whose
+    /// subject is not one mate (`mate_band`; `mate_contradictory`,
+    /// which names `held` and `added` instead; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents).
     #[getter]
     fn mate(&self) -> Option<NodeId> {
-        use d::MateFault as F;
-        match &self.0 {
-            F::Frame { mate, .. }
-            | F::ClassNotAdmitted { mate }
-            | F::TableLacks { mate, .. }
-            | F::Indeterminate { mate, .. }
-            | F::Under { mate, .. }
-            | F::DanglingHead { mate, .. }
-            | F::SelfMate { mate, .. } => Some(NodeId(*mate)),
-            F::Band { .. } | F::Contradictory { .. } => None,
-        }
+        self.payload().mate.map(NodeId)
     }
 
     /// Which side of the mate refused.
     #[getter]
     fn side(&self) -> Option<MateSide> {
-        use d::MateFault as F;
-        match &self.0 {
-            F::Frame { side, .. } | F::DanglingHead { side, .. } => {
-                Some(MateSide::from_kernel(*side))
-            }
-            _ => None,
-        }
+        self.payload().side.map(MateSide::from_kernel)
     }
 
     /// The instantiate node a dangling reference head claims.
     #[getter]
     fn head(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::DanglingHead { head, .. } => Some(NodeId(*head)),
-            _ => None,
-        }
+        self.payload().head.map(NodeId)
+    }
+
+    /// The placer whose pose could not be derived — the pattern or
+    /// the transform on the reference's chain that refused.
+    #[getter]
+    fn placer(&self) -> Option<NodeId> {
+        self.payload().placer.map(NodeId)
+    }
+
+    /// **The evaluation's own refusal for that placer**, as the tag
+    /// every node failure crosses with (`EvaluationError.kind`) — the
+    /// same vocabulary, so a caller branches on one set of words
+    /// whether the refusal reached them from the node or from the
+    /// mate that placed it. `str(fault)` carries its prose.
+    #[getter]
+    fn error(&self) -> Option<&'static str> {
+        self.payload().error
     }
 
     /// The instance a self-mate names twice.
     #[getter]
     fn instance(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::SelfMate { instance, .. } => Some(NodeId(*instance)),
-            _ => None,
-        }
+        self.payload().instance.map(NodeId)
     }
 
     /// The instance an under-determined tree mate extended FROM.
     #[getter]
     fn parent(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Under { parent, .. } => Some(NodeId(*parent)),
-            _ => None,
-        }
+        self.payload().parent.map(NodeId)
     }
 
     /// The instance it failed to place.
     #[getter]
     fn child(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Under { child, .. } => Some(NodeId(*child)),
-            _ => None,
-        }
+        self.payload().child.map(NodeId)
     }
 
     /// What survived an under-determined fold.
     #[getter]
     fn residual(&self) -> Option<Subgroup> {
-        match &self.0 {
-            d::MateFault::Under { residual, .. } => Some(Subgroup(*residual)),
-            _ => None,
-        }
+        self.payload().residual.map(Subgroup)
     }
 
     /// The mate already folded, for a contradictory pair.
     #[getter]
     fn held(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Contradictory { held, .. } => Some(NodeId(*held)),
-            _ => None,
-        }
+        self.payload().held.map(NodeId)
     }
 
     /// The mate whose intersection died against it.
     #[getter]
     fn added(&self) -> Option<NodeId> {
-        match &self.0 {
-            d::MateFault::Contradictory { added, .. } => Some(NodeId(*added)),
-            _ => None,
-        }
+        self.payload().added.map(NodeId)
     }
 
     /// The predicate that decided against a contradictory pair.
     #[getter]
     fn predicate(&self) -> Option<&'static str> {
-        match &self.0 {
-            d::MateFault::Contradictory { predicate, .. } => Some(predicate),
-            _ => None,
-        }
+        self.payload().predicate
     }
 
     /// The measured clash: the margin that should have been zero and
     /// was not.
     #[getter]
     fn clash(&self) -> Option<Length> {
-        match &self.0 {
-            d::MateFault::Contradictory { clash, .. } => {
-                Some(Length(pncad::quantity::Length::from_meters(*clash)))
-            }
-            _ => None,
-        }
+        self.payload().clash.map(length)
+    }
+
+    /// The `Part` node whose index expression disagrees with the copy
+    /// the reference's name names.
+    #[getter]
+    fn part(&self) -> Option<NodeId> {
+        self.payload().part.map(NodeId)
+    }
+
+    /// The copy that reference's NAME names — the authority on which
+    /// copy a mate is about.
+    #[getter]
+    fn named(&self) -> Option<u32> {
+        self.payload().named
+    }
+
+    /// What the `Part`'s index expression evaluates to instead, at the
+    /// document's own parameter bindings.
+    #[getter]
+    fn selected(&self) -> Option<i64> {
+        self.payload().selected
     }
 
     /// What the coset table was asked for, in its own words.
     #[getter]
     fn what(&self) -> Option<&'static str> {
-        match &self.0 {
-            d::MateFault::TableLacks { what, .. } => Some(what),
-            _ => None,
-        }
+        self.payload().what
+    }
+
+    /// The document whose placement was asked for, as `Doc.id`
+    /// answers it — so a caller compares the two ids directly rather
+    /// than reading them out of the message.
+    #[getter]
+    fn expected_document(&self) -> Option<String> {
+        self.payload().expected_document.map(|id| id.hex())
+    }
+
+    /// The document the solve is OF.
+    #[getter]
+    fn found_document(&self) -> Option<String> {
+        self.payload().found_document.map(|id| id.hex())
+    }
+
+    /// **The nested refusal's own word**: the frame ladder's
+    /// (`FrameError.variant`'s vocabulary), the band constructor's, or
+    /// the lever refusal's. `None` on an arm whose payload is a struct
+    /// rather than an enum — an escalation has no inner word, and its
+    /// shape is which margin attribute is set.
+    #[getter]
+    fn inner_variant(&self) -> Option<&'static str> {
+        self.payload().inner_variant
+    }
+
+    /// The in-band margin the classifier saw, when it saw a value.
+    ///
+    /// Reading it is not branching on it: what the escalation
+    /// contract forbids is recovering the margin to make the sign
+    /// decision the classifier refused.
+    #[getter]
+    fn margin(&self) -> Option<Length> {
+        self.payload().margin.map(length)
+    }
+
+    /// The classified enclosure's lower bound, where the classifier
+    /// saw an enclosure rather than a value.
+    #[getter]
+    fn margin_low(&self) -> Option<Length> {
+        self.payload().margin_low.map(length)
+    }
+
+    /// Its upper bound.
+    #[getter]
+    fn margin_high(&self) -> Option<Length> {
+        self.payload().margin_high.map(length)
+    }
+
+    /// The coincidence threshold of the band a margin was classified
+    /// against, or of the band a constructor could not form.
+    ///
+    /// A plain real, as the frame door answers it: a `Band`'s
+    /// thresholds are whatever its predicate measures in, and the
+    /// same type carries angular ones.
+    #[getter]
+    fn zero(&self) -> Option<f64> {
+        self.payload().zero
+    }
+
+    /// Its escalation threshold.
+    #[getter]
+    fn escalate(&self) -> Option<f64> {
+        self.payload().escalate
+    }
+
+    /// WHICH band threshold a rejected value was — `zero` or
+    /// `escalate`.
+    #[getter]
+    fn field(&self) -> Option<&'static str> {
+        self.payload().field
+    }
+
+    /// The rejected number: a threshold, or a lever arm handed to the
+    /// band constructor.
+    #[getter]
+    fn value(&self) -> Option<f64> {
+        self.payload().value
+    }
+
+    /// The lever's TILT, when a contradictory clash was levered
+    /// rather than measured outright.
+    #[getter]
+    fn lever_tilt(&self) -> Option<Angle> {
+        self.payload()
+            .lever_tilt
+            .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
+    }
+
+    /// The lever's ARM — **the solve's own scale surrogate**, the
+    /// larger of the two frame origins' distances and the authored
+    /// lengths, floored at one metre. It is NOT a contact feature, so
+    /// it names that scale and nothing in the model.
+    ///
+    /// `clash` is the PRODUCT of the two halves: a levered refusal
+    /// reports `lever_tilt * lever_arm` as its deviation. An arm that
+    /// measured its margin without a lever carries neither half.
+    #[getter]
+    fn lever_arm(&self) -> Option<Length> {
+        self.payload().lever_arm.map(length)
+    }
+
+    /// The length scale a datum named, when it named one too small to
+    /// lever a parallelism verdict over.
+    #[getter]
+    fn extent(&self) -> Option<Length> {
+        self.payload().extent.map(length)
+    }
+
+    /// The floor that scale is under: below it the smallest tilt the
+    /// predicate could call non-parallel is about eps/extent radians,
+    /// so every tilt would read parallel.
+    #[getter]
+    fn floor(&self) -> Option<Length> {
+        self.payload().floor.map(length)
     }
 
     fn __str__(&self) -> String {
@@ -691,6 +830,19 @@ impl MateFault {
 
     fn __repr__(&self) -> String {
         format!("MateFault({:?})", mate_fault_tag(&self.0))
+    }
+}
+
+impl MateFault {
+    /// This refusal's payload, read once per attribute.
+    ///
+    /// Every accessor above reads a field off THIS record rather than
+    /// matching the enum itself, so the arm table is written once —
+    /// exhaustively, with no wildcard, in `crate::mate_payload` — and
+    /// an arm added kernel-side is a compile error there instead of
+    /// seventeen attributes silently answering `None`.
+    fn payload(&self) -> crate::mate_payload::MateFaultPayload {
+        crate::mate_payload::mate_payload(&self.0)
     }
 }
 
@@ -762,10 +914,13 @@ impl SolvedPoses {
     /// before mates existed.
     ///
     /// `doc` is read for its placement registry, and it must be the
-    /// document this solve is OF: passing a different one composes
-    /// this document's relative poses onto that one's cluster frames,
-    /// which is not a pose of either. Nothing here can check that —
-    /// a document carries no identity of the solve that read it.
+    /// document this solve is OF: passing a different one would
+    /// compose this document's relative poses onto that one's cluster
+    /// frames, which is not a pose of either. The door refuses that
+    /// first — a `SolvedPoses` carries the id of the document
+    /// `solve_document` solved, and a mismatch raises `MateError`
+    /// with tag `mate_poses_of_another_document` before any frame is
+    /// read.
     ///
     /// Raises `MateError` when the instance's cluster did not solve.
     fn placement(
@@ -856,55 +1011,99 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
         .collect()
 }
 
-// ---- Cluster-record maintenance ----
+// ---- The accepted edit's maintenance ----
 
-/// One recorded act of cluster-record maintenance: what an ordinary
-/// edit's motion of the mate graph forced on the placement registry.
+/// One act of automatic maintenance an accepted edit performed: what
+/// an ordinary edit's motion of the mate graph forced on the placement
+/// registry, or a reference its delete stranded.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
 /// automatic maintenance is the invariant's own bookkeeping,
 /// deterministic from the edit, so a replay reproduces it and undo
 /// (keeping the prior document) restores it exactly. What the record
 /// adds is VISIBILITY: an absorbed cluster's frame is consumed here,
-/// where a caller can read what was consumed.
+/// where a caller can read what was consumed, and a stranded name is
+/// said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
 /// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
-/// `target`, `frame`, `gauge`. (`source`/`target` rather than
-/// `from`/`to`: `from` is a Python keyword.)
+/// `target`, `frame`, `gauge` for the four cluster acts; `node` and
+/// `name` for a strand, `name` alone for a `stranded_appearance`,
+/// whose carrier is the appearance store and not a node.
+/// (`source`/`target` rather than `from`/`to`: `from` is a Python
+/// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ClusterMaintenance(pub(crate) d::ClusterMaintenance);
+pub(crate) struct Maintenance(pub(crate) d::Maintenance);
+
+impl Maintenance {
+    /// The cluster act this row is, or `None` for a strand — the one
+    /// place the four cluster attributes narrow, so each getter below
+    /// states only which act carries it.
+    fn cluster(&self) -> Option<&d::ClusterMaintenance> {
+        match &self.0 {
+            d::Maintenance::Cluster(act) => Some(act),
+            d::Maintenance::Strand { .. } | d::Maintenance::StrandedAppearance { .. } => None,
+        }
+    }
+}
 
 #[pymethods]
-impl ClusterMaintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`.
+impl Maintenance {
+    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
+    /// `strand` or `stranded_appearance`, the six the stub lists for
+    /// this attribute. The word decides which of the payload
+    /// attributes below carry.
+    // The map is `crate::tags::maintenance_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        use d::ClusterMaintenance as M;
-        match self.0 {
-            M::Join { .. } => "join",
-            M::Split { .. } => "split",
-            M::GaugeRewrite { .. } => "gauge_rewrite",
-            M::Drop { .. } => "drop",
+        maintenance_tag(&self.0)
+    }
+
+    /// The surviving node whose payload carries a stranded name —
+    /// `None` for a `stranded_appearance`, which has no carrying node
+    /// to name.
+    #[getter]
+    fn node(&self) -> Option<NodeId> {
+        match &self.0 {
+            d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
+            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
+        }
+    }
+
+    /// The stranded name itself, in the opaque text every name door
+    /// on this surface speaks — the payload name for a `strand`, the
+    /// appearance store's key for a `stranded_appearance`. Its
+    /// minting node is the one the edit deleted; `Doc.rebind` is the
+    /// repair this surface carries for either one.
+    #[getter]
+    fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        match &self.0 {
+            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
+                super::doc::name_text(py, name).map(Some)
+            }
+            d::Maintenance::Cluster(_) => Ok(None),
         }
     }
 
     /// The gauge that survived a join: the earlier of the two.
     #[getter]
     fn survived(&self) -> Option<NodeId> {
-        match self.0 {
-            d::ClusterMaintenance::Join { survived, .. } => Some(NodeId(survived)),
-            _ => None,
+        use d::ClusterMaintenance as M;
+        match *self.cluster()? {
+            M::Join { survived, .. } => Some(NodeId(survived)),
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
     /// The absorbed cluster's former gauge.
     #[getter]
     fn absorbed(&self) -> Option<NodeId> {
-        match self.0 {
-            d::ClusterMaintenance::Join { absorbed, .. } => Some(NodeId(absorbed)),
-            _ => None,
+        use d::ClusterMaintenance as M;
+        match *self.cluster()? {
+            M::Join { absorbed, .. } => Some(NodeId(absorbed)),
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -912,11 +1111,12 @@ impl ClusterMaintenance {
     /// `None` when the row was absent (the identity).
     #[getter]
     fn absorbed_frame(&self) -> Option<Frame> {
-        match self.0 {
-            d::ClusterMaintenance::Join {
+        use d::ClusterMaintenance as M;
+        match *self.cluster()? {
+            M::Join {
                 absorbed_frame: f, ..
             } => f.map(Frame),
-            _ => None,
+            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -924,9 +1124,9 @@ impl ClusterMaintenance {
     #[getter]
     fn source(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { from, .. } | M::GaugeRewrite { from, .. } => Some(NodeId(from)),
-            _ => None,
+            M::Join { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -934,9 +1134,9 @@ impl ClusterMaintenance {
     #[getter]
     fn target(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { to, .. } | M::GaugeRewrite { to, .. } => Some(NodeId(to)),
-            _ => None,
+            M::Join { .. } | M::Drop { .. } => None,
         }
     }
 
@@ -945,25 +1145,28 @@ impl ClusterMaintenance {
     #[getter]
     fn frame(&self) -> Option<Frame> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { frame, .. } | M::GaugeRewrite { frame, .. } | M::Drop { frame, .. } => {
                 frame.map(Frame)
             }
-            _ => None,
+            // A join CONSUMES a frame rather than minting one, and
+            // names it `absorbed_frame`.
+            M::Join { .. } => None,
         }
     }
 
     /// The dead gauge whose record went with its last instance.
     #[getter]
     fn gauge(&self) -> Option<NodeId> {
-        match self.0 {
-            d::ClusterMaintenance::Drop { gauge, .. } => Some(NodeId(gauge)),
-            _ => None,
+        use d::ClusterMaintenance as M;
+        match *self.cluster()? {
+            M::Drop { gauge, .. } => Some(NodeId(gauge)),
+            M::Join { .. } | M::Split { .. } | M::GaugeRewrite { .. } => None,
         }
     }
 
     fn __repr__(&self) -> String {
-        format!("ClusterMaintenance({:?})", self.variant())
+        format!("Maintenance({:?})", self.variant())
     }
 }
 
@@ -979,7 +1182,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
-    m.add_class::<ClusterMaintenance>()?;
+    m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(clusters, m)?)?;
     m.add_function(wrap_pyfunction!(gauge_of, m)?)?;
@@ -988,5 +1191,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
+    m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
+    m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

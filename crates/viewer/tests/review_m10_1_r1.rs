@@ -88,9 +88,12 @@ fn a_param_drag_gesture_keeps_the_distribution() {
     let (mut session, name, dist) = annotated_session();
     let outcome = session.perform(SessionOp::BeginParamGesture { name: name.clone() });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let outcome = session.perform(SessionOp::PreviewGesture { value: 0.006 });
+    let outcome = session.perform(SessionOp::PreviewParamGesture {
+        name: name.clone(),
+        value: 0.006,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let got = distribution_of(&session, &name).expect("the annotation survived the gesture");
     assert!(got.bit_eq(&dist));

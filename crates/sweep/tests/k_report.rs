@@ -16,21 +16,20 @@
 //! selected by module prefix. `--features probe` is what compiles this
 //! file — it is `#![cfg(feature = "probe")]`.
 //!
-//! **CI both type-checks and runs this harness, on 1 building merge
-//! in 5.** It rides the `k-lint` job's `dev-probe` feature row, and
-//! since 2026-08-22 that job SAMPLES one of its five feature
-//! unifications per run. The draw is seeded from the head SHA under
-//! its own salt, so a re-run of the same commit draws the same row and
-//! "which unification gated this commit" is recoverable from the SHA
-//! alone, without the run's logs. Repetition covers the matrix: at this
-//! repository's measured run rate (~60 runs/hour during active work)
-//! every row comes up within minutes.
+//! **CI both type-checks and runs this harness on every building
+//! merge.** It rides the `k-lint` job's `dev-probe` feature row, and
+//! every code-tier run gates all five of that job's unifications as
+//! five matrix legs.
 //!
-//! Sampling is sound HERE for one reason, and it is worth stating
-//! because it does not generalise: this row is a PERSISTENCE detector.
-//! A probe harness that stopped compiling, or stopped executing, stays
-//! broken in the tree, so a later draw still finds it — a red is
-//! deferred, never lost.
+//! **It was 1 building merge in 5 from 2026-08-22 to 2026-09-04**, when
+//! the row was drawn from the head SHA. Sampling was sound HERE for one
+//! reason, worth keeping because it is the reason a future draw would
+//! need: this row is a PERSISTENCE detector. A probe harness that
+//! stopped compiling, or stopped executing, stays broken in the tree, so
+//! a later draw still found it — a red was deferred, never lost. What
+//! ended the draw was not that argument but its price: a persistent
+//! break can merge green and cost several lanes a day before the next
+//! draw finds it.
 //!
 //! **The ABSENCE half is not sampled and must not be confused with
 //! this.** A suite that DISAPPEARS leaves no future red for a later
@@ -43,7 +42,7 @@
 //! per-line grep, so that quotation must not be re-wrapped — and the
 //! step therefore cannot be deleted quietly either.
 //!
-//! When the row IS drawn, `scripts/k_probe_sweep.sh` executes exactly
+//! On that leg, `scripts/k_probe_sweep.sh` executes exactly
 //! the invocation above at all three ε, dumping to `<outdir>/m2/`. That
 //! dump rides BESIDE the CSV k-lint gates, not inside it — the M2
 //! shapes are not part of the distribution those thresholds were argued
@@ -278,13 +277,11 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(geom_core::Sign::Negative) => "negative",
-        SampleOutcome::Definite(geom_core::Sign::Zero) => "zero",
-        SampleOutcome::Definite(geom_core::Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// The dump entry point (ignored: run explicitly, one process per ε).

@@ -11,36 +11,21 @@
 
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
-use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
+use geom_core::{MarginDiag, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::test_support::{block, realized};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// An `sx × sy × sz` box at the origin.
-fn boxy(sx: f64, sy: f64, sz: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (sx, 0.0), (sx, sy), (0.0, sy)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(sz), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// An L-shaped (notched) prism: the only planar fixture in this file
@@ -91,18 +76,9 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 /// (S13's live `slab ∖ ball`): the fixture that carries a plane–sphere
 /// rim, which is the pip-rim torus arm's input.
 fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
-    let slab = boxy(4.0, 4.0, 1.0);
+    let slab = block(4.0, 4.0, 1.0, Tol::witness());
     let ball = ball_at(pip_r, Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h));
-    let out = boolean_op_with(
-        BooleanOp::Subtract,
-        &slab,
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .expect("slab ∖ ball (S13)");
-    out.body().expect("a body").body.clone()
+    realized(BooleanOp::Subtract, &slab, &ball, Tol::witness())
 }
 
 /// The edges of `body` whose two support faces are a plane and a
@@ -133,7 +109,7 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// three-convex-edge octant.
 #[test]
 fn the_battery_passes_on_a_box_at_a_fitting_radius() {
-    let body = boxy(1.0, 1.0, 1.0);
+    let body = block(1.0, 1.0, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
         edges: query::all_edges(&body),
@@ -211,7 +187,11 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
-            assert!(margin < 0.0, "the headroom margin is definitely negative");
+            assert_eq!(margin.predicate, "fillet3_radius_headroom");
+            assert!(
+                margin.value().is_some_and(|m| m < 0.0),
+                "the headroom margin is definitely negative"
+            );
             assert!((radius - 0.9).abs() < 1e-12);
         }
         other => panic!("expected a radius-headroom refusal, got {other:?}"),
@@ -228,7 +208,7 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
 /// — the predicate sweeps PAIRS.
 #[test]
 fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
-    let body = boxy(1.0, 1.0, 1.0);
+    let body = block(1.0, 1.0, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
         edges: query::all_edges(&body),
@@ -236,7 +216,11 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     };
     match run_battery(&req, band()) {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
-            assert!(margin < 0.0);
+            assert_eq!(margin.predicate, "fillet3_face_clearance");
+            assert!(margin.value().is_some_and(|m| m < 0.0));
+            let MarginDiag::Value(gap) = gap else {
+                panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
+            };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
             // The box's opposite cap edges are PARALLEL with opposed
             // inward normals, which is exactly the configuration in
@@ -252,7 +236,7 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
 /// The pair sweep is a real inequality, not a blanket refusal.
 #[test]
 fn p2_face_clearance_passes_just_under_the_half_side() {
-    let body = boxy(1.0, 1.0, 1.0);
+    let body = block(1.0, 1.0, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
         edges: query::all_edges(&body),
@@ -281,7 +265,11 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::SpineIrregular { margin, radius }) => {
-            assert!(margin <= 0.0, "the spine margin is definitely non-positive");
+            assert_eq!(margin.predicate, "fillet3_spine_regularity");
+            assert!(
+                margin.value().is_some_and(|m| m <= 0.0),
+                "the spine margin is definitely non-positive"
+            );
             assert!((radius - 0.2).abs() < 1e-12);
         }
         // A shallow rim is also a consumption hazard; either refusal
@@ -303,7 +291,7 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 /// never overlap.)
 #[test]
 fn p4_chain_g1_refuses_at_a_cornered_junction() {
-    let body = boxy(1.0, 1.0, 1.0);
+    let body = block(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
         .find(|(_, f)| {
@@ -329,7 +317,14 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
-            assert!(margin > 0.0, "a 90° kink has a definitely positive margin");
+            assert_eq!(margin.predicate, "fillet3_chain_g1");
+            assert!(
+                margin.value().is_some_and(|m| m > 0.0),
+                "a 90° kink has a definitely positive margin"
+            );
+            let MarginDiag::Value(arm) = arm else {
+                panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
+            };
             assert!(arm > 0.0);
         }
         other => panic!("expected a G1 refusal, got {other:?}"),

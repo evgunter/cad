@@ -79,7 +79,12 @@ fn findings_fail_with_the_discipline_message() {
     );
     // The flags themselves still print, in full, on stdout.
     let so = stdout(&out);
-    assert!(so.contains("2 samples, 2 flagged"), "summary line: {so}");
+    assert!(
+        so.contains(
+            "2 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 2 classified), 2 flagged"
+        ),
+        "summary line: {so}"
+    );
     assert!(so.contains("FLAG demo/bracket:carrier_line_circle"), "{so}");
 
     // The verdict is on stderr, so it survives a redirected stdout.
@@ -149,6 +154,51 @@ fn missing_input_is_harness_breakage() {
     assert!(stderr(&out).contains("usage: k-lint"));
 }
 
+/// **A driver population is LINTED, and its symbolic column is
+/// reported** — the row that would have caught the E6 gate going dark.
+///
+/// The symbolic identity tier writes `symbolic_zero` rows; this lint
+/// refused that token as harness breakage and exited 1 on the first one,
+/// so every driver CSV was rejected unread while the CI row still
+/// reported success (a separate `PIPESTATUS` defect, fixed in ci.yml).
+/// Two things are pinned here: the file parses at all, and the counts
+/// SAY how many of its samples never met a threshold, so a population
+/// that is mostly symbolic cannot read as a clean classified one.
+#[test]
+fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
+    let path = csv(
+        "driver-symbolic.csv",
+        &format!(
+            "{HEADER}\n\
+             driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+             driver/slab_narrow,carrier_endpoint_start,0e0,1e-100,1e-50,symbolic_zero\n\
+             driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
+             driver/plate,carrier_endpoint_end,0e0,1e-100,1e-50,registered\n\
+             driver/slab_narrow,volume_backstop,2.0,1e-9,1e-8,positive\n"
+        ),
+    );
+    let out = run(&[&path]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "a symbolic zero answers to no rule, so this file is clean: {}",
+        stderr(&out)
+    );
+    let so = stdout(&out);
+    assert!(
+        so.contains(
+            "5 samples (2 symbolic_zero, 1 sign_gated, 1 registered, 1 classified), 0 flagged"
+        ),
+        "the per-file line separates the four populations: {so}"
+    );
+    assert!(
+        so.contains(
+            "TOTAL over 1 file(s): 5 samples (2 symbolic_zero, 1 sign_gated, 1 registered, 1 classified)"
+        ),
+        "and so does the TOTAL: {so}"
+    );
+}
+
 /// Findings anywhere in a MULTI-FILE run fail the whole run, and every
 /// file is scanned first: the CI row lints all three ε rows in one
 /// invocation, so an early clean file must not short-circuit the
@@ -167,9 +217,100 @@ fn findings_in_any_file_fail_the_run() {
     assert_eq!(out.status.code(), Some(2));
     let so = stdout(&out);
     assert_eq!(
-        so.matches("1 samples, 0 flagged").count(),
+        so.matches(
+            "1 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1 classified), 0 flagged"
+        )
+        .count(),
         2,
         "both clean files were scanned and reported: {so}"
     );
     assert!(stderr(&out).contains("1 margin(s)"));
+}
+
+/// **A row of an `EPS_COUPLED_UNRULED` name fails the run on its own**,
+/// with no flag anywhere — the fourth way this CLI can go red, and the
+/// one that does not depend on where a margin sits.
+///
+/// The name is ruled off rule (4) on the record that no sweep had
+/// recorded a row of it (`k_lint::EPS_COUPLED_UNRULED`). A row is that
+/// record expiring, so the verdict must name the ruling and must NOT
+/// lead with the margin-distribution wording, whose recourse is a
+/// baseline re-derivation that did not move. Both halves are asserted:
+/// the message the reader gets, and the one they must not.
+///
+/// The margin chosen is on the REFUSAL side and far above
+/// `BASELINE_FLOOR_MARGIN`, so every metre rule passes it clean — this
+/// row would be a silent green without the name gate.
+#[test]
+fn an_unruled_eps_coupled_row_fails_the_run_in_its_own_voice() {
+    let (name, _) = k_lint::EPS_COUPLED_UNRULED[0];
+    let path = csv(
+        "unruled.csv",
+        &format!("{HEADER}\ncorpus/x,{name},-1.83e-4,1e-12,1e-11,negative\n"),
+    );
+    let out = run(&[&path]);
+    let so = stdout(&out);
+    assert!(
+        so.contains("1 classified), 0 flagged"),
+        "no rule flagged this row, which is the point: {so}"
+    );
+    assert!(
+        so.contains(&format!("note: {name} carries 1 row(s)")),
+        "the note prints ahead of the verdict: {so}"
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "an unruled eps-coupled row is a finding: {so}"
+    );
+    let se = stderr(&out);
+    for pin in [
+        "GATE FAILED",
+        "a ruling's premise expired",
+        name,
+        "1 row(s)",
+        "deliberately OFF the rule (4)",
+        "Maintenance: this roster is a RECORD",
+        "Re-deriving BASELINE_FLOOR_MARGIN is NOT the recourse here",
+        "Changing geometry to get under a lint threshold is the one forbidden move",
+    ] {
+        assert!(se.contains(pin), "verdict missing {pin:?}: {se}");
+    }
+    assert!(
+        !se.contains("the margin distribution changed"),
+        "no margin crowded anything; that lead would send the reader to the wrong \
+         runbook: {se}"
+    );
+}
+
+/// The same row under `--gate-rule-1-only` is ADVISORY, like rules 2
+/// and 3 and for the same reason — it is a reading about the
+/// distribution, not the undecided margin rule 1 exists for. The E6
+/// driver row runs demoted, so this is the shape that row would see.
+///
+/// It must still SAY so: a demoted finding that prints nothing is a
+/// green over an expired ruling, which is the failure the whole list
+/// exists to stop.
+#[test]
+fn an_unruled_eps_coupled_row_is_demotable_but_never_silent() {
+    let (name, _) = k_lint::EPS_COUPLED_UNRULED[0];
+    let path = csv(
+        "unruled-demoted.csv",
+        &format!("{HEADER}\ncorpus/x,{name},-1.83e-4,1e-12,1e-11,negative\n"),
+    );
+    let out = run(&[std::path::Path::new("--gate-rule-1-only"), &path]);
+    assert_eq!(out.status.code(), Some(0), "demoted: {}", stderr(&out));
+    let so = stdout(&out);
+    assert!(
+        so.contains(&format!("1 advisory row(s) of {name}")),
+        "the demoted reading is still printed: {so}"
+    );
+    assert!(
+        so.contains("EPS_COUPLED_UNRULED row"),
+        "the demotion line names what it demoted: {so}"
+    );
+    assert!(
+        !so.contains("clean — no margin crowds"),
+        "a run carrying an expired ruling must not report itself clean: {so}"
+    );
 }

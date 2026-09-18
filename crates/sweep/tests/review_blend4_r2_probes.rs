@@ -25,7 +25,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig};
+use sweep::blend::{BlendError, Convexity, CornerConfig};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
@@ -368,10 +368,11 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
 /// refusing pose of this grid refuses at the battery's clearance
 /// screen (`FaceClearanceUncertified` — the sliver's setbacks explode
 /// faster than its wedge closes), and the pose family that slips past
-/// screening refuses MID-assembly at the description-attachment
-/// certification gate (`Op { site: "surgery contact edge", .. }`
-/// carrying a `TangentSecondOrder` escalation — the R1 probes' 0.2°
-/// skew). The independence and dihedral gates are the guards of the
+/// screening refuses TYPED at the blend door, through the must-carry
+/// rule over the corner arcs (`Escalated` at the link, carrying a
+/// `tangent_second_order` escalation — the R1 probes' 0.2° skew), or
+/// one step slimmer builds them as conventional chart images. The
+/// independence and dihedral gates are the guards of the
 /// exact zero, not the working frontier.
 ///
 /// A triangular prism with a closing apex drives the apex dihedral to
@@ -461,7 +462,7 @@ fn r2_the_concave_feet_land_on_their_walls_at_an_oblique_trihedron() {
     // Three DISTINCT wall points, so the solve is not handed a common
     // origin that would hide a per-wall offset error.
     let verts = [p(0.0, 0.5, 0.25), p(-0.3, 0.0, 0.75), p(0.0, 1.5, 0.0)];
-    let ball = corner_ball(verts, normals, r, false);
+    let ball = corner_ball(verts, normals, r, Convexity::Concave);
     for (i, n) in normals.iter().enumerate() {
         let rest = (ball.center - verts[i]).dot(*n);
         assert!(

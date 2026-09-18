@@ -355,26 +355,32 @@ pub fn leaf_histogram(
     measurement: crate::node::RecipeNodeId,
     tol: geom_core::Tol,
 ) -> LeafHistogram {
-    use geom_core::Bounds as _;
-
     let mut rows = Vec::new();
     let mut unplaced: Result<f64, MeasureUnavailable> = Ok(0.0);
+    let lane = verdict.lane();
     for leaf in verdict.certified() {
         let opts = crate::eval::EvalOptions {
             param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
             profile_lift: crate::eval::ProfileLift::Guided,
             ..crate::eval::EvalOptions::default()
         };
-        let ev: crate::eval::Evaluation<geom_core::Interval> =
-            crate::eval::evaluate(doc, None, &crate::eval::CancelToken::new(), &opts, tol);
-        let mass = leaf.box_.mass(analyzed);
-        let enclosure = match ev.result(measurement) {
-            Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
-                crate::eval::ValuePayload::Measure { value, .. } => Some((value.lo(), value.hi())),
-                _ => None,
+        // On the drive's own lane (`ParamBoxVerdict::symbolic`): a row
+        // this table cannot place is reported as unplaced mass, so a
+        // replay on the wrong lane would quietly move certified mass
+        // into the uncovered column.
+        let enclosure = crate::eval::replay_leaf(
+            doc,
+            &opts,
+            lane,
+            &crate::eval::LeafPrior::None,
+            crate::eval::LeafRequest {
+                measure: Some(measurement),
+                ..crate::eval::LeafRequest::default()
             },
-            _ => None,
-        };
+            tol,
+        )
+        .measure_bracket;
+        let mass = leaf.box_.mass(analyzed);
         match enclosure {
             Some(enclosure) => rows.push(HistogramRow {
                 leaf: crate::drive::render_box(&leaf.box_),

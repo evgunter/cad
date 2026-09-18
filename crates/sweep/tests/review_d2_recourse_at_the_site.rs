@@ -20,12 +20,7 @@
 
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{
-    BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
-    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-};
+use sweep::blend::{BlendError, FILLET3_BODY_RECOURSE, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use topo::query;
 
@@ -33,24 +28,18 @@ const L: f64 = 1.0;
 const R: f64 = 0.1;
 
 /// Every recourse sentence `fillet` can append, with a short name for
-/// the assertion message. Deliberately restated here rather than
-/// imported as the module's own `ALL` array: this suite is an
-/// independent derivation, and a constant dropped from that private
-/// array would silently weaken the "no foreign recourse" half.
-const ALL: [(&str, &str); 12] = [
-    ("radius", FILLET3_RADIUS_RECOURSE),
-    ("clearance", FILLET3_CLEARANCE_RECOURSE),
-    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
-    ("spine", FILLET3_SPINE_RECOURSE),
-    ("chain", FILLET3_CHAIN_RECOURSE),
-    ("convexity", FILLET3_CONVEXITY_RECOURSE),
-    ("corner", FILLET3_CORNER_RECOURSE),
-    ("assembly", FILLET3_ASSEMBLY_RECOURSE),
-    ("body", FILLET3_BODY_RECOURSE),
-    ("geometry", FILLET3_GEOMETRY_RECOURSE),
-    ("ring", FILLET3_RING_RECOURSE),
-    ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
-];
+/// the assertion message — read from [`ALL_RECOURSES`], the crate's one
+/// home for that list.
+///
+/// This array used to be restated here, with a written reason: the
+/// suite is "an independent derivation", so a constant dropped from the
+/// module's own private array must not silently weaken the "no foreign
+/// recourse" half. The reason did not survive contact — the copy had
+/// drifted to TWELVE of fifteen, so the three it was missing
+/// (clearance-split, seam-vertex, chamfer-arm) were precisely the three
+/// this half could no longer see. An independent copy checks nothing
+/// once it is out of date, and nothing was checking it.
+use sweep::blend::ALL_RECOURSES as ALL;
 
 /// Assert that the rendered refusal carries `expect` (or nothing, when
 /// `expect` is `None`) and NO other recourse sentence.

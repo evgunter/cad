@@ -142,16 +142,17 @@ fn fan_mev_across_a_circular_edge() {
         body.vertex_orbit(circ.he_plus),
         Some(vec![circ.he_plus, circ.he_minus])
     );
-    let f = body
-        .mev_line(
-            MevSite::Fan {
-                he1: circ.he_plus,
-                he2: circ.he_minus,
-            },
-            p(1.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: circ.he_plus,
+        he2: circ.he_minus,
+    };
+    // The certified door refuses: `circ+` would start at the new vertex
+    // while the circle it carries still runs from the old one.
+    assert!(matches!(
+        body.clone().mev_line(site, p(1.0), tol),
+        Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == circ.edge
+    ));
+    let f = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
     assert_eq!(body.vertices().count(), 2);

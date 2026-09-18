@@ -1,11 +1,16 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **four of them wired so far** (the count
+//! One tree, several duties — **five of them wired so far** (the count
 //! was stale before this crate gained its proximity lane; the bullets
 //! below are the roster, and LIVE/INTENDED is the truth of each):
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
+//! - **At-rest census pre-filter** — LIVE (`topo::census`): one tree
+//!   per entity class over a body's vertices, `Line` edges and planar
+//!   faces, and the five vertex-granular coincidence sweeps examine
+//!   [`Bvh::overlapping`]'s candidates instead of every pair, under the
+//!   same conservative-superset contract and the boolean sweep's pad.
 //! - **Placement separation** — LIVE (`topo::separation`): the
 //!   pairwise certificate that no two placed copies of a prototype
 //!   can meet.
@@ -91,6 +96,14 @@
 //! its allowlist, so a `T: Decide + Bounds` in this crate fires today —
 //! the 2026-07-29 amendment names the crate, but a ratification in the
 //! rule is not one in the allowlist.
+//!
+//! **That absence is deliberate, and is not a mismatch to close from
+//! this side.** Its home, with the reason a crate-wide filter is the
+//! wrong repair and the record that the first such red will be FALSE, is
+//! `scripts/gates/bounds-allowlist.sh`'s header, under *"A crate the
+//! rule names is not a filter"*. What is owed when that red lands is a
+//! per-FILE filter, written by the first file here that writes the
+//! compound form — not a ratification, and not an entry for the crate.
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!

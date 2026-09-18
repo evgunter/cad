@@ -10,26 +10,10 @@ use sweep::loft_body;
 // The corpus swept elbow is the kernel crate's fixture, not this
 // suite's: the falsification rows below need the SAME solid the
 // skin-integrality bracket and the STEP fixture meter.
-use sweep::test_support::swept_elbow;
+use sweep::test_support::{loft_prism, loft_prism_at, swept_elbow};
 use topo::Body;
 
-use crate::common;
-use common::quad;
 use geom_core::Tol;
-
-const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-
-fn loft_at(zs: &[f64]) -> Body<f64> {
-    let sections = vec![quad(SQ), quad(TRAP), quad(SQ)];
-    let places: Vec<Affine3<f64>> = zs
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("loft builds")
-        .body
-}
 
 /// A RATIONAL-walled loft (M8-5): a pie-slice profile whose curved
 /// side is a single-span arc (bulge 0.4 — safely under the quarter-turn
@@ -56,8 +40,11 @@ fn rational_pie() -> Body<f64> {
 /// default build never tessellates".
 fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
     [
-        ("loft_prism", loft_at(&[0.0, 1.0, 2.0])),
-        ("nonuniform_loft", loft_at(&[0.0, 1.0, 3.0])),
+        ("loft_prism", loft_prism(Tol::witness())),
+        (
+            "nonuniform_loft",
+            loft_prism_at(&[0.0, 1.0, 3.0], Tol::witness()),
+        ),
         ("swept_elbow", swept_elbow(Tol::witness())),
         // Promoted from the Z1R frontier pin at M8-3: the rational
         // wall's arc cap rim now mints a stored pcurve
@@ -89,26 +76,24 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// ci.yml's "mesh budget meter + certificate falsifier
 /// (feature = budget)" row (mirrored by local-scripts/ci-local.sh).
 ///
-/// **FREQUENCY, corrected 2026-08-22 — this row is no longer
-/// unconditional.** That step rides `k-lint`'s `dev-budget` feature
-/// row, and `k-lint` now SAMPLES one of its five feature unifications
-/// per run, so the falsifier runs on an expected 1 run in 5 rather than
-/// on every build-triggering change. The draw is seeded from the head
-/// SHA under its own salt, so a re-run of one commit draws the same row
-/// and the draw is recoverable from the SHA without the logs;
-/// repetition covers the matrix at this repository's ~60 runs/hour of
-/// active work.
+/// **FREQUENCY: unconditional, which is M8-5 MIN-1's intent as it was
+/// written.** That step rides `k-lint`'s `dev-budget` feature row, and
+/// every code-tier run gates all five of that job's unifications as five
+/// matrix legs, so the falsifier runs on every build-triggering change.
 ///
-/// M8-5 MIN-1's intent survives the change, and the reason is specific
-/// rather than reassuring: this row is a PERSISTENCE detector. A
+/// **It was 1 run in 5 from 2026-08-22 to 2026-09-04**, when the row was
+/// drawn from the head SHA and this comment said MIN-1's intent was met
+/// in a weaker form. It is not weaker now. What licensed the draw while
+/// it lasted is worth keeping, because it is what a future draw would
+/// have to argue again: this row is a PERSISTENCE detector — a
 /// certificate that stopped dominating its own samples stays broken in
-/// the tree, so a later draw still finds it — the red is deferred, not
-/// lost. Sampling would NOT be sound for a detector of absence (a row
-/// deleted, or a gate sited where it cannot fire), because an absence
-/// merges silently once and leaves no future red; that class stays
-/// unconditional elsewhere in CI. What has moved, twice now, is which
-/// build the row rides in and how often it is drawn — never whether
-/// the claim is checked.
+/// the tree, so a later draw still found it, and the red was deferred
+/// rather than lost. Sampling would NOT be sound for a detector of
+/// absence (a row deleted, or a gate sited where it cannot fire),
+/// because an absence merges silently once and leaves no future red;
+/// that class stays unconditional elsewhere in CI. What has moved,
+/// three times now, is which build the row rides in and how often —
+/// never whether the claim is checked.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is
 /// what keeps `mesh::tessellate`'s typed-error contract out of reach
@@ -211,7 +196,7 @@ fn z1_fixtures_still_tessellate_with_the_falsifier_gated_out() {
 /// typed at the chord pass, before any Mesh exists.
 #[test]
 fn z2_detached_pcurve_refuses_typed() {
-    let mut body = loft_at(&[0.0, 1.0, 2.0]);
+    let mut body = loft_prism(Tol::witness());
     let hek = body
         .pcurves()
         .map(|(h, _)| h)
@@ -260,7 +245,7 @@ fn z5_positions_hash_stamp() {
 #[test]
 fn z3_fine_nurbs_vs_coarse_planar_neighbor_watertight() {
     for delta in [5e-4, 2e-4] {
-        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta, Tol::witness())
+        let mesh = mesh::tessellate(&loft_prism(Tol::witness()), delta, Tol::witness())
             .expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight at fine delta");
     }

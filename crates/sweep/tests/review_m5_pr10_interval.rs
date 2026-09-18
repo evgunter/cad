@@ -9,14 +9,14 @@
 use geom::NurbsSurface;
 use geom_brep::SketchSegment;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
-use sweep::skin::{lift_surface, loft_geometry, segment_curve, sweep_geometry};
+use sweep::skin::{loft_geometry, segment_curve, sweep_geometry};
 
 use crate::common;
 use common::chain;
 use geom_core::Tol;
 
 fn contained(surface: &NurbsSurface<f64>, grid: usize) {
-    let lifted = lift_surface::<Interval>(surface).expect("lifts");
+    let lifted = surface.map_scalar(Interval::from_f64);
     for i in 0..=grid {
         let u = i as f64 / grid as f64;
         for j in 0..=grid {

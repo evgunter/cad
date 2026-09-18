@@ -18,6 +18,9 @@
 //! does not cover (issue #1384) are all [`crate::seats`]'s — this tool
 //! is that value with two roles and a commit door, exactly as the four
 //! combining tools are.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Expr, ProfileProgram, RecipeNodeId};
 

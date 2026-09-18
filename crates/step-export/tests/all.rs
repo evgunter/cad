@@ -65,6 +65,8 @@ mod m5_s11_same_sense;
 mod m6_6_sense_gate;
 #[path = "m7_swept_elbow.rs"]
 mod m7_swept_elbow;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
 #[path = "r2_probes.rs"]
@@ -74,11 +76,4 @@ mod rev_probe;
 #[path = "review_k4_probe.rs"]
 mod review_k4_probe;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();

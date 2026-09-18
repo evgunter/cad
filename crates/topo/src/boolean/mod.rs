@@ -6,9 +6,13 @@
 //! (F1/F2), vertex-vertex sector classification, vertex-on-face
 //! classification with the ring insertion, on-edge machinery, and
 //! paired null-edge insertion with explicit cross-body correspondence
-//! keys (F9/F12). NO joining, NO result generation, NO containment
-//! fallback — those are PR 5. Both operands are functionally untouched
-//! (annotated clones come back in [`BooleanReduction`]).
+//! keys (F9/F12). [`boolean_reduce`] itself stops there: both operands
+//! are functionally untouched and the annotated clones come back in
+//! [`BooleanReduction`]. Joining, result generation and the
+//! containment fallback are the module's too — they arrived with PR 5
+//! and after, and [`BooleanError`] carries their refusals — so a
+//! reader deciding what belongs in this file should read the pipeline
+//! below, not this paragraph, as its boundary.
 //!
 //! Pipeline of [`boolean_reduce`]:
 //!
@@ -102,6 +106,9 @@ use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
+// Crate-internal: tier 3's check 9 gates its nesting arm on the same
+// loop classification this module's own walk dispatches on.
+pub(crate) use contain::{LoopShape, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -120,8 +127,13 @@ pub use rest::{
     TangentLocus, TangentLocusError, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation, tangent_locus,
 };
-pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
-pub use voids::{VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void};
+pub use solid_contain::{
+    PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
+    point_in_solid_of,
+};
+pub use voids::{
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
+};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
@@ -138,6 +150,35 @@ pub enum BooleanOp {
     Intersect,
     /// A ∖* B.
     Subtract,
+}
+
+impl BooleanOp {
+    /// **Every operation this enum names**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// A list cannot be derived from a match in safe Rust, so SOMEONE
+    /// writes it by hand; the only question is where. Written here, it
+    /// sits in the crate whose exhaustive matches over `BooleanOp`
+    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// a fourth operation — so the author adding one is already in this
+    /// module with the list in front of them, and the
+    /// `all_is_every_operation` census below puts a second visit right
+    /// beside it. **Neither forces the edit**: what they force is that
+    /// the author is here and has to decide, and the census's own doc
+    /// measures how far short of forcing it stops. A copy in a
+    /// downstream crate gets not even that. The enum is closed, so a
+    /// consumer's own exhaustive match does fence THAT consumer; but
+    /// nothing ties an array literal to a variant list, so a downstream
+    /// list of three stays three with no error anywhere and no author
+    /// standing over it.
+    ///
+    /// So this is the list downstream reads instead of writing its own
+    /// — `crates/editor-core`'s wire table and the viewer's operation
+    /// buttons both iterate it — and the ordering caveat on the type
+    /// holds for it too: it is declaration order, and a consumer that
+    /// renders it renders an arbitrary order, not a ranked one.
+    pub const ALL: &'static [BooleanOp] =
+        &[BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
 }
 
 /// Which operand a key belongs to (keys are body-lineage-scoped;
@@ -538,6 +579,40 @@ pub struct BooleanReduction<T: Real> {
 }
 
 impl<T: Real> BooleanReduction<T> {
+    /// Opens a surgery scope on each operand body — the join's
+    /// declaration that tier 1 is paid once per operand at its end
+    /// rather than once per Euler operator inside it
+    /// ([`crate::surgery`]).
+    ///
+    /// **Guardless, and this is one of the two sites in the crate
+    /// where it has to be.** A [`crate::Surgery`] would borrow
+    /// `self.a` for the scope's whole span, and the join takes the
+    /// WHOLE reduction — both bodies, the contacts, the null-edge
+    /// records — so the guard and the call cannot both exist. What
+    /// makes the pair safe here is that the reduction is a local of
+    /// the pipeline that opened it: a refusal on the way drops it, and
+    /// no later call can reach a body a scope was left open on.
+    pub(crate) fn enter_join_surgery(&mut self) {
+        self.a.enter_surgery();
+        self.b.enter_surgery();
+    }
+
+    /// Closes both scopes [`Self::enter_join_surgery`] opened, sweeping
+    /// each operand **only if the join succeeded**.
+    ///
+    /// A refusal mid-join leaves a partially carved operand that no
+    /// door undertook to certify — and the REST lane puts the pristine
+    /// clones back over it — so the sweep is the success path's.
+    pub(crate) fn leave_join_surgery(&mut self, joined: bool) {
+        if joined {
+            self.a.leave_surgery_and_sweep();
+            self.b.leave_surgery_and_sweep();
+        } else {
+            self.a.leave_surgery();
+            self.b.leave_surgery();
+        }
+    }
+
     /// The minted null edges of one operand's clone, insertion order —
     /// PR 5 (joining) walks each solid's scaffolding separately; this
     /// is the per-operand view of [`Self::null_edges`].
@@ -670,6 +745,29 @@ pub enum BooleanError {
         operand: Operand,
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
+    },
+    /// A vertex sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from [`BooleanError::Escalated`] on
+    /// purpose — nothing about this is a band question, and no
+    /// tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
+    /// A vertex sector's bounding chord has a length that **underflowed
+    /// out of the format**: its components are too small for the norm
+    /// to hold (below ~1e-162 at `f64`), so it measures exactly zero
+    /// while still naming a direction. Distinct from
+    /// [`BooleanError::Escalated`] on purpose — nothing about this is
+    /// a band question, and no tolerance lever reaches it.
+    UnderflowedSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
     },
     /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine
@@ -1014,15 +1112,25 @@ pub enum BooleanError {
     /// Which of the two holds is a RADIUS-equality question, and
     /// radius equality is structural or declared and never inferred
     /// from values (`geom_brep::RadiusEvidence`, the coincidence
-    /// ladder). No declaration channel reaches this dispatch, so it
-    /// refuses on the axis relation alone rather than reading the
-    /// radii. Recourse: a chord lane that can walk a self-intersecting
-    /// section, or geometry whose germ pairs are wired.
+    /// ladder). The germ site reads the answer off the lowered
+    /// parameter-identity channel (`crate::param_source`) and this
+    /// refusal carries it as `evidence`: `Declared` names the
+    /// equal-radius pinch as a PROVEN configuration — the closed form
+    /// was constructed and verified against the geometry on the way —
+    /// while `None` leaves the question open and refuses on the axis
+    /// relation alone. Neither reads the radii. Recourse: a chord lane
+    /// that can walk a self-intersecting section, or geometry whose
+    /// germ pairs are wired.
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,
         /// The B-side germ face.
         b_face: FaceKey,
+        /// The radius-equality evidence the germ site read off the
+        /// lowered parameter-identity channel
+        /// (`crate::param_source`) — which of the two shapes named in
+        /// the message the locus actually has.
+        evidence: geom_brep::RadiusEvidence,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -1113,6 +1221,187 @@ pub enum BooleanError {
     /// bitwise-identical inputs make this unreachable for well-formed
     /// grafts; loud, never a dangling reference).
     GraftRecertify(geom_brep::CertifyError),
+}
+
+/// Which arm of [`BooleanError`] refused — the discriminant alone,
+/// with no payload.
+///
+/// [`BooleanError`] derives `Debug` and nothing else: its arms carry
+/// arena keys, nested kernel refusals and margin diagnostics whose
+/// scalars are floats, so the error is neither `Clone` nor `PartialEq`
+/// and a consumer that wants the CLASS of a refusal back out of it has
+/// only the prose to substring-match. This projection drops exactly
+/// the part that cannot be cloned or compared, so the class rides
+/// where the error itself cannot: into a `Clone + PartialEq` finding
+/// record, a hash key, a test assertion, an FFI tag map.
+///
+/// One variant per [`BooleanError`] arm, and [`BooleanError::kind`]
+/// matches exhaustively — an arm added to the error reds `kind` itself,
+/// here in this crate. It reds nothing downstream, because no consumer
+/// maps this enum yet: today it appears only as a field type on
+/// `editor_core::CheckEvidence` and in this module's tests.
+///
+/// A variant HERE with no arm behind it is a phantom: nothing
+/// constructs it, so no test can reach it. Since there is no
+/// downstream map to red, this module's tests carry the visit that
+/// does — an exhaustive match over this enum, which names the phantom
+/// at compile time. The fix at that red is to delete the phantom,
+/// never to give it a tag: a tag minted for a phantom publishes a name
+/// no refusal can ever carry.
+///
+/// Deliberately NOT `Ord`. The declaration order mirrors
+/// [`BooleanError`]'s for reading, and nothing depends on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BooleanErrorKind {
+    /// [`BooleanError::Band`].
+    Band,
+    /// [`BooleanError::CurvedBooleanUnsupported`].
+    CurvedBooleanUnsupported,
+    /// [`BooleanError::CurvedSectorSideUnsupported`].
+    CurvedSectorSideUnsupported,
+    /// [`BooleanError::CurvedPierceUnsupported`].
+    CurvedPierceUnsupported,
+    /// [`BooleanError::CurvedEdgeUnsupported`].
+    CurvedEdgeUnsupported,
+    /// [`BooleanError::PointSplitCarrierUnsupported`].
+    PointSplitCarrierUnsupported,
+    /// [`BooleanError::ArcLoopContainmentUnsupported`].
+    ArcLoopContainmentUnsupported,
+    /// [`BooleanError::ScaffoldingOperand`].
+    ScaffoldingOperand,
+    /// [`BooleanError::NonMaximalFaces`].
+    NonMaximalFaces,
+    /// [`BooleanError::NonFiniteSectorChord`].
+    NonFiniteSectorChord,
+    /// [`BooleanError::UnderflowedSectorChord`].
+    UnderflowedSectorChord,
+    /// [`BooleanError::Escalated`].
+    Escalated,
+    /// [`BooleanError::UndeclaredCoincidence`].
+    UndeclaredCoincidence,
+    /// [`BooleanError::DeclarationContradicted`].
+    DeclarationContradicted,
+    /// [`BooleanError::ContactContradicted`].
+    ContactContradicted,
+    /// [`BooleanError::UnsupportedDeclarationClass`].
+    UnsupportedDeclarationClass,
+    /// [`BooleanError::RimSeamNotDeclarable`].
+    RimSeamNotDeclarable,
+    /// [`BooleanError::RimCuspArmUnbuilt`].
+    RimCuspArmUnbuilt,
+    /// [`BooleanError::InvalidDeclaration`].
+    InvalidDeclaration,
+    /// [`BooleanError::PairingMismatch`].
+    PairingMismatch,
+    /// [`BooleanError::ClassificationInvariant`].
+    ClassificationInvariant,
+    /// [`BooleanError::CorruptOperand`].
+    CorruptOperand,
+    /// [`BooleanError::CrossingInsertion`].
+    CrossingInsertion,
+    /// [`BooleanError::CurvedPairUnsupported`].
+    CurvedPairUnsupported,
+    /// [`BooleanError::NurbsExtentUnsupported`].
+    NurbsExtentUnsupported,
+    /// [`BooleanError::FallbackExtentUnsupported`].
+    FallbackExtentUnsupported,
+    /// [`BooleanError::GermFrameUnsupported`].
+    GermFrameUnsupported,
+    /// [`BooleanError::GermFrameCylinderPinch`].
+    GermFrameCylinderPinch,
+    /// [`BooleanError::Euler`].
+    Euler,
+    /// [`BooleanError::Pcurves`].
+    Pcurves,
+    /// [`BooleanError::Join`].
+    Join,
+    /// [`BooleanError::RestZipUnsupported`].
+    RestZipUnsupported,
+    /// [`BooleanError::JoinDesync`].
+    JoinDesync,
+    /// [`BooleanError::TornComponent`].
+    TornComponent,
+    /// [`BooleanError::Containment`].
+    Containment,
+    /// [`BooleanError::Revert`].
+    Revert,
+    /// [`BooleanError::SeamOrientation`].
+    SeamOrientation,
+    /// [`BooleanError::ZipCorrespondence`].
+    ZipCorrespondence,
+    /// [`BooleanError::Merge`].
+    Merge,
+    /// [`BooleanError::ResultInvalid`].
+    ResultInvalid,
+    /// [`BooleanError::ResultVolumeImplausible`].
+    ResultVolumeImplausible,
+    /// [`BooleanError::UnrepresentableResult`].
+    UnrepresentableResult,
+    /// [`BooleanError::GraftRecertify`].
+    GraftRecertify,
+}
+
+impl BooleanError {
+    /// Which arm refused, without the payload.
+    ///
+    /// Exhaustive over [`BooleanError`]: adding an arm there is a
+    /// compile error here and in every consumer that maps this enum.
+    #[must_use]
+    pub fn kind(&self) -> BooleanErrorKind {
+        match self {
+            Self::Band(_) => BooleanErrorKind::Band,
+            Self::CurvedBooleanUnsupported { .. } => BooleanErrorKind::CurvedBooleanUnsupported,
+            Self::CurvedSectorSideUnsupported { .. } => {
+                BooleanErrorKind::CurvedSectorSideUnsupported
+            }
+            Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
+            Self::PointSplitCarrierUnsupported { .. } => {
+                BooleanErrorKind::PointSplitCarrierUnsupported
+            }
+            Self::ArcLoopContainmentUnsupported { .. } => {
+                BooleanErrorKind::ArcLoopContainmentUnsupported
+            }
+            Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
+            Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
+            Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
+            Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
+            Self::Escalated { .. } => BooleanErrorKind::Escalated,
+            Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
+            Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
+            Self::ContactContradicted { .. } => BooleanErrorKind::ContactContradicted,
+            Self::UnsupportedDeclarationClass { .. } => {
+                BooleanErrorKind::UnsupportedDeclarationClass
+            }
+            Self::RimSeamNotDeclarable { .. } => BooleanErrorKind::RimSeamNotDeclarable,
+            Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::InvalidDeclaration { .. } => BooleanErrorKind::InvalidDeclaration,
+            Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
+            Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
+            Self::CorruptOperand { .. } => BooleanErrorKind::CorruptOperand,
+            Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
+            Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
+            Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
+            Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
+            Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
+            Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
+            Self::Euler(_) => BooleanErrorKind::Euler,
+            Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
+            Self::Join(_) => BooleanErrorKind::Join,
+            Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
+            Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
+            Self::Containment(_) => BooleanErrorKind::Containment,
+            Self::Revert(_) => BooleanErrorKind::Revert,
+            Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
+            Self::ZipCorrespondence { .. } => BooleanErrorKind::ZipCorrespondence,
+            Self::Merge(_) => BooleanErrorKind::Merge,
+            Self::ResultInvalid { .. } => BooleanErrorKind::ResultInvalid,
+            Self::ResultVolumeImplausible { .. } => BooleanErrorKind::ResultVolumeImplausible,
+            Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
+            Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
+        }
+    }
 }
 
 impl From<BandError> for BooleanError {
@@ -1306,7 +1595,11 @@ impl core::fmt::Display for BooleanError {
                 a_kind.name(),
                 b_kind.name(),
             ),
-            Self::GermFrameCylinderPinch { a_face, b_face } => write!(
+            Self::GermFrameCylinderPinch {
+                a_face,
+                b_face,
+                evidence,
+            } => write!(
                 f,
                 "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
                  is two cylinder walls whose axes definitely intersect, and that pair has \
@@ -1314,17 +1607,34 @@ impl core::fmt::Display for BooleanError {
                  bisector-plane ellipses, which CROSS at the two points p ± r·n̂ where \
                  n̂ = unit(a1 x a2) — the walls are mutually tangent there — four arcs at \
                  two valence-4 pinch \
-                 vertices, not one conic — and this dispatch is keyed on surface kinds \
-                 alone, so it has no point with which to select a branch. With unequal \
+                 vertices, not one conic, so no point selects a branch. With unequal \
                  radii the locus is a space quartic and has no conic frame at all. Which \
-                 holds is a radius-equality question, and radius equality is structural or \
-                 declared and never inferred from values. Recourse: a chord lane that walks \
-                 a self-intersecting section, or geometry whose germ pairs are wired",
+                 holds is a radius-equality question, answered by the lowered \
+                 parameter-identity channel and never inferred from values: this pair's \
+                 evidence is {evidence:?} — Declared means the ellipse pair, verified \
+                 against the geometry; None means no declaration exists and the pair \
+                 routes the general rung with the question open. Recourse: a chord lane \
+                 that walks a self-intersecting section, geometry whose germ pairs are \
+                 wired, or a document that declares the shared radius",
             ),
             Self::Pcurves { source } => write!(
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
                  certified per-half-edge pcurves at rest): {source}"
+            ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
+            ),
+            Self::UnderflowedSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
+                 length that underflowed out of the format \u{2014} its components are too \
+                 small for the norm to hold, so it measures exactly zero while still \
+                 naming a direction; no tolerance reaches this, scale the geometry into \
+                 the session's range"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -1673,8 +1983,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
-    let mut a = a_operand.clone();
-    let mut b = b_operand.clone();
+    // The reduction carves both operand clones through the Euler
+    // operators; tier 1 is paid once per clone at the end of the
+    // phase rather than once per operator (`crate::surgery`). Two
+    // guards over two locals: each owns its own borrow, so a refusal
+    // on the way closes both scopes by dropping them.
+    let mut carved_a = a_operand.clone();
+    let mut carved_b = b_operand.clone();
+    let mut a = carved_a.begin_surgery();
+    let mut b = carved_b.begin_surgery();
 
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
@@ -1773,10 +2090,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
     }
 
+    a.sweep_and_close();
+    b.sweep_and_close();
     Ok(BooleanReduction {
         op,
-        a,
-        b,
+        a: carved_a,
+        b: carved_b,
         contacts,
         null_edges,
         null_pairs,
@@ -1945,17 +2264,29 @@ fn verify_tangent_declaration<T: Decide>(
         }
     }
     // 2. The DEV-1 witness locus.
-    let surface_of = |body: &Body<T>, f: FaceKey, operand| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .cloned()
-            .ok_or(BooleanError::InvalidDeclaration {
-                operand,
-                what: "declared face lost its surface",
-            })
-    };
-    let sa = surface_of(a, fa, Operand::A)?;
-    let sb = surface_of(b, fb, Operand::B)?;
+    //
+    // **One resolution per declared face, carrying both halves.** The
+    // carrier and the orientation BIT are two facts about the same
+    // `&Face`, and everything below reads them off this one lookup: a
+    // key that does not resolve refuses typed HERE, so no later stage
+    // can answer from a sense it invented for a face that is not
+    // there. The two ways a key can fail are different findings and
+    // are named apart, in `validate_declarations`' own vocabulary: a
+    // key with no FACE behind it did not resolve, and a face whose
+    // surface key is stale lost its surface.
+    let face_of =
+        |body: &Body<T>, f: FaceKey, operand| -> Result<(geom::Surface<T>, bool), BooleanError> {
+            let invalid = |what| BooleanError::InvalidDeclaration { operand, what };
+            let face = body
+                .get_face(f)
+                .ok_or_else(|| invalid("declared face key does not resolve"))?;
+            let surface = body
+                .get_surface(face.surface)
+                .ok_or_else(|| invalid("declared face lost its surface"))?;
+            Ok((surface.clone(), face.sense))
+        };
+    let (sa, sense_a) = face_of(a, fa, Operand::A)?;
+    let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
@@ -1989,14 +2320,6 @@ fn verify_tangent_declaration<T: Decide>(
             let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
                 .map_err(|diag| BooleanError::Escalated { diag })?;
             if let Some(rim) = rim {
-                let (sa, sb) = (
-                    surface_of(a, fa, Operand::A)?,
-                    surface_of(b, fb, Operand::B)?,
-                );
-                let senses = |body: &Body<T>, f: FaceKey| {
-                    body.get_face(f)
-                        .map_or_else(T::one, |face| face.sense_sign::<T>())
-                };
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
                 // material arm's and the rim identification's alike:
@@ -2004,15 +2327,8 @@ fn verify_tangent_declaration<T: Decide>(
                 // consumed, and three stages levering against three
                 // different arms would not be comparable.
                 let extent = rim.radius + rim.radius;
-                match rim_wedge::classify_shared_rim(
-                    &sa,
-                    senses(a, fa),
-                    &sb,
-                    senses(b, fb),
-                    rim,
-                    extent,
-                    band,
-                ) {
+                match rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
+                {
                     // Wedge π: the arm is built and it answered; the
                     // declaration is what is wrong.
                     Ok(rim_wedge::RimRouting::Seam) => {
@@ -2241,6 +2557,50 @@ fn validate_declarations<T: Decide>(
 mod tests {
     use super::*;
 
+    /// **[`BooleanOp::ALL`] holds each operation once, and an
+    /// operation added to the enum cannot reach a release without
+    /// someone reading this row** — the idiom `VerbKind::ALL`
+    /// (`crates/verbs/src/verb.rs`) and `SurfaceField::ALL`
+    /// (`crates/topo/src/param_source.rs`) are held to.
+    ///
+    /// **What is forced**: the match below is exhaustive with no
+    /// wildcard, so an operation added to the enum fails this file
+    /// until it is visited here. And the no-repeats half is what makes
+    /// the count a census rather than a length: with every entry
+    /// distinct, a `len` equal to `ops` means `ALL` holds each of them
+    /// exactly once.
+    ///
+    /// **What is NOT forced, measured**: `ops` itself. Every arm names
+    /// the same total so that visiting means re-deciding it — but
+    /// nothing checks that number against the enum, and the arm an
+    /// author adds is the arm they copied. A fourth variant with the
+    /// arm `Xor => 3` compiles and passes GREEN with `Xor` absent from
+    /// `ALL`. The row forces the visit, not the edit. That is the
+    /// idiom's hole and not this row's alone — it is inherited from the
+    /// two censuses cited above — so it is filed as
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// rather than patched here in one of three places.
+    #[test]
+    fn all_is_every_operation() {
+        let ops = match BooleanOp::Union {
+            BooleanOp::Union => 3,
+            BooleanOp::Intersect => 3,
+            BooleanOp::Subtract => 3,
+        };
+        for (i, op) in BooleanOp::ALL.iter().enumerate() {
+            assert!(
+                !BooleanOp::ALL[..i].contains(op),
+                "{op:?} appears twice in BooleanOp::ALL"
+            );
+        }
+        assert_eq!(
+            BooleanOp::ALL.len(),
+            ops,
+            "BooleanOp::ALL has drifted from the declaration — it holds {} operations, the enum has {ops}",
+            BooleanOp::ALL.len()
+        );
+    }
+
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
     /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
@@ -2292,6 +2652,45 @@ mod tests {
         assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
+    /// The non-finite chord arm names the lane, the vertex and the
+    /// face, gives the cause and a recourse that can WORK, and offers
+    /// the coincidence recourse ZERO times — no tolerance lever
+    /// reaches an overflowed chord, so naming one would be the
+    /// wrong-recourse defect `memories/refusal-text-is-not-cause.md`
+    /// is about.
+    ///
+    /// This and the `SplitReduceError` twin are the only direct pins
+    /// on the two wrapper arms: there is no end-to-end row that drives
+    /// a real `Body` into `sector_shape`'s rung 0, because that needs
+    /// an orbit chord past ~1e154 surviving body construction. The
+    /// translation itself (`SectorFault::NonFiniteChord` to this arm)
+    /// is held by the exhaustive `map_err` in `sectors.rs` and by
+    /// nothing else.
+    #[test]
+    fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
+        let msg = BooleanError::NonFiniteSectorChord {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        }
+        .to_string();
+        assert!(msg.contains("boolean_reduce:"), "{msg}");
+        assert!(msg.contains("has no finite length"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
+        assert!(!msg.contains("zero length"), "{msg}");
+        assert_eq!(
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+            }
+            .kind(),
+            BooleanErrorKind::NonFiniteSectorChord
+        );
+    }
+
     /// The M5 S1 sub-frontier refusal follows the two-tolerance
     /// message shape: it names the lane and the precise sub-frontier
     /// and composes the shared recourse exactly once.
@@ -2304,5 +2703,287 @@ mod tests {
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         assert!(msg.contains("contact patch face carries rings"), "{msg}");
         assert!(msg.contains("declared-REST union zip"), "{msg}");
+    }
+
+    /// **A declared face key that resolves to no face refuses typed,
+    /// naming what happened.** The `Tangent` verifier reads two facts
+    /// off each declared face — its carrier and its orientation bit —
+    /// and takes both from ONE resolution, so a key with no face
+    /// behind it cannot reach a material verdict through a sense the
+    /// door invented for it. The public entry refuses such a key
+    /// earlier still, which is why this row calls the verifier
+    /// directly: defence in depth is only depth if the inner layer is
+    /// exercised.
+    ///
+    /// **This is a REGRESSION pin, not an anti-vacuity row**, and the
+    /// distinction is worth having in writing: the refusal is not new
+    /// — the carrier resolution at this position always refused a
+    /// stale key — so nothing here goes red for the fold alone. Two
+    /// things together would red it: the one resolution split back
+    /// into two, AND a key that resolves to a face whose surface is
+    /// missing rather than to no face at all. What it therefore pins
+    /// is the `what` string, because that is the half that WAS wrong:
+    /// a key with no face behind it used to report the face's surface
+    /// as lost, conflating the two findings `validate_declarations`
+    /// already distinguishes.
+    #[test]
+    fn a_declared_face_that_does_not_resolve_refuses_typed() {
+        let empty = Body::<f64>::new();
+        let err = verify_tangent_declaration(
+            &empty,
+            FaceKey::default(),
+            &empty,
+            FaceKey::default(),
+            Band::new(1e-9, 1e-8).unwrap(),
+        )
+        .expect_err("a key with no face behind it cannot be verified");
+        assert!(
+            matches!(
+                err,
+                BooleanError::InvalidDeclaration {
+                    operand: Operand::A,
+                    what: "declared face key does not resolve",
+                }
+            ),
+            "a missing declared face is a caller bug, not a classification, and the \
+             refusal says which caller bug it is: {err:?}"
+        );
+    }
+
+    /// One [`BooleanError`] per arm whose payload is keys, spans,
+    /// enums and `&'static str` — everything the projection can be
+    /// checked on without reaching into another crate's error type.
+    /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
+    /// `Revert`, `GraftRecertify`, `CrossingInsertion`) are absent by
+    /// the same rule.
+    fn sample_errors() -> Vec<BooleanError> {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band,
+            predicate: Some("bool_plane_offset"),
+        };
+        let face = FaceKey::default();
+        let edge = EdgeKey::default();
+        let declaration = crate::contact::DeclaredContact {
+            a: face,
+            b: face,
+            class: ContactClass::Rest,
+        };
+        vec![
+            BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
+            BooleanError::CurvedBooleanUnsupported {
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Cone,
+            },
+            BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face,
+            },
+            BooleanError::CurvedPierceUnsupported {
+                operand: Operand::A,
+                face,
+                edge,
+                band,
+            },
+            BooleanError::CurvedEdgeUnsupported {
+                operand: Operand::B,
+                edge,
+            },
+            BooleanError::PointSplitCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::ArcLoopContainmentUnsupported {
+                operand: Operand::A,
+                r#loop: crate::entity::LoopKey::default(),
+            },
+            BooleanError::ScaffoldingOperand {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::NonMaximalFaces {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::Escalated { diag },
+            BooleanError::UndeclaredCoincidence {
+                diag,
+                pair: [(Operand::A, face), (Operand::B, face)],
+                relation: PlaneRelation::SameOpposite,
+            },
+            BooleanError::DeclarationContradicted { diag },
+            BooleanError::ContactContradicted {
+                declaration,
+                margin: diag,
+                steer: None,
+            },
+            BooleanError::UnsupportedDeclarationClass {
+                class: ContactClass::Tangent,
+            },
+            BooleanError::RimSeamNotDeclarable { declaration },
+            BooleanError::InvalidDeclaration {
+                operand: Operand::A,
+                what: "a stale key",
+            },
+            BooleanError::PairingMismatch {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
+            BooleanError::ClassificationInvariant {
+                what: "an invariant",
+            },
+            BooleanError::CorruptOperand {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+            },
+            BooleanError::CurvedPairUnsupported {
+                op: None,
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Cone,
+                other_face: face,
+                other_kind: geom_brep::SurfaceKind::Plane,
+            },
+            BooleanError::NurbsExtentUnsupported {
+                operand: Operand::A,
+                face,
+            },
+            BooleanError::FallbackExtentUnsupported {
+                operand: Operand::A,
+                face,
+                what: "an uncertifiable pose",
+            },
+            BooleanError::GermFrameUnsupported {
+                a_face: face,
+                a_kind: geom_brep::SurfaceKind::Cone,
+                b_face: face,
+                b_kind: geom_brep::SurfaceKind::Torus,
+            },
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+                evidence: geom_brep::RadiusEvidence::None,
+            },
+            BooleanError::Pcurves {
+                source: crate::pcurves::PcurveMintError::Corrupt,
+            },
+            BooleanError::RestZipUnsupported {
+                what: "a sub-frontier",
+            },
+            BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::TornComponent {
+                operand: Operand::A,
+                shell: ShellKey::default(),
+            },
+            BooleanError::Containment(
+                crate::boolean::solid_contain::PointInSolidError::RayExhausted,
+            ),
+            BooleanError::SeamOrientation {
+                a_face: face,
+                b_face: face,
+            },
+            BooleanError::ZipCorrespondence { what: "a record" },
+            BooleanError::ResultInvalid { errors: Vec::new() },
+            BooleanError::ResultVolumeImplausible {
+                which: "vol(A ∖ B) ≤ vol(A)",
+                got: "1.0".to_owned(),
+                bound: "0.5".to_owned(),
+            },
+            BooleanError::UnrepresentableResult,
+        ]
+    }
+
+    /// **The phantom direction, closed by the compiler; the pairing
+    /// direction, closed by construction.**
+    ///
+    /// [`BooleanError::kind`] is exhaustive over the ERROR, so an arm
+    /// added there reds this crate. `label` below is exhaustive over
+    /// the KIND, so a variant added to [`BooleanErrorKind`] alone reds
+    /// HERE, by name, in the crate that owns both — rather than in
+    /// whatever downstream crate next maps the enum, of which there are
+    /// currently none. `path_error_tag`
+    /// (`crates/pncad-py/src/tags.rs`) and the `VerbKind::ALL` census
+    /// (`crates/verbs/src/verb.rs`) are the in-tree precedents for
+    /// guarding a hand-written mirror with a compile-time visit.
+    ///
+    /// Neither exhaustiveness objects to an arm PROJECTED to the wrong
+    /// kind, which type-checks. That is what the errors below are for:
+    /// each is built, projected, and its kind's name compared with the
+    /// variant name `Debug` prints for the error itself, so a
+    /// mis-projected arm and a mis-labelled arm both fail here with no
+    /// expected value written down twice.
+    ///
+    /// **The errors are spot checks, not a census.** They cover the
+    /// arms whose payloads are keys, spans and `&'static str`; an arm
+    /// whose payload is another module's or crate's typed refusal is
+    /// not built here, so a mis-projection confined to one of those is
+    /// not caught. Nothing reds when an arm is missing from this list —
+    /// this row accuses no author of anything it has not measured.
+    #[test]
+    fn each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind() {
+        fn label(kind: BooleanErrorKind) -> &'static str {
+            match kind {
+                BooleanErrorKind::Band => "Band",
+                BooleanErrorKind::CurvedBooleanUnsupported => "CurvedBooleanUnsupported",
+                BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
+                BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
+                BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
+                BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
+                BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
+                BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
+                BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
+                BooleanErrorKind::Escalated => "Escalated",
+                BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
+                BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
+                BooleanErrorKind::ContactContradicted => "ContactContradicted",
+                BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
+                BooleanErrorKind::RimSeamNotDeclarable => "RimSeamNotDeclarable",
+                BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
+                BooleanErrorKind::PairingMismatch => "PairingMismatch",
+                BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
+                BooleanErrorKind::CorruptOperand => "CorruptOperand",
+                BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
+                BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
+                BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
+                BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
+                BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
+                BooleanErrorKind::Euler => "Euler",
+                BooleanErrorKind::Pcurves => "Pcurves",
+                BooleanErrorKind::Join => "Join",
+                BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
+                BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::TornComponent => "TornComponent",
+                BooleanErrorKind::Containment => "Containment",
+                BooleanErrorKind::Revert => "Revert",
+                BooleanErrorKind::SeamOrientation => "SeamOrientation",
+                BooleanErrorKind::ZipCorrespondence => "ZipCorrespondence",
+                BooleanErrorKind::Merge => "Merge",
+                BooleanErrorKind::ResultInvalid => "ResultInvalid",
+                BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
+                BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
+                BooleanErrorKind::GraftRecertify => "GraftRecertify",
+            }
+        }
+        /// The variant name `Debug` opens with.
+        fn variant_of(err: &BooleanError) -> String {
+            format!("{err:?}")
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect()
+        }
+        for err in sample_errors() {
+            assert_eq!(
+                label(err.kind()),
+                variant_of(&err),
+                "kind() projects each arm to its own kind, and label names it"
+            );
+        }
     }
 }

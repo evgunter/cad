@@ -98,6 +98,7 @@ use crate::{SceneBody, Stop, View};
 // differ in the fixture — a second copy here would demote it to a
 // claim that two constant tables agree. (They are
 // `verbs_tubewall.rs`'s constants too, R for R and window for window.)
+use crate::scalar::axis_frame;
 use crate::tube::{DELTA as DELTA_ELBOW, MINOR as OUTER, R, T0, T1};
 
 /// The wall thickness — the one number the solid door has no seat for
@@ -114,9 +115,12 @@ const DELTA_TORUS: f64 = 2e-2;
 /// The hollow door at this scene's constants, for either window.
 fn hollow(window: TubeWindow<f64>, tol: Tol) -> pncad::sweep::Revolved<f64> {
     tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        axis_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         R,
         window,
         OUTER,
@@ -234,9 +238,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // window over the same spine is heavier by exactly the bore, which
     // is the same Pappus form on the inner disc.
     let solid = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        axis_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         R,
         TubeWindow::Arc { t0: T0, t1: T1 },
         OUTER,
@@ -465,10 +472,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     },
                     "the writer's outward/void classifier has grown a curved arm. Say so \
                      in klein's findings entry 7 and in docs/KERNEL-VERBS.md's hollow-ring \
-                     STEP row, and retire ALL THREE probes of this one gate together: \
-                     klein's WALL 6, the `ring` scene's `step_at_frontier`, and this one \
-                     — the ring is the profile door's shape, this is the parameter \
-                     door's, and a widened classifier retires both",
+                     STEP row, and retire ALL FOUR probes of this one gate together: \
+                     klein's WALL 6, the `ring` scene's `step_at_frontier`, \
+                     `torusvessel`'s, and this one — the ring is the profile door's \
+                     shape, this is the parameter door's, the vessel is `shell`'s, and a \
+                     widened classifier retires all of them",
                 ),
         ],
     });

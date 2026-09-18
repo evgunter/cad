@@ -20,7 +20,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::skin::{lift_surface, loft_geometry};
+use sweep::skin::loft_geometry;
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
 
@@ -61,7 +61,8 @@ fn the_loft_produces_one_real_nurbs_wall_per_profile_segment() {
 /// S9 FLIP (M6-3) of `tier_three_refuses_a_real_nurbs_wall_by_kind`:
 /// the same construction — a tier-3-valid extruded box with one side
 /// wall's surface replaced by a genuine skinned NURBS — now draws NO
-/// `UncertifiableSurface` (check 1 refuses only the placeholder).
+/// `UncertifiableSurface` (that verdict is check 1's answer to the
+/// placeholder state alone; a described net of finite data passes it).
 /// Tier 3 still refuses the BODY, for the honest geometric reason:
 /// the box's rim/strut carriers do not lie on the swapped wall, so
 /// re-certification and the +V lane report the mismatch. Kind-refusal
@@ -85,7 +86,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     validate_geometric(&body, Tol::witness()).expect("the extrusion validates at tier 3");
 
     let g = geometry();
-    let wall = lift_surface::<f64>(&g.walls[0][1]).expect("lifts");
+    let wall = g.walls[0][1].as_ref().clone();
     let face = built.side_faces[0][1];
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
         .expect("the arena takes a real NURBS surface");

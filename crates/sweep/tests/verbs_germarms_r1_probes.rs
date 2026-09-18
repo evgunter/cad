@@ -6,18 +6,15 @@
 
 use core::f64::consts::PI;
 
+use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {

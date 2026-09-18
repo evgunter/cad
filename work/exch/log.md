@@ -137,3 +137,67 @@ a behavior change without a consumer), the r1_dm1_probe parser
 extraction (its comment names the copy; a test-support home is its
 own cleanup). Fix pass dispatches at the next usage-window reset;
 merge, state-sync and the A/B row follow it.
+## Announced seam from PROPS (2026-09-06): every STEP fixture's `DIRECTION` `u_ref` records re-bless with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes
+`Vec3::orthonormal_basis` to cross the normal with a decided world axis
+(Ev's option-1 ruling on #1944). Every stored `u_ref` changes, so every
+`u_ref` `DIRECTION` record in `crates/step-export/tests/fixtures/*.step`
+re-blesses once, each with a locus-invariance receipt (origin and
+normal bit-identical) in the PR; `step-import/src/recognize.rs:228`
+is re-read for an assumption about the old frame, not re-spelled.
+Announced by the spec §Seams. Signed (PROPS orchestrator).
+
+## Announced seam from TOPO (2026-09-14): the import door marks the origin channel's import arm
+
+TOPO's `geom-source-absence-conflates-four-origins` (branch
+`topo/geom-source-typed-absence`) makes provenance absence say which
+absence it is: `topo::GeomOrigin` is a total read beside the N6
+`GeomSource` maps, with arms `Recipe`, `Imported`, `KernelDirect` and
+`Cleared`. `Imported` has exactly one producer that can write it —
+`import_step`, the only door that knows a body came out of a file —
+so `crates/step-import/src/lib.rs` gains one call,
+`body.mark_imported()`, on the `StepImport::Solid` arm after the
+materialization loop, with the comment saying why it sits there
+(each copy's `transform_rigid` has nothing to clear on an adopted
+description, so no `Cleared` trace precedes it). `Wireframe` carries
+no `Body` and is untouched. Nothing else in the crate moves, and no
+`GeomSource` is written: N6 decides exactly what it decided.
+
+This is step 1 of the sequence
+`work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel`
+is step 2 of — the arm that row fills with real content is the one
+this call writes. The mark is a unit variant today; giving it a
+payload is that row's business.
+
+Signed (TOPO implementer lane, `geom-source-absence-conflates-four-origins`).
+
+## Addendum from TOPO's fix pass (2026-09-14): the stamp over an import is lossy
+
+The typed-absence unit's review pass collapsed the two maps into one
+`topo::GeomOrigin` row per description, and that makes one direction
+explicit that EXCH's step 2 will be the first to reach.
+`Body::set_surface_source` and its siblings write `GeomOrigin::Recipe`
+over whatever the description carried, **including `Imported`** — the
+import fact is then gone for good, and a later `clear_geom_sources`
+leaves the description `Cleared`, never `Imported`. That is the right
+precedence (a recipe is the finer identity), it is unreachable today
+because nothing in the tree stamps an adopted body, and it is stated
+at `set_surface_source`'s doc and characterised by
+`crates/topo/tests/geom_origin_rows.rs`'s
+`stamping_an_imported_body_erases_the_import_fact`.
+
+`step-import-discards-the-entity-ids-that-are-its-identity-channel` is
+the row that puts content in the `Imported` arm. When it does, a taker
+that also wants an adopted body to survive the recipe layer's stamp
+has to say what an `Imported` description carrying a recipe source
+means — the current type cannot hold both, by construction.
+
+Also changed in the same pass: `Body::mark_imported` now marks the
+`KernelDirect` arm only, leaving `Cleared` and `Recipe` alone (a
+public door that turned the defect arm into a legitimate origin
+re-opened the hole one door over). `import_step`'s body is entirely
+`KernelDirect` at the call, so the shipped behaviour is unchanged, and
+the 15-line comment at that call is now five.
+
+Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).

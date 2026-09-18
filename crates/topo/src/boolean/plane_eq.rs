@@ -96,8 +96,8 @@ impl PlaneIdentity<'_> {
 
 /// One plane's conventional description: a point on it and its unit
 /// **outward** normal — outward for the FACE the description came
-/// from, which since S10 is the surface's chart normal times that
-/// face's `sense_sign`, not the chart normal itself
+/// from, which is the surface's chart normal with that face's
+/// `sense` folded in, not the chart normal itself
 /// (`boolean::reduce::face_plane` is the door that folds the bit in).
 /// The Same±-orientation verdict is a statement about material sides,
 /// so a description built from a raw chart normal would make it a
@@ -166,12 +166,20 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         && s1.same_base(s2)
     {
         let opposite = s1.orient != s2.orient;
+        // Asserted only where the scalar HAS a bit channel: the rung is
+        // syntactic (the source decides), the bits are its evidence,
+        // and a scalar with no channel (`Dual`, `Sym`) offers none —
+        // `None` there is not disagreement.
         #[cfg(debug_assertions)]
-        debug_assert!(
-            crate::source::plane_bits_agree(p1.origin, p1.normal, p2.origin, p2.normal, opposite),
-            "same-source theorem violated: same-source descriptions disagree bitwise (kernel bug: \
-             a source survived a geometric rewrite)"
-        );
+        if let Some(agree) =
+            crate::source::plane_bits_witness(p1.origin, p1.normal, p2.origin, p2.normal, opposite)
+        {
+            debug_assert!(
+                agree,
+                "same-source theorem violated: same-source descriptions disagree bitwise (kernel \
+                 bug: a source survived a geometric rewrite)"
+            );
+        }
         // Rung 1 is syntactic: nothing was measured, so nothing is
         // bridged.
         return Ok((

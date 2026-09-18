@@ -54,12 +54,12 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, UnitSym, ValuePayload,
+    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload,
     evaluate,
 };
 use geom_core::Tol;
@@ -304,7 +304,7 @@ fn distributed_plate() -> ProfileDoc {
         )
         .expect("the hole wall is an exact atom");
         faces.sort();
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
     let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
@@ -434,8 +434,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
             ],
         )
         .expect("both indices in range"),
@@ -446,6 +446,38 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure)
+}
+
+/// The lane a registered document is driven on.
+///
+/// The symbolic identity tier (ERROR-DESIGN E12) is the shipped default
+/// and every document here takes it — except the ones whose measure is
+/// a `min_clearance`, whose engine has no lane at the tier
+/// (`DriveRefusal::SymbolicClearanceUnsupported`; the deviation is issue
+/// `symbolic-tier-and-clearance-engine`). Those fall back to the numeric-only replay, which keeps their
+/// recorded budgets real rows rather than skipped ones.
+///
+/// The fallback is driven by the DRIVER'S OWN refusal rather than by a
+/// list of document names here: a name list would go stale the first
+/// time a fixture grew a clearance measure, and the refusal is exactly
+/// the fact being reacted to.
+fn drive_registered(
+    doc: &ProfileDoc,
+    analyzed: &editor_core::analysis::AnalyzedBox,
+    tol: Tol,
+) -> Result<editor_core::drive::ParamBoxVerdict, editor_core::DriveRefusal> {
+    match drive(doc, analyzed, &DriveConfig::default(), tol) {
+        Err(editor_core::DriveRefusal::SymbolicClearanceUnsupported { .. }) => drive(
+            doc,
+            analyzed,
+            &DriveConfig {
+                symbolic: SymbolicDials::off(),
+                ..DriveConfig::default()
+            },
+            tol,
+        ),
+        other => other,
+    }
 }
 
 /// **ROW 1.** Every assertion of every registered document holds over
@@ -459,12 +491,7 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             .find(|b| b.document == entry.name)
             .unwrap_or_else(|| panic!("{} has no recorded budget", entry.name));
         let analyzed = analyzed_box(&entry.doc, &AnalysisPolicy::default());
-        let verdict = match drive(
-            &entry.doc,
-            &analyzed,
-            &DriveConfig::default(),
-            Tol::witness(),
-        ) {
+        let verdict = match drive_registered(&entry.doc, &analyzed, Tol::witness()) {
             Ok(v) => v,
             // **The degenerate document, handled rather than skipped.**
             // A document whose parameters declare no distribution has
@@ -735,13 +762,11 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // And the RENDERING says so in words, which is what a consumer
     // actually meets.
     let analyzed = forced;
-    let verdict = drive(
-        &band_placement(),
-        &analyzed,
-        &DriveConfig::default(),
-        Tol::witness(),
-    )
-    .expect("the nominal builds");
+    // The band fixture is a `min_clearance` document (its measure is
+    // the neck's), so it takes the numeric lane — see
+    // [`drive_registered`].
+    let verdict =
+        drive_registered(&band_placement(), &analyzed, Tol::witness()).expect("the nominal builds");
     let rendered = MassBudget::of(verdict.accounting(), &analyzed).render();
     assert!(
         rendered.contains("FORCED, not priced"),
@@ -754,7 +779,7 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// **The witness-vector key of an assertion-carrying document, pinned**
 /// (M10-6 deviation D10; both reviews' MAJOR).
 ///
-/// `VerdictVector::certifying` drops `Assertion` rows from the
+/// `drive::certifying_vector` drops `Assertion` rows from the
 /// certification comparison, and that MOVES the `verdict_vector_key`
 /// every certified leaf carries — for every document with an
 /// assertion, including ones with no `min_clearance` anywhere. The
@@ -791,7 +816,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);
-        let certifying = VerdictVector::certifying(d, &ev);
+        let certifying = certifying_vector(d, &ev);
         assert_ne!(
             full.key().0,
             certifying.key().0,
@@ -846,8 +871,8 @@ fn plain_distance_doc() -> ProfileDoc {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(0))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("indices in range"),
