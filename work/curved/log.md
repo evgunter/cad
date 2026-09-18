@@ -181,3 +181,120 @@ main into the block branch conflicted in the A/B log and the
 orchestrator committed the markers before noticing — repaired by a
 resolving commit (union of both appended sections), never rewritten;
 the whole-tree marker grep is now part of every merge here.
+
+## Announced seam from TOPO (2026-09-14): the `loop_shape` change is on your ground too
+
+`crates/topo/src/boolean/*` is claimed by both S-BOOL and this
+program, so the announcement written on `work/bool/log.md` for
+2026-09-14 — `contain::loop_shape` and `LoopShape` going
+`pub(crate)`, and `LoopShape::Parity` splitting into `Polygon` and
+`ArcParity` with `contfp`'s behaviour unchanged — is repeated here
+rather than left visible from one side only. Read it there; nothing
+differs. TOPO PR 2529, branch `topo/tier3-ring-nesting`. No action
+asked. Signed (TOPO, the ring-nesting lane).
+
+## Announced from TOPO (2026-09-14): `docs/CURVED-MERGEDOOR-SPEC.md`'s citations of `merge_faces.rs` moved; its design did not
+
+TOPO `D263` (PR 2548, `topo/d263-placeholder-regime`) gives the merge
+door a third surface kind, `topo::MergeKind { Plane, Curved,
+Placeholder }`: `group_regime` is now `group_contract` (returning
+`GroupContract::Runs { regime, kind } | SetAside`), `GroupKindSplit`'s
+fields are `face, kind, other, other_kind`, and a `Nurbs` net in
+`NetState::Poisoned` refuses `MergeCoplanarError::PoisonedSurfaceDescription`
+before any group forms. The spec's citations of `group_regime`
+"untouched" and of `GroupKindSplit`'s old lines were re-worded on that
+branch — a description that moved, not a design change; the spec's
+shape and fences are as they were. One note was added beside the
+plan's "one non-planar kind on both sides → a skip record" arm: it
+must read `MergeKind`, not `SurfaceKind` alone, or a declared
+placeholder pair would be skipped where the door refuses it. The
+finding is recorded on `cylindrical-rest-pair-hits-planar-merge`
+(`## Read MergeKind at the classification`). No action asked. Signed
+(TOPO, the D263 fix pass).
+
+## Merge-door and torus-arm duals adjudicated (2026-09-14)
+
+Merge-door (PR #2105, ordinal 2202): both arms MERGEABLE-AFTER-FIXES
+and both EXECUTED the honesty crux the same way — the bore chord
+pre-exists on the merge base (with the door reverted, the record
+suppressed, and the whole recorded-faces walk removed, scene A still
+refuses `JoinDesync`; with `describe_minted_edges` skipped the volume
+backstop rejects the same body); the STOP-2 re-scope stands. Fixes:
+the record's liveness invariant pinned (the PR's "M6 not observable"
+was false — a sub-period curved run commits through the kind-agnostic
+same-key rung), no record for a pair with zero live faces, sphere/torus
+rows, the vacuous `merge_groups` assertions replaced, dedup at the
+door, the mechanism and additivity history corrected. Torus arm
+(PR #2535, ordinal 2203): both arms MERGEABLE-AFTER-FIXES; the bound
+and enclosure held under both arms' random dense oracles, but the
+shipped rows could not see a wrong bound on an ordinary fixture (the
+PR's "M2 merely loose" was false in the unsafe direction — real
+escapes on random fixtures); a torus family in the dense-sampling
+soundness suite and a random-configuration row are the fix; the spec
+amended (the monotonicity theorem, the charge table at the arc-scoped
+`f2`). Both fix passes dispatched. Pacing: **the spiric PR-1a dual is
+HELD for next week's budget**; PR-1a itself continues.
+
+## CURVED-MERGEDOOR merged (2026-09-14) — block CURVED-B1 concludes
+
+PR #2105, ordinal 2202, sample #192; block CURVED-B1's last slot. The
+dual's fix pass took all eleven items (fourteen rows, fifteen mutants
+red); the record is keyed off the declaration and documented so. Next
+on the merge-door lane: `rest-zip-seam-chord-on-cylinder-wall` (the zip
+defect the door had hidden). Operations: the fix pass's push produced
+no `synchronize` run and the lane dispatched the workflow by hand (the
+render lanes skip on a dispatch); the state-sync push re-rolls a real
+run before the merge.
+
+## CURVED-MERGEDOOR close-out (2026-09-14)
+
+Block CURVED-B1 concluded at #2105's merge: slot 2 recorded on
+`curved/b1-block` (1c10adfa7) and the block record folded to main in
+#2578 (6781958cb), which also deleted `docs/CURVED-MERGEDOOR-SPEC.md`
+per the ledger. Lane and target reclaimed. CURVED-B2's draw stays
+branch-side. Running: torus-arm fix pass (#2535), TRIM-3 PR-2 dual
+(#2554). Held for the weekly reset: spiric PR-1a (#2566) and TRIM-2
+PR-1 (#2564) duals.
+
+## CURVED-TORUS PR-2 merged (2026-09-15) — block CURVED-B2 slot 0 concludes
+
+PR #2535, ordinal 2203, sample #200. The dual (R1 Fable, R2 Opus) both
+MERGEABLE-AFTER-FIXES; adjudication on the PR (comment 5662086549);
+twelve union items all taken. The substantive change from review: the
+suite had no random dense-oracle row for the torus, so four planted
+defects passed every shipped row — a torus family and a random row now
+red them; the PR's "M2 merely loose" sentence was wrong in the unsafe
+direction and is withdrawn in the body. Headline bilateral — no tally
+candidate; R2 paused once by the usage limit (3(e)). The spec's
+2026-09-14 amendments stand; `docs/CURVED-TORUS-SPEC.md` is now fully
+delivered (PR-1 #1907, PR-2 #2535) and leaves `docs/` per the ledger in
+the post-merge docs PR. Filed by the unit:
+`the-chord-dip-charge-has-two-homes`. Operations: the account behind
+this session changed at Ev's re-login (2026-09-15); the weekly window
+on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
+the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Both of this orchestrator's first blocks are concluded (CURVED-B1 at
+#2105, TRIM-B1 at #2554); CURVED-B2 slot 0 concluded at #2535. Open
+against the budget: the spiric PR-1a dual (#2566, CURVED-B2 slot 1,
+FABLE) and the TRIM-2 PR-1 dual (#2564, TRIM-B2 slot 0). The account's
+weekly window sits at 83 % with its reset at 2026-09-18 17:00Z; both
+duals stay HELD until that reset, then dispatch together (each dual
+plus fix pass has cost 0.6–1.0 M tokens on this program). No new
+implementer dispatch before the reset; CURVED-B2 slot 2's unit is
+chosen at dispatch from the plan's lanes (leading candidates:
+`equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
+PR-1b once 1a merges). Idle lanes: none; every finished lane and
+target reclaimed (44 G free).
+
+## Spiric PR-1a dual dispatched (2026-09-15)
+
+Ev, in-chat after the box's reboot: finish the open duals and get all
+state on main before the usage limit. The hold is lifted: ordinal 2204
+claimed (PR #2669); byte 226, parity 0 ⇒ R1 Opus, R2 Fable; frozen
+head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
+together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
+Session monitors re-armed after the crash; nothing of this program's
+was running when the box went down.

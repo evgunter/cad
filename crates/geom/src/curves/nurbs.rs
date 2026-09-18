@@ -206,9 +206,16 @@ macro_rules! nurbs_curve {
         /// (itself address-equal on its vector): a window is a proof
         /// about *that* control net, and a curve is not [`Eq`] — its
         /// knots and weights are `f64`.
+        ///
+        /// **This walk and the `Debug` beside it destructure `Self`
+        /// exhaustively**, so a field added to the declaration is an
+        /// E0027 unbound-pattern error rather than a value silently
+        /// outside equality and outside the dump.
         impl<T: Real> PartialEq for $Window<'_, T> {
             fn eq(&self, other: &Self) -> bool {
-                core::ptr::eq(self.curve, other.curve) && self.span == other.span
+                let Self { curve, span } = self;
+                let Self { curve: other_curve, span: other_span } = other;
+                core::ptr::eq(*curve, *other_curve) && span == other_span
             }
         }
 
@@ -220,9 +227,10 @@ macro_rules! nurbs_curve {
         /// one cost a borrow-carrying token can impose by accident.
         impl<T: Real> core::fmt::Debug for $Window<'_, T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { curve, span } = self;
                 f.debug_struct(stringify!($Window))
-                    .field("curve", &core::ptr::from_ref(self.curve))
-                    .field("span", &self.span)
+                    .field("curve", &core::ptr::from_ref(*curve))
+                    .field("span", span)
                     .finish()
             }
         }
@@ -570,20 +578,17 @@ macro_rules! nurbs_curve {
 
             /// Construction from parts whose invariants are ALREADY
             /// established — the door a structural map takes instead
-            /// of [`Self::new`], and the one place that says why
-            /// `new`'s check is redundant for it.
+            /// of [`Self::new`].
             ///
             /// The invariants are load-bearing for indexing (module
-            /// docs), so skipping the check needs an argument, and it
-            /// is this: `knots` and `weights` are a validated curve's
-            /// own, carried verbatim, and `control` is that curve's net
-            /// mapped POINTWISE — a map over a `Vec` cannot change its
-            /// length — so `control.len()` still equals
-            /// `knots.control_count()`, `weights.len()` still equals
-            /// `control.len()`, and every weight is still the positive
-            /// finite value `new` admitted. The `debug_assert` re-derives
-            /// the count agreement that argument rests on (D2 addendum
-            /// row 5: a bug detectable only by re-derivation).
+            /// docs), so skipping the check needs an argument. That
+            /// argument has ONE home for the whole crate,
+            /// `crate::scalar_lift`'s module docs: what a structural
+            /// map is, why no shape of it changes a count or a weight
+            /// value, and which part of it the `debug_assert` below
+            /// cannot check. `knots` and `weights` here are a
+            /// validated curve's own and `control` is that curve's net
+            /// under such a map.
             fn from_validated_parts(
                 knots: KnotVector,
                 control: Vec<$Point<T>>,
@@ -591,7 +596,7 @@ macro_rules! nurbs_curve {
             ) -> Self {
                 debug_assert!(
                     control.len() == knots.control_count() && weights.len() == control.len(),
-                    "from_validated_parts: a pointwise map changed a count \
+                    "from_validated_parts: a structural map changed a count \
                      (control {}, knots want {}, weights {})",
                     control.len(),
                     knots.control_count(),
@@ -619,6 +624,33 @@ macro_rules! nurbs_curve {
                     self.control.iter().map(|p| p.map(&f)).collect(),
                     self.weights.clone(),
                 )
+            }
+
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
+            /// (ends exact, interior affine), the control net and the
+            /// weights carried over verbatim. Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotVector::on_domain`]'s: the domain is not a finite
+            /// increasing interval, or a rounding collapse tripped a
+            /// clamp clause.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
             }
 
             /// The same curve with every control point carried
@@ -872,7 +904,11 @@ macro_rules! nurbs_curve {
             /// A **certified lower bound** on `‖C′(t)‖` over the whole
             /// domain, in meters per parameter unit — the "meter" a
             /// parameter-space margin must be multiplied by to become a
-            /// length (D4 ¶1).
+            /// length (D4 ¶1). It is an
+            /// [`InfSpeed`](geom_core::InfSpeed) by signature: the
+            /// bound direction is what every consumer relies on (a
+            /// span this meter proves forward IS forward in metres),
+            /// and under-stating is what makes that sound.
             ///
             /// This is the rung-3 analogue of the conic lane's
             /// conservative meters (`Circle` ⇒ radius, `Ellipse` ⇒ the
@@ -1030,16 +1066,16 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
-            pub fn speed_lower_bound(&self) -> T {
+            pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Rational ⇒ the convexity argument does not hold
                 // directly; the quotient-rule arm takes over.
                 if self.weights.iter().any(|w| *w != 1.0) {
-                    return self.rational_speed_lower_bound();
+                    return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 }
                 let knots = self.knots.knots();
                 // Derivative coefficients, once for the curve:
@@ -1050,15 +1086,15 @@ macro_rules! nurbs_curve {
                 let mut coeffs = Vec::with_capacity(self.control.len() - 1);
                 for i in 0..(self.control.len() - 1) {
                     let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let du = hi - lo;
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(du > 0.0) {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     }
                     #[allow(clippy::cast_precision_loss)]
                     let scale = T::from_f64(p as f64) / T::from_f64(du);
@@ -1068,7 +1104,7 @@ macro_rules! nurbs_curve {
                 // original arm, verbatim — same direction, same fold
                 // order, bit-identical where it was defined). ----
                 let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 };
                 let global = {
                     let chord = *last - *first;
@@ -1113,10 +1149,10 @@ macro_rules! nurbs_curve {
                         // (doc: "Poison", the stated asymmetry with
                         // chord-collapse abstention).
                         if span >= self.control.len() {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         }
                         let Some(active) = coeffs.get(lo_i..span) else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         // The span's own control chord, as unit
                         // direction; collapse ⇒ 0/0 ⇒ this span
@@ -1126,7 +1162,7 @@ macro_rules! nurbs_curve {
                         let (Some(a), Some(b)) =
                             (self.control.get(lo_i), self.control.get(span))
                         else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         let chord = *b - *a;
                         let d = chord / chord.norm();
@@ -1141,12 +1177,12 @@ macro_rules! nurbs_curve {
                     acc.unwrap_or(poison)
                 };
                 // ---- The join (doc: "The join"). ----
-                match (global.is_poison(), perspan.is_poison()) {
+                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
                     (true, true) => poison,
                     (true, false) => perspan,
                     (false, true) => global,
                     (false, false) => global.max(perspan),
-                }
+                })
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a

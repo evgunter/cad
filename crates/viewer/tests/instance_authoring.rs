@@ -22,12 +22,12 @@ use std::path::{Path, PathBuf};
 use common::asm;
 use pncad::document::{
     Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
-    RecipeNodeId, SitedRef, SlotId,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -169,8 +169,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The shipped mate tool's op takes them from here.
     let outcome = session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(post_i, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(post_i, &bench.post_top)),
+        b: common::head(asm::in_part(shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -189,7 +189,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == shelf_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

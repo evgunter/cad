@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Decide, Point3, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
@@ -16,7 +17,7 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{Extent, band, order_along, side_of_face};
 use super::emit::{
-    Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
+    Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
@@ -34,8 +35,10 @@ struct Side<'a, T: Decide> {
 /// The operand-face plane, **oriented outward** (result carriers are
 /// the N2 references).
 ///
-/// S10 CATEGORY A: the returned normal is the face's outward normal,
-/// `Face::sense_sign() · chart_normal`, not the raw chart normal.
+/// S10 CATEGORY A: the returned normal is the face's outward normal —
+/// the chart normal with `Face::sense` folded in through
+/// [`OutwardNormal::from_chart`], unwrapped at this door because every
+/// consumer reads it as geometry — not the raw chart normal.
 /// Every consumer uses the direction as an *oriented reference* whose
 /// sign lands in a stable name — [`side_of_face`] turns it into a
 /// `Qualifier::SideOf` verdict vector, and `n_a × n_b` orients the
@@ -45,10 +48,14 @@ struct Side<'a, T: Decide> {
 /// renaming fragments that did not move: an N4 covariance break, since
 /// a face's orientation sense is part of the geometry names are
 /// covariant *with*, not a private encoding detail the naming layer
-/// may ignore. The sign is exact structure (a `bool` selecting `±1`),
-/// so no new numeric decision enters here, and every face this build
-/// mints has `sense: true` — the multiply is `· 1` and no name moves.
-fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+/// may ignore. The fold is exact structure (a `bool` selecting a
+/// negation), so no new numeric decision enters here, and every face
+/// this build mints has `sense: true` — the fold is the identity and
+/// no name moves.
+pub(super) fn face_plane<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(Point3<T>, Vec3<T>), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
         .get_face(f)
@@ -57,7 +64,10 @@ fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
     {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal * face.sense_sign())),
+        Surface::Plane { origin, normal, .. } => Ok((
+            *origin,
+            OutwardNormal::from_chart(*normal, face.sense).vec(),
+        )),
         _ => Err(bug("face_plane: non-planar carrier in planar pipeline")),
     }
 }
@@ -794,9 +804,12 @@ fn name_boolean_edges<T: Decide>(
     // ---- Seam edges (zip-listed AND derived — see below), grouped
     // by their (fA, fB) operand pair. A derived chord between two
     // SAME-operand faces (the collinear channel-cut lane re-mints a
-    // sub-edge of an operand edge as a chord) descends instead to the
-    // unique operand edge its two parent faces share — combinatorial
-    // adjacency of emitted anchors, not matching. ----
+    // sub-edge of an operand edge as a chord) descends instead to an
+    // operand edge its two parent faces share — combinatorial adjacency
+    // of emitted anchors, not matching. That the pair shares EXACTLY
+    // ONE is a guess, not a property: a later member splitting a merged
+    // face refutes it, and `NamingError::SharedRim` is what the arm
+    // below says when it does. ----
     enum ChordKind {
         Cross(Upstream, Upstream),
         SameA(EdgeKey),
@@ -868,12 +881,34 @@ fn name_boolean_edges<T: Decide>(
             (Descent::B(_), Descent::A(_)) => {
                 ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
             }
-            (Descent::A(fa0), Descent::A(fa1)) => {
-                ChordKind::SameA(unique_shared_edge(a.body, fa0, fa1)?)
-            }
-            (Descent::B(fb0), Descent::B(fb1)) => {
-                ChordKind::SameB(unique_shared_edge(b.body, fb0, fb1)?)
-            }
+            // The premise this caller is asking under: it did not
+            // build these bodies, it DESCENDED two result faces into
+            // one of them and guesses the pair carries this chord's
+            // rim. A pair that turns out not to have one rim refutes
+            // the guess, not the body — so the answer is classified
+            // here rather than at the walk.
+            (Descent::A(fa0), Descent::A(fa1)) => match rim_between(a.body, fa0, fa1)? {
+                Rim::One(e) => ChordKind::SameA(e),
+                Rim::NotOne(found) => {
+                    return Err(NamingError::SharedRim {
+                        node: a.node,
+                        face: fa0,
+                        other: fa1,
+                        found,
+                    });
+                }
+            },
+            (Descent::B(fb0), Descent::B(fb1)) => match rim_between(b.body, fb0, fb1)? {
+                Rim::One(e) => ChordKind::SameB(e),
+                Rim::NotOne(found) => {
+                    return Err(NamingError::SharedRim {
+                        node: b.node,
+                        face: fb0,
+                        other: fb1,
+                        found,
+                    });
+                }
+            },
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
@@ -1259,6 +1294,34 @@ fn name_boolean_vertices<T: Decide>(
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
+            // WITNESSED, and the arm is written to the witness. An
+            // ordinary declared union reaches exactly this shape: one
+            // operand-descended edge on the A side, none on the B side,
+            // and — everything above having already run — no single B
+            // face and no contact-record partner to supply the other
+            // parent. The vertex is half-decided, the body is sound and
+            // the recipe is legal, so what is missing is a rule.
+            //
+            // **Its mirror (`([], [_], None, _)`) is not here, and the
+            // reason is reach, not symmetry.** Censused over every seam
+            // vertex this tree's suites produce: the B-side lone edge is
+            // the COMMONER shape, not the rarer one, and the residue
+            // below is reached by neither. What the census does show is
+            // an asymmetry running the other way — `partner_a` was
+            // `Some` at none of those vertices while `partner_b` was at
+            // a large minority, so the rescue arm above this one fires
+            // and its B-side twin never does, which leaves the mirror
+            // structurally the more exposed of the two. That is
+            // `work/wire/the-b-side-contact-record-rescue-arm-never-fires.md`;
+            // it is not re-classified here because nothing reaches it,
+            // and a shape nobody has reached is not a shape known to be
+            // legal.
+            ([_], [], _, _) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+            // The unenumerated residue, which stays an emission bug. A
+            // catch-all is the preimage of every case nobody has named
+            // — `a_edges.len() >= 2 && b_edges.len() >= 2` among them —
+            // and a shape nobody has reached is not a shape known to be
+            // legal.
             _ => {
                 return Err(bug(
                     "seam vertex parentage underdetermined from incident edges",
@@ -1526,11 +1589,9 @@ mod tests {
     /// laterals. Written once — the rows below differ in the synthetic
     /// `BooleanNaming` they hand the emitter, never in the body.
     fn unit_cube() -> sweep::Extruded<f64> {
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

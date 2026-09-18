@@ -1,7 +1,7 @@
 ---
 id: step-import-source-debug-in-prose-panics-the-binding
 kind: issue
-title: step-import renders {source:?} on TransformError and EulerOpError, both of which have a Display — a live panic at py::typed_err
+title: step-import renders {source:?} on TransformError and BooleanError, both of which have a Display — a live panic at py::typed_err
 status: open
 opened: 2026-09-04
 refs: [debug-in-prose-at-blend-and-step-import]
@@ -23,25 +23,35 @@ too and are not restated here.
 ## The finding
 
 `crates/step-import/src/error.rs:455, 461` render `{source:?}` on
-`TransformError` and `EulerOpError`, **both of which already have a
-`Display`**. This is the sharper of the two sites: the payload can name
+`Placement.source` (`topo::TransformError`) and `Instance.source`
+(`Box<topo::BooleanError>` — the `graft_disjoint` door's error, NOT
+the `EulerOpError` that the sibling `Assembly` arm carries; the
+carrier item misnamed this payload and the misnaming was inherited
+here), **both of which already have a `Display`**
+(`topo/src/transform.rs:170`, `topo/src/boolean/mod.rs:1309`). This is
+the sharper of the two sites: the payload can name
 itself and the consumer composes a debug rendering anyway, which is the
 exact inversion of the standing rule that the layer which raised a
 failure names it.
 
 ## It is live, not cosmetic — `sure`
 
-`EulerOpError::StaleKey { key }` is a struct variant, so `{source:?}`
-yields `StaleKey { key: .. }`, carrying the field-brace fingerprint
-`" { "`. `crates/pncad-py/src/errors.rs`'s `reads_as_prose` rejects
+Most of `BooleanError` is struct-shaped — `ScaffoldingOperand {
+operand, edge }`, `NonMaximalFaces { .. }`, `Escalated { .. }`, the
+four `Curved*Unsupported { .. }` arms and more — and `TransformError`
+likewise (`Pcurve { .. }`, `Certify { .. }`, `NotRigid { .. }`,
+`NullScaffold { .. }`, …), so `{source:?}` yields `ScaffoldingOperand
+{ operand: .., edge: .. }` and its kin, carrying the field-brace
+fingerprint `" { "`. `crates/pncad-py/src/errors.rs`'s
+`reads_as_prose` rejects
 that fingerprint and `py::typed_err` asserts it on **every** raise,
 live under release. `crates/pncad-py/src/py/value.rs:1341` raises
 `err.to_string()` through `typed_err` under a comment stating that
 *every* arm of `StepImportError` is reachable there.
 
-So a STEP import that hits a stale key panics the Python binding where
-that arm means to refuse gracefully — the same panic PR 1779 closed in
-the tier-3′ door, in another one.
+So a STEP import whose assembly placement or disjoint graft refuses
+panics the Python binding where that arm means to refuse gracefully —
+the same panic PR 1779 closed in the tier-3′ door, in another one.
 
 ## What it does not wait on
 

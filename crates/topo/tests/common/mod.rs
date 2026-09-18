@@ -79,7 +79,6 @@ pub fn assert_every_chord_named_by_both_rules<T: Real>(
 }
 
 /// Key bundle for the geometric unit cube.
-#[allow(dead_code)]
 pub struct GeoCube<T: Real> {
     pub body: Body<T>,
     pub seed: MvfsCreated,
@@ -94,131 +93,243 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
 }
 
 /// A Newell-certified plane from an outward-CCW-ordered corner list.
-pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
-    newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
+pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>], tol: Tol) -> Surface<T> {
+    newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
 }
 
-/// Builds the geometric unit cube through the public operators: the
-/// §9.4.2-minimal sequence with real geometry at every step — every
-/// `mef` supplies its face's Newell plane, every edge a certified
+/// The operator keys [`prism_ops`] mints, in construction order.
+pub struct PrismOps {
+    /// The `mvfs` that seeds the solid at the profile's first corner.
+    pub seed: MvfsCreated,
+    /// The bottom rim's chain, `n - 1` of them: corner 0 → 1, … ,
+    /// `n - 2` → `n - 1`. The rim's closing chord belongs to
+    /// [`PrismOps::bottom`], which mints it.
+    pub chain: Vec<MevCreated>,
+    /// One strut per profile corner, bottom rim → top rim, in profile
+    /// order.
+    pub struts: Vec<MevCreated>,
+    /// The bottom cap.
+    pub bottom: MefCreated,
+    /// One side face per profile segment `i → i+1` (cyclic).
+    pub sides: Vec<MefCreated>,
+}
+
+/// **The one Euler sequence every box and prism in this file is built
+/// by**: a right prism over the simple polygon `profile` (x, y corners,
+/// no repeats, reflex corners welcome) spanning `z`, into `body`, with
+/// every corner placed through `map`.
+///
+/// **The winding rule is about `profile` and `map` together.** A
+/// counterclockwise-from-+z profile under an orientation-PRESERVING map
+/// and a clockwise one under an orientation-REVERSING map both build an
+/// outward-facing prism; the two mixed combinations build an inside-out
+/// one. Both supported combinations are in use — `review_m3_pr55`'s
+/// reflected placements pass reversed profiles on purpose — so "the
+/// profile must be counterclockwise", which this doc said until the
+/// builders were unified, was never the rule the callers obeyed.
+///
+/// It is the §9.4.2-minimal sequence with real geometry at every step —
+/// every `mef` supplies its face's Newell plane, every edge a certified
 /// chord-line carrier; the seed face (which survives as the top cap)
 /// gets its plane via `set_face_surface` at the end (the documented
 /// seed-face path).
-pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
-    let c = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
-    // Corners: A(0,0,0) B(1,0,0) C(1,1,0) D(0,1,0), primed = z+1.
-    let (a, b, cc, d) = (
-        c(0.0, 0.0, 0.0),
-        c(1.0, 0.0, 0.0),
-        c(1.0, 1.0, 0.0),
-        c(0.0, 1.0, 0.0),
-    );
-    let (a1, b1, c1, d1) = (
-        c(0.0, 0.0, 1.0),
-        c(1.0, 0.0, 1.0),
-        c(1.0, 1.0, 1.0),
-        c(0.0, 1.0, 1.0),
-    );
+///
+/// The two axes the callers differ on are both parameters here, and
+/// that is the whole of the difference between them:
+///
+/// - **`map`** is where the tilted operands live. `Point3::new` at
+///   `T::from_f64` gives the untransformed prism; anything else — a
+///   scale, an affine, a shear — is the same body pushed through it.
+/// - **The description step is the CALLER's.** This stops before
+///   [`describe_as_intersections`]: run it and every transverse edge
+///   trades its conventional chord for the `Intersection` its two faces
+///   determine; skip it and all `3n` stay
+///   `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
+///   [`assert_every_chord_named_by_both_rules`] is about. So the choice
+///   belongs where a reader can see it, not inside a shared body — and
+///   it is a line at each call site rather than a `bool` argument,
+///   because the risk here is a reader not noticing that step.
+///
+/// A second call on the same `body` seeds a second solid, so the
+/// caller also chooses whether the body is fresh.
+///
+/// **Only the corner count is checked, and the rest are not
+/// preconditions at all** — which is worth stating, because the list
+/// above reads like four and is one.
+///
+/// - The **winding rule is not enforced and must not be**: building an
+///   inside-out prism on purpose is a fixture this tree needs.
+///   `review_m2_pr7` mirrors a cube through [`mapped_cube`] precisely to
+///   assert that tiers 1 and 2 CANNOT see the orientation and that
+///   `mass_properties` can. A refusal here would delete that suite's
+///   subject. (Measured: a fail-loud winding assertion in this function
+///   reds four of its rows and one of `review_m3_pr55`'s.)
+/// - **Simplicity and no-repeats are not checked either**: a
+///   self-intersecting or repeating profile is undefined behaviour of
+///   this builder, and a caller that wants either refused owes the
+///   check itself.
+///
+/// Where the winding rule IS enforced is on the fixtures that claim to
+/// be outward-facing, in `tests/cube_doors_agree.rs` — which asserts
+/// each face's outward normal against the corners and so reads the
+/// composite rule rather than the profile alone.
+pub fn prism_ops<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    profile: &[(f64, f64)],
+    z: (f64, f64),
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
+) -> PrismOps {
+    assert!(profile.len() >= 3, "a prism needs at least three corners");
+    let n = profile.len();
+    let bot: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.0)).collect();
+    let top: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.1)).collect();
 
-    let mut body = Body::<T>::new();
-    let seed = body.mvfs(a).unwrap();
-    let e_ab = body
-        .mev(
+    let seed = body.mvfs(bot[0]).unwrap();
+    // Bottom rim chain v0 → v1 → … → v_{n-1}.
+    let mut chain = Vec::new();
+    chain.push(
+        body.mev(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            b,
-            line(a, b),
-            Tol::witness(),
+            bot[1],
+            line(bot[0], bot[1]),
+            tol,
         )
+        .unwrap(),
+    );
+    for i in 2..n {
+        let at = chain[i - 2].he_minus;
+        chain.push(
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                bot[i],
+                line(bot[i - 1], bot[i]),
+                tol,
+            )
+            .unwrap(),
+        );
+    }
+    let bottom_vertices: Vec<_> = core::iter::once(seed.vertex)
+        .chain(chain.iter().map(|m| m.vertex))
+        .collect();
+    // Close the bottom face: outward −z ⇒ CCW from below = reversed
+    // profile order.
+    let he_last = body
+        .find_half_edge(seed.face, bottom_vertices[n - 1], bottom_vertices[n - 2])
         .unwrap();
-    let strut = |body: &mut Body<T>, at, from, to| {
-        body.mev(
-            MevSite::Fan { he1: at, he2: at },
-            to,
-            line(from, to),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
-    let e_cd = strut(&mut body, e_bc.he_minus, cc, d);
-    // Bottom face: outward normal −z ⇒ CCW viewed from below is
-    // A, D, C, B.
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    // The bottom mef's new edge runs start(he_dc) = D → start(he2) = A.
-    let f_bottom = body
+    let rev: Vec<Point3<T>> = core::iter::once(bot[0])
+        .chain(bot[1..].iter().rev().copied())
+        .collect();
+    let bottom = body
         .mef(
             MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
+                he1: he_last,
+                he2: chain[0].he_plus,
             },
-            line(d, a),
-            FaceSurface::New(plane(&[a, d, cc, b])),
-            Tol::witness(),
+            line(bot[n - 1], bot[0]),
+            FaceSurface::New(plane(&rev, tol)),
+            tol,
         )
         .unwrap();
-    let e_aa = strut(&mut body, e_ab.he_plus, a, a1);
-    let e_bb = strut(&mut body, e_bc.he_plus, b, b1);
-    let e_cc = strut(&mut body, e_cd.he_plus, cc, c1);
-    let e_dd = strut(&mut body, f_bottom.he_plus, d, d1);
-    // Side faces: outward-CCW corner orders (interior-left rule).
-    let f_front = body
-        .mef(
-            MefSite::Chords {
-                he1: e_aa.he_minus,
-                he2: e_bb.he_minus,
-            },
-            line(a1, b1),
-            FaceSurface::New(plane(&[a, b, b1, a1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_right = body
-        .mef(
-            MefSite::Chords {
-                he1: e_bb.he_minus,
-                he2: e_cc.he_minus,
-            },
-            line(b1, c1),
-            FaceSurface::New(plane(&[b, cc, c1, b1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_back = body
-        .mef(
-            MefSite::Chords {
-                he1: e_cc.he_minus,
-                he2: e_dd.he_minus,
-            },
-            line(c1, d1),
-            FaceSurface::New(plane(&[cc, d, d1, c1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_left = body
-        .mef(
-            MefSite::Chords {
-                he1: e_dd.he_minus,
-                he2: f_front.he_plus,
-            },
-            line(d1, a1),
-            FaceSurface::New(plane(&[d, a, a1, d1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    // The seed face survives as the top cap: attach its plane (outward
-    // +z ⇒ CCW from above: A′ B′ C′ D′).
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
+    // Struts up from each bottom vertex. The chain edge from v_i has
+    // he_plus starting at v_i for every i < n−1, `chain[0]` included;
+    // the last vertex is reached instead by the closing edge the bottom
+    // `mef` minted, whose he_plus starts at v_{n-1}.
+    let mut struts = Vec::new();
+    for i in 0..n {
+        let at = if i < n - 1 {
+            chain[i].he_plus
+        } else {
+            bottom.he_plus
+        };
+        struts.push(
+            body.mev(
+                MevSite::Fan { he1: at, he2: at },
+                top[i],
+                line(bot[i], top[i]),
+                tol,
+            )
+            .unwrap(),
+        );
+    }
+    // Side faces for segments 0..n−1; the last (n−1 → 0) closes against
+    // the first side face's top edge. Outward-CCW corner orders
+    // (interior-left rule).
+    let mut sides = Vec::new();
+    let mut first_side_he_plus = None;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let he2 = if i < n - 1 {
+            struts[j].he_minus
+        } else {
+            first_side_he_plus.unwrap()
+        };
+        let f = body
+            .mef(
+                MefSite::Chords {
+                    he1: struts[i].he_minus,
+                    he2,
+                },
+                line(top[i], top[j]),
+                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]], tol)),
+                tol,
+            )
+            .unwrap();
+        if i == 0 {
+            first_side_he_plus = Some(f.he_plus);
+        }
+        sides.push(f);
+    }
+    // The seed face survives as the top cap (outward +z ⇒ profile
+    // order viewed from above).
+    body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
         .unwrap();
 
+    PrismOps {
+        seed,
+        chain,
+        struts,
+        bottom,
+        sides,
+    }
+}
+
+/// The unit square, counterclockwise viewed from +z — the profile the
+/// cube doors spell, and the one at which [`prism_ops`] is the cube
+/// sequence.
+const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+
+/// The geometric unit cube with its key bundle, at any `Decide` scalar:
+/// [`prism_ops`] over [`UNIT_SQUARE`] at the identity map into a fresh
+/// body, and **no** description step. So every chord is still at the
+/// scaffolding door, named by both at-rest rules — the state this
+/// fixture's suites measure, and the one thing that distinguishes it
+/// from every other box builder in this file.
+pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> GeoCube<T> {
+    let mut body = Body::<T>::new();
+    let ops = prism_ops(
+        &mut body,
+        &UNIT_SQUARE,
+        (0.0, 1.0),
+        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        tol,
+    );
+    // The bundle's arrays are the N-general vectors at N = 4: the rim
+    // chain then the struts, the bottom cap then the sides.
+    let mevs: Vec<MevCreated> = ops.chain.into_iter().chain(ops.struts).collect();
+    let mefs: Vec<MefCreated> = core::iter::once(ops.bottom).chain(ops.sides).collect();
     GeoCube {
         body,
-        seed,
-        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
-        mefs: [f_bottom, f_front, f_right, f_back, f_left],
+        seed: ops.seed,
+        // Infallible: `UNIT_SQUARE` fixes n = 4, so `prism_ops` returns
+        // n − 1 = 3 chain plus n = 4 struts and 1 bottom plus n = 4
+        // sides. The lengths are decided by a const above, not by any
+        // runtime value, which is why these read as conversions rather
+        // than as checks.
+        mevs: mevs.try_into().expect("7 mevs at a four-corner profile"),
+        mefs: mefs.try_into().expect("5 mefs at a four-corner profile"),
     }
 }
 
@@ -248,24 +359,26 @@ pub struct StraddleSeat {
 
 /// Builds [`StraddleSeat`] (post grafted first, shelf second — the
 /// arena order the fence rows' pinned keys and witnesses assume).
-pub fn straddle_seat() -> StraddleSeat {
+pub fn straddle_seat(tol: Tol) -> StraddleSeat {
     let post: Prism<f64> = prism_z(
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        tol,
     );
     let shelf: Prism<f64> = prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        tol,
     );
     // side_faces[i] spans profile segment i → i+1: the post's [3] is
     // (0.30, 0.42) → (0.30, 0.20), the plane x = 0.30; the shelf's
     // [2] is (0.9, 0.30) → (0, 0.30), the plane y = 0.30.
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, geom_core::Tol::witness())
-        .expect("the straddle graft");
+    let keys =
+        topo::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).expect("the straddle graft");
     StraddleSeat {
         post_top: post.top_face,
         post_side_x030,
@@ -289,138 +402,81 @@ pub struct Prism<T: Real> {
 }
 
 /// Builds a right prism over a simple polygon `profile` (x, y corners,
-/// **counterclockwise viewed from +z**, no repeats), extruded from
-/// z = 0 to z = `height` — the geometric_cube construction generalized
-/// to N corners (reflex corners welcome). Every face gets its
-/// outward-CCW Newell plane, every edge a certified chord line.
-pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64) -> Prism<T> {
-    prism_z(profile, 0.0, height)
+/// **counterclockwise viewed from +z**, no repeats, reflex corners
+/// welcome), extruded from z = 0 to z = `height`: [`prism_ops`]
+/// untransformed, then described. Every face gets its outward-CCW
+/// Newell plane, every edge a certified chord line.
+pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64, tol: Tol) -> Prism<T> {
+    prism_z(profile, 0.0, height, tol)
 }
 
 /// [`prism`] with an explicit z-range `[z0, z1]` (M3 PR 4: bricks at
 /// arbitrary heights for the boolean fixtures).
-pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -> Prism<T> {
-    assert!(profile.len() >= 3);
-    let n = profile.len();
-    let c =
-        |&(x, y): &(f64, f64), z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
-    let bot: Vec<Point3<T>> = profile.iter().map(|p| c(p, z0)).collect();
-    let top: Vec<Point3<T>> = profile.iter().map(|p| c(p, z1)).collect();
-
+pub fn prism_z<T: geom_core::Decide>(
+    profile: &[(f64, f64)],
+    z0: f64,
+    z1: f64,
+    tol: Tol,
+) -> Prism<T> {
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(bot[0]).unwrap();
-    // Bottom rim chain v0 → v1 → … → v_{n-1}.
-    let mut chain = Vec::new();
-    chain.push(
-        body.mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            bot[1],
-            line(bot[0], bot[1]),
-            Tol::witness(),
-        )
-        .unwrap(),
+    let ops = prism_ops(
+        &mut body,
+        profile,
+        (z0, z1),
+        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        tol,
     );
-    for i in 2..n {
-        let at = chain[i - 2].he_minus;
-        chain.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                bot[i],
-                line(bot[i - 1], bot[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    let bottom_vertices: Vec<_> = core::iter::once(seed.vertex)
-        .chain(chain.iter().map(|m| m.vertex))
-        .collect();
-    // Close the bottom face: outward −z ⇒ CCW from below = reversed
-    // profile order.
-    let he_last = body
-        .find_half_edge(seed.face, bottom_vertices[n - 1], bottom_vertices[n - 2])
-        .unwrap();
-    let rev: Vec<Point3<T>> = core::iter::once(bot[0])
-        .chain(bot[1..].iter().rev().copied())
-        .collect();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_last,
-                he2: chain[0].he_plus,
-            },
-            line(bot[n - 1], bot[0]),
-            FaceSurface::New(plane(&rev)),
-            Tol::witness(),
-        )
-        .unwrap();
-    // Struts up from each bottom vertex. The chain edge from v_i has
-    // he_plus starting at v_i (i < n−1); the closing edge's he_plus
-    // starts at v_{n-1}.
-    let mut struts = Vec::new();
-    for i in 0..n {
-        let at = if i == 0 {
-            chain[0].he_plus
-        } else if i < n - 1 {
-            chain[i].he_plus
-        } else {
-            f_bottom.he_plus
-        };
-        struts.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                top[i],
-                line(bot[i], top[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    // Side faces for segments 0..n−1; the last (n−1 → 0) closes against
-    // the first side face's top edge.
-    let mut side_faces = Vec::new();
-    let mut first_side_he_plus = None;
-    for i in 0..n {
-        let j = (i + 1) % n;
-        let he2 = if i < n - 1 {
-            struts[j].he_minus
-        } else {
-            first_side_he_plus.unwrap()
-        };
-        let f = body
-            .mef(
-                MefSite::Chords {
-                    he1: struts[i].he_minus,
-                    he2,
-                },
-                line(top[i], top[j]),
-                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
-                Tol::witness(),
-            )
-            .unwrap();
-        if i == 0 {
-            first_side_he_plus = Some(f.he_plus);
-        }
-        side_faces.push(f.face);
-    }
-    // The seed face survives as the top cap (outward +z ⇒ profile
-    // order viewed from above).
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
-        .unwrap();
     // Construction-final description step (D6): prisms are the M3
     // boolean/split operand factories — tier-3-grade by construction.
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, tol);
 
     Prism {
+        bottom: core::iter::once(ops.seed.vertex)
+            .chain(ops.chain.iter().map(|m| m.vertex))
+            .collect(),
+        top: ops.struts.iter().map(|m| m.vertex).collect(),
+        bottom_face: ops.bottom.face,
+        side_faces: ops.sides.iter().map(|f| f.face).collect(),
+        top_face: ops.seed.face,
         body,
-        bottom: bottom_vertices,
-        top: struts.iter().map(|m| m.vertex).collect(),
-        bottom_face: f_bottom.face,
-        side_faces,
-        top_face: seed.face,
     }
+}
+
+/// The axis-aligned box `[x.0, x.1] x [y.0, y.1] x [z.0, z.1]` — the
+/// rectangular case of [`prism_z`], body only; a caller that needs the
+/// keys calls `prism_z` and keeps its [`Prism`].
+///
+/// [`geometric_cube`] is the one box-or-cube door in this file that
+/// builds a different body: it stops before
+/// [`describe_as_intersections`] and so keeps the conventional chords
+/// its rows assert on. Every other one — `brick`, [`prism`],
+/// [`prism_z`], [`mapped_cube`], [`cube_into`] — is [`prism_ops`] and
+/// then that step, so they agree arena for arena wherever their domains
+/// meet, an axis-aligned box, and they differ only in reach: any extent
+/// at any `Decide` scalar against `f64` under any point map, tilts
+/// included.
+///
+/// **Both halves of that are pinned by `tests/cube_doors_agree.rs`**,
+/// which is where to look before trusting either. A shared core is what
+/// makes the agreement half cheap and the OTHER half load-bearing:
+/// doors that are one function agree by construction, so what is worth
+/// pinning is that the one function still builds the prism its inputs
+/// name, and that one door still stops short of the description step.
+/// That file's independent row is the first claim and its negative row
+/// the second.
+pub fn brick<T: geom_core::Decide>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
+    prism_z::<T>(
+        &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+        z.0,
+        z.1,
+        tol,
+    )
+    .body
 }
 
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
@@ -434,8 +490,8 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// `upgrade_edges_to_intersections` review posture). Smooth edges
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
-pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
-    let band = Band::linear(Tol::witness()).unwrap();
+pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
+    let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
         let face_surface = |body: &Body<T>, he| {
@@ -463,120 +519,30 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
-        body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
+        body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
 }
 
-/// A cube built like `geometric_cube` but through an arbitrary
-/// point transform (tilted operands are outside the prism builder).
-pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>) -> Body<f64> {
+/// A cube built like [`geometric_cube`] but through an arbitrary point
+/// transform — and **with** the description step, so its edges carry
+/// `Intersection`/`Derived` where `geometric_cube`'s carry
+/// `Scaffold(ExtrudedPoint …)`/`Declared`.
+pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) -> Body<f64> {
     let mut body = Body::<f64>::new();
-    cube_into(&mut body, map);
+    cube_into(&mut body, map, tol);
     body
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>) {
-    let (a, b, cc, d) = (
-        map(0.0, 0.0, 0.0),
-        map(1.0, 0.0, 0.0),
-        map(1.0, 1.0, 0.0),
-        map(0.0, 1.0, 0.0),
-    );
-    let (a1, b1, c1, d1) = (
-        map(0.0, 0.0, 1.0),
-        map(1.0, 0.0, 1.0),
-        map(1.0, 1.0, 1.0),
-        map(0.0, 1.0, 1.0),
-    );
-    let seed = body.mvfs(a).unwrap();
-    let e_ab = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            line(a, b),
-            Tol::witness(),
-        )
-        .unwrap();
-    let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(
-            MevSite::Fan { he1: at, he2: at },
-            to,
-            line(from, to),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let e_bc = strut(body, e_ab.he_minus, b, cc);
-    let e_cd = strut(body, e_bc.he_minus, cc, d);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            line(d, a),
-            FaceSurface::New(plane(&[a, d, cc, b])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_aa = strut(body, e_ab.he_plus, a, a1);
-    let e_bb = strut(body, e_bc.he_plus, b, b1);
-    let e_cc = strut(body, e_cd.he_plus, cc, c1);
-    let e_dd = strut(body, f_bottom.he_plus, d, d1);
-    let f_front = body
-        .mef(
-            MefSite::Chords {
-                he1: e_aa.he_minus,
-                he2: e_bb.he_minus,
-            },
-            line(a1, b1),
-            FaceSurface::New(plane(&[a, b, b1, a1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_bb.he_minus,
-            he2: e_cc.he_minus,
-        },
-        line(b1, c1),
-        FaceSurface::New(plane(&[b, cc, c1, b1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_cc.he_minus,
-            he2: e_dd.he_minus,
-        },
-        line(c1, d1),
-        FaceSurface::New(plane(&[cc, d, d1, c1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_dd.he_minus,
-            he2: f_front.he_plus,
-        },
-        line(d1, a1),
-        FaceSurface::New(plane(&[d, a, a1, d1])),
-        Tol::witness(),
-    )
-    .unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
-        .unwrap();
-    describe_as_intersections(body);
+pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) {
+    prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, tol);
+    // Construction-final description step (D6) — the whole of what
+    // this door does that [`geometric_cube`] does not.
+    describe_as_intersections(body, tol);
 }
 
-/// Test-authoring convenience: the [`BooleanDeclarations`] declaring
+/// Test-authoring convenience: the [`topo::BooleanDeclarations`] declaring
 /// every flush face pair of `(a, b)`, on any carrier the `Rest`
 /// ladder verifies — the test author's
 /// stand-in for a recipe `Declare` (the author built the contact
@@ -600,8 +566,9 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
 pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,
+    tol: Tol,
 ) -> topo::BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, Tol::witness())
+    let found = topo::flush::find_flush_candidates(a, b, tol)
         .expect("a fixture's flush pairs decide definitely");
     topo::flush::declare_all(&found)
 }

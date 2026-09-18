@@ -27,7 +27,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, DocParam, EvalOptions, Expr,
     FramePlacement, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
-use geom_core::Tol;
+use geom_core::{OrthoFrame, Tol};
 
 fn eval(
     doc: &ProfileDoc,
@@ -216,11 +216,7 @@ fn an_authored_frames_value_carries_its_f64_placement() {
 /// by hand: the oracle for a frame whose origin is a PARAMETER, which
 /// `fixture::plane_of` (literals only) cannot read.
 fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
-    profile::SketchPlane::from_frame(
-        geom_core::Point3::new(2.0, -3.0, lift),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
-    )
+    profile::SketchPlane::from_frame(OrthoFrame::axes_yz(geom_core::Point3::new(2.0, -3.0, lift)))
 }
 
 /// Row 2 — the carry follows the parameter that drives the frame, and
@@ -426,11 +422,9 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     let ev = eval(&doc, None);
     assert_same_plane(
         &authored(&ev, frame),
-        &profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        ),
+        &profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            0.0, 0.0, 0.0,
+        ))),
         "v yields its component along u",
     );
 }

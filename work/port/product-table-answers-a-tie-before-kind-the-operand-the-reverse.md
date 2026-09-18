@@ -2,8 +2,11 @@
 id: product-table-answers-a-tie-before-kind-the-operand-the-reverse
 kind: issue
 title: The gate answers Ambiguous for a tied non-face in the product's own rows but NotAFace for the same tie at the operand
-status: open
+status: closed
 opened: 2026-09-06
+parent: PORT-DOORS-1
+pr: 2635
+closed: 2026-09-15
 ---
 
 
@@ -29,6 +32,48 @@ match too (a one-arm change: the kind is the name's, which the table
 enforces for every candidate), with the `display_contract` and the
 two control assertions moved — or a stated reason the product's rows
 answer differently.
+
+## Decided: kind-first in the product match too (PORT orchestrator, 2026-09-15)
+
+Ev was asked whether this call was theirs and answered that if the
+orchestrator is confident it is the orchestrator's. It is. The row
+offered two ways out — one order for both tables, or a stated reason
+the product's rows answer differently — and no reason for the second
+survives reading the two functions.
+
+MSOLVE-5's argument for kind-first in `operand_answer` is that **a
+non-face never mints anywhere**, so what an entity IS precedes where
+it is rooted. That premise is about the *name* being resolved, not
+about which table is being read: an edge is not a face at the pattern
+root either. A reason for the product's rows to answer differently
+would have to be a fact about the root that changes what the name
+denotes, and there is none — the root is where the name is *looked
+up*, not where its kind is decided.
+
+The shape confirms it. `operand_answer` dispatches kind, then
+rootedness, then collapses the tie; `resolve_face` dispatches the tie
+first and reaches kind only on a `Unique`. So one function treats the
+entry's multiplicity as prior to the name's kind and its sibling
+treats it as posterior, in the same file, over the same two facts.
+Kind-first makes the dispatch order one rule.
+
+It is also the more answerable refusal, which is this program's
+standing question (`work/port/plan.md`, Review posture).
+`Ambiguous { width }` tells the reader to disambiguate a reference
+that can never resolve however narrow they make it; `NotAFace { kind }`
+tells them the reference names the wrong sort of thing. Only the
+second is actionable, and today which one you get depends on where you
+read from.
+
+**What moves with it**, as the row already says: the `display_contract`
+arm, and the two control assertions in
+`crates/editor-core/tests/msolve5_read_below_a_root.rs` that pin the
+tied-face and tied-edge answers by value at the pattern root. Those
+assertions are a baseline, not a target — `docs/prompts/implementer-discipline.md`
+§3 — so they are re-taken and the PR says what moved.
+
+**Dispatches as one unit with
+`assembly-door-raises-only-the-head-of-each-refusal-list`.**
 
 ## Re-homed to PORT (2026-09-11, the cut in `docs/WORK-TRACKS-2026-09.md` addendum 3)
 

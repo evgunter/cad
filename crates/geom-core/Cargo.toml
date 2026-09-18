@@ -58,6 +58,23 @@ probe = []
 # turn it on. Same shape, same name shape and same reason as `topo`'s
 # `sweep-testing` failure-injection doors.
 identity-pass-testing = []
+# **THE SYMBOLIC TIER'S COST PROFILE** (`sym::profile`): structural
+# counters over the normal-form walks — forms built per op with their
+# sizes, every freeze with the CAUSE the ring or the budget refused for,
+# the coefficient ring's promotions off the `i128` inline path, and the
+# wall time of each walk. It is the instrument behind the tier's cost
+# record (`sym.rs`, `# Cost`) and exists so a later change to the normal
+# form has a before/after that is a count rather than a stopwatch.
+#
+# A CARGO FEATURE, not a runtime flag, for the reason the dial above is
+# one: with the feature off — every build outside a dev-dependency edge,
+# so every shipped one — no counter, no clock and no branch is compiled,
+# and the shipped tier is bit for bit what it was. With it on — every
+# `editor-core` test build carries it, evidence run or not — and the
+# profile not installed (`sym::profile::start_profile`), every hook is
+# one thread-local flag read. The NAME ends in `-testing` so `test-features-dev-only.sh`
+# proves it reachable through dev-dependency edges only.
+sym-profile-testing = []
 
 [dependencies]
 libm = { workspace = true }

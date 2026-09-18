@@ -17,9 +17,11 @@
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
+use super::form::{Form, Poly};
+use super::rational::Rat;
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, early_form,
-    indet_param, plain_form,
+    Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
+    plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
@@ -88,6 +90,9 @@ pub struct DecisionShape {
     pub enclosure: Option<(f64, f64)>,
 }
 
+// The install / take scaffold below is spelled again in `profile`
+// (two `Cell`s and a `RefCell` of a different payload): less than a
+// generic would cost to name, and each copy says so.
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     /// How many levels below a blocked residual [`explain`] walks
@@ -204,12 +209,11 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
         };
         let e = early_form(sess, id);
         let frozen = e.den == Poly::one()
-            && e.num.terms.len() == 1
+            && e.num.terms().len() == 1
             && e.num
-                .terms
-                .keys()
-                .next()
-                .is_some_and(|m| m.as_slice() == [(id.bits(), 1)]);
+                .terms()
+                .first()
+                .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
         let payload = match node.op {
             SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
             SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
@@ -229,7 +233,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
         );
         // A small form is worth reading in full: the two sides of a
         // residual that does not cancel are usually a few dozen terms.
-        if !frozen && e.num.terms.len() <= EXPLAIN_RENDER_TERMS {
+        if !frozen && e.num.terms().len() <= EXPLAIN_RENDER_TERMS {
             let text = render_form(sess, &e, 0);
             let cut = text
                 .char_indices()
@@ -251,10 +255,12 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
     out
 }
 
-fn size_of(f: &Form) -> FormSize {
+/// The size of a form — this report's and the cost profile's one
+/// spelling of it.
+pub(super) fn size_of(f: &Form) -> FormSize {
     FormSize {
-        num: (f.num.terms.len(), f.num.degree()),
-        den: (f.den.terms.len(), f.den.degree()),
+        num: (f.num.terms().len(), f.num.degree()),
+        den: (f.den.terms().len(), f.den.degree()),
     }
 }
 
@@ -332,7 +338,7 @@ fn render_poly(sess: &Session, p: &Poly, depth: usize) -> String {
     if p.is_zero() {
         return "0".to_owned();
     }
-    p.terms
+    p.terms()
         .iter()
         .map(|(m, c)| {
             let mut parts = vec![render_rat(c)];

@@ -484,59 +484,39 @@ fn the_map_groups_the_gates_the_way_the_sentences_docs_say_it_does() {
     }
 }
 
-/// Every `fillet_*` name the crate hands to a `decide` door, deduplicated
-/// and sorted.
+/// Every `fillet_*` name the crate hands to a `decide` door, sorted.
 ///
-/// **Call sites, not string literals.** The scan matches
-/// `decide…("fillet_…"` — the funnel's own spelling, including its
-/// `_flagged` and `_invariant` doors and a call broken across lines —
-/// over each file's CODE+LITERAL view, so a name in a comment is not a
-/// gate, and neither is `validate.rs`'s own map (its arms are match
-/// patterns, not calls) nor `path/program.rs`'s `"fillet_arc"` step
-/// name. Without that precision a crate-wide scan would read the map it
-/// is supposed to be checking and pass by construction.
+/// **Call sites, not string literals**, and the walk is
+/// `test_utils::source::predicate_census` — the tree's one home for it.
+/// This census wrote its own copy of that walk before the shared one
+/// existed, and a hand-rolled copy is exactly what two reviewers
+/// defeated by mutation on the roster suites next door: what the shared
+/// reader cannot read it REPORTS, and the roster rows red on each kind
+/// of report, so this row inherits a walk that is checked rather than
+/// one it would have to check itself.
+///
+/// The filter is the family: `validate.rs`'s own map is not a call site
+/// (its arms are match patterns) and `path/program.rs`'s `"fillet_arc"`
+/// step name never reaches the funnel, so neither is here — without
+/// that a crate-wide scan would read the map it is supposed to check
+/// and pass by construction.
 ///
 /// The names are leaked so they carry the `'static` lifetime an
 /// `Indeterminate`'s predicate needs; this is one test binary and each
 /// source file is read once.
 fn decided_fillet_predicates() -> Vec<&'static str> {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut names: Vec<&'static str> = Vec::new();
-    for path in test_utils::source::rust_sources(&src) {
-        let text = std::fs::read_to_string(&path).expect("a readable source file");
-        let code = test_utils::source::code_and_literals(&text);
-        let mut at = 0usize;
-        while let Some(hit) = code[at..].find("decide") {
-            let after = at + hit + "decide".len();
-            at = after;
-            // The door's name may carry a suffix (`_flagged`,
-            // `_invariant`); what must follow is `(` and then, across any
-            // whitespace, a `"fillet_…"` literal.
-            let rest = &code[after..];
-            let Some(i) = rest.find('(') else { continue };
-            if !rest[..i]
-                .chars()
-                .all(|c| c == '_' || c.is_ascii_alphanumeric())
-            {
-                continue;
-            }
-            let paren = after + i + 1;
-            let arg = code[paren..].trim_start();
-            let lead = paren + (code[paren..].len() - arg.len());
-            if !arg.starts_with("\"fillet_") {
-                continue;
-            }
-            let from = lead + 1;
-            let end = from + code[from..].find('"').expect("a closed string literal");
-            // The code view blanks characters in place, so its offsets
-            // index the source text byte for byte.
-            names.push(Box::leak(text[from..end].to_string().into_boxed_str()));
-            at = end;
-        }
-    }
-    names.sort_unstable();
-    names.dedup();
-    names
+    // The carriers the roster suite declares: a `fillet_*` name handed
+    // to the funnel through one of them is as much a gate as one
+    // written at the call.
+    use test_utils::source::NameCarrier::Call;
+    let carriers = [Call("travel"), Call("gate_positive"), Call("coincident")];
+    test_utils::source::predicate_census(&src, &carriers)
+        .names
+        .into_iter()
+        .filter(|name| name.starts_with("fillet_"))
+        .map(|name| -> &'static str { Box::leak(name.into_boxed_str()) })
+        .collect()
 }
 
 /// **`FILLET_NO_CORNER_RECOURSE` — "use a smaller radius".**

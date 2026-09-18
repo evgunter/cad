@@ -6,16 +6,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use std::f64::consts::{FRAC_PI_2, PI};
-
 use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use sweep::Revolution;
+use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::latitude_seam::two_arc_sphere;
 use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
-use super::verbs_shell::{boxy, tube, vessel};
+use super::verbs_shell::{tube, vessel};
 
 fn rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
@@ -71,20 +71,6 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     )
 }
 
-fn two_arc_sphere() -> Body<f64> {
-    let r = 1.0;
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
 fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(_, f)| {
@@ -125,7 +111,7 @@ fn r2_dump_the_corpus() {
     let tth = tube_torus_hollow(2.0, 0.5, 0.1);
     shelled("tube torus hollow", &tth, 0.02, &[]);
 
-    let b = boxy(2.0, 3.0, 4.0);
+    let b = block(2.0, 3.0, 4.0, Tol::witness());
     shelled("box", &b, 0.25, &[]);
     let v = vessel(1.0, 2.0);
     shelled("vessel", &v, 0.2, &[]);
@@ -136,7 +122,11 @@ fn r2_dump_the_corpus() {
     let hollow = topo::shell(&v, 0.2, tol()).expect("hollows").body;
     shelled("hollow vessel again", &hollow, 0.05, &[]);
 
-    let pair = beside(&boxy(2.0, 2.0, 2.0), &vessel(1.0, 2.0), 6.0);
+    let pair = beside(
+        &block(2.0, 2.0, 2.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        6.0,
+    );
     shelled("box beside vessel", &pair, 0.2, &[]);
     shelled(
         "box beside vessel opened",

@@ -29,7 +29,7 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::{brick, prism_z};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, boolean_reduce,
@@ -41,12 +41,7 @@ use topo::{
 /// disjoint one — the refusal (or its absence) is the gates' own
 /// signal, uncontaminated by contact machinery.
 fn distant_brick() -> Body<f64> {
-    prism_z::<f64>(
-        &[(50.0, 50.0), (51.0, 50.0), (51.0, 51.0), (50.0, 51.0)],
-        50.0,
-        51.0,
-    )
-    .body
+    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), Tol::witness())
 }
 
 /// The half-edge of `face`'s outer loop starting at the vertex whose
@@ -78,7 +73,12 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// and its siblings are the repair trigger's negative rows.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let he1 = he_at(&b, p.top_face, 0.0, 0.0, 1.0);
@@ -107,7 +107,12 @@ fn p1_single_chord_pair_still_refuses() {
 /// "some future producer"; plain euler ops reach it today.
 #[test]
 fn p2_subdivided_chord_pair_still_refuses() {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let he1 = he_at(&b, p.top_face, 0.0, 0.0, 1.0);
@@ -152,7 +157,12 @@ fn inset_patch_prism() -> (
     [topo::VertexKey; 4], // P, Q, R, S
     topo::LoopKey,        // the ring (dead after a later mekr)
 ) {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let pt = geom_core::Point3::new;

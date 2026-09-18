@@ -671,10 +671,18 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
         // Two independently authored prisms whose interface faces are
         // re-described as the SAME curved surface — the
         // census_g2_carrier fixture shape, per kind.
-        let a: common::Prism<f64> =
-            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 0.0, 1.0);
-        let b: common::Prism<f64> =
-            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 1.0, 2.0);
+        let a: common::Prism<f64> = common::prism_z(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let b: common::Prism<f64> = common::prism_z(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+            1.0,
+            2.0,
+            Tol::witness(),
+        );
         let (mut a_body, mut b_body) = (a.body, b.body);
         a_body
             .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))

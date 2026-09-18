@@ -14,6 +14,7 @@ use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, mass_properties, subtract, validate, validate_closed};
 
@@ -38,7 +39,7 @@ fn slab(
 ) -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(w.0, h.0), p2(w.1, h.0), p2(w.1, h.1), p2(w.0, h.1)]);
     extrude(
-        &validated(SketchPlane::from_frame(origin, u, v), lp),
+        &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
         Extrusion::Distance(depth),
         Tol::witness(),
     )

@@ -14,7 +14,9 @@
 //! - [`edge_overlay`], with [`edge_segments`] and
 //!   [`edge_id_segments`] under it — the same question for edges,
 //!   which have no area to shade, so the answer is line geometry
-//!   rather than a set of ids;
+//!   rather than a set of ids, and which therefore settles
+//!   selected-over-hovered here rather than leaving it to the shader
+//!   the way [`highlight`] does;
 //! - [`focus`] — **not a cursor question at all**: which drawn
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a parameter means walking `doc.order()` for the nodes it drives.
@@ -69,6 +71,16 @@ use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 ///
 /// Both fields are [`IdMap::NOTHING`] when nothing is marked, so the
 /// GPU consumes them as plain uniforms with no branch for absence.
+///
+/// **`hovered` is not narrowed against `selected`.** A hover on the
+/// patch that is already selected sets BOTH fields to that patch's id,
+/// and which mark it wears is settled downstream: `crate::gpu`'s
+/// `fs_main` tests the selected lane before the hovered one. The
+/// precedence lives there because the fragment sees both lanes at
+/// once, so every producer of this value gets the same ruling — and
+/// these fields are public, so this module is not the only producer.
+/// [`EdgeOverlay`] carries the OPPOSITE convention, for a reason that
+/// is forced rather than chosen; [`edge_overlay`] states it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Highlight {
     /// The selected patch's id, or [`IdMap::NOTHING`].
@@ -123,7 +135,11 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
 pub struct EdgeOverlay {
     /// The selected edge's segments, two positions per segment.
     pub selected: Vec<[f32; 3]>,
-    /// The hovered edge's segments, two positions per segment.
+    /// The hovered edge's segments, two positions per segment —
+    /// **empty when the hovered edge is the selected one**, which is
+    /// the opposite of [`Highlight`]'s convention and is what makes
+    /// selection win here. [`edge_overlay`] states why it has to be
+    /// decided at this end.
     pub hovered: Vec<[f32; 3]>,
     /// Whether the selected edge belongs to a free-moved instance.
     ///
@@ -198,8 +214,19 @@ impl EdgeOverlay {
 /// rather than being implemented a second time.
 ///
 /// A hover on the edge that is already selected draws only the
-/// selected mark: selection is the state the user committed to, which
-/// is the precedence the shader's face path already states.
+/// selected mark: selection is the state the user committed to. The
+/// OUTCOME is the one the shader's face path states, and the mechanism
+/// cannot be — this narrowing is not an echo of that precedence but the
+/// only place the edge path has to state one, which is also where the
+/// twin relation stops. An edge vertex carries exactly one mark word
+/// (`crate::gpu`'s `EDGE_MARK_SELECTED` is the ABSENCE of
+/// `EDGE_MARK_HOVERED`, so no vertex can mean both), and the two lanes
+/// are drawn from one buffer, selected first, by a pass that does not
+/// blend and does not write depth and compares `GreaterEqual` — so a
+/// hovered lane holding the selected edge's own geometry would OVERDRAW
+/// the selected mark and resolve the opposite way from `fs_main`'s
+/// `else if`. [`Highlight`] can leave its pair to the shader because a
+/// fragment sees both of its lanes; this value cannot.
 pub fn edge_overlay(
     index: &PickIndex,
     display: &DisplayView,

@@ -284,7 +284,8 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &reporting_hook::<T>, tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_impl(body, &faces, band, &reporting_hook::<T>, tol)
 }
 
 /// **The lane-dispatched hook at the REPORTING level, one home**: the
@@ -491,21 +492,76 @@ pub struct SignCertificate<'b, T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
+    ///
+    /// # Why this does not render in braced struct shape
+    ///
+    /// **Not one of the four things below is a field of this type, and
+    /// not one of this type's five fields is rendered under its own
+    /// name.** The bracket and the surface area are folded out of
+    /// `runs`, the open round is a maximum over a field of `FaceRun`,
+    /// and the refusal comes through [`Self::target_refusal`]. So the
+    /// question a braced shape raises — what happens to this render
+    /// when a field is added — has no useful answer: `Type { a: …, b:
+    /// … }` is what `derive(Debug)` and `debug_struct(…).finish()`
+    /// emit, and `finish_non_exhaustive` exists to say when such a
+    /// dump is partial, so the braces tell a reader these ARE the
+    /// fields. That is already false of every element here, and a
+    /// sixth field could not make it any falser. The braces are what
+    /// goes, and a reading of the certificate is what this says it is.
+    ///
+    /// # The correspondence that IS here, and is tied
+    ///
+    /// An earlier draft of this comment said there was "no
+    /// correspondence to be short of". **That was false and a style
+    /// review executed it.** [`Self::enclosure`] returns a
+    /// [`VolumeEnclosure`], which declares exactly three fields, and
+    /// all three are rendered below under their own names and nothing
+    /// else of it is. So the render is a field list — that type's —
+    /// and a fourth field on it compiled clean while this comment
+    /// argued no such list existed.
+    ///
+    /// Both patterns below are the tie. [`VolumeEnclosure`] is
+    /// destructured for the same reason `Self` is: a field added to
+    /// either is an E0027 here and has to be given a rendering or a
+    /// reason. What stays untied is `FaceRun::open_at`, read through
+    /// `runs.iter().filter_map(…)` — a field reached through an
+    /// iterator adaptor, which no pattern here can bind and which
+    /// `componentwise-equality-of-the-linear-types-is-hand-listed`'s
+    /// sibling question covers.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = self.enclosure();
+        let Self {
+            // The body is what the certificate READS; rendering it
+            // here would be a dump of the model, not of this.
+            body: _,
+            // The bracket below is the answer these two settled; the
+            // settings themselves are the caller's, not the
+            // certificate's.
+            band: _,
+            tol: _,
+            runs,
+            // Rendered through `Self::target_refusal`, which is where
+            // the rule for reading it — first refusing face in arena
+            // order — is stated.
+            refused: _,
+        } = self;
+        let VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area,
+        } = self.enclosure();
         write!(
             f,
-            "SignCertificate {{ volume in [{:?}, {:?}], surface_area {:?}, \
-             open_at {:?}, target_refusal {:?} }}",
-            e.volume_lo,
-            e.volume_hi,
-            e.surface_area,
+            "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
+             rounds still open {:?}, target refusal {:?}",
+            volume_lo,
+            volume_hi,
+            surface_area,
             // The rounds that REMAIN, not the rounds run: `None` here
             // is a finished walk (every face converged, exhausted its
             // schedule, or is closed-form), which is what a certificate
             // stopped at round 0 looks like and must not read as "no
             // rounds".
-            self.runs.iter().filter_map(|r| r.open_at).max(),
+            runs.iter().filter_map(|r| r.open_at).max(),
             self.target_refusal(),
         )
     }
@@ -673,7 +729,24 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_closed_form_of(body, &faces, band, tol)
+}
+
+/// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
+/// those faces bound, summed in the order given. The whole-body door
+/// is this one handed the face arena in arena order, so its answer is
+/// bit-for-bit the same (`face_list_door_tests` pins it); the
+/// point-in-solid door's per-solid entry hands it one solid's faces so
+/// a no-hit ray reads THAT solid's at-infinity side and not the
+/// body's total.
+pub(crate) fn mass_properties_closed_form_of<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -1184,12 +1257,12 @@ mod continuation_refusal_order_tests {
 /// neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
+    faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    let runs = decide_faces(&faces, |&face_key| {
+    let runs = decide_faces(faces, |&face_key| {
         face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
     })?;
     // The refusal arm is not dead, and it is not reachable from
@@ -1380,7 +1453,7 @@ fn face_flux<T: Decide>(
                 // scalar with NO certified lane (the dual arm of
                 // [`PropsQuadLane`]) — whose honest outcome on a
                 // trimmed face is the closed form's typed refusal.
-                None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
+                None => curved_face(surface, &outer, face.sense, band).map_err(wrap)?,
             }
         }
     };
@@ -3094,6 +3167,95 @@ mod recourse_tests {
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod face_list_door_tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// The closed-form corpus this module's pins are taken over: the
+    /// in-crate geometric prisms, alone and grafted into two-solid
+    /// arenas (the census's subject), all planar so the closed form
+    /// answers at every scalar.
+    fn corpus() -> Vec<(&'static str, Body<f64>)> {
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let unit = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
+        let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
+        let mut pair = unit.clone();
+        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        let mut trio = skew.clone();
+        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        vec![
+            ("unit", unit),
+            ("skew", skew),
+            ("tall", tall),
+            ("pair", pair),
+            ("trio", trio),
+        ]
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, recorded
+    /// before the face-list door existed (base `3f2336b21`): the door
+    /// became the face-list door handed the arena, and these are what
+    /// say it changed no number.
+    const PINNED: [(&str, u64, u64); 5] = [
+        ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
+        ("skew", 0x4001_0d4f_df3b_645a, 0x4026_2907_4669_5750),
+        ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
+        ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
+    ];
+
+    #[test]
+    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for ((name, body), (pin_name, volume, area)) in corpus().into_iter().zip(PINNED) {
+            assert_eq!(name, pin_name);
+            let whole = mass_properties_closed_form(&body, band, tol).unwrap();
+            assert_eq!(whole.volume.to_bits(), volume, "{name}: volume moved");
+            assert_eq!(whole.surface_area.to_bits(), area, "{name}: area moved");
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
+            assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
+            assert_eq!(
+                listed.surface_area.to_bits(),
+                whole.surface_area.to_bits(),
+                "{name}"
+            );
+        }
+    }
+
+    /// One solid's faces enclose that solid's volume, whichever other
+    /// solids share the arena: the per-solid read the point-in-solid
+    /// door's at-infinity fold depends on.
+    #[test]
+    fn a_solid_s_faces_enclose_that_solid_s_volume_in_a_shared_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        let (_, pair) = &bodies[3];
+        for (solid, _) in pair.solids() {
+            let faces: Vec<FaceKey> = pair
+                .faces()
+                .filter(|&(k, _)| {
+                    pair.get_face(k)
+                        .and_then(|d| pair.get_shell(d.shell))
+                        .is_some_and(|s| s.solid == solid)
+                })
+                .map(|(k, _)| k)
+                .collect();
+            assert_eq!(faces.len(), 6);
+            let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
+            // Both prisms of the pair are unit cubes.
+            assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
         }
     }
 }

@@ -170,6 +170,8 @@ use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 // Only `Probe`'s impls name these.
 #[cfg(feature = "probe")]
 use crate::real::{Bounds, Real};
+#[cfg(feature = "probe")]
+use crate::tolerance::Tol;
 
 thread_local! {
     /// The name of the predicate currently being decided (set by the
@@ -1040,9 +1042,10 @@ impl Real for Probe {
 
     /// The recording scalar's value channel IS an `f64`, so the
     /// registered-identity witness is `f64`'s verbatim
-    /// ([`Real::register_equal`]).
-    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
-        self.0.register_equal(other.0)
+    /// ([`Real::register_equal`]) — inexact, so its refusal is
+    /// `Disputed` and it never answers `Contradicted`.
+    fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
+        self.0.register_equal(other.0, tol)
     }
 
     fn zero() -> Self {

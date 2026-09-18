@@ -30,7 +30,15 @@ use crate::m10_8_harness::nominal_box;
 /// study, so a ceiling is a multiple of the study a user would ask for.
 type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
 
-/// The five documents M10-9 measured, at the same scales.
+/// The five documents M10-9 measured, at the same scales, and the
+/// three that author an arc at a bulge other than the circle kernel's
+/// `1`: R1's circular-segment boss (a literal `bulge = 2`, a major
+/// arc) and R2's D-tab twice (`bulge = 0.4` as a literal, and as a
+/// document parameter). The fixtures stay beside the probe rows that
+/// own them; this list is the index every env-driven row here reads
+/// by name (`CAD_M10_10_DOC`, `CAD_M10_10_DOCS`), and the default set
+/// the over-band rows run. The two dyadic CONTROLS are [`controls`],
+/// reachable by name only.
 fn documents(tol: Tol) -> Vec<NamedStudy> {
     vec![
         (
@@ -54,7 +62,51 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
             "r2_link",
             Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         ),
+        (
+            "r1_segment_boss",
+            Box::new(move |s: f64| crate::m10_10_r1_probes_interval::segment_boss(s, tol).0),
+        ),
+        (
+            "r2_d_tab_literal",
+            Box::new(move |s: f64| crate::m10_10_r2_probes_interval::d_tab(s, false, tol).0),
+        ),
+        (
+            "r2_d_tab_parameter",
+            Box::new(move |s: f64| crate::m10_10_r2_probes_interval::d_tab(s, true, tol).0),
+        ),
     ]
+}
+
+/// The dyadic-bulge CONTROLS (`d_tab_at`'s docs): the D-tab at `bulge
+/// = 0.5`, literal and parameter, whose sagitta coefficients fit the
+/// ring, so what stands there is the sign alone. Not in [`documents`]:
+/// the parameter control's whole-box replay costs ~8 s a probe in a
+/// dev build, so the over-band rows take them only by name
+/// (`CAD_M10_10_DOCS=r2_d_tab_parameter_dyadic`).
+fn controls(tol: Tol) -> Vec<NamedStudy> {
+    vec![
+        (
+            "r2_d_tab_literal_dyadic",
+            Box::new(move |s: f64| {
+                crate::m10_10_r2_probes_interval::d_tab_at(s, false, 0.5, tol).0
+            }),
+        ),
+        (
+            "r2_d_tab_parameter_dyadic",
+            Box::new(move |s: f64| crate::m10_10_r2_probes_interval::d_tab_at(s, true, 0.5, tol).0),
+        ),
+    ]
+}
+
+/// The named study `CAD_M10_10_DOC` selects (default the plate), from
+/// [`documents`] or [`controls`].
+fn document_from_env(tol: Tol) -> NamedStudy {
+    let name = std::env::var("CAD_M10_10_DOC").unwrap_or_else(|_| "two_hole_plate".into());
+    documents(tol)
+        .into_iter()
+        .chain(controls(tol))
+        .find(|(n, _)| *n == name)
+        .unwrap_or_else(|| panic!("no document {name:?}"))
 }
 
 /// The four identity residuals the staged walk names, in its order.
@@ -90,14 +142,17 @@ fn atoms_of(rendered: &str) -> BTreeMap<&'static str, usize> {
     out
 }
 
-/// **§1 — THE FOUR RESIDUALS, RENDERED**, at the plate's NOMINAL under
-/// the shipped tier: every decide site decides at a point, so this is
-/// where every residual's form is built. Per predicate the outcome
-/// split, and for each of the four the first rendered forms — PLAIN
-/// beside EARLY (A0 folded, the walk rule D runs in) — with their
-/// sizes and the atom kinds each carries.
+/// **§1 — THE RESIDUALS, RENDERED**, at one document's NOMINAL
+/// (`CAD_M10_10_DOC`, default the plate) under the chosen tier
+/// (`CAD_M10_10_RULES`): every decide site decides at a point, so this
+/// is where every residual's form is built. Per predicate the outcome
+/// split, and for the staged walk's four plus every other predicate
+/// that kept a residual NUMERIC with a form, the first rendered forms
+/// — PLAIN beside EARLY (A0 folded, the walk rule D runs in) — with
+/// their sizes and the atom kinds each carries, and the DAG below each
+/// explained to `CAD_M10_10_EXPLAIN` levels.
 #[test]
-#[ignore = "evidence-only: renders the plate's four identity residuals at the nominal"]
+#[ignore = "evidence-only: renders one document's identity residuals at the nominal"]
 fn m10_10_the_four_residuals_rendered_at_the_nominal() {
     let tol = Tol::witness();
     let rules = rules_from_env();
@@ -109,16 +164,53 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
     );
-    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
+    let (name, at) = document_from_env(tol);
+    let doc = at(1.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, refusal, counts) = replay(&doc, &nominal_box(&analyzed), rules, tol);
-    println!("== plate at the nominal, rules {rules:?}: {counts:?}; refusal {refusal:?}");
+    println!("== {name} at the nominal, rules {rules:?}: {counts:?}; refusal {refusal:?}");
     print_split(&shapes);
     let show = std::env::var("CAD_M10_10_SHOW")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(2);
-    for pred in THE_FOUR {
+    // The four first, in the walk's order, then any other predicate
+    // that kept a residual numeric WITH a form (a decision the numeric
+    // channel answered inside the band or could not, where the tier
+    // had built the form and declined it).
+    let mut preds: Vec<&'static str> = THE_FOUR.to_vec();
+    for s in &shapes {
+        if s.form.is_some() && !preds.contains(&s.predicate) {
+            preds.push(s.predicate);
+        }
+    }
+    // `CAD_M10_10_NEEDLES=a,b,…`: per predicate, how many of its
+    // still-numeric decisions carry each substring in the PLAIN form
+    // (nothing folded, so no freeze hides an atom) and in the EARLY
+    // form (what stood after the rules) — a count of a route's reach
+    // that renders nothing.
+    if let Some(needles) = std::env::var("CAD_M10_10_NEEDLES")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+    {
+        for needle in needles.split(',').map(str::trim) {
+            println!("-- decisions carrying {needle:?} (plain / early / numeric):");
+            for pred in &preds {
+                let (mut plain, mut early, mut all) = (0, 0, 0);
+                for s in shapes.iter().filter(|s| s.predicate == *pred) {
+                    let Some(f) = &s.form else { continue };
+                    all += 1;
+                    plain += usize::from(f.contains(needle));
+                    early +=
+                        usize::from(s.early_form.as_deref().is_some_and(|e| e.contains(needle)));
+                }
+                if all > 0 {
+                    println!("   {pred:<34} {plain:>3} / {early:>3} / {all:<3}");
+                }
+            }
+        }
+    }
+    for pred in preds {
         // The outcomes in evaluation order — nine per curve, so the
         // sample index of each numeric decision can be read off.
         let sequence: String = shapes
@@ -159,20 +251,10 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
     }
 }
 
-/// The per-predicate outcome split of one replay, printed.
+/// The per-predicate outcome split of one replay
+/// (`m10_8_harness::split`), printed.
 fn print_split(shapes: &[DecisionShape]) {
-    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
-    for s in shapes {
-        let row = table.entry(s.predicate).or_default();
-        let k = match s.outcome {
-            ShapeOutcome::Theorem => 0,
-            ShapeOutcome::SignGated => 1,
-            ShapeOutcome::Registered => 2,
-            _ => 3,
-        };
-        row[k] += 1;
-    }
-    for (pred, row) in &table {
+    for (pred, row) in &crate::m10_8_harness::split(shapes) {
         println!("   {pred:<34} {row:?} (theorem/gated/registered/numeric)");
     }
 }
@@ -190,6 +272,10 @@ fn rules_named(name: &str) -> SymRules {
         "all" => SymRules::all(),
         "shut" => SymRules::shipped_without_the_door(),
         "off" => SymRules::without_the_algebra(),
+        // SYM-5's differential: the shipped set with rule E (the
+        // quotient's common factor) shut, which is M10-10's tier bit
+        // for bit.
+        "no_e" => SymRules::without_rule_e(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -234,8 +320,10 @@ fn rules_named(name: &str) -> SymRules {
 /// under a chosen rule set (`CAD_M10_10_RULES`, default shipped) —
 /// the bracket at both ends of a 16-step log bisection, and every
 /// predicate over the band at the refusing end with its enclosure.
-/// `CAD_M10_10_DOCS` names a comma-separated subset. Run once per ε
-/// row (the tolerance is a `OnceLock`).
+/// `CAD_M10_10_DOCS` names a comma-separated subset of [`documents`]
+/// and [`controls`] (the controls run only when named). Evidence-only;
+/// the default set is eight documents and takes minutes. Run once per
+/// ε row (the tolerance is a `OnceLock`).
 #[test]
 #[ignore = "evidence-only: the ceilings and the over-band set at ceiling + delta"]
 fn m10_10_ceilings_and_the_over_band_set() {
@@ -246,11 +334,13 @@ fn m10_10_ceilings_and_the_over_band_set() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    for (name, at) in documents(tol) {
-        if only
-            .as_deref()
-            .is_some_and(|l| !l.split(',').any(|n| n.trim() == name))
-        {
+    let defaults: Vec<&'static str> = documents(tol).iter().map(|(n, _)| *n).collect();
+    for (name, at) in documents(tol).into_iter().chain(controls(tol)) {
+        let wanted = match only.as_deref() {
+            Some(list) => list.split(',').any(|n| n.trim() == name),
+            None => defaults.contains(&name),
+        };
+        if !wanted {
             continue;
         }
         let (lo, hi, per) =
@@ -289,7 +379,6 @@ fn m10_10_what_stands_rendered() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let rules = rules_from_env();
-    let name = std::env::var("CAD_M10_10_DOC").unwrap_or_else(|_| "two_hole_plate".into());
     let scale: f64 = std::env::var("CAD_M10_10_SCALE")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -305,10 +394,7 @@ fn m10_10_what_stands_rendered() {
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
     );
-    let (_, at) = documents(tol)
-        .into_iter()
-        .find(|(n, _)| *n == name)
-        .unwrap_or_else(|| panic!("no document {name:?}"));
+    let (name, at) = document_from_env(tol);
     let doc = at(scale);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);

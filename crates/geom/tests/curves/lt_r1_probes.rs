@@ -83,7 +83,7 @@ fn sampled_min_speed(c: &NurbsCurve3<f64>, n: usize) -> f64 {
 /// must not exceed the refined sampled min speed, and it must not be
 /// below the old arm where the old arm was real.
 fn check(name: &str, c: &NurbsCurve3<f64>) {
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     let old = old_arm(c);
     if !m.is_nan() {
         let truth = sampled_min_speed(c, fuzz::scaled(2_000));
@@ -293,7 +293,7 @@ fn r1_min_slack_report() {
         rows.push((format!("arc_{curl}"), interp(&pts, 3)));
     }
     for (name, curve) in &rows {
-        let m = curve.speed_lower_bound();
+        let m = curve.speed_lower_bound().get();
         if m.is_nan() || !(m > 0.0) {
             println!("SLACK {name} bound {m:?} (not positive; skipped)");
             continue;
@@ -326,7 +326,7 @@ fn r1_join_abstention_logic() {
         vec![1.0; 4],
     )
     .unwrap();
-    let m = square.speed_lower_bound();
+    let m = square.speed_lower_bound().get();
     assert!(
         !m.is_nan(),
         "global-chord collapse must ABSTAIN, not poison the join (got NaN)"
@@ -350,7 +350,7 @@ fn r1_join_abstention_logic() {
         vec![1.0; 4],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     let old = old_arm(&c);
     assert!(
         !m.is_nan() && (m - old).abs() == 0.0,
@@ -375,7 +375,7 @@ fn r1_join_abstention_logic() {
     .unwrap();
     // Global chord: last == first -> abstains. Span 2 chord P_0..P_2
     // collapses -> per-span poisons. Both abstain -> poison.
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m.is_nan(),
         "both assemblies collapsed: the join must be poison, got {m}"
@@ -395,7 +395,7 @@ fn r1_join_abstention_logic() {
         vec![1.0; 4],
     )
     .unwrap_or_else(|_| panic!("constructor rejects NaN — adjust probe"));
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m.is_nan(),
         "a poisoned control point must poison the join, got {m}"

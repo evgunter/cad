@@ -8,8 +8,9 @@
 //!
 //! # What a mate is, structurally
 //!
-//! A mate is a **leaf**: its `a`/`b` are `SitedRef`s — an
-//! instance-qualified stable name plus the OPERAND node it is read at
+//! A mate is a **leaf**: its `a`/`b` are [`crate::SitedFace`]s — an
+//! instance-qualified FACE name plus the OPERAND node it is read at,
+//! the kind fixed by the type because a mate is a face-pair contact
 //! — and neither half is a DAG edge (the shipped D3 carve-out, which
 //! `Declare` established, extended to the node half by A12's reading
 //! rule). What A12 adds on top is the *reading* edge: the MEMBER
@@ -53,7 +54,7 @@
 //! never be admitted at one and refused at the other without saying
 //! so: `Rest` clears both, `Tangent` solves and then refuses typed at
 //! the mint door (an at-rest contact has no witness edge for its
-//! `CurveContact` — [`crate::AssemblyError::NoAtRestRecord`]), and
+//! `CurveContact` — [`crate::MintRefusal::NoAtRestRecord`]), and
 //! every later class — `Fit { gap }` when it lands — refuses at the
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
@@ -422,9 +423,9 @@ pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or
 pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
                                   cross-document detail of a designed clearance is undischarged";
 
-/// **The recourse a [`crate::AssemblyError::NoAtRestRecord`] ends
-/// on**: what an author does about a class that solves and has no
-/// record to be verified by at rest.
+/// **The recourse a [`crate::MintRefusal::NoAtRestRecord`] ends on**:
+/// what an author does about a class that solves and has no record to
+/// be verified by at rest.
 ///
 /// The arm already quotes the table's reason for THIS class; this is
 /// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
@@ -454,8 +455,8 @@ pub enum ClassAdmission {
     /// census's verdict, not this table's.
     Mints,
     /// The solve door only. No kernel record carries this class at
-    /// rest, so [`crate::assemble`] refuses
-    /// [`crate::AssemblyError::NoAtRestRecord`] naming the mate — a
+    /// rest, so [`crate::assemble`] refuses with a
+    /// [`crate::MintRefusal::NoAtRestRecord`] row naming the mate — a
     /// solved placement that cannot be verified at rest, never a
     /// record minted with an invented witness.
     NoAtRestRecord {
@@ -773,6 +774,21 @@ pub enum MateFault {
         /// Why.
         refusal: LeverRefusal,
     },
+}
+
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for MateFault {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::PosesOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
 }
 
 /// The predicate that decides the EMPTY intersection. It is the one

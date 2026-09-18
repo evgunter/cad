@@ -45,11 +45,10 @@ use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
-use crate::m10_8_harness::{certifies_whole, nominal_box, over_band_set};
+use crate::m10_8_harness::{certifies_whole, over_band_set};
 
 /// A named study with its measured bracket: a scale that certifies
 /// whole and one that refuses, both asserted. The scale's UNIT is the
@@ -83,8 +82,8 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     let s = SymRules::shipped();
     assert_eq!(SymRules::default(), s, "one default");
     assert!(
-        s.trig_of_atan && s.early_ab && s.sqrt_square && s.pythagoras,
-        "rule D and rules A/B per node ship: {s:?}"
+        s.trig_of_atan && s.early_ab && s.sqrt_square && s.pythagoras && s.common_factor,
+        "rule D, rules A/B per node and rule E ship: {s:?}"
     );
     assert!(
         s.early && s.const_fold && s.registered,
@@ -96,39 +95,36 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     );
     let off = SymRules::without_the_algebra();
     assert!(
-        !off.trig_of_atan && !off.early_ab && !off.sqrt_square && !off.pythagoras,
+        !off.trig_of_atan
+            && !off.early_ab
+            && !off.sqrt_square
+            && !off.pythagoras
+            && !off.common_factor,
         "the algebra off: {off:?}"
     );
+    // FIVE dials since SYM-5: rule E (the quotient's common factor) is
+    // form-level algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had no
+    // rule E. `m10_9_pins_interval` holds M10-9's rows under it.
     assert_eq!(
         SymRules {
             trig_of_atan: true,
             early_ab: true,
             sqrt_square: true,
             pythagoras: true,
+            common_factor: true,
             ..off
         },
         s,
-        "`without_the_algebra` differs from `shipped` in the four algebra dials and nothing else"
+        "`without_the_algebra` differs from `shipped` in the five algebra dials and nothing else"
     );
 }
 
-/// The per-predicate split of one nominal replay:
-/// `predicate -> [theorem, gated, registered, numeric]`.
+/// The plate's per-predicate split at the nominal
+/// (`m10_8_harness::split_at_the_nominal`).
 fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u64; 4]> {
     let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let (shapes, _, _) = replay(&doc, &nominal_box(&analyzed), rules, tol);
-    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
-    for s in &shapes {
-        let row = table.entry(s.predicate).or_default();
-        row[match s.outcome {
-            ShapeOutcome::Theorem => 0,
-            ShapeOutcome::SignGated => 1,
-            ShapeOutcome::Registered => 2,
-            _ => 3,
-        }] += 1;
-    }
-    table
+    crate::m10_8_harness::split_at_the_nominal(&doc, rules, tol)
 }
 
 /// **ALL FOUR OF THE PLATE'S, at the nominal, each through its own
