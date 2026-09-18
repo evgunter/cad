@@ -1721,14 +1721,6 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
          work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
     ),
     (
-        "crates/step-import/src/error.rs",
-        "StepImportError",
-        "source",
-        2,
-        "a live panic on a public door — EXCH's, filed at\
-         work/issues/debug-in-prose-at-blend-and-step-import.md",
-    ),
-    (
         "crates/topo/src/boolean/voids.rs",
         "VoidInsertError",
         "e",
