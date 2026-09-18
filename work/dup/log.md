@@ -498,3 +498,25 @@ one of three options, with the measurement that decides between them.
 dispatchable rather than parked. That is the third face of
 `work/README.md`'s fired-trigger rule this program has hit: re-park,
 re-park, and now simply open.
+
+## 2026-09-18 — the link-3 home measurement, dispatched twice
+
+The first home-measurement lane was **killed by an account session
+rate limit** partway through, before it ran a single probe. Its last
+words were *"Now the two probes."* and the only thing in its worktree
+was a `work/dup/` row file holding frontmatter and no body — a title
+asserting "at least eight times inside topo, and two of the copies are
+byte-identical" with **no citations and no measurement behind it**.
+That stub was discarded rather than carried: a claim with no evidence
+under it is worth nothing regardless of how plausible its title reads,
+and this program exists to catch exactly that kind of inherited
+number. The lane was re-dispatched from scratch on the same brief.
+
+**The operational rule this confirms**, which is the second outage of
+the sitting (the first killed link 1b's fix pass mid-verification):
+treat every pre-outage local result as stale. The difference between
+the two cases is what the worktree held. Link 1b's held real,
+uncommitted work including a planted mutation, so it was *resumed*;
+this one held a stub, so it was *restarted*. The discriminator is
+whether there is evidence on disk, not whether the lane sounded
+confident when it died.
