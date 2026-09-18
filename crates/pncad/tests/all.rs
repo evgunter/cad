@@ -1344,6 +1344,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         named::<&f64>(&promotion.residual);
         named::<&str>(match promotion.kind {
             PromotedCurveKind::Circle => "circle",
+            PromotedCurveKind::Line => "line",
         });
     }
 }

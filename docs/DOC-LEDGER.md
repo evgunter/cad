@@ -3998,3 +3998,12 @@ left on the fourth, its row in `MODEL-AB-LOG.md` (ordinal 2406, sample
 #214) and the MERGED entry in `work/props/log.md`.
 
 - `PROPS-SPHERE-POLE-SIDE-SPEC.md` — PROPS sphere-pole-side, a rim's traversal names the side its face's interior lies on (#2741)
+
+- `EXCH-H1-SPEC.md` — EXCH-H1, degree-1 line promotion and the
+  seam-class Line limb (#1798). Deleted at merge per the spec
+  lifecycle; recoverable at `6ebcef1fd`. The unit's record is
+  `work/exch/EXCH-H1.md`, the parent issue's `## Closed`, its row in
+  `MODEL-AB-LOG.md` (ordinal 2100) and the landed entry in
+  `work/exch/log.md`. The §Re-scope ruling (the rung lives in
+  `run_iso_checks`' seam class, not `nurbs_iso_derive`) travels in
+  the log's adjudication entry.

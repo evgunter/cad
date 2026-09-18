@@ -388,20 +388,25 @@ pub struct StructureNormalization {
     pub kernel_census: FaceCensus,
 }
 
-/// The analytic kinds D7 stage-1 CURVE recognition can promote a NURBS
-/// carrier to (#327). Line-as-degree-1, ellipse, helix, and open
+/// The analytic kinds D7 CURVE recognition can promote a NURBS
+/// carrier to (#327 stage 1; the line #388). Ellipse, helix, and open
 /// (partial) circular arcs are named exclusions with filed follow-ups;
 /// such carriers stay NURBS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedCurveKind {
     /// A full, closed circle.
     Circle,
+    /// A chord segment (a certified degree-agnostic polyline leg —
+    /// the carrier lies on the chord between its end control points
+    /// and covers exactly that segment).
+    Line,
 }
 
 impl core::fmt::Display for PromotedCurveKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Circle => "circle",
+            Self::Line => "line",
         })
     }
 }
