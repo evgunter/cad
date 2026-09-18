@@ -2,10 +2,12 @@
 id: EXCH-E2
 kind: unit
 title: the step-import chart-coherence consumer — findings reach the importer's diagnostics
-status: dispatched
+status: closed
 opened: 2026-09-17
 branch: exch/e2-coherence-consumer
 parent: coherence-findings-have-no-step-import-consumer
+closed: 2026-09-18
+pr: 2837
 ---
 
 

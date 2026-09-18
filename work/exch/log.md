@@ -266,3 +266,20 @@ is FIX's re-homed coherence half — cut as `EXCH-E2`
 (`exch/e2-coherence-consumer`), E build, dispatched now on an opus
 lane (outside the A/B rows; EXCH-B1 slots 1–2 stay banked for the
 next kernel units).
+
+## EXCH-E2 landed (2026-09-18)
+
+PR [#2837](https://github.com/evgunter/cad/pull/2837) merged at
+`31d4a1268`, full matrix green twice (implementation and fix pass).
+The chart-coherence channel is wired measured-first: monomorphic
+call, three-state design, hazard priced (absent through this door),
+not-a-gate proven bitwise. Single style review MERGEABLE; the fix
+union landed whole including the reviewer's pre-named class fix
+(both test-support copies homed) and one honest deviation (the
+distinct-metres falsifier premise measured false; a door-order pin
+shipped instead). Cross-program residue at merge: TESS summoned for
+the coherence types' Display gap (second data point: it keeps
+StructureRead out of the prelude); MESH notified their corpus
+blind-spot sentence is now false. The E tail is done; EXCH's
+remaining slate is units 2–3, both PROPS-entangled, plus consuming
+TRIM's dm1-frontier row when it lands.
