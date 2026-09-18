@@ -1859,8 +1859,9 @@ impl DocSession {
         self.display.clear();
     }
 
-    /// Insert one datum node with literal slots
-    /// ([`SessionOp::AddDatum`]).
+    /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are
+    /// literals; an axis in a sketch also names its frame, and a name
+    /// that is not a frame is refused `WrongNodeKind` before the edit.
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
         // An axis in a sketch names its frame by PICK, so it is gated
         // at this door by kind, as the add-profile door gates its

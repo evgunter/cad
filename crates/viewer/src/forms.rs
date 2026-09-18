@@ -99,9 +99,8 @@ vocabulary! {
     /// `AxisInPlane` is the one kind that needs a PICK as well as
     /// numbers: its frame is a document node, chosen from the frames
     /// the document holds, and its origin and direction are that
-    /// frame's own 2-D coordinates. It is what the revolve tool's axis
-    /// seat takes, so without it here that seat could not be filled
-    /// from the running application.
+    /// frame's own 2-D coordinates. It is the only node the revolve
+    /// tool's axis seat admits.
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
     /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
@@ -117,13 +116,13 @@ vocabulary! {
     /// such thing.
     ///
     /// **Held to `DatumSpec` by a roster.** The direction the compiler
-    /// already held is kind-to-spec: `pane::create`'s lowering match
-    /// is exhaustive over this enum, so a choice with no spec to lower
+    /// already held is kind-to-spec: `Drafts::datum_spec`'s lowering
+    /// match is exhaustive over this enum, so a choice with no spec to lower
     /// to does not build. The `partial_mirror!` invocation below holds
     /// spec-to-kind: every `DatumSpec` arm is classified as offered
     /// here or as deliberately absent with its reason, so a new arm
-    /// cannot arrive with no form edit and nothing saying so. Every
-    /// arm is offered today and the absent section is empty. It takes
+    /// cannot arrive with no form edit and nothing saying so. An empty
+    /// absent section means the form offers the whole spec. It takes
     /// the `onto` shape rather than a seat roster because the offering
     /// is an ENUM whose `ALL` is projected from its declaration, so
     /// naming a counterpart there already says the radio row draws it

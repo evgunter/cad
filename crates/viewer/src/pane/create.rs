@@ -392,7 +392,11 @@ impl ViewerBehavior<'_> {
                 });
                 ui.horizontal(|ui| {
                     ui.label("direction");
-                    for component in &mut self.drafts.datum_in_frame_direction {
+                    for (axis, component) in ["x", "y"]
+                        .into_iter()
+                        .zip(&mut self.drafts.datum_in_frame_direction)
+                    {
+                        ui.label(axis);
                         ui.add(number_field(component, UNIT_DRAG_SPEED));
                     }
                 });
@@ -403,7 +407,11 @@ impl ViewerBehavior<'_> {
             }
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
-        let unpicked = kind == DatumKindChoice::AxisInPlane && self.drafts.datum_frame.is_none();
+        // Lowered every frame, so the button's enabling and its commit
+        // read one value: `Ok(None)` is the unpicked frame, and it is
+        // what holds the button.
+        let datum = self.drafts.datum_spec();
+        let unpicked = matches!(datum, Ok(None));
         if unpicked {
             ui.weak("pick a frame to write the axis in");
         }
@@ -411,16 +419,9 @@ impl ViewerBehavior<'_> {
             .add_enabled(!unpicked, egui::Button::new("Add datum"))
             .clicked()
         {
-            let datum = self.drafts.datum_spec();
             match datum {
                 Ok(Some(datum)) => self.ops.push(SessionOp::AddDatum { datum }),
-                // Unreachable while the button waits on the pick, and
-                // said rather than dropped: the enabling condition and
-                // the lowering are two pieces of code.
-                Ok(None) => {
-                    self.notices
-                        .push(frame::tool_news("add datum: no frame picked"));
-                }
+                Ok(None) => {}
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
@@ -458,8 +459,8 @@ impl ViewerBehavior<'_> {
     }
 
     /// The add-profile form: a template shape with Length fields, one
-    /// [`SessionOp::AddProfile`] on commit — on the world XY plane,
-    /// which the form says.
+    /// [`SessionOp::AddProfile`] on commit — on a frame picked from the
+    /// document's frames.
     ///
     /// The circle's optional bore is what lets this template author
     /// the hollow ring's annulus (one profile node, two loops); the
@@ -484,10 +485,9 @@ impl ViewerBehavior<'_> {
             }
         });
         // **The frame it is drawn on**, picked from the ones the
-        // document holds. The form used to say "on the world XY plane"
-        // and mean a constant; a profile's plane is a node now, so this
-        // names one — and a document with no frame in it says so rather
-        // than conjuring one.
+        // document holds. A profile's plane is a node, so the form names
+        // one — and a document with no frame in it says so rather than
+        // conjuring one.
         let frames = self.frames();
         frame_picker(
             ui,

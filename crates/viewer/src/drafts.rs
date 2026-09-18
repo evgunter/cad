@@ -364,6 +364,15 @@ impl Drafts {
         Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
     }
 
+    /// Two `Length` literals — a point in a sketch frame.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub(crate) fn lengths2(&self, v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+        Ok([self.length(v[0])?, self.length(v[1])?])
+    }
+
     /// **The add-datum form's drafts as a spec**, for the kind chosen:
     /// lengths in the form's notation, a normal or a direction
     /// dimensionless. `None` for an axis in a sketch whose frame is not
@@ -391,15 +400,10 @@ impl Drafts {
                 let Some(plane) = self.datum_frame else {
                     return Ok(None);
                 };
-                let [ox, oy] = self.datum_in_frame_origin;
-                let [dx, dy] = self.datum_in_frame_direction;
                 DatumSpec::AxisInPlane {
                     plane,
-                    origin: [self.length(ox)?, self.length(oy)?],
-                    direction: [
-                        Expr::literal(dx, Dimension::Scalar)?,
-                        Expr::literal(dy, Dimension::Scalar)?,
-                    ],
+                    origin: self.lengths2(self.datum_in_frame_origin)?,
+                    direction: scalars2(self.datum_in_frame_direction)?,
                 }
             }
             DatumKindChoice::Point => DatumSpec::Point {
@@ -422,6 +426,19 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
         Expr::literal(v[0], Dimension::Scalar)?,
         Expr::literal(v[1], Dimension::Scalar)?,
         Expr::literal(v[2], Dimension::Scalar)?,
+    ])
+}
+
+/// Two dimensionless literals — a direction in a sketch frame;
+/// [`scalars`]' twin.
+///
+/// # Errors
+///
+/// A non-finite component.
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+    Ok([
+        Expr::literal(v[0], Dimension::Scalar)?,
+        Expr::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
