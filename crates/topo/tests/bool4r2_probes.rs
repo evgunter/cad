@@ -95,8 +95,8 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 /// decided.
 #[test]
 fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch() {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
-    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0));
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
+    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&l.body, &part);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared touches refuse");
@@ -143,8 +143,8 @@ fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch
 /// whether a fully-declared straddle would certify.
 #[test]
 fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
-    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0));
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
+    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&l.body, &part);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared touches refuse");
@@ -205,8 +205,8 @@ fn contact_kind(c: &CensusContact) -> &'static str {
 /// and this row is what moves when it closes.
 #[test]
 fn two_half_overlapping_cubes_are_cleared_at_the_gate() {
-    let a = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = common::brick::<f64>((1.0, 3.0), (0.0, 2.0), (0.0, 2.0));
+    let a = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = common::brick::<f64>((1.0, 3.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let body = assembly(&a, &b);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared touches refuse");
@@ -223,9 +223,9 @@ fn two_half_overlapping_cubes_are_cleared_at_the_gate() {
 /// and measured here so the cost is on record.
 #[test]
 fn a_pierce_between_a_and_c_blocks_the_a_b_material_test() {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
-    let piercer = common::brick::<f64>((2.3, 2.7), (-0.5, 0.5), (0.3, 0.7));
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
+    let piercer = common::brick::<f64>((2.3, 2.7), (-0.5, 0.5), (0.3, 0.7), Tol::witness());
     let mut body = assembly(&l.body, &part);
     topo::graft_disjoint(&mut body, &piercer, Tol::witness()).unwrap();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
@@ -264,9 +264,9 @@ fn a_pierce_between_a_and_c_blocks_the_a_b_material_test() {
 /// `Out` of the bracket, and the pair clears.
 #[test]
 fn a_hollow_part_in_the_concavity_clears() {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
-    let mut part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
-    let hole = common::brick::<f64>((1.4, 1.6), (1.8, 2.2), (0.4, 0.6));
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
+    let mut part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
+    let hole = common::brick::<f64>((1.4, 1.6), (1.8, 2.2), (0.4, 0.6), Tol::witness());
     let (solid, _) = part.solids().next().unwrap();
     let evidence = VoidEvidence {
         shells: hole
@@ -295,10 +295,10 @@ fn a_hollow_part_in_the_concavity_clears() {
 fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let complement = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0))
+    let complement = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
         .revert()
         .unwrap();
-    let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0));
+    let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0), Tol::witness());
     let body = assembly(&complement, &far);
     let [comp, _] = solids(&body)[..] else {
         panic!()
@@ -319,8 +319,8 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
 /// decides.
 #[test]
 fn embedded_witness_is_the_fifth_vertex_in_arena_order() {
-    let big = common::brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 4.0));
-    let small = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
+    let big = common::brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), Tol::witness());
+    let small = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&big, &small);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("embedded refuses");
@@ -357,15 +357,18 @@ fn embedded_witness_is_the_fifth_vertex_in_arena_order() {
 /// clear is ever restored.
 #[test]
 fn a_vertex_touching_straddler_is_decided_by_its_inside_corner() {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let wall = l.side_faces[3];
-    let part = common::mapped_cube(|u, v, w| {
-        Point3::new(
-            1.4 - 0.2 * (u + v + w),
-            1.8 - 0.3 * v + 0.1 * u - 0.05 * w,
-            0.3 + 0.3 * w - 0.1 * u + 0.05 * v,
-        )
-    });
+    let part = common::mapped_cube(
+        |u, v, w| {
+            Point3::new(
+                1.4 - 0.2 * (u + v + w),
+                1.8 - 0.3 * v + 0.1 * u - 0.05 * w,
+                0.3 + 0.3 * w - 0.1 * u + 0.05 * v,
+            )
+        },
+        Tol::witness(),
+    );
     let body = assembly(&l.body, &part);
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();

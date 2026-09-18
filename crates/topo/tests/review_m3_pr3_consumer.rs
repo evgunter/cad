@@ -99,6 +99,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
     let fx = prism::<f64>(
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
+        Tol::witness(),
     );
     let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
@@ -115,7 +116,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (3.0, 2.0),
         (0.0, 2.0),
     ];
-    let fx = prism::<f64>(notched, 1.0);
+    let fx = prism::<f64>(notched, 1.0, Tol::witness());
     let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
@@ -127,7 +128,11 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
 #[test]
 fn tiny_real_sliver_not_wrongly_refused() {
     let h = 1.0e-4;
-    let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (2.0, 1.0 + h)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (4.0, 0.0), (2.0, 1.0 + h)],
+        1.0,
+        Tol::witness(),
+    );
     let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -156,7 +161,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
     let eps = geom_core::Tol::witness().get().eps;
     let t = 5.0 * eps; // inside (ε, 10ε)
     let profile = [(2.0, 0.0), (2.0 + t, 0.0), (2.0 + t, 2.0), (2.0, 2.0)];
-    let built = std::panic::catch_unwind(|| prism::<f64>(&profile, 1.0));
+    let built = std::panic::catch_unwind(|| prism::<f64>(&profile, 1.0, Tol::witness()));
     let Ok(fx) = built else {
         eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
@@ -175,7 +180,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
 /// whole body on the other, and `plane_section` reports zero polygons.
 #[test]
 fn vertex_only_contact_is_typed_empty() {
-    let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let s3 = 3.0f64.sqrt();
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -204,6 +209,7 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     let fx = prism::<f64>(
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
+        Tol::witness(),
     );
     let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let above = body_of(&r.above);
@@ -262,7 +268,7 @@ fn plane_section_winding_is_consistent() {
         (3.0, 2.0),
         (0.0, 2.0),
     ];
-    let fx = prism::<f64>(notched, 1.0);
+    let fx = prism::<f64>(notched, 1.0, Tol::witness());
     let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 3);
     let mut signs = Vec::new();
@@ -292,5 +298,5 @@ fn plane_section_winding_is_consistent() {
 /// incidental to that: nothing below reads a description.
 fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     let profile = [(x0, 0.0), (x0 + 2.0, 0.0), (x0 + 2.0, 2.0), (x0, 2.0)];
-    crate::common::prism_ops(body, &profile, (0.0, 1.0), Point3::new);
+    crate::common::prism_ops(body, &profile, (0.0, 1.0), Point3::new, Tol::witness());
 }

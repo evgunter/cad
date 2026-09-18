@@ -107,11 +107,11 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
 fn interval_geometric_cube_passes_tier3() {
     // Upgraded first (M2 PR 4 fix pass: prefer-intrinsic enforcement —
     // the cube's transverse chords must carry Intersection at rest).
-    let t = common::geometric_cube::<Interval>();
+    let t = common::geometric_cube::<Interval>(geom_core::Tol::witness());
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
     let mut body = t.body;
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, geom_core::Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     // Certification records are genuine enclosures: max residual
     // brackets are finite, tiny, and contain no poison.
@@ -126,9 +126,9 @@ fn interval_geometric_cube_passes_tier3() {
 fn interval_cube_upgrades_to_intersections() {
     // The prefer-intrinsic upgrade in the interval lane: transversality
     // margins classify Positive from genuine enclosures.
-    let t = common::geometric_cube::<Interval>();
+    let t = common::geometric_cube::<Interval>(geom_core::Tol::witness());
     let mut body = t.body;
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, geom_core::Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
@@ -138,9 +138,9 @@ fn interval_cube_upgrades_to_intersections() {
 /// same face draws the same verdict.
 #[test]
 fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
-    let t = common::geometric_cube::<Interval>();
+    let t = common::geometric_cube::<Interval>(geom_core::Tol::witness());
     let mut body = t.body;
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, geom_core::Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 
     let face = t.mefs[0].face;

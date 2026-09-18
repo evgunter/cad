@@ -528,7 +528,7 @@ fn face_chart(body: &Body<Interval>, face: topo::FaceKey) -> Surface<Interval> {
 #[test]
 fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
     let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-    let built = common::prism::<Interval>(&square, 1.0);
+    let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
     let mut body = built.body;
     let face = built.bottom_face;
     let chart = face_chart(&body, face);
