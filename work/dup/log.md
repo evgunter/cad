@@ -498,3 +498,95 @@ one of three options, with the measurement that decides between them.
 dispatchable rather than parked. That is the third face of
 `work/README.md`'s fired-trigger rule this program has hit: re-park,
 re-park, and now simply open.
+
+## 2026-09-18 — the link-3 home measurement, dispatched twice
+
+The first home-measurement lane was **killed by an account session
+rate limit** partway through, before it ran a single probe. Its last
+words were *"Now the two probes."* and the only thing in its worktree
+was a `work/dup/` row file holding frontmatter and no body — a title
+asserting "at least eight times inside topo, and two of the copies are
+byte-identical" with **no citations and no measurement behind it**.
+That stub was discarded rather than carried: a claim with no evidence
+under it is worth nothing regardless of how plausible its title reads,
+and this program exists to catch exactly that kind of inherited
+number. The lane was re-dispatched from scratch on the same brief.
+
+**The operational rule this confirms**, which is the second outage of
+the sitting (the first killed link 1b's fix pass mid-verification):
+treat every pre-outage local result as stale. The difference between
+the two cases is what the worktree held. Link 1b's held real,
+uncommitted work including a planted mutation, so it was *resumed*;
+this one held a stub, so it was *restarted*. The discriminator is
+whether there is evidence on disk, not whether the lane sounded
+confident when it died.
+
+## 2026-09-18 — link 3's home, and an error of the orchestrator's own
+
+The re-dispatched measurement came back and **settled the home**:
+option 3, a sibling module re-exported through `test_support`. Options
+1 and 3 are invisible to consumers and differ only in whether the
+three-lint `#![allow]` also covers `ArenaCounts`, which earns none of
+the 31 lints it allows (25 `unwrap_used`, 6 `expect_used`, 0 `panic` —
+that arm is unearned and should not travel).
+
+**Option 2 died on the number the row itself named.** The row said the
+deciding figure was how much of `crates/topo/src/fixtures.rs`
+duplicates `tests/common/mod.rs`. It is **zero** — the two files share
+no item. What they share is the name `prism`/`Prism`, with disjoint
+meanings: `fixtures::prism` has no mass properties at all, its eight
+points are collinear in `y = 0`, its surfaces are `NaN`-control-point
+`Nurbs` and its carriers are `Circle`/`Scaffold`/`Declared`. A
+skeleton, not a box. The file says so at `:492` — *"indexed
+placeholders … structural validation never reads them."*
+
+**I wrote option 2 into that row, and the reasoning was bad in a way
+this program exists to name.** I had two observations — the file holds
+fixture vocabulary, and it exports a `prism(n, tol)` matching the
+signature link 2 had just converged the `tests/` family onto — and I
+treated them as evidence of sameness. They were three readings of one
+surface: a name, a signature, a neighbourhood. The convergence I read
+as "these are one door" was a convergence onto `(count, tol)`, which
+after link 2 is what nearly every fixture builder in this tree takes.
+
+S-DUP normally catches *different names for one thing*. Here the
+orchestrator nearly landed a unit on *one name for two things*, and
+what caught it was not judgement but the row's standing demand that
+the measurement precede the choice. The companion to the
+five-instruments result, recorded on the row: **a name, a signature
+and a neighbourhood are three readings of the same surface, and three
+surface readings do not make a measurement.**
+
+**One correction back to the lane.** It characterised `fixtures.rs` as
+"the raw-insertion home" against `tests/common`'s "Euler-op home".
+True of `fixtures::prism`, false of the file: `ops_cube`,
+`ops_holed_box`, `ops_genus2`, `ops_ring_bridge` and `ops_strut_cube`
+are all operator-built with real coordinates. The verdict stands — the
+item overlap is still zero — but the boundary between the two files is
+**reachability**, not construction style. `fixtures.rs` is
+`#[cfg(test)] pub(crate)`, so `tests/` cannot name it; `tests/common`
+is a separate binary, so `src/` cannot name it. Each exists because
+the other is unreachable. That is the wall link 3 takes down, and the
+same wall holds `cert_m3r1_probes.rs`'s copy in place.
+
+**A sixth spelling, filed rather than disclosed.** The lane measured,
+while settling `review_m1_pr3::build_box`, that `fixtures::ops_cube`
+is `geometric_cube` with the face geometry declined — byte-identical
+dumps in `points`, all 1199 lines of `curves`, `half_edges`, `loops`,
+`edges`, `vertices`, all seven provenance maps, `curve_origins` and
+`surgery` — and that `build_box` is `ops_cube` at a uniform 2× scale.
+It correctly left that in prose and flagged that prose is not
+scheduling (`work/README.md`). It is now
+`work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`,
+parked behind link 3, because nothing in `src/` can name the shared
+builder until link 3 lands.
+
+Three things the lane retired for link 3, each measured rather than
+argued: the blocked-from-`src/` set is **empty** (`cargo check -p topo
+--lib --features test-support` with the family mounted: 0 errors, 0
+warnings, and `--lib` excludes dev-deps); `tests/fixture/mod.rs` moves
+**nowhere** (one SSI acceptance fixture, 2 consumers, zero overlap,
+slated for deletion by its own header); and the witness gate is
+**already discharged** — link 2 took `tests/common` to 0
+`Tol::witness()` calls, so only the `#![allow]` remained of this row's
+"two gates at the door".
