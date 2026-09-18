@@ -648,6 +648,16 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // which is this prelude's rule for a name the corpus reaches for
 // less than corpus-wide.
 //
+// **The falsifier**: a curated consumer that BRANCHES on which read
+// failed rather than handing the loop to `validate`. The moment one
+// does, the eight arms are eight different facts a prelude caller
+// acts on differently and the rung is a discriminant like the two
+// above it, not a detail of a defer. Today the only consumer in tree
+// renders it — `editor_core`'s resident reaches a user with `{at:?}`
+// — which is the second-vocabulary hazard `topo`'s own module names
+// and not a branch. Stated so the next curation pass re-measures
+// rather than re-deriving.
+//
 // The report has no Python half: the binding's import door asks for
 // no examination, and `pncad-py`'s surface census carries that as a
 // `NotBound` row with its reason.

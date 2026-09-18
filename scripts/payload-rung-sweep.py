@@ -160,6 +160,14 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),
     "RecipeEditRef": ("argued", "the telemetry half, deliberately interior, "
                                 "crates/pncad/src/select.rs"),
+    # `Unexaminable::Corrupt`'s payload, one rung under the
+    # chart-coherence vocabulary the prelude carries for
+    # `StepImport::Solid::coherence`. Decided on the `BandField` row's
+    # shape: the rung's own recourse routes out of this vocabulary —
+    # a corrupt loop is a tier-1 defect and `validate` is the door
+    # that names it — so a consumer wanting the read is already
+    # holding a validation refusal.
+    "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list
