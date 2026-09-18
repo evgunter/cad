@@ -406,7 +406,7 @@ pub fn frame_placement(
 }
 
 /// **Every frame datum in the document, in document order** — what the
-/// add-profile form's plane picker offers.
+/// creation forms' frame picker offers.
 ///
 /// Document order rather than sorted by id or by name: the feature
 /// tree lists nodes that way, so the picker and the tree name the
