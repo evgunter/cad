@@ -19,7 +19,7 @@ use crate::marks;
 use crate::pickcache;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
-use crate::sketch::{heading, tip_mark};
+use crate::sketch::{TIP_MARK_PX, heading};
 
 /// Land a fold: take the camera it reached, and show the refusal that
 /// stopped it.
@@ -578,11 +578,11 @@ impl ViewerBehavior<'_> {
         }
         if let Some(Ok(drawn)) = self.profile_preview {
             let plane = drawn.plane;
-            // ONE size for every loop in the preview, from the whole
-            // picture's extent: marks that each scaled to their own
-            // loop would draw a bore's crosses smaller than its
-            // outer's for no reason a reader could name.
-            let tick = tip_mark(&drawn.loops);
+            // The marks are sized in pixels, read at each vertex's own
+            // depth — the same door the datum glyphs go through. A
+            // window this camera has no view of draws the chain and no
+            // marks; the projection refusal below is what says why.
+            let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
                 // A CLOSED loop's segment list wraps — the last point
@@ -630,6 +630,12 @@ impl ViewerBehavior<'_> {
                 for &at in &polyline.vertices {
                     let here = points[at];
                     let Some([dx, dy]) = heading(points, at, polyline.closed) else {
+                        continue;
+                    };
+                    let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+                    let Some(tick) =
+                        view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
+                    else {
                         continue;
                     };
                     // Both marks are drawn ACROSS the heading, never

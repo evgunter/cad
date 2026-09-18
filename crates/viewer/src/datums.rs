@@ -190,7 +190,12 @@ impl View {
     /// constant at every mark, but [`View::half_patch_at`] passes a
     /// span read off [`View::viewport_px`], which is the caller's
     /// number and need not be one.
-    fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
+    ///
+    /// Public because it is the one door from a pixel count to a
+    /// world length, and a mark drawn outside this module — a profile
+    /// preview's tip marks (`pane::viewport`) — is sized the same way
+    /// or it is sized against the model.
+    pub fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
         let span = self.metres_per_pixel_at(point)? * px;
         (span.is_finite() && span > 0.0).then_some(span)
     }
