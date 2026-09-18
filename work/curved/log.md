@@ -298,3 +298,31 @@ head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
 together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
 Session monitors re-armed after the crash; nothing of this program's
 was running when the box went down.
+
+## Spiric PR-1a dual adjudicated (2026-09-18)
+
+Ev, in-chat: the usage limit has reset. R2 (Fable) had been killed by a
+model-side 429 during the hold and was resumed from transcript; both
+arms MERGEABLE-AFTER-FIXES with no MAJOR (R1 Opus 4 MINOR/8 NOTE,
+rubric 4/4/3/4/5; R2 Fable 3 MINOR/3 NOTE, rubric 3/4/3/4/5). No wrong
+number in the shipped kernel: both arms re-derived the closed forms by
+hand, reproduced every PR mutant with its exact payload, and both
+demonstrated M7 on the vessel (STOP-1 ruling 4 closed). Converged:
+row 2 cannot see M3 on the vessel (`R/r′ = 1.33`; needs `R ≥ 3r`),
+`edge_pose`'s `Pose` contract, M5's reader (R2's wide-bracket Interval
+row; the shipped Interval box row is its f64 twin bit-for-bit), the
+Python-mirror contradiction, the refuted row names. Unique: R2 the dead
+`torus_boundary` arm (the wall takes the uncached-pcurve quadrature
+door until 1b) — claims-class; R1 four unexercised census arms and the
+missing deciding constructor. Adjudication on the PR (comment
+5733631165); thirteen items; fix pass dispatched. Tally: no candidate;
+R2 killed once by a 429, and R1 disclosed reading the arm's name in the
+STOP-1 ruling comment (an orchestrator text — instrument leak noted:
+STOP rulings on a PR under review must not name the slot's arm) — 3(e)
+excludes the pair. **Slate change**: S-BOOL exited (walk 2026-09-16)
+and re-homed its residue by file — CURVED received ~30 items,
+including `cosurface-disjoint-curved-walls-refuse` and
+`boolean-declarations-has-no-geometric-producer` from the plan's
+"S-BOOL's today" lanes; the handover the plan waited on happened by
+exit rather than reply. The plan is re-cut after the two open units
+merge.

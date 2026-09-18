@@ -532,3 +532,23 @@ claimed (PR #2669); byte 136, parity 0 ⇒ R1 Opus, R2 Fable; frozen head
 announcement was owed at PR open (2026-09-14) and was not made — the
 orchestrator's miss; posted now on #2564 (comment 5683759668) and on the
 sign-off watchlist. PR-1 does not merge without the ack or Ev's ruling.
+
+## TRIM-2 PR-1 dual adjudicated (2026-09-18)
+
+R2 (Fable) killed once by a model-side 429 during the hold, resumed
+after the reset; both arms MERGEABLE-AFTER-FIXES (R1 Opus 2 MAJOR/5
+MINOR/5 NOTE, rubric 3/4/3/3/5; R2 Fable 1 MAJOR/5 MINOR/6 NOTE, rubric
+4/4/3/4/5). The FLUX enclosure held under every fixture either arm
+built; both re-derived the Newton–Cotes degree argument and reproduced
+M1–M8 verbatim. Headline, R2 alone: the AREA rule reads whole-box
+hulls and refuses ordinary curved charts as `DegenerateFace` (area
+`[−0.549, 1.742]` against the rectangle lane's `[0.968, 1.125]` on the
+same chart) — every shipped row lives on `g ≡ 1` where the area
+machinery is inert; unilateral, code-class: a tally CANDIDATE, but the
+pair is excluded under 3(e) (R2's 429). Converged: the chord polygon's
+closure unchecked (a certified wrong flux on an open walk), the vertex
+pad unexercised by any row, the "fixed at the entering round" reason
+false, the monotone margin levered by the round. Adjudication on the PR
+(comment 5734849876); thirteen items; fix pass dispatched. **Seam
+gate**: PROPS has not acknowledged; spec §Amendments now carries the
+week's-silence fallback (merge no earlier than 2026-09-22).
