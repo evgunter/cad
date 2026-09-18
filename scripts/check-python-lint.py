@@ -32,6 +32,19 @@ THE VERSION IS PINNED IN ci.yml, not here. `RUFF_VERSION` sits with
 block — one source of truth for every tool version, read from there by this
 script so the two halves cannot run different linters and disagree.
 
+AND IT IS READ THROUGH `scripts/ci-pin.py`, WHICH IS THE ONE READER OF THAT
+BLOCK. This script used to carry its own `RUFF_VERSION:` regex, anchored to the
+start of a line with leading whitespace allowed, and take the FIRST line in the
+file that matched. Leading whitespace allowed means ANY indentation matches, so
+a `RUFF_VERSION` pinned under a job or a step is a candidate too, and POSITION
+IN THE FILE rather than scope decides which one wins — the shape ci-pin.py was
+written to retire. That reader is anchored to the workflow-level `env:` mapping
+key at column 0 and REFUSES when the name is set more than once anywhere in the
+file, so the question "which ruff does this repo pin" has one implementation and
+one answer. The coupling is deliberate and it is the point: two readers of one
+pin can disagree, and the disagreement would surface as a spurious skip on a
+correctly-installed box.
+
 DEGRADED BOXES, AND WHO MAY SKIP. On the gate of record a missing or
 wrong-versioned ruff is a hard failure, and that does NOT rest on a flag a
 four-character edit can remove: `GITHUB_ACTIONS` is set by the runner itself,
@@ -53,6 +66,7 @@ skip to a failure, which is what it is for there.
 
 from __future__ import annotations
 
+import importlib
 import os
 import re
 import shutil
@@ -63,9 +77,10 @@ from collections.abc import Mapping
 from typing import NoReturn
 
 CI_YML = ".github/workflows/ci.yml"
+CI_PIN = "scripts/ci-pin.py"
+PIN_NAME = "RUFF_VERSION"
 CONFIG = "ruff.toml"
 REQUIRE_ENV = "REQUIRE_RUFF"
-PIN_RE = re.compile(r'^\s*RUFF_VERSION:\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$')
 VERSION_RE = re.compile(r"^ruff\s+([0-9]+\.[0-9]+\.[0-9]+)")
 EXCLUDE_RE = re.compile(r"^exclude = \[", re.MULTILINE)
 
@@ -160,24 +175,56 @@ def repo_root() -> str:
     ).strip()
 
 
+def ci_pin_reader():
+    """`scripts/ci-pin.py` as a module, imported by the idiom its header
+    documents — `sys.path` plus `import_module("ci-pin")`.
+
+    IMPORTED BY THE HYPHENATED NAME because that is the name every caller
+    spells on a command line, and the two lines are the same two
+    `scripts/check-ci-mirror-parity.py` uses. The path is resolved against
+    THIS FILE, never against the repo root under check: the self-test hands
+    `pinned_version` a miniature repo that contains a ci.yml and nothing else,
+    and the reader it must use is this tree's.
+
+    EVERY FAILURE IS CAUGHT, not only the import machinery's. A `SyntaxError`
+    in the reader is the same event to this row as a missing file — the pin
+    went unread — and a bare traceback would name a Python line instead of
+    saying what this row therefore did not decide.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return importlib.import_module("ci-pin")
+    except Exception as exc:  # noqa: BLE001 — framed and re-raised as a row failure
+        die(f"cannot import {CI_PIN} ({exc.__class__.__name__}: {exc}), which is this repo's one "
+            "reader of ci.yml's tool pins. NOTHING WAS DECIDED about whether this repo's Python "
+            "is linted.")
+
+
 def pinned_version(root: str) -> str:
-    """The single source of truth, read where it lives."""
+    """The single source of truth, read where it lives, through the one reader.
+
+    Every refusal `ci-pin.py` raises is a statement about ci.yml that a reader
+    of this row needs verbatim — the pin absent, the pin set twice, the pin
+    sitting under a job instead of at the workflow level. They are reported as
+    they come, with this row's frame around them, rather than collapsed into
+    one message about a missing line.
+    """
+    ci_pin = ci_pin_reader()
     path = os.path.join(root, CI_YML)
     try:
         with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                m = PIN_RE.match(line)
-                if m:
-                    return m.group(1)
+            text = fh.read()
     except OSError as exc:
         die(f"cannot read {CI_YML} ({exc}), which is where the ruff version pin lives. NOTHING "
             "WAS DECIDED about whether this repo's Python is linted.")
-    die(
-        f"{CI_YML} has no `RUFF_VERSION: \"x.y.z\"` line. That pin is the one place this repo "
-        "records which ruff it runs, and this script reads it from there so the hosted half and "
-        "the local half cannot drift onto different linters. Restore the pin in ci.yml's `env:` "
-        "block beside NEXTEST_VERSION/MATURIN_VERSION/TY_VERSION."
-    )
+    try:
+        return ci_pin.read_pin(text, PIN_NAME, CI_YML)
+    except ci_pin.Refuse as why:
+        die(f"{why}. {PIN_NAME} is the one place this repo records which ruff it runs, and this "
+            f"script reads it through {CI_PIN} so the hosted half and the local half cannot drift "
+            "onto different linters. Fix it in ci.yml's workflow-level `env:` block beside "
+            "NEXTEST_VERSION/MATURIN_VERSION/TY_VERSION. NOTHING WAS DECIDED about whether this "
+            "repo's Python is linted.")
 
 
 def resolve_ruff(root: str) -> str:
@@ -386,9 +433,83 @@ def _self_run(root: str, env: dict[str, str]) -> tuple[int, str]:
     return done.returncode, done.stdout + done.stderr
 
 
+def pin_cases(t: Tally) -> None:
+    """The pin-reading cases, WHICH NEED NO RUFF — and therefore run before
+    this file goes looking for one.
+
+    They used to sit below `resolve_ruff`, which means that on every box whose
+    ruff is not the pinned version — the ordinary developer's box, since the
+    pin is what this row is about — `--selftest` printed SKIPPED and exited 0
+    having checked none of them. A self-test that only runs where the tool is
+    already correct cannot be what tells you the pin reading is correct.
+
+    A wrong version SKIPS rather than lints; a deleted pin is a hard failure
+    rather than a default; and the two shapes the shared reader exists for are
+    checked HERE rather than left to `ci-pin.py`'s own self-test, because what
+    they prove is that THIS row is the one that refuses — a property of the
+    wiring, not of the reader.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, os.path.dirname(CI_YML)))
+        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
+            fh.write('env:\n  RUFF_VERSION: "0.0.1"\n')
+        try:
+            resolve_ruff(tmp)
+            t.check(False, "a ci.yml pinning ruff 0.0.1 did not stop the real binary being used")
+        except Skip as why:
+            t.check("0.0.1" in str(why), f"the version mismatch did not name the pin: {why}")
+        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
+            fh.write('env:\n  NEXTEST_VERSION: "0.9.0"\n')
+        try:
+            pinned_version(tmp)
+            t.check(False, "a ci.yml with no RUFF_VERSION line returned a version anyway")
+        except SystemExit as why:
+            t.check("RUFF_VERSION" in str(why), f"the missing pin did not name it: {why}")
+        #    AND THE TWO SHAPES THE SHARED READER EXISTS FOR, checked here
+        #    rather than left to ci-pin.py's own self-test: what they prove is
+        #    that THIS row is the one that refuses, which is a property of the
+        #    wiring and not of the reader.
+        #
+        #    A SECOND PIN ANYWHERE IN THE FILE. The retired regex took the
+        #    first line that matched, so this tree — a per-job pin written
+        #    above the workflow block — read as 9.9.9 and skipped every
+        #    correctly-installed ruff on the box.
+        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
+            fh.write('jobs:\n  lint:\n    env:\n      RUFF_VERSION: "9.9.9"\n'
+                     'env:\n  RUFF_VERSION: "0.0.1"\n')
+        try:
+            pinned_version(tmp)
+            t.check(False, "a ci.yml setting RUFF_VERSION twice returned one of them anyway")
+        except SystemExit as why:
+            t.check("4" in str(why) and "6" in str(why),
+                    f"the ambiguous pin did not name both lines: {why}")
+        #    A PIN THAT IS ONLY UNDER A JOB is out of scope, not a default:
+        #    reading it here would apply one job's version to every caller.
+        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
+            fh.write('jobs:\n  lint:\n    env:\n      RUFF_VERSION: "9.9.9"\n'
+                     'env:\n  NEXTEST_VERSION: "0.9.0"\n')
+        try:
+            pinned_version(tmp)
+            t.check(False, "a job-level RUFF_VERSION was read as the workflow's pin")
+        except SystemExit as why:
+            t.check("OUTSIDE" in str(why), f"the out-of-scope pin was not reported as one: {why}")
+
+
+
 def selftest(root: str) -> int:
-    exe = resolve_ruff(root)
     t = Tally()
+    pin_cases(t)
+    if t.bad:
+        # REPORTED BEFORE THE SKIP CAN SWALLOW THEM. `resolve_ruff` below
+        # raises `Skip`, which `main` turns into exit 0 on a developer's box;
+        # a failure already found here would leave with it.
+        print(f"check-python-lint --selftest: {t.ran} cases, {t.bad} failed "
+              "(the pin cases; ruff was not consulted)", file=sys.stderr)
+        return 1
+    # SAID OUT LOUD, because the line after this one may be a skip: a reader of
+    # a developer's log needs to know which half of this self-test ran.
+    print(f"check-python-lint --selftest: {t.ran} pin cases ok (no ruff needed)")
+    exe = resolve_ruff(root)
 
     # 1. The rules the config selects fire on real source.
     with tempfile.TemporaryDirectory() as tmp:
@@ -434,25 +555,6 @@ def selftest(root: str) -> int:
                 'an `exclude = ["hidden", …]` entry hid a tracked Python file from ruff and the '
                 f"reconciliation reported {problems or '(nothing)'} — ruff's own run prints "
                 "`All checks passed!` on that tree, which is the whole reason this check exists")
-
-    # 4. The version pin: a wrong version SKIPS rather than lints, and a
-    #    deleted pin is a hard failure rather than a default.
-    with tempfile.TemporaryDirectory() as tmp:
-        os.makedirs(os.path.join(tmp, os.path.dirname(CI_YML)))
-        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
-            fh.write('env:\n  RUFF_VERSION: "0.0.1"\n')
-        try:
-            resolve_ruff(tmp)
-            t.check(False, "a ci.yml pinning ruff 0.0.1 did not stop the real binary being used")
-        except Skip as why:
-            t.check("0.0.1" in str(why), f"the version mismatch did not name the pin: {why}")
-        with open(os.path.join(tmp, CI_YML), "w", encoding="utf-8") as fh:
-            fh.write('env:\n  NEXTEST_VERSION: "0.9.0"\n')
-        try:
-            pinned_version(tmp)
-            t.check(False, "a ci.yml with no RUFF_VERSION line returned a version anyway")
-        except SystemExit as why:
-            t.check("RUFF_VERSION" in str(why), f"the missing pin did not name it: {why}")
 
     # 5. THE GATE-OF-RECORD POSTURE, first as a truth table on the two
     #    functions that decide it. On hosted CI both conditions hold at once,

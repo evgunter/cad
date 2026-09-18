@@ -24,8 +24,8 @@ use pncad::select as s;
 use pncad::topo::PlaneRelation as KPlaneRelation;
 
 /// The verify door's relation verdict a finding's evidence carries.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `topo::PlaneRelation` variant of the same name"
@@ -37,8 +37,8 @@ pub(crate) enum PlaneRelation {
 }
 
 /// The contact class a finding would verify as.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::ContactClass` variant of the same name"
@@ -49,8 +49,8 @@ pub(crate) enum ContactClass {
 }
 
 /// Which rung of the verify ladder decided a finding.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::FlushRung` variant of the same name"
@@ -60,14 +60,16 @@ pub(crate) enum FlushRung {
     DecidedCoincident,
 }
 
-/// One flush-plane finding: "this face pair would verify as declared
+/// One flush finding: "this face pair would verify as declared
 /// contact" — a VALUE to inspect and pass to `Node.declare` /
 /// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
+/// The detector's reach is the `Rest` ladder's, so the pair may be
+/// cosurface on a plane, a sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second); `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
-/// outward normals; `SameOriented` = flush walls, the merge-stage
+/// material sides; `SameOriented` = flush walls, the merge-stage
 /// flavor); `class_` names the contact class (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
@@ -131,16 +133,22 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
         // refusal becomes a panic at the funnel. Whoever adds one
         // decides then: give the kernel enum a `Display`, or render
         // the name alone here.
+        //
+        // The word is the query door's own, from one map
+        // (`crate::tags::unmirrored_select_tag`): a caller reads the
+        // same `reason` off either crossing because it learns the same
+        // fact from both. The attributes are the whole class's, from
+        // `crate::py::select::refusal_fields`, so this path answers
+        // `None` where the others answer a payload rather than raising
+        // `AttributeError` on the one door that hand-built its list.
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,
             format!("a contact class this binding predates: {other:?}"),
-            &[(
-                "reason",
-                pyo3::types::PyString::new(py, "unclassified")
-                    .unbind()
-                    .into_any(),
-            )],
+            &crate::py::select::refusal_fields(
+                py,
+                crate::tags::unmirrored_select_tag(crate::errors::UnmirroredSelect::ContactClass),
+            ),
         )),
     }
 }

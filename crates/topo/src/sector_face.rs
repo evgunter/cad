@@ -30,7 +30,7 @@
 //! sense-invariant GIVEN this value and must NOT multiply again. Those
 //! sites pair the normal with the STORED orbit order, which `revert`
 //! reverses in the same breath as the sense bit, so a second
-//! `sense_sign` factor would cancel this one.
+//! sense fold would cancel this one.
 //!
 //! # Why the code is here and not in either lane
 //!

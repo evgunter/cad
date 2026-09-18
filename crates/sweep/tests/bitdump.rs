@@ -1,10 +1,19 @@
 //! **Reviewer bit-identity dump (claim C1 of every blend PR).** Builds
 //! the fixtures a PR claims are bit-identical — the die (open chains +
 //! corners), the pipped die's pip rim (the N-link closed LADDER path),
-//! the chamfered cube, and one convex closed rim per coaxial arm family
+//! the chamfered cube, one convex closed rim per coaxial arm family
 //! the annulus door reaches (the dome's plane–sphere equator, the
 //! sphere zone's sphere–sphere rim pair, the lantern's sphere–plane,
-//! sphere–cone and cone–plane rims, the waisted body's cone–plane rims)
+//! sphere–cone and cone–plane rims, the waisted body's cone–plane rims),
+//! the RULED band (the rod with a flat milled along it — the only row
+//! that reaches `ruled_phase`, whose transverse-cap carve no other
+//! fixture here executes), the repaired boss's base rim (the HOSTLESS
+//! crossing on a ring-free host),
+//! and one CONCAVE rim per closed-rim door (the waist annulus, the
+//! `cube ∪ ball` boss's ladder), and the extruded plane–cylinder
+//! TWO-arc rims — disc, through-bore, boss foot, pocket floor: both
+//! closed-rim doors on both material sides, the two-link shape of the
+//! N-link rims `closed_chain_junctions` carves —
 //! — and writes a bit-faithful text dump of every output body to
 //! `$BITDUMP_DIR/<name>.txt`. Run at the merge base and at the head,
 //! then `diff` the files: any moved bit shows as a text change
@@ -15,6 +24,20 @@
 //! immediately — an explicit clean skip, so the suite is neither a red
 //! nor a silent green in the aggregated matrix. See `dump_dir` for why
 //! an environment read is admissible in this file at all.
+//!
+//! **Run the two SHAs in SEPARATE `CARGO_TARGET_DIR`s.** A shared one
+//! can serve the head's run a library built at the base — measured by a
+//! review lane, and the failure is silent: the dump comes out identical
+//! because it was produced by the same code twice, which is exactly the
+//! answer the differential is asked for. A differential taken in one
+//! target directory proves nothing.
+//!
+//! **The corpus covers BOTH material sides.** `bitdump_convex_closed_rims`
+//! is convex by construction and `bitdump_concave_closed_rims` is the
+//! material-ADDING twin — one rim per closed-rim door — because a change
+//! reaching only the concave fold (the ball resting in the void, the
+//! band face's sense, the concave `signed` in the trim derivations)
+//! could not show in any convex row.
 
 #![allow(
     clippy::unwrap_used,
@@ -34,15 +57,25 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ball_poled_z, closed_plane_sphere_rim, cube, dome, lantern, rim_arcs_at, sphere_zone, waisted,
+    ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, bowl, circle_arcs_at_z, cube,
+    disc_of_arcs, dome, domed_cavity, hemisphere_on_flat_base, lantern, one_edge_rim_at,
+    pocket_of_arcs, realized, rim_arcs_at, rod_creases, rod_with_flat, sphere_zone, spool, waisted,
 };
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 /// Dump one body, bit for bit, in key iteration order (identical
 /// operation sequences produce identical key orders).
-fn dump(body: &Body<f64>) -> String {
+///
+/// **The one home**, shared by every armed dump row in this suite —
+/// including the ones that live in other files because a review lane
+/// wrote them (`review_arms2_r1_probes::bitdump_dome_annulus`). A
+/// second copy is not a duplicate that costs lines, it is a corpus row
+/// silently blind to whatever the copy left out: this function's own
+/// second copy omitted the `props` line, so the annulus row could not
+/// have seen a volume, area or pad move at all.
+pub(crate) fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -141,19 +174,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
         Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)),
         Tol::witness(),
     );
-    let pipped = boolean_op_with(
-        BooleanOp::Subtract,
-        &cube0,
-        &pip,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .unwrap()
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let pipped = realized(BooleanOp::Subtract, &cube0, &pip, Tol::witness());
     let box_edges: Vec<_> = box_keys
         .into_iter()
         .filter(|k| pipped.get_edge(*k).is_some())
@@ -184,6 +205,30 @@ fn bitdump_die() {
     save(&dir, "die", &text);
 }
 
+/// **The RULED band**: the rod with a flat milled along it, both
+/// creases carved in one call. `ruled_phase` — the band between
+/// TRANSVERSE CAPS, and two of the surgery's `kef` sites — is reached
+/// by no other row here, so without this one C1's "bit-identical to
+/// the merge base" is taken over a corpus that never executes it.
+#[test]
+fn bitdump_ruled_band() {
+    // An explicit CLEAN SKIP when unarmed, as every row above.
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let source = rod_with_flat(Tol::witness());
+    let creases = rod_creases(&source);
+    assert_eq!(creases.len(), 2, "the milled rod has two creases");
+    let out = fillet_edges(&source, &creases, ROD_FILLET, Tol::witness()).unwrap();
+    let mut text = dump(&out.body);
+    let _ = writeln!(
+        text,
+        "blend={:?} corner={:?} band={:?}",
+        out.blend_faces, out.corner_faces, out.band_faces
+    );
+    save(&dir, "ruled_band", &text);
+}
+
 /// The pip rim: the two-arc closed LADDER chain plus the twelve box
 /// edges, in one call (the F-e form), fillet r = 0.05.
 #[test]
@@ -195,7 +240,11 @@ fn bitdump_pip_rims() {
         return;
     };
     let (pipped, box_edges, rims) = pipped_die();
-    assert_eq!(rims.len(), 2, "the pip rim is two arcs");
+    assert_eq!(
+        rims.len(),
+        2,
+        "the pip rim is two arcs: the ball's one seam splits it"
+    );
     let mut all = box_edges;
     all.extend(rims);
     let out = fillet_edges(&pipped, &all, 0.05, Tol::witness()).unwrap();
@@ -259,7 +308,7 @@ fn bitdump_convex_closed_rims() {
     text.push_str(&dump_rim(
         "dome equator",
         &body,
-        &[closed_plane_sphere_rim(&body, 1.0)],
+        &[one_edge_rim_at(&body, 1.0, 0.0)],
         r,
     ));
     let body = sphere_zone(0.5, Revolution::Full, tol);
@@ -287,6 +336,15 @@ fn bitdump_convex_closed_rims() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         text.push_str(&dump_rim(name, &body, &arcs, r));
     }
+    // The repaired boss's BASE rim: the HOSTLESS crossing, whose host is
+    // a ring-free disc — the one convex closed rim above that reaches
+    // `HostFoot::Strut` rather than a seam split.
+    let mut body = sweep::test_support::boss(true, tol);
+    body.merge_coplanar_faces(tol)
+        .expect("the pole-split caps repair");
+    let arcs = rim_arcs_at(&body, 1.0, 0.0);
+    assert_eq!(arcs.len(), 2, "the repaired boss's base rim is two arcs");
+    text.push_str(&dump_rim("boss base rim", &body, &arcs, r));
     save(&dir, "convex_closed_rims", &text);
 }
 
@@ -332,15 +390,296 @@ fn bitdump_shell_open_box_corpus() {
 
     let mut text = String::new();
     let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
-    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, tol).unwrap().body;
+    let cup = topo::shell_open(&body, 0.25, &top, tol).unwrap().body;
     text.push_str(&dump(&cup));
     let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
-    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, tol)
-        .unwrap()
-        .body;
+    let tubey = topo::shell_open(&body, 0.25, &both, tol).unwrap().body;
     text.push_str(&dump(&tubey));
     let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
-    let sealed = topo::shell(&body, 0.25, 1e-6, tol).unwrap().body;
+    let sealed = topo::shell(&body, 0.25, tol).unwrap().body;
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
+}
+
+/// **The CONCAVE closed rims, the class the C1 constraint names and
+/// this suite used to omit.** Every other rim row here removes
+/// material; a change that moved only the material-ADDING fold — the
+/// arms' ball resting in the void, `Convexity::blend_sense` on the band
+/// face, the concave `signed` in the trim derivations — could not show
+/// in any of them.
+///
+/// Two rims, one per closed-rim door:
+///
+/// - the waisted body's WAIST `(0.5, 0.5)`, a cone–cone rim the chart
+///   seam split — the ANNULUS door, material added;
+/// - a boss `cube ∪ ball`, whose plane–sphere rim is a RING of the
+///   slab's top face — the LADDER door, material added.
+#[test]
+fn bitdump_concave_closed_rims() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let r = 0.05;
+    let mut text = String::new();
+
+    let body = waisted(tol);
+    let waist = rim_arcs_at(&body, 0.5, 0.5);
+    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
+    text.push_str(&dump_rim("waist annulus (concave)", &body, &waist, r));
+
+    // The H4 boss, built through the public boolean door: the ball's
+    // centre sits `R − H` inside the slab, so the cap has height `H` and
+    // the rim radius is `sqrt(R^2 − (R − H)^2)`.
+    let (slab, ball_r, cap_h) = (1.0_f64, 0.3_f64, 0.1_f64);
+    let ball = ball_poled_z(ball_r, Vec3::new(0.5, 0.5, slab - (ball_r - cap_h)), tol);
+    let boss = realized(BooleanOp::Union, &cube(slab, tol), &ball, tol);
+    let rim: Vec<EdgeKey> = query::all_edges(&boss)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                &boss,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
+        })
+        .collect();
+    assert!(!rim.is_empty(), "the boss has a plane-sphere rim");
+    text.push_str(&dump_rim("boss ladder (concave)", &boss, &rim, 0.02));
+
+    save(&dir, "concave_closed_rims", &text);
+}
+
+/// The **extrude/revolve corpus**: every body kind whose construction
+/// runs a description upgrade — extrude's cap rims and strut joins over
+/// each profile leg kind, revolve's meridian and latitude joins over
+/// each elementary wall. `dump` writes each edge's stored description,
+/// so a PR claiming the descriptions do not move runs this at the merge
+/// base and at the head and diffs the files.
+#[test]
+fn bitdump_extrude_revolve_corpus() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let p2 = Point2::<f64>::new;
+    let b = core::f64::consts::FRAC_PI_8.tan();
+    let extruded_by = |name: &str,
+                       loops: Vec<ProfileLoop<f64>>,
+                       e: sweep::Extrusion<f64>|
+     -> (String, Body<f64>) {
+        let profile = Profile::new(SketchPlane::xy(), loops)
+            .validate(tol)
+            .unwrap();
+        let body = sweep::extrude(&profile, e, tol).unwrap().body;
+        (name.to_owned(), body)
+    };
+    let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
+        extruded_by(name, loops, sweep::Extrusion::Distance(h))
+    };
+    let circle = |cx: f64, cy: f64, r: f64| {
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex::new(p2(cx - r, cy), 1.0),
+            ProfileVertex::new(p2(cx + r, cy), 1.0),
+        ])
+    };
+
+    let mut rows: Vec<(String, Body<f64>)> = vec![
+        extruded(
+            "L prism (all-line, one concave corner)",
+            vec![ProfileLoop::polygon([
+                p2(0.0, 0.0),
+                p2(2.0, 0.0),
+                p2(2.0, 1.0),
+                p2(1.0, 1.0),
+                p2(1.0, 2.0),
+                p2(0.0, 2.0),
+            ])],
+            0.75,
+        ),
+        extruded(
+            "cylinder (two semicircle arcs)",
+            vec![circle(0.0, 0.0, 1.5)],
+            2.0,
+        ),
+        extruded(
+            "holed prism (square + circular ring)",
+            vec![
+                ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)]),
+                circle(1.0, 1.0, 0.5),
+            ],
+            1.0,
+        ),
+        extruded(
+            "rounded square (tangent line-arc joins)",
+            vec![
+                <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                    ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                    ProfileVertex::new(p2(0.75, 0.0), b),
+                    ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                    ProfileVertex::new(p2(1.0, 0.75), b),
+                    ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                    ProfileVertex::new(p2(0.25, 1.0), b),
+                    ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                    ProfileVertex::new(p2(0.0, 0.25), b),
+                ])
+                .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+            ],
+            0.5,
+        ),
+        extruded(
+            "concave arc leg",
+            vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 2.0), 0.0),
+                ProfileVertex::new(p2(0.0, 2.0), -0.4),
+            ])],
+            1.25,
+        ),
+    ];
+    // `Extrusion::Vector` takes a different door into the same rim
+    // upgrade than `Distance` does (`extrusion_obliquity` /
+    // `extrusion_normal_component` against `n · d`), and a NEGATIVE
+    // distance flips which cap is which — both reach `upgrade_rim`
+    // with the caps' orientations swapped, so both belong in a corpus
+    // whose subject is what that pass stores.
+    rows.push(extruded_by(
+        "square prism by vector (the Vector door)",
+        vec![ProfileLoop::polygon([
+            p2(0.0, 0.0),
+            p2(2.0, 0.0),
+            p2(2.0, 2.0),
+            p2(0.0, 2.0),
+        ])],
+        sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
+    ));
+    rows.push(extruded_by(
+        "rounded-corner prism, reversed (negative distance)",
+        vec![
+            <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                ProfileVertex::new(p2(0.75, 0.0), b),
+                ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                ProfileVertex::new(p2(1.0, 0.75), b),
+                ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                ProfileVertex::new(p2(0.25, 1.0), b),
+                ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                ProfileVertex::new(p2(0.0, 0.25), b),
+            ])
+            .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+        ],
+        sweep::Extrusion::Distance(-0.5),
+    ));
+    rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
+    rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));
+    rows.push((
+        "sphere zone (sphere-sphere rim pair)".to_owned(),
+        sphere_zone(0.4, Revolution::Full, tol),
+    ));
+    rows.push(("lantern (sphere-cone-plane)".to_owned(), lantern(tol)));
+    rows.push((
+        "poled ball (full revolve, meridian seam)".to_owned(),
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+    ));
+    // A PARTIAL revolve is the only body kind that mints wedge caps —
+    // and so the only one with the cap–cap AXIS edges
+    // `upgrade_intersection`'s own doc names among the loci that funnel
+    // through it. Without this row the corpus never exercises that
+    // caller at all.
+    rows.push((
+        "sphere zone, quarter turn (partial revolve, cap-cap axis edges)".to_owned(),
+        sphere_zone(0.4, Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
+    ));
+
+    let mut text = String::new();
+    for (name, body) in &rows {
+        let _ = writeln!(text, "== {name} ==");
+        text.push_str(&dump(body));
+    }
+    save(&dir, "extrude_revolve_corpus", &text);
+}
+
+/// **The rest of the crate's revolve and extrude fixtures**: the
+/// `test_support` bodies the corpus above does not carry, so a PR
+/// claiming no stored description moved can say that of EVERY fixture
+/// the two verbs build in this crate rather than of a chosen thirteen.
+/// Same dump, same two-SHA discipline, its own file.
+#[test]
+fn bitdump_other_extrude_revolve_fixtures() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let rows: Vec<(&str, Body<f64>)> = vec![
+        ("cube", cube(1.0, tol)),
+        ("bowl", bowl(tol)),
+        ("domed cavity", domed_cavity(tol)),
+        (
+            "hemisphere on a flat base",
+            hemisphere_on_flat_base(1.0, tol),
+        ),
+        ("rod with a flat", rod_with_flat(tol)),
+        ("spool (full)", spool(Revolution::Full, tol)),
+        (
+            "spool (quarter turn)",
+            spool(Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
+        ),
+        (
+            "sphere zone, bored wide",
+            sphere_zone(1.0, Revolution::Full, tol),
+        ),
+        (
+            "ball poled on z, off the unit radius",
+            ball_poled_z(0.75, Vec3::new(0.0, 0.0, 0.0), tol),
+        ),
+    ];
+    let mut text = String::new();
+    for (name, body) in &rows {
+        let _ = writeln!(text, "== {name} ==");
+        text.push_str(&dump(body));
+    }
+    save(&dir, "other_extrude_revolve_fixtures", &text);
+}
+
+/// **The extruded plane–cylinder two-arc rims**, one per closed-rim
+/// door and material side: the disc's raised rim and the pocket's
+/// floor (the annulus with strut crossings), the through-bore's cap
+/// rim and the boss's foot (the ladder). Two arcs is the rim every
+/// other suite builds; the N ≥ 3 twins carve through the same doors
+/// (`closed_chain_junctions`), and this row is what shows the two-arc
+/// carve does not move when the junction record changes shape.
+#[test]
+fn bitdump_extruded_two_arc_rims() {
+    // An explicit CLEAN SKIP when unarmed, as every row above.
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    for (name, body, z) in [
+        ("two_arc_disc", disc_of_arcs(2, 0.5, 1.0, tol), 1.0),
+        (
+            "two_arc_bore",
+            bored_block_of_arcs(2, 2.0, 1.0, 0.5, tol),
+            1.0,
+        ),
+        (
+            "two_arc_boss",
+            boss_of_arcs(2, 2.0, 0.5, 1.0, 2.0, tol),
+            2.0,
+        ),
+        ("two_arc_pocket", pocket_of_arcs(2, 2.0, 0.5, 1.5, tol), 1.5),
+    ] {
+        let arcs = circle_arcs_at_z(&body, z);
+        assert_eq!(arcs.len(), 2, "{name}: two arcs by authoring");
+        let out = fillet_edges(&body, &arcs, 0.1, tol).unwrap();
+        let mut text = dump(&out.body);
+        let _ = writeln!(
+            text,
+            "blend={:?} corner={:?} band={:?}",
+            out.blend_faces, out.corner_faces, out.band_faces
+        );
+        save(&dir, name, &text);
+    }
 }

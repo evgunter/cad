@@ -7,6 +7,8 @@
 //! [`crate::session::SessionOp`]s into a queue the application drains
 //! after the layout has been walked (`crate::app`'s header states the
 //! rule).
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 pub mod create;
 pub mod features;

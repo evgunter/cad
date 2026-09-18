@@ -30,9 +30,9 @@
 //! the blend RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions, executed by
-//! `sweep/tests/m6_5_fillet_naming.rs::every_output_entity_is_a_recorded_mint_or_a_survivor`
+//! `m6_5_fillet_naming::every_output_entity_is_a_recorded_mint_or_a_survivor`
 //! and
-//! `sweep/tests/verbs_arms1_annulus.rs::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
+//! `verbs_arms1_annulus::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
 //! A survivor is thus a birth fact too — "this key was not minted and
 //! not retired" — not an inference from geometry.
 //!
@@ -126,23 +126,20 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 /// The source keys the blend retired: edges and vertices — the only
 /// NAMED arenas in which a source key can die here.
 ///
-/// **There is deliberately no face channel, because this surgery
-/// cannot retire a source face.** It destroys through two operators
-/// only: [`topo::Body::kev`] kills no face, and [`topo::Body::kef`]
-/// kills the face of the half-edge it is handed — always a half of a
-/// face that [`super::surgery`]'s own `mef` minted, because a carve
-/// splits a support into the shrunk face plus its strips and the
-/// shrunk face keeps its source key. A support shrinks; it does not
-/// die. So for faces the identity above is checked in its stronger
-/// form, `source ⊆ output`, there being no set to subtract — over the
-/// open, ladder and annulus paths, all through the fillet verb. **A
-/// face-destroying operator entering the surgery is what would make
-/// the channel owed.**
+/// **There is no face channel because the surgery cannot retire a
+/// source face** — enforced at `surgery`'s one face-destroying door,
+/// `SourceFaces::kef_minted`, which states the rule. So for faces the
+/// identity above holds in its stronger form, `source ⊆ output`, there
+/// being no set to subtract.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
     /// (excised across their strips) and, on the rim path, the
-    /// meridian remnants killed with their rim vertex.
+    /// meridian remnants killed with their rim vertex that are the
+    /// SOURCE key. A remnant the carve itself minted dies unrecorded,
+    /// and owes no row: it reaches neither this set — which names what
+    /// the blend took from the body the caller handed in — nor the
+    /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
     /// under their octants, and the rim vertices.
@@ -159,9 +156,11 @@ pub struct Retired {
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
 pub struct BlendNaming {
-    // ---- The blank phase (open plane–plane chains). ----
+    // ---- The open bands: the blank phase (plane–plane chains between
+    // corners) and the ruled band (between transverse caps). ----
     /// Blend face ← the source edge it replaces (the fillet's rolling
-    /// band, or the chamfer's ruled strip).
+    /// band — about a corner-terminated or a cap-terminated spine — or
+    /// the chamfer's ruled strip).
     pub blends: Vec<(FaceKey, EdgeKey)>,
     /// Corner face ← the source (trivalent, sharp) vertex it
     /// replaces: the fillet's sphere octant, or the chamfer's flat
@@ -170,13 +169,15 @@ pub struct BlendNaming {
     /// Trimline edge ← (the source edge it parallels, the support
     /// face it lies in).
     pub trims: Vec<(EdgeKey, EdgeKey, FaceKey)>,
-    /// Foot vertex ← (the source corner vertex it retracts from, the
-    /// support face it lies in).
+    /// Foot vertex ← (the source corner or cap vertex it retracts from,
+    /// the support face it lies in). At a transverse cap the foot sits
+    /// on the cap's rim edge, where the support's trimline meets the
+    /// cap plane.
     pub feet: Vec<(VertexKey, VertexKey, FaceKey)>,
     /// Corner boundary edge ← (the source corner vertex, the source
-    /// edge whose blend it bounds): the fillet's corner ARC, or the
-    /// chamfer's straight chord — the row names the role, not the
-    /// carrier shape.
+    /// edge whose blend it bounds): the fillet's corner ARC, the
+    /// chamfer's straight chord, or a ruled band's cut-off arc in its
+    /// cap — the row names the role, not the carrier shape.
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
 
     // ---- The rim phase (closed chains). ----
@@ -191,9 +192,11 @@ pub struct BlendNaming {
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← the source meridian edge it split.
     pub meridian_splits: Vec<(VertexKey, EdgeKey)>,
-    /// The SURVIVING piece of a split meridian ← the source meridian.
-    /// (Present even when the surviving piece kept the source key —
-    /// the piece is a fragment, so it is named as one.)
+    /// The SURVIVING piece of a source edge the band's carve split ←
+    /// that source edge: a seam meridian at a ladder rim's crossing, or
+    /// a cap rim at a ruled band's transverse cap. (Present even when
+    /// the surviving piece kept the source key — the piece is a
+    /// fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← the source meridian whose upper piece became
     /// it (the double-traversed torus meridian; one per band).

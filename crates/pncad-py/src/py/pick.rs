@@ -17,16 +17,19 @@
 //! confidently wrong name** (issue #1098). The kernel closes that lane
 //! with a type — `NodePick` fetches the body from the evaluation
 //! payload itself, tessellates and indexes in one call, so the pairing
-//! is true by construction — and leaves raw `PickTarget` assembly for
-//! consumers that already hold a mesh index.
+//! is true by construction — and puts raw `PickTarget` assembly
+//! behind `editor-core`'s `test-support` feature, which that crate's
+//! own dev-dependency enables and no consumer's manifest wires onto an
+//! edge of its own.
 //!
-//! **Python has no such consumer, by a decision already taken.**
-//! `MeshPick` and `MeshPickError` are DECIDED absent from the façade
-//! (CUR3; `crates/pncad/src/select.rs`), and `PickTarget::pick` is a
-//! `&MeshPick` — so through `pncad` a raw target has no constructor at
-//! all. The Python door therefore takes `NodePick`s directly and makes
-//! their targets itself: the type that cannot be mis-assembled is not
-//! merely the one to prefer here, it is the only one that exists.
+//! **Python has no raw target, twice over.** `MeshPick` is DECIDED
+//! absent from the façade (CUR3; `crates/pncad/src/select.rs`, which
+//! carries `MeshPickError` alone), so a raw index is not even
+//! nameable here; and the mints that would build one are behind a
+//! feature no edge in this crate's build graph enables. The Python
+//! door therefore takes `NodePick`s directly and makes their targets
+//! itself: the type that cannot be mis-assembled is not merely the one
+//! to prefer here, it is the only one that exists.
 //!
 //! # Dimensioned
 //!
@@ -55,7 +58,7 @@ use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
 use crate::py::typed_err;
 use crate::py::value::{Evaluation, lengths};
-use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
 use pncad::select as s;
 
 /// A direction as the bare triple it is — dimensionless.
@@ -104,6 +107,11 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
         s::HitTestError::NodePoisoned { node: n, through } => {
             [node(*n), node(*through), none(), none()]
         }
+        // The pairing arm names two DOCUMENTS, which this
+        // node/through/kind/body quadruple cannot carry; the message
+        // states both, and the tag is what a caller branches on (the
+        // `product` door's convention for the same refusal).
+        s::HitTestError::EvaluationOfAnotherDocument { .. } => [none(), none(), none(), none()],
         s::HitTestError::Unnamed { node: n, entity } => {
             [node(*n), none(), kind(entity.key.kind()), int(entity.body)]
         }
@@ -158,6 +166,18 @@ fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
 /// reads them. That is the `AssemblyError` precedent (a gather refusal
 /// arrives there under the gather's own tag, without the gather's
 /// `node`), and this class's docstring says so.
+///
+/// The index arm neither forwards nor withholds: `variant` stays
+/// `mesh_index`, which is the door whose invariant broke, and
+/// `index_variant` carries the payload's own discriminant beside it.
+/// A second indexing invariant added kernel-side would otherwise join
+/// the first under one word with no alarm anywhere, because the match
+/// a wrapper can write is on the carrier and not on what it carries.
+///
+/// Its three numbers cross beside that discriminant, as `patch`,
+/// `triangle` and `index` (`crate::pick_payload`) — the payload
+/// belongs to a type nothing raises, so it has no door of its own to
+/// carry them and this is the only crossing they get.
 fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
@@ -178,6 +198,26 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             [none(), none(), none(), none()]
         }
     };
+    let index_variant = match err {
+        s::NodePickError::Index(inner) => PyString::new(py, mesh_pick_error_tag(inner))
+            .unbind()
+            .into_any(),
+        s::NodePickError::Standing(_)
+        | s::NodePickError::NotABody { .. }
+        | s::NodePickError::NoSuchBody { .. }
+        | s::NodePickError::Tessellate(_) => none(),
+    };
+    // `usize` and `u32` both convert infallibly, so these three
+    // degrade nowhere.
+    let count = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let numbers = crate::pick_payload::index_payload(err);
+    let patch = numbers.patch.map_or_else(none, count);
+    let triangle = numbers.triangle.map_or_else(none, count);
+    let index = numbers.index.map_or_else(none, int);
     typed_err(
         py,
         ErrorClass::NodePick,
@@ -193,6 +233,10 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             ("through", through),
             ("kind", kind),
             ("body", body),
+            ("index_variant", index_variant),
+            ("patch", patch),
+            ("triangle", triangle),
+            ("index", index),
         ],
     )
 }
@@ -260,6 +304,8 @@ pub(crate) struct PickHit {
     node: NodeId,
     body: u32,
     t: f64,
+    t_lo: f64,
+    t_hi: f64,
     point: pncad::geom_core::Point3<f64>,
 }
 
@@ -289,6 +335,35 @@ impl PickHit {
     #[getter]
     fn t(&self) -> f64 {
         self.t
+    }
+
+    /// The lower end of the parameter's certified interval, in the
+    /// same units as `t`, and `t_lo <= t <= t_hi` always.
+    ///
+    /// The kernel orders two candidates only when one interval lies
+    /// wholly below the other. Where the intervals OVERLAP the
+    /// geometry has not said which surface is in front, and the
+    /// NARROWER interval wins before position is looked at: `t_lo` and
+    /// `t_hi` are how wide a claim this hit is, not a second answer,
+    /// and they are what decided it against its neighbours.
+    ///
+    /// The enclosure is conditional — it contains the true crossing's
+    /// parameter when that crossing is a point of the closed triangle
+    /// — and the interval is always centred on the point the kernel
+    /// answers, which is always on the triangle. The parameter is the
+    /// caller's own ray's: a hit carried across a transform converts
+    /// all three or none, which is the viewer's own row
+    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// where a display frame moves an instance.
+    #[getter]
+    fn t_lo(&self) -> f64 {
+        self.t_lo
+    }
+
+    /// The upper end of that interval ([`PickHit::t_lo`]).
+    #[getter]
+    fn t_hi(&self) -> f64 {
+        self.t_hi
     }
 
     /// The hit point, `origin + t * direction` — dimensioned, and the
@@ -440,9 +515,20 @@ impl NodePick {
     /// such bug must not cost a consumer the names of every other patch
     /// it is drawing. Branch with `isinstance(entry, str)`; the
     /// exception in a slot is a value, not something raised.
+    ///
+    /// **`evaluation` must be an evaluation of the document this index
+    /// was built from**, and one of another document RAISES
+    /// `HitTestError` with variant `evaluation_of_another_document`
+    /// before a single name is read. Node ids are minted per document,
+    /// so a twin recipe's evaluation would answer every slot out of
+    /// its own tables: other geometry's names, in patch order, with no
+    /// slot marked. That is one thing wrong with the arguments, so it
+    /// is raised rather than written into every slot. A LATER
+    /// evaluation of the same document is fine.
     fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .patch_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -452,14 +538,17 @@ impl NodePick {
     /// [`Self::mesh`]**, in polyline order — [`Self::patch_names`]'
     /// edge twin, same contract and same per-slot loud arm.
     ///
-    /// The polylines themselves are not bound (their content beside
-    /// indices is arena keys), so what this is FOR is a consumer that
-    /// hit-tests against drawn edges by POSITION — a display
-    /// coordinate valid for one tessellation — and reads the name out
-    /// of here.
+    /// `Mesh.boundaries` is the drawing side: entry `i` here names the
+    /// edge polyline `i` of that list, so a consumer that drew the
+    /// wireframe and hit-tested an edge reads its selectable name out
+    /// of here, with the arena key never leaving — and it pairs the
+    /// way [`Self::patch_names`] does, raising `HitTestError` with
+    /// variant `evaluation_of_another_document` for an evaluation of
+    /// another document.
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
+            .map_err(|err| hit_test_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -518,6 +607,8 @@ pub(crate) fn pick_face(
             node: NodeId(hit.node),
             body: hit.body,
             t: hit.t,
+            t_lo: hit.t_lo,
+            t_hi: hit.t_hi,
             point: hit.point,
         })),
         Err(err) => Err(hit_test_err(py, &err)),

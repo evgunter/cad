@@ -64,11 +64,13 @@
 
 use crate::revolve_common;
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use crate::common::approx::band;
+use geom_core::{Band, Point3, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
-use sweep::{Extrusion, Revolution, extrude, revolve};
+use sweep::test_support::brick;
+use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
 /// The donut's torus: centre at the origin, axis `+y`.
@@ -172,21 +174,6 @@ fn quarter_spool() -> Body<f64> {
     )
     .unwrap()
     .body
-}
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -648,7 +635,10 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
     // (2) the shell, measured at the band the run drew.
     let shell = tangency_shell(&body, band());
     // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143.
-    let k = Tol::witness().get().eps * 10.0; // the ambiguity band's own K·ε
+    // K·ε read off the band the shell above was MEASURED at, so the
+    // law and the measurement are stated at one tolerance. Spelled as
+    // a literal `10 · ε` this was the run's K·ε only at the default K.
+    let k = band().escalate();
     let law = (k * FIXTURE_EXTENT.powi(2)).cbrt() * 0.143;
     assert!(
         shell > law / 2.0 && shell < law * 2.0,
@@ -705,7 +695,7 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
 #[test]
 fn a_disjoint_union_with_a_donut_now_assembles() {
     let a = donut();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0));
+    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(

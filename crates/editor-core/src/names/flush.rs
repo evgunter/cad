@@ -33,11 +33,10 @@
 //! candidate pairs and asks the kernel's own rung at the seat where
 //! that rung lives: [`topo::flush::pair_finding`] — descriptions,
 //! oriented identity evidence and the verification arm all live
-//! inside [`topo::flush_pair_relation`] under it, whose verdict
-//! ladder is the one verify-at-use reaches through `carrier_eq`'s
-//! plane delegation (the three-link chain is stated once, in
-//! [`topo::flush`]'s module docs, and not restated here).
-//! Consequences, all deliberate:
+//! inside [`topo::boolean::carrier_pair_relation`] under it, which is
+//! the very door verify-at-use calls, asked in its `declared: false`
+//! posture (the argument is stated once, in [`topo::flush`]'s module
+//! docs, and not restated here). Consequences, all deliberate:
 //!
 //! - detect-then-declare can never disagree with verify-at-use: the
 //!   two paths converge on one verdict function, so there is no
@@ -48,11 +47,11 @@
 //!   names at this door, keys at the body door, one verifier under
 //!   both;
 //! - detection's decisions go through the funnel at the VERIFIER'S
-//!   sites (`bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset`) — no `sel_flush_*` site exists, no new
-//!   ledger row is owed, and GS-Q1's K-census participation is
-//!   automatic through those names. The detector interprets nothing
-//!   the verifier doesn't.
+//!   sites (`bool_plane_*` on the planar rung, `carrier_sphere_*` /
+//!   `carrier_cyl_*` / `carrier_torus_*` on the curved ones) — no
+//!   `sel_flush_*` site exists, no new ledger row is owed, and
+//!   GS-Q1's K-census participation is automatic through those names.
+//!   The detector interprets nothing the verifier doesn't.
 //!
 //! What stays HERE is the name-flavored half, on the `select_where`
 //! precedent (VERB-SEAT-DESIGN §1 S2): resolving a name table's face
@@ -73,26 +72,30 @@
 //! downstream still owns the ambiguity refusal); none ⇒ no finding;
 //! mixed ⇒ [`SelectRefusal::TiedDisagrees`].
 //!
-//! # What `Rest` means here (v1)
+//! # What `Rest` means here
 //!
-//! Flush/`Rest` planes are the whole v1 detector — the only
-//! demand-evidenced case. The [`ContactClass::Rest`] tag names C4's
-//! coincident-plane contact class; the evidence records which
-//! orientation the verifier decided: [`PlaneRelation::SameOpposite`]
-//! is the resting-contact flavor (opposed outward normals — the REST
-//! lane's zip), [`PlaneRelation::SameOriented`] the merge-stage
-//! flavor (flush walls). Both are exactly the pairs the declared rung
-//! verifies and the P9 helper used to declare. `Tangent`/`Fit`
-//! findings reuse this shape when their demand arrives — the `class`
-//! field is the reserved slot, not a `flush: bool`.
+//! Cosurface contact on every carrier the `Rest` ladder verifies —
+//! plane, sphere, cylinder and torus — is the whole detector; the
+//! [`ContactClass::Rest`] tag names C4's coincident-carrier contact
+//! class, and a peg's wall in its bore is reported exactly as two
+//! flush plates' faces are. The evidence records which orientation
+//! the verifier decided: [`PlaneRelation::SameOpposite`] is the
+//! resting-contact flavor (opposed material sides — the REST lane's
+//! zip), [`PlaneRelation::SameOriented`] the merge-stage flavor
+//! (flush walls). Both are exactly the pairs the declared rung
+//! verifies. `Tangent`/`Fit` findings reuse this shape when their
+//! demand arrives — the `class` field is the reserved slot, not a
+//! `flush: bool` — and tangency waits on a locus the verifier can
+//! check, which is a different kind of gap from the one the curved
+//! `Rest` rungs closed.
 //!
 //! # Documented residuals
 //!
-//! - The verifier encodes its definite-zero-offset verdict and a
+//! - The verifier encodes its definite-zero coincidence verdict and a
 //!   NaN-poisoned margin with the same `MarginDiag::Invalid`
 //!   diagnostic; the detector takes the verifier's encoding as-is
 //!   (anti-twin: it interprets nothing the verifier doesn't), so a
-//!   NaN-poisoned plane pair — geometry that is broken well before
+//!   NaN-poisoned pair — geometry that is broken well before
 //!   detection — would read as a finding whose declaration then
 //!   escalates at use. C4's verify-at-use backstop is the answer by
 //!   design.
@@ -105,7 +108,7 @@ use topo::flush::{finding, pair_finding};
 use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
-use crate::edit::{DocEdit, EditError, apply};
+use crate::edit::{Applied, DocEdit, EditError, apply};
 use crate::eval::{Evaluation, NodeResult, NodeValue};
 use crate::names::geompred::SelectRefusal;
 use crate::names::interrogate;
@@ -144,7 +147,7 @@ pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact
 /// ([`FlushRung::DecidedCoincident`]) is what this door records.
 pub use topo::flush::{FlushEvidence, FlushRung};
 
-/// One flush-plane finding at the DOCUMENT seat: "this cross-body face
+/// One flush finding at the DOCUMENT seat: "this cross-body face
 /// pair would verify as declared contact" — a VALUE, inspectable,
 /// never itself a declaration (SELECT-DESIGN §3a).
 ///
@@ -160,7 +163,7 @@ pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
 // (a) Detect.
 // ---------------------------------------------------------------
 
-/// **The cross-body flush-plane candidates between `a`'s and `b`'s
+/// **The cross-body flush candidates between `a`'s and `b`'s
 /// outputs, as of THIS evaluation** — the C4 verifier run in
 /// candidate-generation mode (module docs; SELECT-DESIGN §3a/b).
 ///
@@ -175,7 +178,8 @@ pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
 /// [`SelectRefusal::TiedDisagrees`] when a tied name's candidates
 /// disagree (GS-Q4), [`SelectRefusal::Unreadable`] on a name-table
 /// entry that does not resolve into its node's payload,
-/// [`SelectRefusal::Band`] if the ambient tolerance is broken.
+/// [`SelectRefusal::Band`], carrying the band constructor's own
+/// diagnostic, if the ambient tolerance yields no usable band.
 pub fn find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>,
     a: RecipeNodeId,
@@ -186,7 +190,7 @@ pub fn find_flush_candidates<T: Decide>(
     else {
         return Ok(Vec::new());
     };
-    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
     let mut out = Vec::new();
@@ -264,7 +268,7 @@ fn pair_verdict<T: Decide>(
             let verdict =
                 pair_finding(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
-                    predicate: source.predicate.unwrap_or("flush_pair_relation"),
+                    predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
                 })?;
             if let Some(FlushEvidence {
@@ -394,11 +398,18 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 }
 
 /// Declares ONE inspected finding: inserts a [`Node::Declare`] with
-/// its pair and returns the edited document plus the Declare node's
-/// id, for the caller to wire into the consuming Boolean's `declare`
-/// input. Sugar over shipped vocabulary — nothing here detects
-/// (GS-Q3's no-fusion boundary: findings reach this door as VALUES
-/// the caller already held).
+/// its pair and returns the accepted insert whole — the edited
+/// document, its record and the cluster maintenance the insert
+/// performed, as one [`Applied`] — plus the Declare node's id, for the
+/// caller to wire into the consuming Boolean's `declare` input. Sugar
+/// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
+/// boundary: findings reach this door as VALUES the caller already
+/// held).
+///
+/// The id is returned beside the acceptance rather than left inside
+/// `record.minted` because it is a CHECKED value here: the door has
+/// already refused [`DeclareError::NoMintedId`], so the caller reads
+/// an id, never an `Option` it has to unwrap again.
 ///
 /// # Errors
 ///
@@ -407,7 +418,7 @@ pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     declare_all(doc, core::slice::from_ref(finding), tol)
 }
 
@@ -423,9 +434,13 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
-    Ok((applied.doc, id))
+    // The acceptance travels WHOLE: a caller that holds a document
+    // and the maintenance of its last accepted edit swaps both in
+    // from this one value, so the two can never describe different
+    // edits.
+    Ok((applied, id))
 }

@@ -37,7 +37,7 @@
 //! door for the second.** [`ParamRow::unit`] is the notation its
 //! DECLARATION names ([`DocParam::Continuous`]'s `display_unit`), the
 //! panel divides and multiplies by it exactly as it does for a slot
-//! ([`shown_in`] / [`authored_in`], through `app::FieldWriting`), and a
+//! ([`shown_in`] / [`authored_in`], through [`crate::app::FieldWriting`]), and a
 //! value edit leaves it alone for free — [`param_edit`] spells the
 //! value-only door, which writes a number into a standing declaration.
 //!
@@ -114,6 +114,9 @@
 //! What the field SHOWS is [`field_text`]: a bare literal shows its
 //! number alone (the unit is the picker's to say, not the field's),
 //! and everything else shows its source.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,

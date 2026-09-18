@@ -52,6 +52,15 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+// `editor-core`'s corpus test tree and the fixture helpers it names,
+// reached through the `corpus` and `fixture` symlinks beside this file
+// (the corpus reads its committed tour document relative to THIS
+// crate's manifest, which is what the links are for). Helper trees
+// like `common`: plain `mod`, no `#[path]`, so the aggregation census
+// below does not count them as suites. Each carries its own inner
+// `allow`s for the items this binary does not reach.
+mod corpus;
+mod fixture;
 
 #[path = "assembly_display.rs"]
 mod assembly_display;
@@ -71,10 +80,16 @@ mod combine_ops;
 mod creation_ops;
 #[path = "datum_draw.rs"]
 mod datum_draw;
+#[path = "debug_dumps.rs"]
+mod debug_dumps;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "docm1_face_frame.rs"]
+mod docm1_face_frame;
+#[path = "docm9_range_vs_probe.rs"]
+mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "error_display.rs"]
@@ -87,18 +102,31 @@ mod focus_highlight;
 mod frame_policy;
 #[path = "gesture_table.rs"]
 mod gesture_table;
+#[path = "index_memo.rs"]
+mod index_memo;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "instance_authoring.rs"]
 mod instance_authoring;
+#[path = "landing_gathers.rs"]
+mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
+#[path = "msolve4_blame_rows.rs"]
+mod msolve4_blame_rows;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick3_acceptance.rs"]
+mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
 #[path = "prefs.rs"]
@@ -121,6 +149,13 @@ mod review_gui4_r1;
 mod review_gui4_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
+#[path = "review_pick_r2.rs"]
+mod review_pick_r2;
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
+
+#[path = "review_pick2_r1.rs"]
+mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]
@@ -142,11 +177,4 @@ mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();

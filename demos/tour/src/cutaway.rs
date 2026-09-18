@@ -10,7 +10,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Affine3, Point3, Vec3};
+use pncad::authoring::{p3, v3};
+use pncad::geom_core::{Affine3, Vec3};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
 
 use crate::SceneBody;
@@ -30,9 +31,9 @@ pub(crate) fn build<S: Scalar>(
     // A tilted section plane through the box interior: normal
     // (0.75, 0.1875, 1) — no axis alignment, crosses walls, bosses,
     // and cavity floor.
-    let normal = Vec3::new(S::from_f64(0.75), S::from_f64(0.1875), S::from_f64(1.0));
+    let normal = v3(0.75, 0.1875, 1.0);
     let plane = SplitPlane {
-        origin: Point3::new(S::from_f64(1.5), S::from_f64(1.0), S::from_f64(0.75)),
+        origin: p3(1.5, 1.0, 0.75),
         normal,
     };
     let res = split(boxbody, &plane, tol).expect("split of the boolean-result box");

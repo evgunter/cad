@@ -43,6 +43,7 @@ use common::asm;
 use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
+use viewer::display::AdmissionFault;
 use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
@@ -121,9 +122,12 @@ fn the_exit_demo_walk() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
-    let outcome = session.perform(SessionOp::CommitFreeMove);
+    let outcome = session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let probed = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(probed.stats().probe_parts, 1, "one probed part");
@@ -208,10 +212,26 @@ fn the_exit_demo_walk() {
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.withdrawn.superseded
+        )
+    };
     assert_eq!(
-        outcome.superseded,
-        vec![bench.post_b],
+        superseded.instance, bench.post_b,
         "the mate's landing discards the probe, in the same outcome"
+    );
+    assert!(
+        matches!(
+            &superseded.cause,
+            AdmissionFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
 

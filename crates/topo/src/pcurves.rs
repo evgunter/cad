@@ -34,7 +34,7 @@
 //!   circles; torus parallels/meridians) derive and certify exactly as
 //!   the cylinder's; the sphere walk additionally knows the chart's
 //!   involution twin and the pole's zero azimuth lever (see
-//!   [`azimuth_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
+//!   [`chart_u_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
 //!   classes refuse typed with the class named — the sphere's general
 //!   circles have a certified route that this pass cannot reach
 //!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
@@ -69,11 +69,24 @@
 //! chain of shared vertices, the per-sample choice does not exist at
 //! all, and the anchor's correctness is checked rather than assumed.
 //!
+//! # The chart-boundary description (TRIM-3)
+//!
+//! [`chart_boundary`] is the walk's second consumer: it runs the same
+//! [`walk_loop`] on a chart the CALLER names and turns each loop into
+//! a closed chord polygon — [`crate::chart_bound::ChartBound`], whose
+//! outside test is what a subdivision driver asks. It mints nothing
+//! and stores nothing; it reads a pcurve CACHE only for a
+//! `Fitted`/`General` image's certified envelope. The charts it
+//! describes and the ones it refuses are stated at the function.
+//!
 //! # Persistence and transfer posture
 //!
 //! Caches are minted at construction and are immutable with the body;
-//! there is no invalidation machinery and none is needed (content-keyed
-//! cache transfer stays banked, C4). Persistence (M4 PR 6 / D6.1) is
+//! there is no general invalidation machinery, and what stands in for
+//! one is per door: a door declares its posture below, and the three
+//! that move a whole loop between charts dispose of the moved rows
+//! themselves ([`crate::Body::drop_rows_on_chart_change`]).
+//! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
 //! deterministic pipeline rather than reading stored bytes, and no
@@ -91,44 +104,128 @@
 //! as it re-mints before it hands the body back.
 //!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
-//! that pass CLEARS the map before re-minting. In this crate: the
+//! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
+//! the same posture over a SUBSET, **for a producer that kills no
+//! half-edge**: it re-derives the rows of exactly the faces it wrote
+//! and leaves the rest as found, so no row it could have staled
+//! survives its return. It does NOT discharge the whole-body claim —
+//! a row on a dead half-edge is reachable from no face, so it survives
+//! that pass over every face of the body (the entry's own docs carry
+//! the case, pinned in `sweep`'s SHELL-10 probes). The two simultaneous
+//! offset doors are entitled to it because they perform no surgery. In
+//! this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
 //! staged result before commit, and only when the input carried
 //! caches), and [`crate::transform`] (which re-derives when the operand
-//! carried caches). **Downstream crates hold the same posture and are
-//! part of the list**: `sweep`'s loft, fillet build and fillet surgery,
-//! and `step_import`'s assembly all re-mint on the body they return.
+//! carried caches), and [`crate::shell`](mod@crate::shell) (on the
+//! assembled thin solid). **Downstream crates hold the same posture and
+//! are part of the list**: `sweep`'s revolve and tube, loft, fillet
+//! build and fillet surgery, and `step_import`'s assembly all re-mint
+//! on the body they return.
 //!
 //! **Transfers the map** — the graft (`boolean::combine`, and
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
+//! [`crate::Body::split_edge`] holds the same posture at a parameter
+//! split: a [`geom_brep::Pcurve`] is a function of the carrier
+//! parameter, so each child's chart image IS the parent's restricted
+//! to the child's sub-interval. The op re-certifies both restrictions
+//! before it mutates ([`split_cache`]) and writes them onto the parent
+//! halves and the two new halves, deriving nothing and minting nothing
+//! where there was nothing. Two frontiers ride with it, both stated at
+//! [`split_cache`]: a `Fitted`/`General` row is left exactly as found
+//! (its certification doors carry the [`PcurveFittedLane`] bound), and
+//! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
+//! recovery step this module's caveats name for a face left rowless —
+//! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
+//! map an edge's whole carrier interval onto the chart's whole `u`
+//! domain, which a sub-edge no longer spans. So the claim that a
+//! carried row is the row the pass would derive is a claim about the
+//! ANALYTIC charts, where the pass runs.
 //!
-//! **Neither clears nor re-mints** — the Euler operators, the kill ops,
-//! ring surgery, [`crate::Body::split_edge`]. These are primitives, and
-//! they are what the stale-row consequence below is about.
+//! **[`crate::Body::revert`] carries the map, re-stated with the
+//! frames.** Not a fourth posture: the three above classify the
+//! `&mut Body` doors the guard walks, and `revert` is a `&self ->
+//! Self` producer outside that walk (the guard's "does NOT establish"
+//! list below), so this is a prose position with nothing checking it.
+//! Every row keeps its key, its interval and its certificate: the
+//! curved charts' frames do not move under a reversal (those faces
+//! flip their `sense` bit), so their rows are the rows; a `Plane`'s
+//! frame is reflected (`v_ref` negates with the normal), so the rows
+//! on its faces are re-stated under `(u, v) ↦ (u, −v)` through
+//! [`geom_brep::PcurveCache::mirrored_v`] — why the certificate is
+//! still the certificate is stated once, on
+//! [`geom_brep::Pcurve::mirror_v`]. The dead-key exception: a row
+//! whose half-edge no longer resolves (the stale-row consequence
+//! below) is on no face, so it is on no plane face, and it travels as
+//! found — not a refusal, because the boolean's `revert` of a split
+//! operand carries such rows routinely, and the graft or the
+//! producer's closing mint disposes of them. The loop walk's branch
+//! choice is re-stated too, without touching a row: the forward walk
+//! parks a periodic chart's one-period wrap at the loop's closure,
+//! the joint before `first`, and that joint would sit mid-chain once
+//! the loop runs the other way — so `revert` moves every loop's
+//! `first` to its source predecessor, which puts the same joint at
+//! the reversed closure (`crate::entity::LoopBoundary::Cycle`'s
+//! `first` states the invariant; the anchor bullet in `revert`'s
+//! module docs carries the argument). Tier 3 of a reverted body whose
+//! faces carry rows reports nothing but `NegativeVolume`; `sweep`'s
+//! `revert_periodic_wrap` rows pin that on the two-arc sphere's
+//! cavity and a cone through its apex.
+//!
+//! The **loop-re-parenting** doors hold the same posture for a
+//! different reason: [`crate::Body::kfmrh`],
+//! [`crate::Body::mfkrh`] and [`crate::Body::ring_move`] move a whole
+//! LOOP between faces, which changes the CHART every row on that loop
+//! is stated in while changing no key. Each carries the moved loop's
+//! rows where the two faces are on one CHART
+//! ([`crate::Body::same_chart`]) and drops them where they are not,
+//! deriving nothing — [`crate::Body::drop_rows_on_chart_change`]
+//! carries the whole argument, including what the drop gives up: every
+//! rowless CURVED target, through every one of the three doors, trades
+//! a loud reading (the moved rows re-certified against the target's
+//! chart and refused) for a silent one (a face this pass says nothing
+//! about). Their `Neither` reading was the one the guard's table could
+//! not see: no posture makes a claim about what a row MEANS, and these
+//! doors changed nothing else.
+//!
+//! **Neither clears nor re-mints** — the remaining Euler operators and
+//! kill ops. These are primitives, and they are what the stale-row
+//! consequence below is about. Two of them move half-edges between
+//! loops of DIFFERENT faces rather than a whole loop
+//! ([`crate::Body::mef`]'s moved run, [`crate::Body::kef`]'s remnant),
+//! so the rows on those halves change chart exactly as a re-parented
+//! loop's do and are left saying the old face's chart
+//! (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). What makes that bounded rather than
-//! dangerous is the backstop: the tier-3 pcurve pass catches a stale
-//! row LOUD — it re-certifies against the current
-//! carrier/surface/window and fails, or breaks its face loop's
-//! continuity. So the posture is fail-loud, not silent-wrong — but an
-//! op that mutates an already-minted body must either clear the map or
-//! re-mint before returning, and must say which.
+//! different half-edge entirely). What bounds it is the backstop, and
+//! the backstop's reach is exactly one shape: the tier-3 pcurve pass
+//! reads a face it finds INCOMPLETE, and a face whose rows are all
+//! present but no longer certify against the current
+//! carrier/surface/window or break their loop's continuity, and
+//! reports either loud. It says nothing about the two shapes outside
+//! that — a COMPLETE face whose rows were stated in another chart and
+//! certify against this one anyway, and a face on a chart
+//! [`chart_mints`] refuses, which the pass skips entirely. So the
+//! posture is fail-loud where the pass looks, and an op that mutates
+//! an already-minted body must either clear the map or re-mint before
+//! returning, and must say which.
 //!
 //! **Where it says which, and what checks it.** For a `&mut Body` door
 //! in this crate, in
 //! `staleness_posture::every_mutation_door_declares_its_pcurve_posture`
-//! — a walk of `topo/src` requiring every such door to either call
-//! `mint_pcurves` in its own body or carry a declared posture. It goes
-//! red the day a door is added and nobody says which bucket it is in,
-//! and red the day a door whose entry says it does not re-mint starts
-//! calling `mint_pcurves` directly.
+//! — a walk of `topo/src` requiring every such door to either call the
+//! pass in its own body, in either of its two spellings
+//! ([`mint_pcurves`] whole-body, [`mint_pcurves_of`] over a subset), or
+//! carry a declared posture. It goes red the day a door is added and
+//! nobody says which bucket it is in, and red the day a door whose
+//! entry says it does not re-mint starts calling the pass directly.
 //!
 //! **What the guard does NOT establish**, so that nothing above reads
 //! as more than it is:
@@ -157,14 +254,15 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
 use crate::body::Body;
+use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PcurveMintError {
     /// A key failed to resolve mid-pass — a structurally corrupt body
     /// (tier 1's job to report; this pass only refuses to guess).
@@ -192,6 +290,55 @@ pub enum PcurveMintError {
         /// The face whose loop failed to close.
         face: FaceKey,
     },
+    /// A loop of the face passes through a point where the chart's
+    /// FIRST channel has no lever — a sphere pole or a cone apex.
+    ///
+    /// The walk accepts such a joint (it skips the branch shift there,
+    /// deliberately: every azimuth agrees at a pole, so there is no
+    /// branch to pick), and that is right for MINTING. It is not right
+    /// for a chart POLYGON: the joint's azimuth is whatever the
+    /// derivation happened to produce, the chord to it is drawn to a
+    /// point the face does not have an azimuth at, and the polygon
+    /// that results describes a different region from the face. A
+    /// quarter disc revolved 90° about its own edge measures the
+    /// difference — the region is a rectangle, the chord polygon a
+    /// triangle, and cells in the difference certify outside while
+    /// holding material.
+    SingularChartJoint {
+        /// The face whose loop meets the singularity.
+        face: FaceKey,
+        /// The loop.
+        r#loop: LoopKey,
+        /// The half-edge whose ENTRY sits at the singular point.
+        half_edge: HalfEdgeKey,
+    },
+    /// The outer loop's own chart span is definitely wider than the
+    /// chart's period, so the face wraps onto itself and its region is
+    /// not periodic within its own outer — the premise every ring lift
+    /// rests on (`chart_bound::RING_SHIFTS`).
+    OuterSpansPeriod,
+    /// A loop's chart walk closed only by a whole period of the chart
+    /// (or, on a sphere chart, through the involution): the walk is a
+    /// LIFT, not a closed chart polygon, so it bounds no chart region
+    /// and [`chart_boundary`] refuses rather than describing the
+    /// polygon of an open lift.
+    ///
+    /// **What actually reaches it.** The claim that no head
+    /// constructor makes one is false, and was measured false: a
+    /// revolve whose profile touches the axis produces a cone face
+    /// whose loop runs through the apex, and its walk closes a period
+    /// off. That case is now [`PcurveMintError::SingularChartJoint`]'s
+    /// — it is refused one check earlier, for the sharper reason —
+    /// and what remains here is the genuine period-off closure: a wall
+    /// whose loop lifts the chart with no seam chain to close it. No
+    /// constructor in the tree is known to build one, and the variant
+    /// stays because "known" is not "cannot".
+    LoopWraps {
+        /// The face whose loop wraps the chart.
+        face: FaceKey,
+        /// The wrapping loop.
+        r#loop: LoopKey,
+    },
     /// A half-edge carries no stored pcurve at rest although its face
     /// carries some: the face's cache set is incomplete. A face with
     /// NO caches is legal everywhere (planar faces, frontier charts,
@@ -217,7 +364,10 @@ impl core::fmt::Display for PcurveMintError {
         match self {
             Self::Corrupt => write!(
                 f,
-                "pcurve minting: the body is structurally corrupt (a key did not resolve)"
+                "pcurve minting: the body is structurally corrupt (a key did not resolve) \
+                 — the structural validators own this diagnosis: read the tier-1 report \
+                 and repair the reference it names; this pass refuses to guess rather \
+                 than minting past a broken one"
             ),
             Self::Certify { half_edge, error } => {
                 write!(f, "pcurve minting at half-edge {half_edge:?}: {error}")
@@ -226,17 +376,57 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "pcurve minting: half-edge {half_edge:?} does not meet its predecessor in \
                  the chart — the loop's single-branch unwrap is discontinuous there \
-                 (a branch is chosen once per loop and certified, never per sample)"
+                 (a branch is chosen once per loop and certified, never per sample). \
+                 Re-mint the body if it was edited after minting: surgery leaves stale \
+                 rows and this pass is their backstop. If a fresh mint refuses here too, \
+                 the loop's edges do not meet through the chart and the face's boundary \
+                 is what to repair"
             ),
             Self::LoopNotClosed { face } => write!(
                 f,
                 "pcurve minting: the chart walk of a loop of face {face:?} did not close \
-                 (its azimuth advance is neither zero nor one full period)"
+                 (its azimuth advance is neither zero nor one full period) — re-mint \
+                 after any surgery on an already-minted body, and if a fresh mint refuses \
+                 the same way repair the loop itself: the walk never closes a gap by \
+                 choosing a branch"
+            ),
+            Self::SingularChartJoint {
+                face,
+                r#loop: lp,
+                half_edge,
+            } => write!(
+                f,
+                "chart boundary: loop {lp:?} of face {face:?} meets a chart singularity at \
+                 half-edge {half_edge:?} (a sphere pole or a cone apex), where the first \
+                 chart channel has no lever and the boundary has no chord polygon — valid \
+                 input, unbuilt lane: the joint's azimuth is whatever the derivation \
+                 produced and no branch choice makes it a vertex, so ask for the \
+                 description on a face whose loops stay clear of the singularity (a sphere \
+                 or cone face that does describes normally); there is nothing in the body \
+                 to repair"
+            ),
+            Self::OuterSpansPeriod => write!(
+                f,
+                "chart boundary: the outer loop's chart span exceeds the chart's period, so \
+                 the face wraps onto itself and its region is not periodic within its own \
+                 outer — the ring lifts are then lifts of nothing and no honest description \
+                 exists to return, so hold the producer to an outer within one period (a \
+                 revolve's angle headroom is that guard) and describe a face that wraps \
+                 further as sub-period pieces"
+            ),
+            Self::LoopWraps { face, r#loop: lp } => write!(
+                f,
+                "chart boundary: the chart walk of loop {lp:?} of face {face:?} closes one \
+                 whole period off — it lifts the chart rather than bounding a chart polygon. \
+                 No constructor in the tree is known to produce such a loop, so report the \
+                 body that reached this rather than repairing one"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
                 "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
-                 pcurve caches, but carries none at rest"
+                 pcurve caches, but carries none at rest — the face's cache set is \
+                 half-minted: re-mint the body, and repair the op that returned a mutated \
+                 already-minted body without clearing or re-minting, which is what leaves one"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
@@ -440,9 +630,11 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   the conventional descriptions collapsed (U2) there is nothing
 ///   left to derive.
 /// - An iso LINE image naming the OTHER wall maps as this chart's own
-///   `u = u₀` or `u = u₁` boundary, the side selected by a definite
-///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
-///   full iso lane — a wrong pick fails loudly, never silently.
+///   `u = const` column: a domain end when a definite endpoint residual
+///   (`pcurve_iso_side`) places the carrier's start there, otherwise
+///   the column its certified chart foot measures (a chart wider than
+///   the face it trims), and then CERTIFIED by the full iso lane — a
+///   wrong pick fails loudly, never silently.
 /// - A cap–wall rim over a LINE carrier maps as `(u(t), v)` with `u` affine
 ///   (`t0 ↦ u₀`, `t1 ↦ u₁` — the wall's u IS the segment parameter by
 ///   construction, up to the chart's own affine scale) and
@@ -558,35 +750,36 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
         }) => {
             let v0 = p0.y + pl.y * t0;
             let column = |cand: T| surface.eval(cand, v0);
-            // **No measured fall-back here, deliberately — and this is
-            // the one place the rim arm's widening must NOT be copied.**
-            // A wall-wall seam's image is a COLUMN: `u` is the FIXED
-            // channel. The exact iso class certifies a fixed channel
-            // only on a chart boundary, because a boundary row is a
-            // control-net copy and an interior one is not (the hull
-            // hypothesis the bound rests on) — `pcurve_cache`'s
-            // `side_of` refuses an interior column by design, and
-            // `geom-brep`'s `an_interior_column_still_refuses` pins
-            // that. So a definite fall-through HERE is not a position
-            // this arm is missing; it is a statement that the exact
-            // class does not apply, and minting the measured column
-            // anyway would hand the certifier exactly the image the
-            // design requires it to refuse.
-            //
-            // The cap-rim arm below is the opposite case and that is
-            // why it DOES measure: there `u` is the MOVING channel and
-            // the fixed one is `v`, still on a boundary, so only the
-            // map was wrong.
-            //
-            // Nor is `General` the answer for this locus: the fitted
-            // grade certifies against an operand PAIR, and a `Chart`
-            // description names ONE surface (`mate_surface` reads the
-            // pair from an `Intersection` description), so there is no
-            // tube to state. An interior column reached through a chart
-            // description needs the de Boor collapse extractor named in
-            // the refusal `side_of` raises; it is banked, not this
-            // unit's.
-            let x = side_pick(&column, &[cu0, cu1])?.ok_or_else(no_boundary)?;
+            // The image's SHAPE is the neighbour's own description (a
+            // column, `v` moving as the neighbour says); only its
+            // POSITION is derived here. A domain end wins where one is
+            // definitely it; on a chart wider than the face it trims
+            // the seam is an interior column, and its position is the
+            // carrier start's certified chart foot — one sample,
+            // offered to the same metre-valued check — with no snap to
+            // a knot: the certifier collapses the chart at exactly the
+            // value it is handed, and any error in that value is what
+            // its hull meters.
+            let x = match side_pick(&column, &[cu0, cu1])? {
+                Some(x) => x,
+                None => {
+                    let Some(foot) = derive_chart_foot(carrier.eval(t0), surface, half_edge)?
+                    else {
+                        return Err(refuse(
+                            "the carrier's start point lies on neither chart boundary, and \
+                             no lane measures a chart foot at this scalar, so the interior \
+                             seam column it sits on cannot be positioned",
+                        ));
+                    };
+                    side_pick(&column, &[T::from_f64(foot.x)])?.ok_or_else(|| {
+                        refuse(
+                            "the carrier's start has a certified chart foot, but the \
+                             neighbour's v map does not place it there — the two walls do \
+                             not share the seam's parameterization",
+                        )
+                    })?
+                }
+            };
             Ok(Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
@@ -924,7 +1117,10 @@ fn derive_chart_foot<T: PcurveFittedLane>(
 
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
 /// forward in the carrier parameter)?
-fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, PcurveMintError> {
+pub(crate) fn is_plus<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<bool, PcurveMintError> {
     let he = body
         .get_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
@@ -932,22 +1128,84 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, Pc
     Ok(edge.he_plus == half_edge)
 }
 
-/// The FIRST-CHANNEL lever arm of a chart at second-parameter value
-/// `v` — the metres a unit step of the chart's `u` moves the mapped
-/// point (D4 ¶1: no UV-space tolerance ever reaches ε).
+/// **A chart channel's arm, and which kind of arm it is** — the answer
+/// [`chart_u_arm`] gives, so that the door a gap on that channel
+/// reaches the band through is picked by the type rather than by a
+/// paragraph.
+///
+/// The two variants are two different crossings, and on the first
+/// channel the difference is what the chart's `u` MEANS:
+///
+/// - [`ChartArm::Angular`] — `u` is an AZIMUTH, so the arm is metres
+///   per RADIAN and the gap it meters is an angle. Metres per radian
+///   is not a rate per parameter unit, so the crossing is
+///   [`Margin::levered`]'s and no [`SupSpeed`] is minted.
+/// - [`ChartArm::Rate`] — `u` is the CHART'S OWN parameter (a plane's
+///   metre axis, a spline chart's net parameter), so the arm is metres
+///   per chart-`u` unit and the gap it meters is a parameter span.
+///   That is the rate pair's own crossing, sup side, and it goes
+///   through [`Margin::metered_sup`].
+///
+/// The second channel splits the same way — a polar radius is angular
+/// ([`polar_arm`]), a spline chart's `v` rate is not ([`v_meter`]) —
+/// and the polar arm is spelled with this type where it meters a gap.
+///
+/// Both leave metres, and [`ChartArm::meter`] is the one place that
+/// says which door does it.
+#[derive(Clone, Copy, Debug)]
+pub enum ChartArm<T> {
+    /// Metres per RADIAN at a latitude — see the type docs.
+    Angular(T),
+    /// Metres per chart-`u` unit — see the type docs.
+    Rate(SupSpeed<T>),
+}
+
+impl<T: Real> ChartArm<T> {
+    /// A first-channel gap crossed to metres by whichever door this
+    /// arm's kind names — one multiply either way, so the two doors
+    /// differ in what they assert and in nothing else.
+    pub(crate) fn meter(self, gap: T) -> Margin<T> {
+        match self {
+            Self::Angular(arm) => Margin::levered(gap, arm),
+            Self::Rate(rate) => Margin::metered_sup(gap, rate),
+        }
+    }
+
+    /// The arm's own magnitude, for the gate that asks whether the arm
+    /// itself is collapsed (the `pcurve_loop_pole_joint` gate: *"can any
+    /// first-channel displacement move this point at all?"*). That is
+    /// a question about the arm and not a crossing, so no door applies
+    /// and the tag comes off here, deliberately.
+    pub(crate) fn magnitude(self) -> T {
+        match self {
+            Self::Angular(arm) => arm,
+            Self::Rate(rate) => rate.get(),
+        }
+    }
+}
+
+/// The FIRST-CHANNEL arm of a chart at second-parameter value `v` —
+/// the metres a unit step of the chart's `u` moves the mapped point
+/// (D4 ¶1: no UV-space tolerance ever reaches ε), **and which kind of
+/// arm that is** ([`ChartArm`]).
 ///
 /// On the azimuth charts this is the LOCAL lever at that latitude:
 /// cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`, cone
-/// `|v·sin α|`. Local is the honest metering for a joint gap — at a
-/// sphere pole or a cone apex the lever is exactly zero, because the
-/// chart azimuth genuinely does not move the point there, so a loop
-/// meeting itself at a pole has no azimuth-continuity obligation and
-/// a global sup arm would refuse every octant corner.
+/// `|v·sin α|` — metres per radian, every one. Local is the honest
+/// metering for a joint gap — at a sphere pole or a cone apex the
+/// lever is exactly zero, because the chart azimuth genuinely does not
+/// move the point there, so a loop meeting itself at a pole has no
+/// azimuth-continuity obligation and a global sup arm would refuse
+/// every octant corner.
 ///
-/// On the non-azimuth charts there is no latitude and the arm is a
-/// chart constant: a plane's `u` IS metres, so its arm is exactly 1
-/// by construction; a spline chart's `u` is the net's own parameter,
-/// whose metre stretch is whatever the net says.
+/// On the non-azimuth charts there is no latitude and no angle: a
+/// plane's `u` IS metres, so its arm is exactly 1 by construction; a
+/// spline chart's `u` is the net's own parameter, whose metre stretch
+/// is whatever the net says. On those three kinds the number is
+/// `geom_brep::chart_stretch_sup`'s first component — a rate per
+/// parameter unit, minted a [`SupSpeed`] there and carried as one
+/// here, because the gap it meters is a chart-parameter span and not
+/// an angle.
 ///
 /// # Direction of error: why the spline arm is the SUP bound
 ///
@@ -973,22 +1231,26 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, Pc
 /// `geom_brep::chart_stretch_sup` is that bound and states the same
 /// split at the export; it is emphatically not a lower bound, and
 /// nothing here may be read as one.
-fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
+fn chart_u_arm<T: Real>(surface: &Surface<T>, v: T) -> ChartArm<T> {
     match *surface {
-        Surface::Cylinder { radius, .. } => radius,
-        Surface::Sphere { radius, .. } => (radius * v.cos()).abs(),
+        Surface::Cylinder { radius, .. } => ChartArm::Angular(radius),
+        Surface::Sphere { radius, .. } => ChartArm::Angular((radius * v.cos()).abs()),
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => (major_radius + minor_radius * v.cos()).abs(),
-        Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
+        } => ChartArm::Angular((major_radius + minor_radius * v.cos()).abs()),
+        Surface::Cone { half_angle, .. } => ChartArm::Angular((v * half_angle.sin()).abs()),
         // The plane answers exactly 1 through this door (its chart
         // parameters ARE metres), and each spline kind answers its
         // net's own `sup |S_u|` — a placeholder payload, which has no
-        // net to bound, answers 1 there too.
+        // net to bound, answers 1 there too. The cone is the one kind
+        // `chart_stretch_sup` refuses, and it is answered above.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            geom_brep::chart_stretch_sup(surface).0
+            let Ok((sup_u, _)) = geom_brep::chart_stretch_sup(surface) else {
+                unreachable!("chart_stretch_sup refuses only the cone, answered above")
+            };
+            ChartArm::Rate(sup_u)
         }
     }
 }
@@ -1023,7 +1285,7 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
 ///
 /// The shift is offered only when the pole-joint gate reads the arm as
 /// definitely nonzero, and on a spline chart that arm is the net's own
-/// `sup |S_u|` ([`azimuth_arm`]), not a constant. So the gate is LIVE
+/// `sup |S_u|` ([`chart_u_arm`]), not a constant. So the gate is LIVE
 /// on these charts in all three of its outcomes: a chart whose whole
 /// `u` stretch sits under the band reads `Zero` and takes no shift at
 /// all (which is honest — no `u` displacement on it moves a point
@@ -1089,18 +1351,28 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
 }
 
 /// The SECOND channel's metre rate for a loop-continuity gap — the
-/// `v` companion of [`azimuth_arm`], and the same escape claim.
+/// `v` companion of [`chart_u_arm`], and the same escape claim.
 ///
 /// Where the channel is an angle ([`polar_arm`]: sphere, torus) the
 /// arm is that exact radius. Where it is not, the channel's metre
 /// rate is the chart's `sup |S_v|`: exactly 1 on a plane, cylinder or
 /// cone, where `v` IS a length, and the net's own stretch on a spline
 /// chart, where it is not. The direction argument is
-/// [`azimuth_arm`]'s — an over-stated rate can only refuse a closure,
+/// [`chart_u_arm`]'s — an over-stated rate can only refuse a closure,
 /// while `1` on a chart with a 100 m/unit stretch under-states the
 /// metre gap by that factor and certifies a loop closed across it.
-fn v_meter<T: Real>(surface: &Surface<T>) -> T {
-    polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1)
+/// Unlike [`chart_u_arm`] this channel's parameter is not always an
+/// angle, so the crossing IS a rate per parameter unit and the bound
+/// direction rides out as a [`SupSpeed`]: the exact polar radius is a
+/// sup by being exact, and the spline stretch is one by derivation.
+fn v_meter<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
+    match polar_arm(surface) {
+        Some(radius) => SupSpeed::new(radius),
+        // Every kind has a second-channel sup, the cone included (its
+        // `v` is a slant length, so the rate is exactly 1), which is
+        // why this reads the `v`-only door rather than the pair.
+        None => geom_brep::chart_stretch_sup_v(surface),
+    }
 }
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
@@ -1158,7 +1430,7 @@ fn sphere_twin<T: Decide>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pc
 ///
 /// All margins metered in metres through the channel's lever arm; the
 /// azimuth gap through the LOCAL arm at the meeting point
-/// ([`azimuth_arm`] — zero at a pole, where azimuth means nothing).
+/// ([`chart_u_arm`] — zero at a pole, where azimuth means nothing).
 fn loop_closes<T: Decide>(
     surface: &Surface<T>,
     start: geom_core::Point2<T>,
@@ -1166,15 +1438,15 @@ fn loop_closes<T: Decide>(
     u_period: Option<T>,
     band: Band,
 ) -> bool {
-    let arm = azimuth_arm(surface, start.y);
+    let arm = chart_u_arm(surface, start.y);
     // A chart that does not wrap offers no period, and `wraps` below
     // degenerates to the exact-closure test (`m ± 0`).
     let tau = u_period.unwrap_or_else(T::zero);
     let zero = |name: &'static str, m: Margin<T>| matches!(decide(name, m, band), Ok(Sign::Zero));
-    let wraps = |m: T, a: T, name: &'static str| {
+    let wraps = |m: T, a: ChartArm<T>, name: &'static str| {
         [m, m - tau, m + tau]
             .into_iter()
-            .any(|c| zero(name, Margin::levered(c, a)))
+            .any(|c| zero(name, a.meter(c)))
     };
     let du = end.x - start.x;
     let dv = end.y - start.y;
@@ -1183,8 +1455,11 @@ fn loop_closes<T: Decide>(
             wraps(du, arm, "pcurve_loop_closure")
                 && zero("pcurve_loop_closure_height", Margin::of(dv))
         }
+        // A polar `v` arm is metres per RADIAN, like an azimuth arm
+        // and unlike a spline chart's `v` rate ([`v_meter`]).
         Some(v_arm) => {
-            wraps(du, arm, "pcurve_loop_closure") && wraps(dv, v_arm, "pcurve_loop_closure_height")
+            wraps(du, arm, "pcurve_loop_closure")
+                && wraps(dv, ChartArm::Angular(v_arm), "pcurve_loop_closure_height")
         }
     };
     if direct {
@@ -1200,15 +1475,284 @@ fn loop_closes<T: Decide>(
         .into_iter()
         .any(|m| wraps(m, arm, "pcurve_loop_closure"));
     let sv = end.y + start.y - pi;
-    mirrored_u && wraps(sv, *radius, "pcurve_loop_closure_height")
+    mirrored_u && wraps(sv, ChartArm::Angular(*radius), "pcurve_loop_closure_height")
 }
 
 /// One half-edge's minted chart curve, before certification.
-struct Walked<T: Real> {
+pub(crate) struct Walked<T: Real> {
     half_edge: HalfEdgeKey,
     pcurve: Pcurve<T>,
     t0: T,
     t1: T,
+}
+
+/// One face's boundary as this module's passes walk it: each loop's
+/// half-edge cycle, and the **chart window the rows that boundary
+/// already STORES hull out to**.
+///
+/// The one home for that window: [`validate_pcurves`]'s presence pass
+/// derives it to replay stored certificates against, and
+/// [`split_cache`] derives it to certify a restriction against. They
+/// want the same hull of the same boxes over the same loops, and a
+/// second spelling of one window is a second answer to one question.
+/// [`mint_face`]'s window is a different question — it hulls the
+/// images it is DERIVING, none of which is stored yet.
+pub(crate) struct StoredRows<T: Real> {
+    /// The face's loops in walk order: `Some(cycle)` where the loop
+    /// walked, `None` where the loop record or its cycle did not
+    /// resolve — tier 1's corruption, which each caller reports in its
+    /// own vocabulary. A loop whose boundary is not a `Cycle` is
+    /// ABSENT from this list: there is nothing to walk and nothing
+    /// wrong.
+    pub(crate) loops: Vec<Option<Vec<HalfEdgeKey>>>,
+    /// The hull of the chart boxes of every row those cycles store,
+    /// `None` when the face's boundary stores no row at all — which is
+    /// also the answer to "has this face been minted", since a face
+    /// carrying one row is required to carry them all.
+    pub(crate) window: Option<ChartWindow<T>>,
+}
+
+/// One loop's half-edge cycle, as this module's walks read it —
+/// [`loop_rows`]'s answer.
+pub(crate) enum LoopRows {
+    /// The loop walked: its half-edges in cycle order. These are the
+    /// keys the map is keyed on for this loop, and the only ones.
+    Cycle(Vec<HalfEdgeKey>),
+    /// The loop's boundary is not a cycle
+    /// ([`crate::LoopBoundary::Empty`]): there is nothing to walk and
+    /// nothing wrong. It holds no half-edge, so it holds no row.
+    NoCycle,
+    /// The loop record or its cycle did not resolve — tier 1's
+    /// corruption, which each caller reports in its own vocabulary.
+    Corrupt,
+}
+
+/// **The one per-loop rows walk**: the half-edges of `r#loop` a pcurve
+/// row can be keyed on.
+///
+/// A row is keyed on a half-edge and belongs to the face that
+/// half-edge's loop is on, so every question this module asks about
+/// one loop's rows — which rows a face STORES ([`stored_rows`], and
+/// through it [`validate_pcurves`] and [`split_cache`]), and which
+/// rows a door that re-parents the loop must dispose of
+/// ([`crate::Body::drop_rows_on_chart_change`]) — is a walk of this
+/// one cycle. Two spellings of it would be two answers to "which rows
+/// does this loop have", and a door and the validator disagreeing
+/// about that is exactly the defect neither could see.
+pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows {
+    let Some(loop_data) = body.get_loop(r#loop) else {
+        return LoopRows::Corrupt;
+    };
+    let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+        return LoopRows::NoCycle;
+    };
+    match body.loop_cycle(first) {
+        Some(cycle) => LoopRows::Cycle(cycle),
+        None => LoopRows::Corrupt,
+    }
+}
+
+/// [`StoredRows`] for one face: its loops walked once, and the chart
+/// window its stored rows hull out to.
+pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face) -> StoredRows<T> {
+    let mut out = StoredRows {
+        loops: Vec::new(),
+        window: None,
+    };
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let cycle = match loop_rows(body, lk) {
+            LoopRows::NoCycle => continue,
+            LoopRows::Corrupt => {
+                out.loops.push(None);
+                continue;
+            }
+            LoopRows::Cycle(cycle) => cycle,
+        };
+        for &he in &cycle {
+            let Some(row) = body.pcurve(he) else {
+                continue;
+            };
+            let (t0, t1) = row.params();
+            let b = row.pcurve().chart_box(t0, t1);
+            out.window = Some(match out.window {
+                None => b,
+                Some(acc) => acc.hull(b),
+            });
+        }
+        out.loops.push(Some(cycle));
+    }
+    out
+}
+
+/// The two rows a parameter split leaves where ONE parent half-edge's
+/// row was, named by where they go: the first child's `[t₀, t]` stays
+/// on the parent half (which IS the first child's half), the second
+/// child's `[t, t₁]` goes to the new half minted beside it.
+pub(crate) struct CarriedRows<T: Real> {
+    /// The first child's row, for the parent half-edge.
+    pub(crate) parent_half: PcurveCache<T>,
+    /// The second child's row, for the half-edge minted beside it.
+    pub(crate) new_half: PcurveCache<T>,
+}
+
+/// Why [`split_cache`] could not state a restriction.
+#[derive(Clone, Debug)]
+pub(crate) enum SplitRowError {
+    /// The topology the stored row is ABOUT does not resolve: the
+    /// half-edge, its edge's certified curve, its parent loop, that
+    /// loop's face, that face's surface, or that face's boundary not
+    /// carrying the half-edge whose row this is. A row states a curve
+    /// in a FACE's chart, so without the chart there is nothing to
+    /// restrict it to, and a body that holds the row and not the chart
+    /// is tier-1 corrupt — the caller reports it as the stale key it
+    /// is, rather than proceeding rowless.
+    ///
+    /// Not reachable from [`crate::Body::split_edge`]: its own gates
+    /// resolve both halves live and their edge's curve `Certified`
+    /// before this runs, and a live half-edge's loop, face and surface
+    /// are tier-1 invariants of a body that passed them.
+    Stale {
+        /// The half-edge whose row could not be placed.
+        half_edge: HalfEdgeKey,
+    },
+    /// The parent's image, restricted to one child's sub-interval,
+    /// failed the closed-form certification the whole image passed. A
+    /// covered lane that refuses here is a genuine defect and is
+    /// raised, never swallowed.
+    Certify {
+        /// The parent half-edge whose row was being restricted.
+        half_edge: HalfEdgeKey,
+        /// The typed certification failure.
+        error: PcurveCertifyError,
+    },
+}
+
+/// The **restriction of an edge's two half-edge rows to the two
+/// children of a parameter split** — [`crate::Body::split_edge`]'s
+/// pcurve limb, and the reason that op carries its rows across the
+/// surgery instead of staling them. The answer holds one entry per
+/// given half-edge: that half-edge's [`CarriedRows`], or `None` where
+/// there is nothing to carry.
+///
+/// A [`Pcurve`] is a function of the **carrier parameter** and carries
+/// no interval of its own ([`Pcurve::eval`]), exactly as an
+/// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
+/// `t` have the parent's chart image, restricted to `[t₀, t]` and
+/// `[t, t₁]`. So this re-certifies the parent's own image over each
+/// sub-interval rather than deriving anything — and that one sentence
+/// is the whole bound argument: a restriction re-certifies through
+/// [`PcurveCache::certify`], which `geom-brep` declares in an
+/// `impl<T: Decide>` block, so `split_edge` keeps the `Decide` bound it
+/// has and no caller's bound moves. `PcurveFittedLane` is the
+/// DERIVATION lanes' bound, and nothing here derives.
+///
+/// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
+/// carrier through [`half_edge_carrier`] — the same interval
+/// `EdgeCurve::split_specs` cuts the children's curves from — and not
+/// the row's own stored `cache.params()`. The two agree on a face the
+/// minting pass wrote; where a stored row disagrees, the edge is what
+/// the children are made of and the row is what is being re-certified,
+/// so the carrier decides the sub-intervals and the certification
+/// measures the row against them.
+///
+/// The chart `window` each restriction certifies against is the face's
+/// own, hulled from the rows that face already stores ([`stored_rows`],
+/// shared with [`validate_pcurves`]); a restriction's chart box can
+/// only shrink, so the face's window after the split is inside the one
+/// certified against here. It is derived **once per face**: an edge's
+/// two halves usually bound two different faces, and a seam edge whose
+/// halves bound one face pays for one walk.
+///
+/// Read-only, so a refusal reaches `split_edge` before any mutation
+/// and the op's "untouched on `Err`" contract is unaffected.
+///
+/// # `None`, and what it does NOT claim
+///
+/// - `half_edge` carries no row (the ordinary case: an all-planar
+///   body, or a body that never ran the minting pass);
+/// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
+///   whose certification doors are the `PcurveFittedLane` ones
+///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
+///   which need the mate operand and the fitted machinery). Widening
+///   `split_edge` to reach them is the bound ripple banked at
+///   [`mint_faces`]; until it lands, a split of an edge carrying a
+///   `General` row leaves that face exactly as it found it — the
+///   pre-existing behaviour, tracked on TOPO's slate as
+///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
+///
+/// In both cases the caller writes nothing, so the map is left exactly
+/// as found. A key that does not resolve is NOT one of them: it
+/// refuses [`SplitRowError::Stale`].
+///
+/// # The SPLINE-chart frontier
+///
+/// The carry is exact on every kind it covers, spline charts included
+/// (a described-NURBS wall's `IsoLine` and `IsoArc` rows restrict like
+/// any other, and tier 3 reads `Ok` after the split). What a spline
+/// chart does not have is the RECOVERY step: [`mint_pcurves`], the
+/// pass a rowless face's caveat names, refuses on the body such a
+/// split produces, because [`nurbs_iso_derive`]'s rim arms map an
+/// edge's WHOLE carrier interval onto the chart's whole `u` domain,
+/// which a sub-edge no longer spans (`IsoUnsupported` on an arc rim, a
+/// loop-continuity finding on a line rim). Pre-existing and untouched
+/// here — the split now leaves nothing for that pass to do — and filed
+/// on TRIM's slate as
+/// `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
+/// So "the carried rows are the mint pass's rows" is a claim about the
+/// ANALYTIC charts (cylinder, sphere, torus), where the pass runs.
+///
+/// # Errors
+///
+/// [`SplitRowError`] — a certification the whole image passed failing
+/// over a sub-interval, or a key the restriction needs not resolving.
+pub(crate) fn split_cache<T: Decide>(
+    body: &Body<T>,
+    halves: [HalfEdgeKey; 2],
+    t: T,
+    band: Band,
+) -> Result<[Option<CarriedRows<T>>; 2], SplitRowError> {
+    // At most one entry per face: an edge's two halves bound two
+    // faces, or one face twice when the edge is a seam.
+    let mut windows: Vec<(FaceKey, ChartWindow<T>)> = Vec::new();
+    let mut rows = [None, None];
+    for (slot, half_edge) in halves.into_iter().enumerate() {
+        let Some(cache) = body.pcurve(half_edge) else {
+            continue;
+        };
+        if matches!(cache.pcurve(), Pcurve::Fitted(_) | Pcurve::General(_)) {
+            continue;
+        }
+        let stale = || SplitRowError::Stale { half_edge };
+        let (carrier, t0, t1) = half_edge_carrier(body, half_edge).map_err(|_| stale())?;
+        let surface = half_edge_surface(body, half_edge).map_err(|_| stale())?;
+        let face_key = body
+            .get_half_edge(half_edge)
+            .and_then(|he| body.get_loop(he.parent_loop))
+            .map(|lp| lp.face)
+            .ok_or_else(stale)?;
+        let window = match windows.iter().find(|(f, _)| *f == face_key) {
+            Some(&(_, w)) => w,
+            None => {
+                let face = body.get_face(face_key).ok_or_else(stale)?;
+                // `None` here is a face whose boundary stores no row at
+                // all — and this half-edge, which stores one, is
+                // supposed to be on it.
+                let w = stored_rows(body, face).window.ok_or_else(stale)?;
+                windows.push((face_key, w));
+                w
+            }
+        };
+        let image = cache.pcurve().clone();
+        let certify = |a: T, b: T, image: Pcurve<T>| {
+            PcurveCache::certify(image, a, b, &carrier, &surface, window, band)
+                .map_err(|error| SplitRowError::Certify { half_edge, error })
+        };
+        rows[slot] = Some(CarriedRows {
+            parent_half: certify(t0, t, image.clone())?,
+            new_half: certify(t, t1, image)?,
+        });
+    }
+    Ok(rows)
 }
 
 /// Mints (and certifies) the pcurve caches of every curved face of
@@ -1236,9 +1780,84 @@ pub fn mint_pcurves<T: PcurveFittedLane>(
     // surgery killed (a `SecondaryMap` row outlives its key until the
     // slot is reused), and a stale cache is worse than no cache. What
     // this pass leaves behind is exactly what it minted and certified.
+    // The whole-body entry is the only one that can make that claim: a
+    // row whose half-edge is dead is reachable from no face, so the
+    // subset entry below clears through the faces it is given.
     body.pcurves.clear();
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    for face in faces {
+    mint_faces(body, &faces, band)?;
+    Ok(())
+}
+
+/// [`mint_pcurves`] restricted to `faces`: the rows of exactly those
+/// faces' half-edges are cleared and re-derived, and **every other row
+/// of `body` is left exactly as it was found**.
+///
+/// The pass is **per face**: a face's window, branch pinning and
+/// certification read that face's own loops, surface and edge
+/// descriptions and nothing else, so on the named faces the result is
+/// bit-for-bit [`mint_pcurves`]'s, and that pass's idempotence and
+/// determinism statements hold verbatim for them — in the order they
+/// are named.
+///
+/// # This is NOT `mint_pcurves` over a subset of the map
+///
+/// The two differ in what they CLEAR, and the difference is not
+/// cosmetic. `mint_pcurves` empties the map first, so it also drops
+/// rows whose half-edge no longer exists — a `SecondaryMap` row
+/// outlives its key until the slot is reused. This entry reaches rows
+/// through the faces it is given, and **a dead half-edge is reachable
+/// from no face**: after a kill op, the rows of the killed half-edges
+/// survive this pass over *every* face of the body, where the
+/// whole-body pass leaves none. `validate_pcurves` cannot see them
+/// either — it reaches rows through face loops — so they are invisible
+/// to tier 3 until the slot is recycled.
+///
+/// **A caller that has killed a half-edge and wants the map's at-rest
+/// guarantee must use [`mint_pcurves`].** What this entry gives is the
+/// weaker, scoped statement a partial producer can honestly make: the
+/// rows it may have staled are re-derived, and it asserts nothing at
+/// all about the rest of the map. The simultaneous offset doors are
+/// exactly that caller: they perform no topological surgery, so no
+/// half-edge of theirs ever dies and the two statements coincide.
+/// Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
+/// which kill a half-edge through the public `kef` and count what each
+/// pass leaves.
+///
+/// # Returns
+///
+/// The number of rows the named faces carry when the pass returns.
+/// Computed as the map's growth across the mint, which is the same
+/// number: every row cleared above belonged to a named face, and a
+/// half-edge lies on exactly one loop and so on exactly one face, so
+/// minting a named face can only re-fill rows the clearing emptied.
+///
+/// # Errors
+///
+/// [`mint_pcurves`]'s, raised by a face in `faces`.
+pub fn mint_pcurves_of<T: PcurveFittedLane>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: Tol,
+) -> Result<usize, PcurveMintError> {
+    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
+    for &face in faces {
+        clear_face_caches(body, face);
+    }
+    let before = body.pcurves.len();
+    mint_faces(body, faces, band)?;
+    Ok(body.pcurves.len() - before)
+}
+
+/// The mint itself, over the faces it is handed: the shared body of
+/// [`mint_pcurves`] and [`mint_pcurves_of`], which differ only in which
+/// rows they clear first.
+fn mint_faces<T: PcurveFittedLane>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+) -> Result<(), PcurveMintError> {
+    for &face in faces {
         match mint_face(body, face, band) {
             Ok(()) => {}
             // A carrier CLASS outside every derivation route (the
@@ -1398,7 +2017,7 @@ fn mint_face<T: PcurveFittedLane>(
 
 /// The one-branch walk of a single loop (module docs). Appends the
 /// branch-pinned chart curves to `out`.
-fn walk_loop<T: PcurveFittedLane>(
+pub(crate) fn walk_loop<T: PcurveFittedLane>(
     body: &Body<T>,
     face: FaceKey,
     lp: LoopKey,
@@ -1495,33 +2114,30 @@ fn walk_loop<T: PcurveFittedLane>(
                     // needed the shift fails them and the loop refuses
                     // or escalates rather than certifying. The skip
                     // defers; the margins decide.
-                    let joint_arm = azimuth_arm(surface, prev.y);
-                    let ku = match decide("pcurve_loop_pole_joint", Margin::of(joint_arm), band) {
+                    let joint_arm = chart_u_arm(surface, prev.y);
+                    let ku = match decide(
+                        "pcurve_loop_pole_joint",
+                        Margin::of(joint_arm.magnitude()),
+                        band,
+                    ) {
                         Ok(Sign::Zero) | Err(_) => T::zero(),
                         Ok(Sign::Positive | Sign::Negative) => match u_period {
                             Some(p) => (prev.x - raw.x).periodic_branch(p),
                             None => T::zero(),
                         },
                     };
-                    // The impossible-rebuild arm (see
-                    // `Pcurve::shift_branch`) surfaces as a
-                    // corrupt-body finding rather than being swallowed
-                    // into an unshifted branch.
-                    let Some(mut shifted) = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero))
-                    else {
-                        return Err(PcurveMintError::Corrupt);
-                    };
+                    let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
                     if v_arm.is_some() {
                         let ry = shifted.eval(entry_t).y;
                         let kv = (prev.y - ry).periodic_branch(tau);
                         shifted = shift_polar_branch(&shifted, kv, tau);
                     }
                     let entry = shifted.eval(entry_t);
-                    let arm = azimuth_arm(surface, prev.y);
+                    let arm = chart_u_arm(surface, prev.y);
                     let mut fits = true;
                     for margin in [
-                        Margin::levered(entry.x - prev.x, arm),
-                        Margin::metered(entry.y - prev.y, v_meter),
+                        arm.meter(entry.x - prev.x),
+                        Margin::metered_sup(entry.y - prev.y, v_meter),
                     ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
@@ -1577,6 +2193,270 @@ fn walk_loop<T: PcurveFittedLane>(
     Ok(())
 }
 
+/// The chart image of one walked half-edge, in loop direction.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Certify`] with [`PcurveCertifyError::UnsupportedCarrier`]
+/// for a `General` image carrying no stored certificate: its envelope
+/// is the only statement bounding the image against its carrier, and
+/// inventing one would widen nothing while claiming a bound.
+fn chart_edge<T: PcurveFittedLane>(
+    body: &Body<T>,
+    walked: &Walked<T>,
+    chart: &Surface<T>,
+    plus: bool,
+) -> Result<ChartEdge<T>, PcurveMintError> {
+    let (entry_t, exit_t) = if plus {
+        (walked.t0, walked.t1)
+    } else {
+        (walked.t1, walked.t0)
+    };
+    let a = walked.pcurve.eval(entry_t);
+    let b = walked.pcurve.eval(exit_t);
+    let straight = match &walked.pcurve {
+        // Straight by VARIANT: `IsoLine` is `p0 + pl·t`, and an
+        // `IsoArc`'s UV image is the segment `p0 → p0 + pd` (only the
+        // parameterization along it is transcendental).
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => true,
+        // Straight by the STRUCTURE of two matched arms rather than by
+        // a zero-test on `T` (C6): `carrier_harmonic` gives a
+        // `Curve3::Line` the coefficients `a = b = 0` — the zero
+        // VECTOR, not a small one — and `chart_pcurve`'s plane arm is
+        // affine, mapping them through one by one. So a line carrier
+        // on a plane chart has an exactly straight image, and every
+        // other harmonic is described by its envelope.
+        //
+        // What that concedes is nil where it looks like a concession.
+        // A rim or a meridian on an azimuth chart is also straight,
+        // and becomes an `Envelope` here — but its image box is the
+        // chord's own box, degenerate in the channel the chord does
+        // not move, so the box axes already state everything the
+        // segment-normal axis would. The only straight image that
+        // loses anything is a chart DIAGONAL off a plane chart (a
+        // helical harmonic), which no construction mints.
+        Pcurve::Harmonic { .. } => {
+            matches!(chart, Surface::Plane { .. })
+                && matches!(
+                    half_edge_carrier(body, walked.half_edge)?.0,
+                    geom::Curve3::Line { .. }
+                )
+        }
+        Pcurve::Fitted(_) | Pcurve::General(_) => false,
+    };
+    if straight {
+        return Ok(ChartEdge::Segment { a, b });
+    }
+    match &walked.pcurve {
+        // A fitted or general image's box is its CONTROL HULL (the
+        // convex-hull property), and what stands between that image
+        // and the carrier is the stored certificate's envelope — in
+        // metres, so `metred` is where it widens the box.
+        Pcurve::Fitted(_) | Pcurve::General(_) => {
+            let cache = body
+                .pcurve(walked.half_edge)
+                .ok_or(PcurveMintError::Certify {
+                    half_edge: walked.half_edge,
+                    error: PcurveCertifyError::UnsupportedCarrier,
+                })?;
+            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
+            Ok(ChartEdge::Envelope {
+                a,
+                b,
+                image: Point2::new(
+                    hull.u_min.enclosure_hull(hull.u_max),
+                    hull.v_min.enclosure_hull(hull.v_max),
+                ),
+                slack: cache.certificate().envelope,
+            })
+        }
+        // The closed-form image is exact in its family, so its span
+        // enclosure IS the certified box and the slack is zero. At a
+        // POINT scalar the span hull is poison, the box is poison, and
+        // the outside test certifies nothing against it — which is the
+        // safe direction.
+        _ => Ok(ChartEdge::Envelope {
+            a,
+            b,
+            image: walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1)),
+            slack: T::zero(),
+        }),
+    }
+}
+
+/// **The face's boundary in a chart the CALLER names** — the certified
+/// outer description a subdivision consumer intersects its carrier
+/// window with, and tests its cells against
+/// ([`crate::chart_bound::MetredBound::certifies_outside`]).
+///
+/// `chart`'s locus must be the face's carrier. It is a parameter
+/// rather than the stored surface because a consumer may legitimately
+/// re-chart a plane — a stored `u_ref` sign-hulled at the interval
+/// scalar makes the stored chart useless on a vertical wall — and a
+/// description in a chart the consumer does not use answers a question
+/// nobody asked. The azimuth charts pass their stored surface.
+///
+/// Nothing is read from the pcurve CACHES except a `Fitted`/`General`
+/// image's certificate: every chart image is re-derived by the loop
+/// walk, exactly as [`mint_pcurves`] derives it, so a body that never
+/// ran the minting pass (every extrude) describes perfectly well.
+///
+/// # Which charts this describes
+///
+/// **Plane, cylinder and torus.** Their first channel has a lever
+/// everywhere on the chart, so every joint of a loop has an azimuth
+/// and the chord polygon is a statement about the same region the face
+/// is.
+///
+/// **Sphere and cone are refused where a loop meets the singularity**
+/// ([`PcurveMintError::SingularChartJoint`]): at a pole or an apex the
+/// first channel has no lever, the walk deliberately skips the branch
+/// shift there, and the chord drawn to such a joint bounds a different
+/// region from the face. A sphere or cone face that stays clear of its
+/// singularity describes normally.
+///
+/// **A spline chart** describes when [`chart_u_period`] can answer for
+/// it. Note that a PLANE reaching the walk still has `τ` available as
+/// a per-joint shift through that function — `chart_u_period` defaults
+/// every non-spline chart to the azimuth period — so the walk's
+/// "the shift is never a multiple of τ on a plane" property is now
+/// load-bearing for this consumer as well as for minting. It holds
+/// because a plane joint's two chart points are the SAME vertex
+/// through an affine map, so the shift is exactly zero; the class is
+/// Track Q's and stays logged there.
+///
+/// # Errors
+///
+/// [`PcurveMintError`] — the loop walk's own refusals (a corrupt key,
+/// a typed chart refusal such as [`PcurveCertifyError::UnsupportedCarrier`]
+/// for a `Nurbs` carrier on an analytic chart, a discontinuous or
+/// unclosed walk); [`PcurveMintError::SingularChartJoint`] for a loop
+/// through a pole or an apex; [`PcurveMintError::LoopWraps`] for a
+/// walk that closes a whole period off; and
+/// [`PcurveMintError::OuterSpansPeriod`] from
+/// [`crate::chart_bound::ChartBound::assembled`].
+pub fn chart_boundary<T: PcurveFittedLane>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: &Surface<T>,
+    band: Band,
+) -> Result<ChartBound<T>, PcurveMintError> {
+    let face_data = body.get_face(face).ok_or(PcurveMintError::Corrupt)?;
+    let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    // The period is decided by surface KIND. `chart_u_period` answers
+    // `τ` for a PLANE — it defaults every non-spline chart to the
+    // azimuth period — so it is asked only where its answer is about a
+    // spline chart's own knot domain.
+    let period = match *chart {
+        Surface::Plane { .. } => None,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => Some(T::tau()),
+        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
+    };
+    let mut outer: Option<ChartLoop<T>> = None;
+    let mut rings: Vec<ChartLoop<T>> = Vec::new();
+    for (index, lp) in loops.iter().enumerate() {
+        let mut walked: Vec<Walked<T>> = Vec::new();
+        walk_loop(body, face, *lp, chart, band, &mut walked)?;
+        let (Some(first), Some(last)) = (walked.first(), walked.last()) else {
+            // An empty loop bounds nothing to describe.
+            continue;
+        };
+        // THE SINGULAR-JOINT FENCE, before anything else is read off
+        // the walk. A joint where the first chart channel has no lever
+        // — a sphere pole, a cone apex — has no azimuth, so the walk
+        // skips its branch shift (`pcurve_loop_pole_joint`, the
+        // azimuth-free arm) and leaves whatever azimuth the derivation
+        // produced. Minting is right to do that: no downstream sample
+        // reads the azimuth AT the pole. A chord polygon does read it,
+        // as a vertex, and the polygon it draws bounds a different
+        // region from the face. Re-decided here on the walk's own row,
+        // and anything but a definite lever refuses.
+        for w in &walked {
+            let entry = w.pcurve.eval(if is_plus(body, w.half_edge)? {
+                w.t0
+            } else {
+                w.t1
+            });
+            if !matches!(
+                decide(
+                    "pcurve_loop_pole_joint",
+                    Margin::of(chart_u_arm(chart, entry.y).magnitude()),
+                    band
+                ),
+                Ok(Sign::Positive)
+            ) {
+                return Err(PcurveMintError::SingularChartJoint {
+                    face,
+                    r#loop: *lp,
+                    half_edge: w.half_edge,
+                });
+            }
+        }
+        // The walk certified that the loop CLOSES; it accepts a
+        // closure one whole period off (the seam case) and, on a
+        // sphere chart, one through the involution. Neither is a
+        // closed chart polygon: the chord from the last exit back to
+        // the first entry is spurious, and a polygon built on it would
+        // bound a region the face does not have. Re-decided here on
+        // the walk's own arms and under the walk's own rows — the same
+        // quantity at a second site — with NO period allowed.
+        let start = first.pcurve.eval(if is_plus(body, first.half_edge)? {
+            first.t0
+        } else {
+            first.t1
+        });
+        let end = last.pcurve.eval(if is_plus(body, last.half_edge)? {
+            last.t1
+        } else {
+            last.t0
+        });
+        let arm = chart_u_arm(chart, start.y);
+        let closes = matches!(
+            decide("pcurve_loop_closure", arm.meter(end.x - start.x), band),
+            Ok(Sign::Zero)
+        ) && matches!(
+            decide(
+                "pcurve_loop_closure_height",
+                Margin::metered_sup(end.y - start.y, v_meter(chart)),
+                band
+            ),
+            Ok(Sign::Zero)
+        );
+        if !closes {
+            return Err(PcurveMintError::LoopWraps { face, r#loop: *lp });
+        }
+        let mut edges = Vec::with_capacity(walked.len());
+        for w in &walked {
+            edges.push(chart_edge(body, w, chart, is_plus(body, w.half_edge)?)?);
+        }
+        let described = ChartLoop {
+            edges,
+            ring: index > 0,
+        };
+        if index == 0 {
+            outer = Some(described);
+        } else {
+            rings.push(described);
+        }
+    }
+    // A face whose OUTER loop describes nothing bounds no chart region;
+    // there is no honest description to return and no empty one that
+    // would not be a claim.
+    let outer = outer.ok_or(PcurveMintError::Corrupt)?;
+    // The span check's lever: the chart's own first-channel arm. Every
+    // chart this function describes has a constant one except the
+    // torus, where the local lever at the outer's lowest latitude is
+    // the honest reading and an inexact one can only move where the
+    // refusal fires.
+    let u_arm = chart_u_arm(chart, outer.edges.first().map_or_else(T::zero, |e| e.a().y));
+    ChartBound::assembled(outer, rings, period, u_arm, band)
+}
+
 /// The at-rest pcurve pass the tier-3 validator runs (spec §5:
 /// **certificate present + replay passes + trim containment**).
 ///
@@ -1609,70 +2489,40 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
             continue;
         }
         let surface = surface.clone();
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
-        // Pass 0: does this face carry caches at all? A body that
-        // never ran the minting pass (every sweep output, every
-        // pre-M5 body) simply has none — absence is not a defect, and
+        // Passes 0 and 1, over ONE walk of the face's loops
+        // ([`stored_rows`], shared with `split_cache`): the window its
+        // stored rows hull out to, and the presence check over the
+        // half-edges that walk reached.
+        //
+        // No window at all is a face that carries no cache: a body
+        // that never ran the minting pass (every sweep output, every
+        // pre-M5 body) simply has none, absence is not a defect, and
         // the pass says nothing about it. Once ONE half-edge of a face
         // carries a cache, the set must be COMPLETE: a half-minted
         // face is the defect this checks for.
-        let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
-        let mut any_cache = false;
-        for lp in &loops {
-            let Some(loop_data) = body.get_loop(*lp) else {
-                continue;
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            any_cache |= cycle.iter().any(|he| body.pcurve(*he).is_some());
-        }
-        if !any_cache {
+        let StoredRows { loops, window } = stored_rows(body, face);
+        let Some(window) = window else {
             continue;
-        }
-        // Pass 1: presence + the face's window from the stored caches.
-        let mut window: Option<ChartWindow<T>> = None;
+        };
+        let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
         let mut complete = true;
-        for lp in &loops {
-            let Some(loop_data) = body.get_loop(*lp) else {
-                findings.push(PcurveMintError::Corrupt);
-                complete = false;
-                continue;
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
+        for walked in loops {
+            let Some(cycle) = walked else {
                 findings.push(PcurveMintError::Corrupt);
                 complete = false;
                 continue;
             };
             for &he in &cycle {
-                match body.pcurve(he) {
-                    None => {
-                        findings.push(PcurveMintError::MissingCache { half_edge: he });
-                        complete = false;
-                    }
-                    Some(cache) => {
-                        let (t0, t1) = cache.params();
-                        let b = cache.pcurve().chart_box(t0, t1);
-                        window = Some(match window {
-                            None => b,
-                            Some(acc) => acc.hull(b),
-                        });
-                    }
+                if body.pcurve(he).is_none() {
+                    findings.push(PcurveMintError::MissingCache { half_edge: he });
+                    complete = false;
                 }
             }
             cycles.push(cycle);
         }
-        let (Some(window), true) = (window, complete) else {
+        if !complete {
             continue;
-        };
+        }
         // Pass 2: replay every stored certificate against that window.
         for cycle in &cycles {
             for &he in cycle {
@@ -1716,10 +2566,10 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                 let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
                 let entry = cache.pcurve().eval(entry_t);
                 if let Some(prev) = prev_exit {
-                    let arm = azimuth_arm(&surface, prev.y);
+                    let arm = chart_u_arm(&surface, prev.y);
                     for margin in [
-                        Margin::levered(entry.x - prev.x, arm),
-                        Margin::metered(entry.y - prev.y, v_meter),
+                        arm.meter(entry.x - prev.x),
+                        Margin::metered_sup(entry.y - prev.y, v_meter),
                     ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
@@ -1755,16 +2605,32 @@ pub(crate) mod staleness_posture {
     /// Which of this module's three postures a mutation door holds.
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub(crate) enum Posture {
-        /// Clears and re-mints before returning. Read out of the
-        /// source (a `mint_pcurves` call in the door's own body); an
-        /// entry declares it only when the re-mint is one delegation
-        /// away, which a source read cannot see.
+        /// Clears and re-mints before returning — over the whole body
+        /// or over exactly the faces it wrote. Read out of the source
+        /// (a `mint_pcurves` or `mint_pcurves_of` call in the door's
+        /// own body); an entry declares it only when the re-mint is one
+        /// delegation away, which a source read cannot see.
         Maintains,
-        /// Remaps each row onto the surviving key and drops the rest.
+        /// Disposes of every row whose KEY or MEANING the door
+        /// changed, rather than leaving one behind: moves it onto the
+        /// key that now carries what it says — the transplanted
+        /// half-edge's fresh key, or the two keys a parameter split
+        /// leaves where one edge was — and drops what no key can
+        /// carry, including a row whose key never moved but whose
+        /// chart did (the loop-re-parenting doors). What a door in
+        /// this bucket never does is return with a row that says
+        /// something the body no longer holds.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
-        /// write the map is not keyed on. Safe because the tier-3
-        /// pcurve pass catches the consequence loud.
+        /// write the map is not keyed on. What this bucket rests on is
+        /// the tier-3 pcurve pass, and only as far as that pass looks
+        /// (module docs): it reports an INCOMPLETE face, and a face
+        /// whose rows no longer certify; it is silent about a complete
+        /// face whose rows were stated in another chart and certify
+        /// against this one, and about any face on a chart
+        /// [`super::chart_mints`] refuses. Two entries here are known
+        /// to leave rows in that blind spot
+        /// (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
         Neither,
     }
 
@@ -1786,6 +2652,34 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
             ),
+            // ---- Maintains: the doors that re-mint their own staged
+            // result. They carry prose here rather than in
+            // `review_m1_pr5_internal::ALLOWED` because they assert
+            // tier 1 through a surgery scope (`crate::surgery`) and so
+            // are no longer allowlisted there; the two tables still
+            // have to cover this one population between them. ----
+            (
+                "merge_coplanar_faces_declared",
+                Maintains,
+                "re-mints the staged result before it is adopted, whenever the operand \
+                 carried rows",
+            ),
+            (
+                "replace_faces_offset",
+                Maintains,
+                "re-mints the clone whole-body before adopting it",
+            ),
+            (
+                "offset_planes_together",
+                Maintains,
+                "re-mints the moved faces' rows on the clone (`mint_pcurves_of`) before \
+                 adopting it",
+            ),
+            (
+                "offset_charts_together",
+                Maintains,
+                "the axial spelling of `offset_planes_together`, with the same re-mint",
+            ),
             (
                 "replace_face_offset",
                 Maintains,
@@ -1798,7 +2692,17 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "IS the pass: clears the map, then re-mints every row of the body it is given",
             ),
-            // ---- Transfers: the graft's remap-and-drop. ----
+            (
+                "mint_pcurves_of",
+                Maintains,
+                "IS the pass restricted to a face subset: clears exactly those faces' rows, \
+             then re-mints exactly those faces. `Maintains` FOR A CALLER THAT KILLS NO \
+             HALF-EDGE, which is the whole of its production population (the two \
+             simultaneous offset doors); it cannot discharge the whole-body claim, and its \
+             own docs carry why",
+            ),
+            // ---- Transfers: the graft's remap-and-drop, and the
+            // split's restriction onto the two keys it leaves. ----
             (
                 "graft_disjoint",
                 Transfers,
@@ -1823,10 +2727,26 @@ pub(crate) mod staleness_posture {
             (
                 "insert_void",
                 Transfers,
-                "the void-insertion door: reverts the cavity (rows keep their keys, going \
-             stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
-             which remaps the transplanted rows onto fresh keys; both producers' final \
-             mint passes re-derive every row of the merged body",
+                "the void-insertion door — see `insert_voids`, which it calls with the one \
+             destination as a slice",
+            ),
+            (
+                "insert_voids",
+                Transfers,
+                "the void-insertion door: reverts the cavity (`Body::revert` carries every \
+             row key for key, the plane faces' rows mirrored with their frames — the \
+             module docs' producer position) and grafts through `boolean::combine`, \
+             which remaps the transplanted rows onto fresh keys; every producer's final \
+             mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
+             row of the merged body",
+            ),
+            (
+                "split_edge",
+                Transfers,
+                "restricts each parent half-edge's row to the two children's sub-intervals \
+             and re-certifies both before it mutates (`split_cache`), so no row it could \
+             have staled survives; a `Fitted`/`General` row is the one lane it leaves as \
+             found",
             ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----
@@ -1838,17 +2758,40 @@ pub(crate) mod staleness_posture {
             ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
             ("mekr", Neither, "Euler operator"),
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
-            ("mfkrh", Neither, "Euler operator"),
-            ("mfkrh_plug", Neither, "Euler operator (sugar over `mfkrh`)"),
             ("kemr", Neither, "Euler operator"),
-            ("kfmrh", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
             ("kef", Neither, "kill op"),
             ("kvfs", Neither, "kill op"),
+            // ---- Transfers: the loop-re-parenting doors, which carry
+            // a moved loop's rows onto the target face and drop them
+            // when that face is on another CHART. ----
+            (
+                "kfmrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
+             rows where `f1` is on the same chart (`Body::same_chart`) and loses them where \
+             it is not (`Body::drop_rows_on_chart_change`)",
+            ),
+            (
+                "mfkrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
+             under `FaceSurface::Inherit` (and a `Shared` naming the same chart) and loses \
+             them under any other surface",
+            ),
+            (
+                "mfkrh_plug",
+                Transfers,
+                "`mfkrh` with a PLACEHOLDER surface — see `mfkrh`; a placeholder is not a \
+             described surface, so it is not the chart any row was stated in and the \
+             promoted ring's rows always go. Decided by kind, not by the fresh key the \
+             sugar happens to mint",
+            ),
             (
                 "ring_move",
-                Neither,
-                "ring surgery: re-parents a ring, mints no half-edge",
+                Transfers,
+                "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
+             the ring's rows by whether the two faces are on one chart — see `kfmrh`",
             ),
             (
                 "movefac",
@@ -1856,10 +2799,9 @@ pub(crate) mod staleness_posture {
                 "re-parents faces between shells; no half-edge key changes meaning",
             ),
             (
-                "split_edge",
+                "move_shells_to_new_solid",
                 Neither,
-                "replaces one edge's geometry with two children — the one primitive that \
-             makes a row stale in CONTENT rather than by key",
+                "re-parents shells between solids; no half-edge key changes meaning",
             ),
             // ---- Neither: the caller's own row-level control of the
             // map, and writes the map is not keyed on. ----
@@ -1873,8 +2815,11 @@ pub(crate) mod staleness_posture {
             (
                 "set_face_surface",
                 Neither,
-                "a surface swap is content staleness the tier-3 pass re-certifies against, \
-             not a key the map can lose",
+                "a surface swap is content staleness, not a key the map can lose — and the \
+             tier-3 pass re-certifies against the new surface only where that surface \
+             mints: a swap onto a plane or a placeholder leaves a COMPLETE row set stated \
+             in the chart the face left, which this pass skips \
+             (`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`)",
             ),
             (
                 "set_edge_curve",
@@ -1886,11 +2831,33 @@ pub(crate) mod staleness_posture {
                 Neither,
                 "`set_edge_curve` with the NURBS certifier injected",
             ),
+            (
+                "describe_at_rest",
+                Neither,
+                "`set_edge_curve` with the edge's own carrier and interval put back \
+                 verbatim — only the description moves, so not even content staleness \
+                 reaches a pcurve",
+            ),
             ("set_face_sense", Neither, "writes one `bool`"),
             ("set_surface_source", Neither, "GeomSource metadata"),
             ("set_curve_source", Neither, "GeomSource metadata"),
             ("set_point_source", Neither, "GeomSource metadata"),
             ("clear_geom_sources", Neither, "GeomSource metadata"),
+            (
+                "mark_imported",
+                Neither,
+                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
+            ),
+            (
+                "set_surface_field_source",
+                Neither,
+                "ParamSource metadata: a per-field side record beside the surface",
+            ),
+            (
+                "begin_surgery",
+                Neither,
+                "opens a debug-only surgery scope: no arena key, no pcurve row",
+            ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
         ]
@@ -1909,10 +2876,10 @@ pub(crate) mod staleness_posture {
     /// could only describe.
     ///
     /// **What it checks, exactly.** Three failures, all mechanical: a
-    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// door that neither calls the pass — in either spelling,
+    /// `mint_pcurves` or `mint_pcurves_of` — nor appears below; a door
     /// whose entry says anything but `Maintains` while its body calls
-    /// `mint_pcurves`; and an entry naming a door that no longer
-    /// exists.
+    /// it; and an entry naming a door that no longer exists.
     ///
     /// **Where the door set comes from, and what it cannot see:**
     /// [`crate::source_walk::mutation_doors`], shared with the tier-1
@@ -1932,7 +2899,18 @@ pub(crate) mod staleness_posture {
     /// re-mint reached through a delegate is invisible to a source
     /// read, so those two entries are taken at their word — the guard
     /// establishes that every door is sorted and that no door has
-    /// silently started minting, not that each sort is correct. The
+    /// silently started minting, not that each sort is correct.
+    ///
+    /// **Nor which SPELLING of the pass a door calls, nor what it
+    /// passes.** A `mint_pcurves_of(` call reads as `Maintains` here
+    /// whatever face list it is handed — including an empty one — and
+    /// the subset pass's guarantee is strictly weaker than the
+    /// whole-body pass's: it cannot reach a row whose half-edge is
+    /// dead ([`mint_pcurves_of`]'s docs). So a door that KILLS a
+    /// half-edge and closes with the subset pass is classified
+    /// `Maintains` by this walk and is not. Nothing in this crate does
+    /// today, and a source read has no way to tell; what covers it is
+    /// the entry's own text and the SHELL-10 probe rows in `sweep`. The
     /// module docs' *"what the guard does NOT establish"* list carries
     /// this and the rest of the blind spot: delegation, and everything
     /// outside `topo/src`'s `&mut Body` surface. The full inherited
@@ -1947,7 +2925,7 @@ pub(crate) mod staleness_posture {
 
         for door in crate::source_walk::mutation_doors() {
             let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
-            if door.code_contains("mint_pcurves(") {
+            if door.code_contains("mint_pcurves(") || door.code_contains("mint_pcurves_of(") {
                 if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
                     mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
@@ -2017,7 +2995,7 @@ pub(crate) mod staleness_posture {
 mod stretch_meter {
     #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
-    use super::{azimuth_arm, v_meter};
+    use super::{ChartArm, SupSpeed, chart_u_arm, v_meter};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -2065,16 +3043,28 @@ mod stretch_meter {
     #[test]
     fn a_stretched_nurbs_chart_meters_its_azimuth_gap_in_metres() {
         let s = flat_chart(100.0);
-        let arm = azimuth_arm(&s, 0.0);
-        assert_eq!(arm, 100.0, "the chart's own metre stretch, not 1");
+        let arm = chart_u_arm(&s, 0.0);
+        assert!(
+            matches!(arm, ChartArm::Rate(_)),
+            "a spline chart's u gap is a parameter span, so the arm is a rate"
+        );
+        assert_eq!(
+            arm.magnitude(),
+            100.0,
+            "the chart's own metre stretch, not 1"
+        );
         let gap = 1e-10;
         assert_eq!(
-            decide("pcurve_loop_continuity", Margin::levered(gap, arm), band()),
+            decide("pcurve_loop_continuity", arm.meter(gap), band()),
             Ok(Sign::Positive),
             "1e-10 chart units × 100 m/unit = 1e-8 m, at the escalate edge"
         );
         assert_eq!(
-            decide("pcurve_loop_continuity", Margin::levered(gap, 1.0), band()),
+            decide(
+                "pcurve_loop_continuity",
+                ChartArm::Rate(SupSpeed::new(1.0)).meter(gap),
+                band()
+            ),
             Ok(Sign::Zero),
             "the under-stated arm certifies the same loop closed"
         );
@@ -2085,18 +3075,22 @@ mod stretch_meter {
     fn a_stretched_nurbs_chart_meters_its_second_channel_in_metres() {
         let s = flat_chart(100.0);
         let meter = v_meter(&s);
-        assert_eq!(meter, 100.0);
+        assert_eq!(meter.get(), 100.0);
         let gap = 1e-10;
         assert_eq!(
             decide(
                 "pcurve_loop_continuity",
-                Margin::metered(gap, meter),
+                Margin::metered_sup(gap, meter),
                 band()
             ),
             Ok(Sign::Positive)
         );
         assert_eq!(
-            decide("pcurve_loop_continuity", Margin::metered(gap, 1.0), band()),
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered_sup(gap, SupSpeed::new(1.0)),
+                band()
+            ),
             Ok(Sign::Zero)
         );
     }
@@ -2109,8 +3103,11 @@ mod stretch_meter {
     fn the_stretch_arm_carries_a_uniform_scale() {
         let small = flat_chart(100.0);
         let large = flat_chart(100.0e3);
-        assert_eq!(azimuth_arm(&large, 0.0), azimuth_arm(&small, 0.0) * 1e3);
-        assert_eq!(v_meter(&large), v_meter(&small) * 1e3);
+        assert_eq!(
+            chart_u_arm(&large, 0.0).magnitude(),
+            chart_u_arm(&small, 0.0).magnitude() * 1e3
+        );
+        assert_eq!(v_meter(&large).get(), v_meter(&small).get() * 1e3);
     }
 
     /// **The plane arm is 1 by construction, not by default**, and
@@ -2118,9 +3115,9 @@ mod stretch_meter {
     #[test]
     fn a_plane_chart_keeps_its_exact_unit_arms() {
         let p = plane();
-        assert_eq!(azimuth_arm(&p, 0.0), 1.0);
-        assert_eq!(azimuth_arm(&p, 0.7), 1.0);
-        assert_eq!(v_meter(&p), 1.0);
+        assert_eq!(chart_u_arm(&p, 0.0).magnitude(), 1.0);
+        assert_eq!(chart_u_arm(&p, 0.7).magnitude(), 1.0);
+        assert_eq!(v_meter(&p).get(), 1.0);
     }
 
     /// **Three-outcome posture on the newly-honest arm.** A chart gap
@@ -2129,22 +3126,13 @@ mod stretch_meter {
     #[test]
     fn an_in_band_metred_gap_escalates_rather_than_deciding() {
         let s = flat_chart(100.0);
-        let arm = azimuth_arm(&s, 0.0);
+        let arm = chart_u_arm(&s, 0.0);
         assert!(
-            decide(
-                "pcurve_loop_continuity",
-                Margin::levered(5e-11, arm),
-                band()
-            )
-            .is_err(),
+            decide("pcurve_loop_continuity", arm.meter(5e-11), band()).is_err(),
             "in-band residue is the third outcome, not a verdict"
         );
         assert_eq!(
-            decide(
-                "pcurve_loop_continuity",
-                Margin::levered(5e-12, arm),
-                band()
-            ),
+            decide("pcurve_loop_continuity", arm.meter(5e-12), band()),
             Ok(Sign::Zero),
             "5e-10 m is honestly closed"
         );
@@ -2155,7 +3143,7 @@ mod stretch_meter {
     /// constant `1` there, so the gate could only ever answer
     /// `Positive` and no row exercised it at all).
     ///
-    /// The gate reads `Margin::of(azimuth_arm(..))` — the arm's own
+    /// The gate reads `Margin::of(chart_u_arm(..).magnitude())` — the arm's own
     /// size, gated as a length (the collapsed-arm idiom) — and the
     /// walk converts `Zero` and an escalation alike to "take no
     /// branch shift".
@@ -2168,7 +3156,7 @@ mod stretch_meter {
         assert_eq!(
             decide(
                 "pcurve_loop_pole_joint",
-                Margin::of(azimuth_arm(&collapsed, 0.0)),
+                Margin::of(chart_u_arm(&collapsed, 0.0).magnitude()),
                 band()
             ),
             Ok(Sign::Zero),
@@ -2182,7 +3170,7 @@ mod stretch_meter {
             assert!(
                 decide(
                     "pcurve_loop_pole_joint",
-                    Margin::of(azimuth_arm(&s, 0.0)),
+                    Margin::of(chart_u_arm(&s, 0.0).magnitude()),
                     band()
                 )
                 .is_err(),
@@ -2193,7 +3181,7 @@ mod stretch_meter {
         assert_eq!(
             decide(
                 "pcurve_loop_pole_joint",
-                Margin::of(azimuth_arm(&flat_chart(100.0), 0.0)),
+                Margin::of(chart_u_arm(&flat_chart(100.0), 0.0).magnitude()),
                 band()
             ),
             Ok(Sign::Positive)
@@ -2206,14 +3194,16 @@ mod stretch_meter {
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        assert_eq!(
-            azimuth_arm(&sphere, core::f64::consts::FRAC_PI_2),
-            2.0 * core::f64::consts::FRAC_PI_2.cos()
+        let polar = chart_u_arm(&sphere, core::f64::consts::FRAC_PI_2);
+        assert!(
+            matches!(polar, ChartArm::Angular(_)),
+            "a sphere's u gap is an angle, so the arm is metres per radian"
         );
+        assert_eq!(polar.magnitude(), 2.0 * core::f64::consts::FRAC_PI_2.cos());
         assert_eq!(
             decide(
                 "pcurve_loop_pole_joint",
-                Margin::of(azimuth_arm(&sphere, core::f64::consts::FRAC_PI_2)),
+                Margin::of(polar.magnitude()),
                 band()
             ),
             Ok(Sign::Zero)
@@ -2225,7 +3215,122 @@ mod stretch_meter {
     #[test]
     fn a_placeholder_chart_keeps_unit_arms() {
         let s: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
-        assert_eq!(azimuth_arm(&s, 0.0), 1.0);
-        assert_eq!(v_meter(&s), 1.0);
+        assert_eq!(chart_u_arm(&s, 0.0).magnitude(), 1.0);
+        assert_eq!(v_meter(&s).get(), 1.0);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod recourse_tests {
+    use super::PcurveMintError;
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
+    use geom_brep::PcurveCertifyError;
+    use geom_core::predicate::{Band, BandError, COINCIDENCE_RECOURSE};
+    use geom_core::{Indeterminate, MarginDiag};
+
+    /// **The recourse claim for the carrier tier 3 renders whole.**
+    /// `ValidationError::Pcurve { finding }` is literally
+    /// `"tier 3: {finding}"`, and four more wrappers (`ShellError`,
+    /// `TransformError`, `ReplaceFaceError`, `MergeCoplanarError`)
+    /// contribute a phrase each, so whatever this enum fails to say is
+    /// absent from the message a user reads at five doors.
+    ///
+    /// **Three arms are asserted differently, because they render a
+    /// carrier whole and contribute no prose of their own.** The rule
+    /// is that an arm is checked TRANSITIVELY only where the carrier
+    /// has an enforcement row of its own:
+    ///
+    /// - `Escalated` carries an `Indeterminate`, whose `Display` ends
+    ///   in [`COINCIDENCE_RECOURSE`] on every margin arm, so the
+    ///   recourse is asserted directly.
+    /// - `Band` carries a `BandError`, whose own arms are covered by
+    ///   `geom_core`'s `every_band_error_arm_names_a_recourse`; what is
+    ///   asserted here is the delegation itself — that the arm renders
+    ///   the carrier whole rather than summarising it.
+    /// - `Certify` carries a `PcurveCertifyError`, which has **no such
+    ///   row**, so the chain's claim is unproved at that hop and this
+    ///   row does not pretend otherwise: it asserts the delegation and
+    ///   nothing about the recourse.
+    ///
+    /// **A floor, not a proof**, on the terms
+    /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
+    /// check cannot tell a recourse from a sentence containing one of
+    /// its words, and an arm whose recourse uses a word not listed
+    /// fails it honestly — extend the list in the same change. What it
+    /// catches is the arm added with no second clause at all. The
+    /// payloads below are keys, which render verb-free, so what the row
+    /// measures is the variant's own clause.
+    #[test]
+    fn every_pcurve_mint_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that points
+        // at a named lever rather than using an imperative satisfies
+        // the claim the same way.
+        const RECOURSE_WORDS: &[&str] = &[
+            "read", "repair", "re-mint", "ask", "hold", "describe", "report",
+        ];
+        let cause = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_recourse_probe"),
+        };
+        let band_error = BandError::Empty {
+            zero: 1e-8,
+            escalate: 1e-9,
+        };
+        let certify_error = PcurveCertifyError::UnsupportedCarrier;
+        let arms = [
+            PcurveMintError::Corrupt,
+            PcurveMintError::Certify {
+                half_edge: HalfEdgeKey::default(),
+                error: certify_error.clone(),
+            },
+            PcurveMintError::LoopDiscontinuity {
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
+            PcurveMintError::SingularChartJoint {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::OuterSpansPeriod,
+            PcurveMintError::LoopWraps {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            PcurveMintError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::Escalated {
+                half_edge: HalfEdgeKey::default(),
+                cause,
+            },
+            PcurveMintError::Band(band_error),
+        ];
+        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            match arm {
+                PcurveMintError::Escalated { .. } => {
+                    assert!(msg.contains(COINCIDENCE_RECOURSE), "{msg}");
+                }
+                PcurveMintError::Band(_) => {
+                    assert!(msg.contains(&band_error.to_string()), "{msg}");
+                }
+                PcurveMintError::Certify { .. } => {
+                    assert!(msg.contains(&certify_error.to_string()), "{msg}");
+                }
+                _ => {
+                    let lower = msg.to_lowercase();
+                    assert!(
+                        RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                        "no recourse in: {msg}"
+                    );
+                }
+            }
+        }
     }
 }

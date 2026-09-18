@@ -19,7 +19,7 @@ use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
 /// The run's ε as a bare `f64` — **the suites' door, and the reason
@@ -80,34 +80,25 @@ pub fn axis_y() -> RevolveAxis<f64> {
 
 /// L-prism: L-shaped hexagon (area 3) extruded to height 1.
 pub fn l_prism() -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
-    ]);
-    extrude(
-        &validated(vec![lp]),
-        Extrusion::Distance(1.0),
+    sweep::test_support::prism(
+        sweep::test_support::corners(&[
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ]),
+        1.0,
         Tol::witness(),
     )
-    .unwrap()
-    .body
 }
 
 /// Holed prism: 3×3 square with a centered 1×1 square hole, height 1.
 pub fn holed_prism() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(0.0, 3.0)]);
     let hole = ProfileLoop::polygon([p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 2.0), p2(1.0, 2.0)]);
-    extrude(
-        &validated(vec![outer, hole]),
-        Extrusion::Distance(1.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
+    sweep::test_support::extruded(SketchPlane::xy(), vec![outer, hole], 1.0, Tol::witness())
 }
 
 /// Rounded-square prism: 2×2 square, corners rounded at radius
@@ -130,13 +121,7 @@ pub fn rounded_prism() -> Body<f64> {
     // (the #101 discipline).
     let n = lp.vertices().len();
     lp = lp.with_tangent_joints((0..n).collect());
-    extrude(
-        &validated(vec![lp]),
-        Extrusion::Distance(1.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
+    sweep::test_support::extruded(SketchPlane::xy(), vec![lp], 1.0, Tol::witness())
 }
 
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).
@@ -322,6 +307,26 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
 
 /// A byte-comparable dump (positions as exact bits + full index/key
 /// structure) — the D9 rebuild oracle.
+/// Largest sampled distance from the affine triangle `tri` to
+/// `surface` over the barycentric grid of order `n` (`(n+1)(n+2)/2`
+/// points, corners included), through [`dist_to_surface`].
+pub fn sampled_deviation(surface: &Surface<f64>, tri: [Point3<f64>; 3], n: u32) -> f64 {
+    let mut worst: f64 = 0.0;
+    for i in 0..=n {
+        for j in 0..=(n - i) {
+            let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let lk = 1.0 - li - lj;
+            let p = Point3::new(
+                tri[0].x * li + tri[1].x * lj + tri[2].x * lk,
+                tri[0].y * li + tri[1].y * lj + tri[2].y * lk,
+                tri[0].z * li + tri[1].z * lj + tri[2].z * lk,
+            );
+            worst = worst.max(dist_to_surface(surface, p));
+        }
+    }
+    worst
+}
+
 pub fn dump(mesh: &Mesh) -> String {
     let mut s = String::new();
     for p in &mesh.positions {

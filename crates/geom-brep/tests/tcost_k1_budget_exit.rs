@@ -25,6 +25,7 @@
 //! bound, the predicate and the exit site.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
 use std::time::Instant;
 
@@ -136,7 +137,7 @@ fn assert_early(name: &str, eps: f64, (width, target, rounds): (f64, f64, usize)
 /// Quarter torus (R = 2, r = 0.5), biquadratic rational — the
 /// midpoint arm (weights vary in both directions).
 fn quarter_torus() -> Face {
-    let kv2 = KnotVector::unit_segment(2);
+    let kv2 = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
     let (rr, r) = (2.0, 0.5);
     let prof = [(rr + r, 0.0), (rr + r, r), (rr, r)];
     let pw = [1.0, FRAC_1_SQRT_2, 1.0];
@@ -168,7 +169,7 @@ fn quarter_torus() -> Face {
 /// not, and the remainder decays more slowly than 4× per round there.
 fn half_cylinder(name: &'static str, knot: f64, boundary_defect: f64) -> Face {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, knot, knot, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = vec![
         p(1.0, 0.0, 0.0),
@@ -204,8 +205,8 @@ fn quarter_cylinder() -> Face {
     let w2 = FRAC_1_SQRT_2;
     Face {
         name: "quarter cylinder",
-        ku: KnotVector::unit_segment(2),
-        kv: KnotVector::unit_segment(1),
+        ku: KnotVector::unit_segment(NonZeroUsize::new(2).unwrap()),
+        kv: KnotVector::unit_segment(NonZeroUsize::MIN),
         net: vec![
             p(r, 0.0, 0.0),
             p(r, 0.0, h),
@@ -228,7 +229,7 @@ fn quarter_cylinder() -> Face {
 /// middle control columns lifted to `z = 0.6`.
 fn quintic_ridge() -> Face {
     let ku = KnotVector::clamped(vec![0.0; 6].into_iter().chain([1.0; 6]).collect(), 5).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let mut net = Vec::new();
     for i in 0..6 {
         for j in 0..2 {

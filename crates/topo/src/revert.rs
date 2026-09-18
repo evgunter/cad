@@ -24,6 +24,19 @@
 //!   flipping alongside), re-satisfying the convention that a face's
 //!   outward normal is its plane's stored normal. Negation is a
 //!   bitwise involution.
+//! - **Chart images and pcurve rows on a plane**: the flipped `v_ref`
+//!   is the plane's chart reflected, `(u, v) ↦ (u, −v)`, so every
+//!   datum stated in that chart's coordinates is re-stated under the
+//!   reflection with the frame — each [`geom_brep::EdgeDescription::Chart`]
+//!   image on a plane ([`geom_brep::EdgeCurve::with_chart_v_mirrored`])
+//!   and each stored [`geom_brep::PcurveCache`] row on a plane face
+//!   ([`geom_brep::PcurveCache::mirrored_v`]). Certificates travel
+//!   verbatim — why a certificate of the source is a certificate of
+//!   the result is stated once, on [`geom_brep::Pcurve::mirror_v`].
+//!   A `v` sign flip on the stored coefficients is a bitwise
+//!   involution, exact in every image kind. Images and rows on the
+//!   curved charts are untouched: those charts carry the reversal on
+//!   the face's `sense` bit and their frames do not move.
 //! - **Face senses** (M5 S12): every face whose surface is **not** a
 //!   `Plane` has [`crate::entity::Face::sense`] flipped. This is the
 //!   curved arm, and it is the *same* statement as the plane bullet —
@@ -47,8 +60,26 @@
 //!   honest `false` from S11's concave/inward constructors, which is
 //!   the whole point: reverting a body with mixed senses must flip
 //!   each of them, not stamp a constant.
-//! - Loops, faces, shells, solids, points, curves, provenance, and F9
-//!   null records are copied unchanged (`Cycle::first` still names a
+//! - **Loop anchors**: every cycle's `first` moves to the half-edge
+//!   that PRECEDES it in the source — its successor once the cycle
+//!   runs the other way. The anchor is load-bearing on a minted
+//!   periodic chart ([`crate::entity::LoopBoundary::Cycle`]'s `first`
+//!   states the invariant: the one-branch walk can report a period
+//!   wrap only at the joint before `first`), and a reversal that kept
+//!   `first` would put that joint right after it — mid-chain, where
+//!   tier 3's stored-row continuity pass reports a
+//!   `LoopDiscontinuity`. Moved to the source predecessor, the same
+//!   joint is the closure again. No row is touched: a row is a
+//!   function of the carrier parameter, and a reversal does not touch
+//!   it. One rule for every loop — a plane loop has no period, so its
+//!   move is a no-op in meaning, and there is nothing a second rule
+//!   would protect. `prev` and `next` swap under the map, so the moved
+//!   anchor's `prev` in the result is its `next` in the source — the
+//!   anchor it came from — and the move is an exact involution with
+//!   nothing arithmetic in it.
+//! - Loops' membership, faces, shells, solids, points, every curve not
+//!   described in a plane's chart, provenance, and F9 null records are
+//!   copied unchanged (a re-anchored `Cycle::first` still names a
 //!   member of its cycle; outer/ring designation is a maintained
 //!   designation and survives; null-entity sides refer to the
 //!   splitting surface, not the body's orientation).
@@ -76,11 +107,31 @@
 //! both-results-free, inherited by ∖'s use of revert).
 //!
 //! **Validity class**: a reverted body is **tier-2 currency** — every
-//! structural invariant and every certification survives the map — but
-//! deliberately NOT tier-3: it bounds the complement, so the +V
-//! invariant fails (exactly `NegativeVolume`, pinned by test). That is
-//! correct, not a defect: `revert(B)` is ∖'s transient operand, never
-//! an at-rest solid handed across the API.
+//! structural invariant survives the map, every EDGE certification
+//! survives it (the plane-chart images are re-stated with their
+//! frames; every other description is invariant), every stored
+//! pcurve ROW is still a certified row of its edge (plane rows
+//! re-stated, curved rows untouched), and every loop's one-branch
+//! continuity survives. That last is an argument, not a measurement:
+//! the reversed cycle's joints are the source's joints read from the
+//! other side, so at each joint the stored-row continuity pass
+//! (`crate::pcurves`, `validate_pcurves` pass 3) meters the source's
+//! gap negated, at the lever read off the other side's `v` — and the
+//! two sides' `v` agree within the band that same pass pins the
+//! joint's height gap to. The closure moved with the anchor (the
+//! anchor bullet), so the one joint the forward walk may have left a
+//! period off is the closure still, where the pass does not read it;
+//! and `loop_closes` is symmetric in start and end (its `±τ`
+//! candidates, the sphere twin's `du ∓ π` and the torus's polar wrap
+//! all cover both signs). What the map deliberately does NOT give is
+//! tier 3: it bounds the complement, so the +V invariant fails
+//! (`NegativeVolume`, pinned by test). That is correct, not a defect:
+//! `revert(B)` is ∖'s transient operand, never an at-rest solid
+//! handed across the API. `sweep`'s `revert_periodic_wrap` measures
+//! exactly `NegativeVolume` on the two-arc sphere's cavity and a cone
+//! through its apex (loops that wrap at closure), and on the drums,
+//! the tori and a NURBS loft (loops that do not);
+//! `revert_plane_charts` on the plane-mirror rows.
 //!
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
@@ -92,8 +143,9 @@ use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::HalfEdgeKey;
+use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::geometry::SurfaceKey;
+use crate::null::CurveGeom;
 
 /// A failed [`Body::revert`] precondition (closed enum, D3 style); the
 /// source body is never touched (revert is `&self`).
@@ -135,23 +187,52 @@ use crate::geometry::SurfaceKey;
 ///     `point_in_solid` sphere arm included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
-    /// A half-edge's derived end or mate does not resolve —
-    /// tier-1-invalid input, surfaced typed (D9: never a panic).
+    /// A link the reversal map follows does not resolve — tier-1-invalid
+    /// input, surfaced typed (D9: never a panic). The variant names the
+    /// link, so the report names the thing that failed to resolve.
     Corrupt {
-        /// The half-edge whose reversal data is unresolvable.
+        /// Which link.
+        link: RevertLink,
+    },
+}
+
+/// The link of a tier-1-invalid body that [`Body::revert`]'s
+/// precondition read could not follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RevertLink {
+    /// `he`'s derived end (`start` of its `next`) does not resolve.
+    End {
+        /// The half-edge whose `next` chain is broken.
+        he: HalfEdgeKey,
+    },
+    /// `he`, a vertex's emanating half-edge, has no mate.
+    Mate {
+        /// The emanating half-edge.
+        he: HalfEdgeKey,
+    },
+    /// The loop's cycle anchor, or that anchor's `prev`, does not
+    /// resolve.
+    LoopAnchor {
+        /// The loop.
+        r#loop: LoopKey,
+        /// The half-edge key that did not resolve.
         he: HalfEdgeKey,
     },
 }
 
 impl fmt::Display for RevertError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Corrupt { he } => write!(
+        let Self::Corrupt { link } = self;
+        write!(f, "revert: ")?;
+        match link {
+            RevertLink::End { he } => write!(f, "half-edge {he:?}'s end does not resolve"),
+            RevertLink::Mate { he } => write!(f, "emanating half-edge {he:?} has no mate"),
+            RevertLink::LoopAnchor { r#loop, he } => write!(
                 f,
-                "revert: half-edge {he:?}'s end or mate does not resolve \
-                 (malformed body)"
+                "loop {loop:?}'s anchor half-edge {he:?} (or its `prev`) does not resolve"
             ),
-        }
+        }?;
+        write!(f, " (malformed body)")
     }
 }
 
@@ -166,7 +247,9 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`RevertError::Corrupt`] on tier-1-invalid input the reversal map
-    /// cannot follow. All checks precede construction of the result.
+    /// cannot follow — every link the map reads is resolved first, and
+    /// the variant names the one that did not ([`RevertLink`]). All
+    /// checks precede construction of the result.
     pub fn revert(&self) -> Result<Self, RevertError> {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
@@ -185,24 +268,45 @@ impl<T: Real> Body<T> {
         // must read pre-reversal adjacency throughout).
         let mut new_starts = Vec::with_capacity(self.half_edges.len());
         for (he_key, _) in self.half_edges.iter() {
-            let end = self
-                .half_edge_end(he_key)
-                .ok_or(RevertError::Corrupt { he: he_key })?;
+            let end = self.half_edge_end(he_key).ok_or(RevertError::Corrupt {
+                link: RevertLink::End { he: he_key },
+            })?;
             new_starts.push((he_key, end));
         }
         let mut new_anchors = Vec::new();
         for (vertex_key, vertex) in self.vertices.iter() {
             if let Some(emanating) = vertex.emanating {
-                let mate = self
-                    .mate(emanating)
-                    .ok_or(RevertError::Corrupt { he: emanating })?;
+                let mate = self.mate(emanating).ok_or(RevertError::Corrupt {
+                    link: RevertLink::Mate { he: emanating },
+                })?;
                 new_anchors.push((vertex_key, mate));
             }
+        }
+        // Every cycle's anchor (module docs): `first` moves to its
+        // SOURCE predecessor, read here before `next` and `prev` swap.
+        // The predecessor is resolved, not just read: a `prev` naming a
+        // dead key is the tier-1 corruption this door refuses typed.
+        let mut new_firsts = Vec::new();
+        for (loop_key, lp) in self.loops.iter() {
+            let LoopBoundary::Cycle { first } = lp.boundary else {
+                continue;
+            };
+            let anchor = |he| RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: loop_key,
+                    he,
+                },
+            };
+            let prev = self.get_half_edge(first).ok_or(anchor(first))?.prev;
+            if self.get_half_edge(prev).is_none() {
+                return Err(anchor(prev));
+            }
+            new_firsts.push((loop_key, prev));
         }
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
-        // The two keyed loops below carry a value the plan phase
+        // The three keyed loops below carry a value the plan phase
         // derived per key, so they look their key up; `out` is a clone
         // of `self` and cloning a slotmap preserves its keys, so every
         // lookup resolves and the map removes nothing. The edge loop
@@ -225,9 +329,48 @@ impl<T: Real> Body<T> {
             };
             vertex.emanating = Some(anchor);
         }
+        for (loop_key, first) in new_firsts {
+            let Some(lp) = out.get_loop_mut(loop_key) else {
+                unreachable!("revert: `loop_key` was iterated out of the arena `out` clones")
+            };
+            lp.boundary = LoopBoundary::Cycle { first };
+        }
         for (_, surface) in out.surfaces.iter_mut() {
             if let Surface::Plane { normal, .. } = surface {
                 *normal = -*normal;
+            }
+        }
+        // The plane charts' images and rows go with their frames
+        // (module docs): every datum stated in a plane's chart
+        // coordinates, re-stated under the reflection the negation
+        // above is. Chart images are walked by CURVE, so a carrier
+        // shared by several edges is mirrored once; stored rows by
+        // half-edge, resolved to their face through the SOURCE (the
+        // topology is key-for-key, and `out`'s is mid-map). A row
+        // whose half-edge no longer resolves is on no face, so it is
+        // on no plane face and travels as found — the dead-key
+        // exception `crate::pcurves`'s posture docs state for this
+        // door.
+        for (_, geom) in out.curves.iter_mut() {
+            let CurveGeom::Certified(curve) = geom else {
+                continue;
+            };
+            let on_plane = curve
+                .description()
+                .chart()
+                .is_some_and(|c| plane_surfaces.contains(&c.surface));
+            if on_plane {
+                *curve = curve.with_chart_v_mirrored();
+            }
+        }
+        for (he_key, row) in out.pcurves.iter_mut() {
+            let on_plane = self
+                .get_half_edge(he_key)
+                .and_then(|he| self.get_loop(he.parent_loop))
+                .and_then(|lp| self.get_face(lp.face))
+                .is_some_and(|face| plane_surfaces.contains(&face.surface));
+            if on_plane {
+                *row = row.mirrored_v();
             }
         }
         // The curved arm (M5 S12): the reversal a non-plane chart
@@ -242,10 +385,22 @@ impl<T: Real> Body<T> {
         }
         // N6: `revert` flips every surface source's orientation tag
         // (`rev ∘ rev = id`) — the negated description is the SAME
-        // recipe source seen from the other side. Curve and point
-        // records are untouched (their descriptions are).
-        for (_, gs) in out.surface_sources.iter_mut() {
-            *gs = gs.reverted();
+        // recipe source seen from the other side. Only the `Recipe`
+        // arm of the provenance row moves: the other three origins
+        // carry no orientation, and a reversal neither stamps nor
+        // clears. Curve and point records are untouched (their
+        // descriptions are).
+        //
+        // The per-field ParamSource rows are untouched too, and that is
+        // a decision rather than an omission: a token names the
+        // EXPRESSION a stored scalar came from, and a radius is the
+        // same number whichever side of the surface the material is on.
+        // The channel carries no orientation to flip
+        // (`crate::param_source`).
+        for (_, origin) in out.surface_origins.iter_mut() {
+            if let crate::GeomOrigin::Recipe(gs) = origin {
+                *gs = gs.reverted();
+            }
         }
 
         #[cfg(debug_assertions)]
@@ -261,6 +416,7 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::{RevertError, RevertLink};
     use crate::fixtures::ops_cube;
     use geom_core::Tol;
 
@@ -290,6 +446,263 @@ mod tests {
         assert_eq!(
             format!("{:?}", reverted.revert().unwrap()),
             format!("{:?}", cube.body),
+        );
+    }
+
+    /// **Every loop's anchor moves to its source predecessor.**
+    /// `ops_cube`'s faces all share the `mvfs` placeholder surface
+    /// (not a plane), and a one-face body whose face is a plane
+    /// carries a two-half-edge cycle: in both the reverted `first` is
+    /// the source's `prev(first)`, which — `next` and `prev` having
+    /// swapped — is the source anchor's successor in the reversed
+    /// cycle, so the source's anchor is now the cycle's last
+    /// half-edge and the second reversal lands back on it bit for
+    /// bit. One rule, no surface-kind partition (module docs, the
+    /// anchor bullet). Neither fixture stores a pcurve row, so this
+    /// row pins the structural move and the involution alone; the
+    /// wrap the move exists for is measured in `sweep`'s
+    /// `revert_periodic_wrap`.
+    #[test]
+    fn revert_re_anchors_every_loop_at_the_source_predecessor() {
+        use crate::LoopBoundary;
+        let assert_moved = |body: &crate::Body<f64>, reverted: &crate::Body<f64>| {
+            let mut moved = 0;
+            for (lk, lp) in body.loops() {
+                let LoopBoundary::Cycle { first } = lp.boundary else {
+                    panic!("every loop here is a cycle")
+                };
+                let LoopBoundary::Cycle { first: after } = reverted.get_loop(lk).unwrap().boundary
+                else {
+                    panic!("a cycle stays a cycle")
+                };
+                assert_eq!(
+                    after,
+                    body.get_half_edge(first).unwrap().prev,
+                    "the reverted anchor is the source's predecessor"
+                );
+                assert_eq!(
+                    reverted.get_half_edge(first).unwrap().next,
+                    after,
+                    "which is the source anchor's successor in the reversed cycle"
+                );
+                assert_eq!(
+                    reverted.get_half_edge(after).unwrap().prev,
+                    first,
+                    "so the source's anchor closes the reversed cycle"
+                );
+                assert_ne!(after, first, "the cycle has more than one half-edge");
+                moved += 1;
+            }
+            assert_eq!(
+                format!("{:?}", reverted.revert().unwrap()),
+                format!("{body:?}"),
+                "bitwise involution"
+            );
+            moved
+        };
+        let cube = ops_cube(Tol::witness());
+        assert_eq!(assert_moved(&cube.body, &cube.body.revert().unwrap()), 6);
+
+        let plane = lone_plane_face();
+        assert_eq!(assert_moved(&plane, &plane.revert().unwrap()), 1);
+    }
+
+    /// One plane face bounded by a single line edge (a two-half-edge
+    /// cycle), built through the Euler door alone.
+    fn lone_plane_face() -> crate::Body<f64> {
+        let mut plane = crate::Body::<f64>::new();
+        let seed = plane.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        plane
+            .set_face_surface(
+                seed.face,
+                crate::FaceSurface::New(geom::Surface::Plane {
+                    origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    normal: geom_core::Vec3::unit_z(),
+                    u_ref: geom_core::Vec3::unit_x(),
+                }),
+            )
+            .unwrap();
+        plane
+            .mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                geom_core::Point3::new(1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        plane
+    }
+
+    /// **The anchor read resolves the link it follows.** The
+    /// precondition phase reads each cycle's `prev(first)` and pushes
+    /// it as the new anchor; a `prev` naming a dead key is tier-1
+    /// corruption, and the door refuses it typed — naming the loop and
+    /// the key — rather than returning an `Ok` body whose anchor names
+    /// no half-edge (which only the debug postcondition would catch,
+    /// and a release build not at all). A dead anchor itself is
+    /// refused the same way.
+    #[test]
+    fn revert_refuses_a_dangling_anchor_prev_typed() {
+        use crate::{HalfEdgeKey, LoopBoundary};
+        let cube = ops_cube(Tol::witness());
+        let (lk, first) = cube
+            .body
+            .loops()
+            .find_map(|(lk, lp)| match lp.boundary {
+                LoopBoundary::Cycle { first } => Some((lk, first)),
+                LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        let dead = HalfEdgeKey::default();
+
+        let mut body = cube.body.clone();
+        body.get_half_edge_mut(first).unwrap().prev = dead;
+        assert_eq!(
+            body.revert().err(),
+            Some(RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: lk,
+                    he: dead
+                }
+            }),
+            "a dangling `prev` on the anchor refuses typed, naming the dead key"
+        );
+
+        let mut body = cube.body.clone();
+        body.get_loop_mut(lk).unwrap().boundary = LoopBoundary::Cycle { first: dead };
+        assert_eq!(
+            body.revert().err(),
+            Some(RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: lk,
+                    he: dead
+                }
+            }),
+            "a dead anchor refuses typed, naming the loop"
+        );
+    }
+
+    /// **A plane `Chart` image with a `v` channel survives the map.**
+    /// One plane face (`z = 0`, `u_ref = +x`) carrying a half-circle
+    /// at rest in its chart, built through the Euler door alone: the
+    /// image is `(cos t, sin t)`, and its `v` is what an unmirrored
+    /// reversal used to leave pointing the wrong way. After `revert`
+    /// the image is the stored one with `v` negated coefficient for
+    /// coefficient; the SOURCE's curve re-certified against the
+    /// reverted surfaces refuses `ChartResidual` at sample 1 (the
+    /// merge-base shape of the defect, kept as the control), the
+    /// reverted curve re-certified there yields the certificate it
+    /// carries, byte for byte, and the involution restores the bits.
+    #[test]
+    fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
+        use crate::{FaceSurface, MevSite};
+        use geom::{Curve3, Surface};
+        use geom_brep::certify::{CertCheck, CertifyError};
+        use geom_brep::{EdgeCurveSpec, Pcurve};
+        use geom_core::{Band, Point3, Vec3};
+
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (t0, t1) = (0.0, core::f64::consts::PI);
+        let (start, end) = (circle.eval(t0), circle.eval(t1));
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(start).unwrap();
+        body.set_face_surface(seed.face, FaceSurface::New(plane))
+            .unwrap();
+        let chart = body.get_face(seed.face).unwrap().surface;
+        let spec = EdgeCurveSpec::arc_of_circle(circle, t0, t1)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            end,
+            spec,
+            tol,
+        )
+        .unwrap();
+        let curve_of = |b: &crate::Body<f64>| {
+            let (_, e) = b.edges().next().unwrap();
+            b.get_curve_geom(e.curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .clone()
+        };
+        let image_of =
+            |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
+        let source = curve_of(&body);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+            panic!("a circle in a plane chart is a harmonic image")
+        };
+        assert!(
+            pb.y.abs() > 0.5,
+            "the image has a v channel (sin t · 1): pb = {pb:?}"
+        );
+
+        let reverted = body.revert().unwrap();
+        let mirrored = curve_of(&reverted);
+        let Pcurve::Harmonic {
+            p0: q0,
+            pa: qa,
+            pb: qb,
+            pl: ql,
+        } = image_of(&mirrored)
+        else {
+            panic!("the mirrored image keeps its kind")
+        };
+        for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {
+            assert_eq!(
+                before.to_bits(),
+                after.to_bits(),
+                "u coefficients are untouched"
+            );
+        }
+        for (before, after) in [(p0.y, q0.y), (pa.y, qa.y), (pb.y, qb.y), (pl.y, ql.y)] {
+            assert_eq!(
+                (-before).to_bits(),
+                after.to_bits(),
+                "v coefficients are negated"
+            );
+        }
+        let surfaces = |k| reverted.get_surface(k).cloned();
+        // The control: the unmirrored image against the reverted plane
+        // is the defect, and the meter says so where it always did.
+        assert!(
+            matches!(
+                source.recertify(start, end, surfaces, band),
+                Err(CertifyError::ResidualExceeded {
+                    check: CertCheck::ChartResidual,
+                    sample: 1
+                })
+            ),
+            "the source's image is wrong on the reverted plane"
+        );
+        let rerun = mirrored
+            .recertify(start, end, surfaces, band)
+            .expect("the mirrored image certifies on the reverted plane");
+        assert_eq!(
+            format!("{rerun:?}"),
+            format!("{:?}", mirrored.certificate()),
+            "the certificate that travelled verbatim is the fresh run's"
+        );
+        assert_eq!(
+            format!("{:?}", reverted.revert().unwrap()),
+            format!("{body:?}"),
+            "bitwise involution"
         );
     }
 }

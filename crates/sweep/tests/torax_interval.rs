@@ -60,8 +60,6 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(iv(x), iv(y))
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;
 
@@ -144,7 +142,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
         "the barrel's wall is a torus at this scalar too"
     );
 
-    let hollow = match topo::shell(&body, iv(T), FIT_TOL, tol) {
+    let hollow = match topo::shell(&body, iv(T), tol) {
         Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
             let [ValidationError::SliverDihedral { edge, cause }] = errors.as_slice() else {
@@ -244,9 +242,9 @@ fn encloses_corner(body: &Body<Interval>, rho: f64, h: f64, what: &str) {
 /// decide sites, executed at the scalar that can escalate (this file's
 /// own law). The direct door is the row's subject for the same reason
 /// it is at f64: `shell`'s closing tier 3 needs a volume the sphere
-/// flux arm's `props_band_coplanar` premise cannot yet give a lune —
-/// the operand's own standing wall — so the door is asked directly and
-/// the corner enclosures are the claim.
+/// flux arm cannot yet give the CAVITY's lens face (its rims are the
+/// moved caps' off-centre sections, `props_meridian_great`) — so the
+/// door is asked directly and the corner enclosures are the claim.
 ///
 /// One hollow executes the meridian-pair arm (`offset_axial_cap_pair`,
 /// `offset_axial_cap_line`, and the shared corner/concurrence/residual
@@ -357,7 +355,7 @@ fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), FIT_TOL, tol)
+    let e = topo::shell(&body, iv(0.05), tol)
         .expect_err("the elbow's moved rim is a spiric section away from a carrier");
     match e {
         ShellError::Face { ref error, .. }

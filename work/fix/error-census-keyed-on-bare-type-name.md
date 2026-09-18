@@ -2,9 +2,12 @@
 id: error-census-keyed-on-bare-type-name
 kind: issue
 title: The error-type census is keyed on the bare type name, which is ambiguous at seven names
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1111, 1741]
+branch: fix/census-declaring-path-key
+pr: 2402
+closed: 2026-09-12
 ---
 
 
@@ -53,3 +56,37 @@ appearing under two.
 
 Worth doing before the next sweep of this class, not urgently — the
 known consumers of the old key have both been checked by hand.
+
+## Taken as `fix/census-declaring-path-key`
+
+**The census this row names is not code.** #1111's error-type census
+was a hand sweep, re-run by hand in #1741; there is nothing to re-run
+keyed differently. The tree's one live census keyed on a bare type
+name is `crates/pncad-py/src/prose_census.rs`'s type table, built by
+this program (PR 1809), and that is where the re-key landed.
+
+**Re-derived at the merge base** (`1818266`). Both tables above still
+hold: `BlendError`, `ComposeError`, `LiftRefusal`, `ReplayError` and
+`SplitError` each have two declarations; `PathError` and `Refusal`
+each have one, reachable at two public paths.
+
+Three corrections this row's reader should have:
+
+1. **Only one of the two directions applies to a census that indexes
+   declarations.** A re-export adds no declaration, so `PathError` and
+   `Refusal` were never two entries in this table; the false duplicate
+   is a hazard for a hit LIST, which is what #1111 produced and what
+   this census is not. "Both directions close at once" is true of the
+   method, not of this code.
+2. **The bare key was never unsound HERE.** Rival declarations that
+   disagree answer `Undecided` and rivals that agree give the verdict
+   both share, so no site in the tree got a wrong answer from the
+   merged key — measured at the merge base over all 27 colliding names
+   and every site that reaches one. What the key cost was precision,
+   and a key that is sound only because the disagreement rule catches
+   it is one collision away from being asked a question it answers
+   confidently and wrongly.
+3. **The re-key moves no verdict in this tree today.** `KNOWN_BRACED`
+   and `UNDECIDED` are byte-identical before and after, which is why
+   the PR carries planted-tree rows that DO discriminate the two
+   keyings, run red against the old reading first.

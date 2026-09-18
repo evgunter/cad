@@ -84,7 +84,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
 
-use super::battery::Convexity;
+use super::battery::{Convexity, sided};
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.
@@ -168,22 +168,34 @@ pub enum BlendArm {
     /// circle's own axis, so the pair is coaxial by construction.
     SphereSphereTorus,
     /// Two parallel cylinders meeting along a common ruling → cylinder
-    /// patch, straight spine. The arm is exact; no surgery carves its
-    /// band yet (the terminations are the run-out taxonomy — #987).
+    /// patch, straight spine. The open-chain surgery carves its band
+    /// between TRANSVERSE CAPS — plane faces perpendicular to the
+    /// ruling, where the band ends in the cap's own section of it.
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
-    /// along a ruling → cylinder patch, straight spine. Same standing
-    /// as the row above: exact arm, uncarved band (#987).
+    /// along a ruling → cylinder patch, straight spine. Carved between
+    /// transverse caps exactly as the row above.
     CylinderPlaneCylinder,
 }
 
 impl BlendArm {
-    /// Whether this arm blends a plane–plane support pair — the one
-    /// pair the in-place open-chain surgery carves, whichever band
-    /// the request grafts onto it.
+    /// Whether this arm blends a plane–plane support pair — the pair
+    /// the in-place open-chain surgery carves between trivalent
+    /// corners, whichever band the request grafts onto it.
     #[must_use]
     pub fn is_plane_plane(self) -> bool {
         matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
+
+    /// Whether this arm is a RULED one — a cylinder band about a
+    /// straight spine over curved supports sharing the ruling, whose
+    /// open chain terminates in transverse caps rather than corners.
+    #[must_use]
+    pub fn is_ruled(self) -> bool {
+        matches!(
+            self,
+            Self::CylinderCylinderCylinder | Self::CylinderPlaneCylinder
+        )
     }
 
     /// Whether this arm's blend is the TORUS about a circular spine —
@@ -225,6 +237,33 @@ impl BlendArm {
             Self::SphereSphereTorus => "sphere–sphere → torus",
             Self::CylinderCylinderCylinder => "cylinder–cylinder → cylinder",
             Self::CylinderPlaneCylinder => "cylinder–plane(∥) → cylinder",
+        }
+    }
+
+    /// The arm's two support KINDS, in the same order
+    /// [`Self::name`] spells them — one word each, in the vocabulary
+    /// the recourse sentences use for a stored surface.
+    ///
+    /// Split out from [`Self::name`] because a refused caller needs
+    /// the KIND SET (four words, which is what the door tests first)
+    /// and the refusal's payload needs the PAIRS (eleven rows), and
+    /// only the second of those is a display string.
+    /// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+    /// checks each word here against the pair half of [`Self::name`],
+    /// so the two spellings cannot drift apart.
+    #[must_use]
+    pub fn kinds(self) -> [&'static str; 2] {
+        match self {
+            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => ["plane", "plane"],
+            Self::PlaneSphereTorus => ["plane", "sphere"],
+            Self::SphereConeTorus => ["sphere", "cone"],
+            Self::ConePlaneTorus => ["cone", "plane"],
+            Self::ConeConeTorus => ["cone", "cone"],
+            Self::CylinderConeTorus => ["cylinder", "cone"],
+            Self::CylinderSphereTorus => ["cylinder", "sphere"],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => ["cylinder", "plane"],
+            Self::SphereSphereTorus => ["sphere", "sphere"],
+            Self::CylinderCylinderCylinder => ["cylinder", "cylinder"],
         }
     }
 
@@ -328,7 +367,7 @@ pub fn plane_plane_blend<T: Real>(
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
 /// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
-/// type and shared with [`plane_plane_blend`], `surgery::corner_plan`
+/// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
 /// and — as the side bit [`Convexity::ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
@@ -410,11 +449,7 @@ pub fn plane_sphere_blend<T: Real>(
     // that sense agrees with the chain's convexity.
     let inside = convexity.ball_side(sphere_convex);
     // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = if inside {
-        sphere_r - radius
-    } else {
-        sphere_r + radius
-    };
+    let offset = sphere_r - sided(inside, radius);
     let s2 = offset.powi(2) - h.powi(2);
     // No gate here (see the two degenerate cases in the doc above):
     // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
@@ -459,7 +494,7 @@ pub fn plane_sphere_blend<T: Real>(
             // inner offset, `s > rim` on the outer — function docs),
             // spelled by the bit rather than as `|s − rim|` so a wrong
             // fold reads as a negative length instead of hiding.
-            if inside { rim - s } else { s - rim },
+            sided(inside, rim - s),
         ),
         trim_b: (
             Curve3::Circle {
@@ -488,12 +523,15 @@ pub fn plane_sphere_blend<T: Real>(
 /// meridian, and the same two are all a cylinder or a plane cuts in a
 /// cross-section normal to a ruling.
 ///
-/// **`side` is the material side, and it is the only place one enters
-/// an arm.** It is `+1` when the face's stored sense bit says its
-/// outward normal IS its surface's chart normal and `−1` when it is the
-/// negation, and it enters as a factor on the radius — the `R ∓ r`
-/// fold, spelled once here instead of once per pair. Read from stored
-/// structure, never from a sampled normal (S10/S11).
+/// **`side` is the ball's side of the support as the support's chart
+/// sees it, and it is the only place one enters an arm.** It is `true`
+/// when the ball's centre lies on the side the support's chart normal
+/// points AWAY from — the support's material side on a `sense: true`
+/// face — and `false` when it lies on the side the chart normal points
+/// into; [`Convexity::ball_side`] is where it is read, from stored
+/// structure and never from a sampled normal (S10/S11). It selects the
+/// `R ∓ r` fold: every consumer spells it as [`sided`], a conditional
+/// negation of the radius, so it is a bit here and never a `±1`.
 #[derive(Clone, Copy, Debug)]
 pub enum SupportTrace<T: Real> {
     /// A STRAIGHT trace: the line through the rim point whose unit
@@ -511,8 +549,8 @@ pub enum SupportTrace<T: Real> {
         /// The support's unit chart normal at the rim, which lies in the
         /// sheet.
         normal: Vec3<T>,
-        /// The material side, `±1` (type docs).
-        side: T,
+        /// The ball's side of the support (type docs).
+        side: bool,
     },
     /// A ROUND trace: the circle the support cuts in the sheet — a
     /// sphere centred on the axis in its meridian, a cylinder about the
@@ -522,8 +560,8 @@ pub enum SupportTrace<T: Real> {
         center: Point3<T>,
         /// Its radius (positive by convention).
         radius: T,
-        /// The material side, `±1` (type docs).
-        side: T,
+        /// The ball's side of the support (type docs).
+        side: bool,
     },
 }
 
@@ -532,12 +570,12 @@ impl<T: Real> SupportTrace<T> {
     /// centre by `radius` along the trace's own outward direction.
     fn contact(self, center: Point3<T>, radius: T) -> Point3<T> {
         match self {
-            Self::Straight { normal, side } => center + normal * (radius * side),
+            Self::Straight { normal, side } => center + normal * sided(side, radius),
             Self::Round {
                 center: c,
                 radius: rr,
                 side,
-            } => c + (center - c) * (rr / (rr - radius * side)),
+            } => c + (center - c) * (rr / (rr - sided(side, radius))),
         }
     }
 }
@@ -551,6 +589,9 @@ impl<T: Real> SupportTrace<T> {
 /// which is the structural answer to "which of the two circles the
 /// offsets meet in is MY edge" — the same question the plane–sphere
 /// arm answers by the meridian's `ρ ≥ 0` and never has to ask.
+///
+/// The material sides enter as `σ = +1` where a trace's `side` is
+/// `true` and `−1` where it is `false`, spelled below as [`sided`].
 ///
 /// - **line × line**: `δ = −r[(σ_a − σ_b d)n̂_a + (σ_b − σ_a d)n̂_b]/(1 − d²)`
 ///   for `d = n̂_a·n̂_b` — [`plane_plane_blend`]'s own centre formula with
@@ -577,9 +618,8 @@ impl<T: Real> SupportTrace<T> {
 /// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
 /// predicate 3 saturates and cannot see it; there the poisoned centre
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
-/// arrives one step later — at the open-chain admission door today
-/// (a ruled pair meets along an open edge, which the surgery does not
-/// carve), and at the certification of any band that door ever mints.
+/// arrives one step later — at the certification of the band the
+/// open-chain surgery mints between the link's transverse caps.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
@@ -602,7 +642,9 @@ pub fn sheet_center<T: Real>(
             },
         ) => {
             let d = n_a.dot(n_b);
-            rim - (n_a * (s_a - s_b * d) + n_b * (s_b - s_a * d)) * (radius / (one - d.powi(2)))
+            rim - (n_a * (sided(s_a, one) - sided(s_b, d))
+                + n_b * (sided(s_b, one) - sided(s_a, d)))
+                * (radius / (one - d.powi(2)))
         }
         (
             Straight { normal, side },
@@ -626,9 +668,9 @@ pub fn sheet_center<T: Real>(
             let u = (rim - center) / rr;
             let t = sheet_normal.cross(normal);
             let b_coef = rr * t.dot(u);
-            let d_coef = (rr + rr) * radius * (sr - side * normal.dot(u));
+            let d_coef = (rr + rr) * radius * (sided(sr, one) - sided(side, normal.dot(u)));
             let lambda = b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one);
-            rim + t * lambda - normal * (radius * side)
+            rim + t * lambda - normal * sided(side, radius)
         }
         (
             Round {
@@ -646,8 +688,8 @@ pub fn sheet_center<T: Real>(
             let dist = span.norm();
             let along = span / dist;
             let across = sheet_normal.cross(along);
-            let off_a = r_a - radius * s_a;
-            let off_b = r_b - radius * s_b;
+            let off_a = r_a - sided(s_a, radius);
+            let off_b = r_b - sided(s_b, radius);
             let x = (dist.powi(2) + off_a.powi(2) - off_b.powi(2)) / (dist + dist);
             let mu = (rim - c_a).dot(across);
             let y = mu * (((off_a.powi(2) - x.powi(2)) / mu.powi(2)).sqrt());
@@ -708,8 +750,7 @@ impl<T: Real> Meridian<T> {
     /// pair is not a coaxial one, so its spine is neither line nor
     /// circle — the canal family, refused.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, sense: bool) -> Option<(SupportTrace<T>, T)> {
-        let side = if sense { T::one() } else { -T::one() };
+    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
         let radial = self.radial();
         let lever = self.lever();
         match *s {
@@ -840,8 +881,7 @@ impl<T: Real> Ruling<T> {
     ///
     /// `None` for a surface kind this family does not cover.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, sense: bool) -> Option<(SupportTrace<T>, T)> {
-        let side = if sense { T::one() } else { -T::one() };
+    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
         match *s {
             // A plane containing the ruling: its chart normal is already
             // ⊥ the ruling, so it is the cross-section line's normal.

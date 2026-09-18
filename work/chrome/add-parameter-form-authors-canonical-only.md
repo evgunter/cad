@@ -2,10 +2,9 @@
 id: add-parameter-form-authors-canonical-only
 kind: issue
 title: The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1776]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 
@@ -20,49 +19,64 @@ one door that MINTS a declaration.
 Where it stands:
 
 - The form holds `new_param_dimension` and `new_param_value` and no
-  unit at all (`crates/viewer/src/app.rs:364-372`, the form at `add_param_ui`,
-  `:3001-3041`).
-- Create mints through `props::doc_param`
-  (`crates/viewer/src/app.rs:3075`), which routes every continuous
-  value to `DocParam::continuous`
-  (`crates/viewer/src/props.rs:587-592`) — the constructor whose
+  unit at all — the drafts are `Drafts::new_param_dimension` /
+  `Drafts::new_param_value` in `crates/viewer/src/drafts.rs`, and the
+  form is `ViewerBehavior::add_param_ui` in
+  `crates/viewer/src/pane/properties.rs`.
+- Create mints through `props::doc_param` (called from
+  `add_param_ui`'s `create.clicked()` arm), which routes every
+  continuous value to `DocParam::continuous`
+  (`crates/viewer/src/props.rs`) — the constructor whose
   `display_unit` is `UnitSym::canonical_for(dim)`
-  (`crates/editor-core/src/doc.rs:176-183`).
-- The field's own drag tick is the canonical one for the dimension,
-  and says so (`app.rs:3027-3041`).
+  (`crates/editor-core/src/doc.rs`).
+
+**Struck 2026-09-15 — this bullet was FALSE**: *"The field's own drag
+tick is the canonical one for the dimension, and says so
+(`app.rs:3027-3041`)"*. It named a hand-picked constant as the form's
+tick. `add_param_ui` derives the tick —
+`FieldWriting::of(dimension, None).tick`, the panel's own rule — and
+names `FIELD_DRAG_SPEED` only as the placeholder for "no dimension
+picked yet", when Create is refused anyway. The bullet is struck
+rather than re-pointed because there is no surviving subject to point
+at: the defect it described was fixed, not moved. (It was never load-
+bearing for this item, which is about the declared UNIT, not the tick;
+`work/chrome/drag-tick-has-three-homes.md` is where the tick question
+lives, and it now records `add_param_ui` as one of the two converted
+sites.)
 
 **No kernel change is needed.** `DocParam::written_length` and
-`DocParam::written_angle` (`crates/editor-core/src/doc.rs:152`,
-`:164`) are TOTAL authoring doors that take a `WrittenLength` /
+`DocParam::written_angle` (`crates/editor-core/src/doc.rs`) are TOTAL
+authoring doors that take a `WrittenLength` /
 `WrittenAngle` and produce a declaration whose unit measures its
 dimension by construction. They are already the doors the panel's
 sibling affordances use. This is the one authoring affordance
 available before
-`work/issues/doc-param-unit-edit-has-no-door.md` lands, and it is
+`work/edit/doc-param-unit-edit-has-no-door.md` lands, and it is
 independent of it: minting a declaration in millimetres is a door that
 exists; CHANGING one afterwards is the door that does not.
 
 ## What it costs
 
-1. A unit picker beside the value field — `length_picker` /
-   `angle_picker` (`crates/viewer/src/app.rs`, the creation forms'
-   control) already exist and already carry the rule that the unit is
-   the picker's to say.
+1. A unit picker beside the value field — `widgets::length_picker` /
+   `widgets::angle_picker` (`crates/viewer/src/widgets.rs`, the
+   creation forms' control) already exist and already carry the rule
+   that the unit is the picker's to say.
 2. **One design call**, and this is the real content of the item.
    `props`' module contract is "every value that CROSSES this module
-   is canonical" (`crates/viewer/src/props.rs:6-24` ("Canonical inside, written units outside")), and
+   is canonical" (`crates/viewer/src/props.rs`, the module docs'
+   opening section "Canonical inside, written units outside"), and
    `props::doc_param` takes a `SlotValue`, which is canonical by that
    rule. A form authoring in millimetres has to get the notation to
    the declaration somehow: either `doc_param` grows a
-   `unit: Option<UnitDef>` parameter (the shape `slot_edit` already
-   has — `props.rs:563-581` — which is the precedent and probably the
-   answer), or the form calls `DocParam::written_length` itself and
-   bypasses `props`. The first keeps one door; the second puts a
+   `unit: Option<UnitDef>` parameter (the shape `props::slot_edit`
+   already has, which is the precedent and probably the answer), or
+   the form calls `DocParam::written_length` itself and bypasses
+   `props`. The first keeps one door; the second puts a
    second declaration-minting spelling in the crate. Decide before
    implementing.
 
-Note the `Scalar` case: `unit_options` is empty for `Scalar` and
-`Count` (`props.rs:151-161`), so there is no picker to draw for those
+Note the `Scalar` case: `props::unit_options` returns an empty `Vec`
+for `Scalar` and `Count` alike, so there is no picker to draw for those
 two and the canonical declaration stays right for them.
 
 ## Why it is filed rather than taken
@@ -73,5 +87,34 @@ panel row and left the form.
 
 ## Home
 
-CHROME. Everything above is `crates/viewer/src/*`; the kernel doors it
-calls already exist.
+CHROME. Everything above is `crates/viewer/src/*` — the form in
+`pane/properties.rs`, the drafts in `drafts.rs`, the pickers in
+`widgets.rs`, the canonical-only mint in `props.rs`; the kernel doors
+it calls already exist.
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.
+
+## Re-pointed by subject, one bullet struck (2026-09-15, `chrome/citation-repoint`)
+
+Every `app.rs` citation in this row was a pre-#1830 address. All of
+them are re-derived above by subject name, with no line number written
+(`docs/prompts/implementer-discipline.md` §7); the `props.rs` and
+`doc.rs` numbers are dropped for the same reason rather than refreshed.
+
+**One supporting bullet was struck, not re-pointed** — the drag-tick
+one, struck in place above with the reason. The item's HEAD claim is
+unaffected and still true: `add_param_ui` mints through
+`props::doc_param` → `DocParam::continuous`, whose `display_unit` is
+`UnitSym::canonical_for(dim)`, so the form can still declare only in
+the canonical unit. Read at `385c01b3`.
+
+`work/issues/doc-param-unit-edit-has-no-door.md` re-pointed to
+`work/edit/…` — EDIT claimed the item; it is open.

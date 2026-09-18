@@ -5,6 +5,9 @@
 //! A VOCABULARY. These are values the panels and the viewport read and
 //! the session moves; nothing here names the session, and every
 //! question they answer is answered from the value alone.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{ParamName, RecipeNodeId};
 use pncad::prelude::{StableName, attribute};
@@ -102,7 +105,7 @@ pub enum Hovered {
     /// A face under the cursor.
     Face(FaceSelection),
     /// An edge under the cursor — within
-    /// [`crate::pick::EDGE_PICK_RADIUS_PX`] of it, which is what makes
+    /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, which is what makes
     /// an edge reachable at all where its own face fills the pixel.
     Edge(EdgeSelection),
 }

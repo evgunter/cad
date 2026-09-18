@@ -48,16 +48,19 @@ fn n1r2_dump_curve_evaluators() {
                 dd.x.deriv, dd.y.deriv, dd.z.deriv,
             ];
             for idx in 0..kv.knots().len() {
-                let Some(span) = kv.span(idx) else { continue };
-                let (sp, sd1, sd2) = c.ders_in_span(span, t);
-                let e1 = c.deriv_in_span(span, t);
-                let e2 = c.deriv2_in_span(span, t);
-                let ep = c.eval_in_span(span, t);
+                let Some(span) = c.span(idx) else { continue };
+                let (sp, sd1, sd2) = span.ders_in_span(t);
+                let e1 = span.deriv_in_span(t);
+                let e2 = span.deriv2_in_span(t);
+                let ep = span.eval_in_span(t);
                 row.extend([
                     sp.x, sp.y, sp.z, sd1.x, sd1.y, sd1.z, sd2.x, sd2.y, sd2.z, e1.x, e1.y, e1.z,
                     e2.x, e2.y, e2.z, ep.x, ep.y, ep.z,
                 ]);
-                let (dp, dd1, dd2) = cd.ders_in_span(span, Dual::variable(t));
+                let (dp, dd1, dd2) = cd
+                    .span(idx)
+                    .expect("same knot vector, same nonempty spans")
+                    .ders_in_span(Dual::variable(t));
                 row.extend([
                     dp.x.value,
                     dp.x.deriv,

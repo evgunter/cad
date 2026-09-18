@@ -4,6 +4,9 @@
 //! A VOCABULARY. These hold no session state at all — a spec is a
 //! payload the panels build and [`datum_node`] lowers, and the lowering
 //! is total for the reason its own note gives.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Datum, Expr, Node, ProfileProgram, RecipeNodeId};
 

@@ -16,31 +16,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty;
-/// announce the skip so a lane that silently lost its certified rows
-/// stays visible in the battery log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): blend_margin_payload_interval.rs \
-         contributes NO certified coverage in this run — the enclosure arm \
-         of the blend refusals' margin payload runs only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the blend refusals' margin payload",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
-    use geom_core::{Band, Interval, MarginDiag, Real, Sign, Tol};
+    use crate::common::approx::band;
+    use geom_core::{Interval, MarginDiag, Real, Sign};
     use sweep::blend::BlendError;
     use sweep::blend::battery::spine_regularity;
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::FaceKey;
-
-    fn band() -> Band {
-        let tol = Tol::witness();
-        Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
-    }
 
     /// A THIN enclosure — a point bracket, which is what an exact
     /// datum is at this scalar — still reports as an ENCLOSURE, with

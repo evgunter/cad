@@ -37,20 +37,25 @@ clearance-window description run independently.
 
 ## Order
 
-1. `interior-iso-curve-de-boor-extractor` — the de Boor collapse
-   extractor so an interior iso of a NURBS chart certifies as an exact
-   `IsoLine`; widen `nurbs_iso_derive`'s wall-wall arm; retire the
-   `an_interior_column_still_refuses` pin; L. THE OPENER.
+1. `interior-iso-curve-de-boor-extractor` — DELIVERED #2095
+   (2026-09-07): the P-2 body mints and validates at rest. The
+   `an_interior_column_still_refuses` pin was NOT the row to flip (an
+   arc-class row); it stays.
 2. `general-pcurve-face-props-and-tess-refuse` — lift the six
    `QuadratureUnsupported`/tessellation refusals for non-rectangular
    chart trim regions; L; measured against the whole body 1 lets
-   mint. `mesh/trimmed.rs`, `mesh/chords.rs` and `topo/props.rs` are
+   mint. RE-CUT by TRIM-1's measurement: on the P-2 fixture the
+   tessellation lane stops at `patch_bound::Degree1Crease` first, so
+   the spec starts from a chart the crease gate admits (degree ≥ 2) or
+   takes that gate as its first door. `mesh/trimmed.rs`, `mesh/chords.rs` and `topo/props.rs` are
    S-MESH's and Track M's ground: announced seams.
-3. `clearance-window-tightening-needs-chart-boundary` — a pcurve-layer
-   chart-boundary description (planar: the loop's 2-D extent;
-   cylinder: the real angular span) that `editor-core/clearance.rs`
-   intersects each carrier window with; M10-5's declared deviation D3.
-   Independent of 1–2; may run in parallel.
+3. `clearance-window-tightening-needs-chart-boundary` — PR-1 (the
+   description, `topo` only) DELIVERED #1911 (2026-09-07); PR-2 (the
+   `clearance.rs` seam) DELIVERED #2554 (2026-09-15) on a week's
+   silence after the seam announcement; block TRIM-B1 concluded. Six
+   residues stay on the program (the cone/sphere/torus arms, the
+   exact-region cells, the `min_separation` lane split, the revolved
+   bands, the three arms tables, the unreachable `Err` arm).
 4. `loft-seam-carrier-exact-knot-compare` (S-CERT's file today; D→H)
    — a tolerance-structural compare with a soundness story, or an
    exact skin-fit reproduction of the chart's boundary row. Its file is

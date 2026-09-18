@@ -63,7 +63,7 @@
 //! and deliberately NOT built: a wrong margin design shipped into a
 //! public API is far more expensive than a follow-up unit.
 
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeResult, ValuePayload};
@@ -178,13 +178,20 @@ pub enum GeomPred {
 /// half-selected. Both are refusals here rather than filter outcomes,
 /// because silence in either direction lies about the result set.
 ///
-/// A purely-EXACT filter produces none of these on a well-formed name
-/// table: the exact atoms are total, so [`InBand`](Self::InBand) and
-/// [`TiedDisagrees`](Self::TiedDisagrees) are unreachable without a
-/// decided atom. The one residual is [`Unreadable`](Self::Unreadable),
-/// which `select_where` raises if a table entry points at a body index
-/// its node's payload does not have — an emitter invariant violation
-/// rather than a query outcome, and reported rather than swallowed.
+/// A purely-EXACT filter produces neither margin refusal on a
+/// well-formed name table: the exact atoms are total, so
+/// [`InBand`](Self::InBand) and [`TiedDisagrees`](Self::TiedDisagrees)
+/// are unreachable without a decided atom. The rest of the enum is not
+/// gated on a decided atom at all. [`Unreadable`](Self::Unreadable)
+/// answers a table entry pointing at a body index its node's payload
+/// does not have — an emitter invariant violation rather than a query
+/// outcome, and reported rather than swallowed. [`Band`](Self::Band)
+/// answers the ambient tolerance, which `select_where` asks about
+/// unconditionally before it reads a single candidate. The static
+/// faults of a malformed query — [`NotADatum`](Self::NotADatum),
+/// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
+/// and the detector's [`PairInBand`](Self::PairInBand) are about the
+/// query and the pair, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -247,18 +254,34 @@ pub enum SelectRefusal {
     PairInBand {
         /// The face-name pair whose margin was indeterminate.
         pair: Box<(StableName, StableName)>,
-        /// The verify-door funnel site (a `bool_plane_*` predicate —
-        /// detection reuses the C4 verifier's own sites and mints
-        /// none of its own).
+        /// The verify-door funnel site — `bool_plane_*` on the
+        /// planar rung, `carrier_sphere_*` / `carrier_cyl_*` /
+        /// `carrier_torus_*` on the curved ones, since detection
+        /// reuses the C4 verifier's own sites per carrier kind and
+        /// mints none of its own.
         predicate: &'static str,
         /// The funnel's own diagnostic (margin, band, recourse).
         source: geom_core::Indeterminate,
     },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
-    /// The ambiguity band itself could not be built (a broken ambient
-    /// tolerance — the same fail-loud rung `names::discriminate` uses).
-    Band,
+    /// The ambiguity band itself could not be built from the ambient
+    /// tolerance, so nothing below it can be classified — carrying the
+    /// constructor's own diagnostic, because the cause is NOT unique.
+    ///
+    /// A [`Tolerance`](geom_core::tolerance::Tolerance) that passed its
+    /// own validation still reaches **both** arms of
+    /// [`Band::linear`]'s `# Errors` — K·ε overflowing to infinity at
+    /// an ε near `f64::MAX`, and K·ε rounding back down onto ε at a
+    /// subnormal one. They sit at opposite ends of one axis and want
+    /// opposite repairs, so the query reports which one it hit rather
+    /// than the fact that it hit one.
+    ///
+    /// The conditions are stated once, at
+    /// [`Band::linear`](geom_core::Band::linear), and deliberately not
+    /// restated here: two copies of one derivation are two things to
+    /// keep true, and this one has already drifted apart from that one.
+    Band(BandError),
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -342,15 +365,25 @@ impl core::fmt::Display for SelectRefusal {
             Self::BadValue(error) => {
                 write!(f, "select: the stated value did not evaluate: {error}")
             }
-            Self::Band => f.write_str(
-                "select: the ambiguity band itself could not be built — the ambient tolerance \
-                 is broken, so no comparison below it can be trusted",
+            Self::Band(error) => write!(
+                f,
+                "select: the ambiguity band itself could not be built from the ambient \
+                 tolerance, so no comparison below it can be trusted: {error}"
             ),
         }
     }
 }
 
 impl core::error::Error for SelectRefusal {}
+
+// `Band::linear(tol)?` rather than a closure at every band door: the
+// conversion is total and has one spelling, so there is no site at
+// which the caught `BandError` could be dropped again.
+impl From<BandError> for SelectRefusal {
+    fn from(e: BandError) -> Self {
+        Self::Band(e)
+    }
+}
 
 // ---------------------------------------------------------------
 // Evaluating the atoms against one resolved candidate.

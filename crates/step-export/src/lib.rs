@@ -113,8 +113,8 @@
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
-//! - A face's outward normal is `topo::Face::sense_sign()` times its
-//!   stored surface normal (M5 S10; before S10 the stored normal
+//! - A face's outward normal is its stored surface normal with
+//!   `topo::Face::sense` folded in (M5 S10; before S10 the stored normal
 //!   simply WAS the outward normal — the M1 interior-left
 //!   ratification, restated in `geom_brep::enters`). STEP has a field
 //!   that means exactly this, so the mapping is an identity and not a
@@ -238,8 +238,10 @@ pub enum StepExportError {
         context: &'static str,
     },
     /// A header/product string contains characters outside Part 21's
-    /// basic alphabet (0x20..=0x7E) — the writer refuses rather than
-    /// emit an encoding it cannot promise importers read back.
+    /// basic alphabet — the writer refuses rather than emit an
+    /// encoding it cannot promise importers read back. [`quoted`]
+    /// decides the band and this arm's `Display` states it; neither
+    /// number is repeated here.
     UnrepresentableString {
         /// Which string field was being quoted (static description).
         context: &'static str,
@@ -504,6 +506,27 @@ pub fn write_step<W: std::io::Write>(
 /// Quotes `s` as a Part 21 string literal: surrounding apostrophes,
 /// `'` doubled, `\` doubled; any character outside the basic alphabet
 /// (0x20..=0x7E) is a typed refusal.
+///
+/// **This match arm is where the writer's band is decided.** The
+/// crate states it in exactly two other places — the refusal a caller
+/// reads ([`StepExportError::UnrepresentableString`]'s `Display`) and
+/// the row that pins both bounds (`tests/export.rs`'s
+/// `part21_basic_alphabet_bounds`). Anything else that needs to
+/// mention the alphabet names it without the numbers.
+///
+/// **The band is a DISCLOSED COPY of one rule.** `step_import`'s
+/// `string_body` is the mirror of this writer on the read path, over
+/// the same paragraph of the same standard. They are stated
+/// separately because the two crates share no dependency but the
+/// kernel, which is no home for a text-format constant
+/// (`docs/DESIGN.md`'s `## Layering`); the edge that does exist runs
+/// the other way and is a DEV-dependency for the round-trip oracle,
+/// which cannot carry a shipped constant. A leaf crate below both
+/// would be the workspace's own precedent (`test-utils`) and is a
+/// heavy answer for one range. If Part 21's alphabet is ever read
+/// differently, both sites move. The identical band in `stl`'s
+/// `SolidName` is NOT this rule and does not move with it (that site
+/// says so).
 fn quoted(s: &str, context: &'static str) -> Result<String, StepExportError> {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');

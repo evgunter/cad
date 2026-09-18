@@ -52,13 +52,17 @@
 
 use core::f64::consts::SQRT_2;
 
+use crate::common::oracles::sigma;
+
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{assert_naming_totality, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    assert_full_revolve_rim, assert_naming_totality, revolved_about_y, rim_arcs_at,
+};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -178,9 +182,10 @@ fn rims() -> [Rim; 3] {
 
 /// One support pair, as the sense-bit row reads it: its name, the rim
 /// point its sheet is taken at, the two traces as functions of their
-/// stored sense bit, the two signed distances in the supports' own
-/// closed forms, and whether a ball rests there at all.
-type TraceOf<'a> = Box<dyn Fn(f64) -> SupportTrace<f64> + 'a>;
+/// ball-side bit, the two signed distances in the supports' own
+/// closed forms, and whether a ball rests there at all (as a function
+/// of the two sides' `σ`).
+type TraceOf<'a> = Box<dyn Fn(bool) -> SupportTrace<f64> + 'a>;
 type DistOf<'a> = Box<dyn Fn(Point3<f64>) -> f64 + 'a>;
 type ArmRow<'a> = (
     &'static str,
@@ -252,7 +257,7 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let source = lantern();
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} arrives as two arcs");
+        assert_full_revolve_rim(&arcs, name);
         let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
         validate_geometric(&out.body, tol())
@@ -331,7 +336,7 @@ fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} arrives as two arcs");
+        assert_full_revolve_rim(&arcs, name);
         let (a0, b0) = faces_of(&source, arcs[0]);
         let (a1, b1) = faces_of(&source, arcs[1]);
         assert_eq!(
@@ -398,7 +403,11 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     let mut bands = 0;
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is still two arcs before its carve");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name} is still its seam's two arcs before its carve"
+        );
         let out = fillet_edges(&body, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
@@ -442,12 +451,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: p,
     };
-    let sphere = |side: f64| SupportTrace::Round {
+    let sphere = |side: bool| SupportTrace::Round {
         center: origin,
         radius: SPHERE_R,
         side,
     };
-    let flat = |normal: Vec3<f64>| move |side: f64| SupportTrace::Straight { normal, side };
+    let flat = |normal: Vec3<f64>| move |side: bool| SupportTrace::Straight { normal, side };
     // Each support's own signed distance, positive on its chart
     // normal's side — written here, not read from the kernel.
     let plane_dist = move |p: Point3<f64>, n: Vec3<f64>, o: Point3<f64>| (p - o).dot(n);
@@ -493,8 +502,9 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     for (name, rim, ta, tb, da, db, feasible) in rows {
         let sheet = sheet_at(rim);
         let mut folded = 0;
-        for (sa, sb) in [(1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0)] {
-            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(sa), tb(sb), r);
+        for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+            let (sa, sb) = (sigma(side_a), sigma(side_b));
+            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
             if !feasible(sa, sb) {
                 assert!(
                     !(c.x.is_finite() && c.y.is_finite() && c.z.is_finite()),

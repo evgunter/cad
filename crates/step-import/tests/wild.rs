@@ -30,7 +30,7 @@ use crate::common;
 
 use std::path::PathBuf;
 
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -88,13 +88,18 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // the obligation sweep and the dialect pin read the whole corpus —
     // but `wild_refusals_are_typed_and_name_their_class` skips it (see
     // that row's `continue`): importing dm1 costs ~30× the other three
-    // refusal fixtures together, and the same fragment is already
-    // asserted by `tier_gate.rs`'s `RATIONAL_FLUX_STALL` at three ε_in
-    // values per run, with the coarse band's `#389` cell beside it, and
-    // structurally by `r1_dm1_probe`.
+    // refusal fixtures together, and the disposition is asserted by
+    // `tier_gate.rs`'s three ε_in cells and structurally by
+    // `r1_dm1_probe`.
+    //
+    // The fragment is the D7 ladder's, not the quadrature's. It was
+    // the at-rest gate's rational-flux stall until check 7 began
+    // certifying a SIGN: dm1's volume enclosure excludes zero at round
+    // 0 at every band, so the gate admits the solid and the import
+    // goes on to the ladder gap at edge `#389` that the stall masked.
     (
         "stepcode/dm1-id-214.stp",
-        "the certified quadrature enclosure cannot reach the",
+        "no intensional description certifies",
     ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
@@ -235,7 +240,9 @@ fn wild_scale_gate(row: &str) -> bool {
         return true;
     }
     println!(
-        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in          [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted          over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
+        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in \
+         [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted \
+         over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
     );
     false
 }
@@ -321,7 +328,7 @@ fn wild_files_import_and_agree_with_the_oracle() {
     for name in WILD_IMPORTS {
         let (body, eps_in) = solid(name);
         let e = oracle(name);
-        assert_eq!(census(&body), e.census, "{name}: census");
+        assert_eq!(arena_census(&body), e.census, "{name}: census");
         assert!(eps_in.is_finite() && eps_in > 0.0, "{name}: ε_in {eps_in}");
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
@@ -454,8 +461,8 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             panic!("{name}: the re-import must be a solid");
         };
         assert_eq!(
-            census(&body),
-            census(&again),
+            arena_census(&body),
+            arena_census(&again),
             "{name}: census across the wire"
         );
         // Volume across the wire: the same per-face contributions,
@@ -598,7 +605,7 @@ fn the_band_re_mint_reports_its_normalizations() {
         else {
             panic!("{name}: the band fixture imports first-class since M7-5");
         };
-        let census = |(faces, edges, vertices)| FaceCensus {
+        let face_census = |(faces, edges, vertices)| FaceCensus {
             faces,
             edges,
             vertices,
@@ -613,8 +620,8 @@ fn the_band_re_mint_reports_its_normalizations() {
                 (
                     face,
                     NormalizationKind::SeamlessPeriodicBand,
-                    census(file),
-                    census(kernel),
+                    face_census(file),
+                    face_census(kernel),
                 )
             })
             .collect();

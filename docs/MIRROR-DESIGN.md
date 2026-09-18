@@ -88,8 +88,11 @@ door (`mirror_body`, or `transform_isometry` with the improper
 branch) that composes: reflect geometry per P1's convention +
 rewrite parameter payloads + the outward-normal flip `revert`
 already implements exactly once per face (plane arm: negate stored
-normal; curved arm: flip `sense`) + re-certify carriers and re-mint
-witnesses per the transform layer's existing discipline. The +V
+normal, and re-state every `Chart` image and every stored pcurve row
+on that plane under the chart reflection `(u, v) ↦ (u, −v)` the
+negation is, certificates verbatim — `Pcurve::mirror_v`; curved arm:
+flip `sense`) + re-certify carriers and re-mint witnesses per the
+transform layer's existing discipline. The +V
 tier-3 invariant is the acceptance instrument: a reflection without
 the flip produces `NegativeVolume`, and the correct door must not.
 One claim the survey flags as **checkable, not assumable** (conv. 4
@@ -140,9 +143,11 @@ lowering doesn't, at the price of a second instancing semantics.
   choice (M7-4); export policy is A8's recorded residue and follows
   P1 mechanically (`advanced_face.same_sense` maps `Face::sense`).
   Deferred with its owner, not re-opened here.
-- **Multi-output-body pattern masters** stay typed-refused
-  (`name_pattern`'s recorded deferral) — nothing upstream can
-  produce one; the refusal text already says so.
+- **Multi-output-body pattern masters** are admitted: a pattern
+  over an `Instances` value places it whole, placement-major (output
+  body `j·M + i`, `name_pattern`'s layout), and a mirror over one
+  follows the same layout with its `Mirror(i)` segment where
+  `Instance(j)` sits.
 
 ## P6 — Consequence for hole features
 

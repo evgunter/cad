@@ -9,11 +9,11 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, curvature_lever_arm,
-    edge_extent, tangent_certificate_lane, tangent_jet,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, classify_dihedral,
+    edge_extent, must_carry_over_edge,
 };
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Margin, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real};
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
@@ -40,27 +40,6 @@ pub(super) fn vertex_point<T: Real>(
     vertex: topo::VertexKey,
 ) -> Result<Point3<T>, RevolveError> {
     topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
-}
-
-/// This edge restated as a spec — description, carrier and interval
-/// verbatim — for a re-description that moves nothing geometric.
-pub(super) fn restated<T: SpanLocate>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<geom_brep::EdgeCurveSpec<T>, RevolveError> {
-    let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::Edge(edge),
-    })?;
-    Ok(body
-        .get_curve_geom(edge_rec.curve)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(edge_rec.curve),
-        })?
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve {
-            curve: edge_rec.curve,
-        })?
-        .restated_spec())
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
@@ -104,29 +83,12 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// Upgrades one edge to `Intersection { s1, s2, witness }` when the
 /// two surfaces are definitely transverse at the witness: cap–wall
 /// meridian rims, cap–cap axis edges (partial), and full-revolve
-/// latitude rims all funnel here. Smooth keeps the conventional
-/// description (the D2 split; tier 3 permits it); Indeterminate is the
-/// typed error built by `sliver`.
-/// Re-states one edge as an image in `chart`, keeping carrier,
-/// interval and (through `at_rest_in_chart`) the pushforward that
-/// scaffolded it as its authority record.
-///
-/// The join lanes call this where they used to `continue`: ONE surface
-/// on both sides is a locus the surfaces under-determine (D2's split),
-/// so the description stays conventional — but the edge is at rest
-/// between two faces now, and the scaffolding door is for edges whose
-/// surfaces do not exist yet (D3's transience fence).
-pub(super) fn describe_at_rest<T: Decide>(
-    body: &mut Body<T>,
-    edge: EdgeKey,
-    chart: SurfaceKey,
-    tol: Tol,
-) -> Result<(), RevolveError> {
-    let spec = restated(body, edge)?.at_rest_in_chart(chart, false);
-    body.set_edge_curve(edge, spec, tol)?;
-    Ok(())
-}
-
+/// latitude rims all funnel here. Smooth descends one order through
+/// the must-carry rule over the edge
+/// ([`geom_brep::must_carry_over_edge`] — the lane gate and the
+/// certification schedule's interior stations, in its one home);
+/// Indeterminate is the typed error built by `sliver`, at the
+/// first-order classification and at the second-order rule alike.
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -164,38 +126,59 @@ pub(super) fn upgrade_intersection<T: Decide>(
             body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
-        // **The lane's next retirement, taken (M5 PR 12).** A revolve
-        // join's carrier is a latitude CIRCLE, which the jet
-        // certificate's circle arm now covers on every surface of
-        // revolution — so a jet-DETERMINATE smooth join is a genuine
+        // A revolve join's carrier is a latitude CIRCLE, which the
+        // jet certificate's circle arm covers on every surface of
+        // revolution, so the rule can reach its determinate answer
+        // here: a jet-DETERMINATE smooth join is a genuine
         // `TangentIntersection` and prefer-intrinsic (D2/OQ7) demands
-        // it. A jet-UNDER-determined one (a G2 conventional join, a
+        // it; an under-determined one (a G2 conventional join, a
         // same-surface split: `κ_rel` at zero) keeps the conventional
-        // description, exactly as tier 3's must-carry exempts it —
-        // both sides read the same `tangent_second_order` predicate,
-        // so the demanded set and the stored set stay one set.
+        // description, exactly as tier 3's must-carry exempts it; an
+        // in-band one escalates typed. Both sides read the same
+        // predicate at the same stations, so the demanded set and the
+        // stored set stay one set.
         Ok(DihedralClass::Smooth) => {
-            if jet_determinate(&surf1, &surf2, &data, band) {
-                let spec = EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::TangentIntersection {
-                        s1,
-                        s2,
-                        witness: data.witness,
-                    },
-                    carrier: data.carrier,
-                    param_start: data.t0,
-                    param_end: data.t1,
-                };
-                body.set_edge_curve(edge, spec, tol)?;
-            } else {
-                // The surfaces UNDER-determine the locus, so the
-                // description stays CONVENTIONAL — but the edge is at
-                // rest between two faces now, so it says where it
-                // rests: an image in `s1`'s chart (D3's transience
-                // fence). The pushforward it was scaffolded from stays
-                // beside it as the authority record, which is what
-                // keeps tier 3's prefer-intrinsic reading unchanged.
-                describe_at_rest(body, edge, s1, tol)?;
+            match must_carry_over_edge(
+                &surf1,
+                &surf2,
+                &data.carrier,
+                data.t0,
+                data.t1,
+                data.extent,
+                band,
+            ) {
+                MustCarryVerdict::JetDeterminate => {
+                    let spec = EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::TangentIntersection {
+                            s1,
+                            s2,
+                            witness: data.witness,
+                        },
+                        carrier: data.carrier,
+                        param_start: data.t0,
+                        param_end: data.t1,
+                    };
+                    body.set_edge_curve(edge, spec, tol)?;
+                }
+                MustCarryVerdict::UnderDetermined => {
+                    // The surfaces UNDER-determine the locus, so the
+                    // description stays CONVENTIONAL — but the edge is
+                    // at rest between two faces now, so it says where
+                    // it rests: an image in `s1`'s chart (D3's
+                    // transience fence). The pushforward it was
+                    // scaffolded from stays beside it as the authority
+                    // record, which is what keeps tier 3's
+                    // prefer-intrinsic reading unchanged.
+                    body.describe_at_rest(edge, s1, tol)?;
+                }
+                // In-band: near-osculating geometry, certifiable as
+                // neither intrinsic nor conventional. A conventional
+                // description is not an escape hatch from
+                // ill-conditioned geometry (D2), so the escalation is
+                // typed through the caller's own `sliver` (D4 ¶3) —
+                // the same answer the transverse arm's `Err` below
+                // gives, and the same one the extrude strut gives.
+                MustCarryVerdict::InBand(source) => return Err(sliver(source)),
             }
             Ok(())
         }
@@ -203,52 +186,12 @@ pub(super) fn upgrade_intersection<T: Decide>(
     }
 }
 
-/// Is this smooth join **jet-determinate** — inside the certificate's
-/// span-bound lane, and with the second-order separation definitely
-/// positive at every sample of the certification schedule?
-///
-/// The margin is tier 3's own: `|κ_rel|·arm²/2` in meters, with `arm`
-/// the folded lever arm `min(curvature arms, extent)` — the SAME
-/// quantity, the same predicate name, so the constructor stores
-/// exactly what the validator will demand and nothing more. An
-/// under-determined join (`Zero`) or an in-band one (an escalation,
-/// which tier 3 reports as an F6 sliver and exempts here) keeps its
-/// conventional description: the intrinsic upgrade is an enrichment,
-/// never a new refusal.
-fn jet_determinate<T: Decide>(
-    s1: &geom::Surface<T>,
-    s2: &geom::Surface<T>,
-    data: &EdgeData<T>,
-    band: Band,
-) -> bool {
-    if !tangent_certificate_lane(&data.carrier, s1, s2) {
-        return false;
-    }
-    let samples = 9u32;
-    for i in 1..samples - 1 {
-        let f = T::from_f64(f64::from(i) / f64::from(samples - 1));
-        let t = data.t0 + (data.t1 - data.t0) * f;
-        let p = data.carrier.eval(t);
-        let jet = tangent_jet(s1, s2, p, data.carrier.deriv(t));
-        let arm = curvature_lever_arm(s1, p)
-            .min(curvature_lever_arm(s2, p))
-            .min(data.extent);
-        let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-        if !matches!(
-            crate::swept::decide("tangent_second_order", margin, band),
-            Ok(geom_core::Sign::Positive)
-        ) {
-            return false;
-        }
-    }
-    true
-}
-
 /// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian keeps its
-/// conventional `MappedCurve` (module docs — `Seam` is malformed on a
-/// non-periodic chart, and the same-surface split is definitely
-/// smooth). Carrier and interval kept verbatim.
+/// wall surface is periodic; a plane wall's meridian becomes an image
+/// at rest in that wall's chart (module docs — `Seam` is malformed on
+/// a non-periodic chart, and one surface on both sides determines no
+/// locus, so D2's conventional split applies). Carrier and interval
+/// kept verbatim either way.
 pub(super) fn upgrade_meridian_seam<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -267,7 +210,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         // was minted through is for edges whose surfaces do not exist
         // yet (D3's transience fence). So it is described where it
         // rests, as an ordinary chart image owing the one meter.
-        describe_at_rest(body, edge, wall, tol)?;
+        body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
     let data = edge_data(body, edge)?;

@@ -19,17 +19,13 @@
 
 use crate::common;
 
-use common::{flush_declarations, line, plane, prism_z};
+use common::{brick, flush_declarations, line, plane, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, FaceSurface, MefSite,
     MevSite, mass_properties, subtract_with, union_with, validate, validate_closed,
 };
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// A right prism over `profile` x [z0, z1] pushed through the linear
 /// map `m` (rows; dyadic entries, det > 0 so outward stays outward):

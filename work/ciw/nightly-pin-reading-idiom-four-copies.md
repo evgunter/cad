@@ -2,10 +2,11 @@
 id: nightly-pin-reading-idiom-four-copies
 kind: issue
 title: nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match
-status: review
+status: closed
 opened: 2026-09-03
 pr: 1723
 branch: ciw/one-pin-reader
+closed: 2026-09-06
 ---
 
 
@@ -67,3 +68,10 @@ saying why the local half has no pin to read (it does not install from
 `ci.yml`'s pins). That is the whole cost; it is not the seam problem
 `python-suite-zero-test-guard-three-copies` faces, which moves a
 developer tool's contract.
+
+## Closed 2026-09-06
+
+PR 1723. `scripts/ci-pin.py` is the one reader of `ci.yml`'s workflow-level
+`env:` pins, anchored and refusing on a second match; `nightly.yml:659`,
+`:660` and `:1091` call it instead of restating the sed idiom, and the
+`MIRROR_EXEMPT` entry landed with it.

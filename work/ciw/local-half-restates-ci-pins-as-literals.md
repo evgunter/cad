@@ -2,9 +2,12 @@
 id: local-half-restates-ci-pins-as-literals
 kind: issue
 title: the local half restates ci.yml's tool pins as literals in five places and nothing reconciles them
-status: open
+status: closed
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies, ruff-pin-read-shares-the-first-match-shape]
+branch: ciw/pin-reconciler
+pr: 2070
+closed: 2026-09-07
 ---
 
 `ci.yml`'s workflow-level `env:` block is this repo's single source of
@@ -81,3 +84,53 @@ That unit's own `MIRROR_EXEMPT` sentence then asserted the local half
 about a pinned version restated where nothing checks it shipped a
 sentence restating an unchecked claim about exactly those pins. The
 sentence is corrected; this item is the residue it was hiding.
+
+## Disposition (PR 2070)
+
+Closed by a RECONCILER, not by substitution, which is the shape this item
+argued for. `scripts/check-ci-mirror-parity.py` gained claim 11: it derives
+`ci.yml`'s pins through `scripts/ci-pin.py`'s new `read_pins` (the whole
+workflow-level `env:` block, sharing `read_pin`'s anchoring), derives every
+`x.y.z` under `local-scripts/` by walking the tree, and reds when a literal
+names no pin the block sets — with a second, name-anchored arm for the case a
+literal drifts onto a DIFFERENT pin's value. `nextest_check()`'s text stays a
+literal a human can paste, as this item asked.
+
+The roster the item warned against is not written: what IS hand-written is
+`PIN_FREE`, the declared NON-pins, so a new version literal in that tree is an
+error until someone says what it is. Its first entry is the trap this item
+named — `0.98.4+` on `ci-local.sh:38` is an admesh floor, declared as one.
+
+The three `.claude/hooks/session-start.sh` lines this item carried are NOT
+closed here: hosted CI deletes `.claude/` at checkout, so a claim about them
+would pass hosted and red only locally. They are filed on their own, with the
+argument a fix there has to settle, as
+`work/ciw/session-start-hook-restates-ci-pins`.
+
+### Fix pass (both reviews, 2026-09-06)
+
+Two escapes were found in the reconciler and both were this item's own subject.
+`NEXTEST_VERSION=0.16.0` — the pin's own key glued to another pin's value —
+passed both arms, as did `# Nextest 0.16.0`; arm B now derives every
+underscore-separated part of a pin's key, matches case-insensitively, and
+treats `_` as a boundary. The population is `git ls-files -- local-scripts`
+rather than a directory walk, so a developer's own `*.local.*` file (which this
+repo's `.gitignore` invites) cannot red their gate over a file hosted never
+sees. `PIN_FREE` gained an inversion guard and now excuses arm B as well as
+arm A, so a declared literal beside a tool name has a declaration path.
+
+The blind-spot list at `PIN_FREE` no longer states a COUNT: a review planted
+four shapes it did not contain and one it described wrongly (`v1.2.3-rc1` is
+not invisible to the literal regex — the `1.2.3` inside it matches). Three of
+the four are now fixed rather than listed.
+
+## Closed 2026-09-07
+
+PR 2070. `scripts/check-ci-mirror-parity.py`'s claim 11 reconciles every
+version literal in the tracked files under `local-scripts/` against the pins
+`ci.yml` declares today — two arms, one on the value and one on the tool the
+line names — and the literals a human reads stay literals, which is what this
+item asked for over a substitution. The population is `git ls-files`, not a
+roster; `PIN_FREE` is the inversion (it declares the three literals that are
+NOT pins), so an undeclared literal is an error and a declaration whose
+literal disappears is an error too.

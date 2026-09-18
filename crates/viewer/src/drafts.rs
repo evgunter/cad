@@ -7,6 +7,9 @@
 //! and its methods turn typed field values into [`Expr`]s and
 //! [`LoopProgram`]s. Nothing here names `DocSession`, `ViewerApp` or
 //! `egui`; the panels write these fields and read nothing back.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId, SlotId,
@@ -15,7 +18,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKind, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
 use crate::session::ProfileShape;
 use crate::sketch::{self, PathStep, PathTarget};
@@ -27,10 +30,13 @@ use crate::sketch::{self, PathStep, PathTarget};
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug)]
 pub(crate) struct Drafts {
-    /// The View pane's δ field while it has focus, in millimetres as
-    /// typed. `None` whenever it does not, so an unfocused field shows
-    /// the δ actually in force — including one the triangle budget
-    /// chose after this field last committed.
+    /// The View pane's δ field, in millimetres AS TYPED: `Some` only
+    /// once a keystroke has landed in it, and only while it holds the
+    /// focus that keystroke arrived under. `None` otherwise, so a
+    /// field nobody has typed into shows the δ actually in force —
+    /// including one the triangle budget chose after this field last
+    /// committed — and has nothing of its own to commit when the focus
+    /// leaves it.
     pub(crate) delta_mm: Option<String>,
     /// The slot whose value field is holding REFUSED text.
     ///
@@ -78,7 +84,7 @@ pub(crate) struct Drafts {
     /// as a side effect of adding a profile. One submit, one node.
     pub(crate) profile_plane: Option<RecipeNodeId>,
     /// The add-datum form's kind choice.
-    pub(crate) datum_kind: DatumKind,
+    pub(crate) datum_kind: DatumKindChoice,
     /// The add-datum form's origin/position, metres.
     pub(crate) datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
@@ -206,7 +212,7 @@ impl Default for Drafts {
             mate_opposed: false,
             new_doc_name: None,
             profile_plane: None,
-            datum_kind: DatumKind::Plane,
+            datum_kind: DatumKindChoice::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
             datum_u: [1.0, 0.0, 0.0],

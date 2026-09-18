@@ -16,21 +16,17 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::{Sign, Tol};
 use topo::{
     Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
 };
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
-
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one solid,
 /// two shells (outer + reverted interior).
 fn voided() -> Body<f64> {
-    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let r = subtract(&a, &b, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = r else {
         panic!("the strict-containment subtract yields a voided body")
@@ -41,7 +37,7 @@ fn voided() -> Body<f64> {
 
 #[test]
 fn cube_is_one_outer_shell() {
-    let body = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
+    let body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let classes = classify_shells(&body, Tol::witness()).unwrap();
     assert_eq!(classes.len(), 1);
     let c = &classes[0];
@@ -99,9 +95,9 @@ fn per_shell_volumes_sum_to_the_body_volume() {
 #[test]
 fn sign_read_is_the_named_decide_site() {
     let body = voided();
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     let signs: Vec<Sign> = verdicts
         .iter()
         .filter(|v| v.predicate == "chk_shell_volume_sign")

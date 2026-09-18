@@ -62,10 +62,18 @@
 //! saw (`path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m), and
 //! since #661 pooled the six `bool_sector_*` / `split_sector_*` names
 //! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
-//! still lists — 233 committed here, 231 at today's main. Neither
-//! direction reaches this lint, which lints the fresh rows it was
-//! handed and never compares them to the committed files; the thresholds
-//! below are the only thing the baseline supplies. The baseline is
+//! still lists — 233 committed here, and 281 at the tip
+//! `docs/K-REPORT.md`'s M11 addendum counted (2026-09-08), 61 names in
+//! and 13 out. **Only the second is dated.** The committed 233 is a
+//! property of files `docs/k-report-data/README.md` rule 1 freezes, and
+//! `tests/threshold_provenance.rs` re-counts it off them on every gate
+//! run rather than carrying it as a figure. The tip count has no such
+//! guard and cannot have one here, and it is the shape that addendum's
+//! standing note warns about: a roster size phrased as though it were
+//! live reads as current forever and goes stale on the next merge.
+//! Neither direction reaches this lint, which lints the fresh rows it
+//! was handed and never compares them to the committed files; the
+//! thresholds below are the only thing the baseline supplies. The baseline is
 //! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
 //! ε-coupled family — not on every merge and not on a rename.
 //!
@@ -172,6 +180,24 @@
 //! passes clean). The sweep always runs all three rows, so CI always
 //! has the rows where the promise binds; a single-row run at 1e-6 would
 //! not, and should not be trusted to surface a new ε-coupled family.
+//!
+//! **A name can be ε-coupled and still belong off the roster, and that
+//! ruling is recorded rather than left to the omission's silence**
+//! ([`EPS_COUPLED_UNRULED`]). Rule (4)'s floor is the lower tail of
+//! ONE family's measured `|m|/ε`, so a name that has contributed no
+//! draw to it cannot be put under it: that would be a distribution
+//! ruling with no distribution. Such a name stays under rules (2) and
+//! (3), where the paragraph above says it is loud at the tight rows
+//! — **and only there, and only on the positive side.** Rule (4)'s
+//! own population is two-sided (24 and 48 NEGATIVE draws at the 1e-9
+//! and 1e-12 rows of the committed era, its P0 among them), so a
+//! recorded ε-coupled margin is a signed headroom whose refusal side
+//! nothing bounds, and a large negative one passes both metre rules
+//! clean. An unruled name's rows are therefore a FINDING in their own
+//! right ([`Scan::unruled`]): the CLI counts them per file, prints
+//! them ahead of the flags, and fails the run naming the open ruling
+//! rather than a baseline re-derivation that will not move. Gating on
+//! the NAME is what makes the guard independent of a row's sign.
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -280,7 +306,87 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// argument is in the module docs ("The ε-coupled families"). An
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
+///
+/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
+/// for what that does and does not cover**, because the pin's reach is
+/// narrower than this sentence can honestly summarise. It reads
+/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// and reds if a name here stops being minted there; if a rostered
+/// mint's margin stops deriving from the whole identifier `target_len`
+/// in its own enclosing function, or that binding stops being
+/// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
+/// key); if a mint acquires such a margin and is neither rostered nor
+/// excused there by name; or if any `classify_len` in that file drops
+/// out of the parse.
+///
+/// **What no test here can see** is a predicate the kernel adds to this
+/// class by a route that is not `target_len`, or in a file that table
+/// does not list. Membership is a property, that property is written
+/// nowhere a test can evaluate over a name — `target_len` is this one
+/// family's spelling of it, not the criterion — and
+/// `work/instr/k-lint-eps-coupled-criterion-unwritten` is where the
+/// criterion is scheduled. The allow-list's fail-loud posture above is
+/// why the residue is a diagnosis gap and not an open gate.
+///
+/// **A name can satisfy the criterion's spelling and still belong off
+/// this list** — see [`EPS_COUPLED_UNRULED`], which is where that is
+/// recorded and where the CLI reads it from.
 pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
+
+/// **Names ε-coupled by the same reading as [`EPS_COUPLED_PREDICATES`]
+/// that are deliberately NOT on it, each with the reason**, as
+/// `(predicate, why)`.
+///
+/// Rule (4)'s floor is a MEASUREMENT of one family's lower tail
+/// ([`EPS_COUPLED_FLOOR_RATIO`]), not a property of ε-coupling. A name
+/// that has contributed no draw to it cannot be put under it without
+/// ruling on a distribution that does not exist, so the ruling is
+/// recorded here instead of being left to a roster omission's silence.
+/// `docs/K-REPORT.md`, "Maintenance: this roster is a RECORD", carries
+/// the reasoning; this is its machine-readable half.
+///
+/// **Not a mute, and not the same claim as ROSTERING would be.** An
+/// entry's rows stay under rules (2) and (3) and are judged exactly as
+/// any unrostered name's. What the entry adds is that a row of it is
+/// itself a FINDING ([`Scan::unruled`]): the entry is here because the
+/// family has no distribution, so the first row is that premise
+/// expiring, and the CLI fails the run naming the open ruling instead
+/// of the baseline floor's recourse, which did not move. It is a
+/// finding of rules (2)/(3)'s kind rather than rule (1)'s, so
+/// `--gate-rule-1-only` demotes it with them — the E6 driver row's
+/// recorded demotion covers it for the same reason it covers those.
+///
+/// **Why the appearance gates rather than merely printing.** The
+/// metre rules catch a POSITIVE row loudly at the tight ε rows
+/// (`tests/predicate_roster.rs`), and catch nothing on the refusal
+/// side: a large negative margin is decisive, passes both rules clean,
+/// and `crates/topo/src/props.rs` (`sign_certified`'s doc, "A face
+/// that refuses on BUDGET is different") says such a refusal rides on
+/// the certificate and is reported only when `settle` never accepted
+/// — so refusals can accumulate on a wholly green suite. Gating on
+/// the NAME is the one statement that does not depend on a row's sign
+/// or size.
+///
+/// `tests/threshold_provenance.rs` carries the other half, over the
+/// committed era rule (4)'s floor is cut from.
+pub const EPS_COUPLED_UNRULED: [(&str, &str); 1] = [(
+    "props_quad_last_round",
+    concat!(
+        "the budget exit's once-per-FACE bound on a round that never runs, minted only when ",
+        "round 0 does not certify. No committed era carries a row of it and a fresh sweep ",
+        "records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md",
+    ),
+)];
+
+/// The recorded reason `predicate` is ε-coupled and deliberately off
+/// [`EPS_COUPLED_PREDICATES`], if it is.
+#[must_use]
+pub fn eps_coupled_excuse(predicate: &str) -> Option<&'static str> {
+    EPS_COUPLED_UNRULED
+        .iter()
+        .find(|(n, _)| *n == predicate)
+        .map(|(_, why)| *why)
+}
 
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
 /// P0 of the baseline's |m|/ε population (minimum 164.674), rounded
@@ -437,12 +543,46 @@ pub struct Scan {
     /// here ([`lint_sample`]'s arm says why) and are reported as their
     /// own number rather than folded into the clean count.
     pub symbolic: usize,
+    /// How many of [`Scan::scanned`] were `sign_gated` — decisions the
+    /// symbolic tier answered through its clause-3 fold (a theorem
+    /// conditional on a sign it certified over the box). Never a rule
+    /// sample, for the same reason as `symbolic_zero`, and reported as
+    /// its own number because the two claims differ in kind.
+    pub sign_gated: usize,
+    /// How many of [`Scan::scanned`] were `registered` — decisions the
+    /// symbolic tier answered through a REGISTERED IDENTITY (a
+    /// constructor's axiom about what it built, verified at the leaf's
+    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
+    /// sample, for the same reason as the two columns above, and its
+    /// own number because the claim differs in kind from both: those
+    /// two are theorems of exact arithmetic, this one additionally
+    /// rests on the registrant's argument.
+    pub registered: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
     /// floor. The CLI PRINTS this — the cap is never silent (module
     /// docs, "Rule (2)'s discrimination floor").
     pub proximity_capped: Option<(f64, f64)>,
+    /// How many rows this file carries for each
+    /// [`EPS_COUPLED_UNRULED`] name that appears in it, in roster
+    /// order, entries with no row omitted.
+    ///
+    /// **The ruling's premise, re-read on every scan, and a finding
+    /// when it fails.** Each entry is off rule (4) because it has no
+    /// distribution to cut a floor from; a non-empty count here says
+    /// that is no longer true of this file. The CLI prints it ahead of
+    /// the flags — the ruling is never silent about its own expiry,
+    /// the posture [`Scan::proximity_capped`] already has — and
+    /// FAILS the run on it, on rules (2)/(3)'s demotable side.
+    ///
+    /// Counted for every outcome, because the question is whether the
+    /// family has a distribution at all: a `zero` or in-band row is as
+    /// much of one as a definite row, and neither metre rule would say
+    /// so. The rows are ALSO judged by rules (2) and (3) exactly as
+    /// before; this column is a second, independent statement about
+    /// the same file.
+    pub unruled: Vec<(&'static str, usize)>,
 }
 
 /// The sweep's CSV header: the column order this file's rules are
@@ -465,13 +605,15 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next
 /// variant reds a test here instead of silently disarming a gate.
-pub const ACCEPTED_OUTCOMES: [&str; 6] = [
+pub const ACCEPTED_OUTCOMES: [&str; 8] = [
     "zero",
     "positive",
     "negative",
     "indeterminate",
     "invalid",
     "symbolic_zero",
+    "sign_gated",
+    "registered",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -501,6 +643,15 @@ pub const ACCEPTED_OUTCOMES: [&str; 6] = [
 /// predicates and `m < proximity_above_threshold(band_escalate)` for the
 /// rest — making the verdict incoherent rather than wrong in a stated
 /// direction. [`lint_csv`] checks it where the two admissions meet.
+///
+/// **Where a cross-column invariant goes, in which voice, and when it
+/// is owed at all is written once for both instruments** —
+/// `tools/README.md`, clauses `CC1`–`CC5`. This enum
+/// carries two of its dispositions: the band relation is `CC3`,
+/// checked at the reading boundary because neither column is the
+/// other's condition, and [`Self::Margin`] is `CC2`, folded into this
+/// table's own signature because `outcome` IS prior to the margin's
+/// policy and [`lint_csv`] has already validated it.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A classified margin: any FINITE value, of either sign — a margin
@@ -608,7 +759,22 @@ pub fn lint_sample(
         // make. The row still counts — in its own column, `Scan::
         // symbolic` — because the ratio of symbolic to numeric
         // decisions is the evidence the tier exists to produce.
-        "symbolic_zero" => {}
+        //
+        // A `sign_gated` row is the same tier's answer through its
+        // clause-3 fold: zero as a theorem CONDITIONAL on a sign the
+        // funnel certified over the leaf's box. The margin was still
+        // never classified against the band, so it is no rule's
+        // sample either; it counts in `Scan::sign_gated`, apart from
+        // the unconditional column, because the two claims differ.
+        // A `registered` row is the same tier's answer through the
+        // registered-identity door: zero because a CONSTRUCTOR stated
+        // that two of the expression's nodes are one real and the
+        // leaf's witness agreed. Still never classified against the
+        // band — no rule has a comparison to make — and still its own
+        // column (`Scan::registered`), because an axiom about a
+        // construction is not a theorem of the arithmetic and reading
+        // the three together as one number would hide exactly that.
+        "symbolic_zero" | "sign_gated" | "registered" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -642,7 +808,10 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
+    let mut sign_gated = 0usize;
+    let mut registered = 0usize;
     let mut proximity_capped = None;
+    let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
             if line != EXPECTED_HEADER {
@@ -721,7 +890,10 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         let band_zero = admit(bz, 1)?;
         let band_escalate = admit(be, 2)?;
         // The band property no per-column policy can state, because it
-        // is a RELATION between two columns that each admit alone.
+        // is a RELATION between two columns that each admit alone —
+        // `CC3` of the rule the two instruments share
+        // (`tools/README.md`), checked at this crate's
+        // reading boundary, which is this function.
         if band_zero >= band_escalate {
             return Err(ParseError {
                 line: i + 1,
@@ -735,6 +907,19 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         scanned += 1;
         if out == "symbolic_zero" {
             symbolic += 1;
+        }
+        if out == "sign_gated" {
+            sign_gated += 1;
+        }
+        if out == "registered" {
+            registered += 1;
+        }
+        // Counted for EVERY outcome, not just the definite arm: the
+        // question this column answers is whether the family has a
+        // distribution at all, and a `zero` or in-band row is as much
+        // of one as a `positive`.
+        if let Some(k) = EPS_COUPLED_UNRULED.iter().position(|(n, _)| *n == pred) {
+            unruled[k] += 1;
         }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
@@ -759,14 +944,61 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     Ok(Scan {
         scanned,
         symbolic,
+        sign_gated,
+        registered,
         flags,
         proximity_capped,
+        unruled: EPS_COUPLED_UNRULED
+            .iter()
+            .zip(unruled)
+            .filter(|(_, n)| *n > 0)
+            .map(|((name, _), n)| (*name, n))
+            .collect(),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
+    ///
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
+    }
 
     #[test]
     fn clean_definite_and_zero_pass() {

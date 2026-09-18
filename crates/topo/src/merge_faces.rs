@@ -30,14 +30,18 @@
 //! (its verification predicate is `oriented_plane_eq`; the curved
 //! counterpart's verification is the contact census's — CONTACT-DESIGN
 //! C2's decision procedure and C4's per-class tables — not a
-//! merge-local predicate).
+//! merge-local predicate). A face on the `mvfs` seed's placeholder
+//! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
+//! takes a census of them ([`MergeCoplanarOutcome::placeholders`]) and
+//! glues none.
 //!
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
 
 use std::collections::BTreeMap;
 
-use geom::Surface;
+use geom::{NetState, Surface};
+use geom_brep::SurfaceKind;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Tol};
 use slotmap::SecondaryMap;
 
@@ -45,6 +49,7 @@ use crate::body::Body;
 use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
 use crate::readback::DanglingRef;
 use crate::validate::{ValidationError, validate_closed};
@@ -73,9 +78,14 @@ pub struct MergedGroup {
     pub killed_vertices: Vec<VertexKey>,
 }
 
-/// A merge group that was NOT glued: its shape is outside the merge's
-/// never-elide Euler inventory. Loud in the record, never a silent
-/// drop — and never a partial commit.
+/// One record, two subjects, told apart by `reason`: a merge GROUP
+/// that was NOT glued (its shape is outside the merge's never-elide
+/// Euler inventory — loud in the record, never a silent drop, never a
+/// partial commit), or a declared surface PAIR the door has no rung
+/// for — a legal declaration on a non-planar carrier
+/// ([`MergeCoplanarError::DeclaredCarrierUnsupported`]). A consumer
+/// that walks `faces` treats both alike: faces the door left as they
+/// were.
 ///
 /// **The scope statements below are the KERNEL's, not the type's.**
 /// Both fields are public and there is no private constructor, so
@@ -86,7 +96,10 @@ pub struct MergedGroup {
 /// mints carries no such promise and none is claimed for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
-    /// The group's faces (group order).
+    /// The faces the record is about: a group's faces in group
+    /// order, or every live face on either surface of a declared
+    /// pair in face-arena order. Never empty for a kernel-minted
+    /// record.
     pub faces: Vec<FaceKey>,
     /// The inventory refusal that stopped the glue, carried whole:
     /// the same [`MergeCoplanarError`] vocabulary the door refuses
@@ -108,8 +121,18 @@ pub struct MergeCoplanarOutcome {
     /// Groups left unmerged as outside the inventory, with the
     /// refusal that stopped each. Non-empty needs no declaration: a
     /// curved run that would close its chart's full period is
-    /// recorded here through either entry point.
+    /// recorded here through either entry point. Declared pairs on a
+    /// non-planar carrier are recorded here too, ahead of the group
+    /// records, and survive a call that found nothing to merge.
     pub skipped: Vec<SkippedMerge>,
+    /// Faces whose surface is the placeholder
+    /// ([`MergeKind::Placeholder`]), in face-arena order — named so a
+    /// caller holding a body still under construction can see why
+    /// nothing happened to them, instead of reading `Ok` as "nothing
+    /// to merge". None is a merge candidate; the rule is
+    /// [`Body::merge_coplanar_faces_declared`]'s *The placeholder is
+    /// a third kind, not a curved one*.
+    pub placeholders: Vec<FaceKey>,
 }
 
 /// Which ladder rung licensed one mergeable adjacency (crate-
@@ -144,13 +167,13 @@ struct HalfEdgeFacts {
 /// whether its surface is curved.
 ///
 /// **The regime governs inventory failures and nothing else.** An
-/// inventory failure says *this group cannot be merged*; a stale key
-/// or a stale geometry reference says nothing about the group at all,
-/// it reports a torn arena. That is a fact about the whole body, so
-/// it refuses the call under BOTH regimes
-/// ([`MergeCoplanarError::is_arena_fault`]) and never becomes a skip
-/// record. The split is over inventory refusals; the escape is a
-/// class of refusal, not a third regime.
+/// arena fault says nothing about the group, so it refuses the call
+/// under BOTH regimes and never becomes a skip record. The split is
+/// over inventory refusals; the escape is a class of refusal, not a
+/// third regime. What puts a refusal in that class is stated once, in
+/// [`Body::merge_coplanar_faces_declared`]'s *Two failure regimes*
+/// section, and applied by
+/// [`MergeCoplanarError::is_arena_fault`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GroupRegime {
     /// An inventory refusal is the CALL's refusal: nothing commits
@@ -175,12 +198,96 @@ impl GroupRegime {
     /// This is the whole of the regime split, in one place with one
     /// production call site, so the rule and the code that applies it
     /// cannot drift: a refusal is recorded only under
-    /// [`GroupRegime::RecordsASkip`] **and** only when it is an
-    /// inventory refusal rather than an arena fault
-    /// ([`MergeCoplanarError::is_arena_fault`]).
+    /// [`GroupRegime::RecordsASkip`] and only when it is an inventory
+    /// refusal rather than an arena fault
+    /// ([`MergeCoplanarError::is_arena_fault`], the class stated in
+    /// [`Body::merge_coplanar_faces_declared`]).
     fn records(self, reason: &MergeCoplanarError) -> bool {
         self == Self::RecordsASkip && !reason.is_arena_fault()
     }
+}
+
+/// The surface kind the merge asks of a face — three answers, because
+/// the two regimes are written for two kinds and the `mvfs` seed's
+/// surface is neither. What the door does with each kind is stated
+/// once, in [`Body::merge_coplanar_faces_declared`]'s *The placeholder
+/// is a third kind, not a curved one*.
+///
+/// Which nets are the placeholder is [`NetState`]'s answer, read
+/// through [`geom::NurbsSurface::net_state`] and never re-derived
+/// here. A poisoned net has NO kind at this door: it is described
+/// geometry that cannot evaluate, and [`NetState::Poisoned`]'s docs
+/// require every consumer's described arm to FAIL on it rather than
+/// hand it the placeholder's benign answer. The merge's curved arm
+/// evaluates nothing, so it could not fail on its own — it would
+/// commit surgery over a description tier 3 refuses at rest — and
+/// the door refuses the face instead
+/// ([`MergeCoplanarError::PoisonedSurfaceDescription`]).
+///
+/// Ordered so a refusal naming two members of different kinds names
+/// them the same way whichever was the group's seed
+/// ([`MergeCoplanarError::GroupKindSplit`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MergeKind {
+    /// [`Surface::Plane`].
+    Plane,
+    /// Any described surface that is not a plane — the analytic
+    /// kinds, a described NURBS, a fitted stand-in.
+    Curved,
+    /// [`NetState::Placeholder`]: no description yet.
+    Placeholder,
+}
+
+/// A net in [`NetState::Poisoned`], which has no [`MergeKind`]
+/// ([`MergeKind`]'s docs say why).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PoisonedNet;
+
+impl MergeKind {
+    /// The kind of one surface value. The plane question is
+    /// [`SurfaceKind::of`]'s — the crate's one carrier-kind read —
+    /// and the net question is [`NetState`]'s, matched exhaustively so
+    /// no state is answered by a default.
+    fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
+        match surface {
+            Surface::Nurbs(net) => match net.net_state() {
+                NetState::Placeholder => Ok(Self::Placeholder),
+                NetState::Poisoned => Err(PoisonedNet),
+                NetState::Described => Ok(Self::Curved),
+            },
+            s if SurfaceKind::of(s) == SurfaceKind::Plane => Ok(Self::Plane),
+            _ => Ok(Self::Curved),
+        }
+    }
+
+    /// The kind's name, for a rendered refusal: one adjective each.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Plane => "planar",
+            Self::Curved => "curved",
+            Self::Placeholder => "placeholder",
+        }
+    }
+}
+
+/// What the door does with one group, decided from its members'
+/// kinds — every member's, because the hard rungs glue on identity
+/// and never ask the kind ([`Body::group_contract`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GroupContract {
+    /// Described faces of one kind: the surgery runs, its inventory
+    /// refusals placed by `regime`, and `kind` — [`MergeKind::Plane`]
+    /// or [`MergeKind::Curved`], never the placeholder — tells it what
+    /// a same-face duplicate on the survivor means: a ring on a plane,
+    /// a closed period on a chart.
+    Runs {
+        regime: GroupRegime,
+        kind: MergeKind,
+    },
+    /// Every member is a placeholder: no surgery, no skip
+    /// ([`Body::merge_coplanar_faces_declared`], *The placeholder is a
+    /// third kind, not a curved one*).
+    SetAside,
 }
 
 /// A refused [`Body::merge_coplanar_faces`] call (closed enum, D3
@@ -221,21 +328,40 @@ pub enum MergeCoplanarError {
         /// The tier-1/2 failures of the abandoned trial.
         errors: Vec<ValidationError>,
     },
-    /// A merge group's members are not all of one surface KIND, so
-    /// the run is neither a planar run nor a curved one and there is
-    /// no regime to give it.
+    /// A merge group's members are not all of one surface KIND
+    /// ([`MergeKind`]), so the run is neither a planar run nor a
+    /// curved one and there is no regime to give it.
     ///
     /// The hard rungs glue on *source* identity, not on kind, and
     /// [`Body::set_surface_source`] is a public door that stamps a
     /// source without comparing the descriptions it joins — so a
     /// caller can declare a plane and a cylinder to be one recipe
-    /// surface. Deciding the group's kind off one member would let
-    /// arena order pick its contract; this refuses instead.
+    /// surface, or a plane and a placeholder that describes nothing
+    /// yet. Deciding the group's kind off one member would let arena
+    /// order pick its contract; this refuses instead. The two members
+    /// are named in [`MergeKind`] order, so the same pair reads the
+    /// same way whichever face seeded the group.
     GroupKindSplit {
-        /// A planar member.
-        planar: FaceKey,
-        /// A member that is not planar.
-        curved: FaceKey,
+        /// A member.
+        face: FaceKey,
+        /// Its kind.
+        kind: MergeKind,
+        /// A member of another kind.
+        other: FaceKey,
+        /// That member's kind.
+        other_kind: MergeKind,
+    },
+    /// A face's surface is a `Nurbs` net in [`NetState::Poisoned`]:
+    /// described geometry that cannot evaluate. Tier 3 refuses such a
+    /// body at rest ([`ValidationError::PoisonedSurfaceDescription`]);
+    /// this door's entry gate is tier 2, so it refuses the face itself,
+    /// before any group forms — its curved arm would otherwise commit
+    /// surgery over a description nothing certified ([`MergeKind`]).
+    /// Distinct from the placeholder, which is set aside and named,
+    /// never refused.
+    PoisonedSurfaceDescription {
+        /// The face whose surface net carries the poison.
+        face: FaceKey,
     },
     /// A shared edge's two halves lie in **different loops of one
     /// face** after absorption (a ring-adjacent merge shape) — outside
@@ -268,15 +394,19 @@ pub enum MergeCoplanarError {
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`],
     /// the state is the one the operators name and the caller's
     /// recourse is identical, so it is not given a second name here.
-    /// Those two are the arena faults that escape [`GroupRegime`]'s
-    /// split ([`MergeCoplanarError::is_arena_fault`]).
+    /// Those two are arena faults and refuse the call under both
+    /// failure regimes, as do the other operator refusals the class
+    /// covers — which is wider than a dangling reference and is
+    /// stated in [`Body::merge_coplanar_faces_declared`].
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or a non-plane surface (M4 PR 5) — a caller bug,
-    /// refused up front.
+    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// argument, refused up front. A pair on one non-planar kind is
+    /// NOT this: it is a legal declaration recorded as
+    /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
     InvalidDeclaration {
         /// The offending surface key.
         surface: SurfaceKey,
@@ -298,6 +428,33 @@ pub enum MergeCoplanarError {
         f1: FaceKey,
         /// The second face.
         f2: FaceKey,
+    },
+    /// A declared surface pair lies on one NON-PLANAR carrier kind.
+    /// The declaration is legal — the boolean's declarable inventory
+    /// admits it and it served the consuming op's classification —
+    /// but this door's declared-pair rung is planar and has no arm
+    /// for the kind, so the pair is left unmerged and RECORDED. Scope
+    /// is the pair: the kernel constructs this only as a
+    /// [`SkippedMerge::reason`], never as an `Err` of the door, and
+    /// it is an inventory statement, not an arena fault. Like
+    /// [`MergeCoplanarError::GroupNotClosed`], that is a fact about
+    /// where the kernel constructs it, not something the type
+    /// enforces. The record is keyed off the DECLARATION: it states
+    /// what this door did with the caller's argument, not what the
+    /// geometry admits — a pair whose surviving faces are a slit's
+    /// two sides is recorded the same as one a curved arm would glue.
+    /// A pair with no live face on either surface is not recorded at
+    /// all, so a record's `faces` is never empty.
+    DeclaredCarrierUnsupported {
+        /// The declared surface pair, as the caller passed it. Both
+        /// keys resolved when the door read them; a caller that
+        /// re-describes edges after this call may drop a surface the
+        /// pair names (a surface held only by an edge curve's
+        /// reference goes with that curve), so a consumer walks the
+        /// record's `faces`, not the pair, for what is live.
+        pair: (SurfaceKey, SurfaceKey),
+        /// The carrier kind both surfaces share.
+        kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline (zero or several positive windings) —
@@ -355,11 +512,35 @@ impl core::fmt::Display for MergeCoplanarError {
                  the group is left unmerged and the run continues",
                 errors.len()
             ),
-            Self::GroupKindSplit { planar, curved } => write!(
+            Self::GroupKindSplit {
+                face,
+                kind,
+                other,
+                other_kind,
+            } => {
+                write!(
+                    f,
+                    "merge_coplanar_faces: group members {face:?} ({}) and {other:?} ({}) are \
+                     one group but not one surface kind — the run is neither planar nor \
+                     curved; re-check the shared surface source that joined them",
+                    kind.name(),
+                    other_kind.name()
+                )?;
+                if [*kind, *other_kind].contains(&MergeKind::Placeholder) {
+                    write!(
+                        f,
+                        " (a placeholder describes no locus and is never one recipe surface \
+                         with a described face)"
+                    )?;
+                }
+                Ok(())
+            }
+            Self::PoisonedSurfaceDescription { face } => write!(
                 f,
-                "merge_coplanar_faces: group members {planar:?} (planar) and {curved:?} \
-                 (not planar) are one group but not one surface kind — the run is neither \
-                 planar nor curved; re-check the shared surface source that joined them"
+                "merge_coplanar_faces: face {face:?}'s surface is a Nurbs net carrying poison \
+                 in some channel — described geometry that cannot evaluate, which tier 3 \
+                 refuses at rest; attach a real description (Body::set_face_surface) before \
+                 merging"
             ),
             Self::UnsupportedConfiguration { edge } => write!(
                 f,
@@ -387,6 +568,13 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
                  orientations — unmergeable in a closed solid"
+            ),
+            Self::DeclaredCarrierUnsupported { pair, kind } => write!(
+                f,
+                "merge_coplanar_faces: declared pair {pair:?} lies on a {kind} carrier — \
+                 the declaration is legal and served the op, but this door's declared-pair \
+                 rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
+                kind = kind.name()
             ),
             Self::MergedFaceRoleAmbiguous { face } => write!(
                 f,
@@ -427,26 +615,348 @@ impl From<DanglingRef> for MergeCoplanarError {
     }
 }
 
+// ---- Test-only tear points -------------------------------------
+//
+// `merge_group` RE-CHECKS each fact it relies on immediately before
+// the operator call that could contradict it (the `debug_assert!`
+// rows in the surgery), so a refusal of a contradicted variant on a
+// production build means the arena moved in the instruction window
+// between the proof and the call. Nothing outside a test build can
+// reach that window — the door's entry gate refuses a torn INPUT
+// before any group is staged — so a test arms one of these points,
+// which sit AFTER the re-check and immediately before the call, and
+// mutate exactly the fact the re-check just proved. That placement is
+// the point: the tear models the window the re-check cannot cover.
+
+/// One falsifiable fact of `merge_group`'s surgery, named where it is
+/// established, re-checked and torn.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TearPoint {
+    /// Before `ring_move`: makes the ring its own face's outer loop.
+    RingBecomesItsFacesOuter,
+    /// Before `ring_move`: bends the ring's face onto a foreign shell.
+    RingsFaceLeavesTheShell,
+    /// Before `kef`: re-parents the dying half onto its mate's loop.
+    DyingHalfJoinsItsMatesLoop,
+    /// Before `kef`: puts a ring back onto the drained face.
+    DrainedFaceRegainsARing,
+    /// Before `kev`: collapses the strut edge onto one vertex.
+    StrutBecomesASelfLoop,
+    /// Before `kemr`: re-parents the duplicate's minus half elsewhere.
+    DuplicateHalvesPartCompany,
+}
+
+#[cfg(test)]
+thread_local! {
+    static ARMED_TEAR: std::cell::Cell<Option<TearPoint>> = const { std::cell::Cell::new(None) };
+}
+
+/// Arms one tear point for the guard's lifetime and disarms on drop,
+/// so a panic inside the door — an assertion in the row itself, or a
+/// `debug_assert!` in the surgery — cannot leave it armed for the
+/// next row on this thread.
+#[cfg(test)]
+pub(crate) struct ArmedTear;
+
+#[cfg(test)]
+impl ArmedTear {
+    fn at(point: TearPoint) -> Self {
+        ARMED_TEAR.with(|c| c.set(Some(point)));
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for ArmedTear {
+    fn drop(&mut self) {
+        ARMED_TEAR.with(|c| c.set(None));
+    }
+}
+
+#[cfg(test)]
+fn armed_tear() -> Option<TearPoint> {
+    ARMED_TEAR.with(std::cell::Cell::get)
+}
+
+/// The tear points offered immediately before `ring_move`.
+#[cfg(test)]
+fn tear_before_ring_move<T: geom_core::Real>(body: &mut Body<T>, ring: LoopKey) {
+    let Some(point) = armed_tear() else { return };
+    let Some(face_key) = body.get_loop(ring).map(|l| l.face) else {
+        return;
+    };
+    let Some(face) = body.faces.get_mut(face_key) else {
+        return;
+    };
+    match point {
+        TearPoint::RingBecomesItsFacesOuter => face.outer = ring,
+        TearPoint::RingsFaceLeavesTheShell => face.shell = crate::entity::ShellKey::default(),
+        _ => {}
+    }
+}
+
+/// The tear points offered immediately before `kef`.
+#[cfg(test)]
+fn tear_before_kef<T: geom_core::Real>(
+    body: &mut Body<T>,
+    dying_he: crate::entity::HalfEdgeKey,
+    edge: EdgeKey,
+    dying_face: FaceKey,
+) {
+    match armed_tear() {
+        Some(TearPoint::DyingHalfJoinsItsMatesLoop) => {
+            let Some(e) = body.get_edge(edge).cloned() else {
+                return;
+            };
+            let mate = if e.he_plus == dying_he {
+                e.he_minus
+            } else {
+                e.he_plus
+            };
+            let Some(mates_loop) = body.get_half_edge(mate).map(|h| h.parent_loop) else {
+                return;
+            };
+            if let Some(h) = body.half_edges.get_mut(dying_he) {
+                h.parent_loop = mates_loop;
+            }
+        }
+        Some(TearPoint::DrainedFaceRegainsARing) => {
+            let Some(outer) = body.get_face(dying_face).map(|f| f.outer) else {
+                return;
+            };
+            if let Some(face) = body.faces.get_mut(dying_face) {
+                face.rings.push(outer);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The tear point offered immediately before `kev`.
+#[cfg(test)]
+fn tear_before_kev<T: geom_core::Real>(
+    body: &mut Body<T>,
+    from_rim: crate::entity::HalfEdgeKey,
+    edge: EdgeKey,
+) {
+    if armed_tear() != Some(TearPoint::StrutBecomesASelfLoop) {
+        return;
+    }
+    let Some(e) = body.get_edge(edge).cloned() else {
+        return;
+    };
+    let mate = if e.he_plus == from_rim {
+        e.he_minus
+    } else {
+        e.he_plus
+    };
+    let Some(start) = body.get_half_edge(from_rim).map(|h| h.start) else {
+        return;
+    };
+    if let Some(h) = body.half_edges.get_mut(mate) {
+        h.start = start;
+    }
+}
+
+/// The tear point offered immediately before `kemr`.
+#[cfg(test)]
+fn tear_before_kemr<T: geom_core::Real>(body: &mut Body<T>, he_minus: crate::entity::HalfEdgeKey) {
+    if armed_tear() != Some(TearPoint::DuplicateHalvesPartCompany) {
+        return;
+    }
+    if let Some(h) = body.half_edges.get_mut(he_minus) {
+        h.parent_loop = LoopKey::default();
+    }
+}
+
+/// A fact `merge_group` establishes, **re-checks immediately before**
+/// the operator call that could contradict it, and therefore owns.
+///
+/// A fact the door merely read earlier is worth nothing here: the
+/// door's own mutations run in between, and a fact the surgery
+/// invalidates itself is not contradicted by an operator reporting
+/// it. `kef`'s [`EulerOpError::SameFace`] is the case that taught it —
+/// the absorption's `ring_move` drain re-homes the dying loop onto
+/// the survivor, so on a nested (membrane-in-a-ring) group the two
+/// halves legitimately end up in one face and `SameFace` is an
+/// INVENTORY refusal, not a contradiction. Each fact below is
+/// re-derived from the arena at the call, so a refusal naming it can
+/// only be a tear.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EstablishedFact {
+    /// The ring being re-homed is not its own face's outer loop
+    /// (tier 1 keeps `outer` out of `rings`, and the ring came out of
+    /// `rings`).
+    RingIsNotItsFacesOuter,
+    /// The ring's face and the survivor lie in one shell (they were
+    /// found across one edge, and tier 1's edge-adjacency coherence
+    /// keeps an edge's two faces in one shell).
+    RingAndSurvivorShareAShell,
+    /// The absorbed face is ring-free: the drain above re-homed every
+    /// ring it had onto the survivor.
+    AbsorbedFaceIsRingFree,
+    /// The dying half-edge and its mate are in different loops.
+    DyingHalvesAreInDifferentLoops,
+    /// The strut edge's two halves start at distinct vertices, which
+    /// `strut_tip`'s valence-one answer established.
+    StrutHalvesHaveDistinctEnds,
+    /// The duplicate edge's two halves share a loop, which the
+    /// intra-face pass verified before choosing `kemr`.
+    DuplicateHalvesShareALoop,
+}
+
+impl EstablishedFact {
+    /// The sentence the re-check proves, for its assertion message.
+    fn what(self) -> &'static str {
+        match self {
+            Self::RingIsNotItsFacesOuter => {
+                "the ring being re-homed is not its own face's outer loop"
+            }
+            Self::RingAndSurvivorShareAShell => "the ring's face and the survivor lie in one shell",
+            Self::AbsorbedFaceIsRingFree => "the drain leaves the absorbed face ring-free",
+            Self::DyingHalvesAreInDifferentLoops => {
+                "the dying half-edge and its mate are in different loops"
+            }
+            Self::StrutHalvesHaveDistinctEnds => {
+                "the strut edge's two halves start at distinct vertices"
+            }
+            Self::DuplicateHalvesShareALoop => "the duplicate edge's two halves share a loop",
+        }
+    }
+}
+
+/// Where one [`EulerOpError`] falls **at this door**.
+///
+/// The arena-fault rule ([`Body::merge_coplanar_faces_declared`]) has
+/// two halves with two owners, and this enum is the door's half. *Is
+/// the variant torn by its own line?* belongs to the operator layer
+/// ([`EulerOpError::reports_tier1_corruption`]) and
+/// [`OpPlacement::TheEnumsVerdict`] delegates it. *Does the refusal
+/// contradict a fact this door RE-CHECKS at the call?* no other
+/// caller of the operator can answer, so it is enumerated here, one
+/// arm per [`EstablishedFact`].
+///
+/// # Which site raises which
+///
+/// The sites in `merge_group` that can return an [`EulerOpError`],
+/// and the whole of what they raise. `R` marks a refusal that is
+/// reachable on a tier-1-valid body — the regime's to place — and
+/// `C` one this door contradicts. The survivor's kind is not a site:
+/// the contract reads it, of every member, before the surgery is
+/// handed the group ([`Body::group_contract`]), and the surgery's own
+/// re-check of what it was told is a `debug_assert!`, not a lookup
+/// that can return.
+///
+/// | site | can return |
+/// | --- | --- |
+/// | `edge_halves` | `StaleKey` |
+/// | `get_face` (the dying face) | `StaleKey` |
+/// | `strut_tip` | `OrbitBroken` |
+/// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
+/// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
+/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C) |
+/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+///
+/// The variants the table does not name take the enum's verdict like
+/// any other variant this door does not contradict. One of them this
+/// door does raise, outside `merge_group`: `StaleGeometry`, when the
+/// kind census ([`Body::merge_kind`]) meets a face whose surface key
+/// does not resolve — announced through [`crate::DanglingRef`] before
+/// any group reaches the surgery. The rest belong to operators this
+/// door does not call: the attachment and split gates
+/// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
+/// `mef`, `mekr`), `kvfs`, `kfmrh`'s cross-solid form and the
+/// shell-move door. That is not a third arm: an arm the door cannot
+/// reach cannot be pinned, and a classification nothing can
+/// distinguish is documentation, which is what this table is. No
+/// count of the remainder is stated here; the match below is the
+/// census.
+///
+/// The match producing this is exhaustive on purpose, like the enum's
+/// own: a new [`EulerOpError`] variant does not compile until someone
+/// places it here as well as on the operator layer's line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OpPlacement {
+    /// The operator layer's verdict, taken as it stands. The door
+    /// keeps no copy of that list and adds nothing to it.
+    TheEnumsVerdict,
+    /// The refusal contradicts a fact this door re-checks immediately
+    /// before the call it came back from, so it reports the arena
+    /// whatever the variant means elsewhere.
+    Contradicts(EstablishedFact),
+}
+
+impl OpPlacement {
+    /// Places one operator refusal against the facts `merge_group`
+    /// re-checks at its calls (the table in [`OpPlacement`]).
+    fn of(error: &EulerOpError) -> Self {
+        use EstablishedFact as F;
+        use EulerOpError as E;
+        match error {
+            // ---- This door's own half: contradicts a re-checked
+            // fact. Each arm's re-check is the `debug_assert!` that
+            // carries the same `EstablishedFact` in the surgery. ----
+            E::RingIsOuter { .. } => Self::Contradicts(F::RingIsNotItsFacesOuter),
+            E::CrossShell { .. } => Self::Contradicts(F::RingAndSurvivorShareAShell),
+            E::FaceHasRings { .. } => Self::Contradicts(F::AbsorbedFaceIsRingFree),
+            E::SameLoop { .. } => Self::Contradicts(F::DyingHalvesAreInDifferentLoops),
+            E::SelfLoopEdge { .. } => Self::Contradicts(F::StrutHalvesHaveDistinctEnds),
+            E::NotSameLoop { .. } => Self::Contradicts(F::DuplicateHalvesShareALoop),
+            // ---- The enum's half. `SameFace` is here and not above:
+            // the absorption's own drain re-homes the dying loop onto
+            // the survivor, so a nested group meets it on a body that
+            // was never torn and the regime places it. ----
+            E::SameFace { .. }
+            | E::StaleKey { .. }
+            | E::StaleGeometry { .. }
+            | E::LoopCycleBroken { .. }
+            | E::LoopNotCycle { .. }
+            | E::NotSameEdge { .. }
+            | E::UnclaimedHalfEdge { .. }
+            | E::OrbitBroken { .. }
+            | E::EmptyAnchorsCollide { .. }
+            | E::Certification { .. }
+            | E::RebasedCarrier { .. }
+            | E::DescriptionNotAdjacent { .. }
+            | E::FanStartMismatch { .. }
+            | E::FanOrbitBroken { .. }
+            | E::LoopNotEmpty { .. }
+            | E::NotSameFace { .. }
+            | E::SolidNotSingleShell { .. }
+            | E::ShellNotSingleFace { .. }
+            | E::NullScaffoldCurve { .. }
+            | E::SplitParamNotInterior { .. }
+            | E::SplitParamEscalated { .. }
+            | E::PcurveSplit { .. }
+            | E::CrossSolid { .. }
+            | E::NoShellsNamed
+            | E::ShellRepeated { .. }
+            | E::ShellsAcrossSolids { .. }
+            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
+        }
+    }
+}
+
 impl MergeCoplanarError {
     /// Whether this refusal reports a torn ARENA rather than a fact
     /// about the group's mergeability.
     ///
-    /// An arena fault is a statement about the whole body, so it
-    /// escapes [`GroupRegime`]'s split and refuses the call under
-    /// both regimes: recording one as a skip would return `Ok` from a
-    /// door that has just observed a kernel bug. Every other variant
-    /// — the inventory refusals — is the regime's to place.
-    ///
-    /// The class is **not enumerated here**. Every arena fault this
-    /// door can raise arrives from the operator layer, so membership
-    /// is asked of the operator layer
-    /// ([`EulerOpError::reports_tier1_corruption`], whose exhaustive
-    /// match is what stops the two lists drifting apart). A second
-    /// copy of the list in this file is exactly how the door came to
-    /// promise a rule it kept for two variants out of nine.
+    /// The rule is stated once, in [`GroupRegime`]'s header, and this
+    /// applies it: a refusal escapes when the variant is torn by the
+    /// operator layer's own line
+    /// ([`EulerOpError::reports_tier1_corruption`]), **or** when it
+    /// contradicts a fact this door re-checks at the call
+    /// ([`OpPlacement`], [`EstablishedFact`]). The second half is
+    /// enumerated here because it is this door's own question; the
+    /// first is delegated because it is not.
     fn is_arena_fault(&self) -> bool {
         match self {
-            Self::Op { error } => error.reports_tier1_corruption(),
+            Self::Op { error } => match OpPlacement::of(error) {
+                OpPlacement::Contradicts(_) => true,
+                OpPlacement::TheEnumsVerdict => error.reports_tier1_corruption(),
+            },
             _ => false,
         }
     }
@@ -559,18 +1069,24 @@ impl<T: Decide> Body<T> {
 
     /// [`Body::merge_coplanar_faces`] with declared coincident
     /// SURFACE pairs (M4 PR 5, F5): each pair's surfaces are declared
-    /// to describe one plane by recipe intent — they become
-    /// equivalent for the adjacency test (fragments inherit surface
-    /// keys, so every fragment of a declared face is covered),
-    /// verified at each meeting edge through `plane_eq`'s declared
-    /// rung (contradiction refuses typed). Same-source surfaces (N6)
-    /// glue with zero declarations — the retired bit rung's
-    /// replacement.
+    /// to describe one carrier by recipe intent. A PLANAR pair's
+    /// surfaces become equivalent for the adjacency test (fragments
+    /// inherit surface keys, so every fragment of a declared face is
+    /// covered), verified at each meeting edge through `plane_eq`'s
+    /// declared rung (contradiction refuses typed). Same-source
+    /// surfaces (N6) glue with zero declarations — the retired bit
+    /// rung's replacement.
     ///
     /// A declared pair whose surfaces never meet at an edge licenses
     /// nothing and is a no-op (the equivalence is consulted only
-    /// across shared edges); a pair whose keys do not resolve is a
-    /// typed refusal.
+    /// across shared edges); a pair whose keys do not resolve, or
+    /// whose surfaces are of two kinds, is a typed refusal. A pair on
+    /// one NON-PLANAR kind is a legal declaration this door has no
+    /// rung for: it is recorded in [`MergeCoplanarOutcome::skipped`]
+    /// as [`MergeCoplanarError::DeclaredCarrierUnsupported`] (the
+    /// declared-licensed regime's own rule — the declaration served
+    /// the calling op) and never refused, even when the call has
+    /// nothing else to merge.
     ///
     /// # Two failure regimes, one refusal vocabulary
     ///
@@ -588,10 +1104,34 @@ impl<T: Decide> Body<T> {
     /// refusal and never becomes a record**: it says nothing about
     /// the group, so it refuses the call under both regimes rather
     /// than returning `Ok` from a door that has just observed a
-    /// kernel bug. The class is the operator layer's
-    /// ([`EulerOpError::reports_tier1_corruption`]) — a dangling
-    /// reference and the walks and bijections that cannot fail on a
-    /// tier-1-valid body — not a list kept here.
+    /// kernel bug. **This is the rule's one statement in this
+    /// module** — everything else that applies it points here.
+    ///
+    /// Two things put a refusal in that class and this door asks
+    /// both:
+    ///
+    /// 1. The **operator layer's own line**
+    ///    ([`EulerOpError::reports_tier1_corruption`]): a dangling
+    ///    reference, and the walks and bijections that cannot fail on
+    ///    a tier-1-valid body. A property of the variant, asked and
+    ///    never copied here.
+    /// 2. A refusal that **contradicts a fact the surgery re-checks
+    ///    at the call** it came back from. `kef` reporting that the
+    ///    dying face still has rings, on a face whose rings the
+    ///    surgery re-homed and re-checked a statement earlier,
+    ///    reports the arena and not the group's mergeability,
+    ///    whatever that variant means at another door.
+    ///
+    /// **Re-checked, not merely established.** A fact the door read
+    /// before its own next mutation says nothing about the call:
+    /// `kef`'s [`EulerOpError::SameFace`] is the case that settles
+    /// it. The absorption's ring drain re-homes the dying loop onto
+    /// the survivor, so on a nested group — a membrane face covering
+    /// a ring of its neighbour — the two halves legitimately end up
+    /// in one face, and `SameFace` there is an INVENTORY refusal on a
+    /// body that was never torn. Only the facts the surgery
+    /// re-derives from the arena immediately before the call are the
+    /// door's to contradict.
     ///
     /// [`MergeCoplanarError::GroupKindSplit`] also refuses under both
     /// regimes, but for a different reason and with a cost worth
@@ -603,6 +1143,30 @@ impl<T: Decide> Body<T> {
     /// would have carried on. That is the honest outcome of having no
     /// contract to give such a group, not a decision to refuse
     /// licensed work.
+    ///
+    /// # The placeholder is a third kind, not a curved one
+    ///
+    /// A face whose surface is the `mvfs` seed's placeholder
+    /// ([`MergeKind::Placeholder`]) describes no locus, so it is
+    /// neither a planar run nor a curved one: the door names every
+    /// such face in [`MergeCoplanarOutcome::placeholders`], a run of
+    /// them on one key is SET ASIDE — no surgery, no group, no skip —
+    /// and a group that joins one to a described face through a
+    /// shared surface source refuses [`MergeCoplanarError::GroupKindSplit`]
+    /// like any other straddle. That is the only rung that can join
+    /// them: the structural rung reads one key as one surface, so a
+    /// placeholder shares a key only with placeholders, and a declared
+    /// pair must name planes. A refusal rather than a quiet set-aside
+    /// because the source stamp is the CALLER's claim that the two
+    /// are one recipe surface, and a placeholder cannot be one with a
+    /// described face; setting it aside would have the door pick
+    /// which half of that contradiction to believe.
+    ///
+    /// The census is taken before the adjacency scan, so the record is
+    /// complete whether or not anything merges. A POISONED net is not
+    /// a placeholder and is not set aside: it refuses the call
+    /// ([`MergeCoplanarError::PoisonedSurfaceDescription`]) before any
+    /// group forms, for the reason [`MergeKind`] gives.
     ///
     /// The recording side is bounded the same way the refusing side
     /// is: each such group is staged on its own clone behind its own
@@ -626,26 +1190,73 @@ impl<T: Decide> Body<T> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
-        // ---- Declared pairs: validate, then class the surfaces. ----
-        let planar = |body: &Self, k: SurfaceKey| -> Result<(), MergeCoplanarError> {
-            match body.get_surface(k) {
-                Some(Surface::Plane { .. }) => Ok(()),
-                Some(_) => Err(MergeCoplanarError::InvalidDeclaration {
-                    surface: k,
-                    what: "declared surface is not a plane",
-                }),
-                None => Err(MergeCoplanarError::InvalidDeclaration {
+        // ---- Declared pairs: validate, then class each by carrier kind. ----
+        //
+        // A key that does not resolve, or a pair of two kinds, is a
+        // torn argument and refuses. A planar pair joins the surface
+        // equivalence. A pair on one non-planar kind is a LEGAL
+        // declaration this door has no rung for: it is declined here
+        // and recorded below, never refused — the declaration served
+        // the calling op, and an inventory limit of this door is not
+        // the caller's error.
+        let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
+            self.get_surface(k)
+                .map(SurfaceKind::of)
+                .ok_or(MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                }),
-            }
+                })
         };
         let mut eq = DeclaredSurfaceEq::default();
+        let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
+        let mut declined_seen: std::collections::BTreeSet<(SurfaceKey, SurfaceKey)> =
+            std::collections::BTreeSet::new();
         for &(k1, k2) in declared {
-            planar(self, k1)?;
-            planar(self, k2)?;
-            eq.union(k1, k2);
+            let (kind1, kind2) = (kind_of(k1)?, kind_of(k2)?);
+            if kind1 != kind2 {
+                // Named: the second key, whose kind disagrees with the first's.
+                return Err(MergeCoplanarError::InvalidDeclaration {
+                    surface: k2,
+                    what: "declared surfaces are not one kind",
+                });
+            }
+            if kind1 == SurfaceKind::Plane {
+                eq.union(k1, k2);
+            } else if declined_seen.insert((k1, k2)) {
+                // One record per declared pair: a caller that lowers
+                // several face pairs to one surface pair hands the
+                // door copies, and a copy names nothing new.
+                declined.push(((k1, k2), kind1));
+            }
         }
+        // The declined pairs' records name every live face on either
+        // declared surface, read off the body the caller RECEIVES —
+        // `self` when nothing merges, the staged result otherwise —
+        // so a recorded face is never a dead key (a same-key run on
+        // one of the pair's surfaces can COMMIT beside the declined
+        // pair, absorbing a face the pre-surgery body still had;
+        // `curved_mergedoor::record_beside_a_committing_curved_run_names_only_live_faces`
+        // pins it). A pair with NO live face on either surface — a
+        // surface kept alive by an edge description after every face
+        // left it — gets no record: the declaration served nothing at
+        // this door, and a record naming nothing would be the silent
+        // shape (`curved_mergedoor::pair_with_no_live_faces_mints_no_record`).
+        let declined_records = |body: &Self| -> Vec<SkippedMerge> {
+            declined
+                .iter()
+                .filter_map(|&(pair, kind)| {
+                    let faces: Vec<FaceKey> = body
+                        .faces()
+                        .filter(|(_, face)| face.surface == pair.0 || face.surface == pair.1)
+                        .map(|(key, _)| key)
+                        .collect();
+                    (!faces.is_empty()).then_some(SkippedMerge {
+                        faces,
+                        reason: MergeCoplanarError::DeclaredCarrierUnsupported { pair, kind },
+                    })
+                })
+                .collect()
+        };
         let declared_ctx = if eq.is_empty() {
             None
         } else {
@@ -653,6 +1264,22 @@ impl<T: Decide> Body<T> {
                 eq,
                 band: Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?,
             })
+        };
+        // ---- The kind census (read-only, face-arena order). ----
+        //
+        // Every face's kind, asked once: the contract reads it for
+        // each group's members, and the placeholder record is its
+        // by-product. Taken before the adjacency scan so the record is
+        // complete whether or not anything merges, and so a poisoned
+        // net refuses before any group forms.
+        let kinds = self.kind_census()?;
+        let mut outcome = MergeCoplanarOutcome {
+            placeholders: self
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| kinds.get(k) == Some(&MergeKind::Placeholder))
+                .collect(),
+            ..MergeCoplanarOutcome::default()
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
         let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
@@ -680,7 +1307,12 @@ impl<T: Decide> Body<T> {
             }
         }
         if !any {
-            return Ok(MergeCoplanarOutcome::default());
+            // Nothing to merge: the declined declared pairs still
+            // ship (they are a statement about the caller's argument,
+            // not about any merge), on the outcome whose placeholder
+            // census the initializer already took.
+            outcome.skipped = declined_records(self);
+            return Ok(outcome);
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
         //
@@ -715,26 +1347,48 @@ impl<T: Decide> Body<T> {
         // refusals and an arena fault escapes it under both regimes.
         // The recording arm additionally clones a trial and runs its
         // own tier-2 gate, which is the price of letting the rest of
-        // the run commit.
+        // the run commit. A placeholder run has no regime and no
+        // surgery: it is set aside here, its faces already named.
         let mut work = self.clone();
-        let mut outcome = MergeCoplanarOutcome::default();
         for (rep, rest) in groups {
-            match work.group_regime(rep, &rest, &declared_faces)? {
+            let (regime, kind) = match Self::group_contract(rep, &rest, &kinds, &declared_faces)? {
+                GroupContract::Runs { regime, kind } => (regime, kind),
+                GroupContract::SetAside => continue,
+            };
+            match regime {
                 GroupRegime::RefusesTheCall => {
-                    outcome.groups.push(work.merge_group(rep, &rest, tol)?);
+                    // One surgery scope per group: the ring surgery
+                    // inside `merge_group` is this door's, and the
+                    // tier-2 gate below is what certifies its result.
+                    let mut surgery = work.begin_surgery();
+                    let group = surgery.merge_group(rep, &rest, kind, tol)?;
+                    surgery.sweep_and_close();
+                    outcome.groups.push(group);
                 }
                 GroupRegime::RecordsASkip => {
                     let mut trial = work.clone();
                     // The sub-stage's own tier-2 gate: the group is
                     // adopted only if its trial validates, so a
                     // recorded skip leaves `work` exactly as it was.
-                    let staged =
-                        trial
-                            .merge_group(rep, &rest, tol)
-                            .and_then(|group| match validate_closed(&trial) {
-                                Ok(()) => Ok(group),
-                                Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
-                            });
+                    let staged = {
+                        // The sweep is the SUCCESS path's. A refusal
+                        // here is the trial's own — the group is
+                        // recorded as skipped and the trial thrown
+                        // away — and the state a refusal leaves
+                        // behind was never this door's to certify.
+                        let mut surgery = trial.begin_surgery();
+                        match surgery.merge_group(rep, &rest, kind, tol) {
+                            Ok(group) => {
+                                surgery.sweep_and_close();
+                                Ok(group)
+                            }
+                            Err(error) => Err(error),
+                        }
+                    }
+                    .and_then(|group| match validate_closed(&trial) {
+                        Ok(()) => Ok(group),
+                        Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
+                    });
                     match staged {
                         Ok(group) => {
                             work = trial;
@@ -782,17 +1436,44 @@ impl<T: Decide> Body<T> {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
-        *self = work;
+        let mut skipped = declined_records(&work);
+        skipped.append(&mut outcome.skipped);
+        outcome.skipped = skipped;
+        self.adopt(work);
         Ok(outcome)
     }
 
-    /// Whether the group's face is planar, announcing both lookups.
+    /// The other half of `edge`, resolved — the re-checks' shared
+    /// lookup. `None` when either key does not resolve, which the
+    /// re-checks read as "nothing to prove here": a dangling key is
+    /// the operator's own refusal to make, and it is torn by the
+    /// enum's line either way.
+    fn edge_mate(
+        &self,
+        he: crate::entity::HalfEdgeKey,
+        edge: EdgeKey,
+    ) -> Option<&crate::entity::HalfEdge> {
+        let e = self.get_edge(edge)?;
+        let mate = if e.he_plus == he {
+            e.he_minus
+        } else if e.he_minus == he {
+            e.he_plus
+        } else {
+            return None;
+        };
+        self.get_half_edge(mate)
+    }
+
+    /// The [`MergeKind`] of one face's surface, announcing both
+    /// lookups.
     ///
     /// # Errors
     ///
     /// [`MergeCoplanarError::Op`], through the crate's dangling-
-    /// reference vocabulary.
-    fn face_is_planar(&self, face: FaceKey) -> Result<bool, MergeCoplanarError> {
+    /// reference vocabulary;
+    /// [`MergeCoplanarError::PoisonedSurfaceDescription`] for a net
+    /// that has no kind here.
+    fn merge_kind(&self, face: FaceKey) -> Result<MergeKind, MergeCoplanarError> {
         let surface = self
             .get_face(face)
             .ok_or(DanglingRef::Entity(EntityId::Face(face)))?
@@ -800,7 +1481,23 @@ impl<T: Decide> Body<T> {
         let described = self
             .get_surface(surface)
             .ok_or(DanglingRef::Geometry(GeomRef::Surface(surface)))?;
-        Ok(matches!(described, Surface::Plane { .. }))
+        MergeKind::of(described)
+            .map_err(|PoisonedNet| MergeCoplanarError::PoisonedSurfaceDescription { face })
+    }
+
+    /// Every live face's [`MergeKind`], in one pass — the one place
+    /// the door asks the kind question of the arena.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::merge_kind`]'s, for the first face (arena order) that
+    /// raises one.
+    fn kind_census(&self) -> Result<SecondaryMap<FaceKey, MergeKind>, MergeCoplanarError> {
+        let mut kinds = SecondaryMap::new();
+        for (face_key, _) in self.faces() {
+            kinds.insert(face_key, self.merge_kind(face_key)?);
+        }
+        Ok(kinds)
     }
 
     /// **Does `toward` dangle alone at its start vertex** — the
@@ -823,21 +1520,29 @@ impl<T: Decide> Body<T> {
         Ok(orbit.len() == 1)
     }
 
-    /// Which failure regime one group's INVENTORY refusals run under.
+    /// One group's [`GroupContract`]: whether it runs, and under which
+    /// failure regime its INVENTORY refusals fall.
     ///
     /// A group records a skip when its adjacency was licensed by a
     /// declared pair (any member), or when it is curved — the two
     /// cases whose refusals are statements about the merge's
     /// inventory rather than about the body, and whose unglued
-    /// adjacency is a legal output the operands already carried.
-    /// Everything else — a structural planar run — refuses the call.
+    /// adjacency is a legal output the operands already carried. A
+    /// structural planar run refuses the call. A placeholder run is
+    /// set aside ([`GroupContract::SetAside`]).
     ///
     /// **The kind question is asked of EVERY member.** The hard rungs
     /// glue on surface-key or surface-SOURCE identity, and neither
-    /// tests the surface's kind, so a group can straddle planar and
-    /// curved faces; answering off one member would let arena order
-    /// decide which contract the group is handed. A straddling group
-    /// refuses ([`MergeCoplanarError::GroupKindSplit`]).
+    /// tests the surface's kind, so a group can straddle two kinds;
+    /// answering off one member would let arena order decide which
+    /// contract the group is handed. A straddling group refuses
+    /// ([`MergeCoplanarError::GroupKindSplit`]), a placeholder among
+    /// described faces included.
+    ///
+    /// The kinds are read from the census ([`Body::kind_census`]), not
+    /// from the arena: the census asked every face once, and a member
+    /// it does not hold is a face the arena did not have when the
+    /// door started.
     ///
     /// # Errors
     ///
@@ -847,25 +1552,51 @@ impl<T: Decide> Body<T> {
     /// "not curved": they decide which contract the group is handed,
     /// and a failed lookup silently spelled "planar" would move a
     /// group between regimes on a torn arena.
-    fn group_regime(
-        &self,
+    fn group_contract(
         rep: FaceKey,
         rest: &[FaceKey],
+        kinds: &SecondaryMap<FaceKey, MergeKind>,
         declared_faces: &std::collections::BTreeSet<FaceKey>,
-    ) -> Result<GroupRegime, MergeCoplanarError> {
-        let rep_planar = self.face_is_planar(rep)?;
+    ) -> Result<GroupContract, MergeCoplanarError> {
+        let kind_of = |f: FaceKey| {
+            kinds
+                .get(f)
+                .copied()
+                .ok_or(DanglingRef::Entity(EntityId::Face(f)))
+        };
+        let rep_kind = kind_of(rep)?;
         for &f in rest {
-            if self.face_is_planar(f)? != rep_planar {
-                let (planar, curved) = if rep_planar { (rep, f) } else { (f, rep) };
-                return Err(MergeCoplanarError::GroupKindSplit { planar, curved });
+            let kind = kind_of(f)?;
+            if kind != rep_kind {
+                let ((face, kind), (other, other_kind)) = if rep_kind < kind {
+                    ((rep, rep_kind), (f, kind))
+                } else {
+                    ((f, kind), (rep, rep_kind))
+                };
+                return Err(MergeCoplanarError::GroupKindSplit {
+                    face,
+                    kind,
+                    other,
+                    other_kind,
+                });
             }
         }
         let licensed =
             declared_faces.contains(&rep) || rest.iter().any(|f| declared_faces.contains(f));
-        Ok(if licensed || !rep_planar {
-            GroupRegime::RecordsASkip
-        } else {
-            GroupRegime::RefusesTheCall
+        Ok(match rep_kind {
+            MergeKind::Placeholder => GroupContract::SetAside,
+            MergeKind::Plane => GroupContract::Runs {
+                regime: if licensed {
+                    GroupRegime::RecordsASkip
+                } else {
+                    GroupRegime::RefusesTheCall
+                },
+                kind: MergeKind::Plane,
+            },
+            MergeKind::Curved => GroupContract::Runs {
+                regime: GroupRegime::RecordsASkip,
+                kind: MergeKind::Curved,
+            },
         })
     }
 
@@ -962,14 +1693,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         declared: Option<&DeclaredCtx>,
     ) -> Result<Option<MergeRung>, MergeCoplanarError> {
-        let (Some((k1, sense1, sign1)), Some((k2, sense2, sign2))) = (
-            self.get_face(f1)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-            self.get_face(f2)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-        ) else {
+        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
             return Ok(None);
         };
+        let (k1, k2) = (face1.surface, face2.surface);
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return Ok(None);
         };
@@ -978,7 +1705,7 @@ impl<T: Decide> Body<T> {
         // — both of which certify the SURFACE, not the face — may
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
-        let same_sense = sense1 == sense2;
+        let same_sense = face1.sense == face2.sense;
         // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
         // cosurface generalization): the same-key and same-source
         // tests never touch a numeric coordinate, so nothing about
@@ -999,6 +1726,10 @@ impl<T: Decide> Body<T> {
             && let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
             && g1 == g2
         {
+            // Asserted only where the scalar HAS a bit channel: the rung
+            // is the provenance lookup, the bits are its evidence, and a
+            // scalar with no channel (`Dual`, `Sym`) offers none —
+            // `None` there is not disagreement.
             #[cfg(debug_assertions)]
             if let (
                 Surface::Plane {
@@ -1012,10 +1743,12 @@ impl<T: Decide> Body<T> {
                     u_ref: u2,
                 },
             ) = (s1.clone(), s2.clone())
+                && let Some(agree) = crate::source::plane_bits_witness(o1, n1, o2, n2, false)
+                    .zip(crate::source::vec3_bits_witness(u1, u2))
+                    .map(|(plane, u_ref)| plane && u_ref)
             {
                 debug_assert!(
-                    crate::source::plane_bits_agree(o1, n1, o2, n2, false)
-                        && crate::source::vec3_bits_agree(u1, u2),
+                    agree,
                     "same-source theorem violated: same-source surface descriptions disagree \
                      bitwise (kernel bug: a source survived a geometric rewrite)"
                 );
@@ -1058,11 +1791,11 @@ impl<T: Decide> Body<T> {
             // pair on one plane lands there by construction.
             let p1 = PlaneDesc {
                 origin: o1,
-                normal: n1 * sign1,
+                normal: plane_outward_normal(face1, n1).vec(),
             };
             let p2 = PlaneDesc {
                 origin: o2,
-                normal: n2 * sign2,
+                normal: plane_outward_normal(face2, n2).vec(),
             };
             return match oriented_plane_eq(&p1, &p2, id, arm, band) {
                 Ok(PlaneRelation::SameOriented) => Ok(Some(MergeRung::DeclaredPair)),
@@ -1218,12 +1951,29 @@ impl<T: Decide> Body<T> {
     /// group with no survivor cannot be spelled: every caller has the
     /// seed in hand, and a bare index here would be a panic path for
     /// a state the labeling never produces.
+    ///
+    /// `kind` is the group's kind as the contract decided it of every
+    /// member ([`GroupContract::Runs`]): [`MergeKind::Plane`] or
+    /// [`MergeKind::Curved`], never the placeholder, which is set
+    /// aside before the surgery. It says what a same-face duplicate on
+    /// the survivor means after the absorption. The surgery is told
+    /// rather than reading the survivor's surface again, so the one
+    /// kind question has one site — and it re-checks what it was told
+    /// against the survivor's surface before it mutates anything,
+    /// because a curved run told "planar" MERGES where the truthful
+    /// call refuses `PeriodClosure`, and nothing downstream of the
+    /// surgery would notice.
     fn merge_group(
         &mut self,
         rep: FaceKey,
         rest: &[FaceKey],
+        kind: MergeKind,
         tol: Tol,
     ) -> Result<MergedGroup, MergeCoplanarError> {
+        debug_assert!(
+            kind != MergeKind::Placeholder && self.merge_kind(rep).ok().is_none_or(|k| k == kind),
+            "merge_group: the survivor's kind is the contract's ({kind:?})"
+        );
         let mut group = MergedGroup {
             kept: rep,
             absorbed: Vec::new(),
@@ -1299,8 +2049,49 @@ impl<T: Decide> Body<T> {
                 .get_face(other)
                 .ok_or(DanglingRef::Entity(EntityId::Face(other)))?;
             for ring in dying.rings.clone() {
+                // The two facts `ring_move` could contradict, RE-READ
+                // from the arena here rather than carried down from
+                // the scan: the drain's own earlier iterations have
+                // mutated ring lists and loop back-pointers in
+                // between, and a fact from before a mutation proves
+                // nothing about this call.
+                debug_assert!(
+                    self.get_loop(ring)
+                        .and_then(|l| self.get_face(l.face))
+                        .is_none_or(|f| f.outer != ring),
+                    "merge_group: {}",
+                    EstablishedFact::RingIsNotItsFacesOuter.what()
+                );
+                debug_assert!(
+                    self.get_loop(ring)
+                        .and_then(|l| self.get_face(l.face))
+                        .zip(self.get_face(rep))
+                        .is_none_or(|(from, to)| from.shell == to.shell),
+                    "merge_group: {}",
+                    EstablishedFact::RingAndSurvivorShareAShell.what()
+                );
+                #[cfg(test)]
+                tear_before_ring_move(self, ring);
                 self.ring_move(ring, rep)?;
             }
+            // The two facts `kef` could contradict. The drain above is
+            // exactly the mutation that invalidates a fact read before
+            // it — it is why `SameFace` is NOT one of these — so both
+            // are re-derived here, after it.
+            debug_assert!(
+                self.get_half_edge(dying_he)
+                    .zip(self.edge_mate(dying_he, edge_key))
+                    .is_none_or(|(dying, mate)| dying.parent_loop != mate.parent_loop),
+                "merge_group: {}",
+                EstablishedFact::DyingHalvesAreInDifferentLoops.what()
+            );
+            debug_assert!(
+                self.get_face(other).is_none_or(|f| f.rings.is_empty()),
+                "merge_group: {}",
+                EstablishedFact::AbsorbedFaceIsRingFree.what()
+            );
+            #[cfg(test)]
+            tear_before_kef(self, dying_he, edge_key, other);
             self.kef(dying_he)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
@@ -1316,7 +2107,6 @@ impl<T: Decide> Body<T> {
         // skip for curved structural runs, so sub-period re-merges
         // (the C12.5 through-cut case) proceed and full closures stay
         // unmerged exactly as the operands arrived.
-        let survivor_curved = !self.face_is_planar(rep)?;
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
@@ -1331,7 +2121,7 @@ impl<T: Decide> Body<T> {
                 break;
             };
             let same_loop = hp.r#loop == hm.r#loop;
-            if survivor_curved {
+            if kind == MergeKind::Curved {
                 return Err(MergeCoplanarError::PeriodClosure { edge: edge_key });
             }
             if !same_loop {
@@ -1375,11 +2165,34 @@ impl<T: Decide> Body<T> {
                 }
             }
             if let Some((from_rim, killed)) = tip {
+                // The fact `kev` could contradict, re-read at the
+                // call: `strut_tip` answered about a vertex orbit,
+                // and what `kev` refuses on is the derived fact that
+                // the edge's two ends are distinct.
+                debug_assert!(
+                    self.get_half_edge(from_rim)
+                        .zip(self.edge_mate(from_rim, edge_key))
+                        .is_none_or(|(rim, mate)| rim.start != mate.start),
+                    "merge_group: {}",
+                    EstablishedFact::StrutHalvesHaveDistinctEnds.what()
+                );
+                #[cfg(test)]
+                tear_before_kev(self, from_rim, edge_key);
                 self.kev(from_rim)?;
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(killed);
                 continue;
             }
+            // The fact `kemr` could contradict, re-read at the call.
+            debug_assert!(
+                self.get_half_edge(he_plus)
+                    .zip(self.get_half_edge(he_minus))
+                    .is_none_or(|(a, b)| a.parent_loop == b.parent_loop),
+                "merge_group: {}",
+                EstablishedFact::DuplicateHalvesShareALoop.what()
+            );
+            #[cfg(test)]
+            tear_before_kemr(self, he_minus);
             let result = self.kemr(he_plus, he_minus)?;
             group.killed_edges.push(edge_key);
             group.rings_made.push(result.ring);
@@ -1399,14 +2212,17 @@ impl<T: Decide> Body<T> {
         // elsewhere; no unique positive cycle refuses typed.
         if !group.rings_made.is_empty() {
             // The survivor is resolved HERE, where its liveness is
-            // proven in this call: the curved-survivor gate above
-            // resolved `rep`, and the absorption between only runs
-            // `kemr`, which kills no face. The role pass then takes
-            // resolved data and performs no lookup of its own.
+            // proven in this call: `rings_made` is non-empty only
+            // because a `kemr` returned, and `kemr` requires the
+            // duplicate's loop's face — `rep`, the face both halves
+            // were found on through that loop — to be live
+            // (`require_key` on the loop's `face`) and kills no face.
+            // The role pass then takes resolved data and performs no
+            // lookup of its own.
             let Some(survivor) = self.get_face(rep) else {
                 unreachable!(
-                    "merge_group: `rep` resolved by the curved-survivor gate above and \
-                     the absorption's `kemr` kills no face"
+                    "merge_group: `rep` was required live by the `kemr` that minted the last \
+                     ring, and `kemr` kills no face"
                 )
             };
             let survivor = survivor.clone();
@@ -1484,8 +2300,9 @@ impl<T: Decide> Body<T> {
     /// from an area and a perimeter that are both nothing.
     ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
-    /// multiplies the chart normal by `sense_sign` exactly once, and
-    /// the Newell sum here is left alone. That sum is built from the
+    /// folds the sense into the chart normal exactly once, through
+    /// `face_normal`'s door, and the Newell sum here is left alone.
+    /// That sum is built from the
     /// loop's STORED cycle order, which `revert` reverses in the same
     /// breath as it flips the sense bit, so it already changes sign on
     /// its own — threading the sense onto both factors would cancel
@@ -1656,8 +2473,12 @@ impl<T: Decide> Body<T> {
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
         let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => *normal * survivor.sense_sign::<T>(),
-            _ => return Ok(None), // merges only fire on planar rungs
+            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
+            // The survivor is a plane at every call: `rings_made` is
+            // non-empty only under a planar contract, since the curved
+            // arm refuses `PeriodClosure` before any `kemr`. This arm
+            // still spells "not a plane" and "unresolved" the same way.
+            _ => return Ok(None),
         };
         let mut positives: Vec<Option<usize>> = Vec::new(); // None = outer
         if self.loop_winding(survivor.outer, normal, band)? == Some(geom_core::Sign::Positive) {
@@ -1708,14 +2529,14 @@ mod tests {
     #[test]
     fn a_dangling_absorbed_face_key_is_refused_typed_and_names_the_face() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = structural_planar_cube(tol);
         let (rep, other) = adjacent_pair(&body);
         body.faces
             .remove(other)
             .expect("the pair's second face is live before the tear");
 
         assert_eq!(
-            body.merge_group(rep, &[other], tol),
+            body.merge_group(rep, &[other], MergeKind::Plane, tol),
             Err(MergeCoplanarError::Op {
                 error: EulerOpError::StaleKey {
                     key: EntityId::Face(other),
@@ -1729,14 +2550,498 @@ mod tests {
     #[test]
     fn absorption_of_the_same_pair_runs_on_an_intact_arena() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = structural_planar_cube(tol);
         let (rep, other) = adjacent_pair(&body);
 
         let group = body
-            .merge_group(rep, &[other], tol)
+            .merge_group(rep, &[other], MergeKind::Plane, tol)
             .expect("an intact adjacent pair absorbs");
         assert_eq!(group.kept, rep);
         assert_eq!(group.absorbed, vec![other]);
+    }
+
+    // ---- Fixtures whose REGIME is a property of the fixture ----
+    //
+    // A group's regime must be asserted, never inherited from an
+    // accident of the fixture: `ops_cube`'s faces sit on the `mvfs`
+    // NURBS placeholder, which has no regime at all — the door sets
+    // the whole cube aside and no surgery runs. These two build the
+    // regime deliberately, out of planes.
+
+    /// The unit cube with the `mvfs` placeholder overwritten IN PLACE
+    /// by a real plane, so every face shares one plane key: the
+    /// structural rung groups the whole cube and, being planar and
+    /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
+    fn structural_planar_cube(tol: Tol) -> Body<f64> {
+        let mut body = ops_cube(tol).body;
+        describe_shared_key(&mut body);
+        body
+    }
+
+    /// One plane description, used for every face of the planar
+    /// fixtures: the merge's rungs never compare coordinates, so one
+    /// description on distinct keys is exactly the declared rung's
+    /// subject.
+    fn flat_plane() -> Surface<f64> {
+        Surface::Plane {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// Gives every face of `body` its OWN plane key carrying one
+    /// description, and returns the declared pairs that glue them:
+    /// planar, licensed only by the declaration, so the group runs
+    /// under [`GroupRegime::RecordsASkip`] without depending on any
+    /// face being curved.
+    fn declare_planes_pairwise(body: &mut Body<f64>) -> Vec<(SurfaceKey, SurfaceKey)> {
+        describe_shared_key(body);
+        let key = body.faces().next().expect("faces").1.surface;
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let mut keys = vec![key];
+        for f in &faces[1..] {
+            let plane = body.add_surface(flat_plane());
+            body.faces.get_mut(*f).expect("live").surface = plane;
+            keys.push(plane);
+        }
+        keys[1..].iter().map(|&k| (keys[0], k)).collect()
+    }
+
+    /// The declared planar cube: [`GroupRegime::RecordsASkip`] with
+    /// no curved face anywhere.
+    fn declared_planar_cube(tol: Tol) -> (Body<f64>, Vec<(SurfaceKey, SurfaceKey)>) {
+        let mut body = ops_cube(tol).body;
+        let declared = declare_planes_pairwise(&mut body);
+        (body, declared)
+    }
+
+    /// The group's contract, asked the way the door asks it: every
+    /// face of these fixtures carries a declared key, so the door's
+    /// own `declared_faces` set is the whole body.
+    fn contract_of(body: &Body<f64>, declared: bool) -> GroupContract {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let declared_faces: std::collections::BTreeSet<FaceKey> = if declared {
+            faces.iter().copied().collect()
+        } else {
+            std::collections::BTreeSet::new()
+        };
+        let kinds = body.kind_census().expect("the fixture's faces resolve");
+        Body::<f64>::group_contract(faces[0], &faces[1..], &kinds, &declared_faces)
+            .expect("the census holds every face")
+    }
+
+    /// A planar run's contract under `regime`.
+    fn planar(regime: GroupRegime) -> GroupContract {
+        GroupContract::Runs {
+            regime,
+            kind: MergeKind::Plane,
+        }
+    }
+
+    /// Re-describes the fixture's one shared placeholder key as a
+    /// real plane, in place — the key is overwritten rather than
+    /// replaced because a fresh key would orphan the placeholder and
+    /// the entry gate refuses an orphaned surface.
+    fn describe_shared_key(body: &mut Body<f64>) {
+        let key = body.faces().next().expect("faces").1.surface;
+        *body
+            .surfaces
+            .get_mut(key)
+            .expect("the placeholder resolves") = flat_plane();
+    }
+
+    /// Runs the public door with one tear point armed, and returns
+    /// the operator refusal it escaped with. The guard disarms on
+    /// drop, so a failing assertion cannot leave the point armed.
+    fn escaped_refusal(
+        point: TearPoint,
+        body: &mut Body<f64>,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+    ) -> EulerOpError {
+        let outcome = {
+            let _armed = ArmedTear::at(point);
+            body.merge_coplanar_faces_declared(declared, tol)
+        };
+        match outcome {
+            Err(MergeCoplanarError::Op { error }) => error,
+            other => panic!("{point:?}: expected the refusal to escape as Err(Op), got {other:?}"),
+        }
+    }
+
+    /// **The two planar fixtures take the two regimes**, so every row
+    /// below states which regime it ran under instead of inheriting
+    /// one.
+    #[test]
+    fn the_planar_fixtures_take_the_two_regimes() {
+        let tol = Tol::witness();
+        assert_eq!(
+            contract_of(&structural_planar_cube(tol), false),
+            planar(GroupRegime::RefusesTheCall)
+        );
+        let (declared_body, declared) = declared_planar_cube(tol);
+        assert_eq!(
+            contract_of(&declared_body, true),
+            planar(GroupRegime::RecordsASkip)
+        );
+        // ...and the recording fixture reaches the surgery untorn.
+        let mut untorn = declared_body;
+        let outcome = untorn.merge_coplanar_faces_declared(&declared, tol);
+        assert!(outcome.is_ok(), "{outcome:?}");
+    }
+
+    /// The fixture a tear point needs, given a plane recipe: the two
+    /// `ring_move` tears need a group whose absorption has a ring to
+    /// re-home, which a bare cube has not.
+    fn fixture_for(point: TearPoint, tol: Tol) -> Body<f64> {
+        match point {
+            TearPoint::RingBecomesItsFacesOuter | TearPoint::RingsFaceLeavesTheShell => {
+                crate::fixtures::ops_holed_box(tol).body
+            }
+            _ => ops_cube(tol).body,
+        }
+    }
+
+    /// The four facts whose tear reaches its operator on these
+    /// fixtures, each with the [`EstablishedFact`] the re-check
+    /// before that call proves.
+    ///
+    /// [`EstablishedFact::StrutHalvesHaveDistinctEnds`] is not among
+    /// them and is ARGUED, not executed: `kev` runs only on a
+    /// straight-seam strut, which needs a group whose two shared-edge
+    /// runs meet at a redundant subdivision vertex, and no fixture in
+    /// the crate's corpus both reaches that repair and admits a plane
+    /// recipe. Its re-check stands at the call like the others; what
+    /// is missing is a body that gets there, and saying so is the
+    /// honest state of the row rather than a claim of coverage.
+    const EXECUTED_FACTS: [(TearPoint, EstablishedFact); 5] = [
+        (
+            TearPoint::RingBecomesItsFacesOuter,
+            EstablishedFact::RingIsNotItsFacesOuter,
+        ),
+        (
+            TearPoint::RingsFaceLeavesTheShell,
+            EstablishedFact::RingAndSurvivorShareAShell,
+        ),
+        (
+            TearPoint::DyingHalfJoinsItsMatesLoop,
+            EstablishedFact::DyingHalvesAreInDifferentLoops,
+        ),
+        (
+            TearPoint::DrainedFaceRegainsARing,
+            EstablishedFact::AbsorbedFaceIsRingFree,
+        ),
+        (
+            TearPoint::DuplicateHalvesPartCompany,
+            EstablishedFact::DuplicateHalvesShareALoop,
+        ),
+    ];
+
+    /// **A refusal that contradicts a re-checked fact escapes under
+    /// the RECORDING regime.** One row-body per [`EstablishedFact`]
+    /// the surgery re-checks and a fixture can reach, driven through
+    /// the PUBLIC door with the matching tear point armed.
+    ///
+    /// Each tear sits immediately after the `debug_assert!` that
+    /// proves the fact and immediately before the operator call, so
+    /// it exercises exactly the window the re-check cannot cover —
+    /// which is the whole of what "contradicts a fact this door
+    /// re-checks" claims. A torn INPUT cannot reach any of these
+    /// arms: the entry gate refuses one before a group is staged.
+    ///
+    /// Reds against asking the enum alone: every variant here answers
+    /// `false` to [`EulerOpError::reports_tier1_corruption`], so
+    /// under [`GroupRegime::RecordsASkip`] the door returned `Ok`
+    /// with the corruption filed as an inventory skip.
+    #[test]
+    fn every_contradicted_fact_escapes_the_recording_regime() {
+        let tol = Tol::witness();
+        for (point, want) in EXECUTED_FACTS {
+            let mut body = fixture_for(point, tol);
+            let declared = declare_planes_pairwise(&mut body);
+            assert_eq!(
+                contract_of(&body, true),
+                planar(GroupRegime::RecordsASkip),
+                "{point:?}"
+            );
+            let error = escaped_refusal(point, &mut body, &declared, tol);
+            assert!(
+                !error.reports_tier1_corruption(),
+                "{error} is the enum's already; this row would prove nothing"
+            );
+            assert_eq!(
+                OpPlacement::of(&error),
+                OpPlacement::Contradicts(want),
+                "{point:?} produced {error}"
+            );
+            assert!(MergeCoplanarError::Op { error }.is_arena_fault());
+        }
+    }
+
+    /// The same tears under [`GroupRegime::RefusesTheCall`], where
+    /// the escape changes no outcome and the row's value is that the
+    /// refusal still names the operator's own variant.
+    #[test]
+    fn every_contradicted_fact_refuses_the_refusing_regime() {
+        let tol = Tol::witness();
+        for (point, want) in EXECUTED_FACTS {
+            let mut body = fixture_for(point, tol);
+            describe_shared_key(&mut body);
+            assert_eq!(
+                contract_of(&body, false),
+                planar(GroupRegime::RefusesTheCall),
+                "{point:?}"
+            );
+            let error = escaped_refusal(point, &mut body, &[], tol);
+            assert_eq!(
+                OpPlacement::of(&error),
+                OpPlacement::Contradicts(want),
+                "{point:?} produced {error}"
+            );
+        }
+    }
+
+    // ---- The nested (membrane) group: `SameFace` is INVENTORY ----
+    //
+    // The reviewer's falsification, adopted. The absorption's own
+    // `ring_move` drain re-homes the dying loop onto the survivor, so
+    // a fact the scan read before it proves nothing at the `kef`
+    // after it — which is why `SameFace` is placed by the enum and
+    // not contradicted here.
+
+    /// The unit cube whose TOP face carries a square inner ring, with
+    /// a coplanar membrane face covering the opening — the holed
+    /// box's construction stopped one step before the tube is grown.
+    /// Built entirely by Euler operators, so it is a tier-1/tier-2
+    /// valid body. Its faces stay on the `mvfs` placeholder key; a row
+    /// that runs the surgery on it describes that key first.
+    ///
+    /// The shared rim edges have their top-face half in the top
+    /// face's RING and their membrane half in the membrane's outer
+    /// loop, which is the nesting the drain re-homes.
+    fn cube_with_membrane(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
+        let pt = geom_core::Point3::new;
+        let crate::fixtures::OpsCube {
+            mut body,
+            seed,
+            mefs,
+            ..
+        } = ops_cube(tol);
+        let strut = |body: &mut Body<f64>, at, x, y, z| {
+            body.mev_line(
+                crate::euler::MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                tol,
+            )
+            .expect("the fan strut grows")
+        };
+        let hole_strut = strut(&mut body, mefs[1].he_plus, 0.25, 0.25, 1.0);
+        let kill = body
+            .kemr(hole_strut.he_plus, hole_strut.he_minus)
+            .expect("the strut becomes a lone-vertex ring");
+        let s_pq = body
+            .mev_line(
+                crate::euler::MevSite::Lone { r#loop: kill.ring },
+                pt(0.75, 0.25, 1.0),
+                tol,
+            )
+            .expect("the ring grows its first edge");
+        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
+        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
+        let membrane = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: s_pq.he_plus,
+                    he2: s_rs.he_minus,
+                },
+                tol,
+            )
+            .expect("the rim closes into a membrane face");
+        (body, seed.face, membrane.face)
+    }
+
+    /// The membrane fixture is a valid closed body with the nesting
+    /// the row below depends on.
+    #[test]
+    fn the_membrane_fixture_is_valid_and_nested() {
+        let tol = Tol::witness();
+        let (body, top, membrane) = cube_with_membrane(tol);
+        assert_eq!(crate::validate::validate(&body), Ok(()));
+        assert_eq!(validate_closed(&body), Ok(()));
+        assert_eq!(body.get_face(top).expect("live").rings.len(), 1);
+        assert!(body.get_face(membrane).expect("live").rings.is_empty());
+        assert_eq!(
+            body.get_face(top).expect("live").surface,
+            body.get_face(membrane).expect("live").surface
+        );
+    }
+
+    /// **`kef` reports [`EulerOpError::SameFace`] on a body that was
+    /// never torn.** With the survivor the face INSIDE the ring, the
+    /// absorption's own drain re-homes the dying half-edge's parent
+    /// loop onto the survivor, and the `kef` that follows reads one
+    /// face on both sides.
+    ///
+    /// This is why the fact the scan reads is not the fact the call
+    /// can be held to: `SameFace` takes the enum's verdict and stays
+    /// an inventory refusal.
+    #[test]
+    fn kef_reports_same_face_on_an_untorn_nested_group() {
+        let tol = Tol::witness();
+        let (mut body, top, membrane) = cube_with_membrane(tol);
+        describe_shared_key(&mut body);
+        assert_eq!(
+            body.merge_group(membrane, &[top], MergeKind::Plane, tol),
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::SameFace { face: membrane },
+            }),
+        );
+        assert!(
+            !MergeCoplanarError::Op {
+                error: EulerOpError::SameFace { face: membrane },
+            }
+            .is_arena_fault(),
+            "an inventory refusal on an untorn body must not escape the regime"
+        );
+    }
+
+    /// The same nesting with the inner face arena-FIRST, so the
+    /// door's own group seed picks it as the survivor, and the group
+    /// licensed by declared pairs so it runs under the recording
+    /// regime: the public door records the refusal and returns `Ok`,
+    /// which is the outcome an escape would have taken away.
+    #[test]
+    fn the_door_records_same_face_as_a_skip() {
+        let tol = Tol::witness();
+        let (mut body, membrane) = cube_with_arena_first_membrane(tol);
+        let declared = declare_planes_pairwise(&mut body);
+        assert_eq!(validate_closed(&body), Ok(()));
+        assert_eq!(contract_of(&body, true), planar(GroupRegime::RecordsASkip));
+        let outcome = body
+            .merge_coplanar_faces_declared(&declared, tol)
+            .expect("a legal nested group is recorded, not refused");
+        let [skipped] = &outcome.skipped[..] else {
+            panic!("one recorded skip: {:?}", outcome.skipped)
+        };
+        assert!(
+            matches!(
+                skipped.reason,
+                MergeCoplanarError::Op {
+                    error: EulerOpError::SameFace { .. }
+                }
+            ),
+            "{:?}",
+            skipped.reason
+        );
+        let _ = membrane;
+    }
+
+    /// The membrane fixture with the inner face arena-first: a `kef`
+    /// before the rim is grown frees the seed face's slot, which the
+    /// membrane's `add_face` then reuses.
+    fn cube_with_arena_first_membrane(tol: Tol) -> (Body<f64>, FaceKey) {
+        let pt = geom_core::Point3::new;
+        let cube = ops_cube(tol);
+        let mut body = cube.body;
+        let seed_face = cube.seed.face;
+        let victim = body
+            .edges()
+            .find_map(|(_, e)| {
+                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+                if hp.face == seed_face && hm.face != seed_face {
+                    Some(e.he_plus)
+                } else if hm.face == seed_face && hp.face != seed_face {
+                    Some(e.he_minus)
+                } else {
+                    None
+                }
+            })
+            .expect("the seed face has a neighbour");
+        body.kef(victim).expect("the seed face is absorbed");
+        let host = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let outer = body.get_face(k).expect("live").outer;
+                body.get_loop(outer).expect("live").face == k && k != cube.mefs[0].face
+            })
+            .expect("a live face to host the ring");
+        let host_he = {
+            let outer = body.get_face(host).expect("live").outer;
+            let crate::entity::LoopBoundary::Cycle { first } =
+                body.get_loop(outer).expect("live").boundary
+            else {
+                panic!("an outer loop is a cycle")
+            };
+            first
+        };
+        let strut = |body: &mut Body<f64>, at, x, y, z| {
+            body.mev_line(
+                crate::euler::MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                tol,
+            )
+            .expect("the fan strut grows")
+        };
+        let hole_strut = strut(&mut body, host_he, 0.25, 0.25, 1.0);
+        let kill = body
+            .kemr(hole_strut.he_plus, hole_strut.he_minus)
+            .expect("the strut becomes a lone-vertex ring");
+        let s_pq = body
+            .mev_line(
+                crate::euler::MevSite::Lone { r#loop: kill.ring },
+                pt(0.75, 0.25, 1.0),
+                tol,
+            )
+            .expect("the ring grows its first edge");
+        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
+        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
+        let membrane = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: s_pq.he_plus,
+                    he2: s_rs.he_minus,
+                },
+                tol,
+            )
+            .expect("the rim closes into a membrane face");
+        (body, membrane.face)
+    }
+
+    /// **The door's placement is exhaustive, and no arm of it
+    /// contradicts the enum.**
+    ///
+    /// Over the crate's shared sample array
+    /// ([`crate::euler::every_euler_op_error_once`], which carries
+    /// the coverage and discriminant-order assertions), so a variant
+    /// added without a placement fails by name. The direction pinned
+    /// is the one the door owes the operator layer: a variant the
+    /// door CONTRADICTS is one the enum answers `false` for —
+    /// otherwise the arm is dead and the door's own question has no
+    /// content — and every contradicted variant escapes while the
+    /// delegated ones answer exactly as the enum does.
+    #[test]
+    fn the_doors_placement_is_exhaustive_and_agrees_with_the_enum() {
+        for error in crate::euler::every_euler_op_error_once() {
+            let escapes = MergeCoplanarError::Op {
+                error: error.clone(),
+            }
+            .is_arena_fault();
+            match OpPlacement::of(&error) {
+                OpPlacement::Contradicts(fact) => {
+                    assert!(
+                        !error.reports_tier1_corruption(),
+                        "{error} is the enum's already; the door's arm would be dead"
+                    );
+                    assert!(!fact.what().is_empty());
+                    assert!(escapes, "{error}");
+                }
+                OpPlacement::TheEnumsVerdict => {
+                    assert_eq!(escapes, error.reports_tier1_corruption(), "{error}");
+                }
+            }
+        }
     }
 
     /// **The regime split, wired.** `records` is the whole of it and
@@ -1744,12 +3049,14 @@ mod tests {
     /// conjunct is deleted from it — which pinning the classifier
     /// alone did not.
     ///
-    /// A behavioural pin through the public door is impossible and
-    /// that is the point of the escape: the door's tier-2 entry gate
-    /// refuses a torn body before any group is staged, so no valid
-    /// input reaches a corruption refusal under either regime. The
-    /// escape states what the door promises, and this states that the
-    /// promise is applied.
+    /// No INPUT can pin this behaviourally — the door's tier-2 entry
+    /// gate refuses a torn body before any group is staged, so no
+    /// valid input reaches a corruption refusal under either regime.
+    /// The behavioural pins go through the door's own tear points
+    /// instead ([`TearPoint`],
+    /// `every_contradicted_fact_escapes_the_recording_regime`); this
+    /// row states that the regime applies the rule, over a variant
+    /// the operator layer's own line places.
     #[test]
     fn only_inventory_refusals_are_ever_recorded() {
         let arena = MergeCoplanarError::Op {
@@ -1774,11 +3081,19 @@ mod tests {
     }
 
     /// **The corruption class is the operator layer's, and it is
-    /// nine variants wide, not two.** The door's docs promise that a
-    /// refusal reporting a torn arena never becomes a record; this
-    /// pins the membership that promise needs, at the sample the
-    /// merge can actually raise, and pins that inventory refusals
-    /// stay out of it.
+    /// nine variants wide, not two — and the door's is wider still.**
+    /// The door's docs promise that a refusal reporting a torn arena
+    /// never becomes a record; this pins the membership that promise
+    /// needs, at the sample the merge can actually raise, in both of
+    /// its halves.
+    ///
+    /// The second half is what the enum cannot answer: `FaceHasRings`
+    /// and `SameFace` are legal facts about an operation and the enum
+    /// says so, here and below — but a `kef` at THIS door raises them
+    /// only against a fact the absorption established a few lines
+    /// earlier, so they report the arena and escape. The two
+    /// assertions on each are the two questions, and they no longer
+    /// have one answer.
     #[test]
     fn the_arena_fault_class_is_the_operator_layers_tier_one_row() {
         let he = crate::entity::HalfEdgeKey::default();
@@ -1805,19 +3120,61 @@ mod tests {
             );
             assert!(MergeCoplanarError::Op { error }.is_arena_fault());
         }
-        // Facts about the operation, legal to meet on a valid body.
-        let inventory = [
+        // Facts about the operation elsewhere, legal to meet on a
+        // valid body — and at this door, refusals that contradict a
+        // fact the absorption established before the call.
+        let contradicted = [
             EulerOpError::FaceHasRings {
                 face: FaceKey::default(),
             },
-            EulerOpError::SameFace {
-                face: FaceKey::default(),
+            EulerOpError::SameLoop {
+                r#loop: LoopKey::default(),
+            },
+            EulerOpError::NotSameLoop { he1: he, he2: he },
+            EulerOpError::SelfLoopEdge {
+                edge: EdgeKey::default(),
+                vertex: VertexKey::default(),
+            },
+            EulerOpError::RingIsOuter {
+                r#loop: LoopKey::default(),
+            },
+            EulerOpError::CrossShell {
+                f1: FaceKey::default(),
+                f2: FaceKey::default(),
             },
         ];
-        for error in inventory {
-            assert!(!error.reports_tier1_corruption());
-            assert!(!MergeCoplanarError::Op { error }.is_arena_fault());
+        for error in contradicted {
+            assert!(
+                !error.reports_tier1_corruption(),
+                "{error} is a legal fact about the operation, and the enum's line is \
+                 unchanged by this door's question"
+            );
+            assert!(
+                MergeCoplanarError::Op {
+                    error: error.clone()
+                }
+                .is_arena_fault(),
+                "{error} contradicts a fact merge_group established, so it escapes"
+            );
+            assert!(matches!(
+                OpPlacement::of(&error),
+                OpPlacement::Contradicts(_)
+            ));
         }
+        // `SameFace` is on neither list. The enum answers `false`
+        // for it and this door agrees, because the absorption's own
+        // drain can re-home the dying loop onto the survivor and
+        // leave `kef` reading one face on both sides — legally, on a
+        // body that was never torn
+        // (`kef_reports_same_face_on_an_untorn_nested_group`).
+        assert!(
+            !MergeCoplanarError::Op {
+                error: EulerOpError::SameFace {
+                    face: FaceKey::default()
+                }
+            }
+            .is_arena_fault()
+        );
         // A merge-local refusal is never an arena fault.
         assert!(!MergeCoplanarError::GroupNotClosed { errors: Vec::new() }.is_arena_fault());
         assert!(
@@ -1836,7 +3193,7 @@ mod tests {
     #[test]
     fn a_torn_parent_loop_link_refuses_rather_than_skipping_the_edge() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = structural_planar_cube(tol);
         let (rep, other, he_plus) = body
             .edges()
             .find_map(|(_, e)| {
@@ -1850,7 +3207,7 @@ mod tests {
             .parent_loop = LoopKey::default();
 
         assert_eq!(
-            body.merge_group(rep, &[other], tol),
+            body.merge_group(rep, &[other], MergeKind::Plane, tol),
             Err(MergeCoplanarError::Op {
                 error: EulerOpError::StaleKey {
                     key: EntityId::Loop(LoopKey::default()),
@@ -1867,9 +3224,10 @@ mod tests {
     ///
     /// It pins `strut_tip` rather than the surgery: reaching the tip
     /// search with a broken orbit needs the arena torn BETWEEN the
-    /// straight-seam decision and the strut test, inside one call,
-    /// which no test can do. `strut_tip` is that decision and has one
-    /// production call site.
+    /// straight-seam decision and the strut test, and the surgery
+    /// offers no tear point there — its points sit at the operator
+    /// calls, which is where a contradicted fact is decided.
+    /// `strut_tip` is that decision and has one production call site.
     #[test]
     fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
         let tol = Tol::witness();
@@ -1915,12 +3273,12 @@ mod tests {
         // Both surfaces are set here: the fixture's faces carry the
         // mvfs placeholder, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
-        let plane = body.surfaces.insert(Surface::Plane {
+        let plane = body.add_surface(Surface::Plane {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         });
-        let cylinder = body.surfaces.insert(Surface::Cylinder {
+        let cylinder = body.add_surface(Surface::Cylinder {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -1935,21 +3293,420 @@ mod tests {
             .expect("the pair's second face is live")
             .surface = cylinder;
 
+        let split = Err(MergeCoplanarError::GroupKindSplit {
+            face: rep,
+            kind: MergeKind::Plane,
+            other,
+            other_kind: MergeKind::Curved,
+        });
+        let none = std::collections::BTreeSet::new();
+        let contract = |body: &Body<f64>, a: FaceKey, b: FaceKey| {
+            let kinds = body.kind_census().expect("the fixture's faces resolve");
+            Body::<f64>::group_contract(a, &[b], &kinds, &none)
+        };
+        assert_eq!(contract(&body, rep, other), split);
+        // Both orders answer, and both name the same two faces the
+        // same way.
+        assert_eq!(contract(&body, other, rep), split);
+
+        // The placeholder is the third kind, and a group holding one
+        // beside a described face of EITHER kind has no contract.
+        let placeholder = body.add_surface(Surface::nurbs_placeholder());
+        body.faces
+            .get_mut(other)
+            .expect("the pair's second face is live")
+            .surface = placeholder;
+        let split = Err(MergeCoplanarError::GroupKindSplit {
+            face: rep,
+            kind: MergeKind::Plane,
+            other,
+            other_kind: MergeKind::Placeholder,
+        });
+        assert_eq!(contract(&body, rep, other), split);
+        assert_eq!(contract(&body, other, rep), split);
+        body.faces
+            .get_mut(rep)
+            .expect("the pair's first face is live")
+            .surface = cylinder;
+        let split = Err(MergeCoplanarError::GroupKindSplit {
+            face: rep,
+            kind: MergeKind::Curved,
+            other,
+            other_kind: MergeKind::Placeholder,
+        });
+        assert_eq!(contract(&body, rep, other), split);
+        assert_eq!(contract(&body, other, rep), split);
+    }
+
+    /// **A run of placeholders is set aside, not run.** The contract
+    /// of [`ops_cube`]'s six faces on their one placeholder key is
+    /// [`GroupContract::SetAside`] — no regime, because a placeholder
+    /// is neither of the two kinds the regimes are written for — and
+    /// the door names the faces.
+    #[test]
+    fn a_placeholder_run_has_no_regime_and_is_set_aside() {
+        let tol = Tol::witness();
+        let body = ops_cube(tol).body;
+        assert_eq!(contract_of(&body, false), GroupContract::SetAside);
+    }
+
+    /// The unit cylinder about `z`.
+    fn unit_cylinder() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+        }
+    }
+
+    /// A bilinear net over the unit square with every `x` poisoned:
+    /// [`NetState::Poisoned`], described geometry that cannot
+    /// evaluate, and not the placeholder.
+    fn poisoned_net() -> Surface<f64> {
+        let pt = geom_core::Point3::new;
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("a clamped linear knot vector");
+        let net = geom::NurbsSurface::new(
+            kv.clone(),
+            kv,
+            (0..4)
+                .map(|i| pt(f64::NAN, f64::from(i % 2), f64::from(i / 2)))
+                .collect(),
+            vec![1.0; 4],
+        )
+        .expect("four control points on a 2x2 net");
+        assert_eq!(net.net_state(), NetState::Poisoned);
+        Surface::Nurbs(std::sync::Arc::new(net))
+    }
+
+    /// **The answers of [`MergeKind::of`] at the values that decide
+    /// them** — a plane, an analytic curved surface, the placeholder,
+    /// and the arm that could be got wrong either way: a POISONED net
+    /// has no kind, and through [`Body::merge_kind`] that is the typed
+    /// refusal naming the face — never the placeholder's benign answer
+    /// and never the curved arm.
+    #[test]
+    fn merge_kind_answers_each_surface_state() {
+        let tol = Tol::witness();
+        assert_eq!(MergeKind::of(&flat_plane()), Ok(MergeKind::Plane));
+        assert_eq!(MergeKind::of(&unit_cylinder()), Ok(MergeKind::Curved));
         assert_eq!(
-            body.group_regime(rep, &[other], &std::collections::BTreeSet::new()),
-            Err(MergeCoplanarError::GroupKindSplit {
-                planar: rep,
-                curved: other,
-            }),
+            MergeKind::of(&Surface::<f64>::nurbs_placeholder()),
+            Ok(MergeKind::Placeholder)
         );
-        // Both orders answer, and both name the same two faces.
+        assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
+        let mut body = ops_cube(tol).body;
+        let face = body.faces().next().expect("a cube has faces").0;
+        body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
+            .expect("a live face takes a surface");
         assert_eq!(
-            body.group_regime(other, &[rep], &std::collections::BTreeSet::new()),
-            Err(MergeCoplanarError::GroupKindSplit {
-                planar: rep,
-                curved: other,
-            }),
+            body.merge_kind(face),
+            Err(MergeCoplanarError::PoisonedSurfaceDescription { face })
         );
+        assert!(
+            MergeKind::Plane < MergeKind::Curved && MergeKind::Curved < MergeKind::Placeholder,
+            "the refusal's naming order"
+        );
+    }
+
+    /// **A poisoned net refuses the call before any surgery.** Two
+    /// adjacent faces of the cube share one key carrying a net in
+    /// [`NetState::Poisoned`]; the other four are placeholders. The
+    /// door refuses [`MergeCoplanarError::PoisonedSurfaceDescription`]
+    /// naming the arena-first poisoned face and leaves the body
+    /// byte-identical — the placeholders are not set aside into an
+    /// `Ok`, because the call never gets past its census.
+    ///
+    /// Reds against the described arm: the pair groups as a curved
+    /// same-key run, `kef` kills their shared edge on the trial, the
+    /// tier-2 gate passes (it reads no surface), and the door returns
+    /// `Ok` with the group committed — surgery over a description
+    /// tier 3 refuses at rest.
+    #[test]
+    fn a_poisoned_net_refuses_before_any_surgery() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let (first, second) = adjacent_pair(&body);
+        body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
+            .expect("a live face takes a surface");
+        body.set_face_surface(
+            second,
+            crate::euler::FaceSurface::Shared(surface_of(&body, first)),
+        )
+        .expect("a live face takes a shared key");
+        let named = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| k == first || k == second)
+            .expect("the pair is live");
+        let before = crate::fixtures::deep_snapshot(&body);
+        assert_eq!(
+            body.merge_coplanar_faces(tol),
+            Err(MergeCoplanarError::PoisonedSurfaceDescription { face: named })
+        );
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
+
+    /// [`ops_cube`] with its one shared key re-described as a
+    /// cylinder: one curved same-key run over the whole cube.
+    fn curved_same_key_cube(tol: Tol) -> Body<f64> {
+        let mut body = ops_cube(tol).body;
+        let key = body.faces().next().expect("faces").1.surface;
+        *body
+            .surfaces
+            .get_mut(key)
+            .expect("the placeholder resolves") = unit_cylinder();
+        body
+    }
+
+    /// **The surgery re-checks the kind it is told — the truthful
+    /// call.** A curved same-key cube told `Curved` refuses
+    /// `PeriodClosure`: the absorption closes the cylinder's full
+    /// period on the survivor.
+    #[test]
+    fn a_curved_run_told_its_own_kind_refuses_the_period_closure() {
+        let tol = Tol::witness();
+        let mut body = curved_same_key_cube(tol);
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        assert!(matches!(
+            body.merge_group(faces[0], &faces[1..], MergeKind::Curved, tol),
+            Err(MergeCoplanarError::PeriodClosure { .. })
+        ));
+    }
+
+    /// **Told "planar", the same cube is caught before any mutation.**
+    /// Reds against a surgery that believes its caller: the curved
+    /// cube then MERGES — five faces absorbed, seven rings minted —
+    /// where the truthful call refuses, and nothing downstream of the
+    /// surgery notices.
+    #[test]
+    #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
+    fn a_curved_run_told_planar_is_caught_before_any_surgery() {
+        let tol = Tol::witness();
+        let mut body = curved_same_key_cube(tol);
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let _ = body.merge_group(faces[0], &faces[1..], MergeKind::Plane, tol);
+    }
+
+    /// **Told "curved", a planar nested group is caught the same
+    /// way.** On this fixture the lie would change no outcome — the
+    /// absorption runs first and refuses `SameFace` — and the re-check
+    /// does not depend on that.
+    #[test]
+    #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
+    fn a_planar_group_told_curved_is_caught_before_any_surgery() {
+        let tol = Tol::witness();
+        let (mut body, top, membrane) = cube_with_membrane(tol);
+        describe_shared_key(&mut body);
+        let _ = body.merge_group(membrane, &[top], MergeKind::Curved, tol);
+    }
+
+    /// **An `Ok` carries a recorded skip and the placeholder census
+    /// together.** The declared nested cube with one side face — not
+    /// the ringed top, not the membrane — put back on a placeholder:
+    /// the nested group records its `SameFace` skip as before, the
+    /// placeholder is named, and neither record swallows the other.
+    #[test]
+    fn an_ok_carries_a_recorded_skip_beside_the_placeholder_census() {
+        let tol = Tol::witness();
+        let (mut body, membrane) = cube_with_arena_first_membrane(tol);
+        let mut declared = declare_planes_pairwise(&mut body);
+        let side = body
+            .faces()
+            .find(|&(k, f)| k != membrane && f.rings.is_empty())
+            .map(|(k, _)| k)
+            .expect("a side face outside the nesting");
+        let old_key = surface_of(&body, side);
+        body.set_face_surface(
+            side,
+            crate::euler::FaceSurface::New(Surface::nurbs_placeholder()),
+        )
+        .expect("a live face takes a surface");
+        declared.retain(|&(a, b)| a != old_key && b != old_key);
+        let outcome = body
+            .merge_coplanar_faces_declared(&declared, tol)
+            .expect("a recorded skip beside a set-aside face is not a refusal");
+        assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+        let [skipped] = &outcome.skipped[..] else {
+            panic!("one recorded skip: {:?}", outcome.skipped)
+        };
+        assert!(
+            matches!(
+                skipped.reason,
+                MergeCoplanarError::Op {
+                    error: EulerOpError::SameFace { .. }
+                }
+            ),
+            "{:?}",
+            skipped.reason
+        );
+        assert!(!skipped.faces.contains(&side), "{:?}", skipped.faces);
+        assert_eq!(outcome.placeholders, vec![side]);
+    }
+
+    /// [`ops_cube`] with its arena-first face re-described as a real
+    /// plane on its OWN key, the other five still on the shared
+    /// placeholder.
+    fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
+        let mut body = ops_cube(tol).body;
+        let face = body.faces().next().expect("a cube has faces").0;
+        body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
+            .expect("a live face takes a surface");
+        (body, face)
+    }
+
+    /// The surface key of one face.
+    fn surface_of(body: &Body<f64>, face: FaceKey) -> SurfaceKey {
+        body.get_face(face).expect("live").surface
+    }
+
+    /// **A described face beside placeholder neighbours is left
+    /// alone, and the neighbours are set aside.** Nothing joins the
+    /// plane to the placeholders — a different key, no source, no
+    /// declaration — so the door returns `Ok` with no group and no
+    /// skip, names exactly the five placeholders in arena order, and
+    /// leaves the body byte-identical. The mixed case's quiet side:
+    /// nothing here claimed the two kinds were one surface.
+    #[test]
+    fn a_described_face_beside_placeholders_is_untouched_and_they_are_named() {
+        let tol = Tol::witness();
+        let (mut body, plane) = cube_with_one_described_face(tol);
+        let expected: Vec<FaceKey> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| k != plane)
+            .collect();
+        assert_eq!(expected.len(), 5);
+        let before = crate::fixtures::deep_snapshot(&body);
+        let outcome = body
+            .merge_coplanar_faces(tol)
+            .expect("a described face with nothing to glue is not a refusal");
+        assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+        assert!(outcome.skipped.is_empty(), "{:?}", outcome.skipped);
+        assert_eq!(outcome.placeholders, expected);
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
+
+    /// **A source stamp joining a placeholder to a described face
+    /// refuses typed, naming both and their kinds.** The same-source
+    /// rung is the one rung that can join the two — it glues on
+    /// provenance and never asks the kind — and the stamp is the
+    /// caller's claim that they are one recipe surface, which a
+    /// placeholder cannot be with anything described. The door
+    /// refuses rather than choosing which half of the claim to
+    /// believe, and the body is untouched. The mixed case's loud
+    /// side, on the cube. The stamp sits on the KEY: stamping the
+    /// plane's key and the placeholder key joins the plane to all five
+    /// placeholders, edge-neighbours or not, and the face picked below
+    /// is only the handle for that key.
+    ///
+    /// Reds against a quiet set-aside: the plane would be left alone,
+    /// the five placeholders named, and the call would return `Ok`
+    /// over a stamp the door had silently overruled.
+    #[test]
+    fn a_source_stamp_joining_a_placeholder_to_a_plane_refuses_typed() {
+        let tol = Tol::witness();
+        let (mut body, plane) = cube_with_one_described_face(tol);
+        let on_placeholder_key = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| k != plane)
+            .expect("a face on the placeholder key");
+        let source = crate::GeomSource::minted(7, 0);
+        for face in [plane, on_placeholder_key] {
+            body.set_surface_source(surface_of(&body, face), source.clone())
+                .expect("a live key takes a source");
+        }
+        let before = crate::fixtures::deep_snapshot(&body);
+        let Err(MergeCoplanarError::GroupKindSplit {
+            face,
+            kind,
+            other,
+            other_kind,
+        }) = body.merge_coplanar_faces(tol)
+        else {
+            panic!("a source-joined placeholder refuses")
+        };
+        assert_eq!((face, kind), (plane, MergeKind::Plane));
+        assert_eq!(other_kind, MergeKind::Placeholder);
+        assert_ne!(other, plane);
+        assert_eq!(
+            body.get_face(other)
+                .expect("the named member is live")
+                .surface,
+            surface_of(&body, on_placeholder_key),
+            "the other member is on the placeholder key"
+        );
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
+
+    /// The two-face digon pillow — two vertices, two chord edges —
+    /// with its split face on a real plane and its seed face left on
+    /// the placeholder, each on its own key: a placeholder cap.
+    fn pillow_with_a_placeholder_cap(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
+        let pt = geom_core::Point3::new;
+        let mut body = Body::<f64>::new();
+        let seed = body
+            .mvfs(pt(0.0, 0.0, 0.0))
+            .expect("mvfs has no preconditions");
+        let seg = body
+            .mev_line(
+                crate::euler::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                pt(1.0, 0.0, 0.0),
+                tol,
+            )
+            .expect("the first edge grows");
+        let split = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                tol,
+            )
+            .expect("the chord closes a second face");
+        body.set_face_surface(split.face, crate::euler::FaceSurface::New(flat_plane()))
+            .expect("a live face takes a surface");
+        (body, seed.face, split.face)
+    }
+
+    /// **The pillow with a placeholder cap, both ways.** Unjoined, the
+    /// cap is named and the pillow is untouched; joined by one source
+    /// stamp, the pair refuses with the cap named as the placeholder
+    /// — and the seed face being arena-first does not put it first in
+    /// the refusal, which names the pair in kind order.
+    #[test]
+    fn a_pillow_with_a_placeholder_cap_is_set_aside_unjoined_and_refused_joined() {
+        let tol = Tol::witness();
+        let (mut body, cap, plane) = pillow_with_a_placeholder_cap(tol);
+        assert_eq!(validate_closed(&body), Ok(()));
+        let before = crate::fixtures::deep_snapshot(&body);
+        let outcome = body
+            .merge_coplanar_faces(tol)
+            .expect("an unjoined cap is not a refusal");
+        assert!(outcome.groups.is_empty() && outcome.skipped.is_empty());
+        assert_eq!(outcome.placeholders, vec![cap]);
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+
+        let source = crate::GeomSource::minted(11, 0);
+        for face in [cap, plane] {
+            body.set_surface_source(surface_of(&body, face), source.clone())
+                .expect("a live key takes a source");
+        }
+        let before = crate::fixtures::deep_snapshot(&body);
+        assert_eq!(
+            body.merge_coplanar_faces(tol),
+            Err(MergeCoplanarError::GroupKindSplit {
+                face: plane,
+                kind: MergeKind::Plane,
+                other: cap,
+                other_kind: MergeKind::Placeholder,
+            })
+        );
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
     }
 
     /// The crate's one executable pin on this door's rendered
@@ -1980,6 +3737,69 @@ mod tests {
             .contains("fix the declaration or the geometry"),
             "the declared-pair contradiction carries its recourse"
         );
+        let split = |other_kind| {
+            rendered(&MergeCoplanarError::GroupKindSplit {
+                face: FaceKey::default(),
+                kind: MergeKind::Plane,
+                other: FaceKey::default(),
+                other_kind,
+            })
+        };
+        let with_placeholder = split(MergeKind::Placeholder);
+        assert!(
+            with_placeholder.contains("(planar)")
+                && with_placeholder.contains("(placeholder)")
+                && with_placeholder.contains("re-check the shared surface source")
+                && with_placeholder.contains("describes no locus"),
+            "a split on a placeholder names both kinds and the placeholder's recourse: \
+             {with_placeholder}"
+        );
+        let two_described = split(MergeKind::Curved);
+        assert!(
+            two_described.contains("(curved)")
+                && two_described.contains("re-check the shared surface source")
+                && !two_described.contains("describes no locus"),
+            "a split between two described kinds carries no placeholder recourse: \
+             {two_described}"
+        );
+        let poisoned = rendered(&MergeCoplanarError::PoisonedSurfaceDescription {
+            face: FaceKey::default(),
+        });
+        assert!(
+            poisoned.contains("poison") && poisoned.contains("Body::set_face_surface"),
+            "the poisoned refusal names its recourse: {poisoned}"
+        );
+    }
+
+    /// **The placeholder cube forms no merge group.** Every face of
+    /// `ops_cube` carries the `mvfs` seed's surface on one key, and
+    /// the structural rung reads one key as one surface — but that
+    /// surface describes no locus, so there is nothing to glue: the
+    /// door returns `Ok` with no group and no skip, names the six
+    /// faces as placeholders, and leaves the body byte-identical.
+    ///
+    /// Reds against reading the placeholder as curved: the whole cube
+    /// then groups as one curved run, the absorption kills five edges
+    /// on the trial clone, the survivor's duplicates read as a period
+    /// closure, and the door returns `Ok` with a `PeriodClosure` skip
+    /// over six faces that were never a cosurface run.
+    #[test]
+    fn the_placeholder_cube_forms_no_group_and_its_faces_are_named() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let before = crate::fixtures::deep_snapshot(&body);
+        let outcome = body
+            .merge_coplanar_faces(tol)
+            .expect("nothing to glue is not a refusal");
+        assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+        assert!(
+            outcome.skipped.is_empty(),
+            "a placeholder run is not a curved run: {:?}",
+            outcome.skipped
+        );
+        assert_eq!(outcome.placeholders, faces);
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
     }
 }
 

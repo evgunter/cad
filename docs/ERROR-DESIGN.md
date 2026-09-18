@@ -557,10 +557,10 @@ in the parameters; its residual is a genuine numeric margin that
 widens with the box whatever the symbolic tier does. Over a box that
 is a parameter-dependent existence-and-uniqueness certificate per
 family (interval Newton / Krawczyk, uniform over p), a different
-deliverable: S-CERT's
-`work/cert/param-box-certification-of-implicit-quantities.md` (filed
-at this revision). The driver's refusal for such a residual stays
-typed and priced. The plate does not reach it (plane × cylinder is
+deliverable:
+`work/sym/param-box-certification-of-implicit-quantities.md` (filed
+at this revision by S-CERT; M10's since S-CERT's exit). The driver's
+refusal for such a residual stays typed and priced. The plate does not reach it (plane × cylinder is
 closed form); the E12 unit's census says which of the 57 do.
 
 **Acceptance for the unit that builds this (M10-7).** The two-hole
@@ -593,6 +593,113 @@ number.
   for same-OBJECT identities; the cosurface case is an
   expression identity. Taken only if the census shows a family the
   symbolic tier misses.
+
+  **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
+  M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
+  a session-level record that two DAG NODES denote one function of the
+  parameters, made by the site that guarantees it, counted apart from
+  both theorem kinds (`SymCounts::registered`, the K token
+  `registered`). The numeric channel is untouched — a registration
+  reads no value except its own witness and writes none — and the
+  numeric channel runs FIRST at every decide site, so no registration
+  can turn a margin the enclosure proved non-zero into a `Zero`; where
+  a registration WOULD have, the run counts the contradiction
+  (`SymCounts::registrations_contradicted`) instead of folding it away.
+
+  **What the witness is worth, stated exactly, because this clause's
+  own wording ("verified at the f64 witness point") overstates it.** A
+  registration is an AXIOM: its soundness rests on the registrant's
+  proof and on nothing the door checks. The witness refuses only a lie
+  visible AT THE POINT, or one whose two certified enclosures are
+  DISJOINT over the box — and "the enclosures meet" is satisfied by
+  every coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+  registration false by a geometric amount is recorded as soon as the
+  box is wide enough for the two enclosures to overlap. The door cannot
+  tell an identity from a coincidence. Two consequences ship with it:
+  every registrant carries its theorem in its doc comment, and the call
+  sites are an allowlist a reviewer can read
+  (`scripts/gates/register-equal-allowlist.sh`) — the method hands
+  every generic `T: Real` body a value comparison, which is the
+  capability evaluation-code discipline exists to keep out of that
+  position.
+
+  The point witness moves with the RUN'S ε: the slack is
+  `tol.eps() · max(|a|, |b|, 1)` — relative because ε is a length in
+  metres and `f64` rounding far from the origin exceeds it, floored at
+  one so a near-zero pair is compared absolutely at ε. The tolerance
+  ARRIVES: `Real::register_equal` takes a `tol: Tol` handed down from
+  the registrant's caller, because a library body may not mint one
+  (`scripts/gates/witness-not-ambient.sh`). The `Interval` refusal,
+  which is the one that matters over a box, carries no tolerance at
+  all and ignores the parameter: its witness is the exact meet.
+
+  **The refusal is TWO arms, split by the kind of witness** (Ev's D2
+  ruling on `[ev]` #2552, taken by SYM-6). `Disputed` is an INEXACT
+  witness's refusal — `f64` and `Probe`, two sides further apart than
+  the slack — and may be a lie or may be a theorem of the reals the
+  arithmetic lost at this scale, so it is counted and never asserted on.
+  `Contradicted` is reserved for the EXACT witness, `Interval`'s
+  disjoint certified enclosures: a proof that the two reals differ or
+  that an upstream enclosure does not contain its real, so a registrant
+  may assert on it and the swept and revolve registrants do.
+
+  The "same-OBJECT" limit in this bullet is exactly what M10-9
+  measured, and it BINDS: the swept arc's rim and span identities
+  discharge because the registrant builds the very nodes the consumer
+  asks about; the `Fillet` step's declared tangency does not, because
+  the CENTRE the joint classifier asks about is re-derived inside the
+  funnel from the stored `(a, b, bulge)` and the constructor does not
+  hold the operands that closed form needs
+  (`work/blend/fillet-tangency-is-not-the-constructors-node`); and the
+  residual that bounds every measured document,
+  `carrier_matches_mapped_source`, is an identity between two
+  INDEPENDENTLY BUILT objects, which is the line this bullet draws
+  (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). No
+  form-level axiom store was built, and the reason is this clause.
+
+  **The form-level mechanism is ALGEBRA, not registration (M10-10,
+  2026-09-07).** The two spellings of an arc meet once their trig is
+  written in closed form: rule D (`geom_core::sym::SymRules::trig_of_atan`)
+  rewrites `sin`/`cos` of `q · atan(X)` to rational functions of `X`
+  and the atom `sqrt(1 + X²)` — multiples by angle addition, halves on
+  the positive branch, which the RANGE of `atan` fixes and no value
+  reads — and rules A/B per node close the ring; and, under the same
+  dial (amendment A1), `atan2` of the zero form over a form
+  non-negative BY SYNTAX is the zero form, and `sin`/`cos` at an exact
+  half-multiple of π is its constant. All four of the plate's identity
+  residuals go: two as theorems, the scaffold residual through the door
+  at every sample (the rim identity the registrant states is what
+  closes it), and the chart's own phase — `atan2(0, r²/sqrt(r²))` from
+  the cylinder chart derivation, whose `u_ref` on the extrude's wall is
+  the start's own radial — folds as a fact about `atan2` on a syntactic
+  class (positive wherever the arc exists; the degenerate box is
+  clause 1's), with the rim identity closing the rest through the door.
+  No sign was read. The plate's whole-certifying box is 0.2368, 0.2631
+  and 0.2631 of its REAL study at ε = 1e-6, 1e-9, 1e-12 — the staged
+  walk's own end, and the ceiling stopped scaling with ε. What bounds
+  that CEILING is the class this bullet's second sentence hands the
+  ceiling to — dependency widening of a real margin
+  (`work/sym/real-margin-dependency-widening`), not a flip: the web
+  assertion's margin is affine, `1e-4 + 2·Δhs − Δr_a − Δr_b`, its true
+  range at the ceiling `[5.79e-5, 1.42e-4] > 0`, its enclosure
+  `[−2.09e-9, 2.00e-4]`, and the flip first enters the box at 0.625 of
+  the study. The LEAVES certify up to that flip: driven whole at 1024
+  leaves the real study is 431 certified / 593 refused at the budget
+  and nothing else, a refused leaf refined further is bounded by
+  `{assert_bound}` alone at every depth, and the requirement reads
+  `Violated` on a certified part of the mass (the tour's stop 1 says
+  the number). R1's annulus likewise certifies 0.70–0.84 of its real
+  study, bounded by the enclosures of its own dihedral and
+  arc-diameter margins (the latter cannot be zero for any `r > 0` —
+  the widening finding's second site). The link, the bracket and the
+  pad are still ε-scale, bounded by identity residuals whose squared
+  components the term/coefficient budget freezes at any affordable
+  width (the per-node cap is a cost wall, not a reach; what they wait
+  on is the scaffold residual's retirement, PCURVE/D3). And the reach
+  is the UNIT bulge: a parameter bulge is outside the mechanism and a
+  literal bulge other than 1 leaves residue
+  (`work/sym/rule-d-reaches-the-unit-bulge-only`;
+  `work/sym/symbolic-tier-census`).
 
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is

@@ -28,9 +28,41 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
+
+/// The spine frame the tube doors take: ring centre, spine axis, and
+/// the reference radial the window's angles start from. The axis is
+/// decided and KEPT; the reference yields its component along it.
+///
+/// One line over `OrthoFrame::from_axis_and_reference`, spelled here
+/// because these probes are an integration test of the tour BINARY
+/// and cannot reach the tour's own `scalar::axis_frame`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, the axis has no direction, or the
+/// reference lies along it.
+fn tube_frame(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+    tol: Tol,
+) -> pncad::geom_core::OrthoFrame<f64> {
+    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        "tour_probe_frame_axis",
+        pncad::geom_core::Band::linear(tol).expect("the witness band"),
+    )
+    .expect("the spine axis has a direction and the reference radial is off it")
+}
+
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
+#[path = "common/census.rs"]
+mod census;
+use census::{genus, rings};
 use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
 /// A closed polygon through `$first` and the rest, on the `path`
@@ -44,8 +76,6 @@ macro_rules! poly {
         lp
     }};
 }
-
-const FIT_TOL: f64 = 1e-6;
 
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
@@ -83,23 +113,6 @@ fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("footprint extrudes")
     .body
-}
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    body.shells().count() as i64 - (v - e + f - rings(body) as i64) / 2
 }
 
 /// Every planar face whose plane origin sits at station `y`.
@@ -169,7 +182,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, top);
     println!("[r2-1] my mouth chart is {} face(s)", chart.len());
-    let cup = pncad::topo::shell_open(&body, 0.021, &chart, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&body, 0.021, &chart, tol)
         .expect("shell_open returns a body")
         .body;
     println!(
@@ -224,7 +237,7 @@ fn r2_revolved_tube_separates_seam_from_axis() {
         body.faces().count(),
         chart.len()
     );
-    match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
+    match pncad::topo::shell_open(&body, 0.05, &chart, tol) {
         Err(e) => println!("[r2-2] REFUSED: {e}"),
         Ok(pncad::topo::Shelled { body: cup, .. }) => {
             println!(
@@ -279,7 +292,7 @@ fn r2_partial_revolve_one_cap_face() {
     // The SEALED arm first: the wedge's meridian caps are planes
     // CONTAINING the cylinder's axis, which their stated surviving
     // class ("a plane NORMAL to a cylinder's axis") excludes.
-    match pncad::topo::shell(&body, 0.05, FIT_TOL, tol) {
+    match pncad::topo::shell(&body, 0.05, tol) {
         Err(e) => println!("[r2-3] SEALED refuses: {}", offset_refusal(&e)),
         Ok(pncad::topo::Shelled { body: b, .. }) => println!(
             "[r2-3] SEALED hollows: shells = {}, genus = {}",
@@ -288,7 +301,7 @@ fn r2_partial_revolve_one_cap_face() {
         ),
     }
     if chart.len() == 1 {
-        match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
+        match pncad::topo::shell_open(&body, 0.05, &chart, tol) {
             Err(e) => println!("[r2-3] OPEN refuses: {e}"),
             Ok(pncad::topo::Shelled { body: cup, .. }) => println!(
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
@@ -326,7 +339,7 @@ fn r2_ring_anatomy_on_a_drum() {
         .into();
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
         .expect("the drum opens")
         .body;
     println!(
@@ -434,7 +447,7 @@ fn r2_box_control_is_right() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&body, t, &top, tol)
         .expect("a box opens at its top")
         .body;
     println!(
@@ -525,7 +538,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
         ("a CROSS prism (all square, non-convex)", cross),
     ] {
         let body = extruded(lp, 0.3, tol);
-        match pncad::topo::shell(&body, 0.02, FIT_TOL, tol) {
+        match pncad::topo::shell(&body, 0.02, tol) {
             Err(e) => println!("[r2-6] {what}: REFUSES {}", offset_refusal(&e)),
             Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-6] {what}: HOLLOWS (shells {}, genus {})",
@@ -561,7 +574,7 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let body = revolved(lp, tol);
-    match pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, tol) {
+    match pncad::topo::shell(&body, 1.0 / 128.0, tol) {
         Err(e) => println!("[r2-7] bullet: {}", offset_refusal(&e)),
         Ok(pncad::topo::Shelled { body: h, .. }) => {
             println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h))
@@ -593,7 +606,7 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let b2 = revolved(lp2, tol);
-    match pncad::topo::shell(&b2, 1.0 / 128.0, FIT_TOL, tol) {
+    match pncad::topo::shell(&b2, 1.0 / 128.0, tol) {
         Err(e) => println!(
             "[r2-7] NON-tangent dome (Center arc): {}",
             offset_refusal(&e)
@@ -647,7 +660,7 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
         ("the vessel", vessel, 0.2),
         ("the tube", tube, 0.1),
     ] {
-        match pncad::topo::shell(&body, t, FIT_TOL, tol) {
+        match pncad::topo::shell(&body, t, tol) {
             Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-8] {what} hollows (shells {}, genus {})",
                 h.shells().count(),
@@ -678,13 +691,16 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     );
     let handle = tube_along_arc::<f64>(
-        Point3 {
-            x: 0.5,
-            y: 0.5,
-            z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3 {
+                x: 0.5,
+                y: 0.5,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         0.3,
         TubeWindow::Arc { t0: -2.0, t1: 2.0 },
         0.08,
@@ -760,7 +776,7 @@ fn r2_annular_mouth_anatomy() {
         rings(&body),
         genus(&body)
     );
-    let sealed = pncad::topo::shell(&body, t, FIT_TOL, tol)
+    let sealed = pncad::topo::shell(&body, t, tol)
         .expect("the tube hollows")
         .body;
     println!(
@@ -775,7 +791,7 @@ fn r2_annular_mouth_anatomy() {
             .sum::<usize>())
     );
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
         .expect("the tube opens")
         .body;
     println!(
@@ -831,9 +847,7 @@ fn r2_step_frontier_kind() {
         ),
         tol,
     );
-    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, tol)
-        .expect("hollows")
-        .body;
+    let hollow = pncad::topo::shell(&pot, 0.1, tol).expect("hollows").body;
     let e = pncad::step_export::step_string(
         &hollow,
         &pncad::step_export::StepOptions {
@@ -882,7 +896,9 @@ fn r2_the_scene_numbers() {
             Some(Surface::Plane { origin, normal, .. }) => Some((
                 origin.y,
                 normal.y,
-                if f.sense { normal.y } else { -normal.y },
+                pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense)
+                    .vec()
+                    .y,
             )),
             _ => None,
         })
@@ -908,7 +924,7 @@ fn r2_the_scene_numbers() {
     println!(
         "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
     );
-    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, tol)
+    let pot = pncad::topo::shell(&sharp, wall, tol)
         .expect("the pot hollows")
         .body;
     println!(
@@ -931,13 +947,16 @@ fn r2_the_scene_numbers() {
     }
     // The handle and the spout, on the scene's own parameters.
     let handle = tube_along_arc::<f64>(
-        Point3 {
-            x: rb,
-            y: (yf + ys) / 2.0,
-            z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3 {
+                x: rb,
+                y: (yf + ys) / 2.0,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         6.0 / 256.0,
         TubeWindow::Arc {
             t0: -(core::f64::consts::FRAC_PI_2 + 0.5),

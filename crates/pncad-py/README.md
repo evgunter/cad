@@ -33,13 +33,18 @@ dual-number lanes are not bound.
 ## A first model
 
 ```python
-from pncad import Doc, Node, evaluate, mm
+from pncad import Doc, Expr, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(40, mm)),
+        (Expr.length_in(0, mm), Expr.length_in(40, mm)),
+    ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, 8 * mm))
+plate = doc.insert(Node.extrude(profile, Expr.length_in(8, mm)))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -50,7 +55,7 @@ Rounds and arcs are the PATHS lattice, where each state of the tip is
 its own class exposing only its legal continuations:
 
 ```python
-from pncad import Doc, Node, Open, Start, evaluate, mm
+from pncad import Doc, Expr, Node, Open, Start, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -62,7 +67,7 @@ rounded = (
     .line_to(Start)
 )
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.length_in(8, mm)))
 assert evaluate(doc).succeeded(plate)
 ```
 
@@ -98,7 +103,24 @@ Three things to expect, all treated at length in the guide:
   the candidate declaration rides the exception as a typed `finding`
   (`Evaluation.find_flush_candidates` → `Node.declare`). Refusals are
   exceptions carrying attributes, never prose to parse — all of them
-  subclass `PncadError`.
+  subclass `PncadError`. A refusal's discriminant is one word on one
+  attribute, with a single stated exception: `Body.validate*` is the
+  one door that reports MANY failures in one raise, so `ValidationError`
+  carries `findings`, a sequence of `ValidationFinding`s, one per
+  failure. The door's own shape is the whole argument for it; nothing
+  else on the surface is shaped that way.
+- **Every arm's payload is an attribute**, present on every arm of the
+  class and `None` where that arm does not carry one — so `getattr`
+  never raises and a caller reads the payload without first branching
+  on the discriminant. Each door projects it from ONE exhaustive
+  match with no wildcard, so a kernel arm added without a payload
+  stops the bindings compiling. Where an arm wraps a refusal of
+  another layer, that refusal's own word rides on `inner_variant` and
+  its payload stays the inner door's surface. Two doors are still
+  tag-plus-prose, each with its reason at the site: `PathError` waits
+  on a kernel-side discriminant its tag map currently hand-writes, and
+  `StepImportError`'s twenty-one arms are all reachable with their
+  entity id and line in the message.
 
 ## Documentation
 

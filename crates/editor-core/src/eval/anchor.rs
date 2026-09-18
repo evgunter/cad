@@ -30,7 +30,7 @@
 //! the offset, and the bulge sign pins the orientation parity (which
 //! positions alone cannot decide at n = 2 — see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, RawLoop, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ValidatedProfile};
 
 use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
@@ -98,28 +98,73 @@ impl ProfileNaming {
 }
 
 /// The profile node's evaluated value: the validated (canonical)
-/// profile plus the naming anchor that program-anchors every profile
-/// ref emitted against it.
+/// profile, the naming anchor that program-anchors every profile ref
+/// emitted against it, and the per-edge radius the program draws each
+/// of its segments at.
 #[derive(Debug, Clone)]
 pub struct ProfileValue<T: geom_core::Real> {
     /// The validated profile downstream ops consume.
     pub validated: ValidatedProfile<T>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
+    /// **Which radius expression each profile edge is drawn at**, per
+    /// CANONICAL loop and then per CANONICAL segment — the indexing a
+    /// sweep's own wall record uses, so a consumer pairs the two by
+    /// position and derives nothing.
+    ///
+    /// `None` at a position is an answer: that segment is a straight
+    /// one, or an arc whose radius the program does not author as a
+    /// scalar (a `bulge`, a `via`), or one of several segments a fused
+    /// step emitted (`ProfileProgram::segment_radii` says why each
+    /// answers nothing).
+    ///
+    /// **Why it rides the VALUE.** It is the expression side of the
+    /// per-edge flow source, and the node that HOLDS those expressions
+    /// is this one — a sweep downstream attaches them to the walls it
+    /// mints and has no other way to ask. Answering it needs the
+    /// replay's per-step spans, which live on `ProfilePre` and are
+    /// dropped with it, so the ANSWER is carried and the record is
+    /// not: whether the record itself belongs on the value is PP1/PP2's
+    /// open question
+    /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),
+    /// and nothing here decides it.
+    ///
+    /// Expressions rather than lowered tokens, because lowering is
+    /// scope-relative and the scope that matters is the ATTACHING
+    /// evaluation's descent chain, read where the attach happens.
+    pub edge_radii: Vec<Vec<Option<crate::expr::Expr>>>,
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
-/// loops assembled into a `Profile<f64>` plus the derived naming
-/// anchor. Computed in `eval_node`'s resolution stage, OUTSIDE the
-/// node's verdict-log bracket — replay and the f64 validation are C6
-/// STRUCTURE SELECTION (the v1 substrate's stored bits, one
-/// derivation earlier), not per-lane op decisions, so they do not
-/// enter the node's logged verdicts; the lane's own `validate` (the
-/// op) remains the logged surface, exactly as before the switch.
+/// loops assembled into a `Profile<f64>`, its validated form, and the
+/// derived naming anchor. Computed in `eval_node`'s resolution stage,
+/// inside the node's verdict frame: replay and the f64 validation are
+/// C6 STRUCTURE SELECTION (the v1 substrate's stored bits, one
+/// derivation earlier), decided once on the node's behalf and logged
+/// as the node's own. Under the pinned lift the op's value is
+/// [`ProfilePre::validated_f64`] lifted, and the op decides nothing;
+/// under the guided lift the op's own validation follows in the log.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
-    /// The replayed profile at f64 (program order).
+    /// The replayed profile at f64 (program order). Its `plane` is the
+    /// 2-D record's assembly frame: [`ProfilePre::placement_f64`]
+    /// where there is one, the conventional `SketchPlane::xy()` where
+    /// there is not — validation is 2-D and the naming anchor is
+    /// loop-derived, so no decision reads it. What a consumer PLACES
+    /// with is `placement_f64`, never this field's plane.
     pub profile_f64: Profile<f64>,
+    /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
+    /// pre-pass's one validation. Its plane is `profile_f64`'s
+    /// assembly frame, with the same caveat: a consumer places with
+    /// `placement_f64` (or the lane's derived frame), never with it.
+    pub validated_f64: ValidatedProfile<f64>,
+    /// The profile's `f64` placement, where the profile HAS one: an
+    /// authored frame's document read, or a section's lane read pinned
+    /// to `f64`. `None` for a profile on a derived frame (DM1c), whose
+    /// only placement is the lane's — the invariant carried in the
+    /// type rather than by a placeholder a reader could mistake for a
+    /// placement.
+    pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
     /// The discrete decisions this f64 pass made — the witness the
@@ -224,54 +269,6 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
-/// Embeds an exact-`f64` placement into any evaluation scalar.
-///
-/// ONE HOME for a per-coordinate `from_f64` walk that had grown three:
-/// the profile embed below did it inline, the lift's second pass needed
-/// the same thing for a sketch plane, and each copy was three lines of
-/// index-by-index transcription — the shape where a transposed `c1`/`c2`
-/// is invisible in review and identical in every copy but one.
-pub(crate) fn embed_affine<T: geom_core::Real>(
-    a: &geom_core::Affine3<f64>,
-) -> geom_core::Affine3<T> {
-    let v = |w: geom_core::Vec3<f64>| {
-        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
-    };
-    geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    )
-}
-
-/// Embeds a stored exact-`f64` profile into any evaluation scalar (the
-/// retired payload's `embed`, now a free function; the `from_f64`
-/// embedding the parameter environment uses).
-pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
-    let placement = embed_affine::<T>(&p.plane.placement);
-    let loops = p
-        .loops
-        .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.vertices()
-                    .iter()
-                    .map(|vx| {
-                        profile::ProfileVertex::new(
-                            geom_core::Point2::new(
-                                T::from_f64(vx.pos().x),
-                                T::from_f64(vx.pos().y),
-                            ),
-                            T::from_f64(vx.bulge()),
-                        )
-                    })
-                    .collect(),
-            )
-            .with_tangent_joints(lp.tangent_joints().to_vec())
-        })
-        .collect();
-    Profile::new(profile::SketchPlane::new(placement), loops)
-}
-
 /// Rewrites one profile ref canonical → program.
 fn remap_edge(naming: &ProfileNaming, e: ProfileEdgeRef) -> ProfileEdgeRef {
     match naming.loops.get(e.loop_index as usize) {
@@ -344,13 +341,16 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         | R::CornerFace(..)
         | R::TrimEdge { .. }
         | R::FootVertex { .. }
-        | R::CornerArc { .. }
+        | R::EndArc { .. }
         | R::BandFace(..)
         | R::BandTrim { .. }
         | R::BandFoot(..)
         | R::BandCross(..)
         | R::BandCut(..)
         | R::BandSlit(..)
+        | R::Inner(..)
+        | R::Rim(..)
+        | R::HoleRim { .. }
         | R::InPart { .. }
         | R::Instance { .. } => seg,
     }

@@ -110,16 +110,12 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         0.5,
         0.54,
     );
-    let spike: common::Prism<f64> = common::prism_z(
-        &[(0.45, 0.30), (0.55, 0.30), (0.55, 0.38), (0.45, 0.38)],
-        0.40,
-        0.60,
-    );
+    let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60));
     let post_top = post.top_face;
     let mut body = post.body;
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike.body, Tol::witness()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike, Tol::witness()).unwrap();
 
     // The witness is a coordinate triple, and a crossing witness may
     // carry a trailing side-verdict clause after it — so both probes

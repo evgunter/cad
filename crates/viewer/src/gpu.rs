@@ -11,7 +11,7 @@
 //!
 //! GQ6-RESURVEY §3's picking strategy is a GPU id buffer for
 //! hover/click exactness beside a CPU ray cast. Both are here: the ray
-//! cast is `crate::pick`, entirely headless and entirely tested, and
+//! cast is `crate::pickindex`, entirely headless and entirely tested, and
 //! the id pass is [`ViewportRenderer::read_id_at`] below.
 //!
 //! **The id pass renders into a 1×1 target, not into a pane-sized
@@ -24,7 +24,7 @@
 //! vertex stage still runs over the whole scene, because a pick has to
 //! consider every triangle that could be under the cursor.
 //!
-//! Ids are the values `crate::pick::IdMap` assigns, and the target is
+//! Ids are the values `crate::pickindex::IdMap` assigns, and the target is
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
@@ -69,13 +69,17 @@
 //! a camera-facing quad, not part of a closed solid, so back-face culling
 //! is a question about billboards rather than about winding, and the
 //! reading above does not answer it. It stays open on its own terms.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pick::{EdgeOverlay, Highlight, IdMap, cursor_projection};
+use crate::camera::cursor_projection;
+use crate::marks::{EdgeOverlay, Highlight};
+use crate::pickindex::IdMap;
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};
 
@@ -89,7 +93,7 @@ pub(crate) const DEPTH_BITS: u8 = 32;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
-/// which is what `crate::pick::IdMap` assigns. Not a colour format —
+/// which is what `crate::pickindex::IdMap` assigns. Not a colour format —
 /// nothing blends, filters or gamma-corrects an identity.
 const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
@@ -114,6 +118,10 @@ struct Uniforms {
     base_color: [f32; 4],
     /// `[selected id, hovered id, 0, 0]` — `IdMap::NOTHING` for
     /// "nothing is marked", so the shader needs no absence case.
+    ///
+    /// **The two lanes may hold the SAME id**, when the hover is on
+    /// the selection ([`crate::marks::Highlight`]); `fs_main` below is
+    /// what rules between them, and it is the only thing that does.
     highlight: [u32; 4],
     /// The four highlight marks: tint in `xyz`, mix strength in `w`.
     ///
@@ -201,7 +209,7 @@ struct IdPass {
 /// **Marks that cannot be a tint.** A face mark is a patch the shaded
 /// pass recognises by id; an edge has no patch, so its mark is
 /// geometry — the drawn polyline, handed over as a line list by
-/// `crate::pick::edge_overlay`. The colour is not a new palette entry:
+/// `crate::marks::edge_overlay`. The colour is not a new palette entry:
 /// it is the theme's OWN selected/hovered mark composited over the
 /// same base the shaded pass composites over (`Mark::over`'s mix, run
 /// on the same probe/focus-tinted body), drawn UNSHADED. The line is
@@ -361,7 +369,7 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// `crate::pick`'s `OCCLUSION_SLACK_REL` plays the same
+/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
 /// coincident-edge-over-its-own-face role on the CPU pick lane, in a
 /// different numeric domain (f64 world-depth comparison there, f32
 /// clip z here) — a pointer each way, deliberately not one shared
@@ -386,11 +394,24 @@ struct Geometry {
     /// Per-corner display flags (`SceneMesh::FLAG_PROBE`): the G3
     /// distinctness value, painted as the probe tint below.
     flags: wgpu::Buffer,
-    indices: wgpu::Buffer,
-    index_count: u32,
+    /// How many vertices one pass over these buffers draws — the
+    /// scene's corner count, which is [`corner_count`]'s answer for
+    /// the [`SceneMesh`] they were built from.
+    corners: u32,
     /// Which scene these buffers hold. The app bumps it whenever it
     /// rebuilds the mesh; a mismatch here is the upload trigger.
     revision: u64,
+}
+
+/// How many vertices one pass over `scene` draws.
+///
+/// **The scene is non-indexed geometry** — [`SceneMesh`]'s own
+/// contract: every triangle emits its own three corners, so nothing
+/// is shared and the draw range is the corner table's own length.
+/// This is the only place that number is derived, so the two passes
+/// over one scene cannot draw different ranges of it.
+fn corner_count(scene: &SceneMesh) -> u32 {
+    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
 }
 
 impl ViewportRenderer {
@@ -539,19 +560,12 @@ impl ViewportRenderer {
             wgpu::BufferUsages::VERTEX,
             bytemuck::cast_slice(scene.flags()),
         );
-        let indices = create_init_buffer(
-            device,
-            "viewer_scene_indices",
-            wgpu::BufferUsages::INDEX,
-            bytemuck::cast_slice(scene.indices()),
-        );
         self.geometry = Some(Geometry {
             positions,
             normals,
             ids,
             flags,
-            indices,
-            index_count: u32::try_from(scene.indices().len()).unwrap_or(u32::MAX),
+            corners: corner_count(scene),
             revision,
         });
     }
@@ -581,7 +595,7 @@ impl ViewportRenderer {
         view_projection: &[[f32; 4]; 4],
     ) -> Option<u32> {
         let geometry = self.geometry.as_ref()?;
-        if geometry.index_count == 0 {
+        if geometry.corners == 0 {
             return None;
         }
         queue.write_buffer(
@@ -643,8 +657,7 @@ impl ViewportRenderer {
             pass.set_bind_group(0, &self.id.bind_group, &[]);
             pass.set_vertex_buffer(0, geometry.positions.slice(..));
             pass.set_vertex_buffer(1, geometry.ids.slice(..));
-            pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..geometry.index_count, 0, 0..1);
+            pass.draw(0..geometry.corners, 0..1);
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -1024,12 +1037,12 @@ pub(crate) struct ViewportCallback {
     /// The frame's device pixel ratio; see
     /// [`ViewportCallback::viewport_px`].
     pub(crate) pixels_per_point: f32,
-    /// Which patch ids to mark, from `crate::pick::highlight` — a
+    /// Which patch ids to mark, from `crate::marks::highlight` — a
     /// value computed from (index, selection, hover) and handed
     /// straight through. **No highlight decision is taken here**; this
     /// pass paints what the pure function said.
     pub(crate) highlight: Highlight,
-    /// Which edges to mark, from `crate::pick::edge_overlay` — the
+    /// Which edges to mark, from `crate::marks::edge_overlay` — the
     /// same shape of value as `highlight` and handed through the same
     /// way: **no marking decision is taken here**.
     pub(crate) edges: EdgeOverlay,
@@ -1156,8 +1169,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass.set_vertex_buffer(1, geometry.normals.slice(..));
         render_pass.set_vertex_buffer(2, geometry.ids.slice(..));
         render_pass.set_vertex_buffer(3, geometry.flags.slice(..));
-        render_pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..geometry.index_count, 0, 0..1);
+        render_pass.draw(0..geometry.corners, 0..1);
         // The marks last, over the solid they lie on: depth-tested
         // against it, biased toward the eye, writing no depth.
         if let Some(edges) = renderer.edges.held.as_ref() {
@@ -1456,8 +1468,10 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use eframe::egui_wgpu;
+    use pncad::geom_core::Tol;
 
     use super::*;
+    use crate::scene::{self, DisplayTolerance};
 
     /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
     /// [`shader_source`]: an unreplaced token would reach the WGSL
@@ -1543,6 +1557,82 @@ mod tests {
         }
     }
 
+    /// **The draw range is every corner, and every buffer the passes
+    /// bind is that long.**
+    ///
+    /// The scene is non-indexed, so [`corner_count`] is the whole
+    /// contract between the buffers and the draw: the shaded pass
+    /// binds positions, normals, ids and flags, the id pass binds
+    /// positions and ids, and both draw `0..corners`. A table shorter
+    /// than that range is a read past the end of a vertex buffer —
+    /// wgpu validation on a device, and nothing at all here — and a
+    /// table longer than it is geometry silently not drawn. `flags` is
+    /// the one this pins that nothing else does: a walk arm that
+    /// pushed a corner without its display word would draw the whole
+    /// picture and mis-tint part of it.
+    #[test]
+    fn the_draw_range_is_the_length_of_every_buffer_the_passes_bind() {
+        let tol = Tol::witness();
+        let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+        let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
+        let mesh = scene::scene_of(&doc, delta, tol).expect("the plate tessellates");
+
+        let corners = corner_count(&mesh);
+        assert_eq!(
+            usize::try_from(corners).expect("the corner count fits a usize"),
+            mesh.stats().triangles * 3,
+            "the draw range is not every triangle's three corners"
+        );
+        for (what, held) in [
+            ("positions", mesh.positions().len()),
+            ("normals", mesh.normals().len()),
+            ("ids", mesh.ids().len()),
+            ("flags", mesh.flags().len()),
+        ] {
+            assert_eq!(
+                held,
+                usize::try_from(corners).expect("the corner count fits a usize"),
+                "the passes draw {corners} vertices and bind {held} of {what}"
+            );
+        }
+
+        // The empty picture draws nothing: `read_id_at` reads this as
+        // "there is no answer" rather than submitting an empty pass.
+        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), 0);
+    }
+
+    /// **Both scene passes hand [`corner_count`]'s answer to `draw`,
+    /// and neither reaches an index buffer.**
+    ///
+    /// The row above pins the VALUE; nothing headless can pin the
+    /// call, because a draw needs a device and no adapter here has
+    /// one. What is left is the text of the two call sites, read
+    /// through the shared lexer so comments and literals — this row's
+    /// own needles included — are not counted.
+    ///
+    /// It asserts that the two passes are spelled this way, not that
+    /// the GPU executes them: the hosted viewer-render rows are what
+    /// judge the picture.
+    #[test]
+    fn both_scene_passes_draw_the_corner_count_with_no_index_buffer() {
+        let code = test_utils::source::code_only(include_str!("gpu.rs"));
+        assert_eq!(
+            code.matches(".draw(0..geometry.corners, 0..1)").count(),
+            2,
+            "the shaded pass and the id pass are the two draws over the scene's \
+             buffers; a third, or one spelled differently, is outside what this \
+             row and `corner_count` together cover"
+        );
+        for absent in [".draw_indexed(", ".set_index_buffer("] {
+            assert_eq!(
+                code.matches(absent).count(),
+                0,
+                "`{absent}` is back: the scene is non-indexed geometry, so an index \
+                 buffer here is a permutation nothing produces"
+            );
+        }
+    }
+
     /// **Every pipeline in this module, built on a real device.**
     ///
     /// Device acquisition, shader-module compilation and each
@@ -1613,7 +1703,8 @@ mod tests {
             egui_wgpu::WgpuConfiguration::default().wgpu_setup
         else {
             panic!(
-                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer                  ask it for the device descriptor the app requests"
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
+                 ask it for the device descriptor the app requests"
             );
         };
         let (device, _queue) =

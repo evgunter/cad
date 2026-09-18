@@ -11,8 +11,9 @@
 use geom_brep::{EdgeAuthority, EdgeDescription};
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
 use sweep::RevolveAxis;
+use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
 
 pub fn eps() -> f64 {
@@ -31,6 +32,17 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 
 /// The y-axis of the sketch plane (the canonical test axis: profiles
 /// live in x ≥ 0).
+/// The donut's meridian: a circle of radius `1/2` centred at `ρ = 2`,
+/// authored as two cocircular arcs — a torus of radii `R = 2, r = 1/2`
+/// once revolved a full turn about `y`. Shared by `mass_props`'s
+/// closed-form row and `revert_periodic_wrap`'s two-arc torus.
+pub fn donut_profile() -> ProfileLoop<f64> {
+    ProfileLoop::new(vec![
+        ProfileVertex::new(p2(2.0, -0.5), 1.0),
+        ProfileVertex::new(p2(2.0, 0.5), 1.0),
+    ])
+}
+
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
@@ -45,14 +57,9 @@ pub fn assert_all_tiers(body: &Body<f64>) {
 }
 
 /// (v, e, f, r) of a body.
-pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
-    let rings: usize = body.faces().map(|(_, f)| f.rings.len()).sum();
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-        rings,
-    )
+pub fn counts(body: &Body<f64>) -> (i64, i64, i64, i64) {
+    let EulerCounts { v, e, f, r, .. } = euler_counts(body);
+    (v, e, f, r)
 }
 
 /// The edge's stored description.

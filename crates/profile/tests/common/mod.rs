@@ -15,7 +15,8 @@ use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
+    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
 };
 
 /// A point in the profile frame, from its two coordinates.
@@ -23,8 +24,119 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
+/// **The one accessor**: a refusal's corner entries, in the order the
+/// kernel reported them (nearest the bracketing anchors first), or the
+/// EMPTY SLICE for a refusal that is not the envelope.
+///
+/// Total on purpose, so the searching helpers below and the sweep rows
+/// that ask "did some corner refuse this way" can call it on an
+/// arbitrary refusal. A row that needs the SHAPE asserts it — the
+/// length, and which corner each entry names — and every such
+/// assertion carries the refusal in its message, so an empty slice
+/// reads as the wrong refusal rather than as a silent zero.
+pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
+    match err {
+        PathError::NoCornerOfPair { corners, .. } => corners,
+        _ => &[],
+    }
+}
+
+/// **Which corners the refusal is about, exactly.**
+///
+/// Asserts the envelope's LENGTH and each entry's point, in the order
+/// reported. A row whose subject is attribution — which corner refused,
+/// and whether the other one is listed beside it — has to say both: an
+/// existential "some entry refused this way" passes on an envelope that
+/// names the wrong corner, which is the defect the envelope exists to
+/// remove.
+#[track_caller]
+pub fn assert_corners(err: &PathError<f64>, want: &[(f64, f64)], what: &str) {
+    let got: Vec<(f64, f64)> = corners(err).iter().map(|c| (c.at.x, c.at.y)).collect();
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "{what}: the envelope lists {got:?}, not {want:?} — refusal {err:?}"
+    );
+    for (i, (g, w)) in got.iter().zip(want).enumerate() {
+        let off = (g.0 - w.0).hypot(g.1 - w.1);
+        let scale = w.0.hypot(w.1).max(1.0);
+        assert!(
+            off <= 1e-9 * scale,
+            "{what}: entry {i} names {g:?}, not {w:?} (off by {off}) — refusal {err:?}"
+        );
+    }
+}
+
+/// Whether ANY entry of the envelope refused for the named shape.
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+    corners(err).iter().any(|c| pred(&c.reason))
+}
+
+/// The first entry refusing with the enclosing class, as its payload.
+pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::EnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            largest_tangent_radius,
+        } => Some((
+            *side,
+            *carrier_radius,
+            *offset_radius,
+            *largest_tangent_radius,
+        )),
+        _ => None,
+    })
+}
+
+/// The first entry refusing on the anchor fit, as its payload.
+pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            side,
+            carrier,
+            setback,
+            available,
+        } => Some((*side, *carrier, *setback, *available)),
+        _ => None,
+    })
+}
+
+/// Whether some corner of the envelope refused with the enclosing
+/// class.
+pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
+    enclosing(err).is_some()
+}
+
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
+/// The K funnel name this suite's authored frame axes are decided
+/// under. One name for both, because which axis a refusal names is the
+/// refusal's own field.
+pub const FRAME_AXIS_SITE: &str = "profile_test_frame_axis";
+
+/// A frame witness from an authored pair — the mint every plane in
+/// this suite goes through, spelled once.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if the pair spans no plane.
+pub fn frame_of(
+    o: geom_core::Point3<f64>,
+    u: geom_core::Vec3<f64>,
+    v: geom_core::Vec3<f64>,
+) -> geom_core::OrthoFrame<f64> {
+    geom_core::OrthoFrame::gram_schmidt(
+        o,
+        u,
+        v,
+        FRAME_AXIS_SITE,
+        geom_core::Band::linear(tol()).expect("the witness band"),
+    )
+    .expect("the pair spans a plane")
+}
+
 pub fn tol() -> Tol {
     Tol::witness()
 }
@@ -228,7 +340,55 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);
+    assert_spans_partition(&closed);
     closed.loop_
+}
+
+/// **The per-step segment span partitions the loop**: one span per
+/// authored step, in program order, the spans meeting end-to-start and
+/// covering every segment exactly once.
+///
+/// Rides the same blanket funnel as the differential above, so it holds
+/// over every typed chain the suites author rather than a sampled few.
+///
+/// **What it can and cannot catch, measured.** On a CHAIN the three
+/// clauses are what `Core::step_spans` makes true by construction: it
+/// derives every boundary from one non-decreasing `step_starts` vector
+/// and ends the last span at the closed chain's own length, so
+/// contiguity, the cover and the count hold however wrong the
+/// boundaries themselves are. A mutant that shifts every boundary one
+/// step later — a step credited with its NEIGHBOUR's segments — passes
+/// all three, and the row that reds on it is
+/// `editor-core/tests/edit_step_segments.rs`'s attribution section,
+/// which reads each step's own authored endpoint. What this DOES catch
+/// is a span minted outside that arithmetic against a loop it does not
+/// describe: `ReplayStructure::carrier(n)` is built from the carrier
+/// kernel's own vertex count at a different site from the loop this
+/// compares against, and a re-shaped `step_spans` that broke the
+/// partition would land here on the whole corpus rather than on
+/// whichever suite noticed.
+pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
+    let spans = &closed.structure.steps;
+    assert_eq!(
+        spans.len(),
+        closed.program.len(),
+        "one span per authored step"
+    );
+    let n = closed.loop_.vertices().len();
+    let mut next = 0;
+    for (j, span) in spans.iter().enumerate() {
+        assert_eq!(
+            span.start(),
+            next,
+            "step {j}'s span starts where step {} left off",
+            j.wrapping_sub(1)
+        );
+        next = span.end();
+    }
+    assert_eq!(
+        next, n,
+        "the spans cover every segment of the {n}-segment loop"
+    );
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
@@ -402,7 +562,9 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
-    // 6. The declared-subdivision step on an arc carrier.
+    // 6. Two quarter arcs on one carrier — the half-disc equator —
+    //    the second through the lattice's own declared-joint
+    //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(p2(0.0, -0.5))
         .arc_to(
@@ -413,7 +575,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .tangent()
+        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -608,30 +771,191 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     ]
 }
 
-/// **The one home for the `EscalationSite::Fillet` value the kernel
-/// does not build.**
-///
-/// Six recourse sentences are written by a single `Display` arm —
-/// `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
-/// dispatched on the escalation's predicate name — and nothing in the
-/// kernel constructs that value
-/// (`work/fillet/fillet-escalation-site-has-no-producer.md`). Two
-/// suites therefore hand-build it to pin the render rule, and they had
-/// hand-built it twice; when a producer lands, the thing to delete is
-/// this function and its callers, and one home is what makes that a
-/// single edit.
-///
-/// Returns what a caller would read: the arm rendered at an in-band
-/// margin for `predicate`.
-pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) -> String {
-    let eps = tol.eps();
-    profile::ProfileError::Escalated {
-        site: profile::EscalationSite::Fillet,
-        source: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Value(-5.0 * eps),
-            band: geom_core::Band::linear(tol).expect("the run's band forms"),
-            predicate: Some(predicate),
-        },
+// ------------------------------------------------------------------
+// The arc-carrier fillet grids and the anchor-fit readers: FILLET-ATTR's
+// grid A and the line×arc grid, homed once so a suite that walks them
+// reads the same authorings by the same ordinals.
+// ------------------------------------------------------------------
+
+/// The point `angle` radians round the circle of radius `r` about
+/// `centre`.
+pub fn on_circle(centre: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
+    p2(centre.x + r * angle.cos(), centre.y + r * angle.sin())
+}
+
+/// **Grid A's authoring** (PR 1895's parameters): the corner at the
+/// origin, each carrier of radius `r_c` winding `tau` with the corner at
+/// angle `a` about its centre, each far anchor `delta` radians from the
+/// corner along its own leg, filleted at `r`. `case` is
+/// `[a_in, r_in, tau_in, delta_in, a_out, r_out, tau_out, delta_out]`.
+pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let [
+        a_in,
+        r_in,
+        tau_in,
+        delta_in,
+        a_out,
+        r_out,
+        tau_out,
+        delta_out,
+    ] = case;
+    let c1 = p2(-r_in * a_in.cos(), -r_in * a_in.sin());
+    let c2 = p2(-r_out * a_out.cos(), -r_out * a_out.sin());
+    let head = on_circle(c1, r_in, a_in - tau_in * delta_in);
+    let next = on_circle(c2, r_out, a_out + tau_out * delta_out);
+    let w = |t: f64| if t > 0.0 { ArcSweep::Ccw } else { ArcSweep::Cw };
+    let closed = Open
+        .arc_fillet_arc(
+            Center {
+                c: c1,
+                winding: w(tau_in),
+                p: head,
+            },
+            r,
+            Center {
+                c: c2,
+                winding: w(tau_out),
+                p: next,
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())?;
+    Ok(closed.loop_)
+}
+
+/// **Grid A**, PR 1895's grid verbatim: R_in in {0.2, 0.4, 0.15}, R_out
+/// in {0.2, 0.15, 0.5}, tau in {+1, -1} on both sides, corner angle 0.4k
+/// for k = 1..7, deltas in {0.3, 0.95π} × {0.3, 0.95π/2, 2.6} with 2.6
+/// on both, r = 0.05m for m = 1..8 — 18 144 authorings, each visited
+/// with its ordinal (from 1), its case, its radius and its outcome. The
+/// ordinal is how a row names an authoring, so the enumeration order
+/// here is part of the fixture.
+pub fn grid_a(
+    mut visit: impl FnMut(usize, [f64; 8], f64, &Result<ProfileLoop<f64>, PathError<f64>>),
+) -> usize {
+    let mut n = 0_usize;
+    for r_in in [0.2, 0.4, 0.15] {
+        for r_out in [0.2, 0.15, 0.5] {
+            for tau_in in [1.0, -1.0] {
+                for tau_out in [1.0, -1.0] {
+                    for k in 1..=7 {
+                        let a_out = 0.4 * f64::from(k);
+                        for delta_in in [0.3, 0.95 * core::f64::consts::PI, 2.6] {
+                            for delta_out in [0.3, 0.95 * core::f64::consts::PI / 2.0, 2.6] {
+                                for m in 1..=8 {
+                                    n += 1;
+                                    let case = [
+                                        0.0, r_in, tau_in, delta_in, a_out, r_out, tau_out,
+                                        delta_out,
+                                    ];
+                                    let r = 0.05 * f64::from(m);
+                                    visit(n, case, r, &arc_arc(case, r));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
-    .to_string()
+    n
+}
+
+/// **The line×arc authoring**: a ray from `(sx·R/2, 0)` east onto the
+/// circle of radius `big_r` about the origin, anchored `ang` radians
+/// round it, filleted at `r` and closed back to the start. The derived
+/// corner is `(R, 0)`.
+pub fn line_arc(
+    big_r: f64,
+    sx: f64,
+    winding: ArcSweep,
+    ang: f64,
+    r: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    Open.at(p2(sx * big_r / 2.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())?
+        .fillet_arc(
+            r,
+            Center {
+                c: p2(0.0, 0.0),
+                winding,
+                p: on_circle(p2(0.0, 0.0), big_r, ang),
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())
+        .map(|c| c.loop_)
+}
+
+/// **The line×arc grid**: R ∈ {2, 1, 0.5}, sx ∈ {0.2, 0.8, 1.4, 1.9},
+/// both windings, anchor angle ∈ {0.3, 1.0, 2.0, 2.9}, r = 0.05mR for
+/// m = 1..10 — 960 authorings, visited in that order with their
+/// outcome.
+pub fn line_arc_grid(mut visit: impl FnMut(&Result<ProfileLoop<f64>, PathError<f64>>)) -> usize {
+    let mut n = 0_usize;
+    for big_r in [2.0, 1.0, 0.5] {
+        for sx in [0.2, 0.8, 1.4, 1.9] {
+            for winding in [ArcSweep::Ccw, ArcSweep::Cw] {
+                for ang in [0.3, 1.0, 2.0, 2.9] {
+                    for m in 1..=10 {
+                        n += 1;
+                        visit(&line_arc(
+                            big_r,
+                            sx,
+                            winding,
+                            ang,
+                            0.05 * f64::from(m) * big_r,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    n
+}
+
+/// Every anchor-fit entry of a refusal, in envelope order, as
+/// `(corner, side, setback, available)`; empty for any other refusal.
+pub fn anchor_fit_entries(err: &PathError<f64>) -> Vec<(Point2<f64>, FilletLeg, f64, f64)> {
+    corners(err)
+        .iter()
+        .filter_map(|c| match c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side,
+                setback,
+                available,
+                ..
+            } => Some((c.at, side, setback, available)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The anchor-fit entry at the corner `at` (to 1e-9), as
+/// `(side, carrier, setback, available)`; a row asserting a corner's
+/// numbers names the corner, so a wrong-corner entry reads as the
+/// wrong refusal rather than as the wrong number.
+pub fn anchor_fit_at(
+    err: &PathError<f64>,
+    at: (f64, f64),
+) -> (FilletLeg, FilletLegCarrier, f64, f64) {
+    corners(err)
+        .iter()
+        .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
+        .and_then(|c| match c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side,
+                carrier,
+                setback,
+                available,
+            } => Some((side, carrier, setback, available)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))
+}
+
+/// Two `f64`s within 1e-9 — the tolerance a measured payload number is
+/// pinned at.
+pub fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
 }

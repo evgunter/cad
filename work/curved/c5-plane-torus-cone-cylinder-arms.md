@@ -32,3 +32,9 @@ VERBS' charter names the C5 section arms; the unit VERBS-C5ARMS already carries 
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+**Both section arms delivered** (PR-1 #1577 plane×torus; PR-2 #1864
+coaxial cone×cylinder, 2026-09-05). What this issue still blocks on is
+not a section arm: the Klein wall-pair debt (rows 3/4/8) waits on the
+spiric rim carrier — `docs/CURVED-SPIRIC-DESIGN.md`, ratified
+2026-09-04, a CURVED unit to cut.
