@@ -1,7 +1,7 @@
 ---
 id: debug-in-prose-at-blend-and-step-import
 kind: issue
-title: two Display impls render a payload through Debug where a Display exists: sweep BlendSite and step-import's {source:?} on TransformError/EulerOpError
+title: two Display impls render a payload through Debug where a Display exists: sweep BlendSite and step-import's {source:?} on TransformError/BooleanError
 status: open
 opened: 2026-09-04
 ---
@@ -22,8 +22,11 @@ orchestrator.
 through `Debug` inside a `Display`. FILLET's ground.
 
 **`crates/step-import/src/error.rs:455, 461`** — `{source:?}` on
-`TransformError` and `EulerOpError`, **both of which already have a
-`Display`**. EXCH's ground. This is the sharper of the two: the payload
+`Placement.source` (`topo::TransformError`) and `Instance.source`
+(`Box<topo::BooleanError>` — the graft door's error, not the
+`EulerOpError` its sibling `Assembly` arm carries), **both of which
+already have a `Display`** (`topo/src/transform.rs:170`,
+`topo/src/boolean/mod.rs:1309`). EXCH's ground. This is the sharper of the two: the payload
 can name itself and the consumer composes a debug rendering anyway,
 which is the exact inversion of the standing rule that the layer which
 raised a failure names it.
@@ -61,8 +64,12 @@ own sample excludes the failing mode by construction. Any other
 hand-written `seeds()`-style roster in the tree picks its samples the
 same way.
 
-**`step-import`** — `EulerOpError::StaleKey { key }` is a struct
-variant, so `{source:?}` yields `StaleKey { key: .. }`.
+**`step-import`** — most of `BooleanError` is struct-shaped
+(`ScaffoldingOperand { operand, edge }`, `NonMaximalFaces { .. }`,
+`Escalated { .. }`, the four `Curved*Unsupported { .. }` arms, …), so
+`{source:?}` on `Instance.source` yields `ScaffoldingOperand { operand:
+.., edge: .. }` and its kin; `TransformError`'s struct variants do the
+same at `Placement.source`.
 `py/value.rs:1341` raises `err.to_string()` through `typed_err` under a
 comment stating *every* arm of `StepImportError` is reachable there.
 `sure`.
