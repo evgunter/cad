@@ -247,3 +247,22 @@ the spec is deleted per the doc ledger. The A/B row (ordinal 2100)
 is recorded in `docs/MODEL-AB-LOG.md` at merge, with the
 process-incident annotations; block EXCH-B1 slots 1–2 stay banked
 branch-side.
+
+## Post-gap reorientation and EXCH-E2 cut (2026-09-17)
+
+Measured against main after both landings: the rational-flux
+refusal is retired (TCOST-K3's check-7 sign certificate — not the
+dial, which is PROPS' and unturned), so dm1's only remaining
+refusal is the arc-rim MapResidual — TRIM's ground on both files,
+its fix already filed in work/issues/ (consumer note appended;
+EXCH wires the flip's pins when TRIM lands it). The compose glob
+and the M7-6 lane are PROPS' since sweeps 7/11 — EXCH's keep_out
+corrected (two stale fences, the moot ε clause dropped, tcost/tint
+test-glob fence added), and unit 2's derivative-channel /
+tensor-hull rows file with PROPS when cut. Unit 3's item carries a
+premise correction: route 2 survives but its ownership conversation
+is PROPS-shaped. The one scoped, unblocked, unambiguously-EXCH item
+is FIX's re-homed coherence half — cut as `EXCH-E2`
+(`exch/e2-coherence-consumer`), E build, dispatched now on an opus
+lane (outside the A/B rows; EXCH-B1 slots 1–2 stay banked for the
+next kernel units).
