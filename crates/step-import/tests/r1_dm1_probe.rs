@@ -39,7 +39,9 @@
 //! `freecad.rs::refusals_survive_the_dialect_relaxations` (d), on
 //! planted mutations of `twobody_importexport`'s real transforms.
 //!
-//! **This row is dm1's only unconditional import in the suite.**
+//! **This row is the suite's only unconditional import of FULL dm1**
+//! (the l-bracket witness below imports its pruned single-component
+//! subset, a second dm1-derived import with its own, cheaper text).
 //! Importing dm1 costs ~30× the rest of the wild refusal corpus put
 //! together, so the rows that used to re-import it for a WEAKER
 //! statement now point here instead:

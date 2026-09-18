@@ -90,8 +90,8 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // that row's `continue`): importing dm1 costs ~30× the other three
     // refusal fixtures together, and the same fragment is already
     // asserted by `tier_gate.rs`'s `RATIONAL_FLUX_STALL` at three ε_in
-    // values per run, with the coarse band's `#389` cell beside it, and
-    // structurally by `r1_dm1_probe`.
+    // values per run, with the coarse band's escalated-gate cell
+    // beside it, and structurally by `r1_dm1_probe`.
     (
         "stepcode/dm1-id-214.stp",
         "the certified quadrature enclosure cannot reach the",
@@ -503,10 +503,12 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
 #[test]
 fn wild_refusals_are_typed_and_name_their_class() {
     for (name, class) in WILD_REFUSALS {
-        // **dm1's row lives in `r1_dm1_probe`.** Its two ε cells (the
-        // fine bands' rational-flux stall, ambient 1e-6's `#389`
-        // ladder gap) are pinned there STRUCTURALLY — the typed
-        // variant, `id == 389`, `attempts.is_empty()`, and the
+        // **dm1's row lives in `r1_dm1_probe`.** Its ε cells (the
+        // fine bands' rational-flux stall, ambient 1e-6's escalated
+        // aggregate gate; the `#389` ladder gap that once held the
+        // coarse cell is retired — #388 — and its tripwire and the
+        // l-bracket witness live there too) are pinned there
+        // STRUCTURALLY — the typed variants and the
         // stalled-quadrature fragment — which is strictly more than
         // the substring this loop checks, plus the entity-naming
         // check moved there with it. dm1 alone costs ~30× the other

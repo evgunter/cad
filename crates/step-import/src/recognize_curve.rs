@@ -66,20 +66,17 @@
 //!   `compose` forms `r²` as `RingInterval::point(0).sqr()`, the zero
 //!   interval, and refuses no radius) it is exactly `dist(P, line)²`,
 //!   meters². Conversion: `δ_line = √S` — no divisor, no hypothesis.
-//! * **INV-C4 (line → distance to the SEGMENT).** The projection
-//!   `t(P) = (P − p₀)·d̂` is an affine functional of the point, so the
-//!   carrier's projection lies in the convex hull of the CONTROL
-//!   projections (rational form, strictly positive weights — the
-//!   constructor validates them). With `o` the controls' worst
-//!   excursion outside `[0, ℓ]`, every carrier point is within `o`
-//!   along the line of the segment and within `δ_line` off it, and
-//!   the distance to the segment is at most `hypot(δ_line, o)` —
-//!   `hypot` monotone in both arguments, every step an inequality.
-//!   COVERAGE is free for this kind, unlike the circle's: the
-//!   projection is continuous from `t(start) = 0` to `t(end) = ℓ`, so
-//!   by the intermediate value theorem its image contains `[0, ℓ]`
-//!   and the carrier's locus is the whole segment (thickened by at
-//!   most the residual), never a proper sub-segment.
+//! * **INV-C4 (coverage — the locus is the WHOLE segment).** The
+//!   projection `t(P) = (P − p₀)·d̂` is continuous from
+//!   `t(start) = 0` to `t(end) = ℓ`, so by the intermediate value
+//!   theorem its image contains `[0, ℓ]` and the carrier's locus is
+//!   the whole segment (thickened by at most the residual), never a
+//!   proper sub-segment — unlike the circle's, whose locus can be a
+//!   proper sub-arc. The segment obligation carries NO separate
+//!   excursion fold: INV-C5's hull (below) meters an overshooting
+//!   net, and it dominates — on clamped knots every Greville
+//!   abscissa lies in the domain, so `ℓ(ξᵢ)` is on the chord and a
+//!   control `o` past either end is at least `o` from it.
 //! * **INV-C5 (the MAP obligation).** Promotion replaces the carrier
 //!   as a parameterized MAP, not only as a locus: every downstream
 //!   door — the chart-image certify schedules above all — compares
@@ -93,10 +90,10 @@
 //!   `|C(t) − ℓ(t)| = |Σ Nᵢ(t)(cᵢ − ℓ(ξᵢ))| ≤ maxᵢ |cᵢ − ℓ(ξᵢ)|` —
 //!   the seam-class chart limb's own hull, transposed to recognition.
 //!   A rational carrier has no linear-precision fact and refuses the
-//!   certificate (stays NURBS silently). This hull dominates INV-C4's
-//!   excursion (a control past the chord is at least that far from
-//!   `ℓ(ξᵢ)`), and the reported residual is the max of the two folds,
-//!   so the budget decides at whichever obligation binds.
+//!   certificate (stays NURBS silently). The hull also carries the
+//!   segment obligation (INV-C4 above), so the reported residual is
+//!   `max(δ_line, hull)` and the budget decides at whichever of the
+//!   locus and map obligations binds.
 //! * **INV-C2 (plane ∧ sphere → distance to the CIRCLE).** Write
 //!   `P − c = h·n̂ + q` with `q ⊥ n̂`. The plane certificate gives
 //!   `|h| ≤ δ_p`; INV-C1 gives `| |P−c| − r | ≤ δ_s`, and
@@ -284,13 +281,14 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
 // accept it (the file's standing convention).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 /// The line candidate (module docs; the locus certificate INV-C3,
-/// the segment obligation INV-C4, and the map obligation INV-C5 —
-/// all read off ring coefficient hulls and control values, no
-/// sampling anywhere). `None` is a refuted certificate or an
-/// out-of-scope (closed-at-ε, or rational — INV-C5) carrier; there is
-/// no conditioning trilean here because there is no estimate to
-/// condition — the chord IS the candidate, and a chord inside the
-/// budget is the closed class, which is the circle limb's.
+/// coverage INV-C4, and the map obligation INV-C5, whose hull also
+/// carries the segment fold — all read off ring coefficient hulls
+/// and control values, no sampling anywhere). `None` is a refuted
+/// certificate or an out-of-scope (closed-at-ε, or rational —
+/// INV-C5) carrier; there is no conditioning trilean here because
+/// there is no estimate to condition — the chord IS the candidate,
+/// and a chord inside the budget is the closed class, which is the
+/// circle limb's.
 fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)> {
     let control = curve.control();
     let (first, last) = (control.first()?, control.last()?);
@@ -298,7 +296,8 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     let len = chord.norm();
     // The complement of the circle limb's closure gate (module docs,
     // "Kind scope"): ends within ε_in determine no direction, and
-    // that carrier is the closed class anyway.
+    // that carrier is the closed class anyway — a segment shorter
+    // than the interpretation budget can never promote to a line.
     if !(len > eps_in) || !len.is_finite() {
         return None;
     }
@@ -316,21 +315,10 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
         },
     );
     let delta_line = sup.abs().sqrt();
-    // INV-C4: the controls' worst projection excursion outside
-    // `[0, ℓ]` bounds the carrier's overshoot along the line (the
-    // projection is affine, so the control values bound it by the
-    // rational hull property), and coverage of the whole segment is
-    // the intermediate value theorem's (module docs). A non-finite
-    // projection refuses explicitly — `f64::max` would silently
-    // prefer its finite argument.
-    let mut excursion = 0.0f64;
-    for p in control {
-        let t = (*p - *first).dot(dir);
-        if !t.is_finite() {
-            return None;
-        }
-        excursion = excursion.max(-t).max(t - len);
-    }
+    // Coverage of the whole segment is INV-C4's intermediate-value
+    // argument (module docs); the segment obligation itself rides
+    // INV-C5's hull below, which dominates any control excursion on
+    // clamped knots.
     // INV-C5: promotion replaces the carrier as a MAP, not only as a
     // locus — downstream doors compare `C(t)` against chart images
     // pointwise, so the affine chord map must be within budget of the
@@ -340,7 +328,10 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     // the control-vs-affine deviations bound the map deviation over
     // the whole domain (module docs); a rational carrier has no
     // linear-precision fact and refuses the certificate silently.
-    // Non-finite refuses.
+    // Non-finite refuses. The bits spelling of the unit-weight gate
+    // is the same predicate as `geom-brep`'s value spelling
+    // `*w != 1.0` — `+1.0` has one representation and NaN fails both
+    // — it just satisfies the float-eq lint without an `allow`.
     let degree = curve.knots().degree();
     if degree == 0
         || curve
@@ -366,7 +357,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
         }
         hull = hull.max(dev);
     }
-    let residual = delta_line.hypot(excursion).max(hull);
+    let residual = delta_line.max(hull);
     if !(residual <= eps_in) {
         return None;
     }
@@ -1070,20 +1061,19 @@ mod tests {
         assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
-    /// L2: **the SEGMENT obligation (INV-C4) under the MAP obligation
-    /// (INV-C5), pinned at its value.** A carrier lying EXACTLY on the
+    /// L2: **the segment obligation rides the MAP hull (INV-C4 via
+    /// INV-C5), pinned at its value.** A carrier lying EXACTLY on the
     /// line whose control net overshoots the chord (the locus
-    /// certificate has nothing to refuse) both overshoots the segment
-    /// (excursion 0.01 past the 0.04 chord) and re-times the map (its
-    /// middle control sits 0.03 from the affine chord's Greville
-    /// position), and the budget decides AT the larger fold —
-    /// certifying just above 0.03 and refusing just below, where the
-    /// pre-C5 excursion-only reading (0.01) would have certified.
-    /// Dropping the hull channel widens the gate to the excursion and
-    /// reds the mid row; dropping the excursion channel too
-    /// (residual → ~0) reds them all.
+    /// certificate has nothing to refuse) is metered by the hull
+    /// alone: its middle control sits 0.03 from the affine chord's
+    /// Greville position (its overshoot past the 0.04 chord is 0.01
+    /// — dominated, as INV-C4 argues), and the budget decides AT the
+    /// hull — certifying just above 0.03 and refusing just below,
+    /// including at 0.025, a budget an excursion-only reading would
+    /// have cleared. Dropping the hull channel (residual → ~δ_line ≈
+    /// 0) reds every row here.
     #[test]
-    fn l2_a_control_excursion_beyond_the_chord_is_the_residual() {
+    fn l2_an_overshooting_net_decides_at_the_greville_hull() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let curve = NurbsCurve3::new(
             knots,
@@ -1109,8 +1099,48 @@ mod tests {
         );
         assert!(
             matches!(recognize(&curve, 0.025), CurveRecognition::StaysNurbs),
-            "a budget that clears the excursion (0.01) but not the map fold refuses"
+            "a budget below the hull refuses, even one an excursion-only reading clears"
         );
+    }
+
+    /// The rational gate is load-bearing (INV-C5's hypothesis):
+    /// straight degree-2 carriers with non-unit weights must stay
+    /// NURBS at every tested budget, however generous. The three
+    /// weight rows attack it from three sides — a genuinely re-timed
+    /// interior ([1, 2, 1]), a re-timing the other way ([1, ½, 1]),
+    /// and a CONSTANT non-unit weight ([2, 2, 2]) whose curve is the
+    /// exact affine chord (the constant scales out of the rational
+    /// basis) — because the gate is the hypothesis of the Greville
+    /// hull, not a residual: without it the hull reads 0 for all
+    /// three (their CONTROLS sit at the affine positions even where
+    /// the rational CURVE does not) and the re-timed carriers would
+    /// promote unsoundly. Deleting the gate reds this row.
+    #[test]
+    fn a_rational_straight_carrier_refuses_the_map_certificate() {
+        let carrier = |w1: f64, w: f64| {
+            let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            NurbsCurve3::new(
+                knots,
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.5, 0.0, 0.0),
+                    Point3::new(3.0, 0.0, 0.0),
+                ],
+                vec![w, w1, w],
+            )
+            .unwrap()
+        };
+        for (w1, w) in [(2.0, 1.0), (0.5, 1.0), (2.0, 2.0)] {
+            for eps in [1e-6, 1e-3, 1.0] {
+                assert!(
+                    matches!(
+                        recognize(&carrier(w1, w), eps),
+                        CurveRecognition::StaysNurbs
+                    ),
+                    "weights [{w}, {w1}, {w}] must refuse the map certificate at ε = {eps:e}"
+                );
+            }
+        }
     }
 
     /// L3: **the MAP obligation's own row (INV-C5).** A doubling-back

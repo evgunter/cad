@@ -3898,6 +3898,13 @@ fn run_iso_checks<T: Decide>(
                 }
                 let (p, kn) = (b.knots().degree(), b.knots().knots());
                 let mut hull = T::zero();
+                // `pl.y ≠ 0` is this class's own classification: the
+                // `(false, true)` arm means the v channel MOVES, so
+                // the `t_at` division is over a nonzero slope by
+                // construction. The hull runs over the FULL column —
+                // for an image trimmed to part of the domain that is
+                // a superset bound: sound and conservative, and no
+                // measured caller exercises the partial case.
                 for (i, cp) in b.control().iter().enumerate() {
                     #[allow(clippy::cast_precision_loss)]
                     let xi = kn[i + 1..=i + p].iter().sum::<f64>() / p as f64;

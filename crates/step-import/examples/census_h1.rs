@@ -1,4 +1,5 @@
-//! EXCH-H1 Phase-1 census harness (throwaway, uncommitted).
+//! The dm1 degree-1 carrier census (the #388 unit's committed census
+//! row — the reproducer behind its PR's Phase-1 table).
 //!
 //! Enumerates dm1's degree-1 / .POLYLINE_FORM. carriers and computes,
 //! for each, the zero-radius cylinder composite's certified sup

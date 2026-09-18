@@ -146,6 +146,23 @@ fn fixed_point() {
             .iter()
             .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
             .count();
+        // ANCHORED, so the branch below cannot float: the re-import's
+        // straight-seam promotion is a deterministic function of the
+        // fixture and the ambient band (our export header states the
+        // ambient ε as ε_in; loft_prism's two straight seams carry
+        // the measured map fold 1.2644054553268222e-7, every other
+        // fixture none). A wrong promotion count must red HERE, not
+        // pick the branch that matches it.
+        let expected_line_promotions =
+            if *name == "loft_prism" && Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
+                2
+            } else {
+                0
+            };
+        assert_eq!(
+            line_promotions, expected_line_promotions,
+            "{name}: the re-import's Line promotions are the fixture's own straight seams"
+        );
         let step_import::StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");
         };

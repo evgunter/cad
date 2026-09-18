@@ -269,7 +269,8 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: two cells at the
-    // rational-flux stall, one at the ladder's `#389` gap.
+    // rational-flux stall, one at the aggregate gate's
+    // convergence-ambiguity escalation.
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -283,8 +284,10 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
     // The coarse band reaches the GATE now and escalates there: the
     // enclosure lands ~1% under the loose `1024·ε` target, inside the
-    // convergence predicate's ambiguity band. That masks — it does not
-    // fix — the `#389` ladder gap that used to be this cell.
+    // convergence predicate's ambiguity band. The `#389` ladder gap
+    // that used to sit behind this cell is RETIRED (#388): the edge
+    // holds its reversed wall-column candidate, pinned by
+    // `r1_dm1_probe`'s tripwire and the l-bracket witness.
     (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
     (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
@@ -643,11 +646,10 @@ const CORPUS: [(&str, Disposition); 73] = [
         //
         // **ε-SENSITIVE since #327**, and the sweep is the reason to
         // know it: at the two FINE ambient bands the frontier is the
-        // rational-flux stall above, but at ambient 1e-6 the ladder
-        // stops earlier, on edge `#389`. Retiring #685 is what made
-        // #389 reachable at all — it had been masked behind #685 at
-        // every band — so the coarse cell is a PRE-EXISTING gap newly
-        // exposed, not a movement of anything #327 built. Three cells
+        // rational-flux stall above, but at ambient 1e-6 the frontier
+        // is the aggregate gate's convergence-ambiguity escalation
+        // (the `#389` ladder gap this cell once exposed is retired —
+        // #388's reversed wall-column candidate). Three cells
         // in `EPS_ROWS`, one per ambient band. This was the FIRST file
         // the ε_in sweep stopped running (the 2026-08-13 audit); since
         // 2026-08-22 that is the corpus-wide default and the exemption

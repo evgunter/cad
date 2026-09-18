@@ -550,6 +550,19 @@ fn probe_reexport_promotion_divergence() {
         .iter()
         .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
         .count();
+    // ANCHORED, so the branch below cannot float: loft_prism's two
+    // straight seams carry the measured map fold
+    // 1.2644054553268222e-7, so the count is a pinned function of the
+    // ambient band, never read back from the import it checks.
+    let expected_line_promos = if Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
+        2
+    } else {
+        0
+    };
+    assert_eq!(
+        line_promos, expected_line_promos,
+        "the re-import's Line promotions are loft_prism's own straight seams"
+    );
     let out2 =
         step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
     if line_promos == 0 {

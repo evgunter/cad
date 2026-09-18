@@ -671,9 +671,16 @@ fn promoted_ruling_seams_reexport_as_line() {
         "the report names the kind"
     );
     for p in import.curve_promotions() {
+        // Not the promotion gate restated (that would be a tautology
+        // — the gate IS `residual ≤ ε_in`): this pins the measured
+        // MARGIN. The rulings' residuals are the ring-slack floor of
+        // an exact chord, ≥2 decades under the gate at every matrix
+        // band, so a residual creeping toward the gate reds here
+        // before it can flip a promotion.
         assert!(
-            p.residual <= import.eps_in(),
-            "a reported promotion certified at ε_in: {p:?}"
+            p.residual.is_finite() && p.residual <= import.eps_in() / 100.0,
+            "a ruling's residual sits decades under the gate: {p:?} vs eps_in {:e}",
+            import.eps_in()
         );
     }
     let step_import::StepImport::Solid { body, .. } = import else {
