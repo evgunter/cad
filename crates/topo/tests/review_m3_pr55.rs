@@ -19,122 +19,33 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, line, plane, prism_z};
+use common::{brick, flush_declarations, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3};
 use topo::{
-    Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, FaceSurface, MefSite,
-    MevSite, mass_properties, subtract_with, union_with, validate, validate_closed,
+    Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
+    subtract_with, union_with, validate, validate_closed,
 };
 
 /// A right prism over `profile` x [z0, z1] pushed through the linear
 /// map `m` (rows; dyadic entries, det > 0 so outward stays outward):
-/// the prism_z construction generalized to mapped corner points, every
-/// face a Newell plane of its mapped corners. Exact-volume oracle:
+/// [`common::prism_ops`] with `m` as its point map, every face a Newell
+/// plane of its mapped corners. Exact-volume oracle:
 /// area(profile) * (z1 - z0) * det(m).
+///
+/// **No description step**, unlike `prism_z`: these operands reach the
+/// boolean ops with their conventional chords, which is the state this
+/// suite's falsification targets were written against.
 fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3]) -> Body<T> {
-    assert!(profile.len() >= 3);
-    let n = profile.len();
-    let mp = |x: f64, y: f64, z: f64| -> Point3<T> {
+    let mut body = Body::<T>::new();
+    common::prism_ops(&mut body, profile, (z0, z1), |x, y, z| {
         let w = [
             m[0][0] * x + m[0][1] * y + m[0][2] * z,
             m[1][0] * x + m[1][1] * y + m[1][2] * z,
             m[2][0] * x + m[2][1] * y + m[2][2] * z,
         ];
         Point3::new(T::from_f64(w[0]), T::from_f64(w[1]), T::from_f64(w[2]))
-    };
-    let bot: Vec<Point3<T>> = profile.iter().map(|&(x, y)| mp(x, y, z0)).collect();
-    let top: Vec<Point3<T>> = profile.iter().map(|&(x, y)| mp(x, y, z1)).collect();
-    let mut body = Body::<T>::new();
-    let seed = body.mvfs(bot[0]).unwrap();
-    let mut chain = Vec::new();
-    chain.push(
-        body.mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            bot[1],
-            line(bot[0], bot[1]),
-            Tol::witness(),
-        )
-        .unwrap(),
-    );
-    for i in 2..n {
-        let at = chain[i - 2].he_minus;
-        chain.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                bot[i],
-                line(bot[i - 1], bot[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    let bottom_vertices: Vec<_> = core::iter::once(seed.vertex)
-        .chain(chain.iter().map(|c| c.vertex))
-        .collect();
-    let he_last = body
-        .find_half_edge(seed.face, bottom_vertices[n - 1], bottom_vertices[n - 2])
-        .unwrap();
-    let rev: Vec<Point3<T>> = core::iter::once(bot[0])
-        .chain(bot[1..].iter().rev().copied())
-        .collect();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_last,
-                he2: chain[0].he_plus,
-            },
-            line(bot[n - 1], bot[0]),
-            FaceSurface::New(plane(&rev)),
-            Tol::witness(),
-        )
-        .unwrap();
-    let mut struts = Vec::new();
-    for i in 0..n {
-        let at = if i == 0 {
-            chain[0].he_plus
-        } else if i < n - 1 {
-            chain[i].he_plus
-        } else {
-            f_bottom.he_plus
-        };
-        struts.push(
-            body.mev(
-                MevSite::Fan { he1: at, he2: at },
-                top[i],
-                line(bot[i], top[i]),
-                Tol::witness(),
-            )
-            .unwrap(),
-        );
-    }
-    let mut first_side_he_plus = None;
-    for i in 0..n {
-        let j = (i + 1) % n;
-        let he2 = if i < n - 1 {
-            struts[j].he_minus
-        } else {
-            first_side_he_plus.unwrap()
-        };
-        let f = body
-            .mef(
-                MefSite::Chords {
-                    he1: struts[i].he_minus,
-                    he2,
-                },
-                line(top[i], top[j]),
-                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
-                Tol::witness(),
-            )
-            .unwrap();
-        if i == 0 {
-            first_side_he_plus = Some(f.he_plus);
-        }
-    }
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
-        .unwrap();
+    });
     body
 }
 
