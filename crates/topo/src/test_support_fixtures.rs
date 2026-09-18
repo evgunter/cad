@@ -16,8 +16,9 @@
 //! library itself needs lives here, which is why it does not carry
 //! `test_support_impl`'s `debug_assertions` arm.
 //!
-//! **It is not [`crate::fixtures`], and the two are not two spellings
-//! of one thing.** That module builds bodies through the raw builder
+//! **It is not `crate::fixtures`, and the two are not two spellings of
+//! one thing.** (Not linked: that module is `#[cfg(test)]` and does not
+//! exist in a doc build.) That module builds bodies through the raw builder
 //! with placeholder geometry — `NaN` NURBS surfaces, self-loop circle
 //! carriers, index-derived collinear points, no mass properties at all
 //! — for structural tests that never read a coordinate. This one
@@ -613,7 +614,7 @@ mod tests {
     use geom_core::Tol;
 
     /// **The two `prism`s in this crate build different artifacts, and
-    /// the difference is geometric.** [`crate::fixtures::raw_prism`]
+    /// the difference is geometric.** `crate::fixtures::raw_prism`
     /// and this module's [`prism`] take near-identical arguments and
     /// agree on every arena LENGTH, so a call site rebound from one to
     /// the other still compiles and still passes any count assertion.
