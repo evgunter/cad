@@ -154,3 +154,19 @@ re-opened the hole one door over). `import_step`'s body is entirely
 the 15-line comment at that call is now five.
 
 Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
+
+## EXCH-E1 landed (2026-09-17)
+
+PR [#1854](https://github.com/evgunter/cad/pull/1854) merged at the
+full-matrix-green head `065fc3ee3`. D343 executed over both STEP
+crates with both riders (the closed_shell is_empty guard; the
+UnsupportedCurve refusal test made red-capable via printable_carrier);
+two conversions were live-panic fixes on a public door, the eight
+arena-key spellings LEFT with the fire-before-emission argument, and
+the review's kfmrh correction completed the face-killing door census.
+Single style review, adjudicated from its notes across two
+usage-limit interruptions; fix pass absorbed ~7350 commits of drift
+including one silent KnotVector::unit_segment API break caught by
+re-running the suites. Row `D343` closes with the unit; the
+export-naming residue is scheduled as
+`step-export-refusals-cannot-name-entities`.
