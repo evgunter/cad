@@ -2052,9 +2052,13 @@ pub(crate) fn import_step(
         declared_contacts: defaults.declared_contacts,
         // This door asks for no chart-coherence examination, because
         // `ImportReport` has no field to report one on: asking would
-        // measure the body and drop the measurement. The surface
-        // census carries that decision as a `NotBound` row.
-        examine_chart_coherence: defaults.examine_chart_coherence,
+        // measure the body and drop the measurement. Written as the
+        // literal rather than read off `defaults`, so this line
+        // ENFORCES the sentence above it — a kernel-side default that
+        // flipped one crate away would otherwise turn the examination
+        // on here silently, and the comment would go quietly false.
+        // The surface census carries the decision as a `NotBound` row.
+        examine_chart_coherence: false,
     };
     match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {

@@ -162,11 +162,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                 "crates/pncad/src/select.rs"),
     # `Unexaminable::Corrupt`'s payload, one rung under the
     # chart-coherence vocabulary the prelude carries for
-    # `StepImport::Solid::coherence`. Decided on the `BandField` row's
-    # shape: the rung's own recourse routes out of this vocabulary —
-    # a corrupt loop is a tier-1 defect and `validate` is the door
-    # that names it — so a consumer wanting the read is already
-    # holding a validation refusal.
+    # `StepImport::Solid::coherence`. The `BandField` row's shape; the
+    # argument and its falsifier are written once, at the carry
+    # decision the pointer names, and this row does not restate them.
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
 }
 

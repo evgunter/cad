@@ -41,10 +41,12 @@
 use crate::common;
 use crate::wild::{WILD_IMPORTS, wild};
 
-use common::{FREECAD_FIXTURES, SOLID_FIXTURES, fixture, freecad_fixture};
+use common::{
+    FREECAD_FIXTURES, SOLID_FIXTURES, fixture, freecad_fixture, halfcap_fixture, own_import_options,
+};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
-use topo::{Body, CoherenceReport, Unexaminable};
+use topo::{Body, CoherenceCondition, CoherenceReport, Unexaminable};
 
 /// Options asking for the examination; everything else default.
 fn examining() -> ImportOptions {
@@ -54,29 +56,11 @@ fn examining() -> ImportOptions {
     }
 }
 
-/// The kiss assembly's corner touch is DECLARED, or its import
-/// refuses the touch undeclared at the tier-3′ gate — the same
-/// arrangement `common::import_fixture` makes, restated here because
-/// these rows build their own options.
-fn own_options(name: &str, examine: bool) -> ImportOptions {
-    ImportOptions {
-        declared_contacts: if name == "kiss_assembly" {
-            vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }]
-        } else {
-            Vec::new()
-        },
-        examine_chart_coherence: examine,
-        ..ImportOptions::default()
-    }
-}
-
 /// `(body, coherence)` of an own-corpus fixture imported with the
 /// examination asked for.
 fn own_examined(name: &str) -> (Body<f64>, CoherenceReport) {
     let text = fixture(name, "step");
-    match import_step(&text, &own_options(name, true), Tol::witness()) {
+    match import_step(&text, &own_import_options(name, true), Tol::witness()) {
         Ok(StepImport::Solid {
             body, coherence, ..
         }) => (
@@ -135,18 +119,21 @@ fn the_channel_is_off_by_default_and_off_is_not_an_empty_report() {
         off.is_none(),
         "the default import asked for no examination and reported one anyway: {off:?}"
     );
+    // `cube` has nothing to report, which is the case where a folded
+    // spelling would be invisible: `None` and this report must not be
+    // one value. There is no `assert_ne!` against them here because
+    // the fold is unrepresentable — no `Option<CoherenceReport>`
+    // equals both — and the spelling that WOULD fold them, a bare
+    // `CoherenceReport` field defaulting to empty when nobody asked,
+    // does not compile at the line above. The runtime claim left to
+    // make is that the examined-clean report really is clean, so a
+    // reader of the two states is comparing the intended pair.
     let (_, on) = own_examined("cube");
     assert_eq!(
         (on.findings.len(), on.unexamined.len()),
         (0, 0),
-        "cube has nothing to report, so this is the case where a folded \
-         spelling would be invisible: {on:?}"
-    );
-    assert_ne!(
-        off,
-        Some(on),
-        "the unasked state and the examined-clean state are one value, so a \
-         caller cannot tell 'nobody looked' from 'nothing to report'"
+        "cube was expected to report nothing, so this row is no longer \
+         about the invisible case: {on:?}"
     );
 }
 
@@ -177,11 +164,24 @@ fn a_trimmed_curved_face_is_unexamined_data_not_a_skipped_check() {
 /// The field IS `topo::examine_chart_coherence` on the shipped body —
 /// every finding, every unexamined loop, in the door's own order.
 ///
-/// A bug this would catch: the channel growing an opinion. Dropping
-/// `NonIsoCarrier` entries as "not interesting", sorting the findings
-/// by magnitude, or examining an intermediate body instead of the one
-/// that ships all red here. The subjects are the two fixtures with
-/// something in either list, so neither comparison is vacuous.
+/// **What this kills**, stated as the mutations rather than as an
+/// adjective: dropping `NonIsoCarrier` entries as "not interesting"
+/// (`cut_cylinder` carries two and nothing else), dropping or
+/// rewriting a finding (`halfcap.step` carries two), examining an
+/// intermediate body instead of the one that ships, and examining at
+/// a band other than the import's. Each of the three subjects has
+/// something in one of the two lists, so no comparison is vacuous.
+///
+/// **What it does NOT kill, measured rather than assumed**: a
+/// PERMUTATION of the findings keyed on their magnitude. No committed
+/// fixture reports two findings with distinct `metres` — the two
+/// `halfcap.step` reports at every band are one 1.6974e-2 m half-turn
+/// read twice, once as `MeridianClosure` and once as
+/// `MeridianContinuation` — so a magnitude sort is the identity on
+/// every subject this crate has, and naming it as a falsifier would
+/// be naming a mutant that survives. What the second row below does
+/// kill is a permutation keyed on the CONDITION, by writing the
+/// sequence out instead of reading it back from the door.
 #[test]
 fn the_channel_reports_the_kernel_door_verbatim() {
     let tol = Tol::witness();
@@ -194,7 +194,7 @@ fn the_channel_reports_the_kernel_door_verbatim() {
              it shipped"
         );
     }
-    let text = halfcap("halfcap.step");
+    let text = halfcap_fixture("halfcap.step");
     let (body, reported) = match import_step(&text, &examining(), tol) {
         Ok(StepImport::Solid {
             body, coherence, ..
@@ -211,6 +211,41 @@ fn the_channel_reports_the_kernel_door_verbatim() {
         reported,
         topo::examine_chart_coherence(&body, tol),
         "the half-cap's findings are not the door's"
+    );
+}
+
+/// The half-cap's two findings arrive in the door's order, written
+/// out rather than read back — the one row here that does not consult
+/// `examine_chart_coherence` to decide what it should have seen.
+///
+/// The row above compares the channel to the door, so a permutation
+/// applied by the door itself is invisible to it and so is one the
+/// channel applies if the same call is compared. This states the
+/// sequence: the closure reading first, the continuation second. It
+/// reds on any reordering, on either side, that moves the two
+/// conditions past each other.
+#[test]
+fn the_half_cap_findings_arrive_in_the_doors_order() {
+    let tol = Tol::witness();
+    let text = halfcap_fixture("halfcap.step");
+    let Ok(StepImport::Solid { coherence, .. }) = import_step(&text, &examining(), tol) else {
+        panic!("halfcap must import as a solid at eps {:e}", tol.eps());
+    };
+    let report = coherence.expect("the examination was asked for");
+    let sequence: Vec<&str> = report
+        .findings
+        .iter()
+        .map(|f| match f.condition {
+            CoherenceCondition::MeridianClosure { .. } => "closure",
+            CoherenceCondition::RimContinuation { .. } => "rim",
+            CoherenceCondition::MeridianContinuation { .. } => "meridian",
+        })
+        .collect();
+    assert_eq!(
+        sequence,
+        ["closure", "meridian"],
+        "the half-cap's finding sequence moved: {:?}",
+        report.findings
     );
 }
 
@@ -235,21 +270,36 @@ fn the_channel_reports_the_kernel_door_verbatim() {
 /// corpora being imported rather than minted: it is a statement about
 /// the files committed here, not about files a user has. The wild
 /// corpus is nine translator outputs from four veins, which is the
-/// broadest evidence in the tree and still not a population. A file
-/// that refuses at the ambient ε contributes nothing and is skipped
-/// rather than asserted about — the ε=1e-12 row loses one wild fixture
-/// that way, at a gate long upstream of this channel.
+/// broadest evidence in the tree and still not a population.
+///
+/// **A file that does not import contributes nothing, and the set of
+/// those is PINNED rather than shrugged at.** `REFUSES_AT_FINEST` is
+/// the whole of it: one wild fixture whose D7 adoption ladder cannot
+/// certify an attachment at ε = 1e-12, which the tier-gate suite
+/// already records as that band's disposition. Counting the examined
+/// fixtures against the corpora minus exactly that set is what stops
+/// a fixture silently vanishing from the census — a refusal that
+/// spread to a second file would otherwise read as a quieter corpus.
+///
+/// The corpus-quiet rule this row applies is
+/// `mesh/tests/mesh8_corpus_coherence.rs`'s, whose header states it
+/// for the bodies this workspace MINTS; this is the same rule asked
+/// of the bodies it RECEIVES, and that file is where the argument
+/// lives.
 #[test]
 fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face() {
     let tol = Tol::witness();
     let mut noisy = Vec::new();
     let mut unexamined = Vec::new();
+    let mut absent = Vec::new();
     let mut examined = 0_usize;
 
     let mut visit = |label: String, result: Result<StepImport, StepImportError>| {
         let Ok(StepImport::Solid { coherence, .. }) = result else {
-            // A refusal or a wireframe is not this channel's subject:
-            // no body shipped, so there is nothing to have examined.
+            // No body shipped, so there is nothing to have examined.
+            // Recorded, not passed over: the set of these is asserted
+            // below.
+            absent.push(label);
             return;
         };
         let report = coherence.expect("every call here asked for the examination");
@@ -267,7 +317,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         let text = fixture(name, "step");
         visit(
             format!("own/{name}"),
-            import_step(&text, &own_options(name, true), tol),
+            import_step(&text, &own_import_options(name, true), tol),
         );
     }
     for name in FREECAD_FIXTURES {
@@ -285,10 +335,30 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         );
     }
 
-    assert!(
-        examined >= SOLID_FIXTURES.len() + FREECAD_FIXTURES.len() + WILD_IMPORTS.len() - 1,
-        "only {examined} of the three corpora's fixtures imported to a body, so \
-         this census read almost nothing"
+    // The band's own disposition for `nist_ftc_09`: at 1e-12 the D7
+    // ladder cannot certify an attachment on edge #2928 and the file
+    // does not import, which `tests/tier_gate.rs` records as that
+    // band's answer for it. At every other band it imports and is
+    // examined like the rest.
+    const REFUSES_AT_FINEST: &str = "wild/nist/nist_ftc_09_asme1_rd.stp";
+    let expected_absent: Vec<String> = if tol.eps() <= 1.0e-12 {
+        vec![REFUSES_AT_FINEST.to_owned()]
+    } else {
+        Vec::new()
+    };
+    assert_eq!(
+        absent,
+        expected_absent,
+        "the set of corpus fixtures that ship no body at eps {:e} moved. A file \
+         that stopped importing is a finding about that file or about the door \
+         it refuses at, and this census cannot report on a body it never got",
+        tol.eps()
+    );
+    assert_eq!(
+        examined,
+        SOLID_FIXTURES.len() + FREECAD_FIXTURES.len() + WILD_IMPORTS.len() - expected_absent.len(),
+        "the census examined {examined} fixtures, which is not every fixture of \
+         the three corpora less the ones pinned absent above"
     );
     assert!(
         noisy.is_empty(),
@@ -311,14 +381,6 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
 // 4. The half-cap witness, band-shaped.
 // ---------------------------------------------------------------
 
-fn halfcap(name: &str) -> String {
-    let path = format!(
-        "{}/tests/fixtures/halfcap/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
-}
-
 /// **Issue 723's recorded witness reaches the channel**, and it is
 /// band-shaped, which is what makes it a measurement rather than a
 /// flag.
@@ -329,28 +391,39 @@ fn halfcap(name: &str) -> String {
 /// gap opens at the endpoint's distance from the axis. Each row
 /// asserts the reported set against the metres the file states, which
 /// is a different answer at each of the matrix's three ε.
+///
+/// **The COUNT is pinned, not just the emptiness.** Three of the four
+/// files split that arc with an ordinary vertex, so the same half-turn
+/// is read twice — once as `MeridianClosure` against the endpoint,
+/// once as `MeridianContinuation` against the neighbouring edge — and
+/// `halfcap_nosplit`, whose arc is one edge, has no column junction
+/// and reports once. Those are the 2 / 1 / 2 / 2 the measurement
+/// table states, and a row asserting only non-emptiness would let one
+/// of the two readings disappear.
 #[test]
 fn the_half_cap_witness_reaches_the_channel_band_shaped() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // (fixture, the meridian-closure gap the file states, in metres)
-    for (name, metres) in [
-        ("halfcap.step", 1.697_409_754_832_974_3e-2),
-        ("halfcap_nosplit.step", 2.757_006_929_353_305_5e-2),
-        ("halfcap_eps6.step", 3.141_592_653_523_188_5e-8),
-        ("halfcap_eps7.step", 3.141_592_657_347_735e-9),
+    // (fixture, the meridian-closure gap the file states in metres,
+    // how many findings that one gap is read as when it is over band)
+    for (name, metres, count) in [
+        ("halfcap.step", 1.697_409_754_832_974_3e-2, 2),
+        ("halfcap_nosplit.step", 2.757_006_929_353_305_5e-2, 1),
+        ("halfcap_eps6.step", 3.141_592_653_523_188_5e-8, 2),
+        ("halfcap_eps7.step", 3.141_592_657_347_735e-9, 2),
     ] {
-        let text = halfcap(name);
+        let text = halfcap_fixture(name);
         let Ok(StepImport::Solid { coherence, .. }) = import_step(&text, &examining(), tol) else {
             panic!("{name} must import as a solid at eps {eps:e}");
         };
         let report = coherence.expect("the examination was asked for");
         let over_band = metres >= eps;
         assert_eq!(
-            !report.findings.is_empty(),
-            over_band,
+            report.findings.len(),
+            if over_band { count } else { 0 },
             "{name} states a {metres:e} m half-turn and the band is {eps:e}, so the \
-             channel must report it exactly when it is over the band: {report:?}"
+             channel must report it exactly when it is over the band, and read it \
+             {count} time(s) when it does: {report:?}"
         );
         for f in &report.findings {
             assert_eq!(
@@ -389,7 +462,8 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
     let tol = Tol::witness();
     for name in SOLID_FIXTURES {
         let text = fixture(name, "step");
-        let one = |examine: bool| match import_step(&text, &own_options(name, examine), tol) {
+        let one = |examine: bool| match import_step(&text, &own_import_options(name, examine), tol)
+        {
             Ok(StepImport::Solid {
                 body, enclosure, ..
             }) => (

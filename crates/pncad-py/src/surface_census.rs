@@ -638,8 +638,11 @@ fn options_doors() -> Vec<Roster> {
                 // on `StepImport::Solid`, and that type has no Python
                 // spelling, so a bound keyword would set a switch
                 // whose result `ImportReport` does not expose — a
-                // caller could ask and never read. Binding the pair
-                // together is LIB surface work and its own row.
+                // caller could ask and never read. **So the pair is
+                // unbound together**: binding the flag without the
+                // report is the shape this census exists to prevent,
+                // and the decay check is what stops that reason
+                // outliving the fact.
                 (
                     "examine_chart_coherence",
                     Spelling::NotBound {

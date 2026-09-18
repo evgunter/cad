@@ -1319,14 +1319,15 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         coherence.is_none(),
         "the default import asked for no chart-coherence examination"
     );
+    // The report's own two lists, spelled from here too, because a
+    // consumer that holds the answer reads them. No `assert_ne!`
+    // against `Some(empty)`: the assertion above is the whole runtime
+    // claim, and the fold it would guard against — an unasked import
+    // rendering as an empty report — is unrepresentable in
+    // `Option<CoherenceReport>` and would fail `is_none` first.
     let empty = CoherenceReport::default();
     named::<&Vec<CoherenceFinding>>(&empty.findings);
     named::<&Vec<Unexamined>>(&empty.unexamined);
-    assert_ne!(
-        coherence,
-        Some(empty),
-        "not-asked and examined-with-nothing-to-report are one value here"
-    );
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
