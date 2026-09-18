@@ -2860,6 +2860,29 @@ pub(crate) mod staleness_posture {
             ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
+            // ---- Neither: the test-support fixture builders
+            // (`crate::test_support_fixtures`). They are `pub` because
+            // a `tests/` binary is a separate crate and reaches them
+            // through `topo::test_support`, and they are in this walk's
+            // population for that reason alone — no shipped build
+            // compiles them. Each builds a body out of the operators
+            // above and mints no pcurve on the way, so there is no row
+            // for one to leave behind. ----
+            (
+                "prism_ops",
+                Neither,
+                "grows a prism with `mvfs`/`mev`/`mef` and `set_face_surface`, every one of                  them already sorted above; it attaches no pcurve of its own",
+            ),
+            (
+                "describe_as_intersections",
+                Neither,
+                "`set_edge_curve` per transverse edge, on that entry's terms",
+            ),
+            (
+                "cube_into",
+                Neither,
+                "`prism_ops` at the unit square then `describe_as_intersections`",
+            ),
         ]
     };
 

@@ -274,6 +274,24 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
+    // ---- Test-support fixture builders
+    // (`crate::test_support_fixtures`), `pub` only because a `tests/`
+    // binary is a separate crate and reaches them through
+    // `topo::test_support`. No shipped build compiles them; they are
+    // here because this walk reads `topo/src`, and each is a sequence
+    // of the asserting operators above. ----
+    (
+        "prism_ops",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no          arena itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "describe_as_intersections",
+        "rewrites each transverse edge's description through `set_edge_curve` (asserting)",
+    ),
+    (
+        "cube_into",
+        "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
         "begin_surgery",

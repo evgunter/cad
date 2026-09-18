@@ -237,6 +237,14 @@ pub mod surgery;
 // exists whenever `debug_assertions` does.
 #[doc(hidden)]
 mod test_support_impl;
+// The Euler-op fixture family, a sibling of the module above rather
+// than a section of it: nothing here has a non-test consumer, so it is
+// gated on the test arms alone and its file-level `#![allow]` stays
+// exactly as wide as the code that earns it. Its own docs state what
+// separates it from `fixtures`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_fixtures;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -256,6 +264,11 @@ pub mod test_support {
 
     use crate::body::Body;
     pub use crate::test_support_impl::ArenaCounts;
+    pub use crate::test_support_fixtures::{
+        GeoCube, Prism, PrismOps, StraddleSeat, assert_every_chord_named_by_both_rules, brick,
+        cube_into, describe_as_intersections, face_surface_of_he, flush_declarations,
+        geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+    };
 
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's

@@ -338,7 +338,7 @@ pub fn classify_neighborhood<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::prism;
+    use crate::fixtures::raw_prism;
     use geom_core::Tol;
 
     /// The split lane has no sphere arm and says so BY NAME, on the
@@ -347,7 +347,7 @@ mod tests {
     /// row.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
-        let p = prism(3, Tol::witness());
+        let p = raw_prism(3, Tol::witness());
         let face = p.face_side[0];
         let mut body = p.body;
         body.set_face_surface(
