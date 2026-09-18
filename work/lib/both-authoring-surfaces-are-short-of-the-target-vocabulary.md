@@ -2,7 +2,8 @@
 id: both-authoring-surfaces-are-short-of-the-target-vocabulary
 kind: issue
 title: A CLASS - the target vocabulary is spelled short in three places across the GUI and the Python binding, so neither can author the seam's declared tangent arrival
-status: open
+status: closed
+closed: 2026-09-17
 opened: 2026-09-12
 ---
 
@@ -126,3 +127,38 @@ The viewer half is closed on branch `viewer/path-form-uses-kernel-step`.
 verb and mode rows that do not take it. **Two short spellings remain,
 both in `pncad-py`** (`PyTarget`, `Tgt`), and this row now owns only
 those.
+
+## Closed (2026-09-17)
+
+The pncad-py half is closed on branch `lib/py-declared-arrival`.
+`Start.arrives_tangent()` is now a Python value, typed
+`ArrivesTangentToken`, and it spells the same thing as in Rust.
+`line_to`, `tangent_arc_to` and `arc_to(Bulge(...))` take it, which
+are exactly the closers the kernel's `ArrivesTangent` serves. `Via`
+and `Center` refuse it with a TypeError at construction, mirroring the
+missing trait impls in Rust; lifting that is
+`work/paths/via-and-center-arc-closers-declared-arrival.md`.
+`PyTarget` now carries all three forms. The binding still spells the
+vocabulary in its own enums, and there are four of them now, on
+purpose: `PyTarget`/`BulgeTgt` carry three forms and
+`ThroughTarget`/`Tgt` carry two, because `Via` and `Center` do not
+take the declaration (each pair is an extraction enum and its lowered
+twin).
+
+The census this row asked for now exists, and here is what it forces.
+`surface_census.rs`'s `every_target_form_has_a_python_spelling` keys
+on `TargetKind::ALL` through an exhaustive `target_class` match. So a
+new kernel form fails to compile until it is given a Python class
+name, and fails the test until the stub declares that class and some
+signature accepts it. It does NOT force the binding's own enums: those
+are still hand-written, and a form could reach the stub while
+`PyTarget` refuses it at runtime. The runtime half is guarded only by
+`tests/test_paths.py`. While
+writing it, the census found a blind spot in the stub scanner that is
+fixed here too: `Stub::defs` kept only the FIRST `@overload` of each
+`def`, so the census never read any type accepted only by a later
+overload, including every closing overload of `line_to`,
+`tangent_arc_to` and `arc_to`.
+
+`continue_to` is still unbound in Python. That is a verb gap, not a
+target gap, and the census already records it as `NotBound`.
