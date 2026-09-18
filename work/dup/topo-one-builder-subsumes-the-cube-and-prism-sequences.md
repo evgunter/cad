@@ -104,8 +104,19 @@ compare doors to each other — it re-derives the body from the profile,
 the z-range and the map, which is the only row that can survive the
 doors becoming one function. Mutation-checked three ways, the last of
 which is the case the file exists for: a re-ordering planted inside
-`prism_ops` leaves every door agreeing with every other and reds only
-that row.
+`prism_ops` leaves **every door still agreeing with every other** —
+`every_box_door_builds_one_body` stays green — while the independent
+row reds.
+
+It is **not** the only row that reds on it, and an earlier draft of
+this paragraph said it was. The same mutation also reds three
+pre-existing arena-order-sensitive rows:
+`bool4_material_containment::the_embedded_cube_is_a_decided_interference`,
+`bool4r2_probes::embedded_witness_is_the_fifth_vertex_in_arena_order`
+and `mate4a_ef_bound_rung::the_bare_straddle_seat_is_untouched`. Four
+rows in the default lane, not one. What the new row adds is not that
+the mutation is caught at all but that the failure **names the
+builder** instead of arriving as three unrelated fixture surprises.
 
 `geometric_cube` still keeps its scaffolding: 12/12
 `Scaffold(ExtrudedPoint …)`/`Declared`, measured before and after, not

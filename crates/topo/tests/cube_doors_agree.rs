@@ -2,35 +2,40 @@
 //! the two halves of the partition `common::brick`'s doc asserts, made
 //! falsifiable.
 //!
-//! The box doors reach one construction by two routes: `brick` and
-//! `prism` over `prism_z`'s profile chain, `mapped_cube` and `cube_into`
-//! over the fixed eight corners under a point map. Nothing makes
-//! the two routes agree except that they run the same operators at the
-//! same sites in the same order, so **any change to either route's
-//! operator sequence, site addressing, corner order or description step
-//! moves one dump and not the other** — including a change that leaves
-//! every count intact. That is what the first row is written against,
-//! and why it compares the derived `Debug` rather than counts: the arena
-//! contents are the runtime value a bug moves, and `v8 e12 f6` survives
-//! reordering, re-keying and a dropped description step alike.
+//! **The box doors are one construction, and that is why the load here
+//! is on the row that does not compare them.** `brick`, `prism`,
+//! `prism_z`, `mapped_cube` and `cube_into` all reach
+//! `common::prism_ops`, so they agree by construction: the first row
+//! below still compares their full derived `Debug` dumps, but what it
+//! can now catch is a door that stops delegating — a re-inlined
+//! sequence, a wrapper that starts passing a different profile, z-range
+//! or map — and no longer a change inside the sequence itself, which
+//! moves every dump together. **That is the trade this file's rows are
+//! arranged around**, and the reason the second row exists.
 //!
 //! **The silent case is the one this file is for.** A dropped or added
 //! description step reds two dozen rows across the tree on its own; a
-//! re-ordering or re-keying that leaves every count and every consumer's
-//! verdict intact reds nothing else, and is what these rows catch.
+//! re-ordering, a re-keying or a flipped face plane that leaves every
+//! count and every consumer's verdict intact reds nothing else.
 //!
-//! The comparison is between live dumps in one process, with no
+//! Every comparison is between live values in one process, with no
 //! stored baseline, so a new `Body` field or a `Debug` reformat moves
 //! every side identically and this file stays green.
 //!
-//! **A door-against-door row cannot see a change that moves every door
-//! the same way**, which is what a shared core makes possible, so
-//! [`assert_prism_shaped`] re-derives the body from its inputs instead:
-//! the corner list in profile order, the arena orders the operator
-//! sequence implies, and the loop sizes an N-gon prism has. That row is
-//! also the only one that leaves the rectangle — it runs at `n = 3`,
-//! `n = 5` and a reflex `n = 6`, under a shear, and at a second
-//! `Decide` scalar.
+//! [`assert_prism_shaped`] is therefore the row that carries the claim.
+//! It shares no premise with the builder: it re-derives the body from
+//! `profile`, `z` and `map` alone — the corner list in profile order,
+//! the arena orders the operator sequence implies, the loop sizes an
+//! N-gon prism has, **each face's outward normal**, and the description
+//! arm. It is also the only row that leaves the rectangle: `n = 3`,
+//! `n = 5`, a reflex `n = 6`, a shear, and a second `Decide` scalar.
+//!
+//! **What no row here reads is the CARRIER geometry.** A face's plane
+//! is checked for the side it puts the material on and nothing else, an
+//! edge is read for its endpoints and its description arm and not for
+//! its curve, and no certificate is opened. A carrier that moved while
+//! its endpoints stayed put passes this file; ~30 rows elsewhere in the
+//! tree are what stand against that.
 //!
 //! The negative row is the last one. A file that only pins agreement
 //! goes green when someone makes every door identical by deleting the
@@ -41,7 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeDescription;
-use geom_core::{Decide, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real, Tol, Vec3};
 use topo::Body;
 
 use crate::common;
@@ -137,15 +142,25 @@ fn carries<T: Real>(body: &Body<T>) -> Vec<(bool, bool)> {
 /// way — and putting the family on one core is exactly the change that
 /// would. So this row re-derives the body: the corner list in profile
 /// order, the arena orders the operator sequence implies, the loop
-/// sizes an N-gon prism has, and the description axis. A builder that
-/// re-keys, re-orders or re-corners its output fails here with every
-/// door still agreeing with every other.
+/// sizes an N-gon prism has, each face's outward normal, and the
+/// description arm. A builder that re-keys, re-orders, re-corners or
+/// turns a face inside out fails here with every door still agreeing
+/// with every other.
 ///
-/// `profile` may carry any `n >= 3` corners and may be reflex; `map`
-/// may be any point map, shears included; `T` may be any `Decide`
-/// scalar. Points are compared through their derived `Debug`, which is
-/// the only equality a scalar lane without `PartialEq` offers and is
-/// exact where one exists.
+/// `profile` may carry any `n >= 3` corners and may be reflex; `T` may
+/// be any `Decide` scalar. `map` may be any point map, shears included,
+/// but the normal check reads it as **affine** — it is what makes the
+/// strut vector the same at every corner and what carries the
+/// determinant's sign — which every caller in this tree is.
+///
+/// Points are compared through their derived `Debug`, which is the only
+/// equality a scalar lane without `PartialEq` offers and is exact where
+/// one exists. The normals are compared by a certified sign through
+/// [`geom_core::Decide`], because a direction agreeing is not a bit
+/// pattern agreeing.
+///
+/// **It does not read a carrier**, a certificate or a plane's offset;
+/// see this file's header for what that leaves to the rest of the tree.
 fn assert_prism_shaped<T: Decide>(
     body: &Body<T>,
     profile: &[(f64, f64)],
@@ -154,14 +169,10 @@ fn assert_prism_shaped<T: Decide>(
     described: bool,
 ) {
     let n = profile.len();
-    let bot: Vec<String> = profile
-        .iter()
-        .map(|&(x, y)| format!("{:?}", map(x, y, z.0)))
-        .collect();
-    let top: Vec<String> = profile
-        .iter()
-        .map(|&(x, y)| format!("{:?}", map(x, y, z.1)))
-        .collect();
+    let bot_at: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.0)).collect();
+    let top_at: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.1)).collect();
+    let bot: Vec<String> = bot_at.iter().map(|p| format!("{p:?}")).collect();
+    let top: Vec<String> = top_at.iter().map(|p| format!("{p:?}")).collect();
 
     // An N-gon prism is 2n vertices, 3n edges, n + 2 faces.
     let counts = (
@@ -225,6 +236,11 @@ fn assert_prism_shaped<T: Decide>(
 
     // Face arena order: the `mvfs` seed face survives as the top cap,
     // then the bottom cap, then one quad per profile segment.
+    //
+    // The loop SIZE alone is a weak statement and at n = 4 it is no
+    // statement at all — `[4, 4, 4, 4, 4, 4]` cannot tell a cap from a
+    // side. What gives this walk teeth at every n is the normal
+    // asserted alongside it, which is different for every face.
     let ring: Vec<usize> = body
         .faces()
         .map(|(fk, _)| {
@@ -239,6 +255,40 @@ fn assert_prism_shaped<T: Decide>(
         ring, want_ring,
         "face arena order: the top cap, the bottom cap, then one quad per segment"
     );
+
+    // **Every face's OUTWARD normal points out of the material**, which
+    // is the axis the counts and the arena orders cannot reach: a
+    // flipped cap plane and an orientation-reversing `map` both leave
+    // every key, every endpoint and every loop size exactly where they
+    // were.
+    //
+    // Stated from the corners rather than from a plane the builder
+    // computed. `up` is the strut vector, identical at every corner of
+    // a prism, so it is also the displacement from the bottom cap to
+    // the top one; `e x up` for a segment of a counterclockwise profile
+    // is that side's outward direction. Both statements carry the
+    // determinant's sign through an affine `map`: for `M` linear,
+    // `(M^-T a) . (M b) = a . b`, so a map that reverses orientation
+    // lands the built normal on the far side of these and nothing else
+    // in this file moves.
+    let band = Band::linear(Tol::witness()).unwrap();
+    let up = top_at[0] - bot_at[0];
+    let mut want_outward: Vec<Vec3<T>> = vec![up, -up];
+    for i in 0..n {
+        let j = (i + 1) % n;
+        want_outward.push((bot_at[j] - bot_at[i]).cross(top_at[i] - bot_at[i]));
+    }
+    for ((fk, _), want) in body.faces().zip(want_outward) {
+        let got = topo::face_normal::face_outward_normal(body, fk)
+            .expect("every face of a prism is planar")
+            .vec();
+        assert_eq!(
+            got.dot(want).sign_within(band),
+            Ok(geom_core::Sign::Positive),
+            "face {fk:?}'s outward normal must agree with the side its \
+             corners put the material on — got {got:?}, outward is {want:?}"
+        );
+    }
 
     // The description axis is the caller's choice, and the one thing
     // `geometric_cube` does differently from every other door. A reflex

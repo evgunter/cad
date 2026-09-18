@@ -79,7 +79,6 @@ pub fn assert_every_chord_named_by_both_rules<T: Real>(
 }
 
 /// Key bundle for the geometric unit cube.
-#[allow(dead_code)]
 pub struct GeoCube<T: Real> {
     pub body: Body<T>,
     pub seed: MvfsCreated,
@@ -117,9 +116,17 @@ pub struct PrismOps {
 
 /// **The one Euler sequence every box and prism in this file is built
 /// by**: a right prism over the simple polygon `profile` (x, y corners,
-/// **counterclockwise viewed from +z**, no repeats, reflex corners
-/// welcome) spanning `z`, into `body`, with every corner placed through
-/// `map`.
+/// no repeats, reflex corners welcome) spanning `z`, into `body`, with
+/// every corner placed through `map`.
+///
+/// **The winding rule is about `profile` and `map` together.** A
+/// counterclockwise-from-+z profile under an orientation-PRESERVING map
+/// and a clockwise one under an orientation-REVERSING map both build an
+/// outward-facing prism; the two mixed combinations build an inside-out
+/// one. Both supported combinations are in use — `review_m3_pr55`'s
+/// reflected placements pass reversed profiles on purpose — so "the
+/// profile must be counterclockwise", which this doc said until the
+/// builders were unified, was never the rule the callers obeyed.
 ///
 /// It is the §9.4.2-minimal sequence with real geometry at every step —
 /// every `mef` supplies its face's Newell plane, every edge a certified
@@ -145,13 +152,34 @@ pub struct PrismOps {
 ///
 /// A second call on the same `body` seeds a second solid, so the
 /// caller also chooses whether the body is fresh.
+///
+/// **Only the corner count is checked, and the rest are not
+/// preconditions at all** — which is worth stating, because the list
+/// above reads like four and is one.
+///
+/// - The **winding rule is not enforced and must not be**: building an
+///   inside-out prism on purpose is a fixture this tree needs.
+///   `review_m2_pr7` mirrors a cube through [`mapped_cube`] precisely to
+///   assert that tiers 1 and 2 CANNOT see the orientation and that
+///   `mass_properties` can. A refusal here would delete that suite's
+///   subject. (Measured: a fail-loud winding assertion in this function
+///   reds four of its rows and one of `review_m3_pr55`'s.)
+/// - **Simplicity and no-repeats are not checked either**: a
+///   self-intersecting or repeating profile is undefined behaviour of
+///   this builder, and a caller that wants either refused owes the
+///   check itself.
+///
+/// Where the winding rule IS enforced is on the fixtures that claim to
+/// be outward-facing, in `tests/cube_doors_agree.rs` — which asserts
+/// each face's outward normal against the corners and so reads the
+/// composite rule rather than the profile alone.
 pub fn prism_ops<T: geom_core::Decide>(
     body: &mut Body<T>,
     profile: &[(f64, f64)],
     z: (f64, f64),
     map: impl Fn(f64, f64, f64) -> Point3<T>,
 ) -> PrismOps {
-    assert!(profile.len() >= 3);
+    assert!(profile.len() >= 3, "a prism needs at least three corners");
     let n = profile.len();
     let bot: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.0)).collect();
     let top: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.1)).collect();
@@ -205,13 +233,12 @@ pub fn prism_ops<T: geom_core::Decide>(
         )
         .unwrap();
     // Struts up from each bottom vertex. The chain edge from v_i has
-    // he_plus starting at v_i (i < n−1); the closing edge's he_plus
-    // starts at v_{n-1}.
+    // he_plus starting at v_i for every i < n−1, `chain[0]` included;
+    // the last vertex is reached instead by the closing edge the bottom
+    // `mef` minted, whose he_plus starts at v_{n-1}.
     let mut struts = Vec::new();
     for i in 0..n {
-        let at = if i == 0 {
-            chain[0].he_plus
-        } else if i < n - 1 {
+        let at = if i < n - 1 {
             chain[i].he_plus
         } else {
             bottom.he_plus
@@ -291,8 +318,13 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
     GeoCube {
         body,
         seed: ops.seed,
-        mevs: mevs.try_into().unwrap(),
-        mefs: mefs.try_into().unwrap(),
+        // Infallible: `UNIT_SQUARE` fixes n = 4, so `prism_ops` returns
+        // n − 1 = 3 chain plus n = 4 struts and 1 bottom plus n = 4
+        // sides. The lengths are decided by a const above, not by any
+        // runtime value, which is why these read as conversions rather
+        // than as checks.
+        mevs: mevs.try_into().expect("7 mevs at a four-corner profile"),
+        mefs: mefs.try_into().expect("5 mefs at a four-corner profile"),
     }
 }
 

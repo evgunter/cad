@@ -283,8 +283,13 @@ fn plane_section_winding_is_consistent() {
 
 /// A 2×2×1 quad prism (x offset by `x0`, spanning y ∈ [0, 2]) added as
 /// a NEW solid of `body`: [`common::prism_ops`] into an existing body,
-/// **without** the description step — which is what makes this the
-/// single-solid gate's operand rather than a `prism`.
+/// without the description step.
+///
+/// **The `&mut Body` seat is what this needs and [`common::prism`] has
+/// not got** — `prism` mints its own body and returns it, so it cannot
+/// seed a second solid into one at all, and seeding two is the whole of
+/// the single-solid gate's operand. Skipping the description step is
+/// incidental to that: nothing below reads a description.
 fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     let profile = [(x0, 0.0), (x0 + 2.0, 0.0), (x0 + 2.0, 2.0), (x0, 2.0)];
     crate::common::prism_ops(body, &profile, (0.0, 1.0), Point3::new);
