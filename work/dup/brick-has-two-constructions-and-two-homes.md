@@ -373,3 +373,56 @@ link is an existing row on S-TINT's slate. Taken as a sequencing
 decision with a recommendation rather than put back to Ev, per
 `memories/orchestration-model.md`, and reported to him in the same
 sitting.
+
+## Link 2 is done (2026-09-18, branch `dup/thread-the-tol`) — what link 3 now faces
+
+**The tolerance is threaded.** Every member of
+`crates/topo/tests/common/mod.rs` that minted a witness now takes
+`tol: Tol` as its LAST parameter, and every call site in
+`crates/topo/tests/` passes `Tol::witness()`. `prism_z`'s signature is
+now `(profile, z0, z1, tol)` and `brick`'s `(x, y, z, tol)` — which is
+`sweep::test_support::brick`'s, as this row predicted.
+
+**The "24 times" above is wrong in a way worth naming**, because it is
+the kind of error this program exists to catch: it is one file read at
+two commits, not a family total against a file subtotal.
+`crates/topo/tests/common/mod.rs` held 24 `Tol::witness()` calls at
+`01ca2ead7` (before S-DUP touched it), 17 after link 1 (`6b092272a`) and
+**10** after link 1b (`244a6bb83`, PR #2812). The family-wide number at
+`bcc2e6c6f` was **10, all in that one file** — no member of the family
+is defined anywhere else, by a `git grep` with no path argument for each
+member's definition.
+
+**Gate item 2 (the `#![allow]`) is decided, and the tree had already
+decided it twice.** Two files hold fixture vocabulary inside `src/` and
+both carry
+`#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]` at
+file scope: `crates/sweep/src/test_support.rs:110` and
+`crates/topo/src/fixtures.rs:44`, the latter with the argument written
+out — *"Test-support code: panicking is a test's failure mechanism (L5),
+and fixture unwraps are on keys the fixture itself just minted."* So the
+allow travels with the family, carrying that comment.
+
+**But not into `test_support_impl.rs` itself.** An inner `#![allow]` in a
+module file scopes to that module, and `test_support_impl.rs`'s existing
+resident `ArenaCounts` compiles clean without it and is the one item
+there with a non-test consumer (the D1 debug postcondition). The family
+should land in a sibling module file re-exported through `test_support`,
+so the allow stays exactly as wide as the code that earns it. That is a
+recommendation to link 3, not a decision taken for it.
+
+`dead_code` and `unreachable_pub` need nothing new: `fixtures.rs` already
+handles the first per-item (*"key bundles expose every minted key; tests
+pick what they need"*) — the shape `PrismOps`, `Prism` and `GeoCube` will
+want — and `test_support_impl.rs:110` already handles the second.
+
+**One correction to the fifth-member note above.**
+`crates/topo/src/cert_m3r1_probes.rs` is mounted `#[cfg(test)] mod
+cert_m3r1_probes;` (`crates/topo/src/lib.rs:169`), so
+`witness-not-ambient.sh` does **not** reach it —
+`gate_filter_test_only_paths` takes a `#[cfg(test)] mod x;` module out of
+the scan set entirely. Its 12 `Tol::witness()` calls are therefore
+legal where they sit, and the gate is not what unblocks that copy.
+What unblocks it is namability alone, exactly as this row says: nothing
+in `src/` can name `tests/common`. Link 3 should not expect the gate to
+force the issue there.

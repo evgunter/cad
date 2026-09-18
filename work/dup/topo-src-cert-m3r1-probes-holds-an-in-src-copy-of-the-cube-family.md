@@ -90,3 +90,28 @@ rots every time that function is refactored**, and this one has no
 guard. If the in-`src` copy survives the move at all, the claim it
 carries should be one a test can check (the two build equal bodies)
 rather than one only a reader can.
+
+## The witness gate does not reach this copy (measured 2026-09-18, link 2)
+
+`work/dup/brick-has-two-constructions-and-two-homes.md` names this file
+as unblocking with link 2, and that is right about namability and wrong
+about the gate. `crates/topo/src/lib.rs:169` mounts it
+`#[cfg(test)] mod cert_m3r1_probes;`, and
+`scripts/gates/witness-not-ambient.sh` runs `gate_production_sources`,
+whose `gate_filter_test_only_paths` takes a `#[cfg(test)] mod x;` module
+**out of the file set entirely** — the gate never reads this file. Its
+**12** `Tol::witness()` calls are legal where they sit and will stay
+legal.
+
+Established by the measurement on the same day at the other mount:
+planting one `Tol::witness()` in
+`crates/topo/src/test_support_impl.rs` — whose
+`#[cfg(any(debug_assertions, test, feature = "test-support"))]` mount
+`GATE_CFG_TEST_NOT_RE` refuses to narrow — fires the gate and names the
+line, while this file's twelve sit in the same crate untouched. The
+difference is the cfg shape, not the directory.
+
+**So a mover gets no help from the gate here.** If this copy is folded
+into the shared family after link 3, its call sites have to thread
+`tol: Tol` because the family's doors now take it (link 2), not because
+anything would red if they did not.
