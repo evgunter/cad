@@ -201,3 +201,16 @@ re-opened the hole one door over). `import_step`'s body is entirely
 the 15-line comment at that call is now five.
 
 Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
+
+## Option surface fully ruled (2026-09-17)
+
+`stl-header-refuses-plausible-names` closed won't-fix with the
+record (Ev, in-chat — the library door and wide sniff stay; the
+demos keep the loud panic as evidence; the caller-side fallback
+pattern is recorded in the item for whenever a consumer needs it).
+With C13/#741 (no ε type, 09-04) and C14/#742 (STEP header fields
+wait for a use case, 09-03) this closes all three D items — the
+option surface LIB held for two weeks is now fully ruled, none of it
+needing an implementation lane. EXCH's remaining slate: the H1
+fix-pass landing in flight, E1's fix landing in flight, then units
+2–3 and the E tail.
