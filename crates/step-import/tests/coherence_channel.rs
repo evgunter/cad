@@ -259,11 +259,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
             noisy.push(format!("{label}: {:?}", report.findings));
         }
         if row.non_iso + row.scaffold + row.corrupt > 0 {
-            unexamined.push((
-                label,
-                row.non_iso + row.scaffold + row.corrupt,
-                row.non_iso,
-            ));
+            unexamined.push((label, row.non_iso + row.scaffold + row.corrupt, row.non_iso));
         }
     };
 
@@ -283,7 +279,10 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
     }
     for name in WILD_IMPORTS {
         let text = wild(name);
-        visit(format!("wild/{name}"), import_step(&text, &examining(), tol));
+        visit(
+            format!("wild/{name}"),
+            import_step(&text, &examining(), tol),
+        );
     }
 
     assert!(
@@ -358,8 +357,11 @@ fn the_half_cap_witness_reaches_the_channel_band_shaped() {
                 f.metres, metres,
                 "{name}: the reported length is not the one the file states"
             );
-            assert_eq!(f.eps, eps, "{name}: a finding judged at a band that is not \
-                 this run's");
+            assert_eq!(
+                f.eps, eps,
+                "{name}: a finding judged at a band that is not \
+                 this run's"
+            );
         }
         assert!(
             report.unexamined.is_empty(),
