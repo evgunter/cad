@@ -857,3 +857,150 @@ the tidier answer. It earns 0 today.
   reading.
 - **Nothing downstream of the body.** No STL, STEP, mesh or validator output
   was compared, and `validate()` was not run on either side.
+
+## Adjudicated (2026-09-18): option 3, and option 2 died on a number
+
+**The home is settled and it is option 3** — a sibling module under
+`src/`, re-exported through `test_support`. Options 1 and 3 are
+indistinguishable to every consumer (same `topo::test_support::X`, same
+feature edge, same gate posture) and differ only in whether the
+three-lint `#![allow]` also covers `ArenaCounts`, which earns none of
+it. Option 3 costs one file and one `pub use`. The number that would
+flip it back to option 1 is `ArenaCounts` earning any of the 31 allowed
+lints; it earns zero.
+
+**Option 2 is dead, and not narrowly.** The row proposed it on the
+ground that `fixtures.rs` "already holds fixture vocabulary, already
+carries the `#![allow]` with its argument, and already exports a
+`prism(n, tol)` whose signature link 2 just converged the `tests/`
+family onto" — and named the deciding number as *how much of
+`fixtures.rs` duplicates what `tests/common/mod.rs` holds*. **That
+number is zero.** The two files share no item. What they share is a
+name: `prism`/`Prism` exists in both with disjoint meanings.
+
+`topo::fixtures::prism(n, tol)` is not a weaker `prism_ops`, it is a
+different artifact. The two agree on the ten arena lengths and on 7 of
+the derived dump's 24 top-level sections and diverge on the other 17.
+`fixtures::prism` has no mass properties at all
+(`QuadratureUnsupported { "the mvfs Nurbs placeholder reached the
+quadrature lane" }` at every `n`); its eight points are
+`(0,0,1)(1,0,1)(2,0,1)(3,0,1)` and the same at `z = 0`, **collinear in
+`y = 0`** — not a box; its surfaces are six `Nurbs` with `NaN` control
+points against six real `Plane`s; its twelve carriers are `Circle`,
+`Scaffold(RevolvedPoint)`, `Declared` against twelve `Line`,
+`Intersection`, `Derived`. The file says so itself at `:492` — *"Coordinates
+are indexed placeholders standing in for the documented picture …
+structural validation never reads them."*
+
+Note which axis that is. The 2026-09-16 measurement above recorded that
+`Scaffold`/`Declared` was **not** what separated `prism_z` from
+`sweep::brick` — there was no `Scaffold` anywhere in either body. Here
+it separates 12/12 against 12/12. A real solid against a skeleton, not
+a permuted arena.
+
+### One correction to the measurement's framing
+
+The lane characterised `fixtures.rs` as "the raw-insertion home" and
+`tests/common` as "the Euler-op home". **That is right about
+`fixtures::prism` and wrong about the file.** `ops_cube` (`:765`),
+`ops_holed_box`, `ops_genus2`, `ops_ring_bridge` and `ops_strut_cube`
+are all built through the operators with real coordinates —
+`ops_cube`'s own doc says *"the §9.4.2-minimal sequence; same
+construction as the PR 2 acceptance test"*, and it is 1 `mvfs` + 7
+`mev_line` + 5 `mef_chord` including the `f_bottom.he_plus` strut
+anchor and the `f_front.he_plus` close. `fixtures.rs` holds **both**
+kinds side by side.
+
+This does not disturb the verdict — the item overlap with
+`tests/common` is still zero and the `prism` collision is still
+disjoint — but it changes what the two files' boundary *is*, which
+matters to anyone working the move. The boundary is not
+raw-against-Euler. It is **reachability**: `fixtures.rs` is
+`pub(crate)` (and `#[cfg(test)]`, `lib.rs:157–158` — the row's earlier
+note that option 2 changes "visibility, not contents" understated it;
+the cfg has to come off too, which is what pulls 1130 lines under
+`witness-not-ambient.sh` forever and raises 17 `dead_code` warnings in
+a `-D warnings` workspace), so `tests/` cannot name it, and
+`tests/common` is a `tests/` binary, so `src/` cannot name it. Each
+file exists because the other is unreachable. That is the wall link 3
+is taking down, and it is the same wall holding
+`cert_m3r1_probes.rs`'s copy in place.
+
+### The methodological finding, which is this orchestrator's to own
+
+I wrote option 2 into this row on 2026-09-18 on the strength of two
+observations: `fixtures.rs` holds fixture vocabulary, and it exports a
+`prism(n, tol)` matching the signature link 2 had just converged the
+`tests/` family onto. Both were true. Neither was evidence. **A
+signature match is not a sameness claim** — `prism(n, tol)` names two
+functions that produce a certified solid and a `NaN`-surfaced skeleton
+respectively, and the convergence I read as a sign the two were one
+door was a convergence onto `(count, tol)`, which is what almost any
+fixture builder in this tree takes after link 2.
+
+This is the program's standing trap running backwards. S-DUP normally
+catches *different names for one thing*; here I nearly landed a unit on
+*one name for two things*, and what saved it was that the row demanded
+a measurement before the choice. Put beside the five instruments
+result — no single instrument has ever found even half of any class —
+the companion rule: **a name, a signature and a neighbourhood are
+three readings of the same surface, and three surface readings do not
+make a measurement.**
+
+### Carried to link 3 as settled
+
+- **Nothing is blocked from `src/` — proved, not read.** `cargo check
+  -p topo --lib --features test-support` with the family mounted in the
+  library: 0 errors, 0 warnings. `--lib` excludes dev-dependencies, so
+  no member can be reaching `proptest`, `test-utils`, `strum`, `mesh`,
+  `stl` or `step-export`. The row's "the set that would have to move"
+  section is confirmed and its blocked set is empty.
+- **The witness gate is already discharged.** `tests/common/mod.rs`
+  holds **0** `Tol::witness()` calls after link 2. Gate item 1 of this
+  row's "two gates at the door" is spent; only the `#![allow]` remains,
+  and option 3 is the answer to it.
+- **The `#![allow]` is 31 lints wide**: 25 `unwrap_used`, 6
+  `expect_used`, **0 `panic`**. The `panic` arm is unearned and should
+  not travel with the family.
+- **One call site moves.** `mod common;` at `tests/all.rs:54` is the
+  sole declaration; 74 files say `use crate::common;` and all 279
+  references survive a `use … as common;` alias. (Read, not compiled —
+  link 3 compiles it.)
+- **`tests/fixture/mod.rs` moves nowhere.** Not a second vocabulary
+  home: one cyl×sphere rung-3 SSI acceptance fixture, 3 public items, 2
+  consumers, zero overlap with either other home in either direction,
+  and its own header says the hand assembly should be deleted when the
+  fitted-chord join lane lands. Out of scope by subject, by consumers
+  and by gate. This retires the destination question the row raised for
+  link 3.
+- **The three unopened in-`src` census candidates are settled.**
+  `review_m1_pr2/cube_independent.rs` is **not** a member and is
+  **exempt by Ev's ruling** — its header reads *"independent
+  derivations — do not 'simplify' them to match shipped fixtures …
+  Promoted per Ev's request (PR #17 thread)"* — and it genuinely
+  differs in addressing. `review_m1_pr2/atomicity.rs` is not a member
+  (a digon pillow, no cube; the census flagged it on `mvfs`/`mev_line`
+  call sites, its undercount-by-shape running the other way).
+  `review_m1_pr3::build_box` **is** a member and folds — it is
+  `fixtures::ops_cube` at a uniform 2× scale, every dump section
+  identical but `points` and the curves carrying them.
+- **A new row, filed rather than left in prose**:
+  `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`,
+  parked behind this one. `fixtures::ops_cube` is `geometric_cube` with
+  the face geometry declined — byte-identical dumps in `points`, all
+  1199 lines of `curves`, `half_edges`, `loops`, `edges`, `vertices`,
+  all seven provenance maps, `curve_origins` and `surgery`. It parks
+  behind link 3 because nothing in `src/` can name the shared builder
+  until link 3 lands.
+
+### What the measurement could not see
+
+`f64` only; one eps row (default — the divergence is categorical,
+`Plane` against `NaN` `Nurbs`, so an eps-dependent agreement is not a
+possible shape here); no reflex profile, no tilt map, and **no `n = 2`
+digon**, which is exactly where the two domains differ (`prism_ops`
+asserts `n >= 3`, `fixtures::prism` accepts `n >= 2`);
+`straddle_seat`, `flush_declarations`, `cube_into` and `mapped_cube`
+were read, not executed; the `all.rs` alias was not compiled; no
+consumer above `topo` was built against a moved family;
+`cert_m3r1_probes.rs`'s copy was not dumped.
