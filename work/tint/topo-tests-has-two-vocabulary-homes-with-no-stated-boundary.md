@@ -87,3 +87,19 @@ move for it.
   have a `tests/common/`, and `editor-core` also has a
   `tests/fixture/mod.rs`; whether the same two-home shape is there was
   not looked at.
+
+## The second home mints tolerances too (measured 2026-09-18, S-DUP link 2)
+
+`crates/topo/tests/fixture/mod.rs` holds **4** `Tol::witness()` calls.
+`crates/topo/tests/common/mod.rs` held 10 and now holds **0**: link 2
+threaded `tol: Tol` through every door of the prism/cube family, because
+`scripts/gates/witness-not-ambient.sh` reads
+`crates/topo/src/test_support_impl.rs` as production code (re-confirmed
+by planting a violation and watching the gate name the line).
+
+This is a second axis on which the two homes are not interchangeable,
+and it bears on the boundary question directly: whichever home moves
+into `src/` pays that cost, and `tests/fixture/mod.rs` has not paid it.
+A decision that moves `common/` and leaves `fixture/` where it is has
+nothing to do; one that moves `fixture/` instead, or as well, owes the
+same threading over its four sites first.

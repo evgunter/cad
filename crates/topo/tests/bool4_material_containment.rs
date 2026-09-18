@@ -71,10 +71,10 @@ fn two_solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
 /// outside the bracket's material. `dx` shifts the part along `+x`;
 /// `declared` adds the four v-on-f records on the wall.
 fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     // The side face over profile segment 3, (1, 1) → (1, 3): the wall.
     let wall: FaceKey = l.side_faces[3];
-    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8));
+    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8), Tol::witness());
     let body = assembly(&l.body, &part);
     let mut records = ContactRecords::default();
     if declared {
@@ -97,7 +97,10 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz),
+        Tol::witness(),
+    )
 }
 
 /// **The embedded cube** (`h14_census_deferrals`' fixture): 1 m in
@@ -139,8 +142,8 @@ fn embedded() -> (Body<f64>, ContactRecords) {
 /// solid), with a 0.6 m part floating in the void — inside the
 /// container's box, inside its VOID, outside its material.
 fn cavity() -> Body<f64> {
-    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = VoidEvidence {
         shells: hole
@@ -154,7 +157,7 @@ fn cavity() -> Body<f64> {
         2,
         "the container carries its void shell"
     );
-    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }
 
@@ -174,8 +177,9 @@ fn pocket() -> Body<f64> {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     );
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     assembly(&u.body, &part)
 }
 
@@ -184,8 +188,8 @@ fn pocket() -> Body<f64> {
 /// side faces, its interior lies in the cube's material, and no vertex
 /// is strictly anywhere.
 fn all_on_boundary() -> Body<f64> {
-    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5));
+    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5), Tol::witness());
     assembly(&container, &part)
 }
 
@@ -450,7 +454,7 @@ fn the_per_solid_door_answers_for_one_solid_of_the_arena() {
 /// other, and nothing pierces: the wall is crossed AT the part's
 /// vertices and edges. The materials overlap over `x ∈ [0, 1]`.
 fn split_straddle() -> (Body<f64>, ContactRecords) {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::prism_z::<f64>(
         &[
             (0.0, 1.5),
@@ -462,6 +466,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
         ],
         0.25,
         0.75,
+        Tol::witness(),
     );
     let body = assembly(&l.body, &part.body);
     // Every touch the sweeps report, declared as the v-on-f records it
@@ -544,7 +549,7 @@ fn nurbs_wall(y: (f64, f64), z: (f64, f64)) -> geom::Surface<f64> {
 /// `m4_pr2_transform.rs` builds): the one way a described spline face
 /// reaches the public door at all.
 fn nurbs_walled_bracket() -> Body<f64> {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let far_wall: FaceKey = l.side_faces[5];
     let mut body = l.body;
     let wall = body
@@ -610,7 +615,7 @@ fn nurbs_walled_bracket() -> Body<f64> {
 fn a_spline_walled_container_is_refused_at_tier_3_before_the_census() {
     let container = nurbs_walled_bracket();
     assert_eq!(topo::validate_closed(&container), Ok(()));
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let body = assembly(&container, &part);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("tier 3 refuses the spline face's quadrature");

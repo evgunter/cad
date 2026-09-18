@@ -29,8 +29,8 @@ type Range = (f64, f64);
 /// A brick hollowed by a strictly-interior brick as a VOID shell — one
 /// solid, two shells, the unit's own `cavity()` recipe.
 fn hollow_box(o: (Range, Range, Range), v: (Range, Range, Range)) -> Body<f64> {
-    let mut dst = common::brick::<f64>(o.0, o.1, o.2);
-    let hole = common::brick::<f64>(v.0, v.1, v.2);
+    let mut dst = common::brick::<f64>(o.0, o.1, o.2, Tol::witness());
+    let hole = common::brick::<f64>(v.0, v.1, v.2, Tol::witness());
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = VoidEvidence {
         shells: hole
@@ -352,9 +352,10 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     );
-    let part = common::brick::<f64>((1.0, 2.0), (1.2, 2.0), (0.2, 0.8));
-    let third = common::brick::<f64>((0.5, 1.5), (-1.0, 0.0), (0.2, 0.8));
+    let part = common::brick::<f64>((1.0, 2.0), (1.2, 2.0), (0.2, 0.8), Tol::witness());
+    let third = common::brick::<f64>((0.5, 1.5), (-1.0, 0.0), (0.2, 0.8), Tol::witness());
     let mut body = assembly(&l.body, &part);
     topo::graft_disjoint(&mut body, &third, Tol::witness()).unwrap();
     let errors =
@@ -371,8 +372,8 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
 /// bite, and such a pair is arm 1's first.
 #[test]
 fn probe_d_a_separated_planar_pair_clears_at_the_gate() {
-    let a = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = common::brick::<f64>((1.5, 2.5), (0.0, 1.0), (0.0, 1.0));
+    let a = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = common::brick::<f64>((1.5, 2.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&a, &b);
     let (sa, _) = two_solids(&body);
     let seen = verdicts(&body, sa, |p| p.x >= 1.5);

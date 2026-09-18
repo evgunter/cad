@@ -23,7 +23,7 @@ fn tiers_ok(b: &Body<f64>) {
 
 #[test]
 fn translation_is_exact_and_key_stable() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let keys: Vec<_> = b.points().map(|(k, _)| k).collect();
     let t = transform_rigid(
         &b,
@@ -48,7 +48,7 @@ fn translation_is_exact_and_key_stable() {
 
 #[test]
 fn zero_angle_rotation_is_exact_identity() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let map =
         Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
     let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
@@ -63,7 +63,7 @@ fn zero_angle_rotation_is_exact_identity() {
 
 #[test]
 fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let map = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
@@ -83,8 +83,13 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
 fn transformed_tool_subtracts_exactly() {
     // The M3 pocket pattern: translate a dyadic tool onto a face and
     // subtract — the moved body composes with the boolean pipeline.
-    let base = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let tool = brick((-0.125, 0.125), (-0.125, 0.125), (0.0, 0.25));
+    let base = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let tool = brick(
+        (-0.125, 0.125),
+        (-0.125, 0.125),
+        (0.0, 0.25),
+        Tol::witness(),
+    );
     // Place the tool so it embeds in the top face: pocket at (1, 1).
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
@@ -92,7 +97,7 @@ fn transformed_tool_subtracts_exactly() {
     let out = match topo::subtract_with(
         &base,
         &placed,
-        &common::flush_declarations(&base, &placed),
+        &common::flush_declarations(&base, &placed, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -107,7 +112,7 @@ fn transformed_tool_subtracts_exactly() {
 
 #[test]
 fn non_rigid_maps_are_refused_at_the_door() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // Uniform scale: affinely self-consistent on planar bodies (re-
     // certification alone would PASS it) — the decided rigidity door
     // is what refuses it.
@@ -185,7 +190,7 @@ fn face_surface_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::SurfaceK
 /// `Intersection`s through `Body::set_edge_curve_nurbs_lane` — the
 /// M7-8 class, minted through the door that mints it.
 fn m7_8_cube() -> Body<f64> {
-    let cube = common::geometric_cube::<f64>();
+    let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
     let wall = body
         .set_face_surface(cube.mefs[1].face, topo::FaceSurface::New(nurbs_wall()))
@@ -299,7 +304,7 @@ fn an_m7_8_body_validates_at_rest_and_moves_through_the_lane() {
 /// injected lane is not a second code path for the ordinary classes.
 #[test]
 fn the_lane_changes_nothing_for_a_body_that_does_not_carry_the_class() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
     let plain = transform_rigid(&b, &map, Tol::witness()).unwrap();
     let laned = topo::transform_rigid_via(

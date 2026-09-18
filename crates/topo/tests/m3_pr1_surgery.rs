@@ -219,8 +219,8 @@ fn multi_shell_lifecycle_replay_is_byte_identical() {
 /// certification still green).
 #[test]
 fn revert_involution_and_tiers() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let original = format!("{:?}", cube.body);
     let reverted = cube.body.revert().unwrap();
@@ -250,8 +250,8 @@ fn revert_involution_and_tiers() {
 /// exactly, area is unchanged.
 #[test]
 fn revert_negates_volume() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let props = topo::mass_properties(&cube.body, Tol::witness()).unwrap();
     let rev_props = topo::mass_properties(&cube.body.revert().unwrap(), Tol::witness()).unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
@@ -267,8 +267,8 @@ fn revert_negates_volume() {
 /// transfer — the split body passes tier 3.
 #[test]
 fn split_edge_preserves_tier3_at_rest() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
     let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
@@ -283,7 +283,7 @@ fn split_edge_preserves_tier3_at_rest() {
 /// again, tier-3 valid; replay is byte-identical.
 #[test]
 fn merge_coplanar_same_key_pair() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     // Split the top face along the diagonal A′C′ (same surface key).
     let a1 = cube.mevs[3].vertex; // A′
     let c1 = cube.mevs[5].vertex; // C′
@@ -355,7 +355,7 @@ fn merge_coplanar_same_key_pair() {
 fn merge_coplanar_declared_vs_numeric() {
     use common::plane;
     let build = |surface_for_split: fn(&topo::Body<f64>) -> FaceSurface<f64>| {
-        let mut cube = geometric_cube::<f64>();
+        let mut cube = geometric_cube::<f64>(Tol::witness());
         let a1 = cube.mevs[3].vertex;
         let c1 = cube.mevs[5].vertex;
         let top = cube.seed.face;
@@ -402,12 +402,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // rung (b) — value equality never glues; the M3-era bit rung is
     // gone).
     let mut bit_equal = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let outcome = bit_equal.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
@@ -416,12 +419,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // GeomSource — the provenance lookup merges with zero numerics
     // and zero per-call declarations.
     let mut same_source = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let src = topo::GeomSource::minted(42, 0);
     let coplanar_keys: Vec<_> = same_source
@@ -447,12 +453,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // Declared, per-call surface pair (F5): same geometry, fresh
     // build, intent supplied by the call — merges after verification.
     let mut declared = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let pair: Vec<_> = declared
         .faces()

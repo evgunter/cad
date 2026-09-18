@@ -93,8 +93,8 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
 }
 
 /// A Newell-certified plane from an outward-CCW-ordered corner list.
-pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
-    newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
+pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>], tol: Tol) -> Surface<T> {
+    newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
 }
 
 /// The operator keys [`prism_ops`] mints, in construction order.
@@ -178,6 +178,7 @@ pub fn prism_ops<T: geom_core::Decide>(
     profile: &[(f64, f64)],
     z: (f64, f64),
     map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
 ) -> PrismOps {
     assert!(profile.len() >= 3, "a prism needs at least three corners");
     let n = profile.len();
@@ -194,7 +195,7 @@ pub fn prism_ops<T: geom_core::Decide>(
             },
             bot[1],
             line(bot[0], bot[1]),
-            Tol::witness(),
+            tol,
         )
         .unwrap(),
     );
@@ -205,7 +206,7 @@ pub fn prism_ops<T: geom_core::Decide>(
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
-                Tol::witness(),
+                tol,
             )
             .unwrap(),
         );
@@ -228,8 +229,8 @@ pub fn prism_ops<T: geom_core::Decide>(
                 he2: chain[0].he_plus,
             },
             line(bot[n - 1], bot[0]),
-            FaceSurface::New(plane(&rev)),
-            Tol::witness(),
+            FaceSurface::New(plane(&rev, tol)),
+            tol,
         )
         .unwrap();
     // Struts up from each bottom vertex. The chain edge from v_i has
@@ -248,7 +249,7 @@ pub fn prism_ops<T: geom_core::Decide>(
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
-                Tol::witness(),
+                tol,
             )
             .unwrap(),
         );
@@ -272,8 +273,8 @@ pub fn prism_ops<T: geom_core::Decide>(
                     he2,
                 },
                 line(top[i], top[j]),
-                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
-                Tol::witness(),
+                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]], tol)),
+                tol,
             )
             .unwrap();
         if i == 0 {
@@ -283,7 +284,7 @@ pub fn prism_ops<T: geom_core::Decide>(
     }
     // The seed face survives as the top cap (outward +z ⇒ profile
     // order viewed from above).
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&top)))
+    body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
         .unwrap();
 
     PrismOps {
@@ -306,11 +307,15 @@ const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 
 /// scaffolding door, named by both at-rest rules — the state this
 /// fixture's suites measure, and the one thing that distinguishes it
 /// from every other box builder in this file.
-pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
+pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> GeoCube<T> {
     let mut body = Body::<T>::new();
-    let ops = prism_ops(&mut body, &UNIT_SQUARE, (0.0, 1.0), |x, y, z| {
-        Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-    });
+    let ops = prism_ops(
+        &mut body,
+        &UNIT_SQUARE,
+        (0.0, 1.0),
+        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        tol,
+    );
     // The bundle's arrays are the N-general vectors at N = 4: the rim
     // chain then the struts, the bottom cap then the sides.
     let mevs: Vec<MevCreated> = ops.chain.into_iter().chain(ops.struts).collect();
@@ -354,24 +359,26 @@ pub struct StraddleSeat {
 
 /// Builds [`StraddleSeat`] (post grafted first, shelf second — the
 /// arena order the fence rows' pinned keys and witnesses assume).
-pub fn straddle_seat() -> StraddleSeat {
+pub fn straddle_seat(tol: Tol) -> StraddleSeat {
     let post: Prism<f64> = prism_z(
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        tol,
     );
     let shelf: Prism<f64> = prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        tol,
     );
     // side_faces[i] spans profile segment i → i+1: the post's [3] is
     // (0.30, 0.42) → (0.30, 0.20), the plane x = 0.30; the shelf's
     // [2] is (0.9, 0.30) → (0, 0.30), the plane y = 0.30.
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, geom_core::Tol::witness())
-        .expect("the straddle graft");
+    let keys =
+        topo::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).expect("the straddle graft");
     StraddleSeat {
         post_top: post.top_face,
         post_side_x030,
@@ -399,20 +406,29 @@ pub struct Prism<T: Real> {
 /// welcome), extruded from z = 0 to z = `height`: [`prism_ops`]
 /// untransformed, then described. Every face gets its outward-CCW
 /// Newell plane, every edge a certified chord line.
-pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64) -> Prism<T> {
-    prism_z(profile, 0.0, height)
+pub fn prism<T: geom_core::Decide>(profile: &[(f64, f64)], height: f64, tol: Tol) -> Prism<T> {
+    prism_z(profile, 0.0, height, tol)
 }
 
 /// [`prism`] with an explicit z-range `[z0, z1]` (M3 PR 4: bricks at
 /// arbitrary heights for the boolean fixtures).
-pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -> Prism<T> {
+pub fn prism_z<T: geom_core::Decide>(
+    profile: &[(f64, f64)],
+    z0: f64,
+    z1: f64,
+    tol: Tol,
+) -> Prism<T> {
     let mut body = Body::<T>::new();
-    let ops = prism_ops(&mut body, profile, (z0, z1), |x, y, z| {
-        Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-    });
+    let ops = prism_ops(
+        &mut body,
+        profile,
+        (z0, z1),
+        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        tol,
+    );
     // Construction-final description step (D6): prisms are the M3
     // boolean/split operand factories — tier-3-grade by construction.
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, tol);
 
     Prism {
         bottom: core::iter::once(ops.seed.vertex)
@@ -448,8 +464,19 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// name, and that one door still stops short of the description step.
 /// That file's independent row is the first claim and its negative row
 /// the second.
-pub fn brick<T: geom_core::Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
+pub fn brick<T: geom_core::Decide>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
+    prism_z::<T>(
+        &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+        z.0,
+        z.1,
+        tol,
+    )
+    .body
 }
 
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
@@ -463,8 +490,8 @@ pub fn brick<T: geom_core::Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) 
 /// `upgrade_edges_to_intersections` review posture). Smooth edges
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
-pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
-    let band = Band::linear(Tol::witness()).unwrap();
+pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
+    let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
         let face_surface = |body: &Body<T>, he| {
@@ -492,7 +519,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
-        body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
+        body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
 }
 
@@ -500,19 +527,19 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
 /// `Scaffold(ExtrudedPoint …)`/`Declared`.
-pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>) -> Body<f64> {
+pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) -> Body<f64> {
     let mut body = Body::<f64>::new();
-    cube_into(&mut body, map);
+    cube_into(&mut body, map, tol);
     body
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>) {
-    prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map);
+pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) {
+    prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, tol);
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
-    describe_as_intersections(body);
+    describe_as_intersections(body, tol);
 }
 
 /// Test-authoring convenience: the [`topo::BooleanDeclarations`] declaring
@@ -539,8 +566,9 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
 pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,
+    tol: Tol,
 ) -> topo::BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, Tol::witness())
+    let found = topo::flush::find_flush_candidates(a, b, tol)
         .expect("a fixture's flush pairs decide definitely");
     topo::flush::declare_all(&found)
 }

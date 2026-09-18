@@ -424,8 +424,8 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
 /// scaffold into an EdgeCurve or silently skip it.
 #[test]
 fn null_scaffold_fail_loud_audit() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let he = cube
         .body
@@ -498,8 +498,8 @@ fn null_scaffold_fail_loud_audit() {
 /// child intervals abutting exactly, and volume unchanged bitwise.
 #[test]
 fn split_edge_double_split_preserves_tier3_and_volume() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let vol0 = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
         .volume;
@@ -550,8 +550,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
 /// carrier(t_a + (t_b - t_a)/2) - derived independently here.
 #[test]
 fn split_edge_intersection_witness_bitwise_remint() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge;
     let parent = cube
@@ -611,8 +611,8 @@ fn split_edge_intersection_witness_bitwise_remint() {
 #[test]
 fn split_edge_interiority_band_edges() {
     let eps = geom_core::Tol::witness().get().eps;
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let edge = cube.mevs[0].edge; // line, params [0, 1], scale 1 m
     let before = dump(&cube.body);
     for t in [
@@ -650,8 +650,8 @@ fn split_edge_interiority_band_edges() {
 /// NegativeVolume and nothing else, volume negated bitwise.
 #[test]
 fn revert_on_split_body_involution_and_posture() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     cube.body
         .split_edge(cube.mevs[0].edge, 0.5, Tol::witness())
         .unwrap();
@@ -738,14 +738,17 @@ fn cycle_verts_of(
 /// interior square (center face), all planar and tier-3 valid. Returns
 /// (cube, center_face, interior square vertex keys).
 fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey; 4]) {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let top = cube.seed.face;
-    let top_plane = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let top_plane = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     let (a1, b1, c1, d1) = (
         cube.mevs[3].vertex, // A'
         cube.mevs[4].vertex, // B'
@@ -884,12 +887,15 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
 /// plane description bit-equals the canonical top plane (f64 lane) —
 /// the test-side stand-in for the recipe layer's post-op stamping.
 fn stamp_top_sources(body: &mut topo::Body<f64>) {
-    let canon = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let canon = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     let geom::Surface::Plane {
         origin: co,
         normal: cn,
@@ -1009,7 +1015,7 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
 #[test]
 fn merge_coplanar_uref_and_signed_zero_teeth() {
     let diagonal_split = |surface: fn(&geom::Surface<f64>) -> geom::Surface<f64>| {
-        let mut cube = geometric_cube::<f64>();
+        let mut cube = geometric_cube::<f64>(Tol::witness());
         let top = cube.seed.face;
         let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
         let f = cube.body.get_face(top).unwrap();
@@ -1147,7 +1153,7 @@ fn f64_debug_channel_injectivity_probes() {
 /// garbage; tier 3 refuses downstream.)
 #[test]
 fn merge_coplanar_nan_payload_debug_collision() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let top = cube.seed.face;
     let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
     let f = cube.body.get_face(top).unwrap();
@@ -1210,12 +1216,15 @@ fn merge_coplanar_nan_payload_debug_collision() {
 #[test]
 fn merge_coplanar_full_plateau_atomicity() {
     let (mut cube, center, _) = annulus_top_cube();
-    let top_plane = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let top_plane = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     cube.body
         .set_face_surface(center, FaceSurface::New(top_plane))
         .unwrap();
@@ -1282,7 +1291,7 @@ fn interval_debug_channel_faithfulness_probe() {
 #[test]
 fn interval_split_edge_lane() {
     use geom_core::{Interval, Real};
-    let build = || geometric_cube::<Interval>();
+    let build = || geometric_cube::<Interval>(geom_core::Tol::witness());
     let mut cube = build();
     assert_eq!(validate_closed(&cube.body), Ok(()));
     let edge = cube.mevs[0].edge;
@@ -1320,7 +1329,7 @@ fn interval_split_edge_lane() {
 /// same-key demand for section faces).
 #[test]
 fn null_edge_cannot_be_laundered_through_set_edge_curve() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let he = cube
         .body
         .get_vertex(cube.mevs[0].vertex)

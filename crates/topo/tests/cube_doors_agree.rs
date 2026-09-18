@@ -331,20 +331,29 @@ fn every_box_door_builds_one_body() {
     for (x, y, z) in boxes {
         let profile = profile_of(x, y);
         let mut doors: Vec<(&str, String)> = vec![
-            ("brick", dump(&common::brick::<f64>(x, y, z))),
+            (
+                "brick",
+                dump(&common::brick::<f64>(x, y, z, Tol::witness())),
+            ),
             (
                 "prism_z",
-                dump(&common::prism_z::<f64>(&profile, z.0, z.1).body),
+                dump(&common::prism_z::<f64>(&profile, z.0, z.1, Tol::witness()).body),
             ),
-            ("mapped_cube", dump(&common::mapped_cube(onto(x, y, z)))),
+            (
+                "mapped_cube",
+                dump(&common::mapped_cube(onto(x, y, z), Tol::witness())),
+            ),
             ("cube_into", {
                 let mut body = Body::<f64>::new();
-                common::cube_into(&mut body, onto(x, y, z));
+                common::cube_into(&mut body, onto(x, y, z), Tol::witness());
                 dump(&body)
             }),
         ];
         if z.0 == 0.0 {
-            doors.push(("prism", dump(&common::prism::<f64>(&profile, z.1).body)));
+            doors.push((
+                "prism",
+                dump(&common::prism::<f64>(&profile, z.1, Tol::witness()).body),
+            ));
         }
         let (first_name, first) = &doors[0];
         for (name, other) in &doors[1..] {
@@ -378,16 +387,27 @@ fn the_generic_box_doors_agree_at_an_interval_scalar() {
     for (x, y, z) in boxes {
         let profile = profile_of(x, y);
         let mut doors: Vec<(&str, String)> = vec![
-            ("brick", dump(&common::brick::<Interval>(x, y, z))),
+            (
+                "brick",
+                dump(&common::brick::<Interval>(
+                    x,
+                    y,
+                    z,
+                    geom_core::Tol::witness(),
+                )),
+            ),
             (
                 "prism_z",
-                dump(&common::prism_z::<Interval>(&profile, z.0, z.1).body),
+                dump(
+                    &common::prism_z::<Interval>(&profile, z.0, z.1, geom_core::Tol::witness())
+                        .body,
+                ),
             ),
         ];
         if z.0 == 0.0 {
             doors.push((
                 "prism",
-                dump(&common::prism::<Interval>(&profile, z.1).body),
+                dump(&common::prism::<Interval>(&profile, z.1, geom_core::Tol::witness()).body),
             ));
         }
         let (first_name, first) = &doors[0];
@@ -418,14 +438,14 @@ fn every_door_builds_the_prism_its_inputs_name() {
     for profile in [&TRIANGLE[..], &PENTAGON[..], &REFLEX_L[..]] {
         let z = (-0.75, 1.5);
         assert_prism_shaped(
-            &common::prism_z::<f64>(profile, z.0, z.1).body,
+            &common::prism_z::<f64>(profile, z.0, z.1, Tol::witness()).body,
             profile,
             z,
             ident,
             true,
         );
         assert_prism_shaped(
-            &common::prism::<f64>(profile, 2.25).body,
+            &common::prism::<f64>(profile, 2.25, Tol::witness()).body,
             profile,
             (0.0, 2.25),
             ident,
@@ -436,9 +456,15 @@ fn every_door_builds_the_prism_its_inputs_name() {
     // The rectangle, through every door that spells it.
     let (x, y, z) = ((-1.5, 0.25), (0.5, 3.0), (-2.0, -0.5));
     let profile = profile_of(x, y);
-    assert_prism_shaped(&common::brick::<f64>(x, y, z), &profile, z, ident, true);
     assert_prism_shaped(
-        &common::prism_z::<f64>(&profile, z.0, z.1).body,
+        &common::brick::<f64>(x, y, z, Tol::witness()),
+        &profile,
+        z,
+        ident,
+        true,
+    );
+    assert_prism_shaped(
+        &common::prism_z::<f64>(&profile, z.0, z.1, Tol::witness()).body,
         &profile,
         z,
         ident,
@@ -449,20 +475,20 @@ fn every_door_builds_the_prism_its_inputs_name() {
     // square's, so the profile that names them is the unit square and
     // the map does the rest.
     assert_prism_shaped(
-        &common::mapped_cube(sheared),
+        &common::mapped_cube(sheared, Tol::witness()),
         &UNIT_SQUARE,
         (0.0, 1.0),
         sheared,
         true,
     );
     let mut body = Body::<f64>::new();
-    common::cube_into(&mut body, sheared);
+    common::cube_into(&mut body, sheared, Tol::witness());
     assert_prism_shaped(&body, &UNIT_SQUARE, (0.0, 1.0), sheared, true);
 
     // And `geometric_cube`, whose only difference is the last
     // argument.
     assert_prism_shaped(
-        &common::geometric_cube::<f64>().body,
+        &common::geometric_cube::<f64>(Tol::witness()).body,
         &UNIT_SQUARE,
         (0.0, 1.0),
         ident,
@@ -486,7 +512,7 @@ fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     for profile in [&TRIANGLE[..], &PENTAGON[..], &REFLEX_L[..]] {
         let z = (-0.75, 1.5);
         assert_prism_shaped(
-            &common::prism_z::<Interval>(profile, z.0, z.1).body,
+            &common::prism_z::<Interval>(profile, z.0, z.1, geom_core::Tol::witness()).body,
             profile,
             z,
             ident,
@@ -495,14 +521,14 @@ fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     }
     let (x, y, z) = ((-1.5, 0.25), (0.5, 3.0), (-2.0, -0.5));
     assert_prism_shaped(
-        &common::brick::<Interval>(x, y, z),
+        &common::brick::<Interval>(x, y, z, geom_core::Tol::witness()),
         &profile_of(x, y),
         z,
         ident,
         true,
     );
     assert_prism_shaped(
-        &common::geometric_cube::<Interval>().body,
+        &common::geometric_cube::<Interval>(geom_core::Tol::witness()).body,
         &UNIT_SQUARE,
         (0.0, 1.0),
         ident,
@@ -520,8 +546,8 @@ fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
 #[test]
 fn geometric_cube_is_the_one_door_that_keeps_its_scaffolding() {
     let unit = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let described = common::brick::<f64>(unit.0, unit.1, unit.2);
-    let scaffolded = common::geometric_cube::<f64>().body;
+    let described = common::brick::<f64>(unit.0, unit.1, unit.2, Tol::witness());
+    let scaffolded = common::geometric_cube::<f64>(Tol::witness()).body;
 
     let described_carries = carries(&described);
     let scaffolded_carries = carries(&scaffolded);
