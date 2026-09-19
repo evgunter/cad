@@ -22,7 +22,12 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/bvh/src/",
+    "crates/viewer/tests/common/"
+];
 
 use std::sync::{Arc, Mutex};
 
