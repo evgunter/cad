@@ -2,7 +2,8 @@
 id: instantiate-part-crossings-are-names-payload-names-does-not-list
 kind: issue
 title: An InstantiatePart's crossing references are names payload_names does not list
-status: review
+status: closed
+closed: 2026-09-19
 branch: edit/instance-crossing-names
 pr: 2872
 opened: 2026-09-17
@@ -292,3 +293,34 @@ pins; the probe suite and its `all.rs` line are gone.
 - **The wire fixture's `inner`** is `RecipeNodeId(7)` — not a live
   node of the host at all — because the row's subject is the id-space
   distinction, and a value the host happens to hold cannot show it.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2872 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `InstantiatePart` left
+`name_free_node!`: `payload_names` answers each crossing's `outer`
+(a name in this document, in record order) and never its `inner`
+(the part's id space — the reason stated once, on the arm), so the
+insert door's liveness check, `Rebind` (through one `rebind_face`
+serving both twins) and DM7's strand walk reach the record with no
+code of their own. The lane found four fixtures inserting unchecked
+records and re-fixtured them; the review found the FOURTH door the
+same list opens — `split`'s `PartNameReachesRemainder` precondition
+now refuses a cut that takes an instance whose `outer` names a kept
+node, the right answer and undisclosed — and that no split in the tree
+mints an inhabited record at all (AQ8), so the unit's split arguments
+had been vacuous; both are now said and pinned. Ruled at the fix pass
+and built there: the crossing's `mate` id is a PROVENANCE reference
+the insert door checks live (`payload_read_sites` gains the arm, now
+an exhaustive match with no wildcard; every fixture that spelled a
+dangling mate got a real one; a later delete of the mate is not
+reported, as read sites are not) — the filed row
+`crossing-mate-back-pointer-is-checked-by-no-door` closed with it.
+`REFERENCES.md` §0's "the only door that REFUSES on it" sentence was
+false before this unit and is re-worded to the two doors that do
+(one commit wrote it, an ordinary lane PR; no ratification found).
+For Ev's objection on the next `[ev]` PR: the fourth door and AQ8's
+wording; the mate ruling; the §0 sentence. Filed:
+`payload-carrier-lists-have-seven-prose-homes`. Territory crossed by
+announcement: five TCOST/TINT suites, `refactor.rs` (FIX — one
+comment).
