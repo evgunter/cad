@@ -24,7 +24,9 @@ use pncad::document::{Doc, ValuePayload};
 use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
-use pncad::profile::{ArcData, ArcMode, SketchPlane, Step, Target, TargetKind, TipState, Verb};
+use pncad::profile::{
+    ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
+};
 use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 
@@ -552,11 +554,66 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
 fn a_complete_loop_verb_is_admitted_only_at_the_entry() {
     let tol = Tol::witness();
     let circle = sketch::fresh_step(Verb::Circle);
-    assert!(admits_at(&[circle], 0, tol).is_ok());
+    let entry = sketch::tip_state_at(&[circle], 0, tol);
+    assert_eq!(entry, Some(TipState::Entry));
+    assert!(admits_at(entry, Verb::Circle).is_ok());
     let chain = [sketch::fresh_step(Verb::At), circle];
-    let (state, verb) = admits_at(&chain, 1, tol).expect_err("a circle cannot follow a verb");
-    assert_eq!(verb, Verb::Circle);
-    assert_eq!(state, TipState::PlainPoint);
+    let state = sketch::tip_state_at(&chain, 1, tol);
+    assert_eq!(
+        admits_at(state, Verb::Circle),
+        Err(TipState::PlainPoint),
+        "a circle cannot follow a verb",
+    );
+}
+
+/// **An arc-spec verb is offered wherever its row is, and lands in a
+/// form its row takes.** The combo used to judge `arc_to` by one fixed
+/// starting spec — `Radius`, which no `arc_to` row admits — so it was
+/// greyed at every tip. At a leg end (a `tangent_arc_to`'s end, the
+/// middle of a `B`) it is offered and starts endpoint-full; over a
+/// bound direction it starts endpoint-free; and either way the chain
+/// it lands in replays without a lattice refusal at that step.
+#[test]
+fn an_arc_spec_verb_starts_in_a_form_its_row_takes() {
+    let tol = Tol::witness();
+    let leg_end = vec![
+        Step::At(pt(0.0, 0.0)),
+        Step::Angle(0.0),
+        Step::TangentArcTo(Target::Point(pt(0.0, 0.01))),
+    ];
+    let directed = vec![Step::At(pt(0.0, 0.0)), Step::Angle(0.0)];
+    for (prefix, want) in [
+        (&leg_end, TipState::DirectedPoint),
+        (&directed, TipState::DirectedPlain),
+    ] {
+        let at = prefix.len();
+        let state = sketch::tip_state_at(prefix, at, tol);
+        assert_eq!(state, Some(want));
+        for verb in [
+            Verb::ArcTo,
+            Verb::FilletArc,
+            Verb::ArcFillet,
+            Verb::ArcFilletArc,
+        ] {
+            assert!(admits_at(state, verb).is_ok(), "{verb} at {want:?}");
+            let mut chain = prefix.clone();
+            chain.push(sketch::fresh_step_at(verb, state));
+            let refused = pncad::profile::replay(&chain, tol).err().filter(|e| {
+                e.step == at && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
+            });
+            assert!(refused.is_none(), "{verb} at {want:?}: {refused:?}");
+        }
+    }
+    let Step::ArcTo(spec) = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::DirectedPoint))
+    else {
+        unreachable!("fresh_step_at names the verb it was asked for");
+    };
+    assert_eq!(spec.mode(), ArcMode::Bulge);
+    let Step::ArcTo(spec) = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::DirectedPlain))
+    else {
+        unreachable!("fresh_step_at names the verb it was asked for");
+    };
+    assert_eq!(spec.mode(), ArcMode::Sweep);
 }
 
 /// A non-finite field refuses at the lowering, before anything is

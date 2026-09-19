@@ -298,6 +298,10 @@ which is what actually moves the number.
 
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC; the kind's deciding door, registered here because `topo`'s rim mint decides through it) | spiric_minor_positive | the minor radius | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_ring | `major_radius − minor_radius` — the ring convention's length | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_two_ovals | `(major_radius − minor_radius) − \|offset\|` — the length the two-oval regime closes by, decided before any root (the `offset_axial_rim_torus_reach` comparand, re-decided at the kind's own door) | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
 | dihedral.rs:140 | dihedral_arm | min(curvature arms, extent) | m | OK |
 | dihedral.rs:151 | dihedral_wedge | sinθ (unit-gradient cross) × arm | m | OK |
 | enters.rs:84 | enters_material_arm | caller arm (contract: m) | m | OK |
@@ -481,8 +485,13 @@ which is what actually moves the number.
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_line | the moved caps' meeting line's own distance from the axis (`ρ_L`, a norm of metre coordinates) — `Zero` routes to the pole arm rather than refusing | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_datum_arm | the old corner's distance from its own profile circle's centre (2-D norm in the meridian half-plane, metres) — the carried-datum direction's lever, dead exactly when no direction exists | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_concentric / offset_axial_rim_great | rim-carrier centre to sphere centre distance; carrier radius minus operand sphere radius — both metre data of the stored geometry | m | OK (new in VERBS-RIMCAP) |
-| offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_plane | sin(carrier axis, moved cap normal) × the body's radial extent — the length the tilt would move a rim point by (the `offset_axial_latitude_tilt` idiom) | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP, reused by CURVED-SPIRIC's torus rim arm) | offset_axial_rim_plane | sin(carrier axis, moved cap normal) × the body's radial extent — the length the tilt would move a rim point by (the `offset_axial_latitude_tilt` idiom) | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_reach | moved sphere radius minus the moved cap's stand-off `\|t\|` — the length the section circle dies by at tangency, decided before the root `√(r² − t²)` is taken | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_torus_reach | inner-equator radius of the moved torus minus the moved cap's stand-off, `(R − r′) − \|d\|` — the length the two-oval regime closes by, decided before the root `√((R − r′)² − d²)` (the `offset_axial_rim_reach` idiom) | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_side | `m·(q_mid − c)` for the OLD rim's midpoint, `m = axis × cap normal`: a projection of a metre vector, equal to `±ρ(q_mid) ∈ ±[R − r, R + r]` since the midpoint lies in the meridian plane — unlevered | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_sense | `old.axis · cap normal`, a cosine of unit vectors, levered at the body's radial extent | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_meridian | the old rim circle's centre's distance from the tube-centre circle in `(ρ, h)` — the `offset_axial_seam_meridian` comparand on a distinct-charts edge | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_tube | the old rim circle's radius minus the operand tube's minor radius | m | OK (new in CURVED-SPIRIC) |
 | offset_axial.rs (SHELL-7) | offset_axial_centre | a point's distance from the axis (a norm of metre coordinates) — a surface's centre, origin or apex at classification and a same-surface or two-chart circle's centre at the carrier mint, one helper (`centre_on_axis`) and one name for every site; unlevered, since a length carries its own scale and the extent levers only the sines here | m | OK (one name since SHELL-7; `offset_axial_latitude` and `offset_axial_seam_latitude` folded into it) |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`

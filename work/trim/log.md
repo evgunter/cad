@@ -532,3 +532,45 @@ claimed (PR #2669); byte 136, parity 0 ⇒ R1 Opus, R2 Fable; frozen head
 announcement was owed at PR open (2026-09-14) and was not made — the
 orchestrator's miss; posted now on #2564 (comment 5683759668) and on the
 sign-off watchlist. PR-1 does not merge without the ack or Ev's ruling.
+
+## TRIM-2 PR-1 dual adjudicated (2026-09-18)
+
+R2 (Fable) killed once by a model-side 429 during the hold, resumed
+after the reset; both arms MERGEABLE-AFTER-FIXES (R1 Opus 2 MAJOR/5
+MINOR/5 NOTE, rubric 3/4/3/3/5; R2 Fable 1 MAJOR/5 MINOR/6 NOTE, rubric
+4/4/3/4/5). The FLUX enclosure held under every fixture either arm
+built; both re-derived the Newton–Cotes degree argument and reproduced
+M1–M8 verbatim. Headline, R2 alone: the AREA rule reads whole-box
+hulls and refuses ordinary curved charts as `DegenerateFace` (area
+`[−0.549, 1.742]` against the rectangle lane's `[0.968, 1.125]` on the
+same chart) — every shipped row lives on `g ≡ 1` where the area
+machinery is inert; unilateral, code-class: a tally CANDIDATE, but the
+pair is excluded under 3(e) (R2's 429). Converged: the chord polygon's
+closure unchecked (a certified wrong flux on an open walk), the vertex
+pad unexercised by any row, the "fixed at the entering round" reason
+false, the monotone margin levered by the round. Adjudication on the PR
+(comment 5734849876); thirteen items; fix pass dispatched. **Seam
+gate**: PROPS has not acknowledged; spec §Amendments now carries the
+week's-silence fallback (merge no earlier than 2026-09-22).
+
+## TRIM-2 PR-1 fix pass verified; merge waits on the seam gate (2026-09-19)
+
+Head `e38ca5d87`, run 35418382136 green (twelve `test` jobs at step
+level, four render lanes, five k-lint rows). All thirteen items taken;
+the headline (the area rule) is now the rectangle lane's own 2-D cell
+rule per sub-chord with a second-order trapezoid term, at
+`QUAD2_AREA_PIECES` — E1's area bracket, 2.3× the oracle's before, now
+equals it; Q3's all-iso bit-identity held throughout. The walk's
+closure is checked (`TRIM_OPEN_WALK`) and shared vertices are hulled
+into one bracket; `TrimChord::len` is gone (the door derives it).
+Five mutants red nothing and are stated at their sites, not claimed
+(the closure gap pad, the sliver constant, the λ pad, the bisection
+ladder, the weights' bracket); `mu−1` was the wrong mutant (closed
+Newton–Cotes on an even count is exact one degree past its order) —
+`mu−2` reds Q6/Q9. One row outside the fence moved with a written
+reason: `bool4_material_containment`'s tier-3 row, whose spline-walled
+bracket now passes check 7 through the trimmed lane and is refused at
+the census for its face kind (the row's own doc had named the day).
+Filed: `curved-trim-e2e-fixture-waits-for-a-producer`. **Merge gate**:
+no PROPS acknowledgement through 2026-09-19; per the spec's Amendments
+the merge proceeds no earlier than 2026-09-22 absent an objection.

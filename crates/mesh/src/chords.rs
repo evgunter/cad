@@ -58,7 +58,9 @@ use geom_core::spline::KnotVector;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_boundary_step};
+use crate::sizing::{
+    ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step, torus_boundary_step,
+};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -120,6 +122,21 @@ pub(crate) fn compute_chords(
             Curve3::Ellipse { major, minor, .. } => {
                 ceil_count(span, ellipse_step(delta_s, major, minor))?
             }
+            // Spiric arcs (the hollowed partial revolve's torus rim):
+            // the curvature-bound step from the closed-form `sup|C″|`
+            // (`spiric_step`). No torus tightening: `torus_boundary_step`
+            // is the circle arm's (a spiric is neither a rim nor a
+            // meridian traversal of its chart), and the step here is
+            // already a chord bound on the carrier itself.
+            Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } => ceil_count(
+                span,
+                spiric_step(delta_s, major_radius, minor_radius, offset),
+            )?,
             // B-spline carriers (rung-3 edges at rest, M5 PR 9):
             // the hull-bounded sagitta generalization (C9/PR 11) —
             // secant deviation on a parameter step h is ≤ h²·sup|C″|/8

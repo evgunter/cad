@@ -2860,6 +2860,25 @@ pub(crate) mod staleness_posture {
             ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
+            // ---- Neither: the test-support fixture builders. Why
+            // they are in this walk's population is stated once, on
+            // [`crate::source_walk::mutation_doors`]. ----
+            (
+                "prism_ops",
+                Neither,
+                "grows a prism with `mvfs`/`mev`/`mef` and `set_face_surface`, every one of \
+                 them already sorted above; it attaches no pcurve of its own",
+            ),
+            (
+                "describe_as_intersections",
+                Neither,
+                "`set_edge_curve` per transverse edge, on that entry's terms",
+            ),
+            (
+                "cube_into",
+                Neither,
+                "`prism_ops` at the unit square then `describe_as_intersections`",
+            ),
         ]
     };
 

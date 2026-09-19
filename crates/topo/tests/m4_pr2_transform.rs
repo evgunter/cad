@@ -179,12 +179,6 @@ fn nurbs_wall() -> geom::Surface<f64> {
     geom::Surface::Nurbs(std::sync::Arc::new(n))
 }
 
-fn face_surface_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::SurfaceKey {
-    let he_data = body.get_half_edge(he).unwrap();
-    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-    body.get_face(loop_data.face).unwrap().surface
-}
-
 /// The unit cube with its front wall restated as a described NURBS net
 /// and that wall's four edges re-described as plane × NURBS
 /// `Intersection`s through `Body::set_edge_curve_nurbs_lane` — the
@@ -198,8 +192,8 @@ fn m7_8_cube() -> Body<f64> {
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let s1 = common::face_surface_of_he(&body, edge.he_plus);
+        let s2 = common::face_surface_of_he(&body, edge.he_minus);
         if s1 != wall && s2 != wall {
             continue;
         }

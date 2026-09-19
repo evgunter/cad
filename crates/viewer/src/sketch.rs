@@ -54,7 +54,8 @@ use pncad::document::{
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError,
-    ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb, replay,
+    ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    arc_specs_at, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
@@ -102,8 +103,9 @@ pub enum ProfileShape {
     /// other half. Which verbs are well-typed at a given tip is not
     /// this value's business — the lattice decides that at replay, and
     /// an ill-typed walk refuses typed at the edit door naming the
-    /// state and the verb (`ProgramRefusal::Transition`). [`preview`]
-    /// and [`admits_at`] are how a form asks that before committing.
+    /// state and the verb (`ProgramRefusal::Transition`). [`preview`],
+    /// [`tip_state_at`] and [`admits_at`] are how a form asks that
+    /// before committing.
     Path {
         /// The verbs, in authoring order. A chain must END in a
         /// `Start`-targeting verb, or be one complete-loop verb
@@ -207,10 +209,10 @@ pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
 
 /// **A target of form `kind`**, for a target control switching form.
 ///
-/// Every form is offered wherever a target is, including the declared
-/// tangent arrival on the arc modes whose rows do not take it: which
-/// (verb, mode, target) triples are well-typed is the lattice's
-/// question, and it refuses the rest typed at replay.
+/// Every form is offered wherever a target is; inside an arc spec the
+/// picker greys the forms that spec's dispatcher refuses at the tip
+/// ([`SpecForms`]), and a tip the form cannot read leaves the replay
+/// to refuse them typed.
 pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     match kind {
         TargetKind::Point => Target::Point(Point2::new(0.01, 0.0)),
@@ -788,51 +790,106 @@ pub fn tip_state_words(state: TipState) -> &'static str {
     }
 }
 
-/// **Is the step at `steps[at]` well-typed where the chain leaves
-/// it?** — asked OF THE LATTICE, by replaying the prefix through it.
+/// **The lattice state the chain is in just before `steps[at]`** —
+/// asked of the replay the commit door runs, over the prefix alone.
 ///
-/// `Err` carries the tip's state and the verb the lattice refused
-/// there, which is the sentence a form greys a choice out with.
-/// Everything else is `Ok`: a chain that closes, one that simply has
-/// not closed yet, a leg whose NUMBERS have no answer (the fields of a
-/// freshly offered step are placeholders, and refusing a verb because
-/// its default radius is wrong would be judging the wrong thing), and
-/// a prefix that is already ill-typed before `at` — that refusal is
-/// the prefix's own and the form is already showing it.
-///
-/// **This is not a table.** The transition lattice is `profile`'s and
-/// stays there; what this does is put a candidate step in front of the
-/// same `replay` the commit door runs and report what it said. A
-/// second copy of the lattice kept in step by hand is exactly what the
-/// step list's docs refuse, and this is how the form offers only legal
-/// verbs without becoming one.
-///
-/// # Errors
-///
-/// The tip's state and the refused verb, when the lattice refuses the
-/// step at `at` for being ill-typed there.
-pub fn admits_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Result<(), (TipState, Verb)> {
-    // A field that is not a number is not a lattice question, and the
-    // form reports it through the preview beside this. Each step is
-    // lifted ALONE, so what is asked is only whether its literals are
-    // numbers — a complete-loop verb inside a chain is the lattice's
-    // to refuse, and a whole-chain lift would refuse it first.
-    if steps
+/// `None` when the prefix does not say: a field that is not a number
+/// (the preview beside the form reports it), or a prefix already
+/// refused before `at` — that refusal is the prefix's own and the form
+/// is already showing it. A prefix that closes answers
+/// [`TipState::Closed`].
+pub fn tip_state_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Option<TipState> {
+    let prefix = &steps[..at];
+    // Each step is lifted ALONE, so what is asked is only whether its
+    // literals are numbers — a complete-loop verb inside a chain is
+    // the lattice's to refuse, and a whole-chain lift would refuse it
+    // first.
+    if prefix
         .iter()
         .any(|step| LoopProgram::from_recorded(core::slice::from_ref(step)).is_err())
     {
-        return Ok(());
+        return None;
     }
-    match replay(steps, tol) {
+    match replay(prefix, tol) {
+        Ok(_) => Some(TipState::Closed),
         Err(ReplayError {
             step,
-            kind:
-                ReplayErrorKind::Transition {
-                    state,
-                    verb: Some(verb),
-                },
-        }) if step == at => Err((state, verb)),
+            kind: ReplayErrorKind::Transition { state, verb: None },
+        }) if step == at => Some(state),
+        Err(_) => None,
+    }
+}
+
+/// **Does the lattice have a row for `verb` at `state`?** — read off
+/// the transition table ([`Verb::states`]), not probed. `None` (the
+/// state is not known, [`tip_state_at`]) admits every verb: the form
+/// cannot say more than the chain does, and the preview reports
+/// whatever the replay refuses.
+///
+/// # Errors
+///
+/// The tip's state, when the table has no row for `verb` there — the
+/// sentence a form greys a choice out with.
+pub fn admits_at(state: Option<TipState>, verb: Verb) -> Result<(), TipState> {
+    match state {
+        Some(state) if !verb.states().contains(&state) => Err(state),
         _ => Ok(()),
+    }
+}
+
+/// **A step of `verb` whose arc specs are ones the lattice takes at
+/// `state`**: [`fresh_step`], with each arc spec replaced by the first
+/// form its dispatcher admits there ([`arc_specs_at`]). A verb picked
+/// from the combo is well-typed the moment it lands, rather than
+/// starting in a mode its row refuses and waiting to be switched.
+pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
+    let mut step = fresh_step(verb);
+    let Some(state) = state else {
+        return step;
+    };
+    let forms = arc_specs_at(verb, state);
+    let fresh = |at: usize, spec: &mut ArcData<f64>| {
+        if let Some(fresh) = forms.get(at).and_then(|forms| fresh_spec(forms)) {
+            *spec = fresh;
+        }
+    };
+    match &mut step {
+        Step::ArcTo(spec) | Step::FilletArc { spec, .. } | Step::ArcFillet { spec, .. } => {
+            fresh(0, spec);
+        }
+        Step::ArcFilletArc { spec, spec2, .. } => {
+            fresh(0, spec);
+            fresh(1, spec2);
+        }
+        _ => {}
+    }
+    step
+}
+
+/// The first form `forms` admits, as a spec: its mode's starting
+/// numbers ([`fresh_arc`]) at its first admitted target form.
+pub fn fresh_spec(forms: &SpecForms) -> Option<ArcData<f64>> {
+    let &(mode, _) = forms.forms().first()?;
+    Some(fresh_arc_in(mode, forms))
+}
+
+/// [`fresh_arc`] of `mode`, its target set to the first form `forms`
+/// admits for that mode — so switching a spec's mode lands on a
+/// well-typed (mode, target) pair when one exists.
+pub fn fresh_arc_in(mode: ArcMode, forms: &SpecForms) -> ArcData<f64> {
+    let mut spec = fresh_arc(mode);
+    if let (Some(kind), Some(target)) = (forms.targets(mode).next(), spec_target_mut(&mut spec)) {
+        *target = fresh_target(kind);
+    }
+    spec
+}
+
+fn spec_target_mut(spec: &mut ArcData<f64>) -> Option<&mut Target<f64>> {
+    match spec {
+        ArcData::Bulge { target, .. }
+        | ArcData::Via { target, .. }
+        | ArcData::Center { target, .. } => Some(target),
+        ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => None,
     }
 }
 

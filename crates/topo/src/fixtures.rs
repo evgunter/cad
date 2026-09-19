@@ -13,7 +13,7 @@
 //!   closed manifold body and the successor of M0's single-face `tiny()`;
 //!   `n = 1` is the legal self-loop digon (one vertex, one edge, both
 //!   halves in different faces' one-half-edge loops).
-//! - [`prism`] — 2 n-gon caps + n quads (v = 2n, e = 3n, f = n + 2);
+//! - [`raw_prism`] — 2 n-gon caps + n quads (v = 2n, e = 3n, f = n + 2);
 //!   every vertex has valence 3, exercising nontrivial vertex orbits.
 //! - [`mvfs_state`] — the skeletal body `mvfs` creates: solid + shell +
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
@@ -435,7 +435,7 @@ pub(crate) fn pillow(tol: Tol) -> NgonPillow {
 /// `i−1`). Side quad `i`'s cycle is `s0[i] → s1[i] → s2[i] → s3[i]`
 /// with starts `u[i], u[i+1], t[i+1], t[i]`.
 #[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
-pub(crate) struct Prism {
+pub(crate) struct RawPrism {
     pub body: Body<f64>,
     pub t: Vec<VertexKey>,
     pub u: Vec<VertexKey>,
@@ -461,12 +461,12 @@ pub(crate) struct Prism {
 /// Builds the n-prism (n ≥ 2): two n-gon caps plus n side quads.
 ///
 /// Counts: v = 2n, e = 3n, f = n + 2, so v − e + f = 2 (genus 0); every
-/// vertex has valence 3. See [`Prism`] for the orientation picture.
+/// vertex has valence 3. See [`RawPrism`] for the orientation picture.
 ///
 /// # Panics
 ///
 /// If `n < 2` (fixture misuse, not kernel behavior).
-pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
+pub(crate) fn raw_prism(n: usize, tol: Tol) -> RawPrism {
     assert!(n >= 2, "a prism needs at least a digon cap");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -644,7 +644,7 @@ pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
         body.get_vertex_mut(u[i]).unwrap().emanating = Some(s0[i]);
     }
 
-    Prism {
+    RawPrism {
         body,
         t,
         u,
