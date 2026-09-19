@@ -64,6 +64,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
             value: DocParam::Count { value: 3 },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a count parameter declares")
     .doc;
@@ -186,6 +187,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             value: DocParam::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a length parameter declares")
     .doc;
@@ -199,6 +201,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadDocParamDimension {
             declared,

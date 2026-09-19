@@ -89,7 +89,12 @@ fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
         kind: EntityKind::Edge,
         ..face_name(RecipeNodeId(0), CapEnd::Start)
     };
-    match apply(&doc, &DocEdit::Rebind { from, to }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::Rebind { from, to },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::RebindKindMismatch { from, to }) => {
             assert_eq!((from, to), (EntityKind::Face, EntityKind::Edge));
         }

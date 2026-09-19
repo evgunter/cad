@@ -86,14 +86,28 @@ fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the painted name's node is live")
     .doc
 }
 
-/// Delete one node, expecting the door to accept it.
+/// Delete one node, expecting the door to accept it. The documents
+/// these rows delete from hold no mated instance, so the reach is the
+/// refusing one; a row whose delete moves a cluster's gauge goes
+/// through [`delete_with`] and the store's reach.
 fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness())
+    delete_with(doc, id, &editor_core::RefusingReach)
+}
+
+/// [`delete`] through `reach` — the store's, where the delete moves a
+/// mated cluster's gauge and the maintenance solves for its frame.
+fn delete_with(
+    doc: &ProfileDoc,
+    id: RecipeNodeId,
+    reach: &dyn editor_core::MateReach,
+) -> editor_core::Applied<editor_core::ProfileProgram> {
+    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness(), reach)
         .expect("a payload name is not a DAG edge, so the delete is legal")
 }
 
@@ -120,7 +134,12 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
 
     assert!(
         matches!(
-            apply(&doc, &DocEdit::DeleteNode { id: decl }, Tol::witness()),
+            apply(
+                &doc,
+                &DocEdit::DeleteNode { id: decl },
+                Tol::witness(),
+                &editor_core::RefusingReach
+            ),
             Err(EditError::DeleteWouldDangle { .. })
         ),
         "the declare edge IS a DAG edge and refuses"
@@ -488,6 +507,10 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
+    // Deleting the gauge instance rewrites the pair's gauge, so the
+    // delete levers the parts through the store's reach.
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -509,7 +532,7 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
         },
     );
 
-    let applied = delete(&doc, ia);
+    let applied = delete_with(&doc, ia, &reach);
     assert_eq!(
         strands(&applied.maintenance),
         vec![(mate, head_a)],
@@ -706,6 +729,10 @@ fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
+    // Deleting the gauge instance rewrites the pair's gauge, so the
+    // delete levers the parts through the store's reach.
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -729,7 +756,7 @@ fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
     let painted = instance_face(ia, part_body);
     let doc = paint(&doc, &painted);
 
-    let applied = delete(&doc, ia);
+    let applied = delete_with(&doc, ia, &reach);
     let cluster = applied
         .maintenance
         .iter()
@@ -826,6 +853,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
             kind: AttrKind::Color,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("clearing does not require the name's node to be live")
     .doc;
@@ -1007,6 +1035,7 @@ fn set_members_cannot_orphan_a_declaration() {
             members: vec![a, b, c],
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the member list is replaceable");
     assert_eq!(

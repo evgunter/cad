@@ -176,6 +176,7 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
                 new_pin: v2,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update is accepted");
 
@@ -234,6 +235,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             new_pin: v1,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PinUnchanged { node, pin }) => {
             assert_eq!(node, ids[0]);
@@ -252,6 +254,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             new_pin: v2,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::UpdateOnNonInstance { node }) => {
             assert_eq!(node, profile);
@@ -269,6 +272,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             new_pin: v2,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => {
             assert_eq!(id, ghost);
@@ -322,7 +326,7 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
     let mut moved = doc.clone();
     for e in &edits {
         moved = moved
-            .apply(e, Tol::witness())
+            .apply(e, Tol::witness(), &editor_core::RefusingReach)
             .expect("the group applies")
             .doc;
     }
@@ -364,6 +368,7 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
                 new_pin: x2,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the first site moves")
         .doc;
@@ -383,6 +388,7 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
                 new_pin: x2,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the second site moves")
         .doc;
@@ -433,6 +439,7 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
                 new_pin: x2,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the staged half applies")
         .doc;
@@ -467,7 +474,8 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
                         node: ids[0],
                         new_pin: x2,
                     },
-                    Tol::witness()
+                    Tol::witness(),
+                    &editor_core::RefusingReach
                 )
                 .expect("finishing the migration applies")
                 .doc
@@ -503,6 +511,7 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
                 new_pin: r2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update applies")
         .doc;
@@ -528,6 +537,7 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
                 new_pin: r2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the second site moves")
         .doc;
@@ -572,6 +582,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
                 new_pin: s2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update applies")
         .doc;
@@ -641,6 +652,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
                 new_pin: r2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update applies")
         .doc;
@@ -661,6 +673,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
                 new_pin: r2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update applies")
         .doc;
@@ -704,6 +717,7 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
                 new_pin: s2.pin,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the update applies")
         .doc;
@@ -734,6 +748,7 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
                 new_pin: v2,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc;
@@ -760,14 +775,14 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
         new_pin: v2,
     };
     let a = before
-        .apply(&unrelated, Tol::witness())
+        .apply(&unrelated, Tol::witness(), &editor_core::RefusingReach)
         .expect("applies")
         .doc
-        .apply(&update, Tol::witness())
+        .apply(&update, Tol::witness(), &editor_core::RefusingReach)
         .expect("applies")
         .doc;
     let b = after
-        .apply(&unrelated, Tol::witness())
+        .apply(&unrelated, Tol::witness(), &editor_core::RefusingReach)
         .expect("applies")
         .doc;
     assert_eq!(

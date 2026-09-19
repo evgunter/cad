@@ -851,8 +851,15 @@ mod tests {
             v: [scalar(0.0), scalar(1.0), scalar(0.0)],
         });
         let insert = |doc: &Doc<ProfileProgram>, node| {
-            let applied =
-                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            // A part-less fixture: no mate, no cluster, so the reach
+            // is the refusing one and is never asked.
+            let applied = apply(
+                doc,
+                &DocEdit::InsertNode { node },
+                tol,
+                &pncad::document::RefusingReach,
+            )
+            .expect("the fixture's edit applies");
             let id = applied.record.minted.expect("an insert mints an id");
             (applied.doc, id)
         };
@@ -930,9 +937,14 @@ mod tests {
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
         });
-        let doc = apply(&doc, &DocEdit::InsertNode { node: frame }, Tol::witness())
-            .expect("a frame inserts")
-            .doc;
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node: frame },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("a frame inserts")
+        .doc;
         let plane = *doc.order().last().expect("the frame");
         let drafts = Drafts {
             profile_shape: Some(ShapeKind::Path),
@@ -941,9 +953,14 @@ mod tests {
         };
         let loops = drafts.profile_programs().expect("the default path lowers");
         let node = Node::Profile(ProfileProgram { plane, loops });
-        let doc = apply(&doc, &DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the form's default path is a profile")
-            .doc;
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the form's default path is a profile")
+        .doc;
         let profile = *doc.order().last().expect("the profile");
         (doc, drafts, profile)
     }
@@ -970,6 +987,7 @@ mod tests {
                     expr,
                 },
                 Tol::witness(),
+                &pncad::document::RefusingReach,
             )
             .expect("the edit door takes it")
             .doc

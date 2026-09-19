@@ -2,7 +2,16 @@
 //!
 //! `apply` returns a NEW document value; the input is untouched.
 //! Undo/redo is keeping prior values — no edit destroys history at
-//! this layer (spec D2).
+//! this layer (spec D2). `apply` is pure over the document AND the
+//! reach it is handed ([`crate::mate::MateReach`]): an edit that
+//! moves a cluster's gauge mints that cluster's frame from a solve of
+//! the prior document, whose lever is the mated parts' own extent, so
+//! the result is a function of the document and of the parts' pinned
+//! content — never of a store's mood. Every other edit never asks the
+//! reach. What the maintenance decided rides the edit
+//! ([`Applied::maintenance`], logged as [`LoggedEdit`]), and replay
+//! re-applies those rows instead of solving: replay is pure over the
+//! log alone (spec D7).
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
@@ -11,6 +20,8 @@ use crate::doc::{
     ParamRefFault, PlacementFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
+use crate::mate::reach::MateReach;
+use crate::mate::solve::Maintain;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{
@@ -656,6 +667,39 @@ pub enum EditError {
         expected: Dimension,
         /// The offered expression's dimension.
         found: Dimension,
+    },
+    /// The A11 cluster-record maintenance needed a solved frame — a
+    /// cluster whose gauge moved — and the prior document's solve
+    /// reached NO VERDICT at that gauge: its parts could not be
+    /// levered or do not resolve, the band could not be formed, a
+    /// case split escalated, or a placer's pose could not be derived.
+    /// A pose may exist and nothing knows it, so the edit is refused
+    /// rather than recording a frame nothing decided. (A cluster the
+    /// solve DECIDED has no pose — contradictory, under-determined, a
+    /// dangling head — is not this: deleting the offending mate is
+    /// the recourse those refusals name, and the orphan keeps the
+    /// cluster's frame.)
+    MaintenanceRefused {
+        /// The gauge the maintenance was solving for.
+        gauge: RecipeNodeId,
+        /// The solve's fault at the gauge — a cluster's refusal
+        /// reaches every member the solve could not pose. `None` when
+        /// the solve placed nothing at the gauge and recorded no fault
+        /// on it: a state the solve's own invariants exclude, which
+        /// this arm REPORTS (fail-loud, without a panic — the door has
+        /// a typed refusal and a caller to hand it to, so it is not an
+        /// `unreachable!`) rather than reading as the identity or
+        /// borrowing another cluster's fault.
+        fault: Option<Box<crate::mate::MateFault>>,
+    },
+    /// Replay of a logged edit that recorded no maintenance rows,
+    /// where the maintenance needed a solved frame (a gauge that moved
+    /// on a mated document). Replay never solves; a log from before
+    /// the rows were recorded is migrated through
+    /// [`Doc::replay_with`] (or `persist::load_with`) and re-saved.
+    MaintenanceUnrecorded {
+        /// The gauge whose frame the log does not carry.
+        gauge: RecipeNodeId,
     },
     /// `SetParam` aimed at a STRUCTURAL slot — structural edits go
     /// through the distinct `SetStructuralParam` arm (spec D3).
@@ -1578,6 +1622,25 @@ impl core::fmt::Display for EditError {
                 "node {} already pins {pin}, so this update would record no version move",
                 node.0
             ),
+            Self::MaintenanceRefused { gauge, fault } => {
+                write!(
+                    f,
+                    "the cluster-record maintenance could not place gauge {}: the prior \
+                     document's solve ",
+                    gauge.0
+                )?;
+                match fault {
+                    Some(fault) => write!(f, "refused: {fault}"),
+                    None => write!(f, "recorded no pose for it and no fault"),
+                }
+            }
+            Self::MaintenanceUnrecorded { gauge } => write!(
+                f,
+                "the logged edit moves gauge {} and carries no maintenance rows; replay never \
+                 solves, so the log predates the rows — migrate it (replay with a reach) and \
+                 re-save",
+                gauge.0
+            ),
         }
     }
 }
@@ -1930,7 +1993,35 @@ pub struct Applied<P> {
     /// delete that strands no payload name puts an appearance strand
     /// or a cluster act there, so an arm is found by matching, never
     /// by index.
+    ///
+    /// The cluster acts are a function of the edit AND the reach it
+    /// was applied through — a row that needs a solved frame mints it
+    /// from the mated parts' extent — which is why the log carries
+    /// them ([`LoggedEdit`], through [`Applied::cluster_rows`]) and
+    /// replay re-applies them rather than deriving them again.
     pub maintenance: Vec<Maintenance>,
+}
+
+impl<P> Applied<P> {
+    /// **The cluster acts this edit performed** — the
+    /// [`Maintenance::Cluster`] rows of [`Self::maintenance`], in
+    /// order: what the log records for the edit ([`LoggedEdit`]) and
+    /// replay re-applies without a solve. A strand is not here: it is
+    /// a fact the next evaluation reports from the document itself.
+    pub fn cluster_rows(&self) -> Vec<crate::mate::ClusterMaintenance> {
+        self.maintenance
+            .iter()
+            .filter_map(|m| match m {
+                Maintenance::Cluster(act) => Some(act.clone()),
+                // A strand and an orphaned Declare are facts the next
+                // evaluation reports from the document; only a cluster
+                // act is state replay has to re-apply.
+                Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            })
+            .collect()
+    }
 }
 
 /// One expression's document-parameter refs against the param table,
@@ -2311,15 +2402,172 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// Apply one edit to a document, PURELY (spec D2): the input is
-/// untouched; on acceptance a new value comes back with the
-/// [`EditRecord`]. All validation is here — refs resolve, no cycles,
-/// dimension checks re-run on touched expressions (spec D6).
-#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
+/// Apply one edit to a document — pure over the document and the
+/// reach (spec D2): the input is untouched, and the output is a
+/// function of `doc`, `edit` and what `reach` answers; on acceptance
+/// a new value comes back with the [`EditRecord`] and the maintenance
+/// rows ([`Applied::maintenance`]). All validation is here — refs
+/// resolve, no cycles, dimension checks re-run on touched expressions
+/// (spec D6).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
     tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<Applied<P>, EditError> {
+    apply_maintaining(doc, edit, tol, Maintain::Solve(reach))
+}
+
+/// **A logged edit and the maintenance it performed** — one entry of
+/// a document's edit log, on the wire and in a history.
+///
+/// `maintenance` is what [`apply`] returned for the edit
+/// ([`Applied::maintenance`]): the A11 cluster-record rows the mate
+/// graph's motion forced on the placement registry, frames included.
+/// Replay ([`apply_logged`], [`Doc::replay`], `persist::load`)
+/// re-applies these rows and never solves, so the log carries what
+/// was decided (D9) and replay stays a function of the log alone.
+///
+/// On the wire an entry with no rows — the common case — is the bare
+/// edit, so it costs nothing beyond the edit itself and a log from
+/// before rows were recorded reads as a log of bare entries.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoggedEdit<P> {
+    /// The edit.
+    pub edit: DocEdit<P>,
+    /// The maintenance rows `apply` returned for it.
+    pub maintenance: Vec<crate::mate::ClusterMaintenance>,
+}
+
+impl<P> LoggedEdit<P> {
+    /// An entry with no rows: an edit that performed no maintenance,
+    /// or one logged before rows were recorded.
+    pub fn bare(edit: DocEdit<P>) -> Self {
+        Self {
+            edit,
+            maintenance: Vec::new(),
+        }
+    }
+
+    /// Every edit as a bare entry.
+    pub fn bare_all(edits: &[DocEdit<P>]) -> Vec<Self>
+    where
+        P: Clone,
+    {
+        edits.iter().cloned().map(Self::bare).collect()
+    }
+}
+
+impl<P> From<DocEdit<P>> for LoggedEdit<P> {
+    fn from(edit: DocEdit<P>) -> Self {
+        Self::bare(edit)
+    }
+}
+
+impl<P: serde::Serialize> serde::Serialize for LoggedEdit<P> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(serde::Serialize)]
+        struct WithRows<'a, P> {
+            edit: &'a DocEdit<P>,
+            maintenance: &'a [crate::mate::ClusterMaintenance],
+        }
+        if self.maintenance.is_empty() {
+            self.edit.serialize(serializer)
+        } else {
+            WithRows {
+                edit: &self.edit,
+                maintenance: &self.maintenance,
+            }
+            .serialize(serializer)
+        }
+    }
+}
+
+impl<'de, P: serde::Deserialize<'de>> serde::Deserialize<'de> for LoggedEdit<P> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Every wire type refuses a field it does not know
+        // (`persist`'s module docs: a stale reader must not silently
+        // drop data), the entry-with-rows shape included.
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct WithRows<P> {
+            edit: DocEdit<P>,
+            maintenance: Vec<crate::mate::ClusterMaintenance>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(untagged)]
+        enum Wire<P> {
+            WithRows(WithRows<P>),
+            Bare(DocEdit<P>),
+        }
+        Ok(match Wire::deserialize(deserializer)? {
+            Wire::WithRows(WithRows { edit, maintenance }) => Self { edit, maintenance },
+            Wire::Bare(edit) => Self::bare(edit),
+        })
+    }
+}
+
+/// **Replay one logged edit**: the edit through every door [`apply`]
+/// has, then the RECORDED maintenance rows applied to the registry —
+/// no solve, no reach, no store. An entry with no rows runs the
+/// structural half of the maintenance (joins, drops, gauges that
+/// stayed) and refuses [`EditError::MaintenanceUnrecorded`] where a
+/// row would have needed a solved frame.
+///
+/// # Errors
+///
+/// [`apply`]'s, plus `MaintenanceUnrecorded`.
+pub fn apply_logged<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    entry: &LoggedEdit<P>,
+    tol: Tol,
+) -> Result<Applied<P>, EditError> {
+    // An entry with no rows is one that performed no maintenance OR
+    // one logged before rows were recorded; the two are told apart by
+    // whether a row turns out to need a frame, which is `Never`'s
+    // refusal. An empty `Recorded` would claim the first and hide the
+    // second, so the branch is here, once.
+    let how = if entry.maintenance.is_empty() {
+        Maintain::Never
+    } else {
+        Maintain::Recorded(&entry.maintenance)
+    };
+    apply_maintaining(doc, &entry.edit, tol, how)
+}
+
+/// **Replay one log entry** — the one step every replay loop takes
+/// ([`Doc::replay`], [`Doc::replay_with`], `persist::load`,
+/// `persist::save`'s verification pass, the viewer's history). With
+/// `migrate` absent it is [`apply_logged`]: the recorded rows, no
+/// solve. With `migrate` present, an entry that recorded no rows goes
+/// through the live door ([`apply`]) instead and comes back with the
+/// rows it performed — the migration of a log from before rows were
+/// recorded; an entry with rows replays from them either way.
+///
+/// # Errors
+///
+/// [`apply_logged`]'s, or [`apply`]'s on a migrated entry.
+pub fn replay_entry<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    entry: &LoggedEdit<P>,
+    tol: Tol,
+    migrate: Option<&dyn MateReach>,
+) -> Result<Applied<P>, EditError> {
+    match migrate {
+        Some(reach) if entry.maintenance.is_empty() => apply(doc, &entry.edit, tol, reach),
+        _ => apply_logged(doc, entry, tol),
+    }
+}
+
+/// [`apply`] with the maintenance's source chosen by the door
+/// ([`Maintain`]): solved through a reach, refused where a frame
+/// would be needed, or the recorded rows re-applied.
+#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
+fn apply_maintaining<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+    tol: Tol,
+    how: Maintain<'_>,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
     // A11's cluster records follow the mate graph automatically, after
@@ -2928,7 +3176,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     let mut maintenance = reported;
     if reconcile {
         maintenance.extend(
-            crate::mate::solve::reconcile(doc, &mut new, tol)
+            crate::mate::solve::maintain(doc, &mut new, tol, how)?
                 .into_iter()
                 .map(Maintenance::Cluster),
         );
@@ -3017,37 +3265,83 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
 }
 
 impl<P: Clone + crate::ProfilePayload> Doc<P> {
-    /// Method form of [`apply`] (spec D2's pure edit entry point).
-    pub fn apply(&self, edit: &DocEdit<P>, tol: Tol) -> Result<Applied<P>, EditError> {
-        apply(self, edit, tol)
+    /// Method form of [`apply`] (spec D2's pure edit entry point —
+    /// pure over the document and the reach).
+    pub fn apply(
+        &self,
+        edit: &DocEdit<P>,
+        tol: Tol,
+        reach: &dyn MateReach,
+    ) -> Result<Applied<P>, EditError> {
+        apply(self, edit, tol, reach)
     }
 
-    /// Replay an edit list from the EMPTY document under the given
-    /// identity (spec D7): the result reproduces the edits' document
-    /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
-    /// deterministically). The document id is supplied, not replayed:
-    /// identity is authored data the log never carries (ASM-1 D-1).
+    /// Replay a logged edit list from the EMPTY document under the
+    /// given identity (spec D7): the result reproduces the edits'
+    /// document BIT-IDENTICALLY (floats are stored exactly; ids
+    /// re-mint deterministically; the recorded cluster rows are
+    /// re-applied, never re-solved — [`apply_logged`] — so no store is
+    /// in hand and none is needed). The document id is supplied, not
+    /// replayed: identity is authored data the log never carries
+    /// (ASM-1 D-1).
     ///
     /// The answer is the document, not the maintenance its edits
     /// performed: [`Applied::maintenance`] is a fact about ONE
     /// application, reported to the caller who made it, and what it
     /// did is already in the document it produced — a registry act
-    /// rewrote the registry, and a stranded name (DM7) resolves to
-    /// nothing until rebound, which the next evaluation reports typed
-    /// (N5). The replayed document is the state, the same boundary the
-    /// load door draws ([`crate::persist::Loaded`]); the round trip is
-    /// lossless because the same delete against the replayed document
-    /// reports the same strands, which DM7's round-trip row pins.
+    /// rewrote the registry (from the rows the log carries, which is
+    /// what lets it be re-applied without a solve), and a stranded
+    /// name (DM7) resolves to nothing until rebound, which the next
+    /// evaluation reports typed (N5). The replayed document is the
+    /// state, the same boundary the load door draws
+    /// ([`crate::persist::Loaded`]); the round trip is lossless
+    /// because the same delete against the replayed document reports
+    /// the same strands, which DM7's round-trip row pins.
+    ///
+    /// # Errors
+    ///
+    /// [`apply_logged`]'s: an entry with no rows whose edit moved a
+    /// gauge refuses [`EditError::MaintenanceUnrecorded`] — a log from
+    /// before rows were recorded, which [`Doc::replay_with`] migrates.
     pub fn replay(
         id: crate::DocumentId,
-        edits: &[DocEdit<P>],
+        log: &[LoggedEdit<P>],
         tol: Tol,
     ) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
-        for edit in edits {
-            doc = apply(&doc, edit, tol)?.doc;
+        for entry in log {
+            doc = replay_entry(&doc, entry, tol, None)?.doc;
         }
         Ok(doc)
+    }
+
+    /// **The migration door**: [`Doc::replay`] for a log whose entries
+    /// may predate the maintenance rows. An entry with rows replays
+    /// from them; an entry with none is applied through `reach` (the
+    /// live door) and its rows are derived and RECORDED, so the log
+    /// returned beside the document replays without a store from then
+    /// on. Re-save it.
+    ///
+    /// # Errors
+    ///
+    /// [`apply`]'s and [`apply_logged`]'s.
+    pub fn replay_with(
+        id: crate::DocumentId,
+        log: &[LoggedEdit<P>],
+        tol: Tol,
+        reach: &dyn MateReach,
+    ) -> Result<(Doc<P>, Vec<LoggedEdit<P>>), EditError> {
+        let mut doc = Doc::empty(id, tol);
+        let mut migrated = Vec::with_capacity(log.len());
+        for entry in log {
+            let applied = replay_entry(&doc, entry, tol, Some(reach))?;
+            migrated.push(LoggedEdit {
+                edit: entry.edit.clone(),
+                maintenance: applied.cluster_rows(),
+            });
+            doc = applied.doc;
+        }
+        Ok((doc, migrated))
     }
 }
 

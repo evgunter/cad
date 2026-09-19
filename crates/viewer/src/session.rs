@@ -57,9 +57,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, EditError, Evaluation, Expr, LoopProgram, Node,
-    ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, LoggedEdit,
+    LoopProgram, MateReach, Node, ParamName, PartReach, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, SlotId, Subject, apply, assemble_gathered, cascade_delete_order, parse_expr,
+    product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -876,6 +877,28 @@ impl DocSession {
         self.resolver.as_deref().map(DirResolver::dir)
     }
 
+    /// **The options this session's document evaluates under**: its
+    /// resolver (the directory rule, above), the defaults otherwise —
+    /// the same options the evaluation seam submits, so a caller that
+    /// solves the document outside a run (the mate tool's proposal,
+    /// a suite reading the solve back) resolves each mated part the
+    /// way the landed evaluation resolved it.
+    pub fn eval_options(&self) -> EvalOptions {
+        EvalOptions {
+            resolver: self.resolver_seam(),
+            ..EvalOptions::default()
+        }
+    }
+
+    /// **The session's resolver as the document seam** — the directory
+    /// rule's resolver, widened to the trait every door that resolves
+    /// a part takes; `None` when the session has no directory.
+    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
+        self.resolver
+            .as_ref()
+            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
+    }
+
     /// The generation the session is waiting for a result on.
     pub fn generation(&self) -> Generation {
         self.generation
@@ -1640,6 +1663,7 @@ impl DocSession {
     /// driving operation has to be), and what it is not is about this
     /// drag.
     fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
+        let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
             gesture_words(),
@@ -1652,8 +1676,15 @@ impl DocSession {
                     .map_err(Refusal::Dimension)?;
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
-                // never sees any of them.
-                let applied = apply(&gesture.base, &edit, tol)
+                // never sees any of them. The reach is the session's
+                // own seam: a gesture that moved a gauge would mint a
+                // frame from the parts' extent, and with no directory
+                // to resolve against it refuses typed. Built per tick,
+                // and lazy — a slot gesture moves no gauge, so what a
+                // tick pays for it is the construction and nothing
+                // more.
+                let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+                let applied = apply(&gesture.base, &edit, tol, &reach)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
                 // argued.** Every display predicate is a function of
@@ -1954,7 +1985,15 @@ impl DocSession {
             .into_iter()
             .map(|(slot, expr)| DocEdit::SetParam { node, slot, expr })
             .collect();
-        match accepted_order(doc, edits, self.tol) {
+        // The order search applies the writes itself, so it carries
+        // the session's reach as `commit_action` does, and each entry
+        // it lands records what the door's maintenance did. A profile
+        // write moves no cluster's gauge, so the rows are empty in
+        // practice; the entry is still the logged one, so the history
+        // replays pure over the log.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        match accepted_order(doc, edits, self.tol, &reach) {
             Ok((edits, doc)) => self.record_action(edits, doc),
             Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
             Err(OrderFault::NoOrder(error)) => OpOutcome::refused(Refusal::ProfileEditOrder {
@@ -2195,21 +2234,34 @@ impl DocSession {
         // its predecessor's output, so a group of one costs exactly
         // what a single commit always cost.
         assert!(!edits.is_empty(), "an action commits at least one edit");
+        // ONE reach for the whole action, over the session's own seam
+        // (the directory rule; `None` refuses typed): each edit's
+        // maintenance asks it only when a cluster's gauge moves, and
+        // what it decided rides the logged entry into the history.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
         let mut produced: Option<Doc<ProfileProgram>> = None;
+        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::with_capacity(edits.len());
         for edit in &edits {
             let attempt = {
                 let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, edit, self.tol)
+                apply(base, edit, self.tol, &reach)
             };
             match attempt {
-                Ok(applied) => produced = Some(applied.doc),
+                Ok(applied) => {
+                    logged.push(LoggedEdit {
+                        edit: edit.clone(),
+                        maintenance: applied.cluster_rows(),
+                    });
+                    produced = Some(applied.doc);
+                }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
             unreachable!("the loop applied at least one edit and kept its output")
         };
-        self.record_action(edits, doc)
+        self.record_action(logged, doc)
     }
 
     /// **Record an action whose document is already produced** — the
@@ -2219,17 +2271,21 @@ impl DocSession {
     /// the pass whose output is committed.
     ///
     /// `doc` must be `edits` applied in order to the committed
-    /// document; both callers produce it that way.
+    /// document, and each entry carries the cluster maintenance its
+    /// edit performed — the same shape [`Self::commit_action`] records,
+    /// so the history replays pure over the log whichever half
+    /// produced the entry; both callers produce it that way.
     fn record_action(
         &mut self,
-        edits: Vec<DocEdit<ProfileProgram>>,
+        edits: Vec<LoggedEdit<ProfileProgram>>,
         doc: Doc<ProfileProgram>,
     ) -> OpOutcome {
-        self.history.commit_group(edits.clone(), doc);
+        let committed = edits.iter().map(|entry| entry.edit.clone()).collect();
+        self.history.commit_group(edits, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
-            committed: edits,
+            committed,
             ..OpOutcome::from_prune(pruned)
         }
     }
@@ -2259,10 +2315,7 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self
-                .resolver
-                .as_ref()
-                .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
+            resolver: self.resolver_seam(),
         });
     }
 }
@@ -2279,7 +2332,10 @@ pub const ORDER_SEARCH_CAP: usize = 12;
 /// **An order the edit door accepts `edits` in, one at a time, and the
 /// document they produce** — the one-slot writes of
 /// [`SessionOp::EditProfile`], each of which re-validates the whole
-/// profile program at the door.
+/// profile program at the door. The order comes back as logged
+/// entries: each write with the cluster maintenance the door performed
+/// for it, through `reach`, so the pass that found the order is the
+/// pass the history records.
 ///
 /// Exact up to [`ORDER_SEARCH_CAP`] writes: a depth-first search over
 /// the set of writes already applied, trying the pending ones in slot
@@ -2303,36 +2359,38 @@ fn accepted_order(
     doc: &Doc<ProfileProgram>,
     edits: Vec<DocEdit<ProfileProgram>>,
     tol: Tol,
-) -> Result<(Vec<DocEdit<ProfileProgram>>, Doc<ProfileProgram>), OrderFault> {
+    reach: &dyn MateReach,
+) -> Result<(Vec<LoggedEdit<ProfileProgram>>, Doc<ProfileProgram>), OrderFault> {
     if edits.len() > ORDER_SEARCH_CAP {
+        let writes = edits.len();
         let mut produced = doc.clone();
-        for edit in &edits {
-            match apply(&produced, edit, tol) {
-                Ok(applied) => produced = applied.doc,
-                Err(EditError::ProfileProgramRefused { .. }) => {
-                    return Err(OrderFault::Capped {
-                        writes: edits.len(),
+        let mut logged = Vec::with_capacity(writes);
+        for edit in edits {
+            match apply(&produced, &edit, tol, reach) {
+                Ok(applied) => {
+                    logged.push(LoggedEdit {
+                        edit,
+                        maintenance: applied.cluster_rows(),
                     });
+                    produced = applied.doc;
+                }
+                Err(EditError::ProfileProgramRefused { .. }) => {
+                    return Err(OrderFault::Capped { writes });
                 }
                 Err(error) => return Err(OrderFault::Refused(error)),
             }
         }
-        return Ok((edits, produced));
+        return Ok((logged, produced));
     }
     let mut search = OrderSearch {
         edits: &edits,
         tol,
+        reach,
         dead: std::collections::HashSet::new(),
         last: None,
     };
     match search.from(0, doc)? {
-        Some((order, produced)) => Ok((
-            order
-                .into_iter()
-                .map(|index| edits[index].clone())
-                .collect(),
-            produced,
-        )),
+        Some(landing) => Ok(landing),
         None => {
             let Some(error) = search.last else {
                 unreachable!("a search with no order met at least one program refusal")
@@ -2342,14 +2400,17 @@ fn accepted_order(
     }
 }
 
-/// Where an order lands: the write indices still to apply, in order,
-/// and the document they end at.
-type OrderLanding = (Vec<usize>, Doc<ProfileProgram>);
+/// Where an order lands: the writes still to apply, in order, each
+/// with the maintenance the door performed for it, and the document
+/// they end at.
+type OrderLanding = (Vec<LoggedEdit<ProfileProgram>>, Doc<ProfileProgram>);
 
 /// [`accepted_order`]'s search state.
 struct OrderSearch<'a> {
     edits: &'a [DocEdit<ProfileProgram>],
     tol: Tol,
+    /// The reach every write applies through — the session's.
+    reach: &'a dyn MateReach,
     /// Applied sets from which no order finishes.
     dead: std::collections::HashSet<u32>,
     /// The last program refusal met.
@@ -2358,8 +2419,9 @@ struct OrderSearch<'a> {
 
 impl OrderSearch<'_> {
     /// An order finishing from the applied set `applied` (a bit per
-    /// write), at `doc`: the indices still to apply, in order, and the
-    /// document they end at — or `None` when there is none.
+    /// write), at `doc`: the writes still to apply, in order, as logged
+    /// entries, and the document they end at — or `None` when there is
+    /// none.
     fn from(
         &mut self,
         applied: u32,
@@ -2377,10 +2439,16 @@ impl OrderSearch<'_> {
             if applied & bit != 0 || self.dead.contains(&(applied | bit)) {
                 continue;
             }
-            match apply(doc, edit, self.tol) {
+            match apply(doc, edit, self.tol, self.reach) {
                 Ok(next) => {
                     if let Some((mut rest, end)) = self.from(applied | bit, &next.doc)? {
-                        rest.insert(0, index);
+                        rest.insert(
+                            0,
+                            LoggedEdit {
+                                edit: edit.clone(),
+                                maintenance: next.cluster_rows(),
+                            },
+                        );
                         return Ok(Some((rest, end)));
                     }
                 }
@@ -2511,8 +2579,8 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        Dimension, Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId, SlotId,
-        StepArg, apply,
+        Dimension, Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId,
+        RefusingReach, SlotId, StepArg, apply,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
@@ -2533,9 +2601,14 @@ mod tests {
             v: [scl(0.0), scl(1.0), scl(0.0)],
         });
         let doc = Doc::empty_derived("order", tol);
-        let doc = apply(&doc, &DocEdit::InsertNode { node: frame }, tol)
-            .expect("frame")
-            .doc;
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node: frame },
+            tol,
+            &RefusingReach,
+        )
+        .expect("frame")
+        .doc;
         let plane = *doc.order().last().expect("the frame");
         let pt = Point2::new;
         let steps = vec![
@@ -2550,7 +2623,7 @@ mod tests {
                 .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram { plane, loops });
-        let doc = apply(&doc, &DocEdit::InsertNode { node }, tol)
+        let doc = apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
             .expect("a square")
             .doc;
         let profile = *doc.order().last().expect("the profile");
@@ -2589,7 +2662,7 @@ mod tests {
             ),
             corner_x(profile, 2, angle),
         ];
-        match accepted_order(&doc, edits, Tol::witness()) {
+        match accepted_order(&doc, edits, Tol::witness(), &RefusingReach) {
             Err(OrderFault::Refused(EditError::SlotDimensionMismatch { .. })) => {}
             Err(OrderFault::Refused(other)) => panic!("refused for another reason: {other:?}"),
             Err(_) => panic!("reported as an order problem"),
@@ -2611,11 +2684,19 @@ mod tests {
             corner_x(profile, 2, len(3.0)),
             corner_x(profile, 3, len(2.0)),
         ];
-        assert!(apply(&doc, &edits[0], tol).is_err(), "the premise");
-        let (order, landed) = accepted_order(&doc, edits.clone(), tol).expect("an order lands");
-        assert_ne!(order.first(), edits.first(), "not slot order");
-        let replayed = order.iter().fold(doc, |doc, edit| {
-            apply(&doc, edit, tol)
+        assert!(
+            apply(&doc, &edits[0], tol, &RefusingReach).is_err(),
+            "the premise"
+        );
+        let (order, landed) =
+            accepted_order(&doc, edits.clone(), tol, &RefusingReach).expect("an order lands");
+        assert_ne!(
+            order.first().map(|entry| &entry.edit),
+            edits.first(),
+            "not slot order"
+        );
+        let replayed = order.iter().fold(doc, |doc, entry| {
+            apply(&doc, &entry.edit, tol, &RefusingReach)
                 .expect("the order it named lands")
                 .doc
         });
@@ -2634,7 +2715,7 @@ mod tests {
             Expr::literal(0.0, Dimension::Length).expect("finite"),
         )];
         assert!(matches!(
-            accepted_order(&doc, edits, Tol::witness()),
+            accepted_order(&doc, edits, Tol::witness(), &RefusingReach),
             Err(OrderFault::NoOrder(EditError::ProfileProgramRefused { .. }))
         ));
     }

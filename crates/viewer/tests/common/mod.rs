@@ -26,8 +26,21 @@
 pub mod asm;
 
 use bvh::Aabb;
+use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
+
+/// **The mate solve of `doc` under `session`'s own seam** — the lever
+/// is each mated part's extent, resolved through the session's
+/// resolver the way its landed evaluation resolved it
+/// (`DocSession::eval_options`), built through the kernel's public
+/// door. `doc` is the session's landed document, or one derived from
+/// it that resolves against the same directory.
+pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
+    let opts = session.eval_options();
+    let reach = mate_reach::<f64>(&opts, tol);
+    solve_document(doc, &reach, tol)
+}
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 
 /// The spike plate's bounding box, from the scene's own dimensions.
@@ -89,7 +102,8 @@ pub fn edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol).expect("the fixture's edit applies");
+    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("the fixture's edit applies");
     (applied.doc, applied.record.minted)
 }
 

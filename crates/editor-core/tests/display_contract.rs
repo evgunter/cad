@@ -13,14 +13,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
-    Diagnosis, Dimension, DimensionError, DocParamValue, EditError, EntityKind, EvalError,
-    HitTestError, InputFault, InterrogateError, Maintenance, MateFault, MateSide, MeasureNodeFault,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParamName, ParseError, PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepSegmentsError,
+    Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
+    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, LeverRefusal, Maintenance,
+    MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal,
+    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PersistError,
+    PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate,
+    RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg,
+    StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -1686,6 +1688,133 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     assert!(
         shown.contains(editor_core::CONTRADICTORY_RECOURSE),
         "{shown:?}"
+    );
+}
+
+/// **A lever refusal names the instance and says why its part's reach
+/// is not in hand**, one sentence per arm — the resolver's own voice
+/// for a part that does not resolve, the face and its kind for one
+/// that cannot be bounded, the face for a malformed body, and the
+/// plain fact for a faceless body, a non-finite reach, and a member
+/// that stands on no instance.
+#[test]
+fn a_lever_refusal_names_the_instance_and_why() {
+    let instance = RecipeNodeId(7);
+    let part = DocRef {
+        id: DocumentId::derive("display-contract-lever"),
+        pin: editor_core::content_pin(
+            &editor_core::ProfileDoc::empty(
+                DocumentId::derive("display-contract-lever"),
+                geom_core::Tol::witness(),
+            ),
+            geom_core::Tol::witness(),
+        )
+        .unwrap(),
+    };
+    let mut body = topo::Body::<f64>::new();
+    let face = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .unwrap()
+        .face;
+    assert_f6(
+        &LeverRefusal::PartUnresolved {
+            instance,
+            fault: PartFault::NoResolver,
+        },
+        &["instance 7", "no part resolver"],
+        &["PartUnresolved", "NoResolver"],
+    );
+    assert_f6(
+        &LeverRefusal::FaceUnbounded {
+            instance,
+            part,
+            face,
+            kind: SurfaceKind::Nurbs,
+        },
+        &["instance 7", "nurbs face", "cannot be bounded"],
+        &["FaceUnbounded", "Nurbs"],
+    );
+    assert_f6(
+        &LeverRefusal::MalformedBody {
+            instance,
+            part,
+            face,
+        },
+        &["instance 7", "not well formed"],
+        &["MalformedBody"],
+    );
+    assert_f6(
+        &LeverRefusal::NoExtent { instance, part },
+        &["instance 7", "no faces"],
+        &["NoExtent"],
+    );
+    assert_f6(
+        &LeverRefusal::NoFiniteBound { instance, part },
+        &["instance 7", "non-finite"],
+        &["NoFiniteBound"],
+    );
+    assert_f6(
+        &LeverRefusal::NotAnInstance { node: instance },
+        &["node 7", "not a live instantiate node"],
+        &["NotAnInstance"],
+    );
+}
+
+/// **The maintenance refusals name the gauge and end on what to do**:
+/// a refused maintenance solve carries the prior solve's own sentence
+/// (or says the solve recorded nothing for the gauge — the typed
+/// report of a state its invariants exclude), and an unrecorded row
+/// names the migration.
+#[test]
+fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
+    let gauge = RecipeNodeId(3);
+    assert_f6(
+        &EditError::MaintenanceRefused {
+            gauge,
+            fault: Some(Box::new(MateFault::Unleverable {
+                mate: RecipeNodeId(5),
+                refusal: LeverRefusal::PartUnresolved {
+                    instance: gauge,
+                    fault: PartFault::NoResolver,
+                },
+            })),
+        },
+        &["could not place gauge 3", "refused: mate 5", "instance 3"],
+        &["MaintenanceRefused", "Unleverable"],
+    );
+    assert_f6(
+        &EditError::MaintenanceRefused { gauge, fault: None },
+        &["could not place gauge 3", "no pose", "no fault"],
+        &["MaintenanceRefused"],
+    );
+    assert_f6(
+        &EditError::MaintenanceUnrecorded { gauge },
+        &["gauge 3", "no maintenance rows", "migrate", "re-save"],
+        &["MaintenanceUnrecorded"],
+    );
+    assert_f6(
+        &PersistError::MaintenanceFrame {
+            index: 2,
+            row: 0,
+            fault: FrameFault::Improper { determinant: -1.0 },
+        },
+        &[
+            "edit 2",
+            "row 0",
+            "not a placement",
+            "determinant -1",
+            "mirroring",
+        ],
+        &["MaintenanceFrame", "Improper"],
+    );
+    assert_f6(
+        &PersistError::MaintenanceFrame {
+            index: 2,
+            row: 1,
+            fault: FrameFault::NonFinite,
+        },
+        &["edit 2", "row 1", "non-finite coordinate"],
+        &["MaintenanceFrame", "NonFinite"],
     );
 }
 

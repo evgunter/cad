@@ -226,7 +226,11 @@ fn a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it() {
     let mut per_step = Vec::new();
     for id in order {
         let applied = doc
-            .apply(&DocEdit::DeleteNode { id }, Tol::witness())
+            .apply(
+                &DocEdit::DeleteNode { id },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
             .unwrap_or_else(|e| panic!("deleting {id:?}: {e:?}"));
         per_step.push(applied.maintenance);
         doc = applied.doc;
@@ -283,8 +287,8 @@ fn every_declaring_corpus_document_replays_in_document_order() {
         // `Declare` insert precedes the insert of its consumer.
         let mut replay = ProfileDoc::empty_derived("r1_replay", Tol::witness());
         let mut declares_seen = 0;
-        for (i, edit) in d.edits.iter().enumerate() {
-            if let DocEdit::InsertNode { node } = edit {
+        for (i, entry) in d.edits.iter().enumerate() {
+            if let DocEdit::InsertNode { node } = &entry.edit {
                 match node {
                     Node::Declare { .. } => declares_seen += 1,
                     Node::Boolean {
@@ -296,8 +300,8 @@ fn every_declaring_corpus_document_replays_in_document_order() {
                     _ => {}
                 }
             }
-            replay = replay
-                .apply(edit, Tol::witness())
+            // The logged replay: the recorded rows, never a solve.
+            replay = editor_core::apply_logged(&replay, entry, Tol::witness())
                 .unwrap_or_else(|e| panic!("{}: edit {i} refused: {e:?}", d.name))
                 .doc;
         }

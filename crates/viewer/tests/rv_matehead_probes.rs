@@ -73,7 +73,7 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, tol, asm::seat()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()) {
         Err(MateToolError::PickIsNotAFace { side, refusal }) => {
             assert_eq!(side, MateSide::A);
             assert_eq!(refusal.found, EntityKind::Edge);

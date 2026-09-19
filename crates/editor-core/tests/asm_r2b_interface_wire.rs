@@ -15,7 +15,7 @@
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
     EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, apply, load, save,
+    ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -40,10 +40,17 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // instance, behind the two mate ends and the mate itself. That is
     // the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
+    // Inserts alone — a Join at most, never a moved gauge — so the
+    // reach is never asked and the refusing one serves.
     let push = |doc: &ProfileDoc, node| {
-        apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the fixture's nodes insert")
-            .doc
+        apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("the fixture's nodes insert")
+        .doc
     };
     host = push(&host, Node::instantiate_part(doc_ref));
     host = push(&host, Node::instantiate_part(doc_ref));
@@ -122,6 +129,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
             node: Node::instantiate_part(doc_ref),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("an instance inserts")
     .doc;
