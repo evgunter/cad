@@ -11,8 +11,8 @@
 //!
 //! Structural throughout: no expression is evaluated in the walk, so
 //! the cluster partition never depends on a slot value. The offset —
-//! which is arithmetic, not admission — does evaluate, at the
-//! document's own parameter bindings.
+//! which is arithmetic, not admission — does evaluate, in the solve's
+//! one nominal environment ([`super::solve::solve_document`]).
 
 use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
@@ -20,7 +20,7 @@ use geom_core::predicate::Band;
 use super::{MateFault, MateSide};
 use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
-use crate::eval::{NodeErrorKind, NodeRefusal, SteppedOperands, need_scalar, need_vec3};
+use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
 use crate::expr::ParamEnv;
 use crate::names::RoleSeg;
 use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
@@ -346,9 +346,8 @@ pub(super) fn walk_of<P>(
 /// both indices. A number this check needs that does not EXIST refuses
 /// [`MateFault::PlacerRefused`] instead, carrying the evaluation
 /// layer's own words for it: `Expr` for a count or a `Part` index
-/// whose expression does not evaluate at the document's own parameter
-/// bindings, `MissingInput` for a node the walk recorded and the
-/// document no longer holds.
+/// whose expression does not evaluate in `env`, `MissingInput` for a
+/// node the walk recorded and the document no longer holds.
 ///
 /// The two numbers are read one at a time with `eval_count` — the
 /// call [`eval_slots`] itself makes for a structural slot — rather
@@ -468,11 +467,10 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 ///
 /// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
 ///   named index — THE evaluation's own stepped rule, fed the
-///   pattern's authored slots evaluated at the document's own
-///   parameter bindings;
+///   pattern's authored slots evaluated in `env`;
 /// - a transform contributes [`crate::eval::transform_map`] — the
 ///   same construction `wire_transform` places the body by, fed the
-///   node's own expressions at those same bindings.
+///   node's own expressions in `env`.
 ///
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
@@ -564,11 +562,6 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
     Ok(composed)
 }
 
-/// **A derivation's refusal**: the node that raised, and the kind it
-/// raised. Boxed because a [`NodeErrorKind`] is wide and this is the
-/// cold half of every derivation's result.
-type Refused = Box<(RecipeNodeId, NodeErrorKind)>;
-
 /// **A derivation's refusal, in the mate vocabulary.** Two arms and
 /// no relabelling: an escalation is the SOLVE's own indeterminacy and
 /// says so, and everything else is carried exactly as the layer that
@@ -608,7 +601,7 @@ fn pattern_map<P: crate::ProfilePayload>(
     i: u32,
     env: &ParamEnv<f64>,
     band: Band,
-) -> Result<Option<Affine3<f64>>, Refused> {
+) -> Result<Option<Affine3<f64>>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -668,7 +661,7 @@ fn pattern_map<P: crate::ProfilePayload>(
 
 /// **The map a transform contributes** — the same construction
 /// `wire_transform` places the body by, fed the node's own
-/// expressions at the document's bindings.
+/// expressions in `env`.
 ///
 /// # Errors
 ///
@@ -679,7 +672,7 @@ fn transform_map<P: crate::ProfilePayload>(
     node: RecipeNodeId,
     env: &ParamEnv<f64>,
     band: Band,
-) -> Result<Affine3<f64>, Refused> {
+) -> Result<Affine3<f64>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -697,10 +690,10 @@ fn transform_map<P: crate::ProfilePayload>(
     ))
 }
 
-/// **The placer's slots, at the document's own parameter bindings** —
-/// [`eval_slots`], the evaluation's own door, so a slot that does not
-/// evaluate on this road refuses with the very
-/// [`NodeErrorKind::Expr`] the node's own evaluation raises for it.
+/// **The placer's slots, in `env`** — [`eval_slots`], the
+/// evaluation's own door, so a slot that does not evaluate on this
+/// road refuses with the very [`NodeErrorKind::Expr`] the node's own
+/// evaluation raises for it.
 fn node_slots<P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<f64>,
@@ -719,24 +712,20 @@ fn node_slots<P: crate::ProfilePayload>(
 ///
 /// # Errors
 ///
-/// Each refusal seated at the node the evaluation seats it at. An
-/// axis operand that is no live node, or one that is not an axis
-/// datum, is the PATTERN's own wiring and refuses under `pattern`'s
-/// id — `MissingInput` and `WrongOperand`, as the pattern's own
-/// evaluation raises them. A transform met while classifying the
-/// operand whose input is no live node refuses `MissingInput` under
-/// THAT transform's id: that is the node whose own evaluation raises
-/// it, and the evaluation poisons the pattern through it rather than
-/// refusing the pattern with it, so one condition has one seat on
-/// both roads.
+/// At the pattern, as its own wiring: `MissingInput` for an operand
+/// that is no live node, `WrongOperand` for one that lands in a
+/// family other than a datum axis. At a transform on the operand's
+/// chain, as that transform's own: whatever [`crate::eval::
+/// node_value_kind`] seats there — a source that is not placeable, an
+/// input that is no live node — carried with its seat.
 fn axis_datum<P>(
     doc: &Doc<P>,
     pattern: RecipeNodeId,
     axis: RecipeNodeId,
-) -> Result<&Node<P>, Refused> {
+) -> Result<&Node<P>, Seated> {
     match doc.node(axis) {
         Some(node @ Node::Datum(Datum::Axis { .. })) => Ok(node),
-        Some(other) => match crate::eval::node_value_kind(doc, axis, other) {
+        Some(_) => match crate::eval::node_value_kind(doc, axis) {
             Ok(found) => Err(Box::new((
                 pattern,
                 NodeErrorKind::WrongOperand {
@@ -754,28 +743,35 @@ fn axis_datum<P>(
     }
 }
 
-/// **The one condition no document door can author** — a transform
-/// whose input is no live node, standing where a circular rule's axis
-/// operand is read. `apply` takes a node's dependents with it on
-/// delete and the load validator holds liveness, so the documents
-/// here are hand-built: the map and the order are written directly,
-/// which is why these rows live beside `axis_datum` rather than in
-/// the integration suite.
+/// **The seat rows**: a circular pattern over a real body, its axis
+/// operand wired through transforms, refused on both roads and
+/// compared. The body is authored through `apply` so the evaluation's
+/// own reading of the pattern is not masked by an input it refuses;
+/// the datums, the transforms and the pattern are written straight
+/// into the map and the order, because the state some rows need — a
+/// transform whose input is no live node — is one the doors refuse
+/// (`DeleteWouldDangle` at `apply`, liveness at `load`), and a
+/// hand-built document is what the spec sanctions for it.
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
     use crate::expr::{Dimension, Expr};
     use crate::ident::DocumentId;
-    use crate::{ProfileDoc, ProfileProgram};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    /// The ids are chosen, not minted: the dangling one names no node.
-    const AXIS_MASTER: RecipeNodeId = RecipeNodeId(1);
-    const TRANSFORM: RecipeNodeId = RecipeNodeId(2);
-    const PATTERN: RecipeNodeId = RecipeNodeId(3);
+    /// The hand-pushed ids are chosen, not minted; the dangling one
+    /// names no node.
+    const AXIS: RecipeNodeId = RecipeNodeId(10);
+    const FRAME2: RecipeNodeId = RecipeNodeId(11);
+    const T1: RecipeNodeId = RecipeNodeId(12);
+    const T2: RecipeNodeId = RecipeNodeId(13);
+    const PATTERN: RecipeNodeId = RecipeNodeId(14);
     const DANGLING: RecipeNodeId = RecipeNodeId(40);
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
@@ -788,52 +784,108 @@ mod tests {
     fn scl(v: f64) -> Expr {
         Expr::literal(v, Dimension::Scalar).unwrap()
     }
-
-    fn axis() -> Node<ProfileProgram> {
+    fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
+        Node::Transform {
+            input,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        }
+    }
+    fn frame_datum() -> Node<ProfileProgram> {
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    }
+    fn axis_datum_node() -> Node<ProfileProgram> {
         Node::Datum(Datum::Axis {
             origin: [len(0.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
         })
     }
 
-    /// A circular pattern over the axis datum, its rule's `axis`
-    /// operand a transform of `input`.
-    fn circular_over(label: &str, input: RecipeNodeId, axis_operand: RecipeNodeId) -> ProfileDoc {
-        let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    /// Which node an input names.
+    #[derive(Clone, Copy, Debug)]
+    enum Src {
+        Body,
+        Axis,
+        Frame,
+        T1,
+        T2,
+        Dangling,
+    }
+
+    /// Through `apply`: a frame, a profile on it, an extrude — the
+    /// BODY. Hand-pushed: `AXIS`, `FRAME2`, `T1 = xf(t1_in)`,
+    /// `T2 = xf(T1)`, and `PATTERN`, circular over the body with
+    /// `axis_operand` as its rule's axis.
+    fn build(label: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
+        let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
+            let a = crate::apply(
+                &doc,
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &RefusingReach,
+            )
+            .expect("inserts");
+            (a.doc, a.record.minted.unwrap())
+        };
+        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (doc, plane) = ins(doc, frame_datum());
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![
+                    LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
+                ],
+            }),
+        );
+        let (mut doc, body) = ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let id = |s: Src| match s {
+            Src::Body => body,
+            Src::Axis => AXIS,
+            Src::Frame => FRAME2,
+            Src::T1 => T1,
+            Src::T2 => T2,
+            Src::Dangling => DANGLING,
+        };
         let mut push = |id: RecipeNodeId, node: Node<ProfileProgram>| {
             doc.nodes.insert(id, node);
             doc.order.push(id);
         };
-        push(AXIS_MASTER, axis());
-        push(
-            TRANSFORM,
-            Node::Transform {
-                input,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
-        );
+        push(AXIS, axis_datum_node());
+        push(FRAME2, frame_datum());
+        push(T1, xf(id(t1_in)));
+        push(T2, xf(T1));
         push(
             PATTERN,
             Node::Pattern {
-                input: AXIS_MASTER,
+                input: body,
                 count: Expr::count(4),
                 kind: PatternKind::Circular {
-                    axis: axis_operand,
+                    axis: id(axis_operand),
                     step: ang(0.5),
                 },
             },
         );
         doc.next_id = MATE.0 + 1;
-        doc
+        (doc, body)
     }
 
     /// The walk a reference to copy 1 of the pattern records.
-    fn copy_one() -> Walk {
+    fn copy_one(instance: RecipeNodeId) -> Walk {
         Walk {
             member: Member {
-                instance: AXIS_MASTER,
+                instance,
                 copy: vec![(PATTERN, 1)],
                 at: PATTERN,
             },
@@ -845,12 +897,12 @@ mod tests {
         }
     }
 
-    /// The derivation road's refusal for that reference: the placer
-    /// it names and the kind it carries.
-    fn derivation_refusal(doc: &ProfileDoc) -> (RecipeNodeId, String) {
+    /// **The derivation road's refusal**: the placer it names and the
+    /// kind it carries.
+    fn derivation(doc: &ProfileDoc, instance: RecipeNodeId) -> (RecipeNodeId, NodeRefusal) {
         let env = doc.param_env::<f64>();
         let band = Band::linear(Tol::witness()).unwrap();
-        let fault = derived_offset(doc, &env, MATE, MateSide::A, &copy_one(), band)
+        let fault = derived_offset(doc, &env, MATE, MateSide::A, &copy_one(instance), band)
             .expect_err("the axis operand refuses");
         match *fault {
             MateFault::PlacerRefused {
@@ -860,93 +912,268 @@ mod tests {
                 error,
             } => {
                 assert_eq!((mate, side), (MATE, MateSide::A));
-                (placer, format!("{:?}", error.kind()))
+                (placer, error)
             }
             other => panic!("expected PlacerRefused, got {other:?}"),
         }
     }
 
-    /// **A dangling transform input below a circular axis is seated
-    /// at the transform on both roads.** The derivation refuses
-    /// `PlacerRefused` naming the TRANSFORM and carrying
-    /// `MissingInput` for its input; the evaluation fails the same
-    /// transform with the same kind and poisons the pattern through
-    /// it. One condition, one seat.
-    #[test]
-    fn a_dangling_transform_input_below_a_circular_axis_seats_at_the_transform_on_both_roads() {
-        let doc = circular_over("msolve7-dangling", DANGLING, TRANSFORM);
-        let (placer, kind) = derivation_refusal(&doc);
-        assert_eq!(placer, TRANSFORM, "seated at the transform: {kind}");
-        let expected = format!("{:?}", NodeErrorKind::MissingInput { input: DANGLING });
-        assert_eq!(kind, expected);
-        // The same document's evaluation: the transform's own row
-        // refuses the same kind, and the pattern is poisoned through
-        // it rather than refused with it.
-        let ev = evaluate::<f64>(
-            &doc,
+    /// **The evaluation road**, over the same document.
+    fn evaluation(doc: &ProfileDoc) -> crate::eval::Evaluation<f64> {
+        evaluate::<f64>(
+            doc,
             None,
             &CancelToken::new(),
             &EvalOptions::default(),
             Tol::witness(),
-        );
-        match ev.result(TRANSFORM) {
-            Some(NodeResult::Failed(err)) => {
-                assert_eq!(err.node, TRANSFORM);
-                assert_eq!(format!("{:?}", err.kind), expected);
-            }
-            other => panic!("the transform fails on its own: {other:?}"),
+        )
+    }
+
+    /// **The two kinds this module seats, compared structurally** —
+    /// variant and every field — so a row that names one cannot pass
+    /// on a rendering.
+    fn same_refusal(a: &NodeErrorKind, b: &NodeErrorKind) -> bool {
+        match (a, b) {
+            (
+                NodeErrorKind::MissingInput { input: x },
+                NodeErrorKind::MissingInput { input: y },
+            ) => x == y,
+            (
+                NodeErrorKind::WrongOperand {
+                    input: xi,
+                    expected: xe,
+                    found: xf,
+                },
+                NodeErrorKind::WrongOperand {
+                    input: yi,
+                    expected: ye,
+                    found: yf,
+                },
+            ) => xi == yi && xe == ye && xf == yf,
+            _ => false,
         }
+    }
+
+    /// The node's own row in the evaluation fails with `kind`.
+    fn fails_with(ev: &crate::eval::Evaluation<f64>, node: RecipeNodeId, kind: &NodeErrorKind) {
+        match ev.result(node) {
+            Some(NodeResult::Failed(err)) => {
+                assert_eq!(err.node, node);
+                assert!(
+                    same_refusal(&err.kind, kind),
+                    "{node:?}: the evaluation's own kind {:?} is the derivation's {kind:?}",
+                    err.kind
+                );
+            }
+            other => panic!("{node:?} fails on its own: {other:?}"),
+        }
+    }
+
+    /// The node's row in the evaluation is poisoned through `through`.
+    fn poisoned_through(
+        ev: &crate::eval::Evaluation<f64>,
+        node: RecipeNodeId,
+        through: RecipeNodeId,
+    ) {
         assert!(
-            matches!(
-                ev.result(PATTERN),
-                Some(NodeResult::Poisoned { through }) if *through == TRANSFORM
-            ),
-            "the pattern is poisoned through the transform: {:?}",
-            ev.result(PATTERN)
+            matches!(ev.result(node), Some(NodeResult::Poisoned { through: t }) if *t == through),
+            "{node:?} is poisoned through {through:?}: {:?}",
+            ev.result(node)
         );
     }
 
-    /// **Every other refusal of the axis operand keeps the pattern's
-    /// seat**: an operand that names no live node is the pattern's
-    /// own wiring, refused under the pattern's id with the kind its
-    /// own evaluation raises.
-    #[test]
-    fn a_missing_axis_operand_seats_at_the_pattern() {
-        let doc = circular_over("msolve7-missing-axis", AXIS_MASTER, DANGLING);
-        let (placer, kind) = derivation_refusal(&doc);
-        assert_eq!(placer, PATTERN, "seated at the pattern: {kind}");
+    fn is_live(ev: &crate::eval::Evaluation<f64>, node: RecipeNodeId) {
+        assert!(
+            matches!(ev.result(node), Some(NodeResult::Ok(_))),
+            "{node:?} is live: {:?}",
+            ev.result(node)
+        );
+    }
+
+    /// **Both roads, one seat**: the derivation refuses at `placer`
+    /// with a kind matching `expect`, and the evaluation fails the
+    /// same node with the same kind.
+    fn both_roads(
+        label: &str,
+        t1_in: Src,
+        axis: Src,
+        placer: RecipeNodeId,
+        expect: impl FnOnce(&NodeErrorKind) -> bool,
+    ) -> crate::eval::Evaluation<f64> {
+        let (doc, body) = build(label, t1_in, axis);
+        let (at, kind) = derivation(&doc, body);
+        let kind = kind.kind();
         assert_eq!(
-            kind,
-            format!("{:?}", NodeErrorKind::MissingInput { input: DANGLING })
+            at, placer,
+            "{label}: seated at {placer:?}, carrying {kind:?}"
         );
-        let ev = evaluate::<f64>(
-            &doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        match ev.result(PATTERN) {
-            Some(NodeResult::Failed(err)) => {
-                assert_eq!(format!("{:?}", err.kind), kind, "the pattern's own kind");
-            }
-            other => panic!("the pattern fails on its own: {other:?}"),
+        assert!(expect(kind), "{label}: the kind the row names: {kind:?}");
+        let ev = evaluation(&doc);
+        fails_with(&ev, placer, kind);
+        ev
+    }
+
+    fn missing(input: RecipeNodeId) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| matches!(k, NodeErrorKind::MissingInput { input: i } if *i == input)
+    }
+
+    fn wrong(
+        input: RecipeNodeId,
+        expected: &'static str,
+        found: &'static str,
+    ) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| {
+            matches!(
+                k,
+                NodeErrorKind::WrongOperand { input: i, expected: e, found: f }
+                    if *i == input && *e == expected && *f == found
+            )
         }
     }
 
-    /// **A transform that resolves to the wrong family is still the
-    /// pattern's**: the transform over the axis datum lands in the
-    /// datum family, which is not an axis DATUM node, and the pattern
-    /// refuses `WrongOperand` under its own id — the classifier's
-    /// walk ran through the transform and seated nothing there.
+    /// **A dangling input of the axis transform is seated at that
+    /// transform on both roads**, and the pattern is poisoned through
+    /// it rather than refused with it.
     #[test]
-    fn a_wrong_operand_kind_through_a_live_transform_seats_at_the_pattern() {
-        let doc = circular_over("msolve7-wrong-kind", AXIS_MASTER, TRANSFORM);
-        let (placer, kind) = derivation_refusal(&doc);
-        assert_eq!(placer, PATTERN, "seated at the pattern: {kind}");
-        assert!(
-            kind.contains("WrongOperand") && kind.contains("datum axis"),
-            "{kind}"
+    fn a_dangling_input_of_the_axis_transform_seats_at_that_transform_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-t1-dangling",
+            Src::Dangling,
+            Src::T1,
+            T1,
+            missing(DANGLING),
         );
+        poisoned_through(&ev, PATTERN, T1);
+    }
+
+    /// **Two transforms down, the seat is the deeper one** — the
+    /// transform whose input dangles, not the operand the pattern
+    /// names.
+    #[test]
+    fn a_dangling_input_two_transforms_down_seats_at_the_deeper_transform_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-t2-t1-dangling",
+            Src::Dangling,
+            Src::T2,
+            T1,
+            missing(DANGLING),
+        );
+        poisoned_through(&ev, T2, T1);
+        poisoned_through(&ev, PATTERN, T1);
+    }
+
+    /// **An axis operand that names no node is the pattern's own
+    /// wiring** on both roads.
+    #[test]
+    fn a_missing_axis_operand_seats_at_the_pattern_on_both_roads() {
+        both_roads(
+            "msolve7-axis-missing",
+            Src::Body,
+            Src::Dangling,
+            PATTERN,
+            missing(DANGLING),
+        );
+    }
+
+    /// **A frame datum as the axis is the wrong family, at the
+    /// pattern**, in the evaluation's own words.
+    #[test]
+    fn a_frame_datum_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        both_roads(
+            "msolve7-axis-frame",
+            Src::Body,
+            Src::Frame,
+            PATTERN,
+            wrong(
+                FRAME2,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::DATUM,
+            ),
+        );
+    }
+
+    /// **A body as the axis is the wrong family, at the pattern.**
+    #[test]
+    fn a_body_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        let (doc, body) = build("msolve7-axis-body", Src::Body, Src::Body);
+        let (at, kind) = derivation(&doc, body);
+        let kind = kind.kind();
+        assert_eq!(at, PATTERN);
+        assert!(
+            wrong(
+                body,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY
+            )(kind),
+            "{kind:?}"
+        );
+        fails_with(&evaluation(&doc), PATTERN, kind);
+    }
+
+    /// **A live transform over the body as the axis**: the transform
+    /// evaluates, and the wrong family is the pattern's, read through
+    /// the transform to the body below.
+    #[test]
+    fn a_transform_over_the_body_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-axis-t1-body",
+            Src::Body,
+            Src::T1,
+            PATTERN,
+            wrong(
+                T1,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY,
+            ),
+        );
+        is_live(&ev, T1);
+    }
+
+    /// The same through two live transforms.
+    #[test]
+    fn two_transforms_over_the_body_as_the_axis_seat_at_the_pattern_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-axis-t2-t1-body",
+            Src::Body,
+            Src::T2,
+            PATTERN,
+            wrong(
+                T2,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY,
+            ),
+        );
+        is_live(&ev, T1);
+        is_live(&ev, T2);
+    }
+
+    /// **A transform over a DATUM as the axis is the TRANSFORM's own
+    /// refusal on both roads** — a datum is not placeable, so the
+    /// transform fails with `WrongOperand` in the placer's own words
+    /// and the pattern is poisoned through it. This shape is
+    /// admitted by `apply`, so it is the one seat a document author
+    /// can reach; the derivation seats it where the evaluation does
+    /// by inheriting the classifier's seat rather than reading the
+    /// operand's family for itself.
+    #[test]
+    fn a_transform_over_a_datum_as_the_axis_seats_at_the_transform_on_both_roads() {
+        for (label, src, datum) in [
+            ("msolve7-axis-t1-axis", Src::Axis, AXIS),
+            ("msolve7-axis-t1-frame", Src::Frame, FRAME2),
+        ] {
+            let ev = both_roads(
+                label,
+                src,
+                Src::T1,
+                T1,
+                wrong(
+                    datum,
+                    crate::eval::phrase::BODY_OR_INSTANCES,
+                    crate::eval::family::DATUM,
+                ),
+            );
+            poisoned_through(&ev, T2, T1);
+            poisoned_through(&ev, PATTERN, T1);
+        }
     }
 }

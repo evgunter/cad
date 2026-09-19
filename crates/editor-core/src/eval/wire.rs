@@ -756,11 +756,16 @@ fn operand<'v, T: Decide, R>(
 /// # Errors
 ///
 /// [`NodeErrorKind::MissingInput`] for a reference that names no live
-/// node, or that [`super::node_value_kind`] cannot classify; otherwise
-/// [`NodeErrorKind::WrongOperand`] naming the family the node lands
-/// in. Every refusal this door returns is seated by its caller at the
-/// consuming node, as every operand refusal is: the transform the
-/// classifier names beside a dangling input is not read here.
+/// node; otherwise [`NodeErrorKind::WrongOperand`] naming the family
+/// the node lands in. The seat [`super::node_value_kind`] answers
+/// beside a refusal of its own is dropped here, because no refusal of
+/// its own can arrive: the reference this door reads is one of the
+/// consuming node's INPUT edges (a loft's or sweep's section), which
+/// the schedule evaluated `Ok` before the op ran — a transform in that
+/// slot whose source is not placeable, or whose input is no live
+/// node, fails on its own and poisons the consumer ahead of this door.
+/// What is dropped is therefore a seat the evaluation has already
+/// given, not a seat this door chooses.
 fn node_operand<'d, P, R>(
     doc: &'d crate::doc::Doc<P>,
     input: RecipeNodeId,
@@ -775,7 +780,7 @@ fn node_operand<'d, P, R>(
         None => Err(operand_refusal(
             input,
             expected,
-            super::node_value_kind(doc, input, node).map_err(|seated| seated.1)?,
+            super::node_value_kind(doc, input).map_err(|seated| seated.1)?,
         )),
     }
 }
@@ -867,7 +872,9 @@ impl<T: Decide> Placeable<T> {
 /// The operand of a placer, read off its evaluated value: one body
 /// (a `Body` value or a boolean's non-empty result), or an `Instances`
 /// value taken whole. Everything else refuses typed naming both
-/// admitted shapes; an empty boolean is a typed absence.
+/// admitted shapes; an empty boolean is a typed absence. The same
+/// rule over NODE kinds, for the road that holds no value, is decided
+/// in [`super::node_value_kind`]'s one match, beside the family word.
 fn placeable_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,
