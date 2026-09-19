@@ -166,3 +166,25 @@ corrections are on the row.
   ANNOUNCED territory crossing (INSTR's precedent on paused S-MESH
   ground), as TESS-2 on the full dual, specced once TESS-1's head is
   frozen — one kernel unit on the build mutex at a time. Told to Ev.
+
+## (N) stays out of DESIGN; PR 2850 merged; PR 2848's fix pass (2026-09-18)
+
+- **Ev, in chat: (N) for now, but not in DESIGN.md** — it contradicts
+  nothing there and would carry too much weight for a provisional
+  ruling. The DESIGN hunk was dropped; the rule ("a chart singularity
+  inside a face is a vertex of it") is stated on the EXCH and TOPO rows
+  and lands in those doors' own docs. PR 2850, tracker-only after that,
+  merged on green; `needs_ev` cleared. **Mine to remember: "a new
+  validity rule" is not by itself a DESIGN.md decision — ask whether it
+  contradicts or settles something there first.**
+- **PR 2848's review** (one reviewer, middle tier): APPROVE-WITH-FIXES,
+  no MAJOR, all 17 converted sites identical. Adjudicated the same hour
+  and sent to the lane as a fix pass — the pinning test's surviving
+  `>=` mutant, the vacuous empty list, the `inf` on a zero bound, three
+  false doc sentences, a hand-synced message pair the PR itself minted,
+  the rational twin left behind. **Two CLASS findings given their own
+  rows rather than left in the report**: the unswept ordering asserts
+  outside `crates/mesh` (TINT), and the two domination helpers with
+  opposite operand orders, one of them unreachable from integration
+  tests (the owner of `crates/test-utils`). Not taken: the `unsure`
+  that `worst_ratio` reds do not name their triangle.
