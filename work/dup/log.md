@@ -1097,3 +1097,59 @@ and the row's "20 of the 145 sites" divides folded 3-hop reads by a
 denominator that also counts field *writes* and 2-hop reads. Against
 the comparable instrument it is 20 of 32 — a different sentence
 entirely. **Two numbers of different kinds, divided.**
+
+## 2026-09-19 — a posture asserted in a brief, and the fence a door inherits
+
+The `solid_of_face` lane came back with the class at **fourteen, not
+eleven** — and with **two of the eleven not members at all**. The row's
+structural regex had matched a *handle field's name* (`t.shell`) rather
+than a `Face::shell` read, so `sweep/tests/revolve_ring.rs` and
+`verbs_tubewall.rs` were never in the class. Two more of the same shape
+stand in `demos/tour`, recorded so the next lane does not re-find them
+as members. An instrument that over-fires costs exactly as much as one
+that under-fires; this program has mostly met the second.
+
+**My brief asserted a posture, and it was wrong.** I told the lane that
+`seqgen.rs`'s four sites *"carry `expect(...)` with a distinct message
+per hop"*. They do not — each has exactly one lookup and one `expect`,
+because the face datum arrives from the `body.faces()` iterator. They
+fold cleanly and did. I took that from the row's shape table and
+restated it as fact about the code.
+
+That is the sixth propagated-number error of the sitting and the first
+that was not a number: **a posture is a claim about code, and it rots
+the same way a count does.** The rule generalises — *a fact you did not
+derive is a fact you are quoting* — and quoting a shape table is
+quoting.
+
+**The hazard was real, just somewhere else.** The one site that must not
+fold is `offset_together::scope_of_moves`, the class's **only production
+site**: hop 1 refuses `StaleFace { face }` — the caller's own key named
+back to it — and hop 2 refuses `Corrupt`, nullary, because no key the
+caller holds is wrong. The lane planted the fold and **nothing red
+across 4405 tests** in three crates. So the guard is the deliverable
+again, and it reds on both flattenings, each on its own arm.
+
+### The finding worth keeping: a door inherits its minting pass's fence
+
+`solid_of_face` cites no model, so the sibling-door re-census that found
+this class cannot be run on it. Its own provenance answers instead:
+`docs/MODEL-AB-LOG.md`'s BOOL4 row says the door was minted in **PR
+#2767's fix pass**, out of a bilateral review finding —
+*"face→shell→solid spelled four times"* — and the fold was scoped to
+that PR's own four sites. The doc sentence that reads as a survey
+(*"the one spelling … the census, the point-in-solid door and their
+suites read"*) was never a survey. It was a report of one PR's reach.
+
+**A door minted by a fix pass inherits that pass's fence, and its doc
+sentence inherits it silently.** The tree had fourteen. That is a
+general instrument for the next door: when a claim of the form "the one
+spelling of X" turns up, find the commit that minted the door and ask
+what that commit's scope was — the claim is true inside the fence and
+says nothing outside it, and nothing in its wording marks where the
+fence is.
+
+Which is the same defect as the withdrawn no-simplify rule, the "no
+manifest edge" justification and the `DOORS_MEASURED` constant, in a
+fourth costume: **text whose scope was true when written, read later as
+though it had none.**
