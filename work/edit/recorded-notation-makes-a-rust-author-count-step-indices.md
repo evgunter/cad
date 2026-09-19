@@ -3,6 +3,7 @@ id: recorded-notation-makes-a-rust-author-count-step-indices
 kind: issue
 title: a RecordedNotation entry is keyed by an index the path algebra never hands its caller
 status: review
+pr: 2876
 branch: edit/notation-derived-index
 opened: 2026-09-16
 ---
