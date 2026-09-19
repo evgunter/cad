@@ -758,7 +758,9 @@ fn operand<'v, T: Decide, R>(
 /// [`NodeErrorKind::MissingInput`] for a reference that names no live
 /// node, or that [`super::node_value_kind`] cannot classify; otherwise
 /// [`NodeErrorKind::WrongOperand`] naming the family the node lands
-/// in.
+/// in. Every refusal this door returns is seated by its caller at the
+/// consuming node, as every operand refusal is: the transform the
+/// classifier names beside a dangling input is not read here.
 fn node_operand<'d, P, R>(
     doc: &'d crate::doc::Doc<P>,
     input: RecipeNodeId,
@@ -773,7 +775,7 @@ fn node_operand<'d, P, R>(
         None => Err(operand_refusal(
             input,
             expected,
-            super::node_value_kind(doc, node)?,
+            super::node_value_kind(doc, input, node).map_err(|seated| seated.1)?,
         )),
     }
 }

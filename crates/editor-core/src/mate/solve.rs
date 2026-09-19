@@ -39,6 +39,7 @@ use super::reach::MateReach;
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
 use crate::edit::EditError;
+use crate::expr::ParamEnv;
 use crate::node::{Node, RecipeNodeId};
 use crate::placement::Frame;
 
@@ -671,6 +672,7 @@ fn pair_reach<P: crate::ProfilePayload>(
 /// `mate` — the pair's first mate, whose sides name these members.
 fn pair_left_factor<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    env: &ParamEnv<f64>,
     gauge: RecipeNodeId,
     parent: &Member,
     first: &PairMate,
@@ -687,8 +689,8 @@ fn pair_left_factor<P: crate::ProfilePayload>(
     } else {
         ((MateSide::B, &first.b), (MateSide::A, &first.a))
     };
-    let op = derived_offset(doc, mate, parent_side, parent_walk, band)?;
-    let oc = derived_offset(doc, mate, child_side, child_walk, band)?;
+    let op = derived_offset(doc, env, mate, parent_side, parent_walk, band)?;
+    let oc = derived_offset(doc, env, mate, child_side, child_walk, band)?;
     let middle = match (oc, op) {
         (None, None) => return Ok(None),
         (Some(oc), Some(op)) => oc.inverse() * op,
@@ -718,6 +720,16 @@ fn pair_left_factor<P: crate::ProfilePayload>(
 /// its own part cache (`eval::mate_reach` is the door every other
 /// caller builds one through), so a mated part is evaluated exactly
 /// once and the instantiate node hits the cache afterwards.
+///
+/// **One nominal environment per solve.** Every number the solve
+/// reads out of the recipe — a pattern's count, a `Part`'s index, the
+/// slots a derived offset is composed from — is evaluated at the
+/// document's own parameter bindings, under no box and no seed: the
+/// solve is a fact about the document, not about any run over it.
+/// That environment is built here, once, and handed to every reader
+/// (`check_reference`, `derived_offset` and what they call) as a
+/// parameter, so "the document's own" is decided at one site and the
+/// readers cannot be given different ones.
 pub fn solve_document<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     reach: &dyn MateReach,
@@ -742,6 +754,7 @@ pub fn solve_document<P: crate::ProfilePayload>(
             return out;
         }
     };
+    let env = doc.param_env::<f64>();
     // Mates by the unordered MEMBER pair they relate, document order
     // within a pair. The member — not just its instance — is the key:
     // mates to sibling copies of one pattern are DIFFERENT pairs, so
@@ -771,8 +784,8 @@ pub fn solve_document<P: crate::ProfilePayload>(
         // mate, not only the ones a tree edge's offset happens to
         // derive. The walk itself evaluated nothing, so this is where
         // the name meets a count.
-        let checked = check_reference(doc, id, MateSide::A, wa)
-            .and_then(|()| check_reference(doc, id, MateSide::B, wb));
+        let checked = check_reference(doc, &env, id, MateSide::A, wa)
+            .and_then(|()| check_reference(doc, &env, id, MateSide::B, wb));
         if let Err(fault) = checked {
             broken.push((id, fault));
             continue;
@@ -805,7 +818,7 @@ pub fn solve_document<P: crate::ProfilePayload>(
         let Some(&gauge) = cluster.first() else {
             continue;
         };
-        match solve_cluster(doc, &cluster, gauge, &by_pair, reach, band, tol) {
+        match solve_cluster(doc, &env, &cluster, gauge, &by_pair, reach, band, tol) {
             Ok(solved) => {
                 // The GAUGE is the cluster's, and every instance in it
                 // is keyed by that gauge whether or not a pair placed
@@ -886,8 +899,13 @@ fn unordered<T: Ord>(x: T, y: T) -> (T, T) {
 /// twice (two copies of the same pattern mated to each other) can
 /// never be a tree edge at all — the pattern already determined both
 /// ends — so it stays declaring the same way.
+///
+/// Every input of the solve is a parameter here, the environment
+/// included; none is cached on a struct.
+#[allow(clippy::too_many_arguments)]
 fn solve_cluster<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    env: &ParamEnv<f64>,
     cluster: &[RecipeNodeId],
     gauge: RecipeNodeId,
     by_pair: &BTreeMap<(Member, Member), Vec<PairMate>>,
@@ -957,7 +975,7 @@ fn solve_cluster<P: crate::ProfilePayload>(
                 }));
             }
             let mut pose = poses[&parent] * coset.representative;
-            if let Some(left) = pair_left_factor(doc, gauge, pm, &mates[0], band)? {
+            if let Some(left) = pair_left_factor(doc, env, gauge, pm, &mates[0], band)? {
                 pose = left * pose;
             }
             poses.insert(child, pose);
