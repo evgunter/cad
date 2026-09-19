@@ -426,8 +426,11 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 test_utils::f6_variants! {
     /// Every `Refusal` arm's identifier, as the ban list the six
     /// sampled renderings are held to. The `match` the macro writes is
-    /// exhaustive, so a twenty-fourth arm stops this file compiling
-    /// until it is listed here and the ban covers it.
+    /// exhaustive, so an arm added to `Refusal` stops this file
+    /// compiling until it is listed here and the ban covers it. No
+    /// count is written down: the `match` is what holds the roster
+    /// complete, and a number beside it would be a second claim with
+    /// nothing checking it.
     ///
     /// **The roster is the enum's, not the sample's.** A rendering that
     /// leaks a SIBLING arm's identifier is as much a dump as one that
