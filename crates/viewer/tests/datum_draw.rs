@@ -329,9 +329,9 @@ fn a_frames_arms_match_and_the_x_head_is_doubled() {
                 arms.push((axis, n));
             }
         } else if along.is_none() {
-            for axis in 0..2 {
+            for (axis, count) in barbs.iter_mut().enumerate() {
                 if on_axis(pair[0], axis) {
-                    barbs[axis] += 1;
+                    *count += 1;
                 }
             }
         }

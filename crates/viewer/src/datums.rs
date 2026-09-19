@@ -384,11 +384,12 @@ const AXIS_TICK_PX: f64 = 18.0;
 /// origin), so the head is the whole of what a reader sees, and the
 /// barbs are what keep it off the ruling: each points away from both
 /// axes. What would crowd a head is a CROSSING — the next line across
-/// the axis landing on the tip or between the barbs. The ladder never
-/// realizes a cell narrower than [`TARGET_PITCH_PX`] / √2.5 (about
-/// 51 px, the log-midpoint between rungs 2 and 5) at the looked-at
-/// point, so an arm under that puts the whole head inside the first
-/// cell, in open ground between the origin's crossing and the next.
+/// the axis landing on the tip or between the barbs. The ladder snaps
+/// to the rung nearest in ratio and its widest step is 2 to 5, so at
+/// the looked-at point it never realizes a cell narrower than
+/// [`TARGET_PITCH_PX`] / √2.5, about 51 px; an arm under that puts the
+/// whole head inside the first cell, in open ground between the
+/// origin's crossing and the next.
 /// The claim is bounded the way the pitch is: an origin much further
 /// from the eye than the looked-at point sees cells finer than that.
 const FRAME_ARM_PX: f64 = 44.0;
@@ -400,7 +401,7 @@ const _: () = assert!(FRAME_ARM_PX * FRAME_ARM_PX * 2.5 < TARGET_PITCH_PX * TARG
 /// How far each barb runs back from an arrow's tip, as a fraction of
 /// that arrow's length. Its half-width across the axis is half again
 /// of this, which is the ordinary look of an arrowhead.
-const FRAME_BARB_FRACTION: f64 = 0.34;
+const FRAME_BARB_FRACTION: f64 = 0.3;
 
 /// **How many heads the sketch-+x arrow wears**; +y wears one.
 ///
@@ -414,10 +415,11 @@ const FRAME_BARB_FRACTION: f64 = 0.34;
 const FRAME_X_HEADS: usize = 2;
 
 /// How far behind the first head each further one sits, as a
-/// fraction of the barb's run-back — so a doubled head is two
-/// chevrons nested with a gap between them rather than overlapping
-/// into one thick one.
-const FRAME_HEAD_SPACING: f64 = 0.6;
+/// fraction of the barb's run-back. At one, each head's tip sits at
+/// the root of the head in front of it — two chevrons nose to tail,
+/// which stay two at a slant where a nested pair closer than that
+/// runs together into one thick head.
+const FRAME_HEAD_SPACING: f64 = 1.0;
 
 /// How long each arm of a drawn point's cross is, in pixels.
 ///
