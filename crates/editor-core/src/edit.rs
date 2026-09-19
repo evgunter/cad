@@ -62,6 +62,11 @@ pub enum DocEdit<P> {
     /// stranded rides the record as a [`Maintenance::Strand`]. An
     /// appearance key is the same carve-out at the store instead of a
     /// payload, and rides it as a [`Maintenance::StrandedAppearance`].
+    ///
+    /// A `Declare` the deleted node consumed, and nothing else
+    /// consumes, is left inert rather than stranded — the edge ran
+    /// the other way, so no name is dangling — and rides the record
+    /// as a [`Maintenance::OrphanedDeclare`].
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
@@ -1600,6 +1605,49 @@ pub enum Maintenance {
         /// is the id this edit deleted.
         name: StableName,
     },
+    /// **A [`Node::Declare`] this edit left with no consumer** (DM7's
+    /// vocabulary, beside the strands): `declare` survives, and the
+    /// node the edit removed held the last edge that consumed it.
+    ///
+    /// Not a strand and not its mirror: a declaration's names point
+    /// at the MEMBERS and its consumer points at IT (the `declare`
+    /// edge is a DAG input, DM4), so a delete through the consumer
+    /// dangles no name and the document stays legal. What is gone is
+    /// the node that would ever have read the declaration, and this
+    /// row is what says so at the door instead of leaving the author
+    /// a node nothing will mention again.
+    ///
+    /// **The rule is a TRANSITION, not a state.** A `Declare` is
+    /// legally consumerless in the one-pass authoring window DM4
+    /// sites it for — inserted FIRST, its boolean or union second —
+    /// so "consumerless" would report every fresh declaration; what
+    /// this row says is that a delete MADE it so. The consumers are
+    /// the nodes whose [`Node::inputs`] hold it, read out of the
+    /// document AFTER the removal, which is the document the strands
+    /// of the same edit are read out of.
+    ///
+    /// DM7's posture verbatim: report, never refuse, never repair. A
+    /// consumerless `Declare` evaluates to its own payload and
+    /// refuses nothing, and the repair is the author's — a
+    /// [`DocEdit::DeleteNode`] of the `Declare`, or a new consumer.
+    ///
+    /// **It has a transient the strands do not** (contrast
+    /// [`stranded_references`]' cost paragraph, which is about
+    /// strands and stays true of them). Deleting the `Declare`
+    /// itself means cascading its consumers first
+    /// ([`cascade_delete_order`]), and the consumer's step is the
+    /// same `(document, edit)` pair as the delete of that consumer
+    /// for any other reason, so it reports this row and the next
+    /// step removes its subject. Maintenance is a function of the
+    /// document and the edit; a caller who wants a cascade's net
+    /// effect reads the document the cascade ended at.
+    OrphanedDeclare {
+        /// The `Declare` left with no consumer. It is LIVE in the
+        /// document this edit produced — the surviving node is the
+        /// subject here, where a strand's surviving node is the
+        /// carrier and the deleted one is in the name.
+        declare: RecipeNodeId,
+    },
 }
 
 impl core::fmt::Display for Maintenance {
@@ -1630,6 +1678,18 @@ impl core::fmt::Display for Maintenance {
                 "the appearance store holds an attachment under a {}; this edit deleted node {}, \
                  so the name resolves to nothing until it is rebound or cleared",
                 name, name.node.0
+            ),
+            // The subject is the SURVIVOR here, where both strand
+            // sentences above open on a carrier and close on the
+            // casualty. What the declaration lost is a reader, not a
+            // name, so the sentence says which node went and what
+            // that leaves: the node is inert until it is deleted or
+            // consumed again.
+            Self::OrphanedDeclare { declare } => write!(
+                f,
+                "node {} declares contacts and this edit deleted the last node that consumed \
+                 it, so nothing reads the declaration until a boolean or union names it again",
+                declare.0
             ),
         }
     }
@@ -1693,6 +1753,51 @@ fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenanc
         .collect()
 }
 
+/// **DM7's orphan report**: the [`Node::Declare`] nodes the accepted
+/// `DeleteNode` left with no consumer — one row per `Declare` whose
+/// last consuming edge the removed node held.
+///
+/// `doc` is the document AFTER the removal and `deleted_inputs` is
+/// the removed node's [`Node::inputs`], so the two halves of the
+/// question are asked of the same two facts the strand pass uses: who
+/// is gone, and what the document now holds. A `Declare` is reported
+/// exactly when the removed node named it, it is still live, and no
+/// live node's `inputs()` hold it.
+///
+/// **A transition, not a state** ([`Maintenance::OrphanedDeclare`]
+/// carries the rule): the candidates are the deleted node's own
+/// inputs, so a `Declare` the document has simply never consumed —
+/// the one-pass authoring window, or a declaration whose consumer was
+/// never authored — is not reported by a delete elsewhere in the
+/// document.
+///
+/// Consumption is read through `inputs()` rather than
+/// [`Node::declare_input`]: the question is which nodes would ever
+/// read this one, and that is the DAG edge. A future node kind that
+/// consumes declarations therefore counts here the day it compiles,
+/// without a second list to remember it into.
+///
+/// Row order is the document's node order, which is what
+/// [`Applied::maintenance`] contracts for; nothing is sorted here.
+///
+/// **Cost.** One pass over the document's nodes per `Declare` input
+/// of the deleted node — nothing for the overwhelming majority of
+/// deletes, whose node consumes no declaration at all.
+fn orphaned_declares<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    deleted_inputs: &[RecipeNodeId],
+) -> Vec<Maintenance> {
+    doc.order()
+        .iter()
+        .copied()
+        .filter(|id| {
+            deleted_inputs.contains(id) && matches!(doc.node(*id), Some(Node::Declare { .. }))
+        })
+        .filter(|id| !doc.nodes.values().any(|node| node.inputs().contains(id)))
+        .map(|declare| Maintenance::OrphanedDeclare { declare })
+        .collect()
+}
+
 /// An accepted edit: the NEW document (the input untouched, spec D2)
 /// plus the [`EditRecord`].
 #[derive(Debug, Clone, PartialEq)]
@@ -1702,19 +1807,21 @@ pub struct Applied<P> {
     /// What the edit did.
     pub record: EditRecord,
     /// **What the edit did that the caller did not ask for**: the A11
-    /// cluster-record maintenance it forced, and the references it
-    /// stranded (DM7) — the payload names, then the appearance keys.
-    /// See [`Maintenance`].
+    /// cluster-record maintenance it forced, the references it
+    /// stranded (DM7) — the payload names, then the appearance keys —
+    /// and the declarations it left with no consumer. See
+    /// [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
     /// [`Maintenance::Strand`] first, in the document's node order
     /// and within one node in the payload's own order; then every
     /// [`Maintenance::StrandedAppearance`], in the appearance store's
-    /// key order; then the A11 cluster acts, which reconcile the
-    /// registry against the document the strands were read out of.
-    /// The strands are read at the door, out of the document the edit
-    /// had just produced.
+    /// key order; then every [`Maintenance::OrphanedDeclare`], in the
+    /// document's node order; then the A11 cluster acts, which
+    /// reconcile the registry against the document the strands were
+    /// read out of. The strands and the orphans are read at the door,
+    /// out of the document the edit had just produced.
     ///
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
@@ -1733,6 +1840,10 @@ pub struct Applied<P> {
     /// for appearance strand before cluster act — the last one paints,
     /// which the mate row does not, so it is the only row a walk that
     /// appended the store's rows after `reconcile` goes red on.
+    /// The orphan boundary is
+    /// `dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`,
+    /// whose one delete both strands a name a surviving node carries
+    /// and takes a declaration's last consumer.
     /// What a consumer may NOT do is read position 0 as a kind: a
     /// delete that strands no payload name puts an appearance strand
     /// or a cluster act there, so an arm is found by matching, never
@@ -2134,10 +2245,11 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     // ([`DocEdit::moves_the_mate_graph`]), so a new arm answers the
     // question or does not compile.
     let reconcile = edit.moves_the_mate_graph();
-    // DM7's strands, read at the door that made them. Only
-    // `DeleteNode` can strand a name: no other edit removes a node,
-    // and `Rebind` moves references onto a live one.
-    let mut strands: Vec<Maintenance> = Vec::new();
+    // DM7's rows, read at the door that made them. Only `DeleteNode`
+    // fills this: no other edit removes a node, so no other edit can
+    // strand a name — `Rebind` moves references onto a live one — or
+    // take a declaration's last consumer.
+    let mut reported: Vec<Maintenance> = Vec::new();
     let record = match edit {
         DocEdit::InsertNode { node } => {
             // Liveness, and it stays spelled here rather than moving to
@@ -2235,7 +2347,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // door owes is the report — every surviving reference
             // whose minting node just left, in both of the document's
             // carriers, read out of the document as it now stands.
-            strands = stranded_references(&new, *id);
+            reported = stranded_references(&new, *id);
+            // The declaration half of the same question, out of the
+            // same post-removal document so the two reports cannot
+            // disagree about which nodes are gone. Appended after the
+            // strands, which is the order the field contracts.
+            reported.extend(orphaned_declares(&new, &inputs));
             crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
@@ -2732,7 +2849,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    let mut maintenance = strands;
+    let mut maintenance = reported;
     if reconcile {
         maintenance.extend(
             crate::mate::solve::reconcile(doc, &mut new, tol)

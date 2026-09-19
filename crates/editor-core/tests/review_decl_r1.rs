@@ -201,19 +201,20 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
 // Claim 5 — deleting a site; rebinding a name away from its site.
 // ---------------------------------------------------------------------
 
-/// **A `Declare` orphaned by a cascade is silent.** `DeleteNode` of a
-/// site (a transform member) cascades the union away, so no consumer
-/// is left to refuse: the `Declare` survives, the delete reports no
-/// strand (its names are the prototype's, which lives; a site is not
-/// a name), and the next evaluation says nothing about it.
+/// **A `Declare` orphaned by a cascade is reported at the delete that
+/// orphans it.** `DeleteNode` of a site (a transform member) cascades
+/// the union away, so no consumer is left to refuse: the `Declare`
+/// survives, it strands nothing (its names are the prototype's, which
+/// lives; a site is not a name), and the next evaluation says nothing
+/// about it — a consumerless declaration is a legal document.
 ///
-/// That the document is left carrying a declaration nothing will ever
-/// read is filed as
-/// `work/edit/a-declare-orphaned-by-a-cascade-is-never-reported.md`;
-/// this row is what that file cites, and it pins the behaviour as it
-/// stands so the fix has a baseline to move.
+/// What the cascade owes is the maintenance row, ONCE, at the step
+/// that took the last consumer: the union's. The member's own step
+/// names no orphan, because the member consumed no declaration, so a
+/// walk reporting every consumerless `Declare` at every step reports
+/// two rows here.
 #[test]
-fn a_declare_orphaned_by_a_cascade_refuses_nothing() {
+fn a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it() {
     let doc = ProfileDoc::empty_derived("r1_delete_site", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
@@ -222,25 +223,31 @@ fn a_declare_orphaned_by_a_cascade_refuses_nothing() {
     let order = editor_core::cascade_delete_order(&doc, m2);
     assert_eq!(order, vec![union, m2], "{order:?}");
     let mut doc = doc;
-    let mut maintenance = Vec::new();
+    let mut per_step = Vec::new();
     for id in order {
         let applied = doc
             .apply(&DocEdit::DeleteNode { id }, Tol::witness())
             .unwrap_or_else(|e| panic!("deleting {id:?}: {e:?}"));
-        maintenance.extend(applied.maintenance);
+        per_step.push(applied.maintenance);
         doc = applied.doc;
     }
     assert!(doc.node(union).is_none(), "the union cascaded");
     assert!(doc.node(decl).is_some(), "the Declare survives");
     let ev = run(&doc);
     assert!(failure(&ev, decl).is_none(), "{:?}", failure(&ev, decl));
-    // The maintenance names no strand: the names are `proto`'s, which
-    // survives; the site is `m2`, which is not reported.
-    let strands = maintenance
-        .iter()
-        .filter(|m| matches!(m, editor_core::Maintenance::Strand { .. }))
-        .count();
-    assert_eq!(strands, 0);
+    // Each step's whole list, rather than a filtered count: what the
+    // cascade owes is one row in one place, so the position and the
+    // uniqueness are pinned together, and the absent strand (the
+    // names are `proto`'s, which lives; the site is `m2`, which is
+    // not a name) is pinned by the same assertion.
+    assert_eq!(
+        per_step,
+        vec![
+            vec![editor_core::Maintenance::OrphanedDeclare { declare: decl }],
+            Vec::new(),
+        ],
+        "the union's step reports the orphan; the member's step consumes no declaration"
+    );
 }
 
 /// **Every corpus document that declares replays in document order**:
