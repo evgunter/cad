@@ -1,0 +1,45 @@
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 2283522 since 19:35:11 (@1789785311): shared [held 1m39s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4898m8s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 476m10s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (60s; holding: slot-1: pid 2283522 since 19:35:11 (@1789785311): shared [held 2m40s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4899m9s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 477m11s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (120s; holding: slot-1: pid 2283522 since 19:35:11 (@1789785311): shared [held 3m40s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4900m9s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 478m11s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (180s; holding: slot-1: pid 2283522 since 19:35:11 (@1789785311): shared [held 4m40s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4901m9s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 479m11s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (240s; holding: slot-1: pid 2283522 since 19:35:11 (@1789785311): shared [held 5m40s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4902m9s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 480m11s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+   Compiling autocfg v1.5.1
+   Compiling libm v0.2.16
+   Compiling crossbeam-utils v0.8.22
+   Compiling crossbeam-epoch v0.9.20
+   Compiling crossbeam-deque v0.8.7
+   Compiling version_check v0.9.5
+   Compiling rayon-core v1.13.0
+   Compiling either v1.16.0
+   Compiling foldhash v0.2.0
+   Compiling equivalent v1.0.2
+   Compiling allocator-api2 v0.2.21
+   Compiling smallvec v1.15.2
+   Compiling robust v1.2.0
+   Compiling test-utils v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/test-utils)
+   Compiling slotmap v1.1.1
+   Compiling num-traits v0.2.19
+   Compiling hashbrown v0.16.1
+   Compiling num-integer v0.1.46
+   Compiling spade v2.15.1
+   Compiling rayon v1.12.0
+   Compiling num-bigint v0.4.8
+   Compiling geom-core v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom-core)
+   Compiling bvh v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/bvh)
+   Compiling profile v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/profile)
+   Compiling geom v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom)
+   Compiling geom-brep v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom-brep)
+   Compiling topo v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/topo)
+   Compiling sweep v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/sweep)
+   Compiling mesh v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/mesh)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.23s
+     Running unittests src/lib.rs (/home/evan/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+
+running 1 test
+[fuzz] nurbs_cert::r1_random_rational_soundness: seed=0xdae51dbd4e1b79fd effort=1 — replay with CAD_FUZZ_SEED=0xdae51dbd4e1b79fd
+random sweep: worst truth/bound 1.000000 over 60 trials
+test nurbs_cert_fuzz::r1_random_rational_soundness_sweep ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 1.81s
+
+exit=0

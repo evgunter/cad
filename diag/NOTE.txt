@@ -1,0 +1,5 @@
+tess/nurbs-bound-diag — DIAGNOSTIC EVIDENCE, not a change proposed for main.
+  crates/mesh/src/nurbs_cert_fuzz.rs  `mod diag` (diag_replay, diag_frequency; both #[ignore])
+  diag/exact_check.py        exact-rational referee (fractions.Fraction) over a diag_replay log
+  diag/ingredient_check.py   per-ingredient hull-vs-truth on the argmax cell (bilinear reds)
+  diag/logs/                 the runs the report cites

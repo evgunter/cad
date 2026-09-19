@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (/home/evan/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+
+running 1 test
+[fuzz] nurbs_cert::r1_random_rational_soundness: seed=0x5ca58da03160d407 effort=1 — replay with CAD_FUZZ_SEED=0x5ca58da03160d407
+
+thread 'nurbs_cert_fuzz::r1_random_rational_soundness_sweep' (2311983) panicked at crates/mesh/src/nurbs_cert_fuzz.rs:141:9:
+UNSOUND at trial 29: (1.249e0,6.659e0,4.294e0) vs (1.249e0,6.659e0,4.294e0) — reproduce with CAD_FUZZ_SEED=0x5ca58da03160d407 CAD_FUZZ_EFFORT=1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test nurbs_cert_fuzz::r1_random_rational_soundness_sweep ... FAILED
+
+failures:
+
+failures:
+    nurbs_cert_fuzz::r1_random_rational_soundness_sweep
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.91s
+
+error: test failed, to rerun pass `-p mesh --lib`
+exit=101

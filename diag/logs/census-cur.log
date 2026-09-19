@@ -1,0 +1,12 @@
+   Compiling mesh v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/mesh)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.37s
+     Running unittests src/lib.rs (/home/evan/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+
+running 1 test
+test nurbs_cert_fuzz::diag::diag_frequency has been running for over 60 seconds
+CENSUS seeds=200 trials/seed=60 compared=12000 red-components=0 red-seeds=0 A-type(rel>1e-9)=0 B-type=0 (worst B rel=-inf) zero-direction(bound<1e-100)=0 worst-rel=-inf max-rel-overall=-2.4040325584459587e-15
+test nurbs_cert_fuzz::diag::diag_frequency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 335.11s
+
+exit=0
