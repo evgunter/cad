@@ -2,8 +2,10 @@
 id: editor-core-suites-redefine-the-name-table-helpers
 kind: issue
 title: Twenty-four editor-core suites still redefine the name-table and body readers fixture now has one home for
-status: spec
+status: review
 opened: 2026-09-17
+pr: 2867
+branch: edit/suite-helpers-one-home
 ---
 
 
@@ -109,3 +111,34 @@ deletion; the guard is the diff table and the unchanged row counts.
 worked by EDIT under this filing — announced). Middle tier: one opus
 style review with a correctness arm (the diverged-copy table is what
 it reads), then the fix pass.
+
+## Built (2026-09-19, PR #2867)
+
+Every named redefinition of a `fixture` reader is gone from
+`crates/editor-core/tests/`. Eighteen bodies were byte-identical to the
+door and were deleted for the import; six had diverged and were read
+before they went (`msolve5_read_below_a_root::table_of`,
+`edge_key` ×3 in the blend5 suites, `edit_step_segments::point_of`,
+`lib_tube_r1_probes`'s `table` closure); six local spellings that carry
+document-specific knowledge stay as adapters delegating to the door
+(`corpus/kiss_carry::cap_vertex`, `wire_entity_door::vname`, `pole` in
+both `m9_d1` probe suites, `edit_step_segments::face_points`,
+`blend5_r1_probes::arc_height`, `blend5_rim_support`'s `count`
+closure). No door was widened. `fixture/mod.rs` is unchanged.
+
+Row counts per suite are unchanged (twenty-three suites, listed in the
+PR body); `cargo nextest run -p editor-core --test all` is 1457 passed.
+
+**Not done, and why.** Nine of the row's counted hits are unrelated
+helpers that share a door's spelling (`count` as an `Expr` literal, as
+a body-entity tally and as a substring tally; `key_of` as a
+`ContentKey` reader ×3; `point` as a `ProgramTarget` constructor ×2;
+`display_contract`'s functional-update vertex literal). They are named
+in the PR body and stay. `docm7_union_declare`'s one vertex literal is
+left for `edit/sited-declarations`, which rewrites that file wholesale.
+The row's premise that some suite's `all.rs` mount might not reach
+`fixture` is false: `tests/all.rs` is editor-core's only test target.
+
+The sweep's residue — 140 INLINE `.name_table` reads in 60 suites, and
+~14 inline spellings of `count` — is filed as
+`work/tcost/inline-name-table-reads-bypass-the-fixture-door.md`.
