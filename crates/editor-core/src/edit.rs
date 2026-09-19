@@ -489,7 +489,7 @@ impl core::fmt::Display for CarryForwardDoor {
 /// address is what the walk iterates and the fact is what the rule
 /// answers — so a reader who knows one of the eight arms can spell the
 /// other seven. The guard is
-/// `display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_name_reports_its_address`,
+/// `display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address`,
 /// which measures both halves: the four names per door, and that each
 /// arm's address word is the address its sentence reports.
 ///

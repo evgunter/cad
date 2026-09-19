@@ -3822,9 +3822,7 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
 #[test]
 fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
-    use pncad::document::{
-        Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError,
-    };
+    use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
     let node = RecipeNodeId(5);
     let name = || ParamName::new("width");
@@ -3865,10 +3863,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "payload",
             "unknown",
-            EditError::PayloadUnknownDocParam {
-                name: name(),
-                node,
-            },
+            EditError::PayloadUnknownDocParam { name: name(), node },
             SnapshotError::PayloadUnknownDocParam { node, name: name() },
         ),
         (

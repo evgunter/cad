@@ -16,7 +16,7 @@ a document parameter, the ADDRESS leads, the FACT trails, and the
 parameter is one noun — `{Slot,Payload}` x
 `{UnknownDocParam,DocParamDimension}`, the same four names at the load
 door. Guarded by
-`display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_name_reports_its_address`
+`display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address`
 and, on the wire, by
 `pncad_py::tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`.
 

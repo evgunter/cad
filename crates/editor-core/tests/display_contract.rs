@@ -1054,7 +1054,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
 /// makes `{Slot,Payload}` a convention rather than four interchangeable
 /// tokens spelled the same at both doors.
 #[test]
-fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_name_reports_its_address() {
+fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address() {
     /// The variant identifier a `Debug` dump opens with, up to the
     /// first byte that cannot be part of one, paired with what the arm
     /// renders. `Debug` carries the name and `Display` carries the
