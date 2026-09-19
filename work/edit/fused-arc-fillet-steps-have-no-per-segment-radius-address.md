@@ -2,7 +2,8 @@
 id: fused-arc-fillet-steps-have-no-per-segment-radius-address
 kind: issue
 title: A fillet arc's radius never reaches the wall it drew: the radius binds on one step and the segments are credited to another
-status: open
+status: spec
+branch: edit/radius-emission-record
 opened: 2026-09-17
 ---
 
@@ -105,3 +106,25 @@ because it is the one shape of this finding nothing pins today.
 Citations accurate at `edit/chain-radius-attach`'s head; the stable
 halves are `radius_arg`, `StepArg::is_radius`, `LoopProgram::step_radii`,
 `ProfileProgram::segment_radii` and `profile::ReplayStructure`.
+
+## Ruled and spec'd (2026-09-19, EDIT orchestrator) — kernel unit, v6 dual, block EDIT-B2 slot 1, branch `edit/radius-emission-record`
+
+**Ruling: the replay record says which segment each radius drew, and
+DM8's map reads it.** `ReplayStructure` gains `radii: Vec<RadiusEmission
+{ step, role: RadiusRole { Fillet, Carrier, Carrier2 }, segment }>`,
+recorded at the moment each arc's bulge is set (a carrier arc at the
+current step; a fillet arc at the BINDER step whose `radius` it is,
+the pending fillet carrying that index) and reported by `into_record`
+as what the pass emitted, exactly as `steps` is. `segment_radii`
+answers every emission through the one permutation `profile_edges_of`
+computes (a per-segment door factored out of it); the "one radius,
+one segment" rule and `radius_arg`'s single-answer role in the attach
+retire; `step_radii` yields every radius role of every step so
+"attached ⊆ keyed" holds by construction and the moved corpus keys are
+measured and listed. DM8's clause sentence is re-worded to the
+records it now reads (a description the code moved). The seams are
+PATHS's (`crates/profile`, the record and its emission sites — not
+persisted) and BLEND's (`path/arc_fillet.rs`), announced with lines.
+The full spec — premises, rows (the arrival-step row this row names
+first), mutants, territory, verification — is `docs/EDIT-RADIUS-SPEC.md`
+on main, deleted at merge and ledgered.
