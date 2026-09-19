@@ -6257,7 +6257,7 @@ mod tests {
     use crate::entity::{Face, Loop, Shell, Solid, Vertex};
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{
-        mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prism, prov,
+        mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
     };
     use crate::seqgen;
 
@@ -6342,7 +6342,7 @@ mod tests {
 
     #[test]
     fn prism_validates_cleanly() {
-        let t = prism(4, Tol::witness());
+        let t = raw_prism(4, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         // v = 2n, e = 3n, f = n + 2: v − e + f = 8 − 12 + 6 = 2.
         assert_eq!(t.body.vertices().count(), 8);
@@ -6365,7 +6365,7 @@ mod tests {
         // that is exactly the next(mate(·)) order. (GWB states its orbit
         // idiom for the mirrored clockwise-loop convention; this test is
         // the transcription guard.)
-        let t = prism(4, Tol::witness());
+        let t = raw_prism(4, Tol::witness());
         let i = 1;
         assert_eq!(
             t.body.vertex_orbit(t.ht[i]),
@@ -6388,7 +6388,7 @@ mod tests {
 
     #[test]
     fn orbit_steps_are_mutual_inverses_and_preserve_start() {
-        let t = prism(3, Tol::witness());
+        let t = raw_prism(3, Tol::witness());
         for (he_key, he) in t.body.half_edges() {
             // cw(he) = next(mate(he)) starts at the same vertex...
             let mate = t.body.mate(he_key).unwrap();
@@ -7599,7 +7599,7 @@ mod tests {
             validate_closed(&ngon_pillow(1, Tol::witness()).body),
             Ok(())
         );
-        assert_eq!(validate_closed(&prism(4, Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&raw_prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
         assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
         assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
@@ -8881,7 +8881,7 @@ mod tests {
 
         #[test]
         fn prisms_validate_cleanly(n in 2usize..=8) {
-            let t = prism(n, Tol::witness());
+            let t = raw_prism(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), 2 * n);

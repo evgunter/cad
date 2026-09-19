@@ -590,3 +590,31 @@ slated for deletion by its own header); and the witness gate is
 **already discharged** — link 2 took `tests/common` to 0
 `Tol::witness()` calls, so only the `#![allow]` remained of this row's
 "two gates at the door".
+
+## 2026-09-18 — the program's own subject, found in the program's own tracker
+
+Noticed while checking whether link 3 was clear to dispatch:
+`work/dup/topo-tests-brick-copies.md` still carried **24** in its
+title, and twice as a live fact inside the very section that corrects
+24 to 23. The row is closed; its closing table is right (23 named, 17
+renamed/inline, 26 let-bound, **66** total); the wrong number was
+sitting in the one field `work/STATUS.md` renders.
+
+That is this program's subject, in this program's own file, written by
+this orchestrator. A number gets corrected where the correction is
+argued and not where it is *used*, because the two are different
+sentences and only the first is what the author is thinking about.
+
+Fixed: title now states the 66/23 split; the two live uses in the
+correction section now say 23. **Deliberately not fixed**: the 24s in
+the original finding and the original option list. Those are the claim
+that was corrected, and the correction quotes them — rewriting them
+would erase what the row is evidence of. The intermediate **34**
+(23 named + 11 renamed, the figure before the reviewer's sweep found
+26 more) is likewise left standing, with a supersession note pointing
+at the closing table, because the progression 23 → 34 → 66 is the
+row's evidence for method item 1.
+
+The rule this hardens, for every row this program closes: **correct the
+number everywhere it is asserted, and leave it everywhere it is
+quoted.** A closed row's title is an assertion.

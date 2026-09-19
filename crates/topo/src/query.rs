@@ -1008,13 +1008,13 @@ mod tests {
     use geom_core::{Tol, UnitVec3Error};
 
     use super::*;
-    use crate::fixtures::{plane_surface, prism};
+    use crate::fixtures::{plane_surface, raw_prism};
 
     /// A prism fixture with one wall re-surfaced as a PLANE, so the
     /// body carries two surface kinds (the fixture's placeholder
     /// Nurbs everywhere else) and circle-certified carriers.
     fn mixed() -> Body<f64> {
-        let mut p = prism(4, Tol::witness()).body;
+        let mut p = raw_prism(4, Tol::witness()).body;
         let face = all_faces(&p)[0];
         let plane = p.add_surface(plane_surface(
             Point3::origin(),

@@ -4811,7 +4811,7 @@ mod tests {
     /// marginal angle to an axis-aligned cube's.
     fn cube_at_turned(at: Vec3<f64>, theta: f64, tol: Tol) -> Body<f64> {
         use geom_brep::EdgeCurveSpec;
-        let mut p = crate::fixtures::prism(4, tol);
+        let mut p = crate::fixtures::raw_prism(4, tol);
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let (c, sn) = (theta.cos(), theta.sin());
         for (i, (x, y)) in corners.into_iter().enumerate() {

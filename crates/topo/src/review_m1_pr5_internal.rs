@@ -274,6 +274,23 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
+    // ---- Test-support fixture builders. Why they are in this
+    // population at all is stated once, on
+    // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
+    // them: each writes only through the asserting operators above. ----
+    (
+        "prism_ops",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
+         arena itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "describe_as_intersections",
+        "rewrites each transverse edge's description through `set_edge_curve` (asserting)",
+    ),
+    (
+        "cube_into",
+        "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
         "begin_surgery",
