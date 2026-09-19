@@ -187,31 +187,55 @@ the folded `plate()`. Run under `CAD_TOLERANCE_EPS=1e-12` with
 | **geometry control**, `block(4.0, 4.0, 0.8)` | `1.1361065349779188e-12` |
 | **arena control**, the same box with its corner list rotated one place | `1.1362773333939659e-12` |
 
-The two controls answer different questions and both are needed.
+Two controls, and the second does **less** than an earlier draft of
+this row claimed. Read the next paragraph before citing it.
 
 - The **geometry** control shows `hi` is not degenerate in the plate:
   change the box and the number moves.
-- The **arena** control is the discriminating one, because the two
-  constructions of this box differ in **curve-arena ordering and in the
-  `(s1, s2)` sense on four rim edges** — not in geometry. Starting the
-  same rectangle's corner list at a different vertex builds the same
-  box with a permuted arena, and `hi` does not move.
+- The **corner-rotation** control perturbs the plate's construction
+  observably — under that rotation
+  `crates/topo/tests/cube_doors_agree.rs`'s
+  `every_box_door_builds_one_body` and
+  `every_door_builds_the_prism_its_inputs_name` both go **red** — and
+  `hi` does not move.
 
-**The arena control is itself live**, which is what stops it being a
-second vacuous row: under that rotation
-`crates/topo/tests/cube_doors_agree.rs`'s two arena-comparison rows
-(`every_box_door_builds_one_body`,
-`every_door_builds_the_prism_its_inputs_name`) go **red**, so the
-permutation is real and observable at arena level.
+### The corner rotation does NOT discriminate, and an earlier draft said it did
 
-**What this does and does not establish.** It establishes that this
-predicate's enclosure width is insensitive to the arena ORDERING of its
-plate operand, on this fixture, at this eps. It does not separately
-control the `(s1, s2)` sense — the rotation permutes the arena but was
-not shown to flip that bit — so the `(s1, s2)` half of the
-constructions' difference is covered only by the head-vs-merge-base row,
-which varies both axes at once and shows the sum of them moving nothing.
-Do not read it as a general result about the two constructions.
+This row claimed the rotation was *"the discriminating control, because
+the two constructions differ in curve-arena ordering and in the
+`(s1, s2)` sense… starting the corner list at a different vertex builds
+the same box with a permuted arena"*. **It reproduces neither axis.**
+Dumped 2026-09-19 for the unit box — per edge, the curve's ordinal in
+the curve arena's own order, and whether
+`s1 == face_surface_of_he(he_plus)`:
+
+| body | senses | edge-order → curve-order |
+| --- | --- | --- |
+| extrude door | `MMMMPPPPPPPP` | `[7, 8, 9, 10, 11, 4, 5, 6, 0, 1, 2, 3]` |
+| extrude door, corners rotated | `MMMMPPPPPPPP` | `[7, 8, 9, 10, 11, 4, 5, 6, 0, 1, 2, 3]` |
+| Euler door (`brick`) | `PPPPPPPPPPPP` | `[11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` |
+| Euler door, corners rotated | `PPPPPPPPPPPP` | `[11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` |
+
+The two doors differ on both axes, reproducing the 2026-09-16
+measurement. **Rotating the corner list changes neither, for either
+door.** Whatever `cube_doors_agree` sees under the rotation is at the
+vertex/point level, not on either axis that separates the
+constructions.
+
+The sense half cannot be reached that way even in principle:
+`topo::test_support::describe_as_intersections` sets
+`s1 = face_surface_of_he(body, edge.he_plus)` **unconditionally**, so
+any body it describes is `P` on every edge whatever the corner order.
+That is a proof about the code, not a measurement.
+
+**So what is established, exactly.** `hi` is not degenerate in the
+plate (geometry control), and the two real constructions feed it
+bit-identically (head against merge base). The constructions' own
+difference is covered by that one row, which varies arena ordering and
+`(s1, s2)` sense together; **no control isolates either axis**, and the
+corner rotation is not one. A future lane wanting per-axis evidence has
+to build a body that differs on one axis alone, which neither door
+offers today.
 
 ### A decline that was wrong, corrected 2026-09-19
 

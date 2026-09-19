@@ -85,8 +85,7 @@ pub(crate) mod certified {
 
     /// The sphere-recut fixture's cutter: the unit [`ball`] at
     /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
-    /// both rows that pin `RECUT_MAPPED_ENCLOSURE_HI` build it from
-    /// here — this one and `review_arceval_r1_probes`'s E2.
+    /// `review_arceval_r1_probes`'s E2 row builds it from here too.
     pub(crate) fn recut_ball() -> Body<Interval> {
         topo::transform_rigid(
             &ball(1.0),
