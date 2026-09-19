@@ -57,8 +57,8 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
+    DocEdit, DocParam, DocRef, DocumentId, EditError, Evaluation, Expr, LoopProgram, Node,
+    ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
     assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
@@ -78,6 +78,7 @@ use crate::history::History;
 use crate::parts;
 use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
+use crate::sketch;
 use crate::tree::{self, TreeRow};
 
 pub mod author;
@@ -1262,6 +1263,7 @@ impl DocSession {
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
             SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
+            SessionOp::EditProfile { node, loops } => self.edit_profile(node, loops),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
@@ -1897,6 +1899,63 @@ impl DocSession {
         })
     }
 
+    /// Write the path editor's program over a committed profile's
+    /// ([`SessionOp::EditProfile`], whose doc carries the rules).
+    fn edit_profile(&mut self, node: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
+        if let Err(refusal) = self.require_kind(node, NodeKindWanted::Profile) {
+            return OpOutcome::refused(refusal);
+        }
+        let doc = self.committed_doc();
+        let Some(Node::Profile(current)) = doc.node(node) else {
+            unreachable!("`require_kind` admitted feature {} as a profile", node.0)
+        };
+        let moved = match sketch::program_edits(current, &loops) {
+            Ok(moved) => moved,
+            Err(why) => return OpOutcome::refused(Refusal::ProfileRestructure { node, why }),
+        };
+        // Nothing moved: nothing to write, and nothing to record.
+        if moved.is_empty() {
+            return OpOutcome::default();
+        }
+        for &(slot, _) in &moved {
+            if let Err(refusal) = guard_driven(doc, node, slot) {
+                return OpOutcome::refused(refusal);
+            }
+        }
+        // The whole program, judged once in the insert door's own
+        // words, before any one-slot write is — so a program that does
+        // not close refuses as itself rather than as whichever slot
+        // write first noticed.
+        let whole = ProfileProgram {
+            plane: current.plane,
+            loops,
+        };
+        if let Err(refusal) = whole.check(&doc.param_env::<f64>(), self.tol) {
+            return OpOutcome::refused(Refusal::Edit(Box::new(EditError::ProfileProgramRefused {
+                node,
+                refusal: Box::new(refusal),
+            })));
+        }
+        let edits = moved
+            .into_iter()
+            .map(|(slot, expr)| {
+                if slot.is_structural() {
+                    DocEdit::SetStructuralParam { node, slot, expr }
+                } else {
+                    DocEdit::SetParam { node, slot, expr }
+                }
+            })
+            .collect();
+        match accepted_order(doc, edits, self.tol) {
+            Ok(edits) => self.commit_action(edits),
+            Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
+            Err(OrderFault::NoOrder(error)) => OpOutcome::refused(Refusal::ProfileEditOrder {
+                node,
+                error: Box::new(error),
+            }),
+        }
+    }
+
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
     fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
@@ -2175,6 +2234,66 @@ impl DocSession {
                 .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
     }
+}
+
+/// **An order the edit door accepts `edits` in, one at a time** —
+/// the one-slot writes of [`SessionOp::EditProfile`], each of which
+/// re-validates the whole profile program at the door.
+///
+/// Passes over the pending writes, applying every one the door takes
+/// and holding back every one it refuses as a PROGRAM refusal
+/// ([`EditError::ProfileProgramRefused`]) for the next pass, until
+/// none is left or a pass takes none. Deterministic: a pass keeps the
+/// writes in slot order. Any other refusal is a fact about the write
+/// itself rather than about the order, and ends the walk at once.
+///
+/// # Errors
+///
+/// [`OrderFault::Refused`] for a refusal the order cannot change;
+/// [`OrderFault::NoOrder`] carrying the last program refusal when a
+/// pass takes nothing.
+fn accepted_order(
+    doc: &Doc<ProfileProgram>,
+    edits: Vec<DocEdit<ProfileProgram>>,
+    tol: Tol,
+) -> Result<Vec<DocEdit<ProfileProgram>>, OrderFault> {
+    let mut produced: Option<Doc<ProfileProgram>> = None;
+    let mut order = Vec::with_capacity(edits.len());
+    let mut pending = edits;
+    while !pending.is_empty() {
+        let before = pending.len();
+        let mut held = Vec::new();
+        let mut last = None;
+        for edit in pending {
+            match apply(produced.as_ref().unwrap_or(doc), &edit, tol) {
+                Ok(applied) => {
+                    produced = Some(applied.doc);
+                    order.push(edit);
+                }
+                Err(error @ EditError::ProfileProgramRefused { .. }) => {
+                    last = Some(error);
+                    held.push(edit);
+                }
+                Err(error) => return Err(OrderFault::Refused(error)),
+            }
+        }
+        if held.len() == before
+            && let Some(error) = last
+        {
+            return Err(OrderFault::NoOrder(error));
+        }
+        pending = held;
+    }
+    Ok(order)
+}
+
+/// Why [`accepted_order`] found no order.
+enum OrderFault {
+    /// A write the door refuses whatever precedes it.
+    Refused(EditError),
+    /// Every write left refuses as a program the rest have not yet
+    /// made valid; the last such refusal.
+    NoOrder(EditError),
 }
 
 /// Whether a document is assembly-shaped, which is what decides

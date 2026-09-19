@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
 
 use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
@@ -33,6 +33,10 @@ impl ViewerBehavior<'_> {
             Selection::None => {
                 ui.weak("select a feature");
             }
+            // A profile is edited in the add-profile form's own editor
+            // (`edit_profile_ui`), not as generic slot rows; the rows
+            // are what a profile the editor cannot hold falls back to.
+            Selection::Node(node) if self.profile_editor_ui(ui, node) => {}
             Selection::Node(node) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() {
@@ -57,7 +61,9 @@ impl ViewerBehavior<'_> {
                 // `Some` on these two arms, and read rather than
                 // re-derived so the rows and the edits land on the
                 // node `slot_groups` answered for.
-                if let Some(feature) = self.session.selection().node() {
+                if let Some(feature) = self.session.selection().node()
+                    && !self.profile_editor_ui(ui, feature)
+                {
                     for group in &groups {
                         self.slot_group_ui(ui, feature, group);
                     }
@@ -133,6 +139,15 @@ impl ViewerBehavior<'_> {
             }
         }
         self.add_param_ui(ui);
+    }
+
+    /// **The profile editor, when `node` is a profile it can hold** —
+    /// `true` when it drew, so the caller's slot rows stand down.
+    fn profile_editor_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) -> bool {
+        matches!(
+            self.session.committed_doc().node(node),
+            Some(Node::Profile(_))
+        ) && self.edit_profile_ui(ui, node)
     }
 
     /// The create half of the document-parameters section: name,

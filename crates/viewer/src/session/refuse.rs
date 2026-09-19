@@ -21,6 +21,7 @@ use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
+use crate::sketch::Restructure;
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -260,6 +261,32 @@ pub enum Refusal {
         /// asked for.
         id: DocumentId,
     },
+    /// The path editor's program does not have the committed
+    /// profile's shape ([`crate::sketch::program_edits`]'s refusal):
+    /// the document's edit vocabulary writes a program's numbers and
+    /// has no door that changes its verbs, arc forms, targets or loop
+    /// count. The editor locks those controls on a committed node;
+    /// this is the door behind them.
+    ProfileRestructure {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Where the shapes differ.
+        why: Restructure,
+    },
+    /// The editor's numbers are a valid profile TOGETHER — the whole
+    /// program was checked before any slot was written — and no order
+    /// of the one-slot writes that reach them keeps every intermediate
+    /// program valid (each write re-validates the whole program, and a
+    /// write the door refuses waits for the others; this is the case
+    /// where waiting stopped helping). The refusal carried is the last
+    /// intermediate state's; what the variant names is the cost of the
+    /// whole-program edit the vocabulary lacks.
+    ProfileEditOrder {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The edit door's refusal of the intermediate state.
+        error: Box<EditError>,
+    },
 }
 
 impl Refusal {
@@ -293,6 +320,8 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision, so it
             // is matched exhaustively rather than defaulted: the
@@ -469,6 +498,16 @@ impl core::fmt::Display for Refusal {
                 f,
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
+            ),
+            Self::ProfileRestructure { node, why } => {
+                write!(f, "feature {} was not edited: {why}", node.0)
+            }
+            Self::ProfileEditOrder { node, error } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but no order of \
+                 one-argument writes reaches them without passing through a state the door \
+                 refuses ({error}); the document has no edit that writes a whole program at once",
+                node.0
             ),
         }
     }

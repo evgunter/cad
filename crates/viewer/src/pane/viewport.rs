@@ -576,7 +576,13 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
-        if let Some(Ok(drawn)) = self.profile_preview {
+        // **Both doors of the one profile editor draw the same way**:
+        // the add-profile form's loops and the loops an edit of a
+        // committed profile holds, each where it would land.
+        let previews = [self.profile_preview, self.edit_preview]
+            .into_iter()
+            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+        for drawn in previews {
             let plane = drawn.plane;
             // The marks are sized in pixels, read at each vertex's own
             // depth — the same door the datum glyphs go through. A
