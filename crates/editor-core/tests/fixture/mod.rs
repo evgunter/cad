@@ -43,8 +43,8 @@ pub mod value_channel;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoopProgram, NameTable, Node, ParamName, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble,
-    evaluate,
+    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    assemble, evaluate,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -520,8 +520,8 @@ pub fn die() -> Die {
             // sketch plane, which IS the cube face's plane).
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
             let decl = r.insert(Node::declare_rest(vec![(
-                cube_face_names[face_idx].clone(),
-                pip_cap,
+                SitedRef::new(acc, cube_face_names[face_idx].clone()),
+                SitedRef::new(tr, pip_cap),
             )]));
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
@@ -799,6 +799,67 @@ pub fn wall(seg: u32) -> RoleSeg {
     })
 }
 
+/// **The four flush families two x-offset blocks share** — the walls
+/// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
+/// caps — in ONE place, so a suite that names them and a suite that
+/// declares them cannot disagree about which four they are.
+pub fn flush_segs() -> [RoleSeg; 4] {
+    [
+        wall(0),
+        wall(2),
+        RoleSeg::Cap(CapEnd::Start),
+        RoleSeg::Cap(CapEnd::End),
+    ]
+}
+
+/// **Those four families as a declared pair list**, each side SITED:
+/// `at` is the operand (or member) the entity is read at, and the
+/// name is the one the extrude `ext` minted, which a pass-through op
+/// carries verbatim (N1).
+pub fn flush_pairs(
+    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
+    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
+) -> Vec<(SitedRef, SitedRef)> {
+    flush_segs()
+        .into_iter()
+        .map(|seg| {
+            (
+                SitedRef::new(a_at, fname(a_ext, seg.clone())),
+                SitedRef::new(b_at, fname(b_ext, seg)),
+            )
+        })
+        .collect()
+}
+
+/// **One ENTITY of one member, in the UNION's own name space** — the
+/// row `member_view` puts into that member's operand table, and the
+/// shape a union's published table carries.
+///
+/// The test-side spelling of the crate's `names::member_name`, which
+/// is crate-private. One home, so a suite that reads a union's table
+/// and a suite that writes an expected row spell the rule once.
+pub fn member_entity(
+    union: RecipeNodeId,
+    member: RecipeNodeId,
+    of: StableName,
+    kind: EntityKind,
+) -> StableName {
+    StableName {
+        kind,
+        node: union,
+        path: vec![RoleSeg::FromMember {
+            member,
+            of: of.into(),
+        }],
+    }
+}
+
+/// The same, for the FACE case every row but a carried-contact one
+/// wants.
+pub fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
+    member_entity(union, member, of, EntityKind::Face)
+}
+
 /// A `Declare` node pairing the flush planes of two axis-aligned
 /// extruded blocks that share their y-range and z-range and differ
 /// along x only (the corpus's standard sliding-overlap shape): walls
@@ -810,19 +871,26 @@ pub fn declare_x_offset_flush(
     a_ext: RecipeNodeId,
     b_ext: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let pairs = vec![
-        (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
-        (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
-        (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Start)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Start)),
-        ),
-        (
-            fname(a_ext, RoleSeg::Cap(CapEnd::End)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::End)),
-        ),
-    ];
-    insert(doc, Node::declare_rest(pairs))
+    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
+}
+
+/// The same, when the consuming boolean's OPERAND is not the extrude
+/// that minted the names — a transform of it, which contributes no
+/// role segment (N1) and so carries the extrude's names verbatim.
+///
+/// The site is the operand, always: it is what says which side of the
+/// boolean the name is read on.
+pub fn declare_x_offset_flush_at(
+    doc: ProfileDoc,
+    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
+    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
+) -> (ProfileDoc, RecipeNodeId) {
+    // Each name is sited at the OPERAND whose table holds it, which
+    // is what says which side of the boolean it is read on.
+    insert(
+        doc,
+        Node::declare_rest(flush_pairs((a_at, a_ext), (b_at, b_ext))),
+    )
 }
 
 /// **What every at-rest finding says about a declaration, in one

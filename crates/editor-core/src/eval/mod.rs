@@ -54,7 +54,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
-use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SitedRef, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -386,7 +386,7 @@ pub enum ValuePayload<T: Decide> {
     /// `declare` input). The class travels WITH its pair from
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((StableName, StableName), ContactClass)>),
+    Declarations(Vec<((SitedRef, SitedRef), ContactClass)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips
@@ -1294,33 +1294,19 @@ pub enum NodeErrorKind {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
-    /// A `Declare` name resolves in BOTH operands' tables (the same
-    /// body value feeding both sides) — the declaration cannot pick a
-    /// side; refused, never guessed.
-    DeclareBothOperands {
-        /// The ambiguous name.
-        name: Box<crate::names::StableName>,
-    },
-    /// A `Declare` pair wired to a [`crate::Node::Union`] names two
-    /// entities that are never the two sides of ONE fold step: an
-    /// entity of the accumulation paired with a member the fold had
-    /// already joined when that entity was minted, two accumulation
-    /// entities with no step left after them, a row this node publishes
-    /// that is the output of a step rather than an input to one (its
-    /// own body), or a face a step consumed — a declared merge
-    /// publishes a `Merged` row in place of the two faces it joins, so
-    /// a later pair naming one of them has no step.
+    /// A declared entity is SITED at a node that is not one of the
+    /// consumer's operands — not a member of the union, nor `a` or
+    /// `b` of the pair boolean.
     ///
-    /// The step a pair is fed at is DERIVED from the member ids its two
-    /// names carry (no fold position is recorded anywhere), so when
-    /// that derivation has no answer the declaration is refused — never
-    /// fed to a step where one of its names does not denote, and never
-    /// dropped. This is the refusal for a name this node DOES denote:
-    /// one it does not denote at all is
-    /// [`Self::DeclareResolve`]'s vanished rung.
-    UnionDeclareStep {
-        /// The pair, as the recipe carries it.
-        pair: Box<(crate::names::StableName, crate::names::StableName)>,
+    /// The site IS the side (DM4), so a site the consumer does not
+    /// have is a declaration the consumer cannot read: there is no
+    /// table to resolve the name in. It is the EVALUATION's refusal
+    /// and not the insert door's, because a `Declare` may exist
+    /// unconsumed and the insert door checks only that the site is a
+    /// live node ([`crate::Node::payload_read_sites`]).
+    DeclareSiteNotAnOperand {
+        /// The site the pair named.
+        at: crate::node::RecipeNodeId,
     },
     /// A `Declare` pair outside the v1 threading vocabulary, which is
     /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
@@ -1367,6 +1353,39 @@ pub enum NodeErrorKind {
     UndeclaredContact {
         /// The candidate declaration, in the detector's value shape.
         finding: Box<crate::names::FlushFinding>,
+        /// **Each side's MERGED constituent set**, when the refusing
+        /// operand row is a face a union's fold merged: the flat set
+        /// (N3) as the member entities it retired, in the union's own
+        /// member order (D9). `finding`'s side for that half is this
+        /// list's FIRST entry, and any other entry declares the SAME
+        /// contact — a declaration resolves to the merged row through
+        /// the fold's look-through — so the choice is deterministic
+        /// rather than meaningful.
+        ///
+        /// Empty on both halves for every other refusal: a pair
+        /// boolean's operands are nodes, so their rows are their own,
+        /// and a union's contact against an unmerged member face is
+        /// that member's.
+        merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
+        /// The refusing predicate's diagnostics, unaltered.
+        diag: Indeterminate,
+    },
+    /// **A union's undeclared contact against a row its own FOLD
+    /// minted** — a fragment of a member's face, the union's body,
+    /// anything the member-keying rule does not collapse to a member's
+    /// entity or to a merge of them.
+    ///
+    /// Such a row does not exist before the union, so no `SitedRef`
+    /// names it (DM4: a declaration names what is live before its
+    /// consumer) and the two-armed menu
+    /// [`NodeErrorKind::UndeclaredContact`] carries has no declare
+    /// arm here. The refusal says so in the type rather than degrading
+    /// to an emission bug, which would blame this crate for a
+    /// document a user wrote.
+    UndeclarableContact {
+        /// The fold-minted row, in the union's PUBLISHED name space —
+        /// the space its other refusals name.
+        row: Box<crate::names::StableName>,
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
@@ -1690,6 +1709,9 @@ pub enum NodeErrorKind {
 struct UndeclaredContactFinding<'a> {
     /// The candidate declaration, in the detector's value shape.
     finding: &'a crate::names::FlushFinding,
+    /// Each side's merged constituent set, empty where the side is a
+    /// row of one node.
+    merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
     /// The refusing predicate's diagnostics.
     diag: &'a Indeterminate,
 }
@@ -1708,7 +1730,7 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         write!(
             f,
             "a face pair of its operands is {} without a shared source or declared \
-             intent; the coincidence ladder reports: {}",
+             intent{}; the coincidence ladder reports: {}",
             match self.finding.evidence.relation {
                 topo::PlaneRelation::SameOpposite =>
                     "coincident with opposed orientations (resting contact)",
@@ -1717,6 +1739,13 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
                 // Never constructed on a finding; rendered honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
+            // A merged side is the one place a caller reading the
+            // pair alone would be misled: the face the contact is
+            // against is a MERGE of member faces, and the pair names
+            // one constituent of it. Which constituent is immaterial
+            // — each declares the same contact — so the prose says
+            // that rather than leaving the pick unexplained.
+            MergedSides(self.merged),
             self.diag.payload()
         )
     }
@@ -1725,6 +1754,67 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         "the refusal carries the candidate declaration (the pair, by stable name, \
          with its relation); declare that finding and wire it into the Boolean's \
          declare input, or move the geometry"
+    }
+}
+
+/// The merged-side clause of an undeclared contact's story: silent
+/// when neither side is a merged row, and otherwise naming the
+/// constituents the fold retired into it.
+struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
+
+impl core::fmt::Display for MergedSides<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
+            let Some((chosen, rest)) = set.split_first() else {
+                continue;
+            };
+            write!(
+                f,
+                " (the {side} face is a merge the fold minted, of {}",
+                chosen.name
+            )?;
+            for r in rest {
+                write!(f, ", {}", r.name)?;
+            }
+            f.write_str(
+                "; the pair names one constituent and any other declares the \
+                         same contact)",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// The finding shape of [`NodeErrorKind::UndeclarableContact`]: the
+/// same refusal, minus the declare arm, because the row it names has
+/// no site to declare it at.
+struct UndeclarableContactFinding<'a> {
+    /// The fold-minted row, in the union's published space.
+    row: &'a crate::names::StableName,
+    /// The refusing predicate's diagnostics.
+    diag: &'a Indeterminate,
+}
+
+impl crate::finding::Finding for UndeclarableContactFinding<'_> {
+    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the union refused a contact against a row its own fold minted")
+    }
+
+    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a member's face rests on {}, which the fold minted and no member carries; \
+             the coincidence ladder reports: {}",
+            self.row,
+            self.diag.payload()
+        )
+    }
+
+    fn recourse(&self) -> &str {
+        "a declaration names entities that exist BEFORE the union (each sited at a \
+         member), and this row exists only inside the fold, so there is no pair to \
+         declare: move the geometry, or reach the row through the member whose \
+         face it was minted from by unioning in two nodes"
     }
 }
 
@@ -1966,20 +2056,12 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
-            // Forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase; the pin
-            // builds its expectation from the impl.
-            Self::DeclareBothOperands { name } => write!(
+            Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "the declared {name} resolves in BOTH operands — the declaration cannot \
-                 pick a side"
-            ),
-            Self::UnionDeclareStep { pair } => write!(
-                f,
-                "the declared pair ({}, {}) names two entities of this union that no single \
-                 fold step has as its two operands — declare the pair at a step that does: \
-                 one member against the accumulation of the members before it in the list",
-                pair.0, pair.1
+                "a declared entity is sited at node {}, which is not an operand of this \
+                 node — site each side at the member (or the boolean operand) whose table \
+                 holds it",
+                at.0
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -1993,8 +2075,20 @@ impl core::fmt::Display for NodeErrorKind {
             // replacement for it: the ladder's own account of what it
             // measured rides the story, exactly as `Escalated` carries
             // the same type.
-            Self::UndeclaredContact { finding, diag } => {
-                crate::finding::compose(f, &UndeclaredContactFinding { finding, diag })
+            Self::UndeclaredContact {
+                finding,
+                merged,
+                diag,
+            } => crate::finding::compose(
+                f,
+                &UndeclaredContactFinding {
+                    finding,
+                    merged,
+                    diag,
+                },
+            ),
+            Self::UndeclarableContact { row, diag } => {
+                crate::finding::compose(f, &UndeclarableContactFinding { row, diag })
             }
             Self::BlendSelectionResolve { verb, error } => {
                 write!(f, "a {verb} selection name failed to resolve: {error}")
@@ -4103,8 +4197,19 @@ where
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
             for ((a, b), class) in pairs {
-                feed_stable_name(&mut h, a);
-                feed_stable_name(&mut h, b);
+                // BOTH halves of each side, as a measure's reference
+                // feeds both: the name says which entity and the SITE
+                // says which operand's table it is read in, so two
+                // declarations differing only in a site declare
+                // contacts between different members. The site is a
+                // node id, which content keys otherwise exclude (D8);
+                // it is fed for the measure's reason — it is RECIPE
+                // PAYLOAD selecting a reading, not a Merkle link to an
+                // input, and this node has no inputs at all.
+                for r in [a, b] {
+                    h.write_u64(r.at.0);
+                    feed_stable_name(&mut h, &r.name);
+                }
                 // The CLASS is part of the node's identity: two
                 // declarations of the same pair under different
                 // classes are different nodes, and a memo keyed

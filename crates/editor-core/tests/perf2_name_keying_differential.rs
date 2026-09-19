@@ -118,13 +118,13 @@ fn sans_epsilon(t: &str) -> String {
 
 /// `(document, both-direction name digest, persisted-text digest)`.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x619c_65cf_1b9f_6647, 0x4de3_566d_10fa_5261),
-    ("corner_table", 0x86cb_184c_3481_9f06, 0x9d0e_4973_f3c6_108d),
+    ("die", 0x619c_65cf_1b9f_6647, 0x5ec7_e231_1e92_3fea),
+    ("corner_table", 0x86cb_184c_3481_9f06, 0xe9cb_f6ed_a496_c5f2),
     ("heat_sink", 0x5080_f5fb_2ada_0b49, 0xf453_ee0e_8341_bbdf),
     (
         "crossing_slots",
         0x6176_811f_4981_a546,
-        0x155b_232b_5fe0_0fe9,
+        0x984a_f936_20d0_676c,
     ),
     (
         "nested_islands_105",
@@ -146,7 +146,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x43f8_d22b_4a06_bef8,
         0xb740_afe6_3ac0_3b9e,
     ),
-    ("kitchen_sink", 0xee5d_6ad7_b931_ff55, 0xd679_ff99_af64_4add),
+    ("kitchen_sink", 0xee5d_6ad7_b931_ff55, 0xa3d3_c0a9_a4df_32a3),
     ("cut_cylinder", 0xe0d5_2931_ec58_c9b1, 0xa4f1_a604_21f6_2494),
     ("measured_web", 0x8f05_d4ee_185c_a667, 0x9620_7fc9_b6fc_5050),
     ("boss_union", 0xd970_c774_1a5d_58dd, 0xf0b7_3067_97fb_9e6a),
@@ -160,7 +160,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ),
     ("die_tool", 0xc99f_2e08_8b24_8498, 0xeef7_257f_438c_2f0d),
     ("face_sketch", 0x200b_b0eb_0e7e_e54e, 0xbd64_499b_ba26_f923),
-    ("part_select", 0x114a_9d82_a993_9e00, 0x5c7c_d17b_9981_28e3),
+    ("part_select", 0x114a_9d82_a993_9e00, 0x2272_c407_a71f_12bc),
     ("loft_prism", 0xc6db_7be2_9eb6_dfc8, 0xe546_02da_c16f_fa75),
     ("die_composed", 0x0ef4_5011_166e_d3bb, 0xd7b4_ab3e_23ae_56ec),
     (
@@ -169,7 +169,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xeb72_eb6d_b988_d8d8,
     ),
     ("plate_param", 0xc650_c981_5207_32b4, 0xcc04_5e8e_2d92_2a98),
-    ("kiss_carry", 0x71d9_43b3_9ed1_9338, 0xf3ee_97eb_9f50_c8bb),
+    ("kiss_carry", 0x71d9_43b3_9ed1_9338, 0x55f1_062f_7b47_35c1),
     ("tube_ring", 0x4fe2_260e_a6e8_0fd3, 0x3285_e0b9_de61_a44c),
     ("tube_arc", 0xd83d_2ab3_aebe_7035, 0x0af4_9808_bde0_8619),
     (
