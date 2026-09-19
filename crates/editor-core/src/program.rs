@@ -2218,7 +2218,7 @@ impl core::error::Error for RecordedProgramError {}
 /// [`StepArg::dimension`] requires**, at the door where the caller
 /// writes it, so a lift can never meet a mismatched pairing. It is
 /// one predicate asked in one place: [`Self::set`] asks
-/// [`UnitSym::checked_for`] — the same predicate `Expr::literal_with_unit`
+/// `UnitSym::checked_for` — the same predicate `Expr::literal_with_unit`
 /// asks, asked here because a notation is written before any literal
 /// exists to refuse it — and [`Self::set_after`] delegates to
 /// [`Self::set`] once it has derived the index, so the two doors
