@@ -793,7 +793,8 @@ pub struct CommittedProfiles {
     /// The profile nodes whose validated value has an arc the
     /// flattener cannot draw ([`PreviewError::Unflattenable`]'s case),
     /// in document order. Drawn not at all rather than with that leg
-    /// missing, for [`flatten`]'s reason.
+    /// missing: a loop drawn without one of its legs is a shape the
+    /// document does not have.
     pub undrawn: Vec<RecipeNodeId>,
 }
 
@@ -1019,7 +1020,7 @@ const MAX_ARC_POINTS: usize = 256;
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`ProfileVertex`](pncad::profile::ProfileVertex)'s
+/// The bulge convention is [`ProfileVertex`]'s
 /// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
