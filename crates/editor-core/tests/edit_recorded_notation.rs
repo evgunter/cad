@@ -768,3 +768,175 @@ fn a_notation_entry_off_the_program_refuses() {
         assert_eq!(refused.to_string(), sentence);
     }
 }
+
+// ------------------------------------------------------------------
+// REVIEW PROBES (lane `notation-rv`, PR 2876) — not the unit's rows.
+// Each probe states the claim it tries to falsify and what it found.
+// ------------------------------------------------------------------
+
+/// PROBE 1 — **the derived index is the lift's index for a FUSED verb,
+/// a BINDER and the closer.** A chain of `arc_fillet_arc` (entry,
+/// fused), `arc_fillet(Radius)` (fused, with its own binders after
+/// it), `at`, `toward`, `line`, `line_to(Start)`: `set_after` written
+/// at each verb, and the lifted document read at every address.
+///
+/// Claim 1 of the review brief. Holds: every verb moved the derived
+/// index by exactly one, and each unit landed on the verb the author
+/// had just written.
+#[test]
+fn probe_the_derived_index_is_the_lift_index_for_fused_binder_and_closer() {
+    use profile::{ArcSide, ArcSweep, Center, Radius};
+    let t = Tol::witness();
+    let mut n = RecordedNotation::new();
+
+    let path = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Center {
+                c: p2(0.0, 7.0),
+                winding: ArcSweep::Cw,
+                p: p2(0.0, 4.0),
+            },
+            t,
+        )
+        .expect("the fused entry");
+    assert_eq!(path.recorded().len(), 1, "a fused verb records ONE step");
+    n.set_after(path.recorded(), StepArg::Radius, quantity::MM.def())
+        .expect("the fused step's fillet radius is a length");
+
+    let path = path
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Right,
+            },
+            0.3,
+            t,
+        )
+        .expect("the mid-chain arc extension");
+    assert_eq!(path.recorded().len(), 2, "and so does the fused extension");
+    n.set_after(path.recorded(), StepArg::Radius, quantity::MM.def())
+        .expect("its fillet radius is a length too");
+
+    let path = path.at(p2(-2.0, 2.0), t).expect("the arrival anchor");
+    assert_eq!(path.recorded().len(), 3);
+    n.set_after(path.recorded(), StepArg::PointX, quantity::MM.def())
+        .expect("a point coordinate is a length");
+
+    let path = path.toward(0.0, -1.0, t).expect("the arrival direction");
+    let path = path.line(1.0, t).expect("a leg");
+    assert_eq!(path.recorded().len(), 5);
+    n.set_after(path.recorded(), StepArg::Length, quantity::MM.def())
+        .expect("a leg length is a length");
+
+    let closed = path.line_to(Start, t).expect("the chain closes");
+    let program = LoopProgram::from_recorded_with_notation(&closed.program, &n)
+        .expect("the mixed chain with its notation lifts");
+    let doc = doc_of(program);
+    assert_eq!(
+        read_back(&doc, 0, StepArg::Radius).1,
+        "mm",
+        "the fused entry"
+    );
+    assert_eq!(read_back(&doc, 1, StepArg::Radius).1, "mm", "the extension");
+    assert_eq!(read_back(&doc, 2, StepArg::PointX).1, "mm", "the anchor");
+    assert_eq!(read_back(&doc, 4, StepArg::Length).1, "mm", "the leg");
+    assert_eq!(
+        read_back(&doc, 3, StepArg::DirX),
+        (0.0, ""),
+        "the direction was written with no notation (a ratio's own row)"
+    );
+    assert_eq!(n.len(), 4, "four writes, four legs, no arithmetic anywhere");
+}
+
+/// PROBE 2 — **a plain `fillet(r)` binder takes its notation through
+/// the derived door**, and the leg after it is a different step.
+///
+/// The spec's premise (1) says "last recorded" after `fillet(r)` is
+/// that binder and the radius is its `StepArg::Radius`. It is.
+#[test]
+fn probe_a_fillet_binder_is_the_last_recorded_step() {
+    use profile::{ArcSide, Sweep};
+    let t = Tol::witness();
+    let mut n = RecordedNotation::new();
+    let path = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, t)
+        .expect("a departure")
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            t,
+        )
+        .expect("an arc leg");
+    let path = path.fillet(0.2, t).expect("a fillet binder");
+    assert_eq!(path.recorded().len(), 4, "at, angle, arc_to, fillet");
+    n.set_after(path.recorded(), StepArg::Radius, quantity::MM.def())
+        .expect("a fillet radius is a length");
+    assert_eq!(
+        n.get(3, StepArg::Radius).map(|u| u.symbol()),
+        Some("mm"),
+        "the binder is step three, and the author counted nothing"
+    );
+    let closed = path
+        .at(p2(4.0, 3.0), t)
+        .expect("the anchor after the fillet")
+        .toward(0.0, 1.0, t)
+        .expect("the departure after it")
+        .line(3.0, t)
+        .expect("a leg")
+        .line_to(Start, t)
+        .expect("the chain closes");
+    let program = LoopProgram::from_recorded_with_notation(&closed.program, &n)
+        .expect("the filleted chain lifts");
+    assert_eq!(read_back(&doc_of(program), 3, StepArg::Radius).1, "mm");
+}
+
+/// PROBE 3 — **the derived door is unavailable exactly where the
+/// count is hardest.** `recorded()` lives on `PartialPath`; the
+/// arrival-builder states a `Radius`/`Via` arrival returns
+/// (`RadiusArrival`, `RadiusArrivalAt`, …) are not `PartialPath`, and
+/// `ClosedLoop` is not one either.
+///
+/// So a caller who has just written the verb whose notation they want
+/// must reach the recording a SECOND way — `ClosedLoop.program`, the
+/// public field — and that is a second spelling of "the recording",
+/// which the suite itself uses (`a_carrier_form_takes_its_notation_at
+/// _step_zero`). This probe pins the asymmetry as behaviour: after
+/// the closer, the only door is the field, and `set_after` over it
+/// addresses the closing step.
+#[test]
+fn probe_after_the_closer_the_recording_is_reached_by_a_second_spelling() {
+    let t = Tol::witness();
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(0.025, 0.0), t)
+        .expect("a leg")
+        .line_to(p2(0.025, 0.025), t)
+        .expect("a leg")
+        .line_to(Start, t)
+        .expect("the chain closes");
+    // No `recorded()` here: `closed` is a `ClosedLoop`, so the door is
+    // the public field, and the index it derives is the CLOSER's.
+    let mut n = RecordedNotation::new();
+    n.set_after(&closed.program, StepArg::TargetX, quantity::MM.def())
+        .expect("mm measures a length");
+    let refused = LoopProgram::from_recorded_with_notation(&closed.program, &n)
+        .expect_err("the closing LineTo(Start) carries no target coordinate");
+    assert_eq!(
+        refused,
+        RecordedProgramError::NotationOffProgram {
+            step: 3,
+            arg: StepArg::TargetX
+        },
+        "the derived index is the closer's own step"
+    );
+}
