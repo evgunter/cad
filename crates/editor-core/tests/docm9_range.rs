@@ -40,7 +40,6 @@ use editor_core::{
     LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
     RecipeNodeId, SlotId, StableName, evaluate,
 };
-use geom_core::Tol;
 
 use fixture::{Recorder, tol};
 
