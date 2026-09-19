@@ -591,6 +591,19 @@ fn nurbs_tighten(
                            image's chord schedule",
                 });
             }
+            // Unreachable by construction, and refused rather than
+            // given a bound: this loop runs only on SPLINE charts, and
+            // a spiric image certifies on a plane or a torus chart and
+            // nowhere else (`geom_brep::SpiricImage`). A cache that
+            // reached here would be a corrupt one, not a frontier.
+            Pcurve::Spiric { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
+                           chart images live on its own cutting plane and its own \
+                           torus, so no spline chart mints one",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)

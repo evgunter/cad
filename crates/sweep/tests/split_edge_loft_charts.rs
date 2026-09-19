@@ -77,6 +77,7 @@ fn kind(p: &Pcurve<f64>) -> &'static str {
         Pcurve::IsoArc { .. } => "IsoArc",
         Pcurve::Fitted(_) => "Fitted",
         Pcurve::General(_) => "General",
+        Pcurve::Spiric { .. } => "Spiric",
     }
 }
 

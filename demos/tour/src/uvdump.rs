@@ -100,6 +100,7 @@ const COLOR_ISOLINE: &str = "#1b7a3d";
 const COLOR_ISOARC: &str = "#6b2fa0";
 const COLOR_FITTED: &str = "#c1590a";
 const COLOR_GENERAL: &str = "#a01c3c";
+const COLOR_SPIRIC: &str = "#1d7a5f";
 
 /// The pcurve form a half-edge's chart image was drawn from.
 ///
@@ -127,6 +128,11 @@ enum Form {
     /// arm without its construction provenance, and the sheet names the
     /// class it drew rather than merging the two.
     General,
+    /// The exact spiric chart image: the cap's `p0 + pm·f + pa·sin t`
+    /// and the wall's `atan2(f, d)` azimuth. Neither is straight in UV
+    /// and neither is a spline, so the sheet draws it under its own
+    /// name — the sample spacing is the carrier's own minor angle.
+    Spiric,
 }
 
 impl Form {
@@ -137,6 +143,7 @@ impl Form {
             Pcurve::IsoArc { .. } => Form::IsoArc,
             Pcurve::Fitted(_) => Form::Fitted,
             Pcurve::General(_) => Form::General,
+            Pcurve::Spiric { .. } => Form::Spiric,
         }
     }
 
@@ -147,6 +154,7 @@ impl Form {
             Form::IsoArc => "isoarc",
             Form::Fitted => "fitted",
             Form::General => "general",
+            Form::Spiric => "spiric",
         }
     }
 
@@ -157,6 +165,7 @@ impl Form {
             Form::IsoArc => COLOR_ISOARC,
             Form::Fitted => COLOR_FITTED,
             Form::General => COLOR_GENERAL,
+            Form::Spiric => COLOR_SPIRIC,
         }
     }
 
@@ -171,6 +180,7 @@ impl Form {
             Form::IsoArc => 2,
             Form::Fitted => 3,
             Form::General => 4,
+            Form::Spiric => 5,
         }
     }
 }

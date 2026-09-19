@@ -528,8 +528,11 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and
 /// `f = √(ρ² − offset²)` — one `sqrt`, fixed order (D9). Shared by the
 /// three evaluators so the radicand is spelled once; each evaluator
-/// takes its one `sin_cos` itself.
-fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
+/// takes its one `sin_cos` itself. Public because the spiric's exact
+/// CHART images are the same `f` in chart coordinates
+/// (`geom_brep::SpiricImage`), and a second spelling of the radicand
+/// is a second place for it to be wrong.
+pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     let rho = major + minor * c;
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }

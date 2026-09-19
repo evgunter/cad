@@ -1893,6 +1893,35 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
             angle,
             breaks: breaks.clone(),
         },
+        // Both spiric images are affine in the chart's SECOND channel
+        // — the cap's `v` coordinate is its constant term's, the
+        // wall's is `v0` — so the shift lands on one field exactly, as
+        // it does on the three arms above. The shift this door
+        // computes is the cone's `d·cot α` and zero on every other
+        // chart kind, so on the two charts a spiric lives on it is
+        // zero; the arm is written for the action, not for the value.
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            ref image,
+        } => Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: match *image {
+                geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
+                    p0: geom_core::Point2::new(p0.x, p0.y + shift),
+                    pm,
+                    pa,
+                },
+                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0: v0 + shift,
+                    sense,
+                },
+            },
+        },
         Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }

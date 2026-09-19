@@ -88,7 +88,7 @@
 use std::collections::HashMap;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeDescription, Pcurve};
+use geom_brep::{EdgeDescription, Pcurve, SpiricImage};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1193,6 +1193,33 @@ impl KeyWriter {
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
+            }
+            Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image,
+            } => {
+                self.u8(5);
+                self.f64(*major);
+                self.f64(*minor);
+                self.f64(*offset);
+                // The image kind is a second tag byte, so the two
+                // chart images of one carrier never key alike.
+                match image {
+                    SpiricImage::Cap { p0, pm, pa } => {
+                        self.u8(0);
+                        self.p2(*p0);
+                        self.v2(*pm);
+                        self.v2(*pa);
+                    }
+                    SpiricImage::Wall { u0, v0, sense } => {
+                        self.u8(1);
+                        self.f64(*u0);
+                        self.f64(*v0);
+                        self.f64(*sense);
+                    }
+                }
             }
         }
     }
