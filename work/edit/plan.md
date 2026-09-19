@@ -116,6 +116,12 @@ posture under §Process.
    `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
    **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
+   Two prose rows filed by waves 10–11 are ruled and **spec'd** as one
+   E-class unit (wave 13, `edit/prose-one-home`):
+   `doc-param-refusals-keep-two-conventions-inside-one-enum` (the
+   convention's scope is a param reference; nothing renamed) and
+   `payload-carrier-lists-have-seven-prose-homes` (two load-bearing
+   homes, five pointers, the eighth match replaced by the door).
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
    E-class this line first guessed: the collapse crossed the persisted

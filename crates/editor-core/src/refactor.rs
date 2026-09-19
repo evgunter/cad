@@ -856,8 +856,16 @@ fn remap_rule(
 /// name-reference payloads — through `map`, for insertion into the
 /// other document. `InstantiatePart` crosses verbatim: its reference
 /// is a document seam, not a local id, and its interface record rides
-/// with it. The match is exhaustive so a future node kind must be
-/// classified here.
+/// with it BECAUSE the [`SplitError::PartNameReachesRemainder`]
+/// precondition has already refused any record whose `outer` names a
+/// kept node: a crossing `outer` is a payload name
+/// ([`crate::Node::payload_names`]), so [`crate::Doc::name_carriers`]
+/// reports it and the precondition sees it. No name of the REMAINDER
+/// reaches the part's space through this arm — the row is
+/// `edit_instance_crossing_names`'s
+/// `a_split_that_takes_an_instance_naming_a_kept_node_is_refused`.
+/// The match is exhaustive so a future node kind must be classified
+/// here.
 ///
 /// # Errors
 ///
