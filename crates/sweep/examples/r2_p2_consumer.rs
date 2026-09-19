@@ -328,6 +328,7 @@ fn main() {
                 geom::Curve3::Line { .. } => "Line",
                 geom::Curve3::Nurbs(_) => "Nurbs",
                 geom::Curve3::Circle { .. } => "Circle",
+                geom::Curve3::Spiric { .. } => "Spiric",
                 _ => "other",
             }
         );

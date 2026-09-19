@@ -27,16 +27,21 @@
 //!   bounded by the moved caps' off-centre sections, has no closed
 //!   form (`props_meridian_great`) — and that wall is pinned with its
 //!   payload below;
-//! - the KLEIN ELBOW (torus wall) now refuses one door deeper than
-//!   its old `TogetherAxialCorner`: its corners solve through the
-//!   carried-datum arm, and the rim EDGE has no carrier — the moved
-//!   cap cuts the torus in a spiric QUARTIC, and the latitude mint
-//!   names the off-axis centre it will not carry. The torus half is
-//!   design-gated (the spec's PR-2 conversation), not implemented.
+//! - the KLEIN ELBOW (torus wall) mints its rims as well: its corners
+//!   through the carried-datum arm, and its rim EDGES through the
+//!   door's one kind-changing mint — the moved cap cuts the torus in a
+//!   spiric, and the rim is minted as the exact `Curve3::Spiric` it
+//!   is. What stands between the elbow and `shell` now is its EQUATOR
+//!   SEAMS: a disc's two profile vertices revolve into
+//!   `RevolvedPoint`-declared chart seams, and the re-author of a
+//!   declaration refuses a corner the moved cap has displaced off the
+//!   family's own sketch plane. The sectioned VESSEL (`spiric_rim`),
+//!   whose torus band has no such seam, hollows to tier 3 and stops at
+//!   the props inventory.
 //!
 //! So the partial revolve's rim was a circle-profile wall's gap at two
-//! doors; the sphere door is built, and the torus door is the spiric
-//! carrier's.
+//! doors, and both carrier doors are built; what stops each hollow
+//! now is named by its own row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -535,32 +540,52 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
         .collect()
 }
 
-/// **The klein elbow's rim now stops one door deeper, and the boundary
-/// is the CARRIER, not the corner.**
+/// **The klein elbow's rim MINTS, and the elbow stops at its equator
+/// seams' re-author** — the row that used to pin the carrier mint's
+/// refusal, flipped, with the old door recorded and the predicted
+/// door named beside the measured one.
 ///
-/// Until VERBS-RIMCAP this row pinned `TogetherAxialCorner { surfaces:
-/// 2, what: "one profile constraint…" }`: the rim vertex meets the
-/// torus wall and ONE meridian cap, and the corner solve had no arm
-/// for a lone profile circle off the axis. The carried-datum arm now
-/// answers that corner — the old corner's profile point moved
-/// concentrically with its circle, the azimuth solved from the moved
-/// cap exactly as the wedge's is — so the corner SOLVES, and the
-/// refusal moves to the rim EDGE's carrier: the old rim is the profile
-/// circle in the cap's plane, centred `R` off the axis, and the
-/// latitude mint's own predicate says so. The payload below is the
-/// measured door at this head.
+/// **The old door, verbatim (measured at the unit's head before the
+/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
+/// circular edge between two charts whose centre is off the axis" } }`
+/// from `offset_axial.rs:mint_carrier`'s distinct-charts circle arm
+/// through `latitude_posture` → `centre_on_axis`, predicate
+/// `offset_axial_centre` — the latitude mint declining a circle
+/// centred `R` off the axis. Before VERBS-RIMCAP it was one door
+/// earlier still, `TogetherAxialCorner { surfaces: 2 }`.
 ///
-/// **What stands between the elbow and a hollow is the torus half's
-/// own boundary, stated rather than glossed**: the moved cap stands
-/// `t` off the axis and parallel to it, and a plane in that posture
-/// cuts a torus in a SPIRIC quartic — sampled below as the oval's own
-/// half-width against its half-height, which a circle would make
-/// equal. `Curve3` has no quartic carrier, so the sphere half's
-/// off-axis-circle mint has no torus sibling to gain here; that half
-/// is design-gated (the VERBS-RIMCAP spec's PR-2 conversation), and
-/// the klein rows stay measured-red until it is funded.
+/// **What answers now.** The moved cap stands `t` off the axis and
+/// parallel to it, and cuts the moved torus in a SPIRIC — sampled
+/// below as the oval's own half-width against its half-height, which
+/// a circle would make equal, and which is why the carrier changes
+/// KIND: the door mints `Curve3::Spiric` from the cap's normal and
+/// stand-off and the moved tube's radii, reads both endpoints back
+/// onto it and meters its midpoint against both moved surfaces (a
+/// mutant that names the other oval refuses there with a gap of
+/// `2√((R + r′cos v)² − d²)`, the two ovals' separation; one that
+/// flips the reach guard refuses at the guard). **Then the EQUATOR
+/// SEAMS refuse.** The disc's two profile vertices revolve into
+/// `Chart`-described, `RevolvedPoint`-DECLARED seams between the two
+/// torus faces, and `restate` re-authors a declaration in its own
+/// sketch plane — but the moved start cap has displaced the seam's
+/// start corner `t` off that plane, so `offset_axial_reauthor_plane`
+/// refuses `TogetherAxialEdge` on the seam. The spec predicted tier
+/// 3's check 7 (the props inventory); the prediction measured the
+/// rims' authority (`Derived`, no re-author) and not the seams'. The
+/// sectioned vessel, whose band has no such seam, does reach check 7
+/// (`spiric_rim::the_sectioned_vessel_stops_at_the_props_door`). The
+/// lune's row next door stands at the props door on its own premise
+/// (`props_meridian_great`).
+///
+/// **The latitude posture's off-axis refusal is no longer reachable
+/// from a public door**: every circle a door builds between two
+/// distinct charts is coaxial (a latitude), or a sphere-wall rim, or
+/// a torus-wall rim — and the last two have their own arms now. The
+/// survey found no fixture; the refusal's reachability is
+/// demonstrated by mutation in the unit's PR (the RIMCAP shape), and
+/// its arm stays as the honest remainder for a hand-built operand.
 #[test]
-fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
+fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
     let elbow = {
         let profile = Profile::new(
@@ -585,18 +610,18 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         .body
     };
     let e = topo::shell(&elbow, 0.05, tol())
-        .expect_err("the elbow's rim circle is a quartic section away from a carrier");
+        .expect_err("the equator seams' declarations cannot be re-authored off their plane");
+    println!("[torax] the elbow's next door: {e}");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
     let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
-        panic!("the rim must refuse at the carrier it cannot mint: {error:?}");
+        panic!("the seam must refuse at its re-author: {error:?}");
     };
     assert_eq!(
-        what, "a circular edge between two charts whose centre is off the axis",
-        "the latitude mint names the off-axis centre"
+        what,
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
     );
-    println!("[torax] the elbow rim, one door deeper: {what}");
 
     // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);

@@ -1415,7 +1415,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
             )?;
             &chain
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } => {
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
             return Err(PcurveCertifyError::UnsupportedCarrier);
         }
     };
@@ -2254,7 +2254,12 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
             b: axis.cross(u_ref) * minor,
             l: Vec3::zero(),
         }),
-        Curve3::Nurbs(_) => None,
+        // A spiric has no `{1, cos, sin, t}` form (its `m` channel is
+        // `√((R + r cos v)² − d²)`), so every chart arm of
+        // [`chart_pcurve`] refuses it here, typed: its exact chart
+        // images are the data-free `Pcurve` variant of the spiric
+        // unit's second PR, which precedes this gate when it lands.
+        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -2611,6 +2616,7 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
+        Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
 
@@ -4708,12 +4714,14 @@ pub fn chart_pcurve<T: Decide>(
                         pl: Vec2::new(beta, T::zero()),
                     })
                 }
-                Curve3::Ellipse { .. } | Curve3::Nurbs(_) => {
+                Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
                     // The tilted-section class: azimuth-non-harmonic
                     // on a cone chart (the section's angle is not the
                     // chart azimuth), and no ring-computable meters
                     // composite exists for the cone (ssi/certify docs)
                     // — neither route is honest, so the class refuses.
+                    // A spiric lies on no cone at all, and
+                    // `carrier_harmonic` has already refused it above.
                     Err(PcurveCertifyError::UnsupportedCarrier)
                 }
             }

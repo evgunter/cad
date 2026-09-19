@@ -348,6 +348,12 @@ pub fn vertex_position<T: Decide>(
 /// tied-name rule (GS-Q4) must measure EVERY candidate of a tie —
 /// which the name-level doors deliberately refuse to do.
 ///
+/// The point is the pose's `origin`, which is the CARRIER's
+/// distinguished point and need not lie on the entity: a spiric edge
+/// answers its torus's centre, `≥ R − r − |offset|` off the curve
+/// (`readback::edge_pose`), exactly as a planar face answers its
+/// plane's origin.
+///
 /// # Errors
 ///
 /// [`InterrogateError::WholeBody`] for a body key; the wrapped

@@ -20,7 +20,10 @@
 use eframe::egui;
 use pncad::document::{Dimension, RecipeNodeId};
 use pncad::geom_core::Point2;
-use pncad::profile::{ArcData, ArcMode, ArcSide, ArcSweep, Step, Target, TargetKind, Verb};
+use pncad::profile::{
+    ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    arc_specs_at,
+};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
@@ -441,6 +444,7 @@ pub(crate) fn target_fields(
     ui: &mut egui::Ui,
     salt: &str,
     unit: UnitDef,
+    admitted: Option<&Admitted<'_, TargetKind>>,
     target: &mut Target<f64>,
 ) {
     let mut kind = target.kind();
@@ -450,7 +454,7 @@ pub(crate) fn target_fields(
         .width(152.0)
         .show_ui(ui, |ui| {
             for &option in TargetKind::ALL {
-                ui.selectable_value(&mut kind, option, target_kind_label(option));
+                offer(ui, admitted, &mut kind, option, target_kind_label(option));
             }
         });
     if kind != before {
@@ -461,6 +465,42 @@ pub(crate) fn target_fields(
     match target {
         Target::Point(point) => point_fields(ui, unit, point),
         Target::Start | Target::StartArriving => {}
+    }
+}
+
+/// **What the lattice takes at a tip**, for one picker: the state (the
+/// words a greyed-out choice is explained with) and the test a choice
+/// has to pass.
+pub(crate) struct Admitted<'a, V> {
+    state: TipState,
+    admits: Box<dyn Fn(V) -> bool + 'a>,
+}
+
+/// One picker choice: offered when the lattice takes it here (or when
+/// nothing is known about the tip), greyed with the tip's state as its
+/// hover text otherwise. The choice ALREADY made stays selectable, so
+/// a spec the tip refuses still shows what it is.
+fn offer<V: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    admitted: Option<&Admitted<'_, V>>,
+    chosen: &mut V,
+    option: V,
+    label: &str,
+) {
+    let refused = admitted.filter(|a| option != *chosen && !(a.admits)(option));
+    let row = ui.add_enabled(
+        refused.is_none(),
+        egui::Button::selectable(*chosen == option, label),
+    );
+    match refused {
+        Some(a) => {
+            row.on_disabled_hover_text(format!(
+                "{label} is not well-typed here — the tip is {}",
+                sketch::tip_state_words(a.state),
+            ));
+        }
+        None if row.clicked() => *chosen = option,
+        None => {}
     }
 }
 
@@ -508,6 +548,7 @@ pub(crate) fn arc_fields(
     role: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
+    at: Option<(TipState, &SpecForms)>,
     spec: &mut ArcData<f64>,
 ) {
     // What to call this arc's own radius. A step can hold TWO arcs and
@@ -520,6 +561,19 @@ pub(crate) fn arc_fields(
     } else {
         format!("{role} r")
     };
+    // What the lattice takes here, when the tip is known: the modes
+    // this spec's dispatcher admits, and the target forms each admits.
+    let modes = at.map(|(state, forms)| Admitted {
+        state,
+        admits: Box::new(move |mode: ArcMode| forms.admits_mode(mode)),
+    });
+    let targets = at.map(|(state, forms)| {
+        let mode = spec.mode();
+        Admitted {
+            state,
+            admits: Box::new(move |kind: TargetKind| forms.admits(mode, Some(kind))),
+        }
+    });
     let mut mode = spec.mode();
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
@@ -527,31 +581,41 @@ pub(crate) fn arc_fields(
         .width(88.0)
         .show_ui(ui, |ui| {
             for &option in ArcMode::ALL {
-                ui.selectable_value(&mut mode, option, arc_mode_label(option));
+                offer(
+                    ui,
+                    modes.as_ref(),
+                    &mut mode,
+                    option,
+                    arc_mode_label(option),
+                );
             }
         });
     if mode != before {
-        *spec = sketch::fresh_arc(mode);
+        *spec = match at {
+            Some((_, forms)) => sketch::fresh_arc_in(mode, forms),
+            None => sketch::fresh_arc(mode),
+        };
     }
+    let targets = targets.as_ref();
     match spec {
         ArcData::Radius { r, side } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
         }
         ArcData::Bulge { target, b } => {
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, salt, length_unit, targets, target);
             named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
         ArcData::Via { q, target } => {
             ui.label("via");
             point_fields(ui, length_unit, q);
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, salt, length_unit, targets, target);
         }
         ArcData::Center { c, winding, target } => {
             ui.label("centre");
             point_fields(ui, length_unit, c);
             winding_picker(ui, salt, winding);
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, salt, length_unit, targets, target);
         }
         ArcData::Sweep { r, side, angle } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
@@ -588,8 +652,13 @@ pub(crate) fn path_step_fields(
     salt: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
+    state: Option<TipState>,
     step: &mut Step<f64>,
 ) {
+    // The forms each of this step's arc specs takes at the tip, in the
+    // step's field order; empty when the tip is not known.
+    let forms = state.map_or(&[][..], |state| arc_specs_at(step.verb(), state));
+    let at = |i: usize| Some((state?, *forms.get(i)?));
     // **Every field says which quantity it is.** The arms below are
     // split further than the step's shapes would need — `line` and
     // `fillet` both carry one Length — because what a number MEANS is
@@ -618,17 +687,17 @@ pub(crate) fn path_step_fields(
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         Step::LineTo(target) | Step::ContinueTo(target) | Step::TangentArcTo(target) => {
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, salt, length_unit, None, target);
         }
-        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), spec),
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
         Step::FilletArc { radius, spec } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
         }
         Step::ArcFillet { spec, radius } => {
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         Step::ArcFilletArc {
@@ -642,6 +711,7 @@ pub(crate) fn path_step_fields(
                 "in arc",
                 length_unit,
                 angle_unit,
+                at(0),
                 spec,
             );
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
@@ -651,6 +721,7 @@ pub(crate) fn path_step_fields(
                 "out arc",
                 length_unit,
                 angle_unit,
+                at(1),
                 spec2,
             );
         }
