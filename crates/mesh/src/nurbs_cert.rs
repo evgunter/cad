@@ -1213,11 +1213,14 @@ impl NurbsCellGrid {
     }
 }
 
-// `pub(crate)`, and only under `cfg(test)`: some of this module's helpers
-// are the doors `nurbs_cert_fuzz`'s rows take, and that sibling module
-// exists so the per-file test gate can skip the randomized rows without
-// skipping the deterministic pins here. Re-declaring the helpers there
-// would be a second copy of a bound this file owns.
+// `pub(crate)`, and only under `cfg(test)`, for two kinds of caller.
+// `nurbs_cert_fuzz`'s rows take the bound doors and the sampler: that
+// sibling module exists so the per-file test gate can skip the randomized
+// rows without skipping the deterministic pins here, and re-declaring the
+// helpers there would be a second copy of a bound this file owns. And
+// every in-crate test module that states a domination takes `Domination`
+// — `chords`' tests as well as the fuzz rows — so its message has one
+// spelling.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod tests {
@@ -1242,14 +1245,17 @@ pub(crate) mod tests {
     use profile::RawLoop;
 
     /// A componentwise domination claim — every `lesser <= greater` — and
-    /// the one spelling of its failure message in this crate.
+    /// the failure message of the rows that state one through it: the
+    /// sampled-second-partial, sampled-speed, cell-under-patch and
+    /// curve `sup|C''|` rows of this crate's unit tests. Rows that bound
+    /// a single deviation by its certificate, or a ratio by one, spell
+    /// their own messages.
     ///
     /// A red on such a row is read by someone who did not write it, and
     /// is decided by the last bits as readily as by a percent. So the
     /// message says which side each number is on, names every component
     /// that escaped together with its excess, and prints each `f64` at
-    /// `{:.17e}` — the fewest digits at which two distinct doubles never
-    /// print alike.
+    /// `{:.17e}`, which no two distinct doubles share.
     ///
     /// The comparison is the bare `<=` and nothing else: a NaN on either
     /// side fails it, and no rounding allowance is made, because what a
@@ -1263,11 +1269,20 @@ pub(crate) mod tests {
     impl<'a> Domination<'a> {
         /// `components` are `(name, lesser, greater)`; `lesser` and
         /// `greater` name the two SIDES, and label every number printed.
+        ///
+        /// # Panics
+        ///
+        /// If `components` is empty: a claim over no components holds
+        /// whatever the code under test does.
         pub(crate) fn new(
             lesser: &'a str,
             greater: &'a str,
             components: &[(&'a str, f64, f64)],
         ) -> Self {
+            assert!(
+                !components.is_empty(),
+                "a domination of {lesser} by {greater} over NO components holds vacuously"
+            );
             Self {
                 lesser,
                 greater,
@@ -1302,11 +1317,19 @@ pub(crate) mod tests {
                 if lo > hi {
                     write!(
                         f,
-                        "`{name}` ESCAPES: {lesser} {lo:.17e} exceeds {greater} {hi:.17e} by \
-                         {:.17e} ({:.3e} of the {greater}); ",
-                        lo - hi,
-                        (lo - hi) / hi
+                        "`{name}` ESCAPES: {lesser} {lo:.17e} exceeds {greater} {hi:.17e} by {:.17e} ",
+                        lo - hi
                     )?;
+                    // An excess relative to a `greater` of zero is `inf`,
+                    // and relative to a negative one it has the wrong sign.
+                    if hi > 0.0 {
+                        write!(f, "({:.3e} of the {greater}); ", (lo - hi) / hi)?;
+                    } else {
+                        write!(
+                            f,
+                            "(the {greater} is not positive, so the excess has no relative figure); "
+                        )?;
+                    }
                 } else if lo.partial_cmp(&hi).is_none() {
                     write!(
                         f,
@@ -1334,9 +1357,10 @@ pub(crate) mod tests {
     }
 
     /// The message is the deliverable, so it is pinned on the case that
-    /// needs it most: an escape of two ULPs in one component of three,
-    /// which prints as three equal pairs at any precision short of 17
-    /// significant digits.
+    /// needs it most: an escape of two ULPs in one component of three.
+    /// At `{:.3e}` all three pairs of this fixture print equal; `uv` and
+    /// `vv` hold with room at the 12th digit, and `uu` differs only at
+    /// the 16th.
     #[test]
     fn a_failed_domination_names_the_component_the_side_and_the_excess() {
         let sampled = (
@@ -1371,11 +1395,58 @@ pub(crate) mod tests {
                 && msg.contains("certified (1.24859234123372431e0, 6.65945472815121153e0, "),
             "both sides are printed in full, labelled: {msg}"
         );
-        // The comparison is the bare `<=`: equality holds, a NaN does not.
-        assert!(Domination::sampled_under_certified(&[("k", 1.0, 1.0)]).holds());
-        let nan = Domination::sampled_under_certified(&[("k", f64::NAN, 1.0)]);
-        assert!(!nan.holds());
-        assert!(nan.to_string().contains("`k` IS UNORDERED"), "{nan}");
+    }
+
+    /// `holds` is the bare `<=`, per component: strictly under holds,
+    /// equal holds, over does not, and a NaN on either side does not.
+    #[test]
+    fn a_domination_holds_exactly_when_every_component_is_le() {
+        let one = |lo: f64, hi: f64| Domination::sampled_under_certified(&[("k", lo, hi)]);
+        assert!(one(1.0, 2.0).holds(), "strictly dominated");
+        assert!(one(1.0, 1.0).holds(), "equal");
+        assert!(!one(2.0, 1.0).holds(), "escaped");
+        assert!(!one(f64::NAN, 1.0).holds() && !one(1.0, f64::NAN).holds());
+        let mixed = Domination::sampled_under_certified(&[("a", 1.0, 2.0), ("b", 2.0, 1.0)]);
+        assert!(!mixed.holds(), "one escaping component fails the claim");
+    }
+
+    /// The excess is relative to the GREATER side, only the escaping
+    /// components are called out, and an unordered pair is reported with
+    /// the same side labels.
+    #[test]
+    fn a_failed_domination_reports_the_excess_relative_to_the_greater_side() {
+        let d = Domination::sampled_under_certified(&[("a", 1.0, 1.0), ("b", 3.0, 2.0)]);
+        let msg = d.to_string();
+        assert!(
+            msg.starts_with(
+                "`b` ESCAPES: sampled 3.00000000000000000e0 exceeds certified \
+                 2.00000000000000000e0 by 1.00000000000000000e0 (5.000e-1 of the certified); "
+            ),
+            "{msg}"
+        );
+        assert!(
+            !msg.contains("`a`"),
+            "an equal component is not an escape: {msg}"
+        );
+
+        let zero = Domination::sampled_under_certified(&[("uu", 1e-300, 0.0)]).to_string();
+        assert!(!zero.contains("inf") && !zero.contains("NaN"), "{zero}");
+        assert!(
+            zero.contains("(the certified is not positive, so the excess has no relative figure)"),
+            "{zero}"
+        );
+
+        let nan = Domination::new("cell", "patch", &[("k", f64::NAN, 1.0)]).to_string();
+        assert!(
+            nan.starts_with("`k` IS UNORDERED: cell NaN against patch 1.00000000000000000e0; "),
+            "{nan}"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "over NO components holds vacuously")]
+    fn a_domination_over_no_components_is_refused() {
+        let _ = Domination::new("sampled", "certified", &[]);
     }
 
     /// A wavy degree-2×3 integral net on [0,1]² (nothing symmetric, so
@@ -1413,20 +1484,20 @@ pub(crate) mod tests {
                 wvv = wvv.max(jet.dvv.norm());
             }
         }
+        let d = Domination::sampled_under_certified(&[("uu", wuu, b.muu)]);
         assert!(
-            wuu > 0.0 && wuu <= b.muu,
-            "sup|S_uu| {wuu} vs hull {}",
-            b.muu
+            wuu > 0.0 && d.holds(),
+            "sampled sup|S_uu| must be positive and under the certified hull: {d}"
         );
+        let d = Domination::sampled_under_certified(&[("uv", wuv, b.muv)]);
         assert!(
-            wuv > 0.0 && wuv <= b.muv,
-            "sup|S_uv| {wuv} vs hull {}",
-            b.muv
+            wuv > 0.0 && d.holds(),
+            "sampled sup|S_uv| must be positive and under the certified hull: {d}"
         );
+        let d = Domination::sampled_under_certified(&[("vv", wvv, b.mvv)]);
         assert!(
-            wvv > 0.0 && wvv <= b.mvv,
-            "sup|S_vv| {wvv} vs hull {}",
-            b.mvv
+            wvv > 0.0 && d.holds(),
+            "sampled sup|S_vv| must be positive and under the certified hull: {d}"
         );
     }
 
@@ -1475,7 +1546,7 @@ pub(crate) mod tests {
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
             b.muu < 1e-100 && b.muv < 1e-12 && b.mvv < 1e-100,
-            "a flat bilinear quad's certified (uu, uv, vv) is not dust: \
+            "integral dust escaped its derivation: certified (uu, uv, vv) \
              ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-100, 1e-12, 1e-100)",
             b.muu,
             b.muv,
@@ -2171,6 +2242,23 @@ pub(crate) mod tests {
         panic!("the pie loft minted no rational wall — the fixture stopped exercising M8-5");
     }
 
+    /// The z1 lattice rows' closing claim: over every triangle sampled at
+    /// this `delta`, the largest sampled-deviation / certificate ratio is
+    /// at most one.
+    ///
+    /// Monotone the easy way — the ratio only shrinks as the certificate
+    /// grows, so a LOOSE bound passes this by a wider margin than a tight
+    /// one. **A ceiling with no floor**, which is a known and unfixed gap
+    /// at every row of this shape.
+    #[track_caller]
+    fn assert_no_sample_exceeded_its_certificate(name: &str, delta: f64, worst_ratio: f64) {
+        assert!(
+            worst_ratio <= 1.0,
+            "{name} delta={delta:e}: a triangle's samples exceeded its certificate — worst \
+             sampled-deviation / certificate = {worst_ratio:.17e}"
+        );
+    }
+
     /// The #218 per-triangle falsifier, pointed at the RATIONAL arm
     /// (M8-5): the z1 driver's 12-deep barycentric lattice (91
     /// samples/triangle), run on the real pie wall and the two
@@ -2266,16 +2354,7 @@ pub(crate) mod tests {
                 println!(
                     "{name} delta={delta:.0e}: grid {nu}x{nv} tris={tris} max d/cert={worst_ratio:.4}"
                 );
-                // Monotone the easy way — `worst_ratio` only shrinks
-                // as the certificate grows, so a LOOSE bound passes
-                // this by a wider margin than a tight one. **A ceiling
-                // with no floor**, which is a known and unfixed gap
-                // here and at two more rows of the same shape.
-                assert!(
-                    worst_ratio <= 1.0,
-                    "{name} delta={delta:e}: a triangle's samples exceeded its certificate — \
-                     worst sampled-deviation / certificate = {worst_ratio:.17e}"
-                );
+                assert_no_sample_exceeded_its_certificate(name, delta, worst_ratio);
             }
         }
     }
@@ -2337,7 +2416,8 @@ pub(crate) mod tests {
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
             b.muu < 1e-100 && b.muv < 1e-11 && b.mvv < 1e-100,
-            "rational dust escaped its derivation: ({}, {}, {})",
+            "rational dust escaped its derivation: certified (uu, uv, vv) \
+             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-100, 1e-11, 1e-100)",
             b.muu,
             b.muv,
             b.mvv
@@ -2653,14 +2733,7 @@ pub(crate) mod tests {
                 }
             }
             println!("r1_extreme delta={delta:.0e}: tris={tris} max d/cert={worst_ratio:.4}");
-            // As above: one-sided, and a loose bound passes it more
-            // easily than a tight one — the same ceiling-with-no-floor
-            // gap.
-            assert!(
-                worst_ratio <= 1.0,
-                "r1_extreme delta={delta:e}: a sample exceeded its own certificate — worst \
-                 sampled-deviation / certificate = {worst_ratio:.17e}"
-            );
+            assert_no_sample_exceeded_its_certificate("r1_extreme", delta, worst_ratio);
         }
     }
 

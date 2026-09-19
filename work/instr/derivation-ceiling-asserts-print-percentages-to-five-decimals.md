@@ -1,7 +1,7 @@
 ---
-id: derivation-ceiling-asserts-print-percent-at-five-places
+id: derivation-ceiling-asserts-print-percentages-to-five-decimals
 kind: issue
-title: tess-meter derivations.rs: bare <= ceilings print both sides as {:.4}%/{:.5}%, so a last-bit red prints two equal percentages
+title: tess-meter derivations.rs: bare <= ceilings print both sides as percentages to 4-5 decimal places, which cannot show a last-bit red
 status: open
 opened: 2026-09-18
 ---
@@ -31,7 +31,9 @@ change landing a figure ON its ceiling. The cost of the repair is one format
 spec per row (`{:.17e}` beside the percentage, which is worth keeping for the
 reader), which is why it is filed rather than argued.
 
-Blind spot of the sweep that found these: see
-`work/tint/enclosure-asserts-print-too-few-digits-to-show-a-last-bit-red.md`,
-"What the sweep could not see" — in particular, outside `crates/mesh` only
-asserts carrying an explicit sub-17-digit format spec were read.
+"Five decimals" is the format spec (`{:.4}%` / `{:.5}%`), not a site count:
+three asserts are named above.
+
+The sweep that found these read only one class of assert outside
+`crates/mesh`; the unread remainder and the extraction's blind spot are
+`work/tint/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`.

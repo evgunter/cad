@@ -1,7 +1,7 @@
 ---
 id: enclosure-asserts-print-too-few-digits-to-show-a-last-bit-red
 kind: issue
-title: geom-brep enclosure/chord-ceiling asserts print at .15e/.6e/.0e, so a red decided by the last bits prints as a pass
+title: geom-brep enclosure and chord-ceiling asserts print fewer than 17 digits and do not name the failing end, so a last-bit red shows no usable margin
 status: open
 opened: 2026-09-18
 ---
@@ -14,8 +14,12 @@ Found by the TESS lane that made `crates/mesh`'s domination asserts legible
 fence. The shape: an assert whose condition is a **bare** ordering comparison
 between a certified quantity and a sampled/oracle truth — so it can go red by
 one ULP — and whose message prints the two sides at fewer than 17 significant
-digits. When it fires at the last bits the message shows the two sides EQUAL,
-and the reader has to reproduce by hand to learn anything. That is what cost
+digits. What that hides depends on the spec: `{:.6e}` / `{:.0e}` print a
+last-bit red as two EQUAL numbers; `{:.15e}` is 16 significant digits, which
+shows a 2-ULP gap at magnitude ~1 as a one-digit difference in the last
+place and shows a 1-ULP gap, or a 2-ULP gap at magnitude >= 5, not at all —
+and in every case the reader cannot read off the margin, and is not told
+which end failed, without reproducing by hand. That is what cost
 `work/tess/nurbs-face-bound-unsound-on-a-random-rational.md` two weeks (its
 "CORRECTION" section): a `{:.3e}` message on a 2-ULP red.
 
@@ -34,18 +38,12 @@ spelling is `nurbs_cert::tests::Domination`; it is crate-private test support,
 so a second crate wanting it is the argument for a home in
 `crates/test-utils` beside `tightness::Sup` (whose `Display` is already
 lossless and labelled, but is single-component and must reach `within`).
+That home is asked for in
+`work/tint/two-domination-helpers-with-opposite-operand-orders.md`.
 
-## What the sweep could not see
+## The rest of the sweep is its own row
 
-The pattern was: `assert!`/`debug_assert!` whose first argument contains an
-ordering operator, classified by whether the message carries a `{…:.N}` /
-`{…:.Ne}` spec with N < 17. Outside `crates/mesh` only that low-precision
-class was read (48 hits workspace-wide, of which the rows above are the ones
-that are bare bound-vs-truth comparisons; the rest are `rel < 1e-12`-style
-tolerance checks where 16 digits resolve the tolerance). **Not read outside
-`crates/mesh`:** the 457 message-less ordering asserts and the 2129 with a
-message and no precision spec — an unlabelled pair of lossless tuples is in
-that second class and the pattern cannot tell it from a labelled one. Also
-invisible everywhere: `assert_eq!`-family rows, `if … { panic!(…) }`,
-comparisons through `partial_cmp`/`total_cmp`/a helper's return value, and
-messages assembled by `format!` into a variable first.
+These are the hits of the one class that was READ outside `crates/mesh`.
+The unread remainder, and what the extraction cannot see at all, is
+`work/tint/ordering-asserts-outside-mesh-unswept-for-illegible-domination-messages.md`
+— closing this row does not discharge it.
