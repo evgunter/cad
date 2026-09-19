@@ -3118,6 +3118,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::NodeFailed": "HitTestError.variant",
     "HitTestError::NodePoisoned": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
+    "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",

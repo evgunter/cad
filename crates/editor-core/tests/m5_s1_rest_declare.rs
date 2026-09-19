@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, ValuePayload, evaluate, load, save,
+    RoleSeg, SitedRef, ValuePayload, evaluate, load, save,
 };
 use fixture::{fname, insert, len, on_frame, wall};
 use geom_core::Tol;
@@ -54,13 +54,25 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     // sides the output stage merges).
     let pairs = vec![
         (
-            fname(a, RoleSeg::Cap(CapEnd::End)),
-            fname(b, RoleSeg::Cap(CapEnd::Start)),
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
         ),
-        (fname(a, wall(0)), fname(b, wall(0))),
-        (fname(a, wall(1)), fname(b, wall(1))),
-        (fname(a, wall(2)), fname(b, wall(2))),
-        (fname(a, wall(3)), fname(b, wall(3))),
+        (
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(b, fname(b, wall(0))),
+        ),
+        (
+            SitedRef::new(a, fname(a, wall(1))),
+            SitedRef::new(b, fname(b, wall(1))),
+        ),
+        (
+            SitedRef::new(a, fname(a, wall(2))),
+            SitedRef::new(b, fname(b, wall(2))),
+        ),
+        (
+            SitedRef::new(a, fname(a, wall(3))),
+            SitedRef::new(b, fname(b, wall(3))),
+        ),
     ];
     let (doc, decl) = insert(doc, Node::declare_rest(pairs));
     let (doc, u) = insert(

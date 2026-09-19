@@ -164,8 +164,9 @@ fn a_cylindrical_cosurface_pair_is_a_finding_at_both_seats() {
     for f in &names {
         assert_eq!(f.class, ContactClass::Rest);
         assert_eq!(f.evidence.relation, PlaneRelation::SameOpposite, "{f:?}");
-        assert_eq!(f.pair.0.node, peg);
-        assert_eq!(f.pair.1.node, block);
+        assert_eq!(f.pair.0.name.node, peg);
+        assert_eq!(f.pair.1.name.node, block);
+        assert_eq!((f.pair.0.at, f.pair.1.at), (peg, block));
     }
 }
 

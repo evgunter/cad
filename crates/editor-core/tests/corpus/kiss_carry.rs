@@ -33,7 +33,7 @@
 
 use editor_core::{
     BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SlotId, StableName,
+    SitedRef, SlotId, StableName,
 };
 
 use crate::fixture;
@@ -107,7 +107,13 @@ pub fn document() -> CorpusDoc {
     // and the record survives into the second union's contacts.
     let kiss_a = vname(u1, RoleSeg::FromA(cap_vertex(a, CapEnd::End, 2).into()));
     let kiss_b = vname(u1, RoleSeg::FromB(cap_vertex(b, CapEnd::Start, 0).into()));
-    let decl = r.insert(Node::declare_rest(vec![(kiss_a, kiss_b)]));
+    // Both names are rows of `u1`'s table — the same-operand
+    // carried pair — so both are sited there, which is what says
+    // they are operand A's carry and not a cross-operand contact.
+    let decl = r.insert(Node::declare_rest(vec![(
+        SitedRef::new(u1, kiss_a),
+        SitedRef::new(u1, kiss_b),
+    )]));
     let u2 = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: u1,
