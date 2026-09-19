@@ -962,3 +962,75 @@ the first pass found one and re-buried the other. All four are now named
 with their reasons so the bucket cannot swallow a third.
 **A bucket disposition is where a census loses things** — not the
 threshold, which is where everyone looks.
+
+## 2026-09-19 — the walk unit, and a baseline this orchestrator propagated without measuring
+
+PR #2857 (`Body::face_of_half_edge`, `topo/src` folded onto it) came
+back green on the full matrix. The lane **refused two parts of the
+row's plan on measurement**, and both refusals were right:
+
+- **"`Result` spellings as thin wrappers over the `Option` door" holds
+  only where the error variant is entity-agnostic.**
+  `splitting/join.rs`'s `he_face` raises `corrupt_he(he)` at hop 1 and
+  `corrupt_loop(l)` at hop 2; an `Option` door refuses with `None` and
+  can name neither. **The lane folded it anyway, as a planted mutation,
+  and all 727 `topo` lib tests stayed green** — the "changes a verdict
+  while everything stays green" defect, demonstrated live rather than
+  argued. Three guards now red on it. `editor-core`'s `emit.rs` has the
+  same shape and no census in the row had reached it.
+- **The `.surface` hop does not belong on the door**: 10 of 73 sites
+  carry it in the same statement, and `topo/src` carries it at **1 of
+  17** — that one wanting the `Face`, not the surface key.
+
+**A fourth instrument shape, and it is the compiler.** The lane put
+`#[deprecated]` on `HalfEdge::parent_loop` and `Loop::face` and paired
+the warning spans over `cargo check --workspace --all-targets`.
+Deprecation *warns* rather than erroring, so the build does not stop at
+`topo` and the whole dependent graph is read: **103 files / 145 sites**
+against the row's regex at 56/73, including two buckets the row's table
+had no row for. The regex is a floor and the probe a ceiling. **The
+compiler is a census instrument, and it reads what no regex can** —
+this program's fifth instrument shape and the first that is not a
+pattern over text.
+
+Its own method note is worth keeping: rustc attributes a chained field
+read's span to the *start* of the expression, so `.face` can be
+reported on an earlier line than `parent_loop`, and forward-only
+pairing missed nine files the regex had. An instrument has a reading
+convention, and getting that wrong undercounts exactly like a bad
+regex.
+
+### The baseline was mine, and it was wrong
+
+I briefed the lane with baselines **3195 / 1356 / 1296**. It measured
+at its own merge base instead of taking them, and reported them stale.
+**It was right**: `cargo nextest run -p topo -p sweep -p stl
+-p step-export -p mesh` on `origin/main` gives **3209 passed, 14
+skipped**, measured here, twice. The branch gives 3212 — exactly the
+lane's three guards.
+
+Where 3195 came from is **unexplained, and I am not going to invent an
+account of it**. `3195 + 14 = 3209` is suggestive and it is not
+evidence. One hypothesis was testable and is **refuted**: reverting
+`crates/mesh/Cargo.toml`'s `topo = { features = ["test-support"] }` dev
+edge — added by PR #2843, and exactly the feature-unification hazard
+`sweep`'s manifest comment warns about — leaves the count at 3209
+either way, so that edge did not move the population.
+`memories/review-and-dependency-policy.md` says it directly: *"Never
+enshrine a causal story you have not checked."*
+
+**What this orchestrator did wrong is simpler than the mystery.** The
+3195 was a lane's self-reported figure. I verified its *delta* — one
+`#[test]` added, none removed, by diff — and then carried the
+*absolute* into the next brief as fact. **A delta can be right while
+the baseline under it is wrong**, and checking the delta feels like
+checking the number. Every number a lane reports is a claim; the ones
+that get propagated into the next brief are the ones that need
+measuring, and a diff check does not measure a total.
+
+So the running tally of stale-number shapes gains a fifth: a title, a
+live use inside its own correction, an intermediate figure left
+standing, a constant recording a measurement — and now **a baseline
+inherited from a report and re-issued as an instruction.** The first
+four rotted in place. This one was propagated by the person whose job
+is to catch that.
