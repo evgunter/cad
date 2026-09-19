@@ -4509,6 +4509,50 @@ budget; the reviewers dispatch together after the box's reboot of
 2026-09-15, concurrently with the spiric dual (four reviewer lanes on
 one width-1 build slot — slot waits fall on all four alike).
 
+## TRIM-2 PR-2 review ordinal fixed at dispatch (2026-09-19)
+
+TRIM-2 PR-2 (`work/trim/general-pcurve-face-props-and-tess-refuse.md`,
+PR #2863 open — frozen head `f46673cd6`, merge base `7c9260bf6`):
+**ordinal 2504** (TRIM band). Pre-draw fields at the spec
+(`docs/TRIM-2-SPEC.md` §6) and on the block branch: difficulty **S**,
+task-class **NUMERIC**; implementer arm per block TRIM-B2 slot 1
+(record branch-side on `trim/b1-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **185**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `f46673cd6`, both briefs authored and STORED with sha256 before
+either dispatches (fa7c9ac8214aea7a… r1 / d261a436bb2e4803… r2 — identical text modulo
+lane names, verified by diff; template fa28ae7a58816c56…), neither reviewer
+sees the other's report, v6 item 5 isolation in both briefs, PRIVATE
+`CARGO_TARGET_DIR` per reviewer (fresh for both); the implementer's
+unit log entry is not written until the dual concludes. Method note
+applying to BOTH arms equally: four reviewer lanes (this dual and
+CURVED-SPIRIC PR-1b's) share the width-1 build slot — slot waits fall
+on all four alike; the seam owner (TESS) acknowledged the seam before
+dispatch and is paused at its usage limit (Ev, in-chat) — no further
+word from TESS is expected or waited on.
+
+## CURVED-SPIRIC PR-1b review ordinal fixed at dispatch (2026-09-19)
+
+CURVED-SPIRIC PR-1b (`work/curved/spiric-rim-carrier.md`, PR #2861
+open — frozen head `b0afaf200`, merge base `814aa85b4`): **ordinal
+2205** (CURVED band). Pre-draw fields on the block branch at dispatch:
+difficulty **M**, task-class **STRUCTURAL**; implementer arm per block
+CURVED-B2 slot 2 (record branch-side on `curved/b1-block`). Protocol
+v6 dual: draw = `/dev/urandom` byte **240**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `b0afaf200`, both briefs authored and STORED with
+sha256 before either dispatches (e583ca03e6c24e05… r1 / 3ed785722db6aaf5… r2 —
+identical text modulo lane names, verified by diff; template
+12c95fd185ff61cd…), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer
+(fresh for both); the implementer's unit log entry is not written
+until the dual concludes. Method note applying to BOTH arms equally:
+the implementer arm filed a finding against the ratified §5 STEP
+certificate (second-order where a cubic is fourth-order) — the dual
+checks it, the orchestrator rules after; four reviewer lanes share the
+build slot (above). Instrument note applied: no orchestrator text on
+either PR names the slot's arm.
+
 ## Block TRIM-B1 — CONCLUDED record (folded from `trim/b1-block` at the last slot's merge, per the branch-side shape; 2026-09-15)
 
 ## TRIM program rows (work/trim/; band 2500–2599; blocks named TRIM-B<n>)
