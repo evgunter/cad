@@ -1307,7 +1307,6 @@ them a family nobody had looked at, and two sit in `work/*/plan.md` —
 one in a program's **exit criteria**. A source header states a rule
 where a lane *may* read it; a plan states it where a lane *must*.
 
-<<<<<<< HEAD
 ## 2026-09-19 — the sweep brick: every premise the row was parked on was false
 
 PR #2877 merged green on the full matrix. `sweep::test_support::brick`,
@@ -1382,7 +1381,7 @@ was the self-census that caught it rather than the writing.
 Residue filed: seven private extruded-box builders the structural
 needle found outside the door, on S-DUP's slate with the reason it is
 one row rather than four.
-=======
+
 ## 2026-09-19 — F6's third spelling folded; the strengthening is a null result, the mutation is not
 
 `f6-display-predicate-is-spelled-three-times-with-no-home` closed, the
@@ -1443,67 +1442,30 @@ One call site and a measurement is thinner than a unit, and the unit
 said so rather than dressing it up. What earned it its own PR is the
 census: the row's stated population was wrong in both directions, and
 the two rows filed out of it are each larger than the fold was.
->>>>>>> origin/main
 
-## 2026-09-19 — F6: a null result worth having, and a census wrong in both directions
+**Three things the orchestrator would add**, rather than a second
+entry about one PR — this log is the program's narrative and two
+accounts of one unit is the defect the program exists to close.
 
-PR #2880 merged green on the full matrix, closing this program's
-**oldest** row (filed 2026-09-06). The fold itself is one call site.
-Everything of value is around it.
-
-**The strengthening is a null result, and the lane proved the probe
-live before trusting it.** Converting `panel_edits.rs` to the shared
-`assert_f6` replaces a per-arm ban with the enum's whole roster, which
-is strictly stronger. Nothing red: 626 passed either side. Then two
-plants:
-
-- a sibling identifier in `Refusal::NoSuchParam`'s `Display` is
-  **green under the old form and red under the new** — same tree, same
-  mutation, opposite verdicts;
-- a twenty-fourth `Refusal` arm reds the census macro with `E0004`, so
-  the ban list is **rustc's**, not a hand-kept mirror.
-
-A null result with a live probe behind it is evidence. Without one it
-is a dead test that happens to pass, which is the shape this program
-has now found three times.
-
-**The row's census was wrong in BOTH directions**, which is the yield:
-
-- the two copies it called "out of scope" were **already folded**, four
-  days before the brief was written. Inheriting that count would have
-  sent a lane to convert two converted files.
-- two members it never named are live, and both are the shapes this
-  program keeps meeting: `viewer/tests/error_display.rs` spells the
-  brace `" { "`, so the obvious `contains('{')` walks past it — **29
-  call sites**; and `quantity/src/tests.rs` transcribes `assert_f6`'s
-  whole body, **panic wording included**, inline mid-file in a `src/`
-  unit-test module, where no sweep over `tests/` paths or over
-  `assert_f6`/`dumps` reaches it.
-
-**A census over a class can be stale in the closed direction too.** The
-program has repeatedly found counts too low; this is the first time a
-row's population was too HIGH because other programs had done the work.
-A count is a claim about a date, both ways.
-
-**The denominator argument, stated well.** The lane picked the
-punctuation atom as its terminal — `{` is the one clause `assert_f6`
-bans unconditionally, so every full copy contains it — and then said
-plainly that the alternative terminal, a variant identifier, is
-**unbounded and so cannot be enumerated**. It enumerated the brace in
-every spelling it could construct and **stated the one blind spot it
-could not close** rather than publishing past it. That is method item 7
-applied with its limits named, which is what separates it from a
-confident grep.
-
-**X4 fired on the lane's own doc comment**: it had written *"a
-twenty-fourth arm stops this file compiling"* — a number with nothing
-holding it, two paragraphs below where the same PR deletes exactly that
-trap (an `18 arms` claim that had drifted to 23). Removed rather than
-corrected to `24`, which is the right call: the `match` the macro
-writes is what holds the roster complete.
-
-**And it answered the sizing question honestly.** Asked whether the
-unit was too thin, it said yes — one call site, a null strengthening, a
-doc comment — and named the bundle: S-TINT's `error_display.rs` row,
-same defect, same crate. A lane that will say "this was not worth a PR
-slot" is worth more than one that pads.
+- **A census can be stale in the CLOSED direction too.** This program
+  has found counts too low seven times running. This is the first time
+  a row's population was too HIGH, because other programs had already
+  done part of the work. **A count is a claim about a date, in both
+  directions**, and a row that has sat for thirteen days has had
+  thirteen days for the tree to move under it either way.
+- **The denominator argument was made with its limits named.** The
+  brace is the terminal atom because `assert_f6` bans it
+  unconditionally, so every full copy carries it; the alternative
+  terminal — a variant identifier — is **unbounded and therefore not
+  enumerable**, which is why it could not be the denominator. The lane
+  then stated the one blind spot it could not close rather than
+  publishing past it. That distinction, between a blind spot disclosed
+  and a blind spot closed, is what method item 8 asks for and it is
+  rarely this cleanly done.
+- **X4 fired on the lane's own doc comment.** It had written *"a
+  twenty-fourth arm stops this file compiling"* — a number with
+  nothing holding it — two paragraphs below where the same PR deletes
+  a stale *"`Refusal` has 18 arms"* (it has 23). It removed the number
+  rather than writing `24` in its place, which is the correct repair:
+  the `match` the macro writes is what holds the roster complete, and
+  a doc comment carries an invariant, not a measurement (item 13).
