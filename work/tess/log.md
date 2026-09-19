@@ -47,9 +47,13 @@ ratified (`docs/DOC-LEDGER.md` sweep 16), so the opening stands.
    premise-first), and S28 last — it is the largest and every other row
    moves the code it would unify.
 
-**Plan rot noted, not yet edited.** `plan.md` says the Track R rows
-"land per §D's conventions" and the exit shape wants them "empty in §D";
-the register §D belonged to left the tree on 2026-09-11
-(`work/README.md`, sweep 11). What the clause can mean now is that the
-seven rows are closed in `work/tess/`. Edited when the plan is next
-touched for cause.
+**Review tiers (Ev, in-chat, 2026-09-18).** TESS takes EDIT's tiers:
+full v6 dual on a kernel unit; style review plus a correctness arm, no
+row, for an easy-but-not-trivial unit; green CI and the orchestrator's
+read for a rename or prose row. Written into `plan.md` §Process.
+
+**Plan rot fixed.** `plan.md` said the Track R rows "land per §D's
+conventions" and wanted them "empty in §D" at exit; the register §D
+belonged to left the tree on 2026-09-11 (`work/README.md`, sweep 11) and
+Ev did not recognise the reference. The clauses now say what they can
+mean: the seven rows are closed in `work/tess/`.
