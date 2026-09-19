@@ -2320,7 +2320,7 @@ fn r1_a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
             },
         },
         ProgramStep::Toward {
-            dx: fixture::scl(-1.0 * s),
+            dx: fixture::scl(-s),
             dy: fixture::scl(0.0),
         },
     ]);
