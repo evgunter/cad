@@ -140,11 +140,23 @@ other side.** Re-taken on this head before any code, at
 `UnsupportedCurve` at `chords.rs::nurbs_tighten`'s `General` arm with
 the note this file quotes, identical at all three, and the oracle prism
 answered `Ok` with 143 360 positions / 6 patches. After the two arms
-the degree-2 body answers `Ok` with 108 416 positions / 6 patches at
-all three ε, and `validate::check_mesh` passes on it — row E2,
+the degree-2 body answers `Ok` at all three ε and
+`validate::check_mesh` passes on it — row E2,
 `sweep/tests/m8_4_intersection_iso.rs::a_degree_two_widening_tessellates_against_the_oracle`.
 `trimmed.rs`'s `General` arm, which the trace recorded as real but not
 reached, is reached now.
+
+**What the counts say, attributed per patch** (the fix pass's headline
+correction; the first version of this note explained the whole-mesh
+difference by the widened chart's grid density, which execution
+refutes). The `General`-faced wall's patch is the oracle wall's patch
+EXACTLY — same triangle count, same distinct-id count — and the seam's
+chord schedule is the same on both bodies. The whole-mesh difference
+is one substitution: the P-2 route restates a flat wall as the
+`Surface::Plane` it exactly is, so that wall takes the planar CDT lane
+where the oracle's takes the described-NURBS lane, and that accounts
+for every position of it. E2 asserts the per-patch equality and the
+deficit identity; it carries no band.
 
 E2 is a **schedule-and-watertightness** row, not a curvature one: this
 fixture's `General` image runs `u ∈ [2 − 2.2e-16, 2]`
@@ -154,3 +166,8 @@ curvature evidence for the new sup is the unit row
 
 `Fitted` keeps both refusals (spec §8 ruling 3): no producer, and a
 flipped arm with no row is a claim.
+
+The residue this PR leaves behind is filed:
+`work/trim/chord-count-arithmetic-is-plain-f64-across-every-speed-arm.md`
+(TESS's, the count arithmetic's rounding direction across every speed
+arm, with the domination-idiom propagation note).

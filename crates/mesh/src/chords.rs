@@ -28,11 +28,12 @@
 //!   closed-form sub-arc rate for the arc rim, the amplitude sum for
 //!   the harmonic form, and for the `General` spline image the hull of
 //!   its own differenced control net (`general_uv_speeds`, a convexity
-//!   fact rather than a closed form) — so each adjacent NURBS face
-//!   adds n ≥ ⌈s_u·Δt/h_u⌉ and ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a
-//!   straight wall edge is one 3-D chord but many UV steps). A
-//!   `Fitted` image has no certified speed bound here and refuses
-//!   typed (the trimmed lane's module docs name its consumer).
+//!   fact rather than a closed form, and a SUP the image need not
+//!   attain) — so each adjacent NURBS face adds n ≥ ⌈s_u·Δt/h_u⌉ and
+//!   ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a straight wall edge is one
+//!   3-D chord but many UV steps). A `Fitted` image has no certified
+//!   speed bound here and refuses typed (the trimmed lane's module
+//!   docs name its consumer).
 //!
 //! An adjacent surface reaches a chord count only through
 //! [`adjacent_surface`], and the two tightenings above are its two
@@ -56,7 +57,7 @@ use std::collections::HashMap;
 use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
+use geom_core::spline::{KnotVector, SplineCoeffs};
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
@@ -155,7 +156,7 @@ pub(crate) fn compute_chords(
         // Adjacent-NURBS tightening (module docs), on every carrier
         // kind — a straight wall edge is one 3-D chord but many UV
         // steps of the wall's certificate budget.
-        let n = nurbs_tighten(body, ek, span, delta_s, bounds, n)?;
+        let n = nurbs_tighten(body, ek, (t0, t1), delta_s, bounds, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -270,15 +271,16 @@ fn nurbs_chord_count(
                            materialise — outside the certified chord inventory",
                 });
             };
-            let q2 = kv1.difference_coeffs(&q1);
-            let mut hull = RingInterval::poison();
-            for (k, q) in q2.iter().enumerate() {
-                hull = if k == 0 {
-                    *q
-                } else {
-                    RingInterval::hull(hull, *q)
-                };
-            }
+            // The hull of the SECOND-difference net, through the
+            // geom-core door rather than a fold spelled here: the
+            // second difference is the first difference of `q1`
+            // against the derivative vector `kv1`, which is exactly
+            // what `derivative_domain_hull` answers. A length the
+            // mint refuses arrives as poison, as `difference_coeffs`
+            // would have delivered it.
+            let hull = kv1
+                .with_coeffs(&q1)
+                .map_or_else(RingInterval::poison, SplineCoeffs::derivative_domain_hull);
             sum_sq = sum_sq + hull.sqr();
         }
         sum_sq.hi().sqrt().next_up()
@@ -504,11 +506,13 @@ fn rational_carrier_m_bound(
 fn nurbs_tighten(
     body: &Body<f64>,
     ek: EdgeKey,
-    span: f64,
+    params: (f64, f64),
     delta_s: f64,
     bounds: &mut FaceBounds,
     mut n: usize,
 ) -> Result<usize, TessellateError> {
+    let (t0, t1) = params;
+    let span = t1 - t0;
     let edge = body
         .get_edge(ek)
         .ok_or(TessellateError::MissingEntity { what: "edge" })?;
@@ -587,7 +591,7 @@ fn nurbs_tighten(
             // the same KIND of fact as its two siblings — a hull over
             // the image's own differenced control net
             // ([`general_uv_speeds`]).
-            Pcurve::General(image) => general_uv_speeds(image, ek)?,
+            Pcurve::General(image) => general_uv_speeds(image, params, ek)?,
         };
         n = n
             .max(ceil_count(su * span, hu)?)
@@ -605,61 +609,78 @@ fn nurbs_tighten(
 ///
 /// **The fact.** For `P(t) = Σ_j N_{j,p}(t)·P_j` on a clamped vector,
 /// the derivative is again a spline — `P′(t) = Σ_j N_{j,p−1}(t)·Q_j`
-/// with `Q_j = p·(P_{j+1} − P_j)/(u_{j+p+1} − u_{j+1})`
-/// ([`geom_core::spline::SplineCoeffs::derivative_coeffs`], reached
-/// here through [`KnotVector::difference_coeffs`] exactly as the
-/// carrier arm [`nurbs_chord_count`] reaches it) — and the
-/// `N_{j,p−1}` are a nonnegative partition of unity, so every value
-/// of `u′` is a convex combination of the `Q^u_j` and lies in their
-/// hull. `max_j |Q^u_j|` is therefore a certified `sup|u′|`, with no
-/// evaluation and no sampling, and likewise in `v`.
+/// with `Q_j = p·(P_{j+1} − P_j)/(u_{j+p+1} − u_{j+1})` — and the
+/// `N_{j,p−1}` are a nonnegative partition of unity, so every value of
+/// `u′` is a convex combination of the `Q^u_j` and lies in their hull.
+/// `max_j |Q^u_j|` is therefore a certified `sup|u′|`, with no
+/// evaluation and no sampling, and likewise in `v`. Both the
+/// differencing and the hull are
+/// [`SplineCoeffs::derivative_domain_hull`]'s, not respelled here.
 ///
-/// The sup is over the image's WHOLE domain rather than the
-/// half-edge's `[t₀, t₁]`. That dominates the sub-range's sup, so the
-/// count it sizes is conservative in the only direction that matters;
-/// and at every mint on this head the image's domain IS the carrier's
-/// interval, so the two coincide.
+/// **The bound is a SUP, not an attained maximum.** It is attained
+/// exactly when the winning coefficient's basis function reaches 1
+/// somewhere — at a clamped end, or at an interior knot of a
+/// degree-`p` image whose derivative basis is degree `p − 1`. On an
+/// interior coefficient a higher-degree basis never fully activates,
+/// and the bound is then a genuine over-estimate (the row
+/// `general_uv_speeds_dominate_the_sampled_image_speeds` carries one
+/// leg of each kind, with the measured slack).
 ///
-/// **Unit weights only.** The hull licence above is the POLYNOMIAL
-/// one: a rational image's derivative is a quotient whose coefficients
-/// are not the differenced net, and no mint produces a rational
-/// `General` image, so it refuses typed rather than being bounded by a
-/// formula nothing exercises.
+/// **The parameter range.** The hull is over the image's WHOLE knot
+/// domain, and the caller's `[t₀, t₁]` must lie inside it — which is
+/// what this function checks, because `eval`/`deriv` extrapolate the
+/// end span's polynomial past the domain and no hull of the net bounds
+/// that. At every mint on this head the two coincide (the image is
+/// built on the carrier's own parameter), so the check is a premise
+/// made explicit rather than a live refusal; a proper sub-range is
+/// admitted and strictly over-bounded, which is sound in the only
+/// direction that matters. A per-span reading for a genuine sub-range
+/// producer is the sibling `rational_carrier_m_bound`'s shape.
 ///
-/// A degree-0 image (a step function, no derivative to bound) and one
-/// whose interior multiplicity exceeds its degree (a jump, where
-/// `|ΔP| ≤ sup|P′|·Δt` is false across the break) refuse typed too:
-/// the count formula bounds a UV step by the speed times the
-/// parameter step, which needs the image continuous.
+/// **Constant weights only.** The hull licence above is the
+/// POLYNOMIAL one. A constant weight vector cancels out of the
+/// rational basis (`R_j = N_j·c / Σ_k N_k·c = N_j`), so such an image
+/// IS its polynomial wrap and the differenced control net is exactly
+/// its derivative net; a genuinely varying weight vector's derivative
+/// is a quotient whose coefficients are not that net, and refuses
+/// typed. Asking "constant" rather than "every weight is 1" is
+/// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s fix
+/// shape, which names this file.
+///
+/// **What this function does NOT check, because the type already
+/// does.** A degree-0 image and an interior multiplicity above the
+/// degree are both refused by [`KnotVector::clamped`] at construction,
+/// so no image carrying either can reach here. Multiplicity `= p` — a
+/// C⁰ kink — IS constructible and IS admitted: the bound is a
+/// Lipschitz statement, which C⁰ suffices for.
 fn general_uv_speeds(
     image: &geom::NurbsCurve2<f64>,
+    params: (f64, f64),
     ek: EdgeKey,
 ) -> Result<(f64, f64), TessellateError> {
-    if image.weights().iter().any(|w| *w != 1.0) {
+    let weights = image.weights();
+    let w0 = weights.first().copied().unwrap_or(f64::NAN);
+    // `!(w0 > 0.0)` catches NaN; the positivity is the convex-
+    // combination licence the constant has to carry with it.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    if !(w0 > 0.0) || !w0.is_finite() || weights.iter().any(|w| *w != w0) {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \
                    the certified UV speed here is the polynomial net's difference hull, \
-                   and a quotient's derivative is not that net; no mint produces a \
-                   rational chart image of this class",
+                   and a varying weight vector's derivative is not that net; no mint \
+                   produces a rational chart image of this class",
         });
     }
     let kv = image.knots();
-    let p = kv.degree();
-    if p == 0 {
+    let (d0, d1) = kv.domain();
+    let (t0, t1) = params;
+    if !(t0 >= d0 && t1 <= d1) {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
-            note: "NURBS-face half-edge carries a degree-0 general curve-in-UV pcurve — \
-                   a step function whose UV steps no speed bound can size",
-        });
-    }
-    if kv.interior_knots().any(|(_, m)| m > p) {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "NURBS-face half-edge carries a general curve-in-UV pcurve with a \
-                   discontinuous interior knot (multiplicity > degree) — the chord \
-                   schedule bounds a UV step by speed times parameter step, which a \
-                   jump breaks",
+            note: "a general curve-in-UV pcurve read outside its own knot domain — the \
+                   control-net hull bounds the image's speed on its domain and says \
+                   nothing about the end span's polynomial extended past it",
         });
     }
     let mut speeds = [f64::NAN; 2];
@@ -669,20 +690,14 @@ fn general_uv_speeds(
             .iter()
             .map(|pt| RingInterval::point(if axis == 0 { pt.x } else { pt.y }))
             .collect();
-        let q = kv.difference_coeffs(&coeffs);
-        let mut hull = RingInterval::poison();
-        for (k, c) in q.iter().enumerate() {
-            hull = if k == 0 {
-                *c
-            } else {
-                RingInterval::hull(hull, *c)
-            };
-        }
-        // `mag` is NaN on poison — a refused mint (a coefficient array
-        // that is not `control_count()` long) arrives here as a
-        // one-entry poison vector and leaves as the refusal below,
+        // `mag` is NaN on poison — a coefficient array the mint
+        // refuses arrives as poison and leaves as the refusal below,
         // never as a finite bound.
-        *s = hull.mag().next_up();
+        *s = kv
+            .with_coeffs(&coeffs)
+            .map_or_else(RingInterval::poison, SplineCoeffs::derivative_domain_hull)
+            .mag()
+            .next_up();
     }
     let [su, sv] = speeds;
     if !su.is_finite() || !sv.is_finite() {
@@ -792,21 +807,53 @@ mod tests {
         geom::NurbsCurve2::new(kv, pts, vec![1.0; n as usize]).unwrap()
     }
 
-    /// A degree-3 chart image with an off-grid interior knot — the
-    /// shape `#264`'s banked-edge work raises the producer to, where
-    /// the hull bound is a genuine over-estimate and the row's job is
-    /// to prove it is an over-estimate and not an under-one.
-    fn cubic_image() -> geom::NurbsCurve2<f64> {
+    /// A degree-3 chart image whose per-axis derivative-net maximum
+    /// sits on an INTERIOR coefficient (`Q_1^u = 3.0` against
+    /// `Q_0 = Q_2 = Q_3 = 1.2`): a degree-2 derivative basis peaks at
+    /// ½ and never reaches 1, so the hull bound is a genuine
+    /// over-estimate — `sup|u′|` sampled ≈ 2.4 against a certified 3.0.
+    ///
+    /// This is the leg that exercises what convexity is FOR. A bound
+    /// taken over only the end coefficients is wrong here and right on
+    /// the other two legs, which is exactly the degradation a
+    /// domination row has to be able to see.
+    ///
+    /// Adopted from the review lane's interior-maximum probe.
+    fn interior_max_cubic() -> geom::NurbsCurve2<f64> {
         let kv =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.37, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         let pts = vec![
-            Point2::new(1.0, 0.0),
-            Point2::new(1.2, 0.55),
-            Point2::new(1.9, -0.3),
-            Point2::new(1.4, 0.8),
-            Point2::new(2.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(0.2, 0.0),
+            Point2::new(1.2, 0.5),
+            Point2::new(1.6, 1.0),
+            Point2::new(1.8, 1.0),
         ];
         geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap()
+    }
+
+    /// A degree-2 image whose maximum is attained ONLY at its interior
+    /// knot: the derivative basis is degree 1, whose Greville
+    /// abscissae ARE the knots, so `Q_1` is reached exactly at
+    /// `t = ½` and nowhere else. `Q_1^u = 2·(0.9 − 0.1)/(1 − 0) = 1.6`
+    /// against `Q_0^u = Q_2^u = 0.4`.
+    ///
+    /// Two things ride on this leg: the bound is ATTAINED (so the
+    /// two-sided pin applies), and it is attained at a point a uniform
+    /// sampling grid can miss — which is what makes
+    /// [`sampled_uv_speeds`]' both-sides-of-every-interior-knot
+    /// augmentation load-bearing rather than decorative.
+    ///
+    /// Adopted from the review lane's interior-knot probe.
+    fn interior_knot_quadratic() -> geom::NurbsCurve2<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = vec![
+            Point2::new(0.0, 0.0),
+            Point2::new(0.1, 0.3),
+            Point2::new(0.9, 0.4),
+            Point2::new(1.0, 0.7),
+        ];
+        geom::NurbsCurve2::new(kv, pts, vec![1.0; 4]).unwrap()
     }
 
     /// The densest honest reading of the image's per-axis UV speeds:
@@ -814,7 +861,9 @@ mod tests {
     /// domain, plus both sides of every interior knot (a degree-1
     /// image's speed is piecewise constant and its extremes sit on the
     /// spans, which a grid that lands ON a break would read as the
-    /// one-sided value the evaluator happens to pick).
+    /// one-sided value the evaluator happens to pick;
+    /// [`interior_knot_quadratic`] is the leg that makes this an
+    /// assertion rather than a precaution).
     fn sampled_uv_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
         let (d0, d1) = c.knots().domain();
         let span = d1 - d0;
@@ -837,7 +886,8 @@ mod tests {
         (su, sv)
     }
 
-    /// **DOMINATION — the `General` arm's certified sup is a sup.**
+    /// **DOMINATION — the `General` arm's certified sup is a sup, and
+    /// on the legs where it is attained it is not padded.**
     ///
     /// [`general_uv_speeds`] answers a convexity fact about the
     /// differenced control net; this row answers the same question by
@@ -848,24 +898,41 @@ mod tests {
     /// produce a mesh — so this is the row that can, and it prints
     /// both sides at full precision so a near miss is readable.
     ///
-    /// Two-sided on the degree-1 image, where the hull is the sup
-    /// exactly: a rewrite that pads the bound is a defect there too.
+    /// **Three legs, and which is which** (the reason a single fixture
+    /// will not do):
+    ///
+    /// | leg | where the max sits | attained? |
+    /// | --- | --- | --- |
+    /// | [`polyline_image`] — degree 1, the head's minted shape | an END coefficient | yes, exactly |
+    /// | [`interior_knot_quadratic`] — degree 2 | an INTERIOR coefficient, at the interior knot | yes, exactly, at one point |
+    /// | [`interior_max_cubic`] — degree 3 | an INTERIOR coefficient, mid-span | no — `sup` ≈ 2.4 against a certified 3.0 |
+    ///
+    /// The two-sided pin runs on the first two. A bound folded over
+    /// only the end coefficients passes the first leg unchanged and
+    /// fails the other two, which is what the middle column is for; a
+    /// bound scaled down anywhere fails all three.
     #[test]
     fn general_uv_speeds_dominate_the_sampled_image_speeds() {
-        for (name, image, tight) in [
+        for (name, image, attained) in [
             (
-                "degree-1 polyline (the head's minted shape)",
+                "degree-1 polyline, max at an end coefficient (the head's minted shape)",
                 polyline_image(),
                 true,
             ),
             (
-                "degree-3 wiggle with an off-grid knot",
-                cubic_image(),
+                "degree-2, max at an interior coefficient attained at the interior knot",
+                interior_knot_quadratic(),
+                true,
+            ),
+            (
+                "degree-3, max at an interior coefficient the basis never fully activates",
+                interior_max_cubic(),
                 false,
             ),
         ] {
-            let (su, sv) = general_uv_speeds(&image, EdgeKey::default())
-                .expect("a unit-weight polynomial image is in the certified inventory");
+            let (d0, d1) = image.knots().domain();
+            let (su, sv) = general_uv_speeds(&image, (d0, d1), EdgeKey::default())
+                .expect("a constant-weight polynomial image is in the certified inventory");
             let (wu, wv) = sampled_uv_speeds(&image, 4096);
             println!(
                 "DOMINATION {name}: certified s_u {su:.17e} vs sampled {wu:.17e}; \
@@ -886,23 +953,154 @@ mod tests {
                 "{name}: the certified sup|v'| {sv:.17e} is DOMINATED BY a sampled \
                  speed {wv:.17e} — the chord schedule would under-count"
             );
-            if tight {
-                // A degree-1 image's speed on span j is exactly
-                // |Q_j|, so the hull max IS ATTAINED and the two
-                // sides may differ only by the outward rounding each
-                // takes — the ring's difference quotient and its
-                // `next_up` on one side, the evaluator's basis pass on
-                // the other. `1e-14` relative is ~45 ulps at this
-                // magnitude, measured at ~6e-16; a rewrite that pads
-                // the bound by so much as 1e-13 of it reds here.
+            if attained {
+                // Where the winning coefficient's basis function
+                // reaches 1, the hull max IS the sup and the two sides
+                // may differ only by each side's outward rounding —
+                // the ring's difference quotient and its `next_up` on
+                // one side, the evaluator's basis pass on the other.
+                // `1e-14` relative is ~45 ulps at these magnitudes,
+                // measured at ~6e-16; a rewrite that pads the bound by
+                // so much as 1e-13 of it reds here.
                 assert!(
                     su <= wu * (1.0 + 1e-14) && sv <= wv * (1.0 + 1e-14),
-                    "{name}: the degree-1 bound is ATTAINED, so a certified \
+                    "{name}: this bound is ATTAINED, so a certified \
                      s = ({su:.17e}, {sv:.17e}) this far above the sampled \
                      ({wu:.17e}, {wv:.17e}) is slack this arm must not carry"
                 );
+            } else {
+                // The converse claim, so the table above is a
+                // measurement and not a belief: on this leg the bound
+                // is STRICTLY loose, by more than 20%. An arm that
+                // became exact here would be a different mechanism and
+                // owes a new argument.
+                assert!(
+                    su > wu * 1.2,
+                    "{name}: the u bound is meant to be convexity-LOOSE here — \
+                     certified {su:.17e} against sampled {wu:.17e}"
+                );
             }
         }
+    }
+
+    /// **The rational refusal is live and load-bearing.** A constant
+    /// weight vector cancels out of the rational basis, so a
+    /// constant-`2.0` image IS its polynomial wrap and answers
+    /// identically to the unit-weight one; a VARYING weight vector's
+    /// derivative is a quotient whose coefficients are not the
+    /// differenced net, and refuses typed.
+    ///
+    /// The constancy half is
+    /// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s
+    /// own fix shape, which names this file.
+    #[test]
+    fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
+        let base = interior_max_cubic();
+        let (d0, d1) = base.knots().domain();
+        let plain = general_uv_speeds(&base, (d0, d1), EdgeKey::default()).unwrap();
+
+        let two = geom::NurbsCurve2::new(
+            base.knots().clone(),
+            base.control().to_vec(),
+            vec![2.0; base.control().len()],
+        )
+        .unwrap();
+        let constant = general_uv_speeds(&two, (d0, d1), EdgeKey::default())
+            .expect("a constant weight vector is the polynomial wrap");
+        assert_eq!(
+            plain, constant,
+            "constant weights cancel: the same curve must answer the same sup"
+        );
+
+        let mut w = vec![1.0; base.control().len()];
+        w[2] = 0.5;
+        let varying =
+            geom::NurbsCurve2::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        let err = general_uv_speeds(&varying, (d0, d1), EdgeKey::default())
+            .expect_err("a varying weight vector has no certified net here");
+        assert!(
+            matches!(&err, TessellateError::UnsupportedCurve { note, .. }
+                     if note.contains("RATIONAL")),
+            "the refusal names its own class: {err:?}"
+        );
+    }
+
+    /// **A C⁰ kink is admitted; the type refuses what this arm does
+    /// not.** Interior multiplicity `= p` is constructible and the
+    /// Lipschitz bound holds across it. Degree 0 and multiplicity
+    /// `p + 1` are refused by [`KnotVector::clamped`] itself, so the
+    /// arm carries no guard for either — this row is why those two
+    /// sentences in its doc are a measurement.
+    #[test]
+    fn the_knot_vector_type_refuses_what_the_speed_arm_does_not_guard() {
+        assert!(KnotVector::clamped(vec![0.0, 1.0], 0).is_err(), "degree 0");
+        assert!(
+            KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0],
+                2
+            )
+            .is_err(),
+            "interior multiplicity p + 1"
+        );
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let pts = vec![
+            Point2::new(0.0, 0.0),
+            Point2::new(0.3, 0.1),
+            Point2::new(0.5, 0.9),
+            Point2::new(0.7, 0.2),
+            Point2::new(1.0, 1.0),
+        ];
+        let image = geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap();
+        let (su, sv) = general_uv_speeds(&image, (0.0, 1.0), EdgeKey::default())
+            .expect("multiplicity = p is a C0 kink, which a Lipschitz bound survives");
+        let (wu, wv) = sampled_uv_speeds(&image, 4096);
+        println!(
+            "C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})"
+        );
+        assert!(wu > 0.0 && wv > 0.0 && wu <= su && wv <= sv);
+    }
+
+    /// **The domain premise is checked, not assumed.** The hull bounds
+    /// the image on its own knot domain; past the domain `deriv`
+    /// extends the end span's polynomial and the hull says nothing.
+    /// A half-edge interval reaching outside refuses typed; a proper
+    /// sub-range is admitted and strictly over-bounded.
+    #[test]
+    fn a_read_outside_the_images_domain_refuses_and_a_subrange_is_over_bounded() {
+        let image = interior_max_cubic();
+        let (d0, d1) = image.knots().domain();
+        let err = general_uv_speeds(&image, (d0, d1 + 0.25), EdgeKey::default())
+            .expect_err("past the domain there is no certified bound");
+        assert!(
+            matches!(&err, TessellateError::UnsupportedCurve { note, .. }
+                     if note.contains("outside its own knot domain")),
+            "{err:?}"
+        );
+        let whole = general_uv_speeds(&image, (d0, d1), EdgeKey::default()).unwrap();
+        let part = general_uv_speeds(&image, (d0, d1 * 0.5), EdgeKey::default()).unwrap();
+        assert_eq!(
+            whole, part,
+            "the bound is the whole domain's whatever sub-range is asked for — \
+             conservative, and the premise the doc states"
+        );
+    }
+
+    /// **The count formula, from a hand-built sup.** The arm's answer
+    /// feeds `n ≥ ⌈s·Δt/h⌉` and nothing else rows that step, so a
+    /// `ceil` quietly become a `floor` (or an off-by-one in the step
+    /// division) would be caught only by another suite's goldens.
+    ///
+    /// The numbers are chosen so `ceil` and `floor` DISAGREE: `s·Δt/h`
+    /// is `2.5` and `3.0` respectively, never an integer by accident.
+    #[test]
+    fn the_chord_count_is_the_ceiling_of_the_speed_times_the_span_over_the_step() {
+        // s = 5, Δt = 0.5, h = 1 → 2.5 → 3 chords.
+        assert_eq!(ceil_count(5.0 * 0.5, 1.0), Ok(3));
+        // exactly on the boundary: 3.0 → 3, not 4.
+        assert_eq!(ceil_count(6.0 * 0.5, 1.0), Ok(3));
+        // a sup below one step still buys one chord, never zero.
+        assert_eq!(ceil_count(1e-9 * 0.5, 1.0), Ok(1));
     }
 
     fn wiggle() -> NurbsCurve3<f64> {
