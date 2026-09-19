@@ -1306,3 +1306,78 @@ Six are structurally invisible to any grep for the sentence, four of
 them a family nobody had looked at, and two sit in `work/*/plan.md` —
 one in a program's **exit criteria**. A source header states a rule
 where a lane *may* read it; a plan states it where a lane *must*.
+
+## 2026-09-19 — the sweep brick: every premise the row was parked on was false
+
+PR #2877 merged green on the full matrix. `sweep::test_support::brick`,
+`block` and `cube` are now `topo::test_support::brick` — **one
+construction of the axis-aligned box in the tree**, which is what the
+brick unit set out to do on 2026-09-16 and could not reach until the
+home existed.
+
+This row had sat on three stated blockers. **All three dissolved under
+measurement, and none of them had ever been run.**
+
+**§3 — "the delegation re-authors the committed `.step` corpus."** It
+moves nothing: all 17 files byte-identical before and after. And the
+probe was **live** — mutating the delegation by `+0.001` on the mapped
+z moves 5 of the 17. A zero-diff from a probe that never executed is
+the failure this guards against, and the lane ran the mutation to
+prove its instrument worked before trusting its null result.
+
+**§1 — "at least one call site passes a genuinely `T`-typed value."**
+Type-directed census across three lanes: **not one does.** All four
+candidates are an `f64` constant lifted at the call site — exactly what
+the door now does internally — and all four got *shorter*. **Two were
+invisible to the row because they sit behind `interval` and `probe`,
+which `cargo check --workspace` compiles neither of** — the same blind
+spot that hid a member from the half-edge unit's compiler probe.
+
+**§1's second claim — "a change to what that paragraph says."** Also
+false. The same module's `corners` already takes `f64` pairs at every
+scalar, with the reason written out: *"a fixture's outline is a set of
+chosen constants, and a chosen constant is an `f64` whatever the lane's
+arithmetic is."* The `(T, T)` extents were the outlier in that module,
+not the convention they were defended as.
+
+### A working option, rejected for the right reason
+
+The row's numerical objection to widening `topo`'s door —
+`x.0 + u·(x.1 − x.0)` is not `x.1` in floating point — is **true of
+that formulation and false of the approach**. `prism_ops` evaluates its
+map only at the profile's own corners, so a **selector** map
+(`if t == 0.0 { lo } else { hi }`) is exact with no arithmetic at all;
+measured, it builds an arena-identical body and moves none of the 17
+files. The lane then rejected it anyway, because it would widen
+`topo`'s door away from the convention to serve **zero** call sites.
+
+Worth keeping: **an objection to a formulation is not an objection to
+the approach**, and the way to tell is to build the other formulation.
+Rejecting a thing that demonstrably works, for a reason that is not
+"it doesn't work", is the shape of a good design call.
+
+### The pair order is now measured, not read
+
+The 2026-09-16 measurement disclosed *"whether the (s1, s2) order
+matters is read, not measured"* and it stayed that way for three days.
+The lane made `describe_as_intersections` — the step every
+`topo::test_support` box, prism and cube builder ends with — write the
+pair reversed on **every edge of every fixture in the tree**, and re-ran
+the workspace: **8231 passed, 0 failed, identical to the unmutated
+run.** Not one row in the tree can see it.
+
+That lands on S-CARVE's existing row as evidence for its fork (2) — a
+type that cannot carry an order — over fork (1), a ratified order:
+**a ratified convention with nothing enforcing it is the same
+unenforced convention under a better name.**
+
+### X4 fired on the diff, and the catch was the census
+
+Deleting `rect` left `square` spelling out the corner map that
+`corners` owns **four lines above it**. Method item 5 exactly — the
+fold nearly minted a copy inside the paragraph naming the trap, and it
+was the self-census that caught it rather than the writing.
+
+Residue filed: seven private extruded-box builders the structural
+needle found outside the door, on S-DUP's slate with the reason it is
+one row rather than four.
