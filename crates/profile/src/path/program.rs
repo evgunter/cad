@@ -367,7 +367,19 @@ impl<T: Real> ArcData<T> {
     /// the spec dispatchers below are: a mode the vocabulary gains
     /// breaks here rather than defaulting to "no radius" and dropping
     /// its arcs out of the record silently.
-    pub(crate) fn carries_radius(&self) -> bool {
+    ///
+    /// **Its mirror is a document-layer table.** `editor-core`'s
+    /// `spec_slots` decides, over the same six modes, whether the spec
+    /// holds a `CarrierRadius`/`CarrierRadius2` ARGUMENT — the address
+    /// the emission this predicate admits is read against. The two
+    /// decide one fact in two crates, and
+    /// `edit_step_segments::every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither`
+    /// is where they are held to it; without that row the only thing
+    /// that notices a disagreement is `eval::wire::edge_radii`'s
+    /// `unreachable!`, after the emission has been recorded with
+    /// nowhere to land.
+    #[must_use]
+    pub fn carries_radius(&self) -> bool {
         match self {
             Self::Radius { .. } | Self::Sweep { .. } | Self::ArcLen { .. } => true,
             Self::Bulge { .. } | Self::Via { .. } | Self::Center { .. } => false,
