@@ -26,6 +26,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// The plate: 4×4×1, z ∈ [0, 1].
+/// **The 4×4×1 box, declared at five sites in this tree** — one of
+/// them by bounds where the others are by extent.
 fn plate() -> Body<f64> {
     sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }

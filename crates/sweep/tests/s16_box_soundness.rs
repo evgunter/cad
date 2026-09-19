@@ -95,6 +95,8 @@ fn cylinder(z0: f64, height: f64) -> Body<f64> {
 
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
 /// spanning `z in [z0, z0 + 0.4]`.
+/// **Declared twice**: `n3r1_prune` and `s16_box_soundness` carry
+/// this whole corpus, byte for byte.
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }

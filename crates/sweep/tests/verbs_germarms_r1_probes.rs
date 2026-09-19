@@ -149,7 +149,7 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
     let tol = Tol::witness();
     let cap = topo::union(
         &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-        &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), Tol::witness()),
+        &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
         tol,
     )
     .expect_err("the planar cap pierce has no join arm");
@@ -165,7 +165,7 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
     // is the part that moved.
     let wall = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
+        &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
         tol,
     )
     .expect_err("the curved wall pierce has no join arm");
@@ -226,7 +226,7 @@ fn r1_the_cone_fixture_names_its_own_door() {
     };
     let err = topo::union(
         &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), Tol::witness()),
+        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
         tol,
     )
     .expect_err("no arm for a cone pierce");
@@ -253,7 +253,7 @@ fn r1_the_cone_fixture_names_its_own_door() {
 #[test]
 fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     let tol = Tol::witness();
-    let bar = brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), Tol::witness());
+    let bar = brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol);
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {

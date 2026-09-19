@@ -38,6 +38,8 @@ fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
 }
 
+/// **The 4×4×1 box, declared at five sites in this tree** — one of
+/// them by bounds where the others are by extent.
 fn slab() -> Body<f64> {
     brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness())
 }

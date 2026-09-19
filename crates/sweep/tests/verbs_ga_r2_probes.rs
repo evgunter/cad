@@ -277,7 +277,7 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     .body;
     let err = topo::union(
         &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), Tol::witness()),
+        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
         tol,
     )
     .expect_err("a cone wall has no roots anywhere");

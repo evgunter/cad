@@ -13,13 +13,23 @@
 //!   the volume enclosure contains the closed form (ball minus a
 //!   spherical cap).
 //!
-//! - **E2, a tight staleness pin for the re-scoped m5 row's constant**:
-//!   the re-scoped row bounds its escalation's `hi` only from above
-//!   (`hi ≤ 2·RECUT_MAPPED_ENCLOSURE_HI`), so a *partial* tightening of
-//!   the arc chain — one that lands between the band and the constant —
-//!   leaves the constant stale silently. This row re-runs the same
-//!   fixture and pins `hi` to the measured value from both sides, so
-//!   any movement of the enclosure, in either direction, is loud.
+//! - **E2, a second witness on the re-scoped m5 row's constant**: it
+//!   re-runs that row's fixture from the reviewer's side and pins `hi`
+//!   to the measured value from both sides, so any movement of the
+//!   enclosure, in either direction, is loud here too.
+//!
+//!   **What holds "the same fixture" is the compiler, not this
+//!   sentence.** E2 calls
+//!   `crate::m5_s12_curved_ops_interval::certified::plate` and reads
+//!   that module's `RECUT_MAPPED_ENCLOSURE_HI`; there is one plate and
+//!   one constant. It was two of each until 2026-09-19, held together
+//!   by a sentence here — which is precisely what a staleness pin must
+//!   not rest on.
+//!
+//!   The shipped row's own guard has since been tightened to the same
+//!   both-sides form this row was written to supply, so E2 is now a
+//!   second witness rather than the only one. That is a reviewer
+//!   probe's job and it is left standing.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -28,8 +38,10 @@ mod certified {
     use core::f64::consts::PI;
 
     use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2, Vec3};
+
+    use crate::m5_s12_curved_ops_interval::certified::RECUT_MAPPED_ENCLOSURE_HI;
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+    use sweep::{Revolution, RevolveAxis, revolve};
     use topo::{Body, mass_properties};
 
     fn iv(x: f64) -> Interval {
@@ -99,16 +111,6 @@ mod certified {
         );
     }
 
-    /// The re-scoped m5 row's constant, restated (see
-    /// `m5_s12_curved_ops_interval.rs`); this probe pins it from BOTH
-    /// sides where the shipped row bounds it only from above.
-    // **Re-measured 2026-08-31.** Was `1.1414768974413613e-12`. The arc
-    // chain tightened under enclosure work that merged with gates
-    // drawing default-ε only, so no run compared this constant until a
-    // later branch drew (interval, 1e-12). Re-stated, not loosened, as
-    // the constant's own doc requires.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
-
     /// E2: the m5_s12 sphere-recut fixture, re-run; below the constant
     /// the escalation's `hi` must be *at* the measured value — a
     /// tightening of the arc chain that moves it is loud here even when
@@ -119,21 +121,9 @@ mod certified {
             // Above the constant the row's DEFINITE arm owns the claim.
             return;
         }
-        // The m5_s12 fixture, restated: 3x3x0.8 plate minus the unit
+        // The m5_s12 fixture itself: its 3x3x0.8 plate, minus the unit
         // ball at (1.5, 1.5, 0.5).
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 3.0),
-            p2(0.0, 3.0),
-        ]);
-        let plate = extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(0.8)),
-            Tol::witness(),
-        )
-        .unwrap()
-        .body;
+        let plate = crate::m5_s12_curved_ops_interval::certified::plate();
         let ball = topo::transform_rigid(
             &ball(1.0),
             &geom_core::Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),

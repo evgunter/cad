@@ -56,7 +56,7 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), Tol::witness());
+    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
     let err = match topo::union(&a, &b, tol) {
         Err(e) => e,
         Ok(topo::BooleanResult::Body(out)) => {
@@ -87,7 +87,7 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
 fn a_crossing_outside_the_disc_mints_no_event() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), Tol::witness());
+    let b = brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("no crossing to route")
     else {
         panic!("two clear solids union into a two-shell body");
@@ -108,7 +108,7 @@ fn a_crossing_outside_the_disc_mints_no_event() {
 fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), Tol::witness());
+    let b = brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("containment decides")
     else {
         panic!("a buried box unions into one solid");
@@ -148,7 +148,7 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
             .unwrap()
             .body
     };
-    let boss = brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), Tol::witness());
+    let boss = brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol);
     let topo::BooleanResult::Body(out) =
         topo::union(&plate, &boss, tol).expect("the hole is empty; nothing to route")
     else {

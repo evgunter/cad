@@ -382,7 +382,9 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
 fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
     let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
-    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), Tol::witness());
+    // `bracket.py`'s pocket, in millimetres — the other half of
+    // the corpus `rounded_plate` above carries.
+    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
 
     // The cut runs at all — the door this row used to name is shut.
     topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");

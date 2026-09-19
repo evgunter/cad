@@ -98,7 +98,7 @@ fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
         &pipe(),
-        &brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), Tol::witness()),
+        &brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
         tol,
     )
     .expect("no crossing to route") else {

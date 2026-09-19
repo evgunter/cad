@@ -127,7 +127,7 @@ fn a_bar_clear_of_the_wall_still_answers() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
         &pipe(),
-        &brick((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
+        &brick((1.5, 2.5), (-0.3, 0.3), (-0.3, 0.3), tol),
         tol,
     )
     .expect("no crossing to route") else {
@@ -251,7 +251,7 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
     };
     let err = union_err(
         &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), Tol::witness()),
+        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
     );
     assert!(
         matches!(

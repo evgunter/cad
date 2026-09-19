@@ -1,7 +1,9 @@
 //! **The opening probe** for the cylinder×cylinder germ lane: which
-//! door refuses #347's cases, measured rather than assumed, on
-//! cylinder operands this suite authors through the public extrude
-//! door. Its box operands are the tree's box door, which is Euler-built.
+//! door refuses #347's cases, measured rather than assumed, on bodies
+//! this suite builds through the kernel's own doors rather than
+//! hand-assembling: the cylinders and the rounded plate through the
+//! public `extrude` door, and the axis-aligned pocket through the
+//! tree's box door.
 //!
 //! Two families, and they no longer share a fate:
 //!
@@ -219,7 +221,9 @@ fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
     let tol = Tol::witness();
     for r in [3.0_f64, 4.0, 5.0, 6.0] {
         let plate = rounded_plate(80.0, 40.0, r, 8.0);
-        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), Tol::witness());
+        // `bracket.py`'s pocket, in millimetres — the other half of
+        // the corpus `rounded_plate` above carries.
+        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
         let out = topo::subtract(&plate, &pocket, tol)
             .unwrap_or_else(|e| panic!("r = {r} mm must cut: {e:?}"));
         let topo::BooleanResult::Body(bb) = out else {
@@ -244,7 +248,9 @@ fn the_bracket_rounds_at_six_millimetres() {
     let tol = Tol::witness();
     let out = topo::subtract(
         &rounded_plate(80.0, 40.0, 6.0, 8.0),
-        &brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), Tol::witness()),
+        // `bracket.py`'s pocket, in millimetres — the other half of
+        // the corpus `rounded_plate` above carries.
+        &brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
         tol,
     )
     .expect("#347's requested radius cuts");

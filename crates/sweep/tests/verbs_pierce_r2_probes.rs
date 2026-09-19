@@ -48,7 +48,7 @@ fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> Body<f64> {
 fn r2_a_box_through_the_washer_hole_reads_disjoint() {
     let tol = Tol::witness();
     let a = washer(1.0, 0.5, 0.0, 2.0);
-    let b = brick((-0.2, 0.2), (-0.2, 0.2), (-1.0, 3.0), Tol::witness());
+    let b = brick((-0.2, 0.2), (-0.2, 0.2), (-1.0, 3.0), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("disjoint operands")
     else {
         panic!("washer + through-hole box is two shells");
@@ -69,7 +69,7 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
     let a = washer(1.0, 0.3, 0.0, 2.0);
     // Centered at (0.65, 0): x in [0.5, 0.8] — strictly between hole
     // (0.3) and rim (1.0) at y in [-0.15, 0.15].
-    let b = brick((0.5, 0.8), (-0.15, 0.15), (1.0, 3.0), Tol::witness());
+    let b = brick((0.5, 0.8), (-0.15, 0.15), (1.0, 3.0), tol);
     match topo::union(&a, &b, tol) {
         Err(e) => println!("washer-solid union refuses typed: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
@@ -119,7 +119,7 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
         "lens operand volume {}",
         topo::mass_properties(&a, tol).unwrap().volume
     );
-    let b = brick((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), Tol::witness());
+    let b = brick((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), tol);
     let silent_wrong = va + 0.2 * 0.2 * 2.0;
     match topo::union(&a, &b, tol) {
         Err(e) => assert!(
@@ -156,7 +156,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let tol = Tol::witness();
     // Cap crossings at (0.1..0.35, 0.3..0.55, z=2): inside the
     // half-disc that bows to y > 0, outside the one that bows to y < 0.
-    let b = brick((0.1, 0.35), (0.3, 0.55), (1.0, 3.0), Tol::witness());
+    let b = brick((0.1, 0.35), (0.3, 0.55), (1.0, 3.0), tol);
     let half = PI / 2.0 * 2.0; // half-disc area * height = pi
     let disjoint_answer = half + 0.25 * 0.25 * 2.0;
     let buried_truth = disjoint_answer - 0.25 * 0.25 * 1.0;
@@ -214,7 +214,7 @@ fn r2_the_box_cap_refusal_payload_is_printed() {
     let a = extrude(&profile, Extrusion::Distance(2.0), tol)
         .unwrap()
         .body;
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), Tol::witness());
+    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
     match topo::union(&a, &b, tol) {
         Err(e) => {
             println!("box-through-cap refusal: {e:?}");
@@ -239,8 +239,8 @@ fn r2_the_box_cap_refusal_payload_is_printed() {
 #[test]
 fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
     let tol = Tol::witness();
-    let a: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
+    let a: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let b = brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol);
     match topo::union(&a, &b, tol) {
         Err(e) => println!("stacked boxes refuse: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
@@ -269,7 +269,7 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
             .unwrap()
             .body
     };
-    let b = brick((-0.1, 0.1), (-0.1, 0.1), (0.1, 0.3), Tol::witness());
+    let b = brick((-0.1, 0.1), (-0.1, 0.1), (0.1, 0.3), tol);
     match topo::union(&cyl, &b, tol) {
         Err(e) => panic!("the buried box must be swallowed, not refused: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {

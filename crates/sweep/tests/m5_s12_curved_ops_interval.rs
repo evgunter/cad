@@ -25,7 +25,7 @@ test_utils::loud_skip_marker!(
 );
 
 #[cfg(feature = "interval")]
-mod certified {
+pub(crate) mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
@@ -51,7 +51,12 @@ mod certified {
 
     const R: f64 = 0.35;
 
-    fn plate() -> Body<Interval> {
+    /// The 3x3x0.8 plate. **`pub(crate)` because
+    /// `review_arceval_r1_probes`'s E2 row re-runs this fixture to pin
+    /// the same constant from a second file**: the two rows say they use
+    /// the same plate, and this is what makes that so rather than saying
+    /// it.
+    pub(crate) fn plate() -> Body<Interval> {
         sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
     }
 
@@ -245,7 +250,7 @@ mod certified {
     // drawing default-ε only, so no run compared this constant until a
     // later branch drew (interval, 1e-12). Re-stated, not loosened, as
     // the constant's own doc requires.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
+    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified

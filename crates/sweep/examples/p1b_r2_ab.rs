@@ -24,13 +24,36 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
+use profile::RawLoop;
+use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::blend::fillet_edges;
+use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
 
-/// The die blank: a cube of side `l` with a corner at the origin.
+/// The die blank: a cube of side `l`, through the real profile →
+/// extrude path.
+///
+/// **Built here rather than taken from `sweep::test_support::cube`**,
+/// and not because that door is out of reach — the self
+/// dev-dependency turns `test-support` on for this crate's example
+/// targets too, and it compiles. This binary is frozen reviewer
+/// evidence: it prints and asserts nothing, so re-authoring its blank
+/// would silently stop it reproducing the numbers it was cited for,
+/// and nothing here could tell anyone.
 fn cube(l: f64) -> Body<f64> {
-    sweep::test_support::cube(l, Tol::witness())
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(l, 0.0),
+        Point2::new(l, l),
+        Point2::new(0.0, l),
+    ]);
+    let validated = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the square is a valid profile");
+    extrude(&validated, Extrusion::Distance(l), Tol::witness())
+        .expect("the square extrudes")
+        .body
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {

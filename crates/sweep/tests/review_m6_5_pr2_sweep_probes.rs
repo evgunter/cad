@@ -14,8 +14,15 @@ use sweep::test_support::brick;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
+/// The unit-side box with its low corner at `x0` on the x axis — the
+/// `x0 + l` arithmetic done once, so a second placement cannot get it
+/// wrong on its own.
+fn box_at(x0: f64, l: f64) -> Body<f64> {
+    brick((x0, x0 + l), (0.0, l), (0.0, l), Tol::witness())
+}
+
 fn filleted_die() -> Body<f64> {
-    let cube0 = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     fillet_edges(&cube0, &edges, 0.125, Tol::witness())
         .expect("the fillet")
@@ -41,7 +48,7 @@ fn filleted_die() -> Body<f64> {
 #[test]
 fn x4_disjoint_boolean_over_a_filleted_body_meets_the_plane_tangency_arm() {
     let a = filleted_die();
-    let far = brick((4.0, 5.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let far = box_at(4.0, 1.0);
     let out = boolean_op_with(
         BooleanOp::Union,
         &a,
@@ -74,7 +81,7 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
     let a = filleted_die();
     // Same far box, translated OFF the die's own plane carriers.
     let far = topo::transform_rigid(
-        &brick((4.0, 5.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        &box_at(4.0, 1.0),
         &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 2.0, 2.0)),
         Tol::witness(),
     )
