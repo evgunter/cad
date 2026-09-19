@@ -1316,10 +1316,23 @@ pub enum EnvelopeStatement {
     /// `ρ·2|sin(δ/2)| ≥ (R − r)·2|sin(δ/2)|`, and an error in `v₀`
     /// that is not a multiple of `τ` moves every point too — both are
     /// therefore visible at EVERY sample of the schedule, which is
-    /// what certifies them. The stored envelope is `0` and it is a
-    /// statement about the algebra, not a measurement;
+    /// what certifies them. The stored envelope is a statement about
+    /// the algebra, not a measurement:
     /// [`PcurveCertificate::max_residual`] carries the schedule's own
     /// worst displacement as always.
+    ///
+    /// **What the envelope actually holds, per scalar.** At a POINT
+    /// scalar it is exactly `0` on every minted image, because check
+    /// 1's admitted drift is computed from differences that are
+    /// bit-zero when the image carries the carrier's own numbers. At a
+    /// BRACKETED scalar it is the bracket's own width metered at the
+    /// chart's arms, and not because anything moved: interval
+    /// arithmetic cannot cancel a variable against itself, so
+    /// `x − x` over a bracket of width `w` is `[−w, w]` rather than
+    /// `[0, 0]`, and the drift term carries that through. The answer
+    /// is still a true sup bound — the conservative direction — and it
+    /// is the honest price of a banded structural gate at a scalar
+    /// whose values are sets.
     SpiricIdentity,
 }
 

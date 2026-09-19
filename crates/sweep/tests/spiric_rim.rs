@@ -1147,9 +1147,19 @@ mod interval_rows {
                     geom_brep::EnvelopeStatement::SpiricIdentity,
                     "the wall's between-samples statement at Interval"
                 );
+                // NOT exactly zero here, and the reason is the
+                // scalar rather than the geometry: the three scalars
+                // above are the carrier's own BRACKETS, and interval
+                // arithmetic cannot cancel a bracket against itself,
+                // so check 1's admitted-drift term reads the bracket's
+                // own width instead of a bit-zero difference
+                // (`EnvelopeStatement::SpiricIdentity`'s per-scalar
+                // paragraph). The f64 twin's row pins the exact zero;
+                // what this row pins is that the bracket's price stays
+                // at rounding level rather than growing into a claim.
                 assert!(
-                    cert.envelope.lo() == 0.0 && cert.envelope.hi() == 0.0,
-                    "a minted wall image pays no drift: {:?}",
+                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= tol().eps(),
+                    "the bracket's own width, metered, is at rounding level: {:?}",
                     cert.envelope
                 );
             }
