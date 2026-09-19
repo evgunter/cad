@@ -2,8 +2,10 @@
 id: save-as-opens-at-the-filesystem-root
 kind: issue
 title: Save As opens at the filesystem root for an unsaved document (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: vseam/save-as-dir
+pr: 2858
 ---
 
 ## Ev's note (verbatim)
