@@ -62,7 +62,14 @@
 //! `topo::coherence`'s `MeridianClosure` rather than here.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
-//! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
+//! sampled): a pole/apex is always an edge **endpoint** (valence 2),
+//! the endpoint of a meridian. That is a premise about the loop and it
+//! is enforced, not assumed: a loop with no meridian at all — a rim
+//! circle around a pole or apex that lies in the face's interior, which
+//! STEP import and the Euler doors both state — has no edge a pole
+//! could end and no v-extent either, and [`require_a_meridian`] refuses
+//! it on the classified traversal list before anything below runs
+//! ([`TessellateError::MeridianFreeCurvedFace`]). A
 //! pole junction between two meridians emits *two* polygon entries —
 //! one closing the incoming meridian's column, one opening the
 //! outgoing column — both mapping to the single pole mesh vertex; the
@@ -106,6 +113,7 @@
 
 use std::collections::HashMap;
 
+use geom_brep::SurfaceKind;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 
@@ -511,16 +519,13 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// `UnsupportedCurvedDomain`; collapsed, it can BE its own bounding
 /// rectangle and be admitted. The #653 sweep cannot see this — it
 /// measures straightness and watertightness, not whether two sides
-/// were correctly distinguished. **Executed, not argued**: an
-/// obliquely cut sphere assembled through the Euler doors (the one
-/// route no certification fronts) walked to a polygon on ONE `v` and
-/// passed the spatial check; with debug assertions on, `tessellate`
-/// panicked at the S65 cross-face census (a chord segment used by no
-/// triangle); with them off it returned `Ok` on an EMPTY mesh — 12
-/// positions, two patches of 0 triangles — which `check_mesh` PASSES,
-/// having nothing to find non-manifold
-/// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
-/// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
+/// were correctly distinguished. The two-arc lens itself — two oblique
+/// sections and nothing else — does not get that far: its loop has no
+/// meridian, and [`require_a_meridian`] refuses it before a coordinate
+/// is assigned (`curved::tests::the_lens_walk_refuses_for_want_of_a_
+/// meridian_behind_the_shape_door`). The same two arcs beside a
+/// meridian side would still merge, and nothing in this walk would
+/// see it.
 ///
 /// **CLOSED, by the two doors in front of this walk.** The case this
 /// qualification instanced is two consecutive same-kind traversals
@@ -640,6 +645,49 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// The walk's premise, enforced: the loop has at least one meridian.
+///
+/// Rims give the polygon its u-extent and meridians its v-extent, and a
+/// pole enters only as a meridian's endpoint (module docs). A loop that
+/// classifies with no [`TravKind::Meridian`] therefore walks to a
+/// polygon of one v value — a zero-height box every entry lies on, which
+/// triangulates to nothing — while the face it bounds reaches to a pole,
+/// an apex, or (on a cylinder) has no far side at all. Nothing in such a
+/// loop says which, so it is refused here rather than walked:
+/// [`TessellateError::MeridianFreeCurvedFace`], valid input in a lane
+/// that is not built (D2 addendum row 2).
+///
+/// **Decided on the classification alone.** This reads the traversal
+/// KINDS and no coordinate: the polygon's zero height, its zero shoelace
+/// area and the empty triangulation are all consequences of the missing
+/// meridian, and a test on any of them would be inferring structure
+/// from a float. It sits at the first line that has the classified list
+/// in hand, ahead of every rule below that assumes a side to close on.
+///
+/// The mirror loop — meridians only — is NOT refused here, and the fact
+/// does not carry over by symmetry: on a sphere that loop is the
+/// pole-to-pole band, which this lane meshes, taking its u-extent from
+/// the two pole junctions (module docs). A torus loop of rims only never
+/// arrives: props' torus parse refuses it at the shape door, on this
+/// same fact, before the walk is called.
+fn require_a_meridian(travs: &[Trav], chart: &Chart, face: FaceKey) -> Result<(), TessellateError> {
+    if travs
+        .iter()
+        .any(|t| matches!(t.kind, TravKind::Meridian { .. }))
+    {
+        return Ok(());
+    }
+    Err(TessellateError::MeridianFreeCurvedFace {
+        face,
+        surface: match chart.kind {
+            ChartKind::Cylinder { .. } => SurfaceKind::Cylinder,
+            ChartKind::Cone { .. } => SurfaceKind::Cone,
+            ChartKind::Sphere { .. } => SurfaceKind::Sphere,
+            ChartKind::Torus { .. } => SurfaceKind::Torus,
+        },
+    })
+}
+
 /// Where the walk starts (index into `travs`), or `None` to leave the
 /// cycle as it is.
 ///
@@ -659,11 +707,11 @@ fn iso_side_starts(
 /// the old form did, so nothing rotates differently. Rows:
 /// `the_walk_anchors_on_a_rim_that_opens_its_row`.
 ///
-/// The `or_else` fallback (any rim at all) is for the degenerate loop
-/// whose rims form a single cyclic run with no opening — unreachable
-/// through `traversals`, since such a loop has no meridian and so no
-/// junction the run could break at, but stated rather than indexed
-/// blind.
+/// The `or_else` fallback (any rim at all) is for the loop whose rims
+/// form a single cyclic run with no opening. Such a loop has no
+/// meridian, so [`loop_polygon`] has refused it through
+/// [`require_a_meridian`] before asking for an anchor, and no loop it
+/// walks takes this arm; it is stated rather than indexed blind.
 fn walk_anchor(travs: &[Trav], starts: &[bool]) -> Option<usize> {
     let has_rim = travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
     if has_rim {
@@ -744,7 +792,8 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
 /// depends on the one before:
 ///
 /// 1. [`traversals`] — one entry per boundary edge, classified `Rim`
-///    or `Meridian` with its raw constant coordinate.
+///    or `Meridian` with its raw constant coordinate — and
+///    [`require_a_meridian`] on that list, the walk's premise.
 /// 2. [`iso_side_starts`] — which traversals OPEN an iso side (#653).
 ///    Everything after this reads `starts`, not the edge list.
 /// 3. [`walk_anchor`] + `rotate_left` — put index 0 on a side that
@@ -768,6 +817,7 @@ pub(crate) fn loop_polygon(
     eps: Eps,
 ) -> Result<Vec<UvPoint>, TessellateError> {
     let mut travs = traversals(body, chart, chords, face, lk)?;
+    require_a_meridian(&travs, chart, face)?;
     let m = travs.len();
     // ISO-SIDE RUNS (#653): which traversals open a side, and so take
     // a fresh constant coordinate rather than the running one.

@@ -27,12 +27,12 @@
 //! props' predicate name; the spatial check, asked directly about the
 //! same walk, also refuses it (the two derivations agree on a real
 //! notch, by a feature-sized distance); the lens refuses at the shape
-//! door, and the walk it would otherwise have received collapses onto
-//! one rim level and IS its own bounding box — the spatial check admits
-//! it, which is the defeat the qualification recorded and the door now
-//! closes. A rimless lune (the partial sphere wedge) meshes and
-//! measures: the door is the shape predicate, and the flux lane reads
-//! the lune's own width.
+//! door; behind it the walk refuses the same loop for having no
+//! meridian, where it would otherwise merge both arcs onto one rim
+//! level — a polygon that IS its own bounding box, which the spatial
+//! check cannot tell from a rectangle. A rimless lune (the partial
+//! sphere wedge) meshes and measures: the door is the shape predicate,
+//! and the flux lane reads the lune's own width.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -71,6 +71,8 @@ mod geom_origin_import_arm;
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "meridian_free_cap.rs"]
+mod meridian_free_cap;
 #[path = "mesh8r2_probes.rs"]
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]

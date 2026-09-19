@@ -297,6 +297,42 @@ pub enum TessellateError {
         /// props' refusal: which structural expectation failed.
         source: geom_brep::props::PropsError,
     },
+    /// A curved face's single boundary loop has no meridian traversal:
+    /// every edge of it is a rim (`v = const`) of the face's chart.
+    ///
+    /// **The structural fact, and the only thing read.** The
+    /// swept-rectangle lane takes a face's u-extent from its rims and
+    /// its v-extent from its meridians, and learns of a pole only as a
+    /// meridian's endpoint (`walk`'s module docs). A loop that is rims
+    /// only therefore spans no v at all in this lane's terms: the face
+    /// it bounds reaches from that rim row to a pole or an apex in its
+    /// interior — or, on a cylinder, has no far side at all — and
+    /// nothing in the loop says which or where.
+    /// The refusal is decided on the classified traversal list — no
+    /// coordinate, area or triangle count is consulted — and is raised
+    /// before anything is emitted for the face.
+    ///
+    /// Valid input, unbuilt lane (D2 addendum row 2). The sphere member
+    /// of the class is a solid the rest of the kernel accepts — a cap
+    /// closed by a disc validates at every tier and measures its exact
+    /// volume — and it is stated by STEP files and by the Euler door;
+    /// no sweep, revolve or boolean mints it. **The recourse is the
+    /// seamed statement of the same face**, which this lane meshes:
+    /// two half-faces whose loops each run the rim's half, a meridian
+    /// to the pole and a meridian back, meeting at a valence-2 pole
+    /// vertex — the form every native verb produces for a dome or a
+    /// cut ball.
+    ///
+    /// Not [`Self::UnsupportedCurvedShape`]: that arm's `source` is
+    /// props' refusal, and props admits this face. Not
+    /// [`Self::UnsupportedCurvedDomain`]: that arm reports a walk that
+    /// left its own box, and this loop's walk never does.
+    MeridianFreeCurvedFace {
+        /// The offending face.
+        face: FaceKey,
+        /// The kind of surface the face lies on.
+        surface: geom_brep::SurfaceKind,
+    },
     /// The run's tolerance cannot form props' linear decision band —
     /// K·ε overflows. A configuration failure of the run rather than a
     /// statement about the body (the twin of
@@ -427,6 +463,19 @@ impl core::fmt::Display for TessellateError {
                  notched or L-shaped iso domain waits for the certified-\
                  quadrature lane; split the face into rectangles or re-author \
                  it",
+            ),
+            Self::MeridianFreeCurvedFace { surface, .. } => write!(
+                f,
+                "tessellate: a {} face's boundary loop is rims only — it has \
+                 no meridian edge, so nothing in the loop spans the chart's \
+                 v direction or names the pole, apex or far rim the face \
+                 reaches to, and the swept-rectangle lane has no domain to \
+                 mesh. The input is valid and the lane that would mesh it is \
+                 not built; restate the face in its seamed form — two \
+                 half-faces, each bounded by half the rim and two meridians \
+                 meeting at a pole vertex — which is what revolve and the \
+                 booleans produce and what this lane meshes",
+                surface.name(),
             ),
             Self::Band { error } => write!(
                 f,
