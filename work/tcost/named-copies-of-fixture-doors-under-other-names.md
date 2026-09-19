@@ -1,7 +1,7 @@
 ---
 id: named-copies-of-fixture-doors-under-other-names
 kind: issue
-title: Seven name1 copies of fixture::minted and five in_copy copies survive the named-copy sweep
+title: 121 StableName literals in editor-core's suites spell a fixture authoring door by hand
 status: open
 opened: 2026-09-19
 ---
@@ -9,75 +9,75 @@ opened: 2026-09-19
 
 ## Finding
 
-`work/edit/editor-core-suites-redefine-the-name-table-helpers` swept
-`crates/editor-core/tests/` for redefinitions of `fixture`'s doors by
-grepping **the door's own names** (`fn <name>(` / `let <name> = |` over
-a hand-written list of sixteen). PR #2867 re-ran that grep and reports
-"`face_of`, `edge_of`, `vertex_of`, `ends`, `face_vertices`,
-`face_edges` and `minted` have **no** named copies at all". That is
-false for `minted`, and the list itself missed a door.
+`crates/editor-core/tests/fixture/mod.rs` homes the name-authoring
+shorthands — `minted`, `fname`, `ename`, `vname`, `rim_edge`,
+`cap_vertex`, `pole`, `in_copy`. A suite that wants a one-segment name
+can call one. **121 sites in 50 files outside `tests/fixture/` write
+the struct literal instead**, measured on `edit/suite-helpers-one-home`
+at PR #2867's fix-pass head:
 
-**`fn name1` IS `fixture::minted`, byte-for-byte, in seven files** —
-same signature, same body, a different function name:
+```
+StableName { kind: EntityKind::<K>, node: <expr>, path: vec![<one seg>] }
+```
 
-- `crates/editor-core/tests/m4_pr3_names.rs:27`
-- `crates/editor-core/tests/m4_pr3_names_bool.rs:38`
-- `crates/editor-core/tests/ring_r1_names_probe.rs:31`
-- `crates/editor-core/tests/m4_pr7_appearance.rs:38`
-- `crates/editor-core/tests/m4_pr4_resolve.rs:68`
-- `crates/editor-core/tests/m4_pr4_appearance_hook.rs:45`
-- `crates/editor-core/tests/bool7_shadow_exec.rs:395`
+74 Face, 25 Body, 22 Edge. Each is exactly `fname` / `minted` /
+`ename`. A further 9 literals carry a multi-segment `path` (a `FromA`
+plus a `Fragment`, and the like), which no shorthand spells and which
+are not this row's subject.
 
-The first three are files #2867 touched — it deleted their `table`
-copy and left the `minted` copy fifteen lines away. Two more are
-`minted` with the node partially applied: `shelled` in
-`lib_g17_shell_node.rs:50` and `lib_g17_r2_probes.rs:17`.
+Twenty-two of the 121 sit inside a NAMED helper whose whole body is
+the literal — `corpus/slots.rs::cap`, `corpus/part_select.rs::section_face`,
+`display_contract.rs::face_name`, `eval4_accept_funnel.rs::local_cap`,
+`m4_pr4_edits.rs::cap`, `rv_matehead_probes.rs::face_name`,
+`docm6_seam_declarations.rs::wrap`, `docm8_flat_merged.rs::from_a` and
+`::from_b`, `r2_m10_6_probes_interval.rs::bname`,
+`edit_blend_canonical.rs::edge`, `m6_5_selection_refusals.rs::rim`,
+`edit_one_predicate.rs::in_part` and `::part_face`,
+`asm_r2a_mate_solve.rs::in_part`, `mate6_gather_mints.rs::dangling` and
+`::in_part_in_part`, `mate6r1_shared.rs::dangling`,
+`mate6r2_probes.rs::vanished`, `dm7_delete_strands.rs::instance_face`,
+`rv_dm7_probes.rs::instance_face`, `blend5_rim_support_wire.rs::trim_name`.
+Those are suite-local shorthands whose BODY should delegate to the
+door; the rest are literals at a call site. Two further named helpers
+(`bool7_shadow_exec::frag`, `m4_pr4_resolve::sideof_frag`) are bare
+literals with a two-segment `path`, outside this class.
 
-**`fn in_copy` is a copy of `fixture::in_copy`** (`fixture/mod.rs:96`)
-under the SAME name, in five files — so the row's own name grep would
-have found it had `in_copy` been on the hand-written list:
-
-- `mate1_member_vocab.rs:59`, `mate1r2_probes.rs:57`,
-  `fix_pattern_mate_crossing.rs:75`, `rev_fix_xsplit_unreachable.rs:55`,
-  `mate1_r1_probes.rs:49`
-
-These five have **diverged from the door**: each hardcodes
-`kind: EntityKind::Face` where `fixture::in_copy` carries `of.kind`
-through, so the copies are silently wrong for an edge or vertex master.
-
-**The literal form.** 87 sites outside `tests/fixture/` spell
-`StableName { kind: EntityKind::<K>, node, path: vec![seg] }` directly
-— 68 Face, 18 Edge, 1 Vertex — which is exactly `fname` / `ename` /
-`vname` / `minted`. #2867's shape sweep ran this pattern but filtered
-it to `kind: EntityKind::Vertex`, because the row's ruling named only
-"the eight `StableName` literals that spell a vertex name". Two of the
-Edge sites are in files #2867 touched: `blend5_rim_support.rs:348`
-(`let arc = |seg: RoleSeg| StableName { kind: EntityKind::Edge, node:
-revolve, path: vec![seg] }`, which is `let arc = |seg| ename(revolve,
-seg)`) and `display_contract.rs:1211` (`ename(RecipeNodeId(7),
-RoleSeg::Cap(CapEnd::End))`).
+**What this row no longer holds.** Its first filing also named
+`fn name1` (eight files, `fixture/pr4.rs` included), `fn in_copy` (five
+files, each with `kind: EntityKind::Face` frozen where the door carries
+`of.kind`) and `fn shelled` (two files). PR #2867's fix pass took all
+fifteen: every one now imports the door or delegates to it, and a
+census of every `-> StableName` helper outside `tests/fixture/` (49
+helpers, 45 distinct normalised bodies) shows no remaining body equal
+to a door's. Only the literal class is left, which is what this row is
+now about.
 
 ## Why it matters
 
-The class the EDIT row named is "a copy of a door", and the instrument
-it was measured with is "the door's NAME, from a list typed by hand".
-A copy under another name is invisible to it, and `in_copy` shows the
-list itself is the leak: a door absent from the list keeps its copies
-even when they are same-named. The `in_copy` divergence is the
-concrete cost — five copies that answer `Face` where the door answers
-the master's kind.
+A literal cannot diverge from the door the way a named copy can, but it
+carries the same cost the named copies did: the `in_copy` copies froze
+`kind` to `Face` because a literal has to name a kind, and nothing told
+their reader that the door propagates the master's kind instead. A
+shorthand call says which door the site went through; a literal says
+only what the struct's fields are.
 
 ## What a taker owes
 
-Take the door list from `fixture/mod.rs`'s public surface rather than
-by hand, and sweep by BODY shape as well as by name (a `-> StableName`
-function whose body is one of the doors' bodies, modulo partial
-application). Read each site before changing it, as the sibling rows
-do. The `in_copy` copies need their `EntityKind::Face` checked against
-each caller before the door's `of.kind` replaces it.
+Read each site before changing it: a literal whose `kind` is a variable
+or a functional update (`StableName { kind: EntityKind::Vertex,
+..edge_name.clone() }` in `display_contract`) is not this class, and
+18 such sites are excluded from the count above. Delegate the twelve
+named helpers to the door before rewriting the call-site literals, so a
+reviewer can see the shorthand in one place per suite.
+
+**What the pattern cannot match**: a name assembled field by field into
+a `let mut`, or built by a helper that returns the literal through a
+`match`. The census of `-> StableName` helpers bounds the second class
+at 45 distinct bodies and finds none of that shape today.
 
 ## Territory
 
 `crates/editor-core/tests/*` — tcost's and tint's. Filed by the
-`review/helpers-rv` lane reviewing EDIT's PR #2867; sibling of
+`review/helpers-rv` lane reviewing EDIT's PR #2867 and re-scoped by
+that PR's fix pass; sibling of
 `inline-name-table-reads-bypass-the-fixture-door`.

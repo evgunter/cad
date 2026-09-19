@@ -29,6 +29,9 @@ use editor_core::{
     StableName, evaluate, select, select_where,
 };
 
+// `table` panics on a node with no value rather than answering `None`,
+// which is what this suite wants: a G14 regression IS a node failure,
+// and the panic's message is the diagnosis.
 use fixture::{insert, len, on_frame, scl, table};
 use geom_core::Tol;
 
