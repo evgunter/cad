@@ -1316,7 +1316,6 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | 15 | `interval-only-selection-premise-restored` | ciw | open | The interval-only selection's original premise holds again; hosted keeps the whole suite |
 | 15 | `m6-carried-items-register` | meta | open | M6 carried-items register — every carried/re-banked item from the ratified exit walk, with owners and sequencing |
 | 15 | `no-approx-faced-body-is-both-movable-and-valid` | shell | open | an Approx face has no cache route with straight carriers, and the body whose chart does have one cannot be moved - so nothing weighs, meshes or exports |
-| 15 | `pierce-ring-has-no-join-arm` | curved | open | A pierce RING has no join arm on any carrier: three typed doors, one missing lane |
 | 15 | `plane-cone-elliptic-section-split-refusal` | curved | open | topo::split refuses every cone face - the elliptic plane×cone section is a closed form R1 rules out by decision, not by difficulty |
 | 15 | `plane-nurbs-ssi-misblames-control-net` | curved | open | ssi - plane_nurbs_ssi blames the wall's control net for the PLANE's own non-finite origin |
 | 15 | `proptest-modules-in-src-ungated` | tcost | open | the 14 in-src proptest modules stay ungated: a split per file buys 0.62 cpu-s |
