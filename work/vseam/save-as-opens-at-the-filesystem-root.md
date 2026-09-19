@@ -2,8 +2,11 @@
 id: save-as-opens-at-the-filesystem-root
 kind: issue
 title: Save As opens at the filesystem root for an unsaved document (Ev-requested, high priority)
-status: open
+status: closed
 opened: 2026-09-17
+branch: vseam/save-as-dir
+pr: 2858
+closed: 2026-09-19
 ---
 
 ## Ev's note (verbatim)
@@ -35,3 +38,7 @@ The starting directory, in some order of preference:
 
 Ev names options 3 and 2. Open should probably follow the same rule, so
 the two dialogs agree.
+
+## Closed
+
+Landed by PR 2858 (`vseam/save-as-dir`). Open… and Save As… go through one door, `ViewerApp::file_dialog`. It starts where `frame::dialog_dir` says: the document's directory, then the last directory a dialog returned (kept in prefs as `[files] last_dir`), then the launch directory. A vanished candidate falls through. The door remembers the directory it returns. The order puts the remembered directory ahead of the launch directory, which reverses the order Ev's note named them in; that was put to Ev in chat. Residue: `open-dialog-ignores-its-directory-on-an-old-portal` (this slate).

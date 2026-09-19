@@ -1789,10 +1789,7 @@ mod tests {
         // side) dies instead, and the new face survives. Pins "he's side
         // dies".
         let (mut body, _seed, seg, split) = ops_pillow();
-        let old_face = body
-            .get_loop(body.get_half_edge(split.he_minus).unwrap().parent_loop)
-            .unwrap()
-            .face;
+        let old_face = body.face_of_half_edge(split.he_minus).unwrap();
         let cut = body
             .mef_chord(
                 MefSite::Chords {

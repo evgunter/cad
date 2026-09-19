@@ -689,13 +689,8 @@ pub(crate) fn faces_at_vertex<T: Real>(
     let mut out = Vec::new();
     for he in orbit {
         let face = body
-            .get_loop(
-                body.get_half_edge(he)
-                    .ok_or(ReplaceFaceError::Corrupt)?
-                    .parent_loop,
-            )
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .face;
+            .face_of_half_edge(he)
+            .ok_or(ReplaceFaceError::Corrupt)?;
         if !out.contains(&face) {
             out.push(face);
         }

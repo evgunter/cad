@@ -54,6 +54,15 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
+**Where the dialogs open.** Open… and Save As… start at the first of
+three directories that still exists: the current document's, the one
+the last dialog returned a path in (kept in the preferences file as
+`[files] last_dir`), and the directory the viewer was launched from
+(`frame::dialog_dir`). The portal is handed that directory; `rfd`'s
+zenity fallback is not, and opens at the launch directory, its own
+default. `xdg-desktop-portal` 1.6 honours the directory for Save As…
+but shows its "Recent" view for Open….
+
 **Dialog opens but every character is a box with tiny hex digits.**
 Pango cannot shape the font fontconfig matched. Diagnose with
 `fc-match sans` — if it names a `.pfb` (a PostScript Type 1 font, e.g.
@@ -807,7 +816,7 @@ at a `save` is green, which was measured rather than assumed.
 **The sweep rule is over the FIELD, not over the string, the name or
 the target**: the population is every read of `app::ViewerApp::store`,
 this crate's only `PrefsStore` value — three, all in `app.rs`:
-`store.unusable()` at the guard in `remember_theme` and again at the
+`store.unusable()` at the guard in `remember_prefs` and again at the
 badge beside the picker, and the `store.save` that guard stands in
 front of. `store.load()` in the constructor is not one of them — it
 reads the LOCAL binding, before the struct literal that makes the
@@ -1874,7 +1883,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_theme` are
+(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`
