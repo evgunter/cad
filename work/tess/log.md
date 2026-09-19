@@ -92,3 +92,19 @@ on either.
   unit on this row is the message fix (bottom tier: test text only),
   dispatched now; the row stays open on PROPS' fix. Next kernel unit is
   `rim-only-sphere-cap-panics-at-census`, measure-first.
+
+## Dispatched (2026-09-18, after PR 2845 merged)
+
+- `tess/domination-assert-messages` — the message unit on the NURBS
+  bound row (test text only; bottom tier, merges on green CI and my
+  read of the hit list).
+- `tess/rim-only-cap-diag` — measure-first on
+  `rim-only-sphere-cap-panics-at-census`: what release emits, whether
+  any of the kernel's own verbs mints a rim-only pole-containing face,
+  and whether the sphere is one instance of a class (cone apex,
+  seamless cylinder wall). The row's design question — admit and emit a
+  cap, or refuse at a door — is decided from that report; if the facts
+  leave both viable it goes to Ev as an `[ev]` PR, since a door's
+  premise is PROPS' predicate and D2's refusal vocabulary.
+- The diag lane's clone (`cad-work/tess-nurbs-diag`) is kept until
+  PROPS answers on its row; its evidence is pushed.
