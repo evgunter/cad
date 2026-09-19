@@ -255,12 +255,18 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// which argument role the notation named. Nothing is lost that a
 /// Python caller could not say for itself — it wrote the entry — and
 /// the Rust sentence still names both.
+///
+/// `notation_before_any_step` is the derived notation door's own
+/// refusal (`RecordedNotation::set_after` against an empty
+/// recording), kept apart from `notation_off_program` because the
+/// caller named no step for that tag to be about.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
         RecordedProgramError::NotationOffProgram { .. } => "notation_off_program",
+        RecordedProgramError::NotationBeforeAnyStep { .. } => "notation_before_any_step",
     }
 }
 

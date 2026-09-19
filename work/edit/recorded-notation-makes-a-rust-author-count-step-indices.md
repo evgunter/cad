@@ -2,7 +2,7 @@
 id: recorded-notation-makes-a-rust-author-count-step-indices
 kind: issue
 title: a RecordedNotation entry is keyed by an index the path algebra never hands its caller
-status: spec
+status: review
 branch: edit/notation-derived-index
 opened: 2026-09-16
 ---
@@ -144,3 +144,53 @@ announcement); `crates/editor-core/tests/*` and one `profile` unit row
 (TCOST/TINT); `crates/pncad-py/src/tags.rs` only if an arm is added
 (LIB, by announcement). Middle tier: one opus style review with a
 correctness arm, then the fix pass.
+
+
+## Built (2026-09-19, lane `notation`)
+
+Both doors landed as ruled, and every premise the spec asked to be
+verified held.
+
+- `profile`: `PartialPath::recorded(&self) -> &[Step<T>]` — the steps
+  recorded so far, the prefix of the program the chain publishes. One
+  accessor over data the path already holds; no `quantity`, no
+  `UnitSym`. PATHS's crate, crossed by announcement.
+- `editor-core`: `RecordedNotation::set_after(&mut self, recorded,
+  arg, unit) -> Result<(), RecordedProgramError>` — writes the last
+  recorded step's `arg`, index `recorded.len() - 1`, never a count.
+  `set` stays the ADDRESSED door and its doc now says a hand-written
+  index is the caller's second description of the recording, naming
+  `set_after` as the door that cannot miscount.
+- The empty recording refuses as a NEW arm,
+  `RecordedProgramError::NotationBeforeAnyStep { arg }`, argued rather
+  than reusing `NotationOffProgram { step: 0, arg }`: that sentence
+  attributes an index 0 the author never wrote, and step 0 of a
+  recording whose entry verb lacks the role is a live, different
+  mistake the suite already pins. One tag word
+  (`notation_before_any_step`) in `crates/pncad-py/src/tags.rs` and its
+  inventory in `src/tests.rs` — LIB's, by announcement, mechanical.
+- Rows: the three-leg chain written through `set_after` after leg two
+  (`get(2, TargetX)` answers, `get(1, …)` does not); the trap pinned as
+  ACCEPTANCE — a hand `set(1, …)` off by one lands on the wrong leg and
+  nobody is told; the empty recording refusing typed with its `Display`
+  sentence; a role the last step does not carry still refusing at the
+  lift with `step == recorded.len() - 1`; `PartialPath::recorded`
+  equalling the published program's prefix after every verb of a mixed
+  chain (arc, `fillet` binder, re-entry, legs, closer) in
+  `crates/profile/tests/path_program.rs`; and a `display_contract`
+  census over the whole of `RecordedProgramError`, which had none.
+  Every existing row that authors a leg now authors it through
+  `set_after`; `const LEG` survives as the suite's READ address, which
+  is what makes the derived write checkable.
+- Premises: every verb records exactly one step, fused verbs and
+  binders included (54 `Core::record` call sites, one step each);
+  `from_recorded` numbers steps by recording index; no Python door
+  binds `RecordedNotation` (`pncad`'s prelude and `document.rs`
+  re-export it, the viewer builds one), so LIB's
+  `path-legs-erase-the-authored-notation-one-layer-down` is still where
+  a Python builder would use this.
+
+Not closed, and said in the doc: `set` with a hand index stays
+expressible, because the viewer's `Notation::over` derives its indices
+from `LoopProgram::step_args()` and needs the addressed door. A wrong
+ROLE on the right step stays the lift's `NotationOffProgram` refusal.

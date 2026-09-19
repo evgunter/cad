@@ -2045,11 +2045,16 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// exhaustive on [`profile::Step`], and a verb the table gains breaks
 /// this file at compile rather than reaching a typed refusal.
 ///
-/// Two of the four arms are unreachable through the authoring
-/// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build. The fourth is reachable from any
+/// Two arms are unreachable through the authoring algebra — they
+/// exist because the door takes a `&[Step<f64>]`, which a caller can
+/// also hand-build. The two notation arms are reachable from any
 /// caller, because a notation is written against a recording the door
 /// does not make the caller hand over at the same time.
+///
+/// One arm is raised before any lift:
+/// [`RecordedNotation::set_after`] refuses a recording with no last
+/// step at the door where the notation is written, so the notation
+/// door and the lift speak one refusal vocabulary rather than two.
 ///
 /// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
 /// tag map is an exhaustive match over this enum, and the tag inventory
@@ -2081,6 +2086,19 @@ pub enum RecordedProgramError {
         /// The argument role it named.
         arg: StepArg,
     },
+    /// [`RecordedNotation::set_after`] was asked to write the notation
+    /// of the last recorded step, and nothing has been recorded.
+    ///
+    /// The derived door names no index — that is the whole point of it
+    /// — so this is not
+    /// [`RecordedProgramError::NotationOffProgram`] at step 0: the
+    /// caller wrote no step number for that arm to report back, and
+    /// step 0 of a one-step recording whose verb lacks the role is a
+    /// different mistake with a different recourse.
+    NotationBeforeAnyStep {
+        /// The argument role the entry named.
+        arg: StepArg,
+    },
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -2102,6 +2120,12 @@ impl core::fmt::Display for RecordedProgramError {
             Self::NotationOffProgram { step, arg } => write!(
                 f,
                 "the notation names the {} of step {step}, which this recording has no argument at",
+                arg.label()
+            ),
+            Self::NotationBeforeAnyStep { arg } => write!(
+                f,
+                "the notation names the {} of the step just recorded, and nothing has been \
+                 recorded yet",
                 arg.label()
             ),
         }
@@ -2151,8 +2175,16 @@ impl core::error::Error for RecordedProgramError {}
 /// through the same addressing the slot doors read; there is no second
 /// table of which argument is which for the two to disagree about. A
 /// recorded step keeps its index through the lift (a carrier form
-/// authors one step, numbered 0), so the step a caller counted as it
-/// recorded is the step it addresses here.
+/// authors one step, numbered 0), so the step a recording holds is the
+/// step it addresses here.
+///
+/// **Which half of the address the author has to know.** The ROLE is
+/// the verb's own vocabulary and a caller writing `line_to` knows it
+/// wrote a target. The INDEX is a position in the recording, and a
+/// caller who counts it is describing the recording a second time —
+/// [`Self::set_after`] derives it from the recording instead, and
+/// [`Self::set`] is for the callers whose index is already derived
+/// from the program.
 ///
 /// # A unit measures what its role holds
 ///
@@ -2197,6 +2229,20 @@ impl RecordedNotation {
     /// Records that the argument at (`step`, `arg`) was written in
     /// `unit`, replacing any notation already there.
     ///
+    /// **The ADDRESSED door.** A hand-written `step` is the caller's
+    /// SECOND description of the recording — the first being the
+    /// recording itself — and the two can disagree. The lift catches a
+    /// disagreement it can see
+    /// ([`RecordedProgramError::NotationOffProgram`]), but an index
+    /// that is off by one and lands on a step carrying the SAME role
+    /// puts the unit on a different argument and is accepted.
+    /// [`RecordedNotation::set_after`] is the door that cannot
+    /// miscount: it derives the index from the recording. Write this
+    /// one where the index is DERIVED from the program rather than
+    /// counted — the viewer's sketch notation walks
+    /// [`LoopProgram::step_args`] and addresses what that walk hands
+    /// it.
+    ///
     /// # Errors
     ///
     /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
@@ -2212,6 +2258,65 @@ impl RecordedNotation {
         // exists to refuse it.
         let sym = UnitSym::checked_for(arg.dimension(), unit)?;
         self.units.insert((step, arg), sym);
+        Ok(())
+    }
+
+    /// Records that `arg` of the LAST step in `recorded` was written
+    /// in `unit`, replacing any notation already there.
+    ///
+    /// **The derived door.** The index is `recorded.len() - 1` and
+    /// never a number the caller wrote, so the leg a notation lands on
+    /// is the leg the author had just recorded when they wrote it:
+    ///
+    /// ```ignore
+    /// let path = path.line_to(p1, t)?;
+    /// n.set_after(path.recorded(), StepArg::TargetX, MM.def())?;
+    /// ```
+    ///
+    /// Every verb records exactly one step
+    /// (`profile::PartialPath::recorded`), binders included, so "the
+    /// last recorded step" is the verb just called — after `fillet(r)`
+    /// it is that binder, whose radius is
+    /// [`StepArg::Radius`]. A recorded step keeps its index through
+    /// the lift, so `recorded.len() - 1` IS the `step` half of the
+    /// address [`RecordedNotation::set`] takes.
+    ///
+    /// This closes the miscount, not the misnaming: a role the last
+    /// step does not carry is still the lift's
+    /// [`RecordedProgramError::NotationOffProgram`], now with the
+    /// index certainly the author's own leg.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordedProgramError::NotationBeforeAnyStep`] when `recorded`
+    /// is empty — there is no last step to write against — and
+    /// [`RecordedProgramError::Literal`] carrying
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's
+    /// quantity is not the dimension the role holds, which is
+    /// [`RecordedNotation::set`]'s refusal in the vocabulary the lift
+    /// speaks.
+    pub fn set_after(
+        &mut self,
+        recorded: &[Step<f64>],
+        arg: StepArg,
+        unit: quantity::UnitDef,
+    ) -> Result<(), RecordedProgramError> {
+        let Some(last) = recorded.len().checked_sub(1) else {
+            return Err(RecordedProgramError::NotationBeforeAnyStep { arg });
+        };
+        // D2 addendum row 4. The index comes from the LENGTH of a
+        // slice the caller already holds, so a recording past `u32`
+        // would be 2^32 `Step`s in memory at once; a typed refusal
+        // here would be a guard for a state the machine excludes,
+        // unlike `SubdivisionCount`, whose count is one number a
+        // caller writes.
+        let Ok(step) = u32::try_from(last) else {
+            unreachable!(
+                "a recording of {} steps does not fit in memory",
+                recorded.len()
+            )
+        };
+        self.set(step, arg, unit)?;
         Ok(())
     }
 

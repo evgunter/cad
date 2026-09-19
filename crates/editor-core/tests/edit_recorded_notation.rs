@@ -10,6 +10,16 @@
 //! door read back `25 mm`. The first row below is that disagreement;
 //! every row after it is the door that ends it.
 //!
+//! **Two doors onto the address.** `set` takes the step index, and a
+//! hand-written index is a second description of the recording that
+//! can disagree with it silently — an off-by-one landing on a step
+//! that carries the same role is accepted. `set_after` takes the
+//! recording instead and writes its last step, so the leg is the
+//! recorder's own count. Every row here that authors a leg writes
+//! through `set_after`; the rows that keep `set` say why they do, and
+//! the trap it leaves open is pinned as behaviour rather than
+//! described.
+//!
 //! **What these rows pin, and where the claim is stated.** The reading
 //! is written once, on `RecordedNotation`'s own rustdoc — the notation
 //! is presentation metadata under DESIGN.md D6, it is keyed by the
@@ -45,6 +55,14 @@ const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 /// The leg this suite is about: step 1's target, the corner a path
 /// author writes as `line_to((25 mm, 0 mm))`.
+///
+/// **This is the suite's READ address, and it is a hand count on
+/// purpose.** The rows below author their notation through
+/// `RecordedNotation::set_after`, which derives the index from the
+/// recording, and then read the document back here — so the write and
+/// the read are two independent descriptions of which leg was meant,
+/// and a derivation that picked a different step is a failure rather
+/// than a shared mistake.
 const LEG: u32 = 1;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -52,31 +70,47 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// A square of side `side` METRES, recorded through the path algebra
-/// exactly as a caller writes it: `At(p0)`, three `LineTo`s, the closer.
-fn square(side: f64) -> Vec<Step<f64>> {
+/// exactly as a caller writes it: `At(p0)`, three `LineTo`s, the
+/// closer — with `roles` of the FIRST leg written in millimetres at
+/// the leg itself, through the derived door.
+///
+/// This is where a caller writing a notation stands: holding the path
+/// it has just extended, not a finished recording it has to count
+/// through. `set_after` takes the recording so far and writes the
+/// verb that made it, so the notation in the pair below names the leg
+/// the line above authored.
+fn square_authored(side: f64, roles: &[StepArg]) -> (Vec<Step<f64>>, RecordedNotation) {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    let mut n = RecordedNotation::new();
+    let path = Open
+        .at(p2(0.0, 0.0))
         .line_to(p2(side, 0.0), t)
-        .expect("a leg of a square")
+        .expect("a leg of a square");
+    for &arg in roles {
+        n.set_after(path.recorded(), arg, quantity::MM.def())
+            .expect("mm measures a length, and a target coordinate is one");
+    }
+    let program = path
         .line_to(p2(side, side), t)
         .expect("a leg of a square")
         .line_to(p2(0.0, side), t)
         .expect("a leg of a square")
         .line_to(Start, t)
         .expect("the square closes")
-        .program
+        .program;
+    (program, n)
 }
 
-/// `25 mm`, written down: the notation for the leg a caller authored in
-/// millimetres. The value in the recording is the canonical `0.025`,
-/// because that is what a recording holds.
-fn in_millimetres() -> RecordedNotation {
-    let mut n = RecordedNotation::new();
-    for arg in [StepArg::TargetX, StepArg::TargetY] {
-        n.set(LEG, arg, quantity::MM.def())
-            .expect("mm measures a length, and a target coordinate is one");
-    }
-    n
+/// The same square with no notation anywhere.
+fn square(side: f64) -> Vec<Step<f64>> {
+    square_authored(side, &[]).0
+}
+
+/// `25 mm`, written down: the square whose first leg a caller authored
+/// in millimetres, both coordinates. The value in the recording is the
+/// canonical `0.025`, because that is what a recording holds.
+fn in_millimetres() -> (Vec<Step<f64>>, RecordedNotation) {
+    square_authored(0.025, &[StepArg::TargetX, StepArg::TargetY])
 }
 
 /// The document a lifted program reaches: a frame, then the profile.
@@ -204,7 +238,8 @@ fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
 /// in, never the number.
 #[test]
 fn a_leg_authored_in_millimetres_reads_back_millimetres() {
-    let program = LoopProgram::from_recorded_with_notation(&square(0.025), &in_millimetres())
+    let (steps, notation) = in_millimetres();
+    let program = LoopProgram::from_recorded_with_notation(&steps, &notation)
         .expect("a square with a notation lifts");
     let doc = doc_of(program);
     assert_eq!(
@@ -222,7 +257,8 @@ fn a_leg_authored_in_millimetres_reads_back_millimetres() {
 /// addressed one step over; nothing about the mm on step 1 reaches it.
 #[test]
 fn an_argument_with_no_notation_reads_back_the_canonical_unit() {
-    let program = LoopProgram::from_recorded_with_notation(&square(0.025), &in_millimetres())
+    let (steps, notation) = in_millimetres();
+    let program = LoopProgram::from_recorded_with_notation(&steps, &notation)
         .expect("a square with a notation lifts");
     let doc = doc_of(program);
     assert_eq!(
@@ -277,8 +313,8 @@ fn an_empty_notation_lifts_to_the_program_from_recorded_mints() {
 /// re-run by what it computes, never by what it says it was written in.
 #[test]
 fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
-    let steps = square(0.025);
-    let millimetres = LoopProgram::from_recorded_with_notation(&steps, &in_millimetres())
+    let (steps, notation) = in_millimetres();
+    let millimetres = LoopProgram::from_recorded_with_notation(&steps, &notation)
         .expect("the mm recording lifts");
     let metres = LoopProgram::from_recorded(&steps).expect("the m recording lifts");
     let (doc_mm, doc_m) = (doc_of(millimetres.clone()), doc_of(metres.clone()));
@@ -311,8 +347,8 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
 /// worth writing.
 #[test]
 fn a_recorded_notation_round_trips_through_save_and_load() {
-    let program =
-        LoopProgram::from_recorded_with_notation(&square(0.025), &in_millimetres()).expect("lifts");
+    let (steps, notation) = in_millimetres();
+    let program = LoopProgram::from_recorded_with_notation(&steps, &notation).expect("lifts");
     let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
     let edits = edits_of(program.clone());
     let text = save(&base, &edits, Tol::witness()).expect("the log saves");
@@ -360,7 +396,9 @@ fn a_carrier_form_takes_its_notation_at_step_zero() {
     let t = Tol::witness();
     let circle = profile::circle(p2(0.0, 0.0), 0.025, t).expect("a circle");
     let mut n = RecordedNotation::new();
-    n.set(0, StepArg::Radius, quantity::MM.def())
+    // A carrier's whole recording is its one step, so the derived
+    // door addresses step 0 without the author saying so.
+    n.set_after(&circle.program, StepArg::Radius, quantity::MM.def())
         .expect("a radius is a length");
     let program =
         LoopProgram::from_recorded_with_notation(&circle.program, &n).expect("the circle lifts");
@@ -386,11 +424,8 @@ fn a_carrier_form_takes_its_notation_at_step_zero() {
 /// of the address its own tension.
 #[test]
 fn one_role_of_a_pair_takes_the_notation_alone() {
-    let mut n = RecordedNotation::new();
-    n.set(LEG, StepArg::TargetX, quantity::MM.def())
-        .expect("mm measures a length");
-    let program =
-        LoopProgram::from_recorded_with_notation(&square(0.025), &n).expect("the square lifts");
+    let (steps, n) = square_authored(0.025, &[StepArg::TargetX]);
+    let program = LoopProgram::from_recorded_with_notation(&steps, &n).expect("the square lifts");
     let doc = doc_of(program);
     assert_eq!(read_back(&doc, LEG, StepArg::TargetX), (0.025, "mm"));
     assert_eq!(
@@ -414,14 +449,19 @@ fn an_angle_role_and_a_length_role_on_one_program() {
     let t = Tol::witness();
     let l = 0.025;
     let q = std::f64::consts::FRAC_PI_2;
-    let steps = Open
+    let mut n = RecordedNotation::new();
+    let path = Open
         .at(p2(0.0, 0.0))
         .angle(0.0, t)
         .expect("a departure direction")
         .line(l, t)
-        .expect("the first side")
-        .turn(q, t)
-        .expect("a corner")
+        .expect("the first side");
+    n.set_after(path.recorded(), StepArg::Length, quantity::MM.def())
+        .expect("a leg length is a length");
+    let path = path.turn(q, t).expect("a corner");
+    n.set_after(path.recorded(), StepArg::TurnVal, quantity::DEG.def())
+        .expect("a turn is an angle");
+    let steps = path
         .line(l, t)
         .expect("the second side")
         .turn(q, t)
@@ -431,11 +471,6 @@ fn an_angle_role_and_a_length_role_on_one_program() {
         .line_to(Start, t)
         .expect("the square closes")
         .program;
-    let mut n = RecordedNotation::new();
-    n.set(2, StepArg::Length, quantity::MM.def())
-        .expect("a leg length is a length");
-    n.set(3, StepArg::TurnVal, quantity::DEG.def())
-        .expect("a turn is an angle");
     let program = LoopProgram::from_recorded_with_notation(&steps, &n).expect("the square lifts");
     let doc = doc_of(program);
     assert_eq!(read_back(&doc, 2, StepArg::Length), (l, "mm"));
@@ -452,6 +487,181 @@ fn an_angle_role_and_a_length_role_on_one_program() {
 }
 
 // ------------------------------------------------------------------
+// The two doors onto the address: derived, and hand-written
+// ------------------------------------------------------------------
+
+/// **The derived door writes the leg the author had just recorded.**
+///
+/// `set_after` takes the recording so far and addresses its LAST step,
+/// so the index is the recorder's own count and never the author's.
+/// The chain is three legs and the notation is written after leg two,
+/// which is step 2 because the entry verb is step 0 — the arithmetic
+/// nobody performs here.
+///
+/// RED before the derived door in the only way it can be: there was no
+/// door, and the author wrote `set(2, …)` after counting.
+#[test]
+fn the_derived_door_writes_the_leg_the_author_had_just_recorded() {
+    let t = Tol::witness();
+    let mut n = RecordedNotation::new();
+    let path = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(0.025, 0.0), t)
+        .expect("the first leg");
+    let path = path.line_to(p2(0.025, 0.025), t).expect("the second leg");
+    for arg in [StepArg::TargetX, StepArg::TargetY] {
+        n.set_after(path.recorded(), arg, quantity::MM.def())
+            .expect("mm measures a length, and a target coordinate is one");
+    }
+    assert_eq!(
+        n.get(2, StepArg::TargetX).map(|u| u.symbol()),
+        Some("mm"),
+        "the notation landed on the leg just recorded"
+    );
+    assert_eq!(
+        n.get(1, StepArg::TargetX),
+        None,
+        "and on no other leg — the first leg was recorded before the write"
+    );
+    assert_eq!(n.len(), 2, "the two roles written, and nothing else");
+    let steps = path.line_to(Start, t).expect("the chain closes").program;
+    let lifted = LoopProgram::from_recorded_with_notation(&steps, &n)
+        .expect("the chain with a notation lifts");
+    let doc = doc_of(lifted);
+    assert_eq!(read_back(&doc, 2, StepArg::TargetX), (0.025, "mm"));
+    assert_eq!(read_back(&doc, 2, StepArg::TargetY), (0.025, "mm"));
+    assert_eq!(
+        read_back(&doc, 1, StepArg::TargetX),
+        (0.025, "m"),
+        "leg one is the same 25 mm of geometry and was written with no notation"
+    );
+}
+
+/// **The trap the derived door closes, in the direction that tells.**
+///
+/// A hand count that is off by one lands on a step carrying the SAME
+/// role, so the lift has nothing to refuse: the program is minted, the
+/// unit is on the wrong leg, and nobody is told. This row asserts the
+/// silent acceptance rather than a refusal, because that is the
+/// behaviour `set` has and keeps — the addressed door stays for the
+/// callers whose index is derived from the program (the viewer's
+/// sketch notation walks `LoopProgram::step_args`), so the trap is
+/// still expressible and the recourse is `set_after`, not a check.
+#[test]
+fn a_hand_counted_index_that_is_off_by_one_lands_on_the_wrong_leg() {
+    let t = Tol::witness();
+    let steps = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(0.025, 0.0), t)
+        .expect("the first leg")
+        .line_to(p2(0.025, 0.025), t)
+        .expect("the second leg")
+        .line_to(Start, t)
+        .expect("the chain closes")
+        .program;
+    // The author meant the second leg and counted the LEGS, not the
+    // steps — the entry verb is a step too.
+    let mut n = RecordedNotation::new();
+    n.set(1, StepArg::TargetX, quantity::MM.def())
+        .expect("mm measures a length");
+    let lifted = LoopProgram::from_recorded_with_notation(&steps, &n)
+        .expect("the miscount is ACCEPTED: step 1 carries a target x of its own");
+    let doc = doc_of(lifted);
+    assert_eq!(
+        read_back(&doc, 1, StepArg::TargetX),
+        (0.025, "mm"),
+        "the unit landed on the leg the author did not mean"
+    );
+    assert_eq!(
+        read_back(&doc, 2, StepArg::TargetX),
+        (0.025, "m"),
+        "and the leg they did mean reads back the canonical unit"
+    );
+}
+
+/// The derived door refuses a recording with no last step: there is
+/// nothing for it to write against, and it will not invent step 0.
+///
+/// The refusal is its own arm rather than
+/// `NotationOffProgram { step: 0, … }`, because the caller named no
+/// step for that sentence to be about — and step 0 of a recording
+/// whose entry verb lacks the role is a live, different mistake
+/// (`a_notation_entry_off_the_program_refuses` writes exactly it).
+#[test]
+fn the_derived_door_refuses_a_recording_with_no_last_step() {
+    let mut n = RecordedNotation::new();
+    let refused = n
+        .set_after(&[], StepArg::TargetX, quantity::MM.def())
+        .expect_err("nothing has been recorded");
+    assert_eq!(
+        refused,
+        RecordedProgramError::NotationBeforeAnyStep {
+            arg: StepArg::TargetX
+        }
+    );
+    assert_eq!(
+        refused.to_string(),
+        "the notation names the target x of the step just recorded, and nothing has been \
+         recorded yet"
+    );
+    assert!(n.is_empty(), "and nothing was written down");
+}
+
+/// The derived door asks the same question about the unit that the
+/// addressed one does, and says so in the lift's vocabulary: a wrong
+/// QUANTITY is refused where the caller writes it, before any program
+/// exists.
+#[test]
+fn the_derived_door_refuses_a_unit_that_does_not_measure_the_role() {
+    let t = Tol::witness();
+    let path = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(0.025, 0.0), t)
+        .expect("the first leg");
+    let mut n = RecordedNotation::new();
+    let refused = n
+        .set_after(path.recorded(), StepArg::TargetX, quantity::DEG.def())
+        .expect_err("a target coordinate is a length");
+    assert_eq!(
+        refused.to_string(),
+        "a recorded literal was refused: the display unit measures angle but the literal is length"
+    );
+    assert!(n.is_empty(), "and nothing was written down");
+}
+
+/// A role the LAST step does not carry is still the lift's off-program
+/// refusal — and it now names the author's own leg, because the step
+/// half of the address was derived from the recording.
+///
+/// This is the half `set_after` does not close and does not claim to:
+/// the index is certain, the role is the author's to get right.
+#[test]
+fn the_derived_door_still_refuses_a_role_the_last_step_does_not_carry() {
+    let t = Tol::witness();
+    let path = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(0.025, 0.0), t)
+        .expect("the first leg");
+    let path = path.line_to(p2(0.025, 0.025), t).expect("the second leg");
+    let last = u32::try_from(path.recorded().len() - 1).expect("a short recording");
+    let mut n = RecordedNotation::new();
+    n.set_after(path.recorded(), StepArg::ViaX, quantity::MM.def())
+        .expect("a via point is a length, so the notation door writes it down");
+    let steps = path.line_to(Start, t).expect("the chain closes").program;
+    let refused = LoopProgram::from_recorded_with_notation(&steps, &n)
+        .expect_err("a LineTo carries no via point");
+    assert_eq!(
+        refused,
+        RecordedProgramError::NotationOffProgram {
+            step: last,
+            arg: StepArg::ViaX
+        },
+        "the refusal names the leg that was just authored"
+    );
+    assert_eq!(last, 2, "which is the second leg of this chain");
+}
+
+// ------------------------------------------------------------------
 // The refusals
 // ------------------------------------------------------------------
 
@@ -462,6 +672,11 @@ fn an_angle_role_and_a_length_role_on_one_program() {
 /// component are ratios, so the only unit they admit is the
 /// dimensionless row every Scalar literal already carries — which is
 /// what "a scalar argument carries no notation" means, executed.
+///
+/// Written through `set`, and the index is arbitrary: this row is
+/// about the door's predicate over (role, unit), which no recording
+/// takes part in — there is nothing here for `set_after` to derive an
+/// index from.
 #[test]
 fn a_unit_must_measure_what_its_role_holds() {
     let mut n = RecordedNotation::new();
@@ -511,6 +726,13 @@ fn a_unit_must_measure_what_its_role_holds() {
 /// two can disagree: a step past the program's end, or a role this
 /// verb does not carry. Both are the caller's own mistake and both are
 /// told.
+///
+/// **The one row that keeps the hand-written index**, because the
+/// refusal it pins is the addressed door's own: a step past the end
+/// is a sentence only a caller who wrote an index can provoke, and
+/// `set` is a door this crate keeps
+/// (`the_derived_door_writes_the_leg_the_author_had_just_recorded`
+/// covers the derived one).
 #[test]
 fn a_notation_entry_off_the_program_refuses() {
     let steps = square(0.025);
