@@ -1,6 +1,7 @@
-//! **The box doors build one body, and `geometric_cube` does not** —
+//! **The box doors build one body, and the two cube doors do not** —
 //! the two halves of the partition `common::brick`'s doc asserts, made
-//! falsifiable.
+//! falsifiable. `geometric_cube` leaves the family on the description
+//! step; `declined_cube` leaves it on that step and on face geometry.
 //!
 //! **The box doors are one construction, and that is why the load here
 //! is on the row that does not compare them.** `brick`, `prism`,
@@ -37,11 +38,12 @@
 //! its endpoints stayed put passes this file; ~30 rows elsewhere in the
 //! tree are what stand against that.
 //!
-//! The negative row is the last one. A file that only pins agreement
+//! The negative rows are the last two. A file that only pins agreement
 //! goes green when someone makes every door identical by deleting the
 //! distinction, which is the likeliest way to break it:
 //! `geometric_cube` stops before `describe_as_intersections` and its
-//! suites assert on exactly that absence.
+//! suites assert on exactly that absence, and `declined_cube` stops
+//! there and declines its face surfaces on top of it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -589,5 +591,37 @@ fn geometric_cube_is_the_one_door_that_keeps_its_scaffolding() {
         "every edge of `geometric_cube` is still a declared conventional \
          chord — the state its suites assert both at-rest rules fire on: \
          {scaffolded_carries:?}"
+    );
+}
+
+/// `declined_cube` is the second door that does not build the box
+/// doors' body, and it leaves the family on a second axis as well as
+/// the scaffolding one: every face stays on the single surface key the
+/// opening `mvfs` minted. Both halves are subjects — the coincidence
+/// and revert suites read that shared key, and a silent slide to
+/// `Certified` would hand them six keys and a different question — so
+/// both are pinned here rather than inferred from the rows riding on
+/// them.
+#[test]
+fn declined_cube_keeps_its_scaffolding_and_its_one_surface_key() {
+    let declined = common::declined_cube::<f64>(Tol::witness()).body;
+    let certified = common::geometric_cube::<f64>(Tol::witness()).body;
+
+    let declined_carries = carries(&declined);
+    assert_eq!(declined_carries.len(), 12);
+    assert!(
+        declined_carries.iter().all(|&(isect, decl)| !isect && decl),
+        "every edge of `declined_cube` is a declared conventional chord, \
+         exactly as `geometric_cube`'s are: {declined_carries:?}"
+    );
+    assert_eq!(
+        declined.surfaces().count(),
+        1,
+        "all six faces of `declined_cube` sit on the one `mvfs` placeholder"
+    );
+    assert_eq!(
+        certified.surfaces().count(),
+        6,
+        "and one surface key per face is what the certified door builds"
     );
 }

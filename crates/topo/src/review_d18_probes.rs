@@ -41,7 +41,8 @@ use geom_core::Point3;
 
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{MefSite, MevSite};
-use crate::fixtures::{deep_snapshot, ops_cube};
+use crate::fixtures::deep_snapshot;
+use crate::test_support_fixtures::declined_cube;
 use crate::{Body, EulerOpError};
 use geom_core::Tol;
 
@@ -69,7 +70,7 @@ fn p(x: f64) -> Point3<f64> {
 #[test]
 fn d18_split_edge_refuses_a_dangling_prev_of_he_minus() {
     let tol = Tol::witness();
-    let cube = ops_cube(tol);
+    let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hm = body.get_edge(edge).unwrap().he_minus;
@@ -97,7 +98,7 @@ fn d18_split_edge_refuses_a_dangling_prev_of_he_minus() {
 #[test]
 fn d18_split_edge_still_refuses_a_dangling_next_of_he_plus() {
     let tol = Tol::witness();
-    let cube = ops_cube(tol);
+    let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hp = body.get_edge(edge).unwrap().he_plus;
