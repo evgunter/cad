@@ -184,7 +184,11 @@ verified held.
   `set_after`; `const LEG` survives as the suite's READ address, which
   is what makes the derived write checkable.
 - Premises: every verb records exactly one step, fused verbs and
-  binders included (54 `Core::record` call sites, one step each);
+  binders included (51 `Core::record` call sites, one step each — of
+  the 54 `.record(` calls in `crates/profile/src/`, three belong to
+  other `record` fns: `structure.rs`'s fillet-decision recorder and
+  the two `guide.record` sites in `validate.rs` and
+  `path/arc_fillet.rs`);
   `from_recorded` numbers steps by recording index; no Python door
   binds `RecordedNotation` (`pncad`'s prelude and `document.rs`
   re-export it, the viewer builds one), so LIB's
@@ -199,3 +203,50 @@ Not closed, and said in the doc: `set` with a hand index stays
 expressible, because the viewer's `Notation::over` derives its indices
 from `LoopProgram::step_args()` and needs the addressed door. A wrong
 ROLE on the right step stays the lift's `NotationOffProgram` refusal.
+
+
+## Built — fix pass (2026-09-19, lane `notation-fix`)
+
+The review's findings, each as the invariant it asked for.
+
+- **One home for narrowing a program address.**
+  `program.rs`'s private `program_index(usize) -> u32` holds the
+  `u32::try_from` and the D2-row-4 justification once, and the ten
+  bare `as u32` narrowings in that file plus the derived door call
+  it. The eight-line paragraph at the door is gone; its argument is
+  the helper's doc.
+- **The derived door is reachable wherever an author has just
+  recorded.** `recorded()` now answers on all five arrival builders
+  (`RadiusArrival`, `RadiusArrivalAt`, `RadiusArrivalDir`,
+  `ViaArrival`, `ViaArrivalStart`) as well as on `PartialPath` — one
+  accessor shape, the reason stated once on the arrival-builder
+  banner. PATHS's crate, by announcement. After the closer the
+  recording is `ClosedLoop::program`, and `set_after`'s doc names the
+  two moments and the two spellings.
+- **The dead vocabulary is said to be dead.** Neither notation tag
+  can reach a Python caller (`py::path::loop_program` lifts through
+  `from_recorded`), and `recorded_program_error_tag`'s doc now says
+  so and points at
+  `work/lib/path-legs-erase-the-authored-notation-one-layer-down`,
+  which gained a `## Widened` section naming both doors.
+- **The record.** 51 `Core::record` sites, not 54; the
+  `display_contract` census doc counts five arms, three about the
+  recording, and names the one raised at the writing door;
+  `program.rs`'s enum and `tags.rs`'s map say that in their first
+  sentence; three rows keep `set` and the suite header names each
+  with its reason; the profile row got its own doc block and
+  `circle_is_a_one_step_program_that_replays_to_its_two_poles` its
+  paragraph back.
+- **One predicate.** `RecordedNotation`'s "A unit measures what its
+  role holds" names both doors and says `set_after` delegates to
+  `set`, so `UnitSym::checked_for` is asked in one place.
+- **The review's three probes** are the unit's rows now, each headed
+  by the invariant it pins: the derived index over fused verbs,
+  binders and the closer; the `fillet` binder as the last recorded
+  step; and — turned from an asymmetry into the door's own row — an
+  arrival state's author reaching `recorded()`, plus the finished
+  loop's `program` as the second spelling.
+- **The suite's helpers, checked against the fixture's doors:**
+  `vertex_bits` was `fixture::run`'s body spelled again and now
+  imports it; `square_authored`, `arg_bits` and `read_back` match no
+  door and stay.
