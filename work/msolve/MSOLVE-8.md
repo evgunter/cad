@@ -5,6 +5,7 @@ title: A levered clash names its arm as a typed lever, the coset's directions ca
 status: dispatched
 opened: 2026-09-19
 branch: msolve/8-levered-clash
+pr: 2896
 ---
 
 
