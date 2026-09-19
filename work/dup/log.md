@@ -1222,3 +1222,87 @@ also exposed a blind spot nobody had stated — a face datum arriving
 from a `body.faces()` **iterator** rather than a lookup, which is **six
 of the eight sites this PR folded**. The instrument could not see most
 of what the unit closed.
+
+## 2026-09-19 — the exemption this program twice called Ev's was a lane's own recommendation
+
+PR #2866 merged green on the full matrix. Twenty-one carriers retired —
+the instruction deleted, the provenance kept, and **nothing rewritten
+into a new rule**. Four rows filed where the remedy would have been to
+*write* a standing instruction rather than remove a withdrawn one.
+
+**The attribution, checked at last, and it does not hold.** This
+program has twice written that `review_m1_pr2/cube_independent.rs` is
+exempt *"per Ev's request (PR #17 thread)"*. I verified the commit that
+minted it, `e9eeace50`, 2026-07-16 — which wrote the seven headers
+**and** the memory clause they copied, in one commit. The clause reads:
+
+> **Reviewer suites get promoted into CI.** … promoted into the repo as
+> `crates/topo/tests/review_m1_prN*.rs` **(Evan, PR #17 thread)**. The
+> suites are independent derivations — that independence is their
+> regression value, so do not "simplify" them to match shipped
+> fixtures…
+
+**The citation attaches to the promotion. The no-simplify sentence is
+the next sentence and carries no citation at all.** The headers copied
+the attribution onto the whole paragraph.
+
+And the thread itself settles where the phrase came from. Ev's own
+words are a question: *"do reveiwer artifacts feed acceptance tests? we
+may want to keep them as an auxiliary source of tests even if we don't
+run them in ci"*. **Eighty-nine seconds later**, a long status report
+from the same account answers it with *"recommendation is to promote
+reviewer suites into the repo as labeled integration tests that DO run
+in CI"* and proposes the provenance header verbatim — *"independent
+derivations — do not simplify to match shipped fixtures, the
+independence is the value"*. Ev's next message is *"how's it going on
+pr 3?"*.
+
+So the rule was **a lane's own recommendation, cited back to the person
+it was recommended to**, and then quoted as his ruling by three
+subsequent units of this program, mine included. That is the exact
+failure the same memory names two paragraphs above the withdrawal:
+*"Never enshrine a causal story you have not checked."*
+
+Nothing downstream changes: Ev withdrew the reading in 2026-09-04
+regardless of where it came from, and `cube_independent.rs` keeps its
+own code on the clause that survived — its claim **is** the
+cross-check, evidenced by the file's own description of its different
+addressing. What changes is that the exemption never rested on anything
+Ev ratified. The lane correctly did **not** edit the attribution line:
+the promotion half is true, and narrowing it is a provenance claim on
+an authorship question one account cannot settle. Filed for Ev.
+
+### The ratification procedure is weaker than CLAUDE.md implies
+
+Two measured findings about the check itself, both worth more than this
+unit:
+
+- **This checkout has 149 shallow grafts over 18,910 commits.** So
+  `git log -S` does not merely bottom out at one bot render commit — it
+  returns a long list of grafted commits in which every file reads as
+  newly added, and path-scoping does not fix it. What works is
+  `git log --all --format=… -- <path>` read oldest-first, then reading
+  the actual diff.
+- **`git log -S` misses wrapped text exactly as a grep does.**
+  `-S"nothing here is a protected class"` returns nothing, because the
+  phrase spans two `//!` lines; `-S"protected class"` finds the commit.
+  **The tool CLAUDE.md prescribes for checking a sentence's provenance
+  is a line-shaped instrument with the same defect as the grep it is
+  meant to check.**
+
+### And the population was 21, not 19, in a shape nobody had assumed
+
+The sentence census confirmed the row's 19 and its 16/3 split exactly.
+Two more came from paraphrase needles — *"promoted as-is"*, *"keep
+verbatim"* — which no sentence grep reaches. The twenty-first was found
+only on the **post-edit re-sweep**: an inline `//` comment mid-file, not
+a `//!` header. **The whole program, this brief included, had been
+reading the class as a header class.** It is not.
+
+The denominator-first instrument then answered the sharper question:
+30 citations of the memory in 27 files, of which **8 cite it for
+something it no longer says — and only 2 of those 8 are among the 19.**
+Six are structurally invisible to any grep for the sentence, four of
+them a family nobody had looked at, and two sit in `work/*/plan.md` —
+one in a program's **exit criteria**. A source header states a rule
+where a lane *may* read it; a plan states it where a lane *must*.
