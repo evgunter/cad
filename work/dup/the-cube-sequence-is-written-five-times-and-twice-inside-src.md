@@ -1,7 +1,7 @@
 ---
 id: the-cube-sequence-is-written-five-times-and-twice-inside-src
 kind: issue
-title: The §9.4.2 cube sequence is written five times in topo; two of the copies are in src/ and fold onto each other
+title: The §9.4.2 cube sequence is written five times in topo; after link 3 every copy is in src/ and they fold onto each other
 status: open
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
@@ -13,9 +13,12 @@ refs: [brick-has-two-constructions-and-two-homes]
 - **Where**: `crates/topo/src/fixtures.rs` (`ops_cube`, `:765`),
   `crates/topo/src/review_m1_pr3.rs` (`build_box`),
   `crates/topo/src/cert_m3r1_probes.rs` (its verbatim copy of
-  `geometric_cube`), `crates/topo/tests/common/mod.rs`
-  (`geometric_cube`/`cube_into`, and `prism_ops` which subsumes them),
-  against each other.
+  `geometric_cube`, folded by link 3),
+  `crates/topo/src/splitting/reassembly.rs` (`quad_prism`),
+  `crates/topo/src/test_support_fixtures.rs`
+  (`geometric_cube`/`cube_into`, and `prism_ops` which subsumes them;
+  was `crates/topo/tests/common/mod.rs` before link 3), against each
+  other.
 - **Importance**: medium
 - **Confidence**: sure for the `ops_cube`/`build_box`/`geometric_cube`
   triple, which was measured by dumping; the fifth copy
@@ -109,9 +112,21 @@ so the wall this row parks behind is down. Two things changed under it.
 **One of the five is gone.** `cert_m3r1_probes.rs`'s copy was folded
 onto the shared family in the same unit — it now calls
 `test_support_fixtures::{geometric_cube, describe_as_intersections,
-face_surface_of_he}` and builds nothing box-shaped. **The count is four:
-`prism_ops`, `fixtures::ops_cube`, `review_m1_pr3::build_box`, and
-`cube_independent.rs`'s exempt independent derivation.**
+face_surface_of_he}` and builds nothing box-shaped.
+
+**One that was never on the list is, and it cancels the other's
+subtraction. The count is five:** `prism_ops`,
+`splitting::reassembly::quad_prism`, `fixtures::ops_cube`,
+`review_m1_pr3::build_box`, and `cube_independent.rs`'s exempt
+independent derivation.
+
+**And all five are now under `crates/topo/src/`** — the shared builder
+included, since link 3 moved it there. The id and the original title's
+*"twice inside src"* are the count at the moment this row was opened;
+the title is corrected, the id is not (`work/README.md`: ids are
+stable). What that changes for the unit is that the fold is entirely
+`src`-local: no crate boundary, no feature edge, no `tests/` consumer
+to re-point.
 
 **The census, re-run over every tracked file with no path argument**, as
 `plan.md`'s method item 3 asks. The pattern was the SHAPE, not a name: a
@@ -136,3 +151,78 @@ copy written as a loop is invisible to it, and no name sweep replaces
 that: a loop-written copy under a new name is found only by execution.
 It also cannot see a copy assembled through the raw builder rather than
 the operators, which is how `fixtures.rs`'s raw family would look.
+
+## `quad_prism`, and why both of link 3's censuses missed it
+### (added 2026-09-19 by the PR 2842 fix pass, out of the review)
+
+`crates/topo/src/splitting/reassembly.rs`'s `quad_prism` is a copy of
+`prism_ops` in `src/`, and it said so itself: its doc read *"the
+tests/common builder's minimal in-crate copy"* at
+`d928c332a:crates/topo/src/splitting/reassembly.rs:42`. It is
+`#[cfg(test)] pub(crate) mod reassembly` (`splitting/mod.rs`), so the
+namability wall this row is about never held it: `test_support_fixtures`
+is nameable from it today, and `tests/common` was not nameable from it
+before link 3 either — the copy predates and outlives that wall.
+
+**Established by READING both functions side by side**, not by dumping.
+Operator for operator it is `prism_ops` specialised to `f64` and
+`n = 4`: the same `mvfs(bot[0])` seed, the same `MevSite::Lone` first
+rim edge then `MevSite::Fan { he1: at, he2: at }` chain over `2..n`,
+the same `find_half_edge(seed.face, …)` / reversed-profile `rev` bottom
+close through `MefSite::Chords`, the same strut loop, the same
+`(i + 1) % n` side loop with `first_side_he_plus` closing the last
+wall, and the same closing `set_face_surface` on the seed face. It
+differs in exactly three ways: it is monomorphic at `f64`, it returns
+the `Body` rather than a key bundle, and it takes `height` where
+`prism_ops` takes `z: (f64, f64)`. The description step is absent from
+both — in `prism_ops` that is deliberate and documented as the
+caller's.
+
+**It has already drifted**, which is the cost this row exists to
+name. Its strut loop carries a first arm `if i == 0 { chain[0].he_plus }`
+that `prism_ops` folds into `i < n - 1` (`chain[0].he_plus` is what the
+general arm yields at `i = 0`). Dead in the sense that removing it
+changes nothing, live in the sense that a reader now has two different
+pictures of the same anchor rule.
+
+**Call sites**: 19 in `topo/src`, across `boolean/ops.rs` (6),
+`props.rs` (3), `boolean/solid_contain.rs`, `census.rs`,
+`offset_together.rs`, `shell10_r2_probes.rs` (2 each),
+`splitting/reassembly.rs` and `surgery.rs` (1 each). Nothing in
+`tests/` can reach it (`review_m3_pr3_consumer.rs`'s `add_quad_prism`
+is a different, locally-defined function). So the fold is `src`-local
+and the blast radius is those 19 lines.
+
+### Why the two instruments missed it, and which third one finds it
+
+- **The shape census counts CALL SITES.** `quad_prism` is loop-written,
+  so it scores 1 `mvfs` / 3 `mev` / 2 `mef` and falls under the
+  ≥7 `mev` / ≥5 `mef` threshold. This row's own "what the pattern could
+  not match" paragraph **names that blind spot exactly** — *"it
+  undercounts every builder that loops — which is exactly how it misses
+  `prism_ops` itself"* — and then does not compensate for it. A
+  disclosed blind spot that nothing is run through is not a negative
+  result; the sentence should have been followed by a second pattern,
+  and this row is the evidence for why.
+- **The name census keys on family-member names.** `quad_prism` is a
+  new name for a family member, which is the one thing a name census
+  structurally cannot see.
+- **A census shaped on the GEOMETRY finds it in one line.** Files
+  holding both `mvfs(` and `newell_plane` — the two ends of "Euler-op
+  construction with certified planar faces", neither of them an arity —
+  return ten files across the tree, and `reassembly.rs` sits directly
+  beside `test_support_fixtures.rs` in the list. Verified 2026-09-19:
+  `sweep/src/{extrude,loft,revolve/partial}.rs`,
+  `topo/src/{euler,splitting/reassembly,test_support_fixtures,validate}.rs`,
+  `topo/tests/{m3_pr3_split,review_m2_pr3,review_m3_pr3_rings}.rs`.
+  `git grep 'in-crate copy'` also returned it, as a single hit, at
+  link 3's merge base — a self-declared copy is findable by its own
+  prose, and no census in either link was run over prose.
+
+### What landed in PR 2842, and what did not
+
+**Not folded.** The fold is this row's unit and is new scope for a PR
+about moving the family. What landed is the disclosure: `quad_prism`'s
+doc now says it is a copy of `test_support_fixtures::prism_ops` and
+points here, and `cert_m3r1_probes.rs`'s header no longer claims the
+moved family is *"the one Euler-op fixture family"*.

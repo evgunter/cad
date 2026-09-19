@@ -5,6 +5,7 @@ title: cert_m3r1_probes.rs carries a verbatim in-src copy of the whole geometric
 status: closed
 opened: 2026-09-16
 closed: 2026-09-18
+refs: [half-edge-to-face-walk-is-spelled-once-per-suite]
 ---
 
 
@@ -148,3 +149,18 @@ names it by path.
 it; its `Tol::witness()` calls stay legal. Two of them are new, at the
 two folded doors, because the family's signatures take `tol: Tol` after
 link 2 — exactly as this row predicted.
+
+### Correction (2026-09-19, PR 2842's fix pass): the `face_surface_of_he` half is a HALF-fix
+
+This row's *"whichever home wins, that helper is one function, not
+two"* was written about the two spellings **this row could see**, and
+PR 2842 folded four. That closes the row's own claim and nothing
+wider. The helper is a member of a class this row never measured: the
+half-edge → loop → face walk is spelled in 56 tracked files, including
+two byte-identical closures in `topo/src` (`shell.rs`'s `face_of_he`,
+`replace_face.rs`'s `face_of`) that no census in links 1–3 disclosed.
+Filed as `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`,
+which carries the measurement and names those two as the cheapest next
+pair. **A name census closes name collisions; this class is one thing
+under many names**, which is why folding four of them is not closing
+it.

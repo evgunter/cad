@@ -1,7 +1,7 @@
 ---
 id: sweep-test-support-brick-is-still-a-second-box-construction
 kind: issue
-title: sweep::test_support::brick still builds the box a second way, and three measured things block the delegation
+title: sweep::test_support::brick still builds the box a second way; one measured thing blocks the delegation and two scope it
 status: open
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
@@ -14,8 +14,10 @@ refs: [brick-has-two-constructions-and-two-homes]
   against `crates/topo/src/test_support_fixtures.rs` (`brick`, over
   `prism_ops`).
 - **Importance**: medium
-- **Confidence**: sure about all three blockers; each is read off a
-  manifest, a signature or a committed header, not inferred
+- **Confidence**: sure about §1, which is read off two signatures and
+  a call site. §2 was overstated when this row was opened and is
+  corrected below, by execution. §3 is a scoping argument, not a
+  blocker
 - **Raised by**: the link-3 lane (`dup/move-the-fixture-family`),
   2026-09-18, which was dispatched to delegate or delete this door and
   could not
@@ -54,27 +56,51 @@ because the `Interval` and `Probe` lanes build the same bodies as the
 `f64` one"*), so narrowing three of its members is a change to what
 that paragraph says, not only to three signatures.
 
-## 2. `sweep/src` cannot name `topo::test_support` without a manifest change
+## 2. `sweep/src` needs a manifest CHANGE — settled 2026-09-19, and it is not a gate problem
 
-`crates/sweep/Cargo.toml` carries `topo = { path = "../topo" }` under
-`[dependencies]` and `topo = { path = "../topo", features =
-["sweep-testing"] }` under `[dev-dependencies]`. `sweep`'s
-`test_support` is a **`src/` module**, so a `use topo::test_support::…`
-in it needs `topo/test-support` on a *library* edge. Putting it on the
-`[dependencies]` line is the exact defect
-`scripts/gates/test-features-dev-only.sh` exists to refuse — its header
-names that very line as the case it was written for. The only other
-spelling is a feature forward (`sweep`'s `test-support` enabling
-`topo/test-support`), which is a manifest change the link-3 brief ruled
-out and whose standing under that gate needs settling before it is
-written.
+`sweep`'s `test_support` is a **`src/` module**, so a
+`use topo::test_support::…` in it needs `topo/test-support` on a
+*library* edge. Two spellings, and only one of them is the defect:
 
-`stl` and `step-export` are not in that bind — their `pub use
+- **Featuring the `[dependencies]` line** (`topo = { path = "../topo",
+  features = ["test-support"] }`) is exactly what
+  `scripts/gates/test-features-dev-only.sh` refuses — route R1, the
+  live leak it was written for, on that very line.
+- **A forward from `sweep`'s own `test-support`**
+  (`test-support = […, "topo/test-support"]`) is **not** refused, and
+  this row's earlier claim that its standing "needs settling" was
+  wrong. The gate skips a forward whose SOURCE feature is test-only, by
+  construction: its scan reads
+  `if is_test_feature(feature) …: continue` over the `[features]`
+  table before it looks at any entry. **The precedent is three lines
+  above the `topo` dependency it would sit beside**:
+  `crates/sweep/Cargo.toml:28` already reads
+  `test-support = ["profile/test-support"]`, with a comment saying the
+  forward is not optional — `src/test_support.rs` names
+  `profile::RawLoop`, so a feature that turns this module on without
+  turning that door on does not compile from the crates that name it.
+
+**Measured, not read** (2026-09-19, on `dup/move-the-fixture-family`):
+with `"topo/test-support"` appended to that list,
+`scripts/gates/test-features-dev-only.sh` passes (26 manifests),
+`cargo check -p sweep --lib --features test-support` compiles a
+`src/test_support.rs` naming `topo::test_support::arena_counts`, and
+`cargo check --workspace --all-targets` is clean. The probe was
+reverted; nothing of it is committed.
+
+**So what actually blocks it is the brief's own sentence**, not the
+gate: link 3's plan says *"No manifest edge is added at any step."* A
+feature appended to an existing forward list is a manifest **change**,
+not a new **edge**, so whether that sentence reaches it is a reading
+of the brief and a small one — it is the cheapest of the three
+blockers by a wide margin and should not be counted alongside 1.
+
+`stl` and `step-export` are not in this bind at all — their `pub use
 sweep::test_support::brick` lives in `tests/`, so a dev-dependency
 feature would do — but they cannot move ahead of `sweep` without
 building their boxes from one family and their `cube()` from another.
 
-## 3. The swap re-authors committed bytes
+## 3. The swap re-authors committed bytes — a SCOPING argument, not a blocker
 
 `crates/sweep/src/test_support.rs`'s header says it, under *"Editing a
 fixture here re-authors committed bytes"*: `step-export`'s
@@ -85,14 +111,22 @@ the curve arena's twelve keys to edges in a different order and write
 `Intersection`'s `(s1, s2)` the other way round on the four bottom-rim
 edges (measured, `brick-has-two-constructions-and-two-homes`,
 2026-09-16). So the delegation is a re-baseline of checked-in `.step`
-files, which is legitimate under the repo's baseline rule and is work
-that has to be budgeted, decided and named — not a side effect of a
-one-line body change.
+files.
+
+**That is not a reason not to do it and must not be read as one.**
+`docs/prompts/implementer-discipline.md` §3, `crates/sweep/src/test_support.rs`'s
+own header and CLAUDE.md all say the same thing: a golden exists to
+report what the kernel does, and when it moves the only question is
+whether the new bytes are right. What this section buys is **scope** —
+the unit is a delegation plus a re-baseline with its own argument about
+which body the corpus should show, so it is not the one-line body
+change the brief's sentence makes it sound like. Reason 1 is what
+carries the deviation on its own.
 
 ## What would settle it
 
-The cheapest first measurement is whether the swap moves the committed
-STEP bytes at all: the arena permutation may or may not reach the
+§2 is settled (above). The cheapest remaining measurement is whether
+the swap moves the committed STEP bytes at all: the arena permutation may or may not reach the
 exporter's entity numbering, and nobody has run it. If it does not, 1
 and 2 are the whole cost. If it does, the unit is a delegation plus a
 re-baseline with its own argument about which body the corpus should
