@@ -1289,6 +1289,74 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
 }
 
 #[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
+    );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
+}
+
+#[test]
 fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     // The other half of the same defect: the event stream now carries
     // cursor events, so "the stream was non-empty" stopped meaning "the
