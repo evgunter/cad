@@ -2,8 +2,10 @@
 id: editing-a-profile-does-not-share-the-create-forms-interface
 kind: issue
 title: Editing an existing profile has a different, worse interface than creating one (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: vseam/profile-editor
+pr: 2862
 ---
 
 ## Ev's note (verbatim)
