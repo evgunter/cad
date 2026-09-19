@@ -21,8 +21,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
-    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, content_pin, inline, load,
-    product_named, save, split,
+    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, content_pin, inline,
+    load, product_named, save, split,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
@@ -1059,7 +1059,13 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, _) = insert(doc, Node::declare_rest(vec![(straddler.clone(), partner)]));
+    let (doc, _) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::at_mint(straddler.clone()),
+            SitedRef::at_mint(partner),
+        )]),
+    );
     match split(
         &doc,
         &BTreeSet::from([cut_f, cut_p, cut_e]),
@@ -1103,7 +1109,13 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: cut_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let (doc, decl) = insert(doc, Node::declare_rest(vec![(cut_local, reaching.clone())]));
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::at_mint(cut_local),
+            SitedRef::at_mint(reaching.clone()),
+        )]),
+    );
     match split(
         &doc,
         &BTreeSet::from([cut_f, cut_p, cut_e, decl]),
@@ -1308,7 +1320,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     };
     let (part_doc, _) = insert(
         part_doc,
-        Node::declare_rest(vec![(stranded.clone(), anchor)]),
+        // Both sides are READ at the surviving body; the stranded
+        // side's NAME is the extra node's, which is what the delete
+        // below strands.
+        Node::declare_rest(vec![(
+            SitedRef::new(anchor.node, stranded.clone()),
+            SitedRef::at_mint(anchor),
+        )]),
     );
     let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
     let doc_ref = store.insert(part_doc, Tol::witness());

@@ -436,6 +436,8 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
+#[path = "review_decl_r1.rs"]
+mod review_decl_r1;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]

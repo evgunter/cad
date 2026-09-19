@@ -1932,8 +1932,14 @@ mod tests {
                 Node::Declare {
                     pairs: vec![(
                         (
-                            rv_name(derived, crate::names::EntityKind::Face),
-                            rv_name(derived, crate::names::EntityKind::Face),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
                         ),
                         crate::mate::ContactClass::Rest,
                     )],
