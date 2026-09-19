@@ -2186,7 +2186,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // — Declare pairs, a BLEND's selection (fillet under M6-5,
             // chamfer alongside it), a SHELL's ordered open list, a
             // derived frame's face, a measure's references, a mate's
-            // two heads under A12).
+            // two heads under A12, an instance's interface crossings'
+            // remainder-side `outer`s under ASM-R2b).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -2463,7 +2464,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // earlier position. A mate reference read AT ITS OWN
             // MINT stays read at its own mint; one read elsewhere
             // keeps its operand, which is an authored fact this edit
-            // knows nothing about.
+            // knows nothing about. An instance's crossing `outer` is
+            // on that same list, so the record and the mate it
+            // records are repaired together and cannot disagree about
+            // the seam afterwards.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);

@@ -2,8 +2,10 @@
 id: instantiate-part-crossings-are-names-payload-names-does-not-list
 kind: issue
 title: An InstantiatePart's crossing references are names payload_names does not list
-status: spec
+status: closed
+closed: 2026-09-19
 branch: edit/instance-crossing-names
+pr: 2872
 opened: 2026-09-17
 refs: [interface-crossing-heads-are-bare-stable-names, 2814]
 ---
@@ -166,3 +168,159 @@ if a comment is now false (FIX, by announcement); `crates/pncad-py`
 only if a binding enumerates payload names (LIB, by announcement).
 Middle tier: one opus style review with a correctness arm, then the
 fix pass.
+
+## Built (2026-09-19)
+
+Ruled as spec'd. `Node::InstantiatePart` left `name_free_node!` and
+gained an arm in both twins (`crates/editor-core/src/node.rs`):
+`payload_names` answers each crossing's `outer` in record order, and
+`rebind_payload_names` rewrites an `outer` exactly equal to `from`
+through `FaceName::map_derivation`. No `inner` is listed, and the arm
+says why (the part's id space). No other code: the three doors follow
+from the one list.
+
+Six rows, five in the new suite
+`crates/editor-core/tests/edit_instance_crossing_names.rs` (the list
+in record order with no `inner` and `named_nodes` beside it; the
+insert door's refusal over a dead `outer`, with the live control; the
+rebind that moves the record and the carrying mate together; the
+unrelated rebind that leaves the record alone; the DM7 strand carried
+by the instance) and one in `doc.rs`'s
+`name_carriers_reads_the_payloads_then_the_store`, which now holds an
+instance as a payload carrier.
+
+Premises: (1) confirmed — leaving `InstantiatePart` in the macro
+alongside the new arms is `unreachable_patterns` at BOTH twins, an
+error under `-D warnings`. (2) confirmed — `Doc::name_carriers` reads
+`payload_names`, and the strand row went green with no change in
+`doc.rs` beyond its unit test. (3) **fell**: four of the five existing
+fixtures were inserting a record whose `outer` named a node that is
+not live — `asm_r2b_assembly`'s `row5_b`/`row5_c`/`row6` reused the
+part-side `inner` as the `outer`, and `asm_r2b_interface_wire`'s
+`doc_with_a_crossing` named the instance being inserted. Each now
+holds a plain instance whose remainder-side face the crossing keeps,
+which is the shape a split mints; `edit_one_predicate`'s rows and
+`fix_pattern_mate_crossing` were already correct and are unchanged.
+(4) confirmed — `resolve`'s insert census extends `payload_names` and
+now sees `outer`s; its rows measure resolution against an evaluation's
+tables and stayed green (no row there authors a record).
+
+Not built, filed instead: the crossing's third reference, its `mate`
+id, is checked by no door —
+`crossing-mate-back-pointer-is-checked-by-no-door`.
+
+**Premise corrected (fix pass, 2026-09-19): there are FOUR doors, not
+three, and the fourth changes `split`'s accepted set.** `split`'s
+`PartNameReachesRemainder` precondition walks `Doc::name_carriers`,
+which reads `payload_names`, so a cut that TAKES an instance whose
+record's `outer` names a KEPT node is now refused where it was
+accepted before (and `remap_node` cloned the host-space name into the
+part). That is the right answer — a part cannot name the remainder —
+and it is this unit's, so the fourth door is named in
+`Node::payload_names`' `InstantiatePart` arm, in the suite's module
+doc, and in the PR body. The pin is the reviewer's row, adopted:
+`edit_instance_crossing_names::a_split_that_takes_an_instance_naming_a_kept_node_is_refused`.
+`crates/editor-core/ASSEMBLY.md` is NOT edited — it is a design page,
+and the AQ8 wording it would want is the orchestrator's to raise on an
+`[ev]` PR.
+
+**Premise (3) corrected in the record.** The `## Built` above says
+four of five existing fixtures were inserting an unchecked record; the
+argument PR-side that "no legitimate split is refused" was vacuous as
+written, because NO split in this tree mints an inhabited record:
+`fix_pattern_mate_crossing`'s three crossings are empty, and
+`rev_fix_xsplit_unreachable::no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing`
+(over `sweep_every_cut`) pins that no accepted cut mints one at all —
+which is AQ8. `Node::instantiate_part_with` and the wire are the only
+producers of an inhabited record, so what the new door measures is
+exactly the hand-built and loaded population, and the fourth door
+above is the one measurable change to `split`'s accepted set.
+
+## Built, fix pass (2026-09-19, PR #2872)
+
+The review branch `review/crossnames-rv` was merged authorship-
+preserving and its three probes adopted into
+`edit_instance_crossing_names.rs`, each re-headed to the invariant it
+pins; the probe suite and its `all.rs` line are gone.
+
+- **The fourth door** — disclosed and pinned, above.
+- **`remap_node`'s doc** (`refactor.rs`, FIX's fence, by
+  announcement): the sentence now says an `InstantiatePart` crosses
+  verbatim BECAUSE the precondition has already refused any record
+  whose `outer` names a kept node, and cites the row. One comment, no
+  code.
+- **The crossing's `mate` is a read site**, ruled and built here; the
+  row `crossing-mate-back-pointer-is-checked-by-no-door` is closed
+  with the ruling on it. `payload_read_sites` gained an
+  `InstantiatePart` arm, the insert door refuses
+  `ReadSiteMissingNode { at: mate }` (red-first, measured), and every
+  fixture that spelled a dangling mate got a real one.
+- **No wildcard in the family.** `payload_read_sites`' `_ =>
+  Vec::new()` is now exhaustive: `name_free_node!()` (one home for
+  the variants that reference nothing) plus the five named variants
+  whose references are read at a node `Node::inputs` already carries.
+  `name_free_node!`'s doc names the third reader. Swept the rest of
+  the family: `named_nodes` delegates to `payload_names`; `inputs`
+  has no wildcard; `node.rs`'s three remaining `_ =>` arms are not
+  variant classifications (a lookup of another node's kind, and two
+  `Option`-pair comparisons).
+- **One re-derivation.** The `map_derivation` block the
+  `InstantiatePart` arm had copied from the `Mate` arm is now one
+  `rebind_face` used by both. `refactor.rs`'s `remap_face` is NOT a
+  third copy and is not folded: it re-derives through a `NodeMap`
+  across a document seam, a different question.
+- **Accessors not added.** `InterfaceCrossing::outer()`/`inner()`/
+  `mate()` would shorten three of the five irrefutable destructures
+  and not the other two: `rebind_payload_names`' needs `&mut`, and
+  `refactor.rs`'s is FIX's. Measured and left.
+- **`REFERENCES.md` §0's false sentence** — "the only door that
+  REFUSES on it is `InsertNode`'s liveness check" — re-worded to the
+  two doors that do. `git log --all -S'the only door that REFUSES on
+  it is' -- crates/editor-core/REFERENCES.md` returns one commit,
+  `676392d19`, an ordinary lane PR: no ratification, so it lands with
+  the change that found it.
+- **One home for the inner-exclusion reason.** It is stated once, on
+  `payload_names`' `InstantiatePart` arm; `REFERENCES.md` §0 and
+  `doc.rs`'s carrier test now say "no name of this document" and
+  point there. The seven hand-extended prose carrier lists are filed
+  as `payload-carrier-lists-have-seven-prose-homes`.
+- **Two guards made real.** The first row's `!contains` loop was
+  subsumed by the equality above it and is gone; the insert-door
+  row's control now asserts the record it inserted rather than
+  discarding the binding; `asm_r2b_assembly::row5_c`'s
+  `!order().is_empty()` is now the order's growth by the part's node
+  count, which only the splice can supply.
+- **The wire fixture's `inner`** is `RecipeNodeId(7)` — not a live
+  node of the host at all — because the row's subject is the id-space
+  distinction, and a value the host happens to hold cannot show it.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2872 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `InstantiatePart` left
+`name_free_node!`: `payload_names` answers each crossing's `outer`
+(a name in this document, in record order) and never its `inner`
+(the part's id space — the reason stated once, on the arm), so the
+insert door's liveness check, `Rebind` (through one `rebind_face`
+serving both twins) and DM7's strand walk reach the record with no
+code of their own. The lane found four fixtures inserting unchecked
+records and re-fixtured them; the review found the FOURTH door the
+same list opens — `split`'s `PartNameReachesRemainder` precondition
+now refuses a cut that takes an instance whose `outer` names a kept
+node, the right answer and undisclosed — and that no split in the tree
+mints an inhabited record at all (AQ8), so the unit's split arguments
+had been vacuous; both are now said and pinned. Ruled at the fix pass
+and built there: the crossing's `mate` id is a PROVENANCE reference
+the insert door checks live (`payload_read_sites` gains the arm, now
+an exhaustive match with no wildcard; every fixture that spelled a
+dangling mate got a real one; a later delete of the mate is not
+reported, as read sites are not) — the filed row
+`crossing-mate-back-pointer-is-checked-by-no-door` closed with it.
+`REFERENCES.md` §0's "the only door that REFUSES on it" sentence was
+false before this unit and is re-worded to the two doors that do
+(one commit wrote it, an ordinary lane PR; no ratification found).
+For Ev's objection on the next `[ev]` PR: the fourth door and AQ8's
+wording; the mate ruling; the §0 sentence. Filed:
+`payload-carrier-lists-have-seven-prose-homes`. Territory crossed by
+announcement: five TCOST/TINT suites, `refactor.rs` (FIX — one
+comment).
