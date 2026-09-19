@@ -2,7 +2,8 @@
 id: doc-param-refusals-keep-two-conventions-inside-one-enum
 kind: issue
 title: EditError's other doc-param refusals keep the old convention the four param-ref arms left
-status: review
+status: closed
+closed: 2026-09-19
 branch: edit/prose-one-home
 pr: 2879
 opened: 2026-09-19
@@ -137,3 +138,19 @@ address word to lead with either. Both docs say that instead.
 carry `ParamName` and facts only; `DocParamNotDeclared`'s
 `CarryForwardDoor` says which edit was refused, not where a reference
 sits.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2879 (E-class, with
+`payload-carrier-lists-have-seven-prose-homes`). Nothing renamed and
+no tag word moved: `EditError`'s enum doc states the two families —
+eight REFERENCE arms naming two facts at an address, six DECLARATION
+arms named by their fact alone because a declaration has no address —
+and the rule for the next arm (which family it joins is decided by
+what it refuses; sweep by SUBJECT as well as by shape). One premise
+corrected: `EvalError::ParamDimensionMismatch` carries no expression
+path; its address is the wrapper's (`NodeErrorKind::Expr` a node and
+a slot, `PayloadExpr` a node and a payload), which forwards the
+refusal unaltered — the same slot/payload split one level out, so the
+conclusion stands and the arm's doc points at the paragraph. No
+declaration-family arm carries an address word.

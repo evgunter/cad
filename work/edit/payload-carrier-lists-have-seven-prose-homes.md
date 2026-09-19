@@ -2,7 +2,8 @@
 id: payload-carrier-lists-have-seven-prose-homes
 kind: issue
 title: The payload-carrier list is hand-copied into seven prose homes
-status: review
+status: closed
+closed: 2026-09-19
 branch: edit/prose-one-home
 pr: 2879
 opened: 2026-09-19
@@ -137,3 +138,26 @@ fixture's blocks are name-free nodes; all 19 `dm7` rows green
 unchanged. No new row: the change adds no behaviour to pin.
 
 **Not done.** No gate script and no macro, as ruled.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2879 (E-class: green CI and the orchestrator's
+read, together with `doc-param-refusals-keep-two-conventions-inside-one-enum`).
+The list has TWO homes — `Node::payload_names`' own doc beside its
+exhaustive match, and `REFERENCES.md` §0's `Carriers:` clause, each
+naming the other as the only other home — and every other site says
+what it does with the list and points at the door: the five the row
+counted, a sixth the lane found (`edit.rs`'s `structural:` comment)
+and a NINTH prose home in `dm7_delete_strands.rs`'s own row doc. The
+eighth site, the suite's hand-spelled name-free match arm, now asks
+the crate (`other => assert!(other.payload_names().is_empty())`),
+trading compile-forced exhaustiveness — which did not catch the
+measured failure, a list that was exhaustive and wrong — for an arm
+that cannot be wrong that way. One premise corrected: the
+load-bearing `REFERENCES.md` list was itself stale (a `Shell`'s open
+list and a `Datum::FaceFrame`'s face were missing) and was completed
+as a clause catching up with merged code (last enumeration change an
+implementer PR; no ratification found). LIB's `rebind` docstring keeps
+a partial list as the ruling's own exception (a Python reader cannot
+follow a link into the crate). No gate script, no macro. Territory
+crossed by announcement: `dm7_delete_strands.rs` (TCOST/TINT).
