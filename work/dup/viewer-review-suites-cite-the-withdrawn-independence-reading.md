@@ -105,3 +105,39 @@ in the three suites, and whether `gui3_r1`'s fixtures should share
 outright — is
 `work/dup/viewer-review-suite-fixtures-have-no-oracle-role`, filed with
 the mutation table.
+
+## Re-measured at the fix pass (2026-09-19), and a fifth carrier
+
+The style review found that two of the four verdicts above rested on a
+helper the suites have no use for. `review_gui2_r1` and `_r2` do not
+build the plate at all, so they would never read `common::plate_bounds`
+/ `framed` / `corners` — they call `Camera::framing` **directly**
+(`review_gui2_r1.rs:350`, `review_gui2_r2.rs:189`), the very door the
+`gui0` verdict says a framing row must not take from `tests/common`.
+**The verdicts stand; the stated reason did not.** What distinguishes
+gui2 is that framing is its instrument and not its subject, and its
+oracles are cursor positions hand-derived from the fixtures' own
+coordinates — a fixture taken from the same place the aim was would
+track it silently. Each file now states that in its own header, with no
+cross-file pointer.
+
+`review_gui3_r2` is a fifth carrier the citation census could not see
+(it states the ground without naming the memory) and is fixed the same
+way. `review_gui4_r1` and `_r2` were read and are not carriers.
+
+Mutations re-planted after the folds, same binary, merge base
+`5b4979ef2` (baseline **626 pass / 0 fail**):
+
+| planted in | result | `gui2_r1` | `gui2_r2` | `gui3_r1` | `gui3_r2` |
+| --- | --- | --- | --- | --- | --- |
+| `common::xy_frame` v axis y → z | 581 / 45 | 3 | 9 | 0 | 0 |
+| `common::scl(v)` → `v + 1.0` | 561 / 65 | 1 | 0 | 1 | 0 |
+| `common::len(m)` → `m + 1.0` | 534 / 92 | 3 | 11 | 0 | 3 |
+| `History::undo` does not move the cursor | — | 3 | 3 | **4** | 5 |
+
+The last row is the one the style review asked for, and it settles the
+question the zeros raise: `review_gui3_r1` reds **4 of its 18 rows** on
+a mutation to `History`, which is its actual subject. So its zero on
+the frame datum is *this suite asserts nothing about that helper*, not
+*this suite asserts nothing useful* — the second would have been
+S-TINT's finding and not this row's to close.

@@ -1,17 +1,19 @@
-//! **Review R1's consumer suite for GUI-3 (PR #1101)** — its own
-//! derivation of the unit's claims
+//! **Review R1's consumer suite for GUI-3 (PR #1101)**
 //! (`memories/review-and-dependency-policy.md`).
 //!
-//! What that comes to here, stated honestly: these rows assert on
-//! history structure, refusals, landing generations and file bytes,
-//! and none of them reads the profile's shape — a planted mutation in
-//! the shared frame datum reds nothing in this file, which
-//! `work/dup/viewer-review-suite-fixtures-have-no-oracle-role` holds
-//! with its numbers. So the triangle and the `r1_depth` parameter keep
-//! R1's document legible in the aggregated binary; they are not an
-//! independence claim and not a reason the fixtures could not be
-//! shared. The sugar that carries no claim at all already is:
-//! `common::{len, scl, xy_frame}`.
+//! **What keeps these rows honest is where their expectations come
+//! from, not what their fixture is made of.** Every row here asserts
+//! on history structure, refusals, landing generations or file bytes,
+//! written out from the PR's prose rather than read off the unit's
+//! rows. The profile's shape and the parameter's name are not oracles
+//! here — no row asserts on either — so a row added that DOES assert
+//! on geometry states that at its own site and brings its own fixture,
+//! because nothing below would catch it if it did not.
+//!
+//! The triangle and `r1_depth` are R1's own so that its document reads
+//! apart from the unit suites' in one aggregated binary. The sugar
+//! that carries no claim is shared:
+//! `common::{len, scl, tempdir, xy_frame}`.
 //!
 //! Shapes per `memories/test-suite-cost.md`: every row here is a
 //! static-witness row (deterministic fixtures authored through the
@@ -28,7 +30,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{len, scl, xy_frame};
+use crate::common::{len, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -36,13 +38,15 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 use viewer::{docio, props, tree};
 
-/// R1's own parameter name — not the implementation suites'.
+/// R1's own parameter name, so this suite's document reads apart from
+/// the unit suites' in the aggregated binary. No row asserts on the
+/// name.
 fn depth_param() -> ParamName {
     ParamName::new("r1_depth")
 }
 
-/// A triangle profile — deliberately not the square the unit's own
-/// fixtures use.
+/// A triangle, for the same reason as `depth_param` — it reads apart
+/// from the unit suites' square. No row asserts on the shape.
 fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
         plane,
@@ -121,15 +125,6 @@ fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
         SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("r1_depth is continuous"),
     }
-}
-
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
 }
 
 /// The abandoned branch keeps its whole SUBTREE, not just the one

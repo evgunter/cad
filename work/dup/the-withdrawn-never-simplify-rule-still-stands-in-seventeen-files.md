@@ -200,23 +200,52 @@ invisible to it (`review_gui0_r1`/`_r2` state their own grounds and do
 not cite; both were read by hand and neither grounds itself in what the
 file is).
 
-- **Cites a SURVIVING clause — 28 files, no action.** Dependency age:
-  `Cargo.toml`, `benches/Cargo.toml`, `crates/pncad-py/Cargo.toml`,
-  `crates/viewer/Cargo.toml` (×4 sites), `.github/workflows/ci.yml`.
-  Retirement and the ordinary-row rule: `memories/MEMORY.md`,
-  `memories/orchestration-model.md`, `memories/test-suite-cost.md`,
-  `crates/editor-core/tests/m10_2_r1_probes.rs`,
-  `crates/step-export/tests/rev_probe.rs` (accurate in substance; it
-  attributes *"a row that asserts nothing is never a gate"* to this
-  memory when that sentence is `test-suite-cost`'s — a mis-shelved
-  citation, not a withdrawn one). The causal-story rule:
-  `docs/REVIEW-STYLE-DISPATCH.md`, `work/view/log.md`. Bare pointers
-  with no reading attached: the four `work/sym/logs/sym-*-review-brief-*`
-  files. Tracker rows already stating the correction:
-  `work/comb/S36.md`, `work/dup/log.md`,
-  `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`,
-  `work/dup/the-pr-17-promotion-attribution-is-half-checked.md`, this
-  row, and the viewer row.
+**All three counts below are FILES, not citation sites.** Two files
+carry more than one site — `crates/viewer/Cargo.toml` (four) and
+`work/tcost/plan.md` (two) — and neither changes a file count. 35 = 28
++ 7.
+
+- **Cites a SURVIVING clause — 28 files, no action.** Named in full,
+  because a number and a list that are not the same object is where a
+  census loses things:
+  1. `.github/workflows/ci.yml` — dependency age
+  2. `Cargo.toml` — dependency age
+  3. `benches/Cargo.toml` — dependency age
+  4. `crates/pncad-py/Cargo.toml` — dependency age
+  5. `crates/viewer/Cargo.toml` — dependency age, four sites
+  6. `crates/editor-core/tests/m10_2_r1_probes.rs` — retirement licence
+  7. `crates/step-export/tests/rev_probe.rs` — retirement licence
+     (accurate in substance; it attributes *"a row that asserts nothing
+     is never a gate"* to this memory when that sentence is
+     `test-suite-cost`'s — mis-shelved, not withdrawn)
+  8. `crates/topo/src/review_m1_pr3.rs` — the surviving rule, scoped to
+     the derivations
+  9. `crates/topo/src/review_m1_pr4.rs` — same
+  10. `crates/topo/tests/review_m1_pr5.rs` — same
+  11. `memories/MEMORY.md` — the index line, corrected text
+  12. `memories/orchestration-model.md` — ordinary-rows rule
+  13. `memories/review-and-dependency-policy.md` — the memory itself
+  14. `memories/test-suite-cost.md` — retirement, cross-reference
+  15. `docs/REVIEW-STYLE-DISPATCH.md` — the causal-story rule
+  16. `work/view/log.md` — the causal-story rule
+  17. `work/sym/logs/sym-4-review-brief-r1.md` — bare pointer
+  18. `work/sym/logs/sym-4-review-brief-r2.md` — bare pointer
+  19. `work/sym/logs/sym-5-review-brief-r1.md` — bare pointer
+  20. `work/sym/logs/sym-5-review-brief-r2.md` — bare pointer
+  21. `work/comb/S36.md` — records the correction
+  22. `work/dup/log.md` — records the correction
+  23. `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`
+      — cites the surviving clause
+  24. `work/dup/the-pr-17-promotion-attribution-is-half-checked.md` —
+      quotes the withdrawn clause as withdrawn
+  25. `work/dup/the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files.md`
+      — this row
+  26. `work/dup/viewer-review-suites-cite-the-withdrawn-independence-reading.md`
+      — the viewer row
+  27. `work/tcost/plan-states-the-withdrawn-reviewer-independence-rule.md`
+      — the sibling row, which quotes its carrier
+  28. `work/tint/tint-plan-states-the-withdrawn-reviewer-independence-rule.md`
+      — the sibling row, which quotes its carrier
 - **Cites a WITHDRAWN clause — 7 files.**
   - `crates/viewer/tests/common/mod.rs`, `review_gui2_r1.rs`,
     `review_gui2_r2.rs`, `review_gui3_r1.rs` — the viewer row's four.
@@ -275,3 +304,44 @@ the withdrawal — raised by TCOST-10's style review over
 `crates/sweep/tests/common/cavity.rs`. The memory still cites the dead
 path; that is `the-policy-memory-cites-a-tracker-file-that-left-the-tree`,
 filed for Ev because `memories/` is his.
+
+## The third instrument, run on the style review's instruction (2026-09-19)
+
+The citation census's declared blind spot — *a file stating the
+withdrawn ground without naming the memory* — was closed by hand-reading
+two files, which is not an instrument. Method item 8 says a disclosed
+blind spot is an instruction to run another one, so one was run:
+enumerate the **class-shaped ground** itself over every tracked file,
+markers stripped and text joined — a generalisation over what a file IS
+(*"a/the/every review suite"* plus a property, *"reviewer suites
+are/keep/derive"*, *"derives what it needs independently"*, *"the
+independence is/worth…"*, *"protected class"*, *"promoted as-is"*,
+*"keep verbatim"*, *"like every other fixture here"*). **28 files.**
+
+Discarding the homonyms — six files where *"independence"* is a
+numeric quantity (a `|det|`, an order-independence claim) — the live
+carriers the citation census could not see were **two**, and both are
+real:
+
+- `crates/viewer/tests/review_gui3_r2.rs` — *"this suite's own, like
+  every other fixture here (a review suite derives what it needs
+  independently)"*, over a **fourth** copy of the `xy_frame` body, plus
+  private `len`/`scl`/`tempdir`. Fixed: ground restated on what its
+  rows assert, sugar shared.
+- `crates/viewer/src/camera.rs` — in **`src/`**, and it lets the
+  withdrawn reading decide a public error vocabulary rather than a test
+  fixture. Filed as
+  `a-viewer-error-arm-is-not-split-because-a-review-suite-pins-it`.
+
+`review_gui4_r1` and `review_gui4_r2` were read too and are **not**
+carriers: both ground their own derivation on a named self-consistency
+defect in the shipped oracle (*"the solve derives the placement FROM
+the authored alignment, so that assertion holds for any alignment the
+tool mints"*), and `gui4_r1` carries a measured mutation for it. That
+is the surviving clause, not the withdrawn one.
+
+**Blind spot of the third instrument**: it matches a ground phrased as
+a generalisation. A file declining a change for the same bad reason,
+phrased entirely about one named suite, would not match — and nothing
+tells that apart from a legitimate instance-specific argument except
+reading it.

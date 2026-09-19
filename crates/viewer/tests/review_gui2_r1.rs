@@ -1,14 +1,16 @@
 //! GUI-2 review R1 — an independent consumer's derivation of the
 //! viewport-selection claims (PR #1106).
 //!
-//! Own fixtures throughout (two disjoint extrudes, a pattern with its
-//! own dimensions, the committed gallery ring), own ray and cursor
-//! constructions, own tolerance derivations — for a reason in these
-//! rows, not in their authorship: every oracle here is a screen point
-//! and the face it must resolve to, which is the case
-//! `tests/common/mod.rs`'s header states once for this crate
-//! (`memories/review-and-dependency-policy.md`). What carries no
-//! oracle is shared — the world frame comes from `common::xy_frame`.
+//! **Why the documents are authored here** — a reason in these rows,
+//! not in their authorship (`memories/review-and-dependency-policy.md`):
+//! every oracle here is a cursor position and the face it must resolve
+//! to, derived by hand from the fixture's own coordinates. The camera
+//! that turns the one into the other is `Camera::framing`, which these
+//! rows call directly, because framing is not what they check — the
+//! resolution is. A fixture whose dimensions came from the same place
+//! the aim did would move with it, and nothing here could see it move.
+//! What carries no oracle is shared: `common::xy_frame` and
+//! `common::gallery_ring_at`.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
@@ -29,9 +31,11 @@ test_utils::gated_to![
     "crates/viewer/src/",
     "crates/pncad/src/",
     "crates/bvh/src/",
-    "crates/viewer/tests/common/"
+    "crates/viewer/tests/common/",
+    "crates/viewer/tests/gallery_ring.pncad"
 ];
 
+use crate::common;
 use crate::common::xy_frame;
 
 use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
@@ -537,25 +541,6 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
 
 // --- the end-to-end consumer walk on a real gallery document --------
 
-/// The committed gallery ring, re-stamped to this run's ε the same way
-/// the doc-io suite's rows are (ε is the file's only ε-dependent byte;
-/// that claim has its own gate there).
-const GALLERY_RING: &str = include_str!("gallery_ring.pncad");
-
-fn ring_at(tol: Tol) -> String {
-    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-eps-probe", tol);
-    let text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_eps = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = text.lines().find(|l| is_eps(l)).expect("ε is recorded");
-    let mut out: String = GALLERY_RING
-        .lines()
-        .map(|l| if is_eps(l) { wanted } else { l })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    out.push('\n');
-    out
-}
-
 /// **The acceptance walk, headless**: open a real gallery document,
 /// aim the cursor by projecting a visible point of the drawn mesh,
 /// select through the op vocabulary, watch tree/panel unity through
@@ -572,7 +557,8 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     // on the facet count (`memories/test-suite-cost.md` — keep the
     // per-run cost where the claim needs it).
     let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
-    let loaded = pncad::document::load(&ring_at(tol), tol).expect("the gallery ring loads");
+    let loaded =
+        pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
     let index = index_at(&session, ring_delta);

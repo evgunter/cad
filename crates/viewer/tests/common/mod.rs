@@ -4,26 +4,19 @@
 //! Why this file exists: the plate's dimensions were hand-copied into
 //! three suites, so changing `scene::plate_with_hole` would have left
 //! two of them testing a box the scene no longer has — green, and
-//! measuring nothing. `viewer::scene` now exports the plate's identity
-//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and everything here is a
-//! function of those constants, so the fixtures cannot drift from the
-//! subject.
+//! measuring nothing. `viewer::scene` exports the plate's identity
+//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and the plate fixtures here
+//! are functions of it, so they cannot drift from the subject.
 //!
-//! `review_gui0_r1` and `review_gui0_r2` keep their own fixtures for a
-//! reason in their rows, not in their authorship
-//! (`memories/review-and-dependency-policy.md`): their subject is the
-//! camera contract, and `framed()` below IS a call to
-//! `Camera::framing`, so a framing row taking its camera from here
-//! would be checking that door against itself. `review_gui0_r1`'s
-//! header records the mutation that makes that concrete.
-//!
-//! The same reading decides `review_gui2_r1` and `review_gui2_r2`, and
-//! it is written here once rather than in each of them: everything
-//! below is a function of `viewer::scene`'s own constants, so a row
-//! whose oracle is *this screen point resolves to that face* cannot
-//! take its aim from here — the aim would move with the geometry it is
-//! aimed at and the row could not see it move. What those suites share
-//! from here is the sugar that carries no oracle.
+//! **Two kinds of thing live here and they are not interchangeable.**
+//! The plate helpers — `plate_bounds`, `plate_volume`, `framed`, and
+//! `corners` over them — carry an oracle: a row that reads one is
+//! measuring the scene against its own constants on that axis.
+//! Everything else — the literal, datum, session and document sugar,
+//! and the committed gallery fixture — carries no oracle and is a
+//! spelling, not a claim. Which of the two a helper is decides whether
+//! a suite may share it; a suite that keeps its own code says why in
+//! its own header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
@@ -74,6 +67,9 @@ pub fn plate_volume() -> f64 {
 }
 
 /// The default framing on the plate at `aspect`.
+///
+/// This IS a call to `Camera::framing`, so a row whose subject is that
+/// door cannot take its camera from here and still be checking it.
 pub fn framed(aspect: f64) -> Camera {
     Camera::framing(&plate_bounds(), aspect).expect("the plate frames")
 }
@@ -344,8 +340,6 @@ use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, SessionOp};
 
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
@@ -361,6 +355,8 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     )
 }
 
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
 pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -440,10 +436,10 @@ pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
 
 /// A fresh directory under the OS temp root, named for the caller.
 ///
-/// One home: two suites wanted the same six lines and had copied them
-/// verbatim, which is exactly the drift this module's header exists to
-/// prevent. (A review suite keeping its own copy is the one case that
-/// argument does not cover — independence is the point there.)
+/// One home: the same six lines had been copied verbatim into four
+/// suites. A temp-directory name carries no oracle — no row can assert
+/// anything about it — so there is nothing here for a copy to derive
+/// independently, whoever wrote the suite.
 pub fn tempdir(label: &str) -> std::path::PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -10,11 +10,13 @@ opened: 2026-09-19
 ## Finding
 
 - **Where**: `crates/viewer/tests/review_gui2_r1.rs`,
-  `review_gui2_r2.rs`, `review_gui3_r1.rs`, each of which still
-  hand-builds fixtures and sugar that `crates/viewer/tests/common/mod.rs`
-  already exports — `insert`/`inserted`, `length`/`scalar` against
-  `common::len`/`common::scl`, `tempdir`, `rectangle`/`triangle`
-  against `common::square`.
+  `review_gui2_r2.rs`, `review_gui3_r1.rs` and `review_gui3_r2.rs`.
+  PR #2886 folded what it could prove live — `xy_frame`, `len`, `scl`,
+  `tempdir`, `GALLERY_RING` and the three `gallery_ring_at`
+  re-spellings. **What is left** is the sugar whose fold is a
+  judgement rather than a substitution: private `insert`/`inserted`
+  wrappers in all four, `length`/`scalar` in `review_gui2_r2`, and
+  `rectangle`/`rect`/`triangle` against `common::square`.
 - **Importance**: medium. The blanket ground that used to protect them
   ("a promoted review suite's value is that it is an INDEPENDENT
   derivation") was withdrawn by Ev on 2026-09-04 and was removed from
@@ -56,13 +58,19 @@ to the row if the row read it.
   triangle and `r1_depth` are worth keeping only if a reader values
   telling R1's document apart in the aggregated binary's output.
 - **`review_gui2_r1` and `review_gui2_r2`** — their geometric oracles
-  (screen point → resolved face) genuinely need their own derivation,
-  because `tests/common`'s plate helpers are functions of
-  `viewer::scene::PLATE_EXTENT`, the constants the scene is built from.
-  The sugar that carries no oracle — `insert`, `length`/`scalar`,
-  `tempdir` — is not covered by that and is sharing-eligible. Each of
-  those is a separate judgement, which is why this is a row and not
-  three more edits in the census PR.
+  (cursor position → resolved face) genuinely need their own
+  derivation, but **not for the reason first written here**: neither
+  suite builds the plate, so `common`'s plate helpers were never a
+  candidate. Both call `Camera::framing` directly, and what keeps them
+  honest is that their expectations are hand-derived from their own
+  fixtures' coordinates. The sugar that carries no oracle is not
+  covered by that and is sharing-eligible. Each remaining one is a
+  separate judgement, which is why this is a row and not more edits in
+  the census PR.
+- **`review_gui3_r2`** — the fifth carrier, found by the class-shaped
+  ground sweep rather than the citation census. Its rows assert on
+  panels and history; its `rect` fixture is a spelling. Same
+  disposition as `review_gui3_r1`.
 
 ## Why this sits on S-DUP's slate
 
