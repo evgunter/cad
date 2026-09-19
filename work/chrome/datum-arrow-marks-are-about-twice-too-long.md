@@ -2,8 +2,10 @@
 id: datum-arrow-marks-are-about-twice-too-long
 kind: issue
 title: Datum arrow marks are about twice as long as they need to be (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: chrome/frame-arrows
+pr: 2856
 ---
 
 ## Ev's note (verbatim)

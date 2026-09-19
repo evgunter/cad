@@ -2,8 +2,10 @@
 id: frame-arrows-differ-in-length
 kind: issue
 title: A frame's two arrows differ in length and size, which reads as unbalanced (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: chrome/frame-arrows
+pr: 2856
 ---
 
 ## Ev's note (verbatim)
