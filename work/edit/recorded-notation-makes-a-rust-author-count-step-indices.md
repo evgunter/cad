@@ -191,6 +191,10 @@ verified held.
   `path-legs-erase-the-authored-notation-one-layer-down` is still where
   a Python builder would use this.
 
+Green on hosted CI run 35457612872 (head `33d36280d`): 35 jobs success,
+4 the change filter's own skips, twelve `test (…)`, five
+`k-lint (gate, …)`, the python suite, `gate ok`.
+
 Not closed, and said in the doc: `set` with a hand index stays
 expressible, because the viewer's `Notation::over` derives its indices
 from `LoopProgram::step_args()` and needs the addressed door. A wrong
