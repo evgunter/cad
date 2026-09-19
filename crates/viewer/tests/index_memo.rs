@@ -23,10 +23,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
-    unparse,
+    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, PickHit, ProfileDoc,
+    RecipeNodeId, SlotId, StableName, unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -448,17 +448,19 @@ impl FlatReference {
         Self { parts }
     }
 
-    /// The nearest hit and how many candidates the geometry could not
-    /// order against it — the size of the certified tie, which is what
-    /// says a ray of the tie-break row actually tied.
+    /// **What the door answers for**: one hit per FACE of the certified
+    /// tie, in the order the door lists them, and how many candidates
+    /// the tie holds — which is what says a ray of the tie-break row
+    /// actually tied.
     ///
     /// EVERY candidate box the ray meets is tested: this is the
     /// reference, and the service's early-out is what it is a
-    /// reference for. The order is not restated — the candidates are
-    /// offered to [`TSpan::best_of`] in `(part, flat position)` order,
-    /// which is the last key `pick_face` documents, and `best_of`
-    /// drops what `precedes` drops and breaks the certified tie.
-    fn pick(&self, ray: &Ray) -> (Option<FlatHit>, usize) {
+    /// reference for. Neither half of the RULE is restated — the
+    /// candidates are offered to [`answer_of`] in `(part, flat
+    /// position)` order, and that callable is the door's own, order
+    /// and face grouping together. What is this file's own is the
+    /// enumeration.
+    fn pick(&self, ray: &Ray) -> (Vec<FlatHit>, usize) {
         let mut hits: Vec<FlatHit> = Vec::new();
         for (part, flat) in self.parts.iter().enumerate() {
             let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
@@ -476,10 +478,23 @@ impl FlatReference {
                 });
             }
         }
-        let spans: Vec<TSpan> = hits.iter().map(|h| h.span).collect();
-        let lowest_hi = spans.iter().map(|s| s.t_hi).fold(f64::INFINITY, f64::min);
-        let tied = spans.iter().filter(|s| s.t_lo <= lowest_hi).count();
-        (TSpan::best_of(&spans).map(|i| hits[i]), tied)
+        let candidates: Vec<(TSpan, (usize, usize))> = hits
+            .iter()
+            .map(|hit| (hit.span, (hit.part, hit.patch)))
+            .collect();
+        let faces = answer_of(&candidates).faces();
+        // How many candidates the tie holds — the sum of the groups'
+        // memberships is the survivor count, which is what says a ray
+        // of the tie-break row actually tied.
+        let tied = faces.iter().map(|face| face.members).sum();
+        let per_face = faces
+            .into_iter()
+            .map(|face| FlatHit {
+                span: face.span,
+                ..hits[face.member]
+            })
+            .collect();
+        (per_face, tied)
     }
 }
 
@@ -489,8 +504,8 @@ impl FlatReference {
 /// the midpoint of its first segment (a point on the shared edge) —
 /// along the six axis directions from outside the picture. A hit
 /// there is a hit for every incident triangle at one `t`, across
-/// patches and, where bodies touch, across parts: the case only the
-/// tie-break decides.
+/// patches and, where bodies touch, across parts: the case the door's
+/// set rule is about, and the one it refuses on.
 fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
     let mut ext = 0.0f64;
     let mut targets = Vec::new();
@@ -560,15 +575,15 @@ fn reference_answers(
     step: &str,
     reference: &FlatReference,
     rays: &[Ray],
-) -> Vec<(Option<FlatHit>, usize)> {
+) -> Vec<(Vec<FlatHit>, usize)> {
     rays.iter()
         .enumerate()
         .map(|(i, ray)| {
             let (expected, tied) = reference.pick(ray);
-            if let Some(hit) = expected {
+            for hit in &expected {
                 let tri = &reference.parts[hit.part].corners[hit.item];
                 let bounds = crossing(ray, tri)
-                    .expect("a winner's determinant is certified")
+                    .expect("an answered candidate's determinant is certified")
                     .barycentrics
                     .map(|(_, err)| err);
                 // A NaN bound is not a bound and must red this row,
@@ -586,14 +601,15 @@ fn reference_answers(
 }
 
 /// **Every pick answer is the single-level reference's, hit for hit**:
-/// the same triangle (through its patch's name), the same `t` bits,
-/// the same point bits, the same miss. Answers how many of `rays`
-/// tied at the reference's nearest `t`.
+/// the same faces (through their patches' names), the same `t` bits,
+/// the same point bits, the same miss — and, where the door refuses,
+/// the same LIST of tied faces in the same order. Answers how many of
+/// `rays` tied at the reference's nearest `t`.
 fn assert_flat_reference(
     name: &str,
     step: &str,
     index: &PickIndex,
-    answers: &[(Option<FlatHit>, usize)],
+    answers: &[(Vec<FlatHit>, usize)],
     session: &DocSession,
     rays: &[Ray],
 ) -> usize {
@@ -608,42 +624,34 @@ fn assert_flat_reference(
         .collect();
     let mut ties = 0;
     for (i, ray) in rays.iter().enumerate() {
-        let (expected, tied) = answers[i];
-        if tied >= 2 {
+        let (expected, tied) = &answers[i];
+        if *tied >= 2 {
             ties += 1;
         }
-        let expected = match expected {
-            None => "miss".to_owned(),
-            Some(hit) => {
-                let part = &index.parts()[hit.part];
-                let point = ray.origin + ray.dir * hit.t();
-                match &names[hit.part][hit.patch] {
-                    Ok(name) => format!(
-                        "{:?}/{}/{}/{:016x}/{:016x}/{:016x}/{:016x}",
-                        part.node(),
-                        part.body(),
-                        name,
-                        hit.t().to_bits(),
-                        point.x.to_bits(),
-                        point.y.to_bits(),
-                        point.z.to_bits()
-                    ),
-                    Err(e) => format!("refused: {e}"),
-                }
-            }
+        let expected = if expected.is_empty() {
+            "miss".to_owned()
+        } else {
+            expected
+                .iter()
+                .map(|hit| {
+                    let part = &index.parts()[hit.part];
+                    let point = ray.origin + ray.dir * hit.t();
+                    match &names[hit.part][hit.patch] {
+                        Ok(name) => descriptor(part.node(), part.body(), name, hit.t(), point),
+                        Err(e) => format!("refused: {e}"),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" | ")
         };
         let actual = match index.pick(eval, ray) {
-            Ok(Some(hit)) => format!(
-                "{:?}/{}/{}/{:016x}/{:016x}/{:016x}/{:016x}",
-                hit.node,
-                hit.body,
-                hit.name,
-                hit.t.to_bits(),
-                hit.point.x.to_bits(),
-                hit.point.y.to_bits(),
-                hit.point.z.to_bits()
-            ),
+            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
             Ok(None) => "miss".to_owned(),
+            Err(HitTestError::Ambiguous { hits }) => hits
+                .iter()
+                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
+                .collect::<Vec<_>>()
+                .join(" | "),
             Err(e) => format!("refused: {e}"),
         };
         assert_eq!(
@@ -655,22 +663,51 @@ fn assert_flat_reference(
     ties
 }
 
+/// **The service's whole answer**, as the list the door's two shapes
+/// share: the one hit, the empty miss, or the tied faces of the
+/// refusal. Every probe below reads the door through this, because a
+/// certified tie between faces is an ANSWER about the ray and not an
+/// error to unwrap past.
+fn service_answers(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> Vec<PickHit> {
+    match index.pick(eval, ray) {
+        Ok(hit) => hit.into_iter().collect(),
+        Err(HitTestError::Ambiguous { hits }) => hits,
+        Err(other) => panic!("the pick resolves: {other}"),
+    }
+}
+
+/// One answered face as comparable bits: which body, which name,
+/// where. The two sides of every differential here render through
+/// this one function, so a drift is a drift in the answer and never in
+/// the spelling.
+fn descriptor(
+    node: RecipeNodeId,
+    body: u32,
+    name: &StableName,
+    t: f64,
+    point: Point3<f64>,
+) -> String {
+    format!(
+        "{node:?}/{body}/{name}/{:016x}/{:016x}/{:016x}/{:016x}",
+        t.to_bits(),
+        point.x.to_bits(),
+        point.y.to_bits(),
+        point.z.to_bits()
+    )
+}
+
 /// A pick's answer as comparable bits.
 fn hits(index: &PickIndex, session: &DocSession, rays: &[Ray]) -> Vec<String> {
     let (_, eval) = session.landed_pair().expect("a landed pair");
     rays.iter()
         .map(|ray| match index.pick(eval, ray) {
-            Ok(Some(hit)) => format!(
-                "{:?}/{}/{}/{:016x}/{:016x}/{:016x}/{:016x}",
-                hit.node,
-                hit.body,
-                hit.name,
-                hit.t.to_bits(),
-                hit.point.x.to_bits(),
-                hit.point.y.to_bits(),
-                hit.point.z.to_bits()
-            ),
+            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
             Ok(None) => "miss".to_owned(),
+            Err(HitTestError::Ambiguous { hits }) => hits
+                .iter()
+                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
+                .collect::<Vec<_>>()
+                .join(" | "),
             Err(e) => format!("refused: {e}"),
         })
         .collect()
@@ -1167,24 +1204,26 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         "the probe's premise: a candidate with the chord point as its corner whose \
          Möller–Trumbore quotient is off the corner is in the ray's candidate set: {quotients:?}"
     );
-    let (hit, _) = reference.pick(&ray);
-    let hit = hit.expect("the ray meets the ring");
-    assert_eq!(
-        hit.t().to_bits(),
-        RING_CORNER_T.to_bits(),
-        "the reference answers the corner at t = {RING_CORNER_T} (reach {reach}), not a noise \
-         t of a triangle the ray only lies in the plane of: {hit:?}"
-    );
+    let (answers, _) = reference.pick(&ray);
+    assert!(!answers.is_empty(), "the ray meets the ring");
+    for hit in &answers {
+        assert_eq!(
+            hit.t().to_bits(),
+            RING_CORNER_T.to_bits(),
+            "the reference answers the corner at t = {RING_CORNER_T} (reach {reach}), not a \
+             noise t of a triangle the ray only lies in the plane of: {hit:?}"
+        );
+    }
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    let picked = index
-        .pick(eval, &ray)
-        .expect("the pick resolves")
-        .expect("the service meets the ring");
+    let picked = service_answers(&index, eval, &ray);
     assert_eq!(
-        picked.t.to_bits(),
-        hit.t().to_bits(),
-        "the service answers the reference's t: {picked:?} against {hit:?}"
+        picked.iter().map(|h| h.t.to_bits()).collect::<Vec<_>>(),
+        answers.iter().map(|h| h.t().to_bits()).collect::<Vec<_>>(),
+        "the service answers the reference's faces at the reference's t: {picked:?} against \
+         {answers:?}"
     );
+    let hit = answers[0];
+    let picked = &picked[0];
     let expected_point = ray.origin + ray.dir * hit.t();
     assert_eq!(
         [picked.point.x, picked.point.y, picked.point.z].map(f64::to_bits),
@@ -1213,8 +1252,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// triangles are `0.016` on a side, so an interval that says almost
 /// nothing about WHERE on the triangle the ray crossed still says the
 /// crossing is within `0.015` of `1.4488` — wholly before the vertex
-/// `0.031` further on. The wide candidate PRECEDES the narrow one, the
-/// tie-break never runs, and the answer is `1.4488` as before.
+/// `0.031` further on. The wide candidate PRECEDES the narrow one, so
+/// they are not tied at all, and the answer is `1.4488` as before.
 ///
 /// **That is what this row now records, and it is not what the `t`
 /// ruling predicted for it.** The certified width is relative to the
@@ -1346,7 +1385,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     assert!(
         wide.precedes(&narrow),
         "and the wide candidate's whole interval is still in front of it, so the geometry \
-         ORDERS them and the tie-break never runs: wide {wide:?}, narrow {narrow:?}"
+         ORDERS them and nothing is tied: wide {wide:?}, narrow {narrow:?}"
     );
     assert!(
         wide.width() < reach - wide.t,
@@ -1356,9 +1395,12 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         reach - wide.t
     );
     // The row: the certified order takes the nearer claim, so both the
-    // reference and the service answer the wide candidate.
-    let (hit, _) = reference.pick(&ray);
-    let hit = hit.expect("the ray meets the ring");
+    // reference and the service answer the wide candidate — one face,
+    // not a refusal, because `precedes` decided it.
+    let (answers, _) = reference.pick(&ray);
+    let [hit] = &answers[..] else {
+        panic!("the geometry orders these candidates, so one face is answered: {answers:?}");
+    };
     assert_eq!(
         hit.t().to_bits(),
         RING_WIDE_CANDIDATE_T.to_bits(),
@@ -1367,7 +1409,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let (_, eval) = session.landed_pair().expect("a landed pair");
     let picked = index
         .pick(eval, &ray)
-        .expect("the pick resolves")
+        .expect("the pick resolves, and does not refuse: the geometry ordered these")
         .expect("the service meets the ring");
     assert_eq!(
         picked.t.to_bits(),
@@ -1377,7 +1419,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     assert_eq!(
         (picked.t_lo.to_bits(), picked.t_hi.to_bits()),
         (hit.span.t_lo.to_bits(), hit.span.t_hi.to_bits()),
-        "and the interval the winner was chosen on rides out on the hit: {picked:?}"
+        "and the interval it was chosen on rides out on the hit: {picked:?}"
     );
 }
 
@@ -1388,24 +1430,25 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
 const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 
 /// **The other side of the line: a wide candidate whose interval DOES
-/// reach the aimed vertex, and the tie-break takes the vertex.** The
+/// reach the aimed vertex, and the door refuses with both.** The
 /// `tube_arc` corpus document at open, a `+y` ray through the mesh
-/// vertex `(1.2534, 0.3843, −1.9521)`. `main` answers
+/// vertex `(1.2534, 0.3843, −1.9521)`. `main` answered
 /// `1.475_904_852_772_309_5` — `0.0041` short of the vertex, a
 /// near-coplanar candidate whose rounded `t` is the smallest on the
 /// ray. Its `t` interval is wider than that gap, so it does not
 /// precede the transversal candidate that answers the vertex; the two
-/// are a CERTIFIED TIE, and the tie-break takes the narrower claim.
+/// are a CERTIFIED TIE between two FACES, and nothing breaks it: the
+/// door names both and chooses neither.
 ///
 /// This is the class `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
-/// names, resolved: three rays of the wide aim's 441 126 change their
-/// answer this way and every one of them GAINS its aimed vertex
-/// (`pick3_acceptance`'s `aim_gained`). The gallery ring's own ray is
-/// the class that does NOT resolve, for the reason the row beside this
-/// one states. A door comparing rounded `t` reds here; a tie-break
-/// preferring the wider interval reds here.
+/// names. It is not resolved by preferring the narrow claim any more —
+/// the width was a rule the user did not ask for — it is DISCLOSED:
+/// the aimed vertex is among the answers, and so is the edge-on face
+/// in front of it. A door comparing rounded `t` reds here (it answers
+/// the wide candidate alone); a door that kept the width key reds here
+/// (it answers the vertex alone).
 #[test]
-fn a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it() {
+fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
     let tol = Tol::witness();
     let c = corpus::documents()
         .into_iter()
@@ -1467,35 +1510,45 @@ fn a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_i
     );
     assert!(
         narrow.width() < wide.width(),
-        "the vertex is the better-certified claim: {} against {}",
+        "the vertex is the better-certified claim, which decides nothing: {} against {}",
         narrow.width(),
         wide.width()
     );
-    let (hit, tied) = reference.pick(&ray);
-    let hit = hit.expect("the ray meets the tube");
+    let (answers, tied) = reference.pick(&ray);
     assert!(
         tied >= 2,
         "the certified tie has both candidates in it: {tied}"
     );
-    assert_eq!(
-        hit.t().to_bits(),
-        reach.to_bits(),
-        "the tie-break answers the aimed vertex at t = {reach}: {hit:?}"
+    assert!(
+        answers.len() >= 2,
+        "and they are different faces, so the door refuses rather than answering: {answers:?}"
+    );
+    let ts: Vec<u64> = answers.iter().map(|h| h.t().to_bits()).collect();
+    assert!(
+        ts.contains(&reach.to_bits()),
+        "the aimed vertex at t = {reach} is one of the tied answers: {answers:?}"
+    );
+    assert!(
+        ts.contains(&wide.t.to_bits()),
+        "and so is the edge-on candidate short of it: {answers:?}"
     );
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    let picked = index
-        .pick(eval, &ray)
-        .expect("the pick resolves")
-        .expect("the service meets the tube");
+    let picked = service_answers(&index, eval, &ray);
     assert_eq!(
-        picked.t.to_bits(),
-        hit.t().to_bits(),
-        "the service answers the reference's t: {picked:?} against {hit:?}"
+        picked.iter().map(|h| h.t.to_bits()).collect::<Vec<_>>(),
+        ts,
+        "the service refuses with the reference's faces, in the reference's order: {picked:?}"
     );
     assert_eq!(
-        (picked.t_lo.to_bits(), picked.t_hi.to_bits()),
-        (hit.span.t_lo.to_bits(), hit.span.t_hi.to_bits()),
-        "and the interval the winner was chosen on rides out on the hit: {picked:?}"
+        picked
+            .iter()
+            .map(|h| (h.t_lo.to_bits(), h.t_hi.to_bits()))
+            .collect::<Vec<_>>(),
+        answers
+            .iter()
+            .map(|h| (h.span.t_lo.to_bits(), h.span.t_hi.to_bits()))
+            .collect::<Vec<_>>(),
+        "and each tied face's own interval rides out on its own hit: {picked:?}"
     );
 }
 

@@ -28,10 +28,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, NameTable, Node, ProfileDoc,
-    RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
+    evaluate,
 };
-use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
+use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
@@ -100,22 +100,6 @@ fn filleted(profile_pts: Vec<(f64, f64)>, v: u32) -> (ProfileDoc, RecipeNodeId) 
     )
 }
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-fn edge_key(t: &NameTable, n: &StableName) -> EdgeKey {
-    match t.lookup(n) {
-        Some(Entry::Unique(r)) => match r.key {
-            EntityKey::Edge(k) => k,
-            other => panic!("{n:?} names {other:?}, not an edge"),
-        },
-        other => panic!("{n:?} is not uniquely named: {other:?}"),
-    }
-}
-
 /// The support surface under a trim arc: the edge's neighbour face
 /// that is not the band's torus.
 fn support_surface(body: &Body<f64>, e: EdgeKey) -> Surface<f64> {
@@ -149,7 +133,7 @@ fn trims(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<(RimSupport, Surface<f64
     t.iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((*support, support_surface(body, edge_key(t, n))))
+                Some((*support, support_surface(body, edge_of(t, "a trim arc", n))))
             }
             _ => None,
         })

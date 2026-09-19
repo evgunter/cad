@@ -41,7 +41,7 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
     EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, MateSide,
-    MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind, ProductError, ProfileDoc,
+    MintRefusal, Node, NodeResult, PartSelect, PatternKind, ProductError, ProfileDoc,
     ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedFace, StableName, ValuePayload,
     product, solve_document,
 };
@@ -191,17 +191,9 @@ fn scene_no_pattern(label: &str) -> Scene {
     lifted(label, box_part(&format!("{label}-top"), 1.0, TOP_HEIGHT))
 }
 
-/// The node's own table, as the gate reads it.
-fn table_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NameTable {
-    let Some(NodeResult::Ok(v)) = ev.result(node) else {
-        panic!("node {} did not evaluate: {:?}", node.0, ev.result(node));
-    };
-    &v.name_table
-}
-
 /// The first TIED row of `kind` in the node's table.
 fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, u32) {
-    table_of(ev, node)
+    fixture::table(ev, node)
         .iter()
         .find_map(|(n, e)| match e {
             Entry::Tied(c) if n.kind == kind => {

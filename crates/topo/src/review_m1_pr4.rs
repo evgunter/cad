@@ -1,8 +1,10 @@
 //! Adversarial e2e review artifact for M1 PR 4 (2026-07-16), promoted
-//! into the shipped suite per the standing convention
-//! (`memories/review-and-dependency-policy.md`): reviewers write and run
-//! real consumer programs against the API under review, and the
-//! programs are kept.
+//! into the shipped suite. A review exercises the API by writing and
+//! running real consumer programs, and the useful ones enter the
+//! permanent suite as ORDINARY rows
+//! (`memories/review-and-dependency-policy.md`): nothing here is a
+//! protected class, and these rows are trimmed, gated, shared or
+//! retired under the same rules as any other.
 //!
 //! Unlike PR 3's artifact this one lives in `src/` (cfg(test)) rather
 //! than `tests/`: several probes attack the pub(crate) test-support

@@ -684,6 +684,10 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
 }
 
 /// A structural invariant violation in a parsed snapshot (load door).
+///
+/// Its four document-parameter-reference arms are named under the
+/// convention stated once on [`crate::EditError`], whose own four are
+/// the same four names.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
@@ -843,13 +847,10 @@ pub enum SnapshotError {
     /// A node whose PAYLOAD expression — a measured expression's value
     /// leaf or an assertion's bound, the expressions no slot addresses
     /// ([`crate::node::payload_exprs`]) — reads a document parameter
-    /// the document does not declare. The edit door refuses it through
-    /// the same predicate (`Doc::param_ref_fault`), so a file carrying
-    /// one is data the edit doors could not have produced.
-    ///
-    /// The address is the NODE rather than a slot, which is what
-    /// separates this from [`SnapshotError::SlotUnknownDocParam`]:
-    /// there is no slot to name.
+    /// the document does not declare. The address is the NODE: there
+    /// is no slot to name. The edit door refuses it through the same
+    /// predicate (`Doc::param_ref_fault`), so a file carrying one is
+    /// data the edit doors could not have produced.
     PayloadUnknownDocParam {
         /// The offending node.
         node: RecipeNodeId,
@@ -1932,8 +1933,14 @@ mod tests {
                 Node::Declare {
                     pairs: vec![(
                         (
-                            rv_name(derived, crate::names::EntityKind::Face),
-                            rv_name(derived, crate::names::EntityKind::Face),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
                         ),
                         crate::mate::ContactClass::Rest,
                     )],

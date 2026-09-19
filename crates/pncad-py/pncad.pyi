@@ -759,10 +759,21 @@ class HitTestError(PncadError):
     before reading anything. It names two documents, which the fields
     below cannot carry and the message states.
 
-    The fifth, `unnamed`, is a KERNEL BUG report — the node evaluated
-    and the entity has no name in its table — and it carries the
-    entity's `kind` and `body`, never its arena key. It is also the one
-    arm that appears as a VALUE rather than a raise:
+    `ambiguous` is the certified tie BETWEEN FACES, and it is the one
+    to read twice. The ray met several faces whose `t` intervals
+    overlap — a cube's shared edge, a corner, a face met edge-on in
+    front of a transversal one — so the arithmetic does not say which
+    is in front and nothing else is allowed to: neither the width of a
+    claim, nor where the model sits, nor the order the targets were
+    offered in. The door names them all, on `hits`, one `PickHit` per
+    tied face; each is TRUE, and the list is complete. Several
+    triangles of ONE face are not this — they are one answer, with the
+    hull of their intervals.
+
+    `unnamed` is a KERNEL BUG report — the node evaluated and the
+    entity has no name in its table — and it carries the entity's
+    `kind` and `body`, never its arena key. It is also the one arm
+    that appears as a VALUE rather than a raise:
     `NodePick.patch_names` puts it in the slot of the patch it
     concerns, because one naming-emission bug must not cost a consumer
     the names of every other patch it is drawing.
@@ -775,6 +786,7 @@ class HitTestError(PncadError):
     through: Optional[NodeId]
     kind: Optional[EntityKind]
     body: Optional[int]
+    hits: Optional[list[PickHit]]
 
 class NodePickError(PncadError):
     """A pick index could not be built — `NodePick.build` and
@@ -815,6 +827,7 @@ class NodePickError(PncadError):
     through: Optional[NodeId]
     kind: Optional[EntityKind]
     body: Optional[int]
+    hits: Optional[list[PickHit]]
     index_variant: Optional[str]
     patch: Optional[int]
     triangle: Optional[int]
@@ -2915,8 +2928,8 @@ class DocEdit:
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `unknown_doc_param` /
-        `doc_param_dimension_mismatch` for a parameter reference the
+        required and offered dimensions, and `slot_unknown_doc_param` /
+        `slot_doc_param_dimension` for a parameter reference the
         document does not answer."""
 
     @staticmethod

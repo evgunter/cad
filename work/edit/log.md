@@ -535,3 +535,67 @@ mid-flight; everything pushed survived, the mate-head fix pass had
 already pushed its whole record and the orchestrator closed it, the
 other two were relaunched. Banked: the board is rendered on main by a
 bot after every merge, so a branch never commits `STATUS.md`.
+
+## 2026-09-19 — eighth sitting: wave 9 merged (EDIT-DECL, the tie refusal), wave 10 dispatched, a weekly-limit outage
+
+Merged since the seventh sitting: the raw pick mints behind a
+`test-support` feature (#2801 — `PickTarget::new` and `MeshPick::build`
+under `cfg(any(test, feature))` through the self-dev-dependency
+pattern; the `compile_fail` unreachability row could not be honest
+because `--workspace` doc-test runs unify the feature on, so CI's two
+feature-off compiles and the manifest gate carry the claim; the review
+caught a false compile-consequence claim and three prose absolutes the
+repo had retracted once already); the per-edge chain radius attach
+(#2804 — `step_radii`/`segment_radii`/`walls[i][j]` end to end, 2 of
+355 corpus keys move and both are `declared_tangency`'s; the review
+found the fused-step account wrong and the fix pass corrected it by
+measurement: `arc_fillet` is a binder with an empty span); the wave-10
+claim (#2813 — three rows ruled and spec'd: crossing references as
+`FaceName`s, one param-ref convention at both doors, one home for the
+suite helpers); the crossing references (#2814 — the review found the
+unit had minted a third divergent answer to "this remap cannot fail",
+and the fix pass replaced all three with `FaceName::map_derivation`,
+which keeps the kind by signature); and wave 9's two units.
+
+**EDIT-DECL (#2809, kernel unit, block EDIT-B2 slot 0; sample #216,
+ordinals 4804/4805 claimed on main by #2817, parity byte 77 ⇒ R1
+fable / R2 opus).** Ev's sited-declarations ruling is the code and the
+five-edit workaround is gone. The dual converged on one bilateral
+MAJOR (R1 1/7/3 NOT-MERGEABLE-AS-IS, R2 1/4/5 APPROVE-WITH-FIXES;
+tally +0): a union's undeclared contact against a fold-minted row
+degraded to an "emission bug" — the exact class the ruling made
+unrepresentable was where the detect→declare protocol was not total.
+The orchestrator ruled the refusal's shape with the decision
+unchanged (a `Merged` row's contact refused at its first constituent,
+the set carried on the finding; a row no member stands for refuses
+typed `UndeclarableContact`, `Fragment` the only face row a contact
+can reach because `Seam` never mints a face); the spec carried the
+amendment and was deleted at merge (ledgered; recoverable at the SHA
+the ledger names). Ev is told on the next `[ev]` PR: a mechanism of
+the ruling moved. Both reviewers also found the site-is-the-side
+mutant surviving and the second side of `payload_read_sites`
+unguarded; the fix pass pinned both and the compile-time twin.
+
+**The tie refusal (#2816, middle tier).** The order is `precedes`
+alone, a tie among one face's triangles is one answer (the hull, the
+smallest rounded `t`), a tie between faces is `HitTestError::Ambiguous
+{ hits }`; the width and position keys are gone. The review found the
+one MAJOR that mattered: the refusal reached the viewer's pick SEED,
+so a cursor on a shared edge stopped picking the edge — the
+clear-intent case Ev asked not to refuse (18 of 66 segment-midpoint
+cursors on the shipped plate). The fix pass made the seed a DEPTH
+(`front_of`, two readers), gave the group rule one home
+(`resolve::pick::answer_of`), merged every display group's answer
+before refusing, and measured `aim_lost` by identity (0 lost).
+
+Wave 10's remaining two lanes (one param-ref convention, the suite
+helpers' one home) are running. The weekly API limit stopped every
+lane mid-flight on 2026-09-17 at 11:0x UTC and was lifted on
+2026-09-19; every lane had pushed a green head before it stopped and
+each was resumed in place. Filed this sitting by the lanes:
+`fused-arc-fillet-steps-have-no-per-segment-radius-address`,
+`instantiate-part-crossings-are-names-payload-names-does-not-list`,
+`a-declare-orphaned-by-a-cascade-is-never-reported`,
+`work/issues/test-support-convention-has-no-prose-home`,
+`work/issues/loft-walls-carry-no-per-edge-radius-address`,
+`work/lib/python-flush-findings-do-not-carry-their-sites`.

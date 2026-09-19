@@ -323,6 +323,92 @@ amended:
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
 
+- **Protocol v7 (Ev, in-chat, 2026-09-19): UNIT TRIAGE — the protocol
+  runs on the HARD units only, and every other unit runs
+  opus-implemented and opus-reviewed OUTSIDE it. THIS IS A POPULATION
+  SEAM; item 4.**
+  1. **A unit ENTERS the protocol iff its logic is especially tricky,
+     OR it makes an architectural or design decision whose impact is
+     broad or which would be hard to change later.** Such units run v6
+     unchanged: pre-draw difficulty and task class, an arm drawn from
+     the {opus, opus, fable} block, the cross-model dual on a frozen
+     head, the union fix pass, an ordinal claimed on main at review
+     dispatch, a row recorded at merge. The call is the
+     orchestrator's, made at spec time on the unit in front of it.
+  2. **Every other unit runs OUTSIDE the protocol: an OPUS implementer
+     and an OPUS reviewer, always both, with no draw, no ordinal and
+     no row.** The review is a STYLE review
+     (`docs/prompts/reviewer-style-lane.md`) by default, and a FULL
+     review — claims to falsify alongside the style questions — where
+     the unit carries a meaningful chance of CORRECTNESS bugs. That
+     judgement is the orchestrator's, and it is a feel for the unit
+     rather than a criterion: where the change can be read and
+     believed, the style review is enough; where believing it would
+     take more than reading it, the review carries the correctness
+     claims too.
+     **The mechanical change merges on the ORCHESTRATOR'S OWN READ**,
+     where neither correctness nor style is meaningfully at risk:
+     green CI and the orchestrator's read, no review lane, no row.
+     Everything between that and the protocol gets the opus
+     implementer and opus reviewer above.
+  3. **Blocks and slots are spent by protocol units only.** A block's
+     three slots are drawn as before and consumed as the program's
+     triaged-in units dispatch; a unit outside the protocol is opus by
+     this rule rather than by a slot, and takes none. It draws no
+     ordinal and gets no sample number.
+  4. **THE SEAM: the population being logged changes here, so rows
+     before and after are not drawn from the same units.** Before,
+     whole programs ran every kernel unit through the protocol, easy
+     ones included, and difficulty varied inside the stream. After,
+     only the tricky and the hard-to-reverse enter. Consequences, in
+     the v5-discontinuity convention:
+     - the difficulty distribution of new rows shifts UP and S rows
+       largely stop appearing;
+     - **findings counts, fix-pass sizes, token and wall-clock figures
+       are NOT comparable across this entry** — the units are harder,
+       not the implementations worse. **Any readout whose window spans
+       2026-09-19 must say so and report the eras separately**, as for
+       the v5 instrument boundary and the fable 5.1 boundary;
+     - within the post-seam era the difficulty COVARIATE loses
+       variance (range restriction), so difficulty-stratified
+       adjustment weakens exactly where the rows are most expensive;
+     - **both arms shrink in absolute terms, the fable stream with
+       them.** Per v3's planning note the contrast's precision is
+       governed by the SMALLER arm, so rows accrue more slowly from
+       here. The compensation is per-row signal: a unit no model would
+       get wrong separates no arms.
+  5. **The triage call is RECORDED WHERE THE UNIT LIVES** — the
+     program's `log.md`, or the unit's own item file, names the tier
+     and its one-line reason at dispatch, so an excluded unit is
+     auditable rather than invisible. Nothing else about an excluded
+     unit is recorded HERE.
+
+- **Protocol amendment (Ev, in-chat, 2026-09-19): THE ORCHESTRATOR'S
+  OWN MODEL IS RECORDED PER UNIT — unblinded in deployment, blinded in
+  analysis.**
+  1. **Every row records the model of the ORCHESTRATOR session that
+     spec'd, dispatched and adjudicated the unit**, in the row's arm
+     cell after the implementer arm (`OPUS (block EDIT-B1 slot 1; byte
+     69 → fable at slot 0); orch FABLE`) and in the dispatch record
+     that claims the ordinal on main. If the unit changes hands — a
+     handoff, a successor session, a model fallback — record each
+     model with the phase it held, the way per-phase tokens are.
+  2. **No blinding at deployment.** An orchestrator knows its own
+     model; nothing it decides can be hidden from it, and the field
+     neither names nor determines an implementer arm (arms come from
+     the block draw), so it is not a leak in the sense of the blinding
+     rules. It is recorded openly, like the reviewer models.
+  3. **BLINDED AT ANALYSIS, under v6 item 4.** The coder sees the
+     orchestrator field attribution-stripped and re-randomized per row
+     alongside the reviewer labels; a readout may report
+     orchestrator-model effects, but the coding that produces them
+     runs without knowing which label is which model.
+  4. **Not retrofitted.** Rows recorded before this entry carry no
+     orchestrator field, and it is MISSING data, never imputed — a
+     third reason this date is a seam. Some earlier rows' orchestrators
+     are recoverable from branch history; recovering them selectively
+     is worse than a clean missing column, so the field starts here.
+
 - **Protocol amendment (Ev, in-chat, 2026-09-04): IMPLEMENTER RATIO
   fable:opus 1:2.** Blocks become three slots {opus,opus,fable} with
   the fable position drawn uniformly (byte mod 3). Effective at the
@@ -7332,6 +7418,10 @@ context, so the FLUSH FINDING became sited rather than the door siting
 names), and the spec's five-document count was six. The implementer's
 unit log entry is not written until the dual concludes.
 
+
+EDIT-DECL RECORDED AT MERGE (2026-09-19, PR #2809, sample #216 — prior highest #215 on main at merge; block EDIT-B2 slot 0 concluded, the block record staying on `edit/b2-block` until the block concludes):
+
+| EDIT-DECL | 2026-09-19 | EDIT-DECL (PR #2809; spec docs/EDIT-DECL-SPEC.md, amended once at the fix pass, deleted at merge; closes `a-declared-union-has-no-one-pass-authoring-path`): a `Declare`'s pairs name SITED entities (`SitedRef`, reused) so a declaration names only what exists before its consumer and is authored in one pass — the fixture's five-edit workaround (a first union, the `Declare` in its space, a second union, a `Rebind` loop, a delete) retired; the site is the side (`DeclareBothOperands` retired; the pair boolean declares between two placements of one prototype); the union routes each pair to the step its two sites derive (`max(i, j) − 1`, saturating) and rewrites it into member space by `names::member_name`, the one member-keying rule, before the shared resolver, so `look_through_merges` and DOCM-8 are unchanged in meaning; `UnionDeclareStep`, `DeclSite`, `declared_bucket` and `latest_member` deleted with the class; `payload_names` the names and `payload_read_sites` the sites; the persisted pair codec moved with no migration (unversioned, nothing outside the tree declares), six corpus documents re-authored, every name-table hash held; the flush finding became sited (`FlushFinding<(SitedRef, SitedRef)>`) because `declare_node` holds no consumer context. **Three spec premises fell before the build** (the appearance-store codec named as the declare codec; `pncad::select`'s doors are re-exports; the door cannot site a same-operand finding) and **one fell to the dual** (below) | M / STRUCTURAL (pre-draw at the block record, before the block byte — the covariate clean, the block's first slot) | OPUS (block EDIT-B2 slot 0; byte 131 → fable at slot 2) | **DUAL (ordinals 4804/4805, v6 byte 77 parity 1: R1 fable, R2 opus, concurrent same-head on frozen af1a0a276)**: R1 1/7/3 NOT-MERGEABLE-AS-IS, rubric 4/3/2 — MAJOR: a union's undeclared contact against a MERGED accumulation row is `NamingError::Emission` with a false message instead of `UndeclaredContact` (main refused it correctly; the PR's "total by construction" false for the fold-minted class); MINOR: rung order differs between the two doors (the pair boolean refuses the site before `NodeGone`), the PR's headline mutant survives the suite (the cited rows use names absent in both tables), the first-site-only `payload_read_sites` mutant survives, two mutant-table entries false, the serde-refusal row pins serde's own message with no `compile_fail` twin, "every name-table hash held" measures no union; NOTE: six stale sentences ("dropping a member re-derives the routing" — false), a `Declare` orphaned by a cascade is silent forever. R2 1/4/5 APPROVE-WITH-FIXES, rubric 4/3/3 — MAJOR: the same merged-row refusal (a three-block document; `Seam`/`OutputBody`/`Fragment` rows take the same `None` branch), falsifying DM4's "the union carries the same recourse"; MINOR: the same surviving mutant 1 (row added), the same second-site blind spot, the same false table entries, the hash claim exercised by one corpus document; NOTE: the serde detail generic, the cascade row monotone-wrong, no Python test declares on an n-ary union, the replay-order row over one document. Convergent on the MAJOR and on four of the MINORs. Adjudicated: **1 bilateral MAJOR + 0 unilateral — v6 tally after this pair: +0 candidates.** Rulings: the refusal's shape (a `Merged` row's contact sited at its first constituent, the flat set on the finding; a typed `UndeclarableContact` for a row no member stands for), the decision unchanged and Ev told on the next `[ev]` PR; one site door after rung 1 at both doors; the site-is-the-side and second-site rows adopted; the mutant table re-measured; the compile-time twin; the hash claim cut to the one corpus union; the six sentences fixed; two rows filed. Pair FAIR (no glimpse; both complete; private target dirs, both cold; a third lane on the box, a method note applying to both arms equally). Spec flaws disclosed by both and owned by the orchestrator: premise 4 retired a class without saying what a REFUSAL against it carries; premise 7 named a door that could not do what it asked. | 5 reported / 1 silent by R2's count (premise 4's "each replaced by" collapsed to one row), 0 by R1's | R1 4 / R2 4 | R1 3 / R2 3 | R1 2 / R2 3 | substantial, IMPLEMENTER-INHERITED: `sited_member` made total (`DeclarationSubject::{Member, Merged, FoldMinted}`), `union_refusal` sites a merged row at its first constituent with the set on the finding and refuses a fold-minted face row typed (`Fragment` the only reachable kind — `Seam` never mints a face, a deviation from the ruling's "one row per kind", argued); `site_operand` the one site door after rung 1, `SidedName` carrying the live token so rung 1 is paid once; both reviewers' red probes the rows; the `compile_fail` + running-twin pair on `Node::Declare`; eight mutants each red on a named row; test-side spellings of `member_name` and the flush segments given one home in `fixture/mod.rs`; both review branches merged `--no-ff` authorship-preserving, four duplicate probes retired by name; two rows filed. The fix lane was killed by the weekly API limit after its last push and resumed two days later to write the record. | impl CI green (run 35203310609 on af1a0a276, full matrix; one earlier red on a PR merge ref — git's auto-merge silently dropped an import main had moved, banked as a lesson); fix CI green (run 35214710079 on df47b36ab, full matrix) | impl ~120k (harness) / fix ~380k (harness, across the outage) / R1 ~249k + R2 ~217k (harness) | impl ~193 min (harness) / fix ~35 min active across the outage (harness) / R1 ~29 min + R2 ~32 min concurrent (harness) |
 
 ## EDIT-PICK3 review ordinals fixed at dispatch (2026-09-16)
 

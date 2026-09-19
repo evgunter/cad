@@ -11,10 +11,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
+use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{fname, wall};
 
-use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RimShare, StableName};
+use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RimShare, SitedRef};
 use geom_core::Tol;
 
 /// The sentence `NamingError::Emission` opens with, written out because
@@ -46,12 +46,12 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let pairs = move |u: RecipeNodeId| {
-        let mut v = flush_pairs(u, (a, a), (c, c));
+    let pairs = {
+        let mut v = flush_pairs((a, a), (c, c));
         for seg in [wall(0), wall(2)] {
             v.push((
-                member_face(u, a, fname(a, seg.clone())),
-                member_face(u, s, fname(s, seg)),
+                SitedRef::new(a, fname(a, seg.clone())),
+                SitedRef::new(s, fname(s, seg)),
             ));
         }
         v
@@ -59,7 +59,7 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
 
     // The orders that fold `a` in last, and only those.
     for order in [vec![c, s, a], vec![s, c, a]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         let shown = match failure(&ev, union) {
             // Rendered at the NODE boundary, which is the only route by
@@ -86,7 +86,7 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
     // The same three members, folded the other way round, build a body.
     // Without this the row above could be pinning a malformed recipe.
     for order in [vec![a, c, s], vec![c, a, s]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -121,11 +121,10 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
-    let pairs =
-        move |u: RecipeNodeId| -> Vec<(StableName, StableName)> { flush_pairs(u, (a, a), (b, b)) };
+    let pairs = flush_pairs((a, a), (b, b));
 
     // The declaration on its own is well formed and fuses.
-    let (docx, ab, _) = declared_union(doc.clone(), &[a, b], pairs);
+    let (docx, ab, _) = declared_union(doc.clone(), &[a, b], pairs.clone());
     let ev = run(&docx);
     assert!(failure(&ev, ab).is_none(), "{:?}", failure(&ev, ab));
     let v = volume(body_of(&ev, ab));

@@ -36,12 +36,12 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, content_pin,
+    split,
 };
 use fixture::resolver::{PART_BODY, in_part};
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document.
@@ -68,19 +68,6 @@ fn block_ref(label: &str) -> DocRef {
     let doc = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
     DocRef { id: doc.id(), pin }
-}
-
-/// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
-/// node as head and the master's own name under the qualifier.
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {

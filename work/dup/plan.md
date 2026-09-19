@@ -82,6 +82,91 @@ claims one by `git mv`, per `work/README.md`'s one-file-one-item rule.
    call site: does the helper still make that suite's intent readable?
    Answering *no* at a site is a result — SUITE did it at three.
 
+## Method — what THIS program has added, 2026-09-16 to 09-19
+
+Seven units, seven merged PRs. Every one had its stated count move
+while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
+56 → 145. Item 1 is not a caution here, it is the observed rule.
+
+7. **Denominator-first classification, when the count will not settle.**
+   Five instruments ran on the `solid_of_face` class and the count moved
+   every time. The sixth inverted the question: instead of searching for
+   the *walk*, enumerate the **terminal read** every member must contain
+   — every textual `.solid` in every tracked file, all roots, all cfgs,
+   149 hits — and classify each one **backwards** by where its receiver
+   came from. **A search over a shape has a blind spot for every way the
+   shape can be written; an enumeration over a required atom has one
+   only where the atom itself can hide.** Close the atom's own blind
+   spots by measurement (no `.solid()` accessor exists, no
+   `Shell { solid, .. }` destructuring exists) and state the one that
+   cannot be closed (a macro-assembled member).
+
+8. **A disclosed blind spot is an instruction to run a third
+   instrument, not a licence to publish the count.** The cube row wrote
+   *"it undercounts every builder that loops"* and then published. The
+   loop-written copy it named was sitting in `src/`, declaring itself a
+   copy in its own doc comment.
+
+9. **Publish the hit list, not the pattern** (`implementer-discipline`
+   §5, which earned its keep twice here). A reconstructed instrument
+   fired on the one site its own unit had missed — so the member was
+   inside reach and simply was not dispositioned. **A bucket
+   disposition is where a census loses things**, not the threshold,
+   which is where everyone looks. Name every hit and what became of it.
+
+10. **The instruments this program has, and what each cannot see.**
+    Arity-shaped (misses a loop-written builder); name-shaped (misses a
+    new name — structurally, always); geometry- or type-shaped (misses a
+    member that declines the axis); **prose** (finds a self-declared
+    copy that no code census reaches — `git grep 'in-crate copy'`);
+    **structural needle**, the distinctive step rather than the arity;
+    **type-directed**, `#[deprecated]` on the fields and pair the
+    warning spans — the compiler is a census instrument and reads what
+    no regex can, but `cargo check --workspace` does not compile every
+    cargo root and feature-gated code never type-checks, so it never
+    warns; **sibling-door re-census** — take the door a change cites as
+    its *precedent* and census that door's own walk; and
+    denominator-first, above.
+
+11. **A mutation is the only proof a fold is safe.** Twice this program
+    folded a refusal that named *which* key went stale onto a door that
+    could name nothing, and **every test stayed green** — 727 once,
+    4405 the next. Plant the flattening. If nothing reds, the guard is
+    the deliverable, not the fold.
+
+12. **Stale modality, not just stale numbers.** Text whose scope was
+    true when written, read later as though it had none: a
+    justification (*"no manifest edge is added"*) read as a
+    prohibition; a rule retracted in `memories/` and still stated in
+    nineteen files; a constant recording a measurement nobody re-took;
+    and **a door minted by a fix pass, whose doc sentence inherits that
+    pass's fence silently.** Before waiting on Ev for any of it, run
+    `git log -S'<sentence>' --all` and read the author — **`--all` is
+    not optional in this shallow clone**, or the check lands on a
+    parentless bot render commit and misattributes ratified text.
+
+13. **A door's rustdoc carries an invariant for a user, not a
+    measurement for a future lane.** Two doors in a row shipped a census
+    sentence with nothing holding it true. The fix is not to guard the
+    sentence; it is to make no census claim at the door and let the row
+    hold the measurement, dated, with its instruments named.
+
+14. **File the residue as items, one per seam owner** (`work/README.md`,
+    Ev 2026-09-06). *"That sweep sees items, not sentences."* A lane
+    argued that separate rows would mint the duplicate this program
+    exists to prevent; the argument against duplicate rows is an
+    argument for one row per owner, not for zero. Where a row sits off
+    its territory owner's slate, **say why in the row's own body**.
+
+15. **The orchestrator is inside method item 1.** Six times this
+    sitting a number or a posture arrived in a lane's report, went into
+    the next brief as fact, and was wrong — a baseline off by 14, a
+    hazard population of 2 that was 16, a posture claim about `expect`
+    that the code did not carry. **Do not put a count or a posture in a
+    brief; tell the lane to measure it.** A delta can be right while the
+    baseline under it is wrong, and checking the delta feels like
+    checking the number.
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full

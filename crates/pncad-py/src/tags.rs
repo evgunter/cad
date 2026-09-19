@@ -87,11 +87,14 @@
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Two are pinned against each other in `src/tests.rs` and each says
+//! Three are pinned against each other in `src/tests.rs` and each says
 //! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
-//! where both layers speak of one entity, and [`class_admission_tag`]
+//! where both layers speak of one entity, [`class_admission_tag`]
 //! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
-//! second (see that function for the arm it does not). **That is not
+//! second (see that function for the arm it does not), and
+//! [`edit_error_tag`] with [`snapshot_error_tag`] over the four
+//! param-ref words, where both doors raise one fault at one address.
+//! **That is not
 //! the whole set of pairs that owe a pin**, only the set these maps
 //! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
 //! and [`stale_declaration_tag`] share contact words by prose alone,
@@ -487,6 +490,12 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
 }
 
 /// The stable tag for an edit refusal.
+///
+/// Its four param-ref words are the same four
+/// [`snapshot_error_tag`] mints, pinned by
+/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`:
+/// the arms they follow carry one convention across the two doors
+/// (stated on `editor_core::EditError`), so the words do too.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
         EditError::UnknownNode { .. } => "unknown_node",
@@ -508,14 +517,14 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
             "structural_slot_needs_structural_edit"
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
-        EditError::UnknownDocParam { .. } => "unknown_doc_param",
-        EditError::UnknownPayloadParam { .. } => "unknown_payload_param",
-        EditError::PayloadParamDimensionMismatch { .. } => "payload_param_dimension_mismatch",
+        EditError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
+        EditError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
+        EditError::PayloadUnknownDocParam { .. } => "payload_unknown_doc_param",
+        EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
         EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
-        EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
         EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
@@ -869,14 +878,17 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::ParamSourceAttach(_) => "param_source_attach",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
-        NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
-        NodeErrorKind::UnionDeclareStep { .. } => "union_declare_step",
+        NodeErrorKind::DeclareSiteNotAnOperand { .. } => "declare_site_not_an_operand",
         // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
         NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
+        // The same refusal with no declare arm: the contact is
+        // against a row the union's own fold minted, which no sited
+        // declaration names.
+        NodeErrorKind::UndeclarableContact { .. } => "undeclarable_contact",
         NodeErrorKind::BlendSelectionResolve { verb, .. } => match verb {
             BlendKind::Fillet => "fillet_selection_resolve",
             BlendKind::Chamfer => "chamfer_selection_resolve",
@@ -1024,12 +1036,14 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         NodeErrorKind::ParamSourceAttach(inner) => Some(param_attach_error_tag(inner)),
         NodeErrorKind::DeclareResolve { error } => Some(resolve_error_tag(error)),
-        NodeErrorKind::DeclareBothOperands { .. } => None,
-        NodeErrorKind::UnionDeclareStep { .. } => None,
+        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         NodeErrorKind::DeclareUnsupportedPair { .. } => None,
         // The candidate declaration crosses whole, as the `finding`
         // attribute; the refusing predicate's diagnostic is a margin.
         NodeErrorKind::UndeclaredContact { .. } => None,
+        // The row it names crosses in the message; there is no inner
+        // refusal to delegate to.
+        NodeErrorKind::UndeclarableContact { .. } => None,
         NodeErrorKind::BlendSelectionResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::BlendSelectionKind { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
@@ -1099,13 +1113,13 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
         EditError::NotStructuralSlot { .. } => None,
-        EditError::UnknownDocParam { .. } => None,
-        EditError::UnknownPayloadParam { .. } => None,
-        EditError::PayloadParamDimensionMismatch { .. } => None,
+        EditError::SlotUnknownDocParam { .. } => None,
+        EditError::PayloadUnknownDocParam { .. } => None,
+        EditError::PayloadDocParamDimension { .. } => None,
         EditError::AssertionTarget { .. } => None,
         EditError::DeclareInputNotDeclare { .. } => None,
         EditError::AssertionDimension { .. } => None,
-        EditError::DocParamDimensionMismatch { .. } => None,
+        EditError::SlotDocParamDimension { .. } => None,
         EditError::ContinuousParamCannotBeCount { .. } => None,
         EditError::DocParamNotDeclared { .. } => None,
         EditError::DocParamValueKindMismatch { .. } => None,
@@ -1675,6 +1689,10 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// each naming a different one. The arm's own payload is node ids,
 /// names and counts the snapshot door owns; the word is what the
 /// persistence door carries out.
+///
+/// Its four param-ref words are the same four [`edit_error_tag`]
+/// mints, pinned by
+/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
@@ -2337,6 +2355,14 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
 /// four projected fields do not carry and the message states, the
 /// `product` door's convention.
 ///
+/// `ambiguous` is the certified tie BETWEEN FACES: the survivors of
+/// the interval order name more than one face and nothing orders
+/// them, so the door names them all and chooses none. The word is the
+/// one [`interrogate_error_tag`] already answers with for "this
+/// denotes more than one thing" — one fact, one tag, whichever door a
+/// caller meets it at — and its payload, the tied hits, crosses as
+/// `hits` beside the tag.
+///
 /// `unnamed` is the BUG arm (spec D4): the node evaluated and the
 /// entity has no name in its table. Its payload is an `EntityRef`,
 /// which is an arena key plus a body index — the key does not cross
@@ -2349,6 +2375,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
         HitTestError::NodeFailed { .. } => "node_failed",
         HitTestError::NodePoisoned { .. } => "node_poisoned",
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
+        HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
     }
 }

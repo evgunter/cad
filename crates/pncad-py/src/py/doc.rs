@@ -3207,9 +3207,11 @@ impl DocEdit {
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
     /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's `declare` input is left as it was: a member-space pair
-    /// re-routes to the step its two members now meet at rather than
-    /// being invalidated by the rewrite.
+    /// union's `declare` input is left as it was, so a pair whose two
+    /// members are both still in the list re-routes to the step they
+    /// now meet at; a pair whose member was DROPPED has lost its site
+    /// and refuses at the next evaluation as a vanished name, rather
+    /// than being edited away silently.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
@@ -3258,7 +3260,7 @@ impl DocEdit {
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
     /// wrong dimension (carrying the required and offered pair), and
-    /// `unknown_doc_param` / `doc_param_dimension_mismatch` for a
+    /// `slot_unknown_doc_param` / `slot_doc_param_dimension` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
     fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {
