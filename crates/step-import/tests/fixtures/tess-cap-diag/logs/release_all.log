@@ -1,0 +1,688 @@
+   Compiling autocfg v1.5.1
+   Compiling libm v0.2.16
+   Compiling crossbeam-utils v0.8.22
+   Compiling crossbeam-epoch v0.9.20
+   Compiling crossbeam-deque v0.8.7
+   Compiling version_check v0.9.5
+   Compiling rayon-core v1.13.0
+   Compiling either v1.16.0
+   Compiling allocator-api2 v0.2.21
+   Compiling foldhash v0.2.0
+   Compiling equivalent v1.0.2
+   Compiling robust v1.2.0
+   Compiling smallvec v1.15.2
+   Compiling slotmap v1.1.1
+   Compiling num-traits v0.2.19
+   Compiling test-utils v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/test-utils)
+   Compiling hashbrown v0.16.1
+   Compiling num-integer v0.1.46
+   Compiling spade v2.15.1
+   Compiling rayon v1.12.0
+   Compiling num-bigint v0.4.8
+   Compiling geom-core v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/geom-core)
+   Compiling bvh v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/bvh)
+   Compiling profile v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/profile)
+   Compiling geom v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/geom)
+   Compiling geom-brep v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/geom-brep)
+   Compiling topo v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/topo)
+   Compiling sweep v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/sweep)
+   Compiling mesh v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/mesh)
+    Finished `release` profile [optimized] target(s) in 1m 36s
+     Running tests/all.rs (/home/evan/.local/share/cad-work/tess-cap-diag-target/release/deps/all-72bbd6b50a026f06)
+
+running 3 tests
+test tess_cap_diag::q1_q2_q6_rim_only_caps ... 
+##### cap ABOVE z=0 (north pole interior): analytic sphere-face area 6.283185307e0, volume 2.094395102e0
+
+=== cap above z=0 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=32 bbox u[3.141592653589793,9.228428419920018] v[0,0] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0 id=1 pole=false
+DIAG   [1] u=3.337942194439155 v=0 id=17 pole=false
+DIAG   [2] u=3.534291735288517 v=0 id=18 pole=false
+DIAG   [3] u=3.7306412761378787 v=0 id=19 pole=false
+DIAG   [30] u=9.032078879070655 v=0 id=15 pole=false
+DIAG   [31] u=9.228428419920018 v=0 id=16 pole=false
+DIAG face FaceKey(1v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=32 triangles=30 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=30 area=3.121445152e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 17 points
+      boundary EdgeKey(2v1): 17 points
+
+##### cap ABOVE z=0.5 (north pole interior): analytic sphere-face area 3.141592654e0, volume 6.544984695e-1
+
+=== cap above z=0.5 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=6.544984694979e-1 (pad 0e0) area=5.497787143782e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.5235987755982989 id=1 pole=false
+DIAG   [1] u=3.351032163829112 v=0.5235987755982989 id=16 pole=false
+DIAG   [2] u=3.560471674068432 v=0.5235987755982989 id=17 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.5235987755982989 id=18 pole=false
+DIAG   [28] u=9.005898940290741 v=0.5235987755982989 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.5235987755982989 id=15 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=30 triangles=28 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=28 area=2.339006522e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 16 points
+      boundary EdgeKey(2v1): 16 points
+
+##### cap ABOVE z=0.9 (north pole interior): analytic sphere-face area 6.283185307e-1, volume 3.036872898e-2
+
+=== cap above z=0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.036872898470e-2 (pad 0e0) area=1.225221134900e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=22 bbox u[3.141592653589793,9.139178628624853] v[1.1197695149986342,1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=1.1197695149986342 id=1 pole=false
+DIAG   [1] u=3.427191985734319 v=1.1197695149986342 id=12 pole=false
+DIAG   [2] u=3.712791317878846 v=1.1197695149986342 id=13 pole=false
+DIAG   [3] u=3.9983906500233726 v=1.1197695149986342 id=14 pole=false
+DIAG   [20] u=8.853579296480326 v=1.1197695149986342 id=10 pole=false
+DIAG   [21] u=9.139178628624853 v=1.1197695149986342 id=11 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=22 triangles=20 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=20 area=5.888210438e-1 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 12 points
+      boundary EdgeKey(2v1): 12 points
+
+##### cap ABOVE z=-0.9 (north pole interior): analytic sphere-face area 1.193805208e1, volume 4.158421476e0
+
+=== cap above z=-0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.158421475802e0 (pad 0e0) area=1.253495468782e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=22 bbox u[3.141592653589793,9.139178628624853] v[-1.1197695149986342,-1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=-1.1197695149986342 id=1 pole=false
+DIAG   [1] u=3.427191985734319 v=-1.1197695149986342 id=12 pole=false
+DIAG   [2] u=3.712791317878846 v=-1.1197695149986342 id=13 pole=false
+DIAG   [3] u=3.9983906500233726 v=-1.1197695149986342 id=14 pole=false
+DIAG   [20] u=8.853579296480326 v=-1.1197695149986342 id=10 pole=false
+DIAG   [21] u=9.139178628624853 v=-1.1197695149986342 id=11 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=22 triangles=20 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=20 area=5.888210438e-1 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 12 points
+      boundary EdgeKey(2v1): 12 points
+
+##### ball BELOW z=0 (south pole interior): analytic sphere-face area 6.283185307e0
+
+=== ball below z=0 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=32 bbox u[-6.086835766330224,0] v[0,0] area2=0 poles=0
+DIAG   [0] u=0 v=0 id=0 pole=false
+DIAG   [1] u=-0.19634954084936254 v=0 id=31 pole=false
+DIAG   [2] u=-0.3926990816987248 v=0 id=30 pole=false
+DIAG   [3] u=-0.5890486225480862 v=0 id=29 pole=false
+DIAG   [30] u=-5.890486225480862 v=0 id=3 pole=false
+DIAG   [31] u=-6.086835766330224 v=0 id=2 pole=false
+DIAG face FaceKey(2v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=32 triangles=30 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Plane: triangles=30 area=3.121445152e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 17 points
+      boundary EdgeKey(2v1): 17 points
+
+##### ball BELOW z=0.5 (south pole interior): analytic sphere-face area 9.424777961e0
+
+=== ball below z=0.5 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.534291735289e0 (pad 0e0) area=1.178097245096e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=0 v=0.5235987755982989 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.5235987755982989 id=29 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.5235987755982989 id=28 pole=false
+DIAG   [3] u=-0.628318530717959 v=0.5235987755982989 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.5235987755982989 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.5235987755982989 id=2 pole=false
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=30 triangles=28 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Plane: triangles=28 area=2.339006522e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 16 points
+      boundary EdgeKey(2v1): 16 points
+
+##### ball BELOW z=-0.9 (south pole interior): analytic sphere-face area 6.283185307e-1
+
+=== ball below z=-0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.036872898470e-2 (pad 0e0) area=1.225221134900e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=22 bbox u[-5.99758597503506,0] v[-1.1197695149986342,-1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=0 v=-1.1197695149986342 id=0 pole=false
+DIAG   [1] u=-0.28559933214452676 v=-1.1197695149986342 id=21 pole=false
+DIAG   [2] u=-0.5711986642890532 v=-1.1197695149986342 id=20 pole=false
+DIAG   [3] u=-0.8567979964335797 v=-1.1197695149986342 id=19 pole=false
+DIAG   [20] u=-5.711986642890533 v=-1.1197695149986342 id=3 pole=false
+DIAG   [21] u=-5.99758597503506 v=-1.1197695149986342 id=2 pole=false
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=22 triangles=20 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Plane: triangles=20 area=5.888210438e-1 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 12 points
+      boundary EdgeKey(2v1): 12 points
+
+=== two rim-only caps, one rim at z=0 (MESH-12's f=0 shape, unit ball) (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=32 bbox u[3.141592653589793,9.228428419920018] v[0,0] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0 id=1 pole=false
+DIAG   [1] u=3.337942194439155 v=0 id=17 pole=false
+DIAG   [2] u=3.534291735288517 v=0 id=18 pole=false
+DIAG   [3] u=3.7306412761378787 v=0 id=19 pole=false
+DIAG face FaceKey(2v1): polygon n=32 bbox u[-6.086835766330224,0] v[0,0] area2=0 poles=0
+DIAG   [0] u=0 v=0 id=0 pole=false
+DIAG   [1] u=-0.19634954084936254 v=0 id=31 pole=false
+DIAG   [30] u=9.032078879070655 v=0 id=15 pole=false
+DIAG   [31] u=9.228428419920018 v=0 id=16 pole=false
+DIAG   [2] u=-0.3926990816987248 v=0 id=30 pole=false
+DIAG   [3] u=-0.5890486225480862 v=0 id=29 pole=false
+DIAG   [30] u=-5.890486225480862 v=0 id=3 pole=false
+DIAG face FaceKey(1v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG   [31] u=-6.086835766330224 v=0 id=2 pole=false
+DIAG face FaceKey(2v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=32 triangles=0 check_mesh=Ok(()) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 17 points
+      boundary EdgeKey(2v1): 17 points
+
+=== two rim-only caps, one rim at z=0.5 (MESH-12's f=0 shape, unit ball) (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.5235987755982989 id=1 pole=false
+DIAG   [1] u=3.351032163829112 v=0.5235987755982989 id=16 pole=false
+DIAG   [2] u=3.560471674068432 v=0.5235987755982989 id=17 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.5235987755982989 id=18 pole=false
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=0 v=0.5235987755982989 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.5235987755982989 id=29 pole=false
+DIAG   [28] u=9.005898940290741 v=0.5235987755982989 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.5235987755982989 id=15 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.5235987755982989 id=28 pole=false
+DIAG   [3] u=-0.628318530717959 v=0.5235987755982989 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.5235987755982989 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.5235987755982989 id=2 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=30 triangles=0 check_mesh=Ok(()) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 16 points
+      boundary EdgeKey(2v1): 16 points
+
+=== mesh12 two_level_rim_cap(dv=0) R=10mm v=0.5 (delta 0.0001)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e-6 (pad 0e0) area=1.256637061436e-3 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.49999999999999994,0.49999999999999994] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.49999999999999994 id=1 pole=false
+DIAG   [1] u=3.351032163829112 v=0.49999999999999994 id=16 pole=false
+DIAG   [2] u=3.5604716740684323 v=0.49999999999999994 id=17 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.49999999999999994 id=18 pole=false
+DIAG   [28] u=9.005898940290741 v=0.49999999999999994 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.49999999999999994 id=15 pole=false
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.49999999999999994,0.49999999999999994] area2=0 poles=0
+DIAG   [0] u=0 v=0.49999999999999994 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.49999999999999994 id=29 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.49999999999999994 id=28 pole=false
+DIAG   [3] u=-0.6283185307179588 v=0.49999999999999994 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.49999999999999994 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.49999999999999994 id=2 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=30 triangles=0 check_mesh=Ok(()) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Sphere: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 16 points
+      boundary EdgeKey(2v1): 16 points
+ok
+test tess_cap_diag::q4_the_kernels_own_verbs ... 
+=== revolve: ball() (delta 0.05)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=18 bbox u[-3.141592653589793,0] v[-1.5707963267948966,1.5707963267948966] area2=19.739208802178716 poles=4
+DIAG   [0] u=0 v=1.5707963267948966 id=0 pole=true
+DIAG   [1] u=-3.141592653589793 v=1.5707963267948966 id=0 pole=true
+DIAG   [2] u=-3.141592653589793 v=1.1780972450961724 id=9 pole=false
+DIAG face FaceKey(2v1): polygon n=18 bbox u[0,3.141592653589793] v[-1.5707963267948966,1.5707963267948966] area2=19.739208802178716 poles=4
+DIAG   [0] u=0 v=-1.5707963267948966 id=1 pole=true
+DIAG   [1] u=3.141592653589793 v=-1.5707963267948966 id=1 pole=true
+DIAG   [3] u=-3.141592653589793 v=0.7853981633974484 id=10 pole=false
+DIAG   [16] u=0 v=0.7853981633974484 id=3 pole=false
+DIAG   [17] u=0 v=1.1780972450961724 id=2 pole=false
+DIAG   [2] u=3.141592653589793 v=-1.1780972450961724 id=15 pole=false
+DIAG   [3] u=3.141592653589793 v=-0.7853981633974482 id=14 pole=false
+DIAG   [16] u=0 v=-0.7853981633974482 id=7 pole=false
+DIAG   [17] u=0 v=-1.1780972450961724 id=8 pole=false
+DIAG face FaceKey(1v1): nu=8 nv=8 cdt vertices=67 inner_faces=114 emitted triangles=112 interior pts=49
+DIAG face FaceKey(2v1): nu=8 nv=8 cdt vertices=67 inner_faces=114 emitted triangles=112 interior pts=49
+  tessellate: OK positions=114 triangles=224 check_mesh=Ok(()) signed_volume=3.926596389e0
+      patch FaceKey(1v1) Sphere: triangles=112 area=6.083344719e0 max sampled dev=3.731e-2
+      patch FaceKey(2v1) Sphere: triangles=112 area=6.083344719e0 max sampled dev=3.731e-2
+      boundary EdgeKey(1v1): 9 points
+      boundary EdgeKey(2v1): 9 points
+
+=== revolve: dome (quarter disc) (delta 0.05)
+  census V=4 E=6 F=4
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[0.0000,1.5708] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[0.0000,1.5708] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[0.0000,1.5708] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[0.0000,1.5708] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(3v1) Plane sense=false rings=0 outer edges=3
+      Line t[0.0000,1.0000] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+  face FaceKey(4v1) Plane sense=false rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      Line t[0.0000,1.0000] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=17 bbox u[3.141592653589793,6.283185307179586] v[0,1.5707963267948966] area2=9.869604401089358 poles=2
+DIAG   [0] u=3.141592653589793 v=0 id=3 pole=false
+DIAG   [1] u=3.5342917352885173 v=0 id=17 pole=false
+DIAG   [2] u=3.926990816987241 v=0 id=18 pole=false
+DIAG   [3] u=4.319689898685965 v=0 id=19 pole=false
+DIAG   [15] u=3.141592653589793 v=0.7853981633974484 id=15 pole=false
+DIAG   [16] u=3.141592653589793 v=0.39269908169872425 id=16 pole=false
+DIAG face FaceKey(2v1): polygon n=17 bbox u[0,3.141592653589793] v[0,1.5707963267948966] area2=9.869604401089358 poles=2
+DIAG   [0] u=0 v=0 id=1 pole=false
+DIAG   [1] u=0.3926990816987242 v=0 id=7 pole=false
+DIAG   [2] u=0.7853981633974483 v=0 id=8 pole=false
+DIAG   [3] u=1.1780972450961724 v=0 id=9 pole=false
+DIAG   [15] u=0 v=0.7853981633974484 id=5 pole=false
+DIAG   [16] u=0 v=0.39269908169872425 id=6 pole=false
+DIAG face FaceKey(1v1): nu=8 nv=4 cdt vertices=38 inner_faces=57 emitted triangles=56 interior pts=21
+DIAG face FaceKey(2v1): nu=8 nv=4 cdt vertices=38 inner_faces=57 emitted triangles=56 interior pts=21
+  tessellate: OK positions=66 triangles=128 check_mesh=Ok(()) signed_volume=1.963298195e0
+      patch FaceKey(1v1) Sphere: triangles=56 area=3.041672360e0 max sampled dev=3.731e-2
+      patch FaceKey(2v1) Sphere: triangles=56 area=3.041672360e0 max sampled dev=3.731e-2
+      patch FaceKey(3v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      patch FaceKey(4v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 5 points
+      boundary EdgeKey(2v1): 2 points
+      boundary EdgeKey(3v1): 9 points
+      boundary EdgeKey(4v1): 5 points
+      boundary EdgeKey(5v1): 2 points
+      boundary EdgeKey(6v1): 9 points
+
+=== revolve: cone() (delta 0.05)
+  census V=4 E=6 F=4
+  face FaceKey(1v1) Cone sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      Line t[0.0000,1.4142] fwd=false
+      Line t[0.0000,1.4142] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Cone sense=true rings=0 outer edges=3
+      Line t[0.0000,1.4142] fwd=false
+      Line t[0.0000,1.4142] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(3v1) Plane sense=false rings=0 outer edges=3
+      Line t[0.0000,1.0000] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+  face FaceKey(4v1) Plane sense=false rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      Line t[0.0000,1.0000] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=1.047197551197e0 (pad 0e0) area=7.584475591748e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=11 bbox u[0,3.141592653589793] v[-1.414213562373095,0] area2=8.885765876316732 poles=2
+DIAG   [0] u=0 v=-1.414213562373095 id=3 pole=false
+DIAG   [1] u=0.39269908169872414 v=-1.414213562373095 id=11 pole=false
+DIAG   [2] u=0.7853981633974478 v=-1.414213562373095 id=12 pole=false
+DIAG   [3] u=1.1780972450961722 v=-1.414213562373095 id=13 pole=false
+DIAG   [9] u=3.141592653589793 v=0 id=0 pole=true
+DIAG   [10] u=0 v=0 id=0 pole=true
+DIAG face FaceKey(1v1): nu=8 nv=4 cdt vertices=32 inner_faces=51 emitted triangles=50 interior pts=21
+DIAG face FaceKey(2v1): polygon n=11 bbox u[3.141592653589793,6.283185307179586] v[-1.414213562373095,0] area2=8.885765876316732 poles=2
+DIAG   [0] u=3.141592653589793 v=-1.414213562373095 id=1 pole=false
+DIAG   [1] u=3.5342917352885173 v=-1.414213562373095 id=4 pole=false
+DIAG   [2] u=3.9269908169872414 v=-1.414213562373095 id=5 pole=false
+DIAG   [3] u=4.319689898685965 v=-1.414213562373095 id=6 pole=false
+DIAG   [9] u=6.283185307179586 v=0 id=0 pole=true
+DIAG   [10] u=3.141592653589793 v=0 id=0 pole=true
+DIAG face FaceKey(2v1): nu=8 nv=4 cdt vertices=32 inner_faces=51 emitted triangles=50 interior pts=21
+  tessellate: OK positions=60 triangles=116 check_mesh=Ok(()) signed_volume=1.020489153e0
+      patch FaceKey(1v1) Cone: triangles=50 area=2.186092567e0 max sampled dev=1.359e-2
+      patch FaceKey(2v1) Cone: triangles=50 area=2.186092567e0 max sampled dev=1.359e-2
+      patch FaceKey(3v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      patch FaceKey(4v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 2 points
+      boundary EdgeKey(2v1): 2 points
+      boundary EdgeKey(3v1): 9 points
+      boundary EdgeKey(4v1): 2 points
+      boundary EdgeKey(5v1): 2 points
+      boundary EdgeKey(6v1): 9 points
+
+=== revolve: rod (solid cylinder) (delta 0.05)
+  census V=6 E=10 F=6
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=3
+      Circle(c=(0.000,1.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      Line t[0.0000,1.0000] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=3
+      Line t[0.0000,1.0000] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      Circle(c=(0.000,1.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+  face FaceKey(3v1) Cylinder sense=true rings=0 outer edges=4
+      Line t[0.0000,1.0000] fwd=false
+      Circle(c=(0.000,1.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(4v1) Plane sense=false rings=0 outer edges=3
+      Line t[0.0000,1.0000] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+  face FaceKey(5v1) Cylinder sense=true rings=0 outer edges=4
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      Line t[0.0000,1.0000] fwd=false
+      Circle(c=(0.000,1.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(6v1) Plane sense=false rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,1.00,0.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      Line t[0.0000,1.0000] fwd=true
+      Line t[0.0000,1.0000] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.141592653590e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(5v1): polygon n=18 bbox u[3.141592653589793,6.283185307179586] v[-1,0] area2=6.283185307179586 poles=0
+DIAG   [0] u=3.141592653589793 v=-1 id=5 pole=false
+DIAG   [1] u=3.5342917352885173 v=-1 id=27 pole=false
+DIAG   [2] u=3.926990816987241 v=-1 id=28 pole=false
+DIAG   [3] u=4.319689898685965 v=-1 id=29 pole=false
+DIAG   [16] u=3.5342917352885173 v=0 id=20 pole=false
+DIAG   [17] u=3.141592653589793 v=0 id=4 pole=false
+DIAG face FaceKey(3v1): polygon n=18 bbox u[0,3.141592653589793] v[-1,0] area2=6.283185307179586 poles=0
+DIAG   [0] u=3.141592653589793 v=0 id=4 pole=false
+DIAG   [1] u=2.748893571891069 v=0 id=12 pole=false
+DIAG   [2] u=2.356194490192345 v=0 id=11 pole=false
+DIAG face FaceKey(5v1): nu=8 nv=1 cdt vertices=18 inner_faces=16 emitted triangles=16 interior pts=0
+DIAG   [3] u=1.9634954084936207 v=0 id=10 pole=false
+DIAG   [16] u=2.748893571891069 v=-1 id=19 pole=false
+DIAG   [17] u=3.141592653589793 v=-1 id=5 pole=false
+DIAG face FaceKey(3v1): nu=8 nv=1 cdt vertices=18 inner_faces=16 emitted triangles=16 interior pts=0
+  tessellate: OK positions=34 triangles=64 check_mesh=Ok(()) signed_volume=3.061467459e0
+      patch FaceKey(1v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      patch FaceKey(3v1) Cylinder: triangles=16 area=3.121445152e0 max sampled dev=1.921e-2
+      patch FaceKey(4v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      patch FaceKey(5v1) Cylinder: triangles=16 area=3.121445152e0 max sampled dev=1.921e-2
+      patch FaceKey(6v1) Plane: triangles=8 area=1.530733729e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 2 points
+      boundary EdgeKey(2v1): 2 points
+      boundary EdgeKey(3v1): 2 points
+      boundary EdgeKey(4v1): 9 points
+      boundary EdgeKey(5v1): 9 points
+      boundary EdgeKey(6v1): 2 points
+      boundary EdgeKey(7v1): 2 points
+      boundary EdgeKey(8v1): 2 points
+      boundary EdgeKey(9v1): 9 points
+      boundary EdgeKey(10v1): 9 points
+
+=== boolean ball ∩ slab(y<=0.5) (delta 0.05)
+  census V=3 E=4 F=3
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.500,0.000) ax=(-0.00,-1.00,-0.00) r=0.8660) t[-1.5708,1.5708] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[1.0472,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[1.0472,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(3v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.500,0.000) ax=(-0.00,-1.00,-0.00) r=0.8660) t[1.5708,4.7124] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[1.0472,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[1.0472,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(6v5) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.500,0.000) ax=(-0.00,-1.00,-0.00) r=0.8660) t[1.5708,4.7124] fwd=false
+      Circle(c=(0.000,0.500,0.000) ax=(-0.00,-1.00,-0.00) r=0.8660) t[-1.5708,1.5708] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.534291735289e0 (pad 0e0) area=1.178097245096e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=18 bbox u[0,3.141592653589793] v[-1.5707963267948966,0.5235987755982989] area2=13.159472534785811 poles=2
+DIAG   [0] u=3.141592653589793 v=0.5235987755982989 id=2 pole=false
+DIAG   [1] u=2.6927937030769655 v=0.5235987755982989 id=17 pole=false
+DIAG face FaceKey(3v1): polygon n=18 bbox u[-3.141592653589793,0] v[-1.5707963267948966,0.5235987755982989] area2=13.159472534785811 poles=2
+DIAG   [0] u=0 v=0.5235987755982989 id=1 pole=false
+DIAG   [1] u=-0.44879895051282753 v=0.5235987755982989 id=11 pole=false
+DIAG   [2] u=-0.8975979010256551 v=0.5235987755982989 id=12 pole=false
+DIAG   [3] u=-1.3463968515384828 v=0.5235987755982989 id=13 pole=false
+DIAG   [16] u=0 v=-0.31415926535897926 id=4 pole=false
+DIAG   [17] u=0 v=0.10471975511965977 id=3 pole=false
+DIAG   [2] u=2.243994752564138 v=0.5235987755982989 id=18 pole=false
+DIAG   [3] u=1.7951958020513104 v=0.5235987755982989 id=19 pole=false
+DIAG   [16] u=3.141592653589793 v=-0.31415926535897926 id=8 pole=false
+DIAG   [17] u=3.141592653589793 v=0.10471975511965977 id=7 pole=false
+DIAG face FaceKey(3v1): nu=8 nv=6 cdt vertices=53 inner_faces=86 emitted triangles=85 interior pts=35
+DIAG face FaceKey(2v1): nu=8 nv=6 cdt vertices=53 inner_faces=86 emitted triangles=85 interior pts=35
+  tessellate: OK positions=93 triangles=182 check_mesh=Ok(()) signed_volume=3.352850867e0
+      patch FaceKey(2v1) Sphere: triangles=85 area=4.589634259e0 max sampled dev=3.412e-2
+      patch FaceKey(3v1) Sphere: triangles=85 area=4.589634259e0 max sampled dev=3.412e-2
+      patch FaceKey(6v5) Plane: triangles=12 area=2.277889630e0 max sampled dev=1.110e-16
+      boundary EdgeKey(3v1): 6 points
+      boundary EdgeKey(4v1): 6 points
+      boundary EdgeKey(8v1): 8 points
+      boundary EdgeKey(9v1): 8 points
+
+=== split ball at y=0.5: REFUSED Reduce(CurvedBooleanUnsupported { face: FaceKey(1v1), kind: Sphere })
+
+=== boolean ball ∩ slab(y<=0) (delta 0.05)
+  census V=3 E=4 F=3
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,-1.00,-0.00) r=1.0000) t[-1.5708,1.5708] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[1.5708,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[1.5708,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(3v1) Sphere sense=true rings=0 outer edges=3
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,-1.00,-0.00) r=1.0000) t[1.5708,4.7124] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,0.00,1.00) r=1.0000) t[1.5708,3.1416] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,-1.00) r=1.0000) t[1.5708,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(6v5) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,-1.00,-0.00) r=1.0000) t[1.5708,4.7124] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(-0.00,-1.00,-0.00) r=1.0000) t[-1.5708,1.5708] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=17 bbox u[0,3.141592653589793] v[-1.5707963267948966,0] area2=9.86960440108936 poles=2
+DIAG   [0] u=3.141592653589793 v=0 id=2 pole=false
+DIAG   [1] u=2.748893571891069 v=0 id=16 pole=false
+DIAG face FaceKey(3v1): polygon n=17 bbox u[-3.141592653589793,0] v[-1.5707963267948966,0] area2=9.869604401089358 poles=2
+DIAG   [0] u=0 v=0 id=1 pole=false
+DIAG   [1] u=-0.39269908169872414 v=0 id=9 pole=false
+DIAG   [2] u=-0.7853981633974483 v=0 id=10 pole=false
+DIAG   [3] u=-1.1780972450961724 v=0 id=11 pole=false
+DIAG   [2] u=2.356194490192345 v=0 id=17 pole=false
+DIAG   [3] u=1.9634954084936207 v=0 id=18 pole=false
+DIAG   [15] u=3.141592653589793 v=-0.7853981633974482 id=7 pole=false
+DIAG   [15] u=0 v=-0.7853981633974482 id=4 pole=false
+DIAG   [16] u=0 v=-0.3926990816987241 id=3 pole=false
+DIAG   [16] u=3.141592653589793 v=-0.3926990816987241 id=6 pole=false
+DIAG face FaceKey(3v1): nu=8 nv=4 cdt vertices=38 inner_faces=57 emitted triangles=56 interior pts=21
+DIAG face FaceKey(2v1): nu=8 nv=4 cdt vertices=38 inner_faces=57 emitted triangles=56 interior pts=21
+  tessellate: OK positions=65 triangles=126 check_mesh=Ok(()) signed_volume=1.963298195e0
+      patch FaceKey(2v1) Sphere: triangles=56 area=3.041672360e0 max sampled dev=3.731e-2
+      patch FaceKey(3v1) Sphere: triangles=56 area=3.041672360e0 max sampled dev=3.731e-2
+      patch FaceKey(6v5) Plane: triangles=14 area=3.061467459e0 max sampled dev=6.123e-17
+      boundary EdgeKey(3v1): 5 points
+      boundary EdgeKey(4v1): 5 points
+      boundary EdgeKey(8v1): 9 points
+      boundary EdgeKey(9v1): 9 points
+
+=== split ball at y=0: REFUSED Reduce(CurvedBooleanUnsupported { face: FaceKey(1v1), kind: Sphere })
+
+=== split ball at z=0.5 (normal ⊥ axis): REFUSED Reduce(CurvedBooleanUnsupported { face: FaceKey(1v1), kind: Sphere })
+ok
+test tess_cap_diag::q5_the_class_cone_apex_cap ... 
+=== cone apex cap: cone seed(+u), disc made (delta 0.05)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Cone sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Err([VolumeUncomputable { source: Face { face: FaceKey(1v1), source: DegenerateFace } }])
+  props: REFUSED Face { face: FaceKey(1v1), source: DegenerateFace }
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=16 bbox u[3.141592653589793,9.032078879070655] v[1.414213562373095,1.414213562373095] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=1.414213562373095 id=1 pole=false
+DIAG   [1] u=3.534291735288517 v=1.414213562373095 id=9 pole=false
+DIAG   [2] u=3.926990816987241 v=1.414213562373095 id=10 pole=false
+DIAG   [3] u=4.319689898685965 v=1.414213562373095 id=11 pole=false
+DIAG   [14] u=8.63937979737193 v=1.414213562373095 id=7 pole=false
+DIAG   [15] u=9.032078879070655 v=1.414213562373095 id=8 pole=false
+DIAG face FaceKey(1v1): nu=14 nv=1 cdt vertices=16 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=16 triangles=14 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Cone: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Plane: triangles=14 area=3.061467459e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 9 points
+      boundary EdgeKey(2v1): 9 points
+
+=== cone apex cap: disc seed(+u), cone made(-u) (delta 0.05)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Cone sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,1.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Err([VolumeUncomputable { source: Face { face: FaceKey(2v1), source: DegenerateFace } }])
+  props: REFUSED Face { face: FaceKey(2v1), source: DegenerateFace }
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=16 bbox u[-5.890486225480862,0] v[1.414213562373095,1.414213562373095] area2=0 poles=0
+DIAG   [0] u=0 v=1.414213562373095 id=0 pole=false
+DIAG   [1] u=-0.3926990816987248 v=1.414213562373095 id=15 pole=false
+DIAG   [2] u=-0.7853981633974485 v=1.414213562373095 id=14 pole=false
+DIAG   [3] u=-1.1780972450961722 v=1.414213562373095 id=13 pole=false
+DIAG   [14] u=-5.497787143782138 v=1.414213562373095 id=3 pole=false
+DIAG   [15] u=-5.890486225480862 v=1.414213562373095 id=2 pole=false
+DIAG face FaceKey(2v1): nu=14 nv=1 cdt vertices=16 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: OK positions=16 triangles=14 check_mesh=Err(BoundaryEdge { edge: (0, 2) }) signed_volume=0.000000000e0
+      patch FaceKey(1v1) Plane: triangles=14 area=3.061467459e0 max sampled dev=0.000e0
+      patch FaceKey(2v1) Cone: triangles=0 area=0.000000000e0 max sampled dev=0.000e0
+      boundary EdgeKey(1v1): 9 points
+      boundary EdgeKey(2v1): 9 points
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.03s
+

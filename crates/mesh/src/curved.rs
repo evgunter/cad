@@ -203,6 +203,23 @@ pub(crate) fn tessellate_curved(
         .iter()
         .map(|e| (chart.radial(shared[e.id as usize]), chart.v_lever()))
         .collect();
+    // TESS-CAP-DIAG scratch instrumentation (diagnostic branch only).
+    let diag = std::env::var_os("TESS_CAP_DIAG").is_some();
+    if diag {
+        eprintln!(
+            "DIAG face {fk:?}: polygon n={} bbox u[{u0},{u1}] v[{v0},{v1}] area2={area2} poles={}",
+            polygon.len(),
+            polygon.iter().filter(|e| e.pole).count()
+        );
+        for (i, e) in polygon.iter().enumerate() {
+            if i < 4 || i + 3 > polygon.len() {
+                eprintln!(
+                    "DIAG   [{i}] u={} v={} id={} pole={}",
+                    e.u, e.v, e.id, e.pole
+                );
+            }
+        }
+    }
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
     // S10 CATEGORY B — do NOT fold the face's `sense` in.
@@ -396,6 +413,15 @@ pub(crate) fn tessellate_curved(
     // on top of that and is not separately measured. Under the price
     // already paid for the pole half, and it buys the case a
     // mechanical check.
+    if diag {
+        eprintln!(
+            "DIAG face {fk:?}: nu={nu} nv={nv} cdt vertices={} inner_faces={} emitted triangles={} interior pts={}",
+            cdt.num_vertices(),
+            cdt.num_inner_faces(),
+            triangles.len(),
+            interior.len()
+        );
+    }
     let patch = Patch {
         interior,
         triangles,

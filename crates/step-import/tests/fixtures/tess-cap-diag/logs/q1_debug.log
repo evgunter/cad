@@ -1,0 +1,269 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.50s
+     Running tests/all.rs (/home/evan/.local/share/cad-work/tess-cap-diag-target/debug/deps/all-91e74b5d88323cbb)
+
+running 1 test
+test tess_cap_diag::q1_q2_q6_rim_only_caps ... 
+##### cap ABOVE z=0 (north pole interior): analytic sphere-face area 6.283185307e0, volume 2.094395102e0
+
+=== cap above z=0 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=32 bbox u[3.141592653589793,9.228428419920018] v[0,0] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0 id=1 pole=false
+DIAG   [1] u=3.337942194439155 v=0 id=17 pole=false
+DIAG   [2] u=3.534291735288517 v=0 id=18 pole=false
+DIAG   [3] u=3.7306412761378787 v=0 id=19 pole=false
+DIAG   [30] u=9.032078879070655 v=0 id=15 pole=false
+DIAG   [31] u=9.228428419920018 v=0 id=16 pole=false
+DIAG face FaceKey(1v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((17, 18)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### cap ABOVE z=0.5 (north pole interior): analytic sphere-face area 3.141592654e0, volume 6.544984695e-1
+
+=== cap above z=0.5 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=6.544984694979e-1 (pad 0e0) area=5.497787143782e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.5235987755982989 id=1 pole=false
+DIAG   [1] u=3.351032163829112 v=0.5235987755982989 id=16 pole=false
+DIAG   [2] u=3.560471674068432 v=0.5235987755982989 id=17 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.5235987755982989 id=18 pole=false
+DIAG   [28] u=9.005898940290741 v=0.5235987755982989 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.5235987755982989 id=15 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((1, 15)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### cap ABOVE z=0.9 (north pole interior): analytic sphere-face area 6.283185307e-1, volume 3.036872898e-2
+
+=== cap above z=0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.036872898470e-2 (pad 0e0) area=1.225221134900e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=22 bbox u[3.141592653589793,9.139178628624853] v[1.1197695149986342,1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=1.1197695149986342 id=1 pole=false
+DIAG   [1] u=3.427191985734319 v=1.1197695149986342 id=12 pole=false
+DIAG   [2] u=3.712791317878846 v=1.1197695149986342 id=13 pole=false
+DIAG   [3] u=3.9983906500233726 v=1.1197695149986342 id=14 pole=false
+DIAG   [20] u=8.853579296480326 v=1.1197695149986342 id=10 pole=false
+DIAG   [21] u=9.139178628624853 v=1.1197695149986342 id=11 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((5, 6)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### cap ABOVE z=-0.9 (north pole interior): analytic sphere-face area 1.193805208e1, volume 4.158421476e0
+
+=== cap above z=-0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.158421475802e0 (pad 0e0) area=1.253495468782e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=22 bbox u[3.141592653589793,9.139178628624853] v[-1.1197695149986342,-1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=-1.1197695149986342 id=1 pole=false
+DIAG   [1] u=3.427191985734319 v=-1.1197695149986342 id=12 pole=false
+DIAG   [2] u=3.712791317878846 v=-1.1197695149986342 id=13 pole=false
+DIAG   [3] u=3.9983906500233726 v=-1.1197695149986342 id=14 pole=false
+DIAG   [20] u=8.853579296480326 v=-1.1197695149986342 id=10 pole=false
+DIAG   [21] u=9.139178628624853 v=-1.1197695149986342 id=11 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((14, 15)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### ball BELOW z=0 (south pole interior): analytic sphere-face area 6.283185307e0
+
+=== ball below z=0 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=2.094395102393e0 (pad 0e0) area=9.424777960769e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=32 bbox u[-6.086835766330224,0] v[0,0] area2=0 poles=0
+DIAG   [0] u=0 v=0 id=0 pole=false
+DIAG   [1] u=-0.19634954084936254 v=0 id=31 pole=false
+DIAG   [2] u=-0.3926990816987248 v=0 id=30 pole=false
+DIAG   [3] u=-0.5890486225480862 v=0 id=29 pole=false
+DIAG   [30] u=-5.890486225480862 v=0 id=3 pole=false
+DIAG   [31] u=-6.086835766330224 v=0 id=2 pole=false
+DIAG face FaceKey(2v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((5, 6)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### ball BELOW z=0.5 (south pole interior): analytic sphere-face area 9.424777961e0
+
+=== ball below z=0.5 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.534291735289e0 (pad 0e0) area=1.178097245096e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=0 v=0.5235987755982989 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.5235987755982989 id=29 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.5235987755982989 id=28 pole=false
+DIAG   [3] u=-0.628318530717959 v=0.5235987755982989 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.5235987755982989 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.5235987755982989 id=2 pole=false
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((6, 7)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+##### ball BELOW z=-0.9 (south pole interior): analytic sphere-face area 6.283185307e-1
+
+=== ball below z=-0.9 + disc (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Plane sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=true
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,-0.900) ax=(0.00,0.00,1.00) r=0.4359) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=3.036872898470e-2 (pad 0e0) area=1.225221134900e0 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(2v1): polygon n=22 bbox u[-5.99758597503506,0] v[-1.1197695149986342,-1.1197695149986342] area2=0 poles=0
+DIAG   [0] u=0 v=-1.1197695149986342 id=0 pole=false
+DIAG   [1] u=-0.28559933214452676 v=-1.1197695149986342 id=21 pole=false
+DIAG   [2] u=-0.5711986642890532 v=-1.1197695149986342 id=20 pole=false
+DIAG   [3] u=-0.8567979964335797 v=-1.1197695149986342 id=19 pole=false
+DIAG   [20] u=-5.711986642890533 v=-1.1197695149986342 id=3 pole=false
+DIAG   [21] u=-5.99758597503506 v=-1.1197695149986342 id=2 pole=false
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=22 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((16, 17)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+=== two rim-only caps, one rim at z=0 (MESH-12's f=0 shape, unit ball) (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.000) ax=(0.00,0.00,1.00) r=1.0000) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=32 bbox u[3.141592653589793,9.228428419920018] v[0,0] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0 id=1 pole=false
+DIAG face FaceKey(2v1): polygon n=32 bbox u[-6.086835766330224,0] v[0,0] area2=0 poles=0
+DIAG   [0] u=0 v=0 id=0 pole=false
+DIAG   [1] u=-0.19634954084936254 v=0 id=31 pole=false
+DIAG   [2] u=-0.3926990816987248 v=0 id=30 pole=false
+DIAG   [3] u=-0.5890486225480862 v=0 id=29 pole=false
+DIAG   [30] u=-5.890486225480862 v=0 id=3 pole=false
+DIAG   [31] u=-6.086835766330224 v=0 id=2 pole=false
+DIAG   [1] u=3.337942194439155 v=0 id=17 pole=false
+DIAG   [2] u=3.534291735288517 v=0 id=18 pole=false
+DIAG   [3] u=3.7306412761378787 v=0 id=19 pole=false
+DIAG   [30] u=9.032078879070655 v=0 id=15 pole=false
+DIAG   [31] u=9.228428419920018 v=0 id=16 pole=false
+DIAG face FaceKey(2v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG face FaceKey(1v1): nu=35 nv=1 cdt vertices=32 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((30, 31)) is used by 0 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+=== two rim-only caps, one rim at z=0.5 (MESH-12's f=0 shape, unit ball) (delta 0.01)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.500) ax=(0.00,0.00,1.00) r=0.8660) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e0 (pad 0e0) area=1.256637061436e1 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.5235987755982989 id=1 pole=false
+DIAG   [1] u=3.351032163829112 v=0.5235987755982989 id=16 pole=false
+DIAG   [2] u=3.560471674068432 v=0.5235987755982989 id=17 pole=false
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.5235987755982989,0.5235987755982989] area2=0 poles=0
+DIAG   [0] u=0 v=0.5235987755982989 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.5235987755982989 id=29 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.5235987755982989 id=28 pole=false
+DIAG   [3] u=-0.628318530717959 v=0.5235987755982989 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.5235987755982989 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.5235987755982989 id=2 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.5235987755982989 id=18 pole=false
+DIAG   [28] u=9.005898940290741 v=0.5235987755982989 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.5235987755982989 id=15 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((16, 17)) is used by 0 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+=== mesh12 two_level_rim_cap(dv=0) R=10mm v=0.5 (delta 0.0001)
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[3.1416,6.2832] fwd=true
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[0.0000,3.1416] fwd=true
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  face FaceKey(2v1) Sphere sense=true rings=0 outer edges=2
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[3.1416,6.2832] fwd=false
+      Circle(c=(0.000,0.000,0.005) ax=(0.00,0.00,1.00) r=0.0088) t[0.0000,3.1416] fwd=false
+      doors: iso_rectangle=Ok(()) one_chart_branch=Ok(())
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=4.188790204786e-6 (pad 0e0) area=1.256637061436e-3 (pad 0e0)
+  coherence: findings=0 unexamined=0 []
+DIAG face FaceKey(1v1): polygon n=30 bbox u[3.141592653589793,9.21533845053006] v[0.49999999999999994,0.49999999999999994] area2=0 poles=0
+DIAG   [0] u=3.141592653589793 v=0.49999999999999994 id=1 pole=false
+DIAG face FaceKey(2v1): polygon n=30 bbox u[-6.073745796940266,0] v[0.49999999999999994,0.49999999999999994] area2=0 poles=0
+DIAG   [1] u=3.351032163829112 v=0.49999999999999994 id=16 pole=false
+DIAG   [2] u=3.5604716740684323 v=0.49999999999999994 id=17 pole=false
+DIAG   [3] u=3.7699111843077517 v=0.49999999999999994 id=18 pole=false
+DIAG   [28] u=9.005898940290741 v=0.49999999999999994 id=14 pole=false
+DIAG   [29] u=9.21533845053006 v=0.49999999999999994 id=15 pole=false
+DIAG face FaceKey(1v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+DIAG   [0] u=0 v=0.49999999999999994 id=0 pole=false
+DIAG   [1] u=-0.2094395102393192 v=0.49999999999999994 id=29 pole=false
+DIAG   [2] u=-0.418879020478639 v=0.49999999999999994 id=28 pole=false
+DIAG   [3] u=-0.6283185307179588 v=0.49999999999999994 id=27 pole=false
+DIAG   [28] u=-5.8643062867009474 v=0.49999999999999994 id=3 pole=false
+DIAG   [29] u=-6.073745796940266 v=0.49999999999999994 id=2 pole=false
+DIAG face FaceKey(2v1): nu=34 nv=1 cdt vertices=30 inner_faces=0 emitted triangles=0 interior pts=0
+  tessellate: PANIC at crates/mesh/src/tessellate.rs:588 :: chord segment Some((5, 6)) is used by 0 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 199 filtered out; finished in 0.02s
+

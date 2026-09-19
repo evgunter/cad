@@ -1,0 +1,39 @@
+   Compiling topo v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/topo)
+   Compiling step-export v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/step-export)
+   Compiling mesh v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/mesh)
+   Compiling sweep v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/sweep)
+   Compiling step-import v0.0.0 (/home/evan/.local/share/cad-work/tess-cap-diag/cad/crates/step-import)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.92s
+     Running tests/all.rs (/home/evan/.local/share/cad-work/tess-cap-diag-target/debug/deps/all-e55319649e73d60b)
+
+running 1 test
+test tess_cap_diag_import::q4d_import_of_a_spherical_cap ... 
+=== import rimonly2.step
+  census V=2 E=2 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=2
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=2
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=7.036317131e-7 area=5.690367011e-4
+
+thread 'tess_cap_diag_import::q4d_import_of_a_spherical_cap' (2577926) panicked at crates/mesh/src/tessellate.rs:588:9:
+chord segment Some((20, 21)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+  tessellate: PANIC chord segment Some((20, 21)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+=== import rimonly1.step
+  census V=1 E=1 F=2
+  face FaceKey(1v1) Sphere sense=true rings=0 outer edges=1
+  face FaceKey(2v1) Plane sense=true rings=0 outer edges=1
+  tiers: t1=Ok(()) t2=Ok(()) t3=Ok(())
+  props: volume=7.036317131e-7 area=5.690367011e-4
+
+thread 'tess_cap_diag_import::q4d_import_of_a_spherical_cap' (2577926) panicked at crates/mesh/src/tessellate.rs:588:9:
+chord segment Some((9, 10)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+  tessellate: PANIC chord segment Some((9, 10)) is used by 1 face triangles rather than 2: the faces meeting on that edge did not identify it (issue 897)
+
+=== import seamed.step
+  import REFUSED: TierInvalid { solid: None, errors: [ScaffoldingStrutVertex { vertex: VertexKey(2v1) }] }
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 199 filtered out; finished in 0.02s
+
