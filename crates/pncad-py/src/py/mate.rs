@@ -1019,7 +1019,9 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
 /// `target`, `frame`, `gauge` for the four cluster acts; `node` and
 /// `name` for a strand, `name` alone for a `stranded_appearance`,
-/// whose carrier is the appearance store and not a node.
+/// whose carrier is the appearance store and not a node, and `node`
+/// alone for an `orphaned_declare`, whose subject is the surviving
+/// declaration rather than anything the edit broke.
 /// (`source`/`target` rather than `from`/`to`: `from` is a Python
 /// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -1033,7 +1035,9 @@ impl Maintenance {
     fn cluster(&self) -> Option<&d::ClusterMaintenance> {
         match &self.0 {
             d::Maintenance::Cluster(act) => Some(act),
-            d::Maintenance::Strand { .. } | d::Maintenance::StrandedAppearance { .. } => None,
+            d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::OrphanedDeclare { .. } => None,
         }
     }
 }
@@ -1041,9 +1045,9 @@ impl Maintenance {
 #[pymethods]
 impl Maintenance {
     /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand` or `stranded_appearance`, the six the stub lists for
-    /// this attribute. The word decides which of the payload
-    /// attributes below carry.
+    /// `strand`, `stranded_appearance` or `orphaned_declare`, the
+    /// seven the stub lists for this attribute. The word decides
+    /// which of the payload attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1051,13 +1055,22 @@ impl Maintenance {
         maintenance_tag(&self.0)
     }
 
-    /// The surviving node whose payload carries a stranded name —
-    /// `None` for a `stranded_appearance`, which has no carrying node
-    /// to name.
+    /// The node this row is about: the surviving node whose payload
+    /// carries a stranded name, or the declaration an
+    /// `orphaned_declare` left with no consumer. `None` for a
+    /// `stranded_appearance`, which has no carrying node to name, and
+    /// for the cluster acts, which name gauges through their own
+    /// attributes.
+    ///
+    /// The two arms answer different questions with one attribute on
+    /// purpose: each is the node a reader would go and look at, which
+    /// is the whole use of the getter. `variant` says which question
+    /// was answered.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
             d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
+            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
             d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
@@ -1073,7 +1086,7 @@ impl Maintenance {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
                 super::doc::name_text(py, name).map(Some)
             }
-            d::Maintenance::Cluster(_) => Ok(None),
+            d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
         }
     }
 

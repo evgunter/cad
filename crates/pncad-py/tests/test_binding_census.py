@@ -3043,10 +3043,17 @@ MEMBERS_BOUND_AS = {
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound.
+    # selection and `DocEdit.delete_node` is bound. Nor does
+    # `Maintenance::OrphanedDeclare`, which needs a `Declare` and a
+    # consumer to delete: `Doc.declare_all`, `Node.boolean`'s
+    # `declare=` and `DocEdit.delete_node` are all bound, and
+    # `test_document.py`'s
+    # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
+    # is the Python program that makes one appear.
     "Maintenance::Cluster": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
+    "Maintenance::OrphanedDeclare": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated

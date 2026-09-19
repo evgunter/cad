@@ -24,7 +24,17 @@
 //! rows here assert the report the DELETE DOOR made — the door is what
 //! DM7 added, the loss is what it was limping along on.
 //!
-//! These rows are what goes red when a strand goes unreported.
+//! The door's third row is not a strand at all: a `Declare` whose
+//! LAST consumer the delete removed is left inert rather than
+//! dangling — the `declare` edge runs from the consumer to it, so no
+//! name is stranded and the document stays legal — and rides the
+//! same record as `Maintenance::OrphanedDeclare { declare }`. Its
+//! rule is a TRANSITION (a fresh declaration is legally consumerless
+//! until its consumer is authored), which is what the rows at the
+//! end of this file are about.
+//!
+//! These rows are what goes red when a strand or an orphan goes
+//! unreported.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,9 +42,9 @@ use crate::docm7_union_declare::{block, declared_union, flush_pairs};
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
-    EditError, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr, MeasurePrimitive,
-    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
+    Alignment, Attr, AttrKind, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
+    DocumentId, EditError, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr,
+    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
 use fixture::{ang, fname, insert, len, wall};
@@ -47,7 +57,9 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
-            Maintenance::Cluster(_) | Maintenance::StrandedAppearance { .. } => None,
+            Maintenance::Cluster(_)
+            | Maintenance::StrandedAppearance { .. }
+            | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect()
 }
@@ -59,7 +71,9 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
         .iter()
         .filter_map(|row| match row {
             Maintenance::StrandedAppearance { name } => Some(name.clone()),
-            Maintenance::Strand { .. } | Maintenance::Cluster(_) => None,
+            Maintenance::Strand { .. }
+            | Maintenance::Cluster(_)
+            | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect()
 }
@@ -887,5 +901,352 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     assert_eq!(
         direct.maintenance, after_load.maintenance,
         "the store's half is derived from the document and the edit too"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The orphaned declaration: the other thing a delete can leave behind.
+// ---------------------------------------------------------------------
+
+/// **The delete that takes a declaration's LAST consumer reports it;
+/// the one that leaves a consumer behind does not.**
+///
+/// Two unions over the same two members share one `Declare` — the
+/// `declare` edge is an ordinary DAG input and nothing makes it
+/// exclusive. Deleting the first union leaves the declaration read by
+/// the second, so there is nothing to say; deleting the second says
+/// it, once. A door that reported "this deleted node consumed a
+/// `Declare`" rather than "and nothing else does" reds on the first
+/// delete.
+#[test]
+fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_two_consumers", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, first, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let (doc, second) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b],
+            declare: Some(decl),
+        },
+    );
+
+    let one_left = delete(&doc, first);
+    assert_eq!(
+        one_left.maintenance,
+        Vec::new(),
+        "the declaration is still read by the second union"
+    );
+    let none_left = delete(&one_left.doc, second);
+    assert_eq!(
+        none_left.maintenance,
+        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        "the last consumer's delete is the transition, and reports it once"
+    );
+    let Some(Node::Declare { .. }) = none_left.doc.node(decl) else {
+        panic!("the report is a report: the declaration is untouched and live")
+    };
+
+    // A `Boolean` and a `Union` sharing one declaration are the same
+    // row, not a second: the door counts `Node::inputs`, so neither
+    // kind is privileged and neither order is. Re-authored on the
+    // document both unions have left, so the pair really is the
+    // whole consumer set. Deleting either alone reports nothing; the
+    // second reports the orphan once.
+    let (mixed, the_union) = insert(
+        none_left.doc,
+        Node::Union {
+            members: vec![a, b],
+            declare: Some(decl),
+        },
+    );
+    let (mixed, the_boolean) = insert(
+        mixed,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    for (leaves_one, takes_the_last) in [(the_union, the_boolean), (the_boolean, the_union)] {
+        let one_left = delete(&mixed, leaves_one);
+        assert_eq!(
+            one_left.maintenance,
+            Vec::new(),
+            "the other kind still consumes the declaration"
+        );
+        let none_left = delete(&one_left.doc, takes_the_last);
+        assert_eq!(
+            none_left.maintenance,
+            vec![Maintenance::OrphanedDeclare { declare: decl }],
+            "the last consumer is the last consumer whatever kind it is"
+        );
+    }
+}
+
+/// **At most ONE orphan row is producible per accepted delete, under
+/// the node vocabulary as it stands** — the guard that reds the day a
+/// node kind holds two declarations.
+///
+/// `Node::declare_input` is an `Option` and no kind holds two, so the
+/// `Vec` the door returns describes a set whose size is provably 0 or
+/// 1 and the "in the deleted node's input order" clause of
+/// `Applied::maintenance` carries no weight. The day a kind does hold
+/// two, this row goes red and that clause needs a row of its own.
+#[test]
+fn no_delete_can_report_two_orphans_today() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_at_most_one", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    // A second declaration, consumerless, in the same document.
+    let (doc, spare) = insert(doc, Node::declare_rest(flush_pairs((a, a), (b, b))));
+    let applied = delete(&doc, union);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        "one delete, one declare edge, one row"
+    );
+    assert!(
+        applied.doc.node(spare).is_some(),
+        "the other declaration is nobody's business here"
+    );
+    for id in applied.doc.order() {
+        let node = applied.doc.node(*id).expect("live");
+        let declares = node
+            .inputs()
+            .iter()
+            .filter(|i| matches!(applied.doc.node(**i), Some(Node::Declare { .. })))
+            .count();
+        assert!(
+            declares <= 1,
+            "a node with two declare inputs would make the order clause load-bearing"
+        );
+    }
+}
+
+/// **No edit but `DeleteNode` can drop a `declare` edge**, which is
+/// what makes the delete door the only place the report is owed.
+/// `SetMembers` is the vocabulary's one rewire of a live node's
+/// inputs, and it leaves `declare` exactly as it was.
+#[test]
+fn set_members_cannot_orphan_a_declaration() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_set_members", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+
+    let applied = apply(
+        &doc,
+        &DocEdit::SetMembers {
+            node: union,
+            members: vec![a, b, c],
+        },
+        Tol::witness(),
+    )
+    .expect("the member list is replaceable");
+    assert_eq!(
+        applied.maintenance,
+        Vec::new(),
+        "a rewire reports nothing, and there is nothing to report"
+    );
+    assert_eq!(
+        applied.doc.node(union).expect("live").declare_input(),
+        Some(decl),
+        "SetMembers leaves the declare edge as it was, so it cannot orphan"
+    );
+}
+
+/// **A delete elsewhere in the document never reports a declaration
+/// that was already consumerless.**
+///
+/// The rule is a transition, not a state: a `Declare` is authored
+/// FIRST and its consumer second (DM4), so a document is legally
+/// carrying a consumerless declaration for the whole of that window,
+/// and a delete of an unrelated node says nothing about it. This is
+/// the row a walk over "every consumerless `Declare` in the document"
+/// reds on, and the reason the candidates are the deleted node's own
+/// inputs.
+#[test]
+fn a_consumerless_declare_is_not_reported_by_an_unrelated_delete() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_transition", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, unrelated) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = insert(doc, Node::declare_rest(flush_pairs((a, a), (a, a))));
+
+    let applied = delete(&doc, unrelated);
+    assert_eq!(
+        applied.maintenance,
+        Vec::new(),
+        "the deleted node consumed nothing, so it orphaned nothing"
+    );
+    assert!(
+        applied.doc.node(decl).is_some(),
+        "and the declaration waiting for its consumer is untouched"
+    );
+}
+
+/// **Deleting the declaration itself reports the orphan at the
+/// consumer's step, and the next step removes its subject.**
+///
+/// The `Declare` is its consumer's DAG input, so the author who
+/// deletes it deletes the union first (`cascade_delete_order`), and
+/// THAT step is the same `(document, edit)` pair as deleting the
+/// union for any other reason. Maintenance is a function of the
+/// document and the edit, so the two cases cannot report differently:
+/// the row is reported and then cancelled by the step that follows.
+/// A caller who wants a cascade's net effect reads the document it
+/// ended at, which is what the last assertion here does.
+#[test]
+fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_cascade_decl", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+
+    let order = cascade_delete_order(&doc, decl);
+    assert_eq!(
+        order,
+        vec![union, decl],
+        "the consumer goes first: the declare edge is a DAG input"
+    );
+    let mut doc = doc;
+    let mut per_step = Vec::new();
+    for id in order {
+        let applied = delete(&doc, id);
+        per_step.push((id, applied.maintenance));
+        doc = applied.doc;
+    }
+    assert_eq!(
+        per_step,
+        vec![
+            (union, vec![Maintenance::OrphanedDeclare { declare: decl }]),
+            (decl, Vec::new()),
+        ],
+        "the union's step cannot tell this cascade from any other delete of the union"
+    );
+    assert!(
+        doc.node(decl).is_none(),
+        "the cascade ended with the declaration gone, which is the state the author asked for"
+    );
+}
+
+/// **The transient's subject is always in the doomed set**, so the
+/// CASCADE door can cancel it with a one-line filter and `apply`
+/// never needs cascade knowledge.
+///
+/// `apply` is a function of `(document, edit)` and answers what one
+/// delete did; the NET over an action is the cascade door's answer,
+/// and nothing in the tree computes it today
+/// (`work/chrome/cascade-delete-shows-the-strand-count.md` is where
+/// that affordance is owed). This row is the other half of the
+/// transient: the information needed to cancel exists one level up,
+/// at `cascade_delete_order`'s caller.
+#[test]
+fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_cancellable", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+
+    let doomed = cascade_delete_order(&doc, decl);
+    let mut walked = doc;
+    let mut rows: Vec<Maintenance> = Vec::new();
+    for id in &doomed {
+        let applied = delete(&walked, *id);
+        rows.extend(applied.maintenance);
+        walked = applied.doc;
+    }
+    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare: decl }]);
+    // Every row the run produced names a node the same run deleted,
+    // which is the filter a cascade door would apply.
+    let net: Vec<&Maintenance> = rows
+        .iter()
+        .filter(|row| match row {
+            Maintenance::OrphanedDeclare { declare } => !doomed.contains(declare),
+            Maintenance::Strand { .. }
+            | Maintenance::StrandedAppearance { .. }
+            | Maintenance::Cluster(_) => true,
+        })
+        .collect();
+    assert!(
+        net.is_empty(),
+        "the cascade's NET maintenance is empty, and nothing in the tree computes it"
+    );
+}
+
+/// **What the orphaned declaration BECOMES**: the same delete that
+/// reports it also registers it as a product ROOT.
+///
+/// `roots::on_delete` re-roots the deleted node's inputs that its
+/// departure turned into sinks and does not ask what kind they are,
+/// so `doc.roots()` gains the `Declare`. Pre-existing and not this
+/// door's doing, but it is the fact the arm's `Display` sentence is
+/// written against — "no node consumes the declaration", not
+/// "nothing reads it", because the root set does. Whether a
+/// `Declare` may be a root at all is
+/// `work/edit/an-orphaned-declare-joins-the-product-root-set.md`.
+#[test]
+fn the_orphaned_declaration_is_re_rooted_by_the_same_delete() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_roots", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    assert_eq!(doc.roots(), [union], "the union is the document's product");
+
+    let applied = delete(&doc, union);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::OrphanedDeclare { declare: decl }]
+    );
+    assert!(
+        applied.doc.roots().contains(&decl),
+        "the declaration the delete reported as unconsumed is now a product root"
+    );
+}
+
+/// **The orphan row follows the strands of the same delete** — the
+/// third boundary of `Applied::maintenance`'s order contract.
+///
+/// One delete produces both kinds: the union mints the face name a
+/// surviving fillet carries (a payload name, not an edge, so the
+/// delete is legal and strands it) AND holds the declaration's last
+/// `declare` edge. Written out as one vector, so a walk that put the
+/// orphans ahead of the strands reds here rather than somewhere a
+/// consumer finds it.
+#[test]
+fn an_orphaned_declare_follows_the_strands_of_the_same_delete() {
+    let doc = ProfileDoc::empty_derived("dm7_orphan_order", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let (doc, elsewhere) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    // The fillet's DAG input is `elsewhere`; what it NAMES is a face
+    // of the union, which is a payload name and not an edge — so the
+    // fillet survives the union's delete and carries a dead name.
+    let carried = fname(union, wall(0));
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: elsewhere,
+            radius: len(0.1),
+            selection: vec![carried.clone()],
+        },
+    );
+
+    let applied = delete(&doc, union);
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Strand {
+                node: fillet,
+                name: carried,
+            },
+            Maintenance::OrphanedDeclare { declare: decl },
+        ],
+        "the strands of a delete come before the declarations it left inert"
     );
 }
