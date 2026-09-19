@@ -193,6 +193,8 @@
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
 
+use std::path::Path;
+
 use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
 
 use crate::camera::CameraError;

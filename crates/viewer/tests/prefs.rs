@@ -81,7 +81,10 @@ fn a_directory_the_file_cannot_spell_is_left_out_and_says_so() {
         last_dir: Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/models/\xff"))),
     };
     let text = written.to_toml();
-    assert!(text.contains("not kept"), "the file says what it left out:\n{text}");
+    assert!(
+        text.contains("not kept"),
+        "the file says what it left out:\n{text}"
+    );
     let (read, notices) = Prefs::from_toml(&text).expect("the document still parses");
     assert_eq!(read.last_dir, None, "nothing lossy was written");
     assert!(notices.is_empty(), "{notices:?}");
