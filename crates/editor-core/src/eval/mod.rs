@@ -598,11 +598,18 @@ impl<T: Decide> ValuePayload<T> {
     }
 }
 
+/// **A refusal beside the node it is seated at**: the id of the node
+/// whose own evaluation raises `kind`, and the kind. Boxed once, here,
+/// for every road that carries one: the pair is the cold half of every
+/// classification and derivation, and a [`NodeErrorKind`] is wide.
+pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
+
 /// **The value family a node's evaluation lands in**, in
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
-/// of the same question, for the one road that re-derives a node from
-/// its expressions and never holds its value (the mate solve's
-/// derived offset, refusing a circular rule's `axis` operand).
+/// of the same question, for the roads that never hold a value: a
+/// reference read straight out of the document (the mate solve's
+/// derived offset refusing a circular rule's `axis` operand, and the
+/// wire's `node_operand` door).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a
@@ -629,37 +636,58 @@ impl<T: Decide> ValuePayload<T> {
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::MissingInput`] naming a transform's input that is
-/// no live node: the refusal that transform's own evaluation raises,
-/// and the only word the evaluation has for the shape — the operand
-/// never lands in a family, so its consumer is poisoned through the
-/// transform rather than refused with one. Unreachable through
-/// `apply`, which takes a node's dependents with it on delete; refused
-/// typed anyway.
-pub(crate) fn node_value_kind<P>(
-    doc: &Doc<P>,
-    node: &crate::node::Node<P>,
-) -> Result<&'static str, NodeErrorKind> {
+/// Each seated at the node whose own evaluation raises it
+/// ([`Seated`]), so a road that holds no poison can refuse where the
+/// evaluation fails:
+///
+/// - [`NodeErrorKind::WrongOperand`] at a transform whose source is
+///   not placeable — the transform's own refusal, in its own words.
+///   Whether a placer takes a family is decided in the one match
+///   below, beside the family itself: a body, a boolean (whose
+///   non-empty result is a body; the empty one is a typed absence
+///   only a value can show) and instances, which is the value door's
+///   rule (`wire::placeable_operand`) read over node kinds. The
+///   evaluation fails that transform and poisons every consumer
+///   through it; a document holding one is admitted by `apply`.
+/// - [`NodeErrorKind::MissingInput`] naming a transform's input that
+///   is no live node, at that transform — likewise the transform's own
+///   refusal. Unreachable through `apply`, which refuses the delete
+///   that would leave it (`DeleteWouldDangle`), and through `load`,
+///   whose validator holds liveness; refused typed anyway.
+/// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
+///   live node, seated at `id`: the walk has no other node to name.
+pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
     use crate::node::Node;
-    let mut at = node;
-    while let Node::Transform { input, .. } = at {
-        at = doc
-            .node(*input)
-            .ok_or(NodeErrorKind::MissingInput { input: *input })?;
-    }
-    Ok(match at {
+    let mut at = id;
+    // The transform whose input the walk is reading, once one is passed.
+    let mut placer: Option<RecipeNodeId> = None;
+    let source = loop {
+        let Some(node) = doc.node(at) else {
+            return Err(Box::new((
+                placer.unwrap_or(at),
+                NodeErrorKind::MissingInput { input: at },
+            )));
+        };
+        let Node::Transform { input, .. } = node else {
+            break node;
+        };
+        placer = Some(at);
+        at = *input;
+    };
+    // The family, and whether a placer takes it.
+    let (found, placeable) = match source {
         Node::Transform { .. } => {
             unreachable!("the walk above stops at the first node that is not a transform")
         }
-        Node::Datum(_) => family::DATUM,
-        Node::Profile(_) => family::PROFILE,
-        Node::Boolean { .. } => family::BOOLEAN,
-        Node::Split { .. } => family::SPLIT,
-        Node::Pattern { .. } => family::INSTANCES,
-        Node::Declare { .. } => family::DECLARATIONS,
-        Node::Mate { .. } => family::MATE,
-        Node::Measure { .. } => family::MEASURE,
-        Node::Assertion { .. } => family::ASSERTION,
+        Node::Datum(_) => (family::DATUM, false),
+        Node::Profile(_) => (family::PROFILE, false),
+        Node::Boolean { .. } => (family::BOOLEAN, true),
+        Node::Split { .. } => (family::SPLIT, false),
+        Node::Pattern { .. } => (family::INSTANCES, true),
+        Node::Declare { .. } => (family::DECLARATIONS, false),
+        Node::Mate { .. } => (family::MATE, false),
+        Node::Measure { .. } => (family::MEASURE, false),
+        Node::Assertion { .. } => (family::ASSERTION, false),
         Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -672,8 +700,19 @@ pub(crate) fn node_value_kind<P>(
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
-        | Node::InstantiatePart { .. } => family::BODY,
-    })
+        | Node::InstantiatePart { .. } => (family::BODY, true),
+    };
+    match placer {
+        Some(transform) if !placeable => Err(Box::new((
+            transform,
+            NodeErrorKind::WrongOperand {
+                input: at,
+                expected: phrase::BODY_OR_INSTANCES,
+                found,
+            },
+        ))),
+        _ => Ok(found),
+    }
 }
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
@@ -2915,7 +2954,7 @@ where
     // the cache's own shielding bracket, and its instantiate node
     // then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
-    let poses = crate::mate::solve_document(doc, &reach, tol);
+    let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,

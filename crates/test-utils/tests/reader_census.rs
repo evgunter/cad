@@ -156,6 +156,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/msolve7_member_residue.rs",
+        disposition: Shared, // one-environment-per-solve build count over
+                             // mate/member.rs and mate/solve.rs, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_entity_door.rs",
         disposition: Shared, // entity-door and entity-kind-carrier census over
                              // eval/wire.rs and eval/mod.rs, code view

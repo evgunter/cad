@@ -4908,6 +4908,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "recorded_program_error_tag",
         values: &[
             "carrier_in_chain",
+            "notation_before_any_step",
             "notation_off_program",
             "subdivision_count",
         ],

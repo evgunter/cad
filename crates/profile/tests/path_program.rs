@@ -42,6 +42,12 @@ fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
     closed.program.clone()
 }
 
+/// Each step as `Debug` renders it — the comparable form of a
+/// recording, `Step` carrying no `PartialEq`.
+fn rendered(program: &[Step<f64>]) -> Vec<String> {
+    program.iter().map(|step| format!("{step:?}")).collect()
+}
+
 /// Every verb a program names, in order — the readable half of a step
 /// inventory assertion.
 fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
@@ -343,6 +349,93 @@ fn the_eye_is_one_fused_step() {
             ));
         }
         ref other => panic!("expected the fused ArcFilletArc step, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+}
+
+/// **A partial path reports the prefix of the program it publishes.**
+///
+/// `PartialPath::recorded` is what lets a caller writing a notation
+/// beside a recording address the verb it has just called without
+/// counting the ones before it, so the claim it has to carry is
+/// exactly this: after every verb of a chain, the steps so far ARE the
+/// finished program's prefix, one step per verb, binders included.
+///
+/// The chain mixes the shapes that could break the correspondence — a
+/// leg, an arc, a `fillet` binder (a verb that records a step and
+/// emits geometry only when the next one resolves it), a re-entry pair
+/// and the closer. A `recorded` that omitted binder steps, or that
+/// answered a step late, moves every prefix after the omission and
+/// reds here.
+///
+/// Steps are compared through `Debug`, which renders every authored
+/// field of a step and prints an `f64` as its shortest round-tripping
+/// form — so two steps that render alike hold the same authored
+/// numbers.
+#[test]
+fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
+    use profile::{ArcSide, Sweep};
+    let t = Tol::witness();
+    let mut prefixes: Vec<Vec<String>> = Vec::new();
+    let path = Open.at(p2(0.0, 0.0));
+    prefixes.push(rendered(path.recorded()));
+    let path = path.angle(0.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            t,
+        )
+        .unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.fillet(0.2, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.at(p2(4.0, 3.0), t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.toward(0.0, 1.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.line(3.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let closed = path.line_to(Start, t).unwrap();
+
+    let program = rendered(&program_of(&closed));
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::At,
+            Verb::Angle,
+            Verb::ArcTo,
+            Verb::Fillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ],
+        "the chain this row walks, binders and all"
+    );
+    assert_eq!(
+        program.len(),
+        prefixes.len() + 1,
+        "one step per verb, and the closing verb records the last one"
+    );
+    for (i, prefix) in prefixes.iter().enumerate() {
+        assert_eq!(
+            prefix.len(),
+            i + 1,
+            "the path had recorded {} verbs, so it holds {} steps",
+            i + 1,
+            i + 1
+        );
+        assert_eq!(
+            prefix.as_slice(),
+            &program[..=i],
+            "the prefix after verb {} is the published program's own prefix",
+            i + 1
+        );
     }
     validate_ok(&pinned(closed));
 }

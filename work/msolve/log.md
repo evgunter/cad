@@ -531,3 +531,17 @@ times beside its new home; debug-string asserts; a stale
 `PlacerRefused::placer` doc. Thirteen items to the lane; two rows to
 file (the maintenance half of `solve.rs`, the `null` spelling of a
 unit variant).
+## MSOLVE-7 MERGED (2026-09-19, PR 2885)
+
+The member walk's residue: one nominal environment per solve, handed
+in by the evaluator; the axis operand's refusals seated where the
+evaluation seats them through one classifier; the flat index's
+account closed by citation; the mate wire's one `deny_unknown_fields`
+hole closed. Reviews on `6e27dac6a` (correctness PASS with one MINOR,
+style no MAJOR); the thirteen-item fix pass landed in one push over
+one merge with main. Orchestrator spot-check on the diff: `evaluate`
+→ `solve_with_env`; the `Solve` context; `node_value_kind` by id
+tracking the placer; seven both-roads seat rows; the A1 pin naming
+its functions. Spec into the ledger at the unit head. Closes the four
+items; four rows filed (three here, one on WIRE). Next: MSOLVE-8
+(`docs/MSOLVE-8-SPEC.md`, on the orchestrator branch), then -9, -10.

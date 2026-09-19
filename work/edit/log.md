@@ -655,3 +655,26 @@ of this sitting. Filed this sitting: `crossing-mate-back-pointer-…`
 `work/tcost/named-copies-of-fixture-doors-under-other-names`,
 `work/tcost/inline-name-table-reads-bypass-the-fixture-door`; CHROME's
 and LIB's rows appended where a unit widened them.
+
+## 2026-09-19 — tenth sitting: wave 12 merged, one row ruled a non-issue, wave 14 cut as a kernel unit
+
+Merged: the recorded-notation door that derives the step index (#2876
+— `PartialPath::recorded` on every builder state and
+`RecordedNotation::set_after`, the index never counted; a new writing-
+door arm `NotationBeforeAnyStep`, unreachable from Python today and
+said so on the tag map; the review's four MINORs all prose or counts,
+the fix pass giving the step-index conversion one home across ten
+sites, `program_index` — the lane's spelling over the brief's, since
+four of the sites are loop indices; a close-out merge conflict in
+`display_contract.rs`'s import list resolved by the orchestrator) and
+the orphaned-`Declare`-as-root row ruled a non-issue as an orchestrator
+E-class commit (#2882 — A10's root set is exactly the sink set and
+non-body roots contribute nothing, a mate the standing precedent; one
+paragraph on `roots::is_sink`). Wave 14 cut (#2884):
+`fused-arc-fillet-steps-have-no-per-segment-radius-address` ruled and
+spec'd as a kernel unit, `docs/EDIT-RADIUS-SPEC.md`, block EDIT-B2
+slot 1 (OPUS) — the replay record gains a per-radius emission record,
+DM8's map reads it in place of "one radius, one segment", and the
+key's feed widens so attached ⊆ keyed holds by construction; PATHS's
+and BLEND's seams announced. The implementer is dispatched; the dual
+follows on its frozen head. Ev has not yet replied on `[ev]` #2869.

@@ -513,6 +513,16 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
 // ------------------------------------------------------------------
 // Arrival builders (the binder halves the spec left free).
 // ------------------------------------------------------------------
+//
+// EVERY STATE THAT HOLDS THE CORE ANSWERS `recorded()`. An arrival
+// builder is reached by calling a verb, and that verb recorded its
+// step before handing the builder back, so an author standing here
+// has just recorded and wants the same door
+// `PartialPath::recorded` gives them one state over. One accessor
+// shape, borrowing the core's own vector, stated once here and
+// pointed at from each. A state where the door were missing would
+// make an author reach the recording a second way exactly where the
+// count is hardest.
 
 /// A `Radius` arrival awaiting both binders (either order).
 #[derive(Clone, Debug)]
@@ -520,6 +530,20 @@ pub struct RadiusArrival<T: Real> {
     core: Core<T>,
     spec: Radius<T>,
     resolver: verbs::ArcResolver<T>,
+}
+
+impl<T: Real> RadiusArrival<T> {
+    /// **The steps recorded so far, in program order** — the arrival's spec is bound and both binders are still free.
+    ///
+    /// The banner above this state's declaration says why every
+    /// core-holding builder answers it; the claim is
+    /// [`super::PartialPath::recorded`]'s, unchanged: the last
+    /// element is the verb that was just called and its index is
+    /// that verb's step number in the published program.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
 }
 
 /// A `Radius` arrival with its anchor bound, director pending.
@@ -531,6 +555,20 @@ pub struct RadiusArrivalAt<T: Real> {
     resolver: verbs::ArcResolver<T>,
 }
 
+impl<T: Real> RadiusArrivalAt<T> {
+    /// **The steps recorded so far, in program order** — the anchor this state bound is the last of them.
+    ///
+    /// The banner above this state's declaration says why every
+    /// core-holding builder answers it; the claim is
+    /// [`super::PartialPath::recorded`]'s, unchanged: the last
+    /// element is the verb that was just called and its index is
+    /// that verb's step number in the published program.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
+}
+
 /// A `Radius` arrival with its director bound, anchor pending.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalDir<T: Real> {
@@ -538,6 +576,20 @@ pub struct RadiusArrivalDir<T: Real> {
     spec: Radius<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
+}
+
+impl<T: Real> RadiusArrivalDir<T> {
+    /// **The steps recorded so far, in program order** — the director this state bound is the last of them.
+    ///
+    /// The banner above this state's declaration says why every
+    /// core-holding builder answers it; the claim is
+    /// [`super::PartialPath::recorded`]'s, unchanged: the last
+    /// element is the verb that was just called and its index is
+    /// that verb's step number in the published program.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
 }
 
 /// Completes a Radius arrival: derive the centre from the directed
@@ -693,6 +745,20 @@ impl<T: geom_core::Decide> ViaArrival<T> {
     }
 }
 
+impl<T: Real> ViaArrival<T> {
+    /// **The steps recorded so far, in program order** — the arrival's anchor came with the spec, so the last step is the verb that opened it.
+    ///
+    /// The banner above this state's declaration says why every
+    /// core-holding builder answers it; the claim is
+    /// [`super::PartialPath::recorded`]'s, unchanged: the last
+    /// element is the verb that was just called and its index is
+    /// that verb's step number in the published program.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
+}
+
 /// Completes a Via arrival: the carrier is the circle tangent to the
 /// bound direction at the anchor, through `q`.
 fn via_complete<T: geom_core::Decide>(
@@ -714,6 +780,20 @@ pub struct ViaArrivalStart<T: Real> {
     core: Core<T>,
     q: Point2<T>,
     resolver: verbs::ArcResolver<T>,
+}
+
+impl<T: Real> ViaArrivalStart<T> {
+    /// **The steps recorded so far, in program order** — the closing arrival's spec is bound and the director is still free.
+    ///
+    /// The banner above this state's declaration says why every
+    /// core-holding builder answers it; the claim is
+    /// [`super::PartialPath::recorded`]'s, unchanged: the last
+    /// element is the verb that was just called and its index is
+    /// that verb's step number in the published program.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
 }
 
 impl<T: geom_core::Decide> ViaArrivalStart<T> {
