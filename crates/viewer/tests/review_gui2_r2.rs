@@ -7,10 +7,11 @@
 //! run outstanding so the landed (doc, eval) PAIR can be observed while
 //! the shown document is ahead of it.
 //!
-//! Fixtures are authored here on purpose — `tests/common` is derived
-//! from `viewer::scene`'s own constants, and a review suite that read
-//! them would be checking the implementation against itself
-//! (`memories/review-and-dependency-policy.md`).
+//! Fixtures are authored here because these rows' oracles are
+//! positions and picks in a scene — the case `tests/common/mod.rs`'s
+//! header states once for this crate
+//! (`memories/review-and-dependency-policy.md`). The authoring sugar
+//! carries no oracle and is shared: `common::xy_frame`.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
@@ -21,9 +22,16 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/bvh/src/",
+    "crates/viewer/tests/common/"
+];
 
 use std::sync::{Arc, Mutex};
+
+use crate::common::xy_frame;
 
 use pncad::document::{
     Dimension, Doc, DocEdit, Evaluation, Expr, LoopProgram, Node, PatternKind, ProfileProgram,
@@ -76,22 +84,6 @@ fn insert(
 }
 
 /// A rectangle profile in the XY plane, `w` by `h`, at the origin.
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
 fn rectangle(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
         plane,

@@ -2,8 +2,10 @@
 id: viewer-review-suites-cite-the-withdrawn-independence-reading
 kind: issue
 title: Four viewer review suites cite the policy memory for the independence reading it withdrew
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-19
+pr: 2886
 ---
 
 
@@ -74,3 +76,32 @@ file it with, and the finding's subject — one withdrawn instruction
 spelled in four places — is S-DUP's charter with prose as the artifact.
 S-DUP claims no territory and announces by seam (X6, inherited from
 SUITE). Any of the five may claim this row by `git mv`.
+
+## Closed 2026-09-19 — the per-file test run, and what it decided
+
+The test this row asked for — *name the constant or helper the row
+would otherwise read, and say whether a bug in it would be invisible to
+the row if the row read it* — was run on all four, and the answer split
+the files rather than the class, which is why the blanket rule had to
+go in both directions.
+
+| file | the helper it would read | invisible? | disposition |
+| --- | --- | --- | --- |
+| `tests/common/mod.rs` (its claim about `review_gui0_r1`/`_r2`) | `common::framed()`, which **is** a call to `Camera::framing` | yes — GUI-0's subject is that door | keeps, restated |
+| `review_gui2_r1.rs` | `common::plate_bounds`/`framed`/`corners`, all functions of `viewer::scene::PLATE_EXTENT` | yes — an aim derived from the constants the scene is built from moves with it | geometric oracles keep, restated; the frame datum shares |
+| `review_gui2_r2.rs` | same | yes, same reason | same |
+| `review_gui3_r1.rs` | `common::square`/`framed_square` | **no oracle reads the shape at all** | restated honestly as a readability choice, not an independence claim; sugar shares |
+
+`review_gui3_r1`'s answer is measured, not argued: with
+`common::xy_frame` folded in, mutating that helper's v axis y → z reds
+3 rows in `review_gui2_r1` and 9 in `review_gui2_r2` and **0 in
+`review_gui3_r1`** (626 pass → 581/45). Mutating `common::scl(v)` to
+`v + 1.0` reds 1 row in `review_gui3_r1` (626 → 561/65), so the fold
+there is live even though the geometry is inert to its claims.
+
+What this row ruled out for all four: the ground *"it is a promoted
+review suite"*. What it did not finish — the remaining shareable sugar
+in the three suites, and whether `gui3_r1`'s fixtures should share
+outright — is
+`work/dup/viewer-review-suite-fixtures-have-no-oracle-role`, filed with
+the mutation table.

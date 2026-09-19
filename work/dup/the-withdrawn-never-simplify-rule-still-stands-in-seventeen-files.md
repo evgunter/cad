@@ -2,8 +2,10 @@
 id: the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files
 kind: issue
 title: Ev withdrew the reviewer-suite no-simplify rule; nineteen files under crates/ still state it, in two sentences that need different dispositions
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-19
+pr: 2886
 ---
 
 
@@ -161,3 +163,115 @@ the thing Ev withdrew.
 - Whether `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`,
   which the memory cites as the cause of the withdrawal, still exists
   anywhere; it is not at that path on `main`.
+
+## Closed 2026-09-19 — the denominator was the citation, and three of this row's numbers were wrong
+
+### The sentence census, re-taken at `5b4979ef2`
+
+Instrument: every tracked file (`git ls-files`, **no path argument**),
+each file's comment markers stripped and the whole file collapsed to one
+whitespace-normalised string before matching — so a sentence that wraps
+across `//!` lines is one token, which is the defect that beat this row
+three times. `do not\s*"?simplify"?` returns **six** files: the three
+`topo` carriers of the SURVIVING rule
+(`src/review_m1_pr3.rs`, `src/review_m1_pr4.rs`,
+`tests/review_m1_pr5.rs`) and three tracker files. **The sixteen
+group-A carriers no longer contain the sentence**: it was removed by the
+carrier PR that `the-pr-17-promotion-attribution-is-half-checked`
+records, and `work/comb/S36.md` already logs the removal. So this row's
+title — *nineteen files under `crates/`* — was stale when this unit
+opened, and so was its claim that `review_m1_pr3.rs`'s header still
+says *"the programs are kept"*: that header now reads *"the useful ones
+enter the permanent suite as ORDINARY rows … nothing here is a
+protected class"*, which is the corrected text.
+
+Two false positives the instrument returns and a reader must discard:
+`local-scripts/monitors/github-away-channel.sh` (*"Do not 'simplify'
+this back to one feed"*) and `tools/tess-lint/src/main.rs` (*"do NOT
+simplify a demo's geometry"*). Same words, unrelated subject — which is
+the answer to this row's second unmeasured item: **the withdrawn rule
+has no carrier outside `crates/`.**
+
+### The citation census — 35 files, each dispositioned
+
+Same instrument, needle `review-and-dependency-policy`. Blind spot: a
+file that states the withdrawn ground **without naming the memory** is
+invisible to it (`review_gui0_r1`/`_r2` state their own grounds and do
+not cite; both were read by hand and neither grounds itself in what the
+file is).
+
+- **Cites a SURVIVING clause — 28 files, no action.** Dependency age:
+  `Cargo.toml`, `benches/Cargo.toml`, `crates/pncad-py/Cargo.toml`,
+  `crates/viewer/Cargo.toml` (×4 sites), `.github/workflows/ci.yml`.
+  Retirement and the ordinary-row rule: `memories/MEMORY.md`,
+  `memories/orchestration-model.md`, `memories/test-suite-cost.md`,
+  `crates/editor-core/tests/m10_2_r1_probes.rs`,
+  `crates/step-export/tests/rev_probe.rs` (accurate in substance; it
+  attributes *"a row that asserts nothing is never a gate"* to this
+  memory when that sentence is `test-suite-cost`'s — a mis-shelved
+  citation, not a withdrawn one). The causal-story rule:
+  `docs/REVIEW-STYLE-DISPATCH.md`, `work/view/log.md`. Bare pointers
+  with no reading attached: the four `work/sym/logs/sym-*-review-brief-*`
+  files. Tracker rows already stating the correction:
+  `work/comb/S36.md`, `work/dup/log.md`,
+  `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`,
+  `work/dup/the-pr-17-promotion-attribution-is-half-checked.md`, this
+  row, and the viewer row.
+- **Cites a WITHDRAWN clause — 7 files.**
+  - `crates/viewer/tests/common/mod.rs`, `review_gui2_r1.rs`,
+    `review_gui2_r2.rs`, `review_gui3_r1.rs` — the viewer row's four.
+    **Fixed in this PR**, per file, on the surviving ground.
+  - `crates/sweep/examples/p1b_r2_ab.rs` — cites *"`memories/
+    review-and-dependency-policy`'s promotion rule"*, a named clause
+    the memory no longer has. **Fixed in this PR**: the
+    assertion-free-never-gates claim now cites `test-suite-cost`, which
+    is where it lives, and the policy memory is cited for the
+    ordinary-row rule, which is what it says.
+  - `work/tcost/plan.md` (two sites) and `work/tint/plan.md` — already
+    owned by `work/tcost/plan-states-the-withdrawn-reviewer-independence-rule`
+    and `work/tint/tint-plan-states-the-withdrawn-reviewer-independence-rule`.
+    Not touched: one file, one item.
+
+### The three surviving `topo` carriers keep their code, on the surviving ground
+
+`review_m1_pr3.rs`, `review_m1_pr4.rs` and `tests/review_m1_pr5.rs`
+scope *do not "simplify" them to match the implementation('s comments)*
+to the **derivations** — ledgers, anchor rules, orbit orders,
+slot/generation semantics, the splice taxonomy, the separating-curve
+argument — and each names what the derivation was computed from
+instead (Mäntylä ch. 9/11, the pinned PR 1/2/3 surgeries). That is the
+surviving clause's test answered in the file: the thing the row would
+otherwise read is the implementation's own commentary, and a wrong
+convention there would be invisible to a row that read it. No edit.
+Their headers already carry the corrected citation.
+
+### The first unmeasured item: it cannot be settled from git here
+
+*Was any group-A header ratified by Ev, file by file?* The check does
+not reach a conclusion in this checkout, and the reason is not only the
+shallow grafts that
+`the-ratification-check-claude-md-prescribes-is-unreliable-here`
+measured. Reading the oldest commits on those paths oldest-first, the
+promotions (`d3d61be50`, `633d98c68`, `eff70cfc6`, all 2026-07-16/18)
+are authored **`Evan Ryan Gunter <evgunter@gmail.com>`** and their
+messages are plainly lane work (*"tests: promote salvaged M0
+adversarial-review demos into CI"*, *"PR 2 fix pass: …"*). `CLAUDE.md`
+says that address *"signs every commit already"*; across the carrier
+paths, 160 commits are authored `Claude` and 69 carry Ev's name or
+address. **So the author field is not a discriminator**, and
+`git log`'s answer to "did Ev write this" is the same account-conflation
+trap `the-pr-17-promotion-attribution-is-half-checked` names on the
+GitHub side. This is a firmer result than *unmeasured*: the prescribed
+check cannot answer the question in this repo at all.
+
+### The third unmeasured item: the cited issue existed and was deleted
+
+`work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md` is not in
+the tree, was deleted by `499122b10` (*"work: code-quality leaves the
+tracker (DOC-LEDGER sweep 11)"*), and is readable at `81b5a3cfb`:
+`kind: issue`, opened 2026-09-03, **closed 2026-09-04** — the day of
+the withdrawal — raised by TCOST-10's style review over
+`crates/geom-brep/tests/shared/mod.rs` and
+`crates/sweep/tests/common/cavity.rs`. The memory still cites the dead
+path; that is `the-policy-memory-cites-a-tracker-file-that-left-the-tree`,
+filed for Ev because `memories/` is his.
