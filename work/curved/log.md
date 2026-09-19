@@ -356,3 +356,18 @@ appears). Operations: the session's Monitor tool expires every 30
 minutes (a harness bug, Ev in-chat) — the four watchdog scripts run
 detached into one event log and the orchestrator waits on it with
 one-shot background commands.
+
+## Spiric PR-1b delivered; dual dispatched (2026-09-19)
+
+PR #2861 (head b0afaf200, run 35435836485 green; `render drift (uv)`
+neutral — the uv-montage legend row). The variant, the certification
+arm (deviation 1: a banded structural compare, `certify` being a
+`Decide` door), fourteen consumer sites, STEP export with the
+`FILE_DESCRIPTION` sentence. Opening measurement found the whole torus
+face's cache set had been EMPTY at the merge base (the missing arm made
+`mint_faces` clear the face, circle rims included) — a regression 1a
+left and 1b closes. Finding filed against the ratified §5:
+`spiric-step-spline-bound-is-second-order` (the export's `ε/4` gate is
+unreachable on real fixtures; a sharper `sup‖C″‖` candidate would move
+mesh chord counts) — ruled after the dual. Dual: ordinal 2205, byte
+240 ⇒ R1 Opus, R2 Fable.
