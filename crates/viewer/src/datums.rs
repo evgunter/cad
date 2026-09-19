@@ -373,29 +373,51 @@ const AXIS_COVER: f64 = 1.4;
 /// How long the tick across each end of a drawn axis is, in pixels.
 const AXIS_TICK_PX: f64 = 18.0;
 
-/// How long a frame's sketch-+x arrow is, in PIXELS — the mark that
-/// says which way the frame is turned, screen-sized for the reason the
-/// plane's normal tick is.
+/// How long each of a frame's two arrows is, in PIXELS — the marks
+/// that say which way the frame is turned, screen-sized for the reason
+/// the plane's normal tick is. The +x and +y arrows are this one
+/// length from the origin; which is x is said by the head
+/// ([`FRAME_X_HEADS`]), not by the arm.
 ///
-/// **Longer than [`TARGET_PITCH_PX`] on purpose.** The arrow's shaft
+/// **Shorter than the narrowest cell on purpose.** The arrow's shaft
 /// lies on a grid line (both run along the axis, and both start at the
-/// origin), so the head is the whole of what a reader sees. At less
-/// than one cell the head lands inside the first square, crowded by
-/// the crossing at the origin and by the next one; past a cell it sits
-/// in clear ground with the ruling behind it.
-const FRAME_ARM_PX: f64 = 108.0;
+/// origin), so the head is the whole of what a reader sees, and the
+/// barbs are what keep it off the ruling: each points away from both
+/// axes. What would crowd a head is a CROSSING — the next line across
+/// the axis landing on the tip or between the barbs. The ladder never
+/// realizes a cell narrower than [`TARGET_PITCH_PX`] / √2.5 (about
+/// 51 px, the log-midpoint between rungs 2 and 5) at the looked-at
+/// point, so an arm under that puts the whole head inside the first
+/// cell, in open ground between the origin's crossing and the next.
+/// The claim is bounded the way the pitch is: an origin much further
+/// from the eye than the looked-at point sees cells finer than that.
+const FRAME_ARM_PX: f64 = 44.0;
+
+// The arm has to fit inside the narrowest cell the ladder realizes:
+// `FRAME_ARM_PX < TARGET_PITCH_PX / √2.5`, squared to stay in const.
+const _: () = assert!(FRAME_ARM_PX * FRAME_ARM_PX * 2.5 < TARGET_PITCH_PX * TARGET_PITCH_PX);
 
 /// How far each barb runs back from an arrow's tip, as a fraction of
 /// that arrow's length. Its half-width across the axis is half again
 /// of this, which is the ordinary look of an arrowhead.
 const FRAME_BARB_FRACTION: f64 = 0.34;
 
-/// How long the sketch-+y arm is as a fraction of the +x one.
+/// **How many heads the sketch-+x arrow wears**; +y wears one.
 ///
-/// The two arms are drawn UNEQUAL on purpose: a grid is symmetric
-/// under a quarter turn, so two arms of one length would say which
-/// pair of directions the axes are without saying which of them is x.
-const FRAME_Y_ARM_FRACTION: f64 = 0.62;
+/// A grid is symmetric under a quarter turn, so two identical arrows
+/// would say which pair of directions the axes are without saying
+/// which of them is x. The arrows are told apart at the HEAD, and by
+/// count rather than by size: two arms of one length keep the mark
+/// balanced about the origin, and a doubled head (the `>>` of a
+/// fast-forward) reads as a different kind of arrow where a slightly
+/// larger one reads as a drawing error.
+const FRAME_X_HEADS: usize = 2;
+
+/// How far behind the first head each further one sits, as a
+/// fraction of the barb's run-back — so a doubled head is two
+/// chevrons nested with a gap between them rather than overlapping
+/// into one thick one.
+const FRAME_HEAD_SPACING: f64 = 0.6;
 
 /// How long each arm of a drawn point's cross is, in pixels.
 ///
@@ -631,26 +653,30 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
         return out;
     };
     let o = [origin.x, origin.y, origin.z];
-    // The two arrows differ in LENGTH as well as direction: a grid is
-    // symmetric under a quarter turn, so equal arrows would name the
-    // pair of directions without saying which of them sketch +x is.
-    for (along, across, len) in [(u, v, arm), (v, u, arm * FRAME_Y_ARM_FRACTION)] {
-        let tip = [
-            origin.x + along.x * len,
-            origin.y + along.y * len,
-            origin.z + along.z * len,
-        ];
-        out.extend([o, tip]);
-        let (back, wide) = (len * FRAME_BARB_FRACTION, len * FRAME_BARB_FRACTION * 0.5);
-        for side in [1.0_f64, -1.0] {
-            out.extend([
-                tip,
-                [
-                    tip[0] - along.x * back + across.x * wide * side,
-                    tip[1] - along.y * back + across.y * wide * side,
-                    tip[2] - along.z * back + across.z * wide * side,
-                ],
-            ]);
+    let (back, wide) = (arm * FRAME_BARB_FRACTION, arm * FRAME_BARB_FRACTION * 0.5);
+    for (along, across, heads) in [(u, v, FRAME_X_HEADS), (v, u, 1)] {
+        let at = |d: f64| {
+            [
+                origin.x + along.x * d,
+                origin.y + along.y * d,
+                origin.z + along.z * d,
+            ]
+        };
+        out.extend([o, at(arm)]);
+        for head in 0..heads {
+            let tip_at = arm - back * FRAME_HEAD_SPACING * head as f64;
+            let tip = at(tip_at);
+            let root = at(tip_at - back);
+            for side in [1.0_f64, -1.0] {
+                out.extend([
+                    tip,
+                    [
+                        root[0] + across.x * wide * side,
+                        root[1] + across.y * wide * side,
+                        root[2] + across.z * wide * side,
+                    ],
+                ]);
+            }
         }
     }
     out
