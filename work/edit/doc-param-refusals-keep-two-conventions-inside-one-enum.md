@@ -4,6 +4,7 @@ kind: issue
 title: EditError's other doc-param refusals keep the old convention the four param-ref arms left
 status: review
 branch: edit/prose-one-home
+pr: 2879
 opened: 2026-09-19
 ---
 

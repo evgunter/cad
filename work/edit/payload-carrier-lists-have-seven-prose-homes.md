@@ -4,6 +4,7 @@ kind: issue
 title: The payload-carrier list is hand-copied into seven prose homes
 status: review
 branch: edit/prose-one-home
+pr: 2879
 opened: 2026-09-19
 refs: [instantiate-part-crossings-are-names-payload-names-does-not-list, 2872]
 ---
