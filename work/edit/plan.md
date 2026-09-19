@@ -42,7 +42,9 @@ posture under §Process.
    on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended)
    and is **merged** (PR #2809, kernel unit, v6 dual, block EDIT-B2
    slot 0, sample #216); its residue
-   `a-declare-orphaned-by-a-cascade-is-never-reported` stands open.
+   `a-declare-orphaned-by-a-cascade-is-never-reported` is ruled and
+   **spec'd** (middle tier, wave 11: the delete that orphans a
+   `Declare` reports it as maintenance).
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -58,7 +60,9 @@ posture under §Process.
    residue `interface-crossing-heads-are-bare-stable-names` is
    **merged** (PR #2814, middle tier, wave 10); its residue
    `instantiate-part-crossings-are-names-payload-names-does-not-list`
-   stands open. `no-docedit-splices-a-deleted-node` is deferred on DM6
+   is ruled and **spec'd** (middle tier, wave 11: an instance's
+   crossing `outer`s are payload names, its `inner`s are the part's).
+   `no-docedit-splices-a-deleted-node` is deferred on DM6
    and is not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` merged (kernel unit);
