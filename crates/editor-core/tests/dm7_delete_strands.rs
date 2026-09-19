@@ -3,7 +3,8 @@
 //!
 //! A payload name (`Node::payload_names` — a `Declare`'s pairs, a
 //! blend's selection, a shell's rim list, a derived frame's face, a
-//! measure's references, a mate's heads) is not a DAG edge: the insert
+//! measure's references, a mate's heads, an instance's crossing
+//! `outer`s) is not a DAG edge: the insert
 //! door checks its minting node is live and no other door does, so a
 //! later `DeleteNode` strands it. The delete stays legal — a full edge
 //! would deadlock the declared union, whose `Declare` names the very
@@ -264,6 +265,11 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             // instance to be minted by, which this document has none
             // of: its row is `a_mates_head_strands_and_its_read_site_does_not`.
             Node::Mate { .. } => panic!("this fixture builds no mate"),
+            // An instance's crossing `outer`s are the eighth carrier
+            // and need an interface record to ride, which only a
+            // split mints: their rows are
+            // `edit_instance_crossing_names`.
+            Node::InstantiatePart { .. } => panic!("this fixture builds no instance"),
             // The name-free kinds. Spelled out rather than swept into
             // a wildcard, for the reason above.
             Node::Datum(
@@ -287,7 +293,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
-            | Node::InstantiatePart { .. }
             | Node::Assertion { .. } => {}
         }
     }

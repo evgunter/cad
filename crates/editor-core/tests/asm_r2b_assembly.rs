@@ -711,6 +711,39 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let _ = store;
 }
 
+/// **A remainder document holding the two ends of a seated mate, the
+/// remainder-side face name a crossing keeps, and that mate's id** —
+/// the fixture every hand-built record below starts from.
+///
+/// Both of a crossing's references into this document are checked at
+/// the insert door: the `outer` is a payload name
+/// (`Node::payload_names` lists it, and the door checks its node is
+/// live) and the `mate` is a read site (`Node::payload_read_sites`,
+/// the typo rule). So a record cannot go into an empty document —
+/// the face the mate kept has to be on something that is there, and
+/// the mate has to be a node that exists. A split mints exactly this
+/// shape: the crossing mate is a node in the remainder, and its
+/// remainder-side head is the `outer`.
+fn remainder_with_a_neighbour(
+    label: &str,
+    doc_ref: editor_core::DocRef,
+) -> (ProfileDoc, FaceName, RecipeNodeId) {
+    let (doc, neighbour) = insert(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        Node::instantiate_part(doc_ref),
+    );
+    let (doc, seated) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(neighbour, seated, 1.0),
+        },
+    );
+    let outer = FaceName::new(in_part(neighbour, CapEnd::End))
+        .expect("a crossing's references are face names");
+    (doc, outer, mate.expect("the mate mints"))
+}
+
 /// INVARIANT (A4's "does it actually fit" + A13 clause 4): an
 /// instance carrying a crossing declaration RE-VERIFIES it against
 /// the pinned part at every evaluation. Pre-move it resolves and the
@@ -741,18 +774,16 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (doc, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(7),
+            mate: crossing_mate,
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner: inner.clone(),
         }],
     };
-    let (doc, instance) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5b"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
+    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(
@@ -821,26 +852,31 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (doc, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(9),
+            mate: crossing_mate,
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner,
         }],
     };
-    let (doc, instance) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5c"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
+    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let before = doc.order().len();
+    let part_nodes = store.doc(doc_ref.id).order().len();
     let back = inline(&doc, instance, &store, Tol::witness()).expect("inline succeeds");
     assert!(
         back.doc.node(instance).is_none(),
         "the instance is gone, and its record with it"
     );
-    assert!(
-        !back.doc.order().is_empty(),
-        "the part's recipe is spliced in"
+    // What the SPLICE contributed, not what survived it: this
+    // document also holds the two ends of the crossing mate, which
+    // `inline` never touches, so `!order().is_empty()` would hold
+    // however little came in. The count can only come from the part.
+    assert_eq!(
+        back.doc.order().len(),
+        before - 1 + part_nodes,
+        "the instance went and the part's own recipe came in its place"
     );
 }
 
@@ -1043,22 +1079,17 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (host, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(4),
+            mate: crossing_mate,
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner,
         }],
     };
-    let (with, id_with) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
-    let (without, id_without) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6"), Tol::witness()),
-        Node::instantiate_part(doc_ref),
-    );
+    let (with, id_with) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
+    let (without, id_without) = insert(host, Node::instantiate_part(doc_ref));
     assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {
