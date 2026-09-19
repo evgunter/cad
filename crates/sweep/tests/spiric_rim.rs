@@ -1158,7 +1158,7 @@ mod interval_rows {
                 // what this row pins is that the bracket's price stays
                 // at rounding level rather than growing into a claim.
                 assert!(
-                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= tol().eps(),
+                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= tol.eps(),
                     "the bracket's own width, metered, is at rounding level: {:?}",
                     cert.envelope
                 );
