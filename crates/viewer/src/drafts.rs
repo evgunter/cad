@@ -23,7 +23,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, ProfileShape};
+use crate::session::{DatumSpec, ProfileShape, SessionOp};
 use crate::sketch;
 
 /// Transient text a panel is mid-edit on.
@@ -313,6 +313,26 @@ impl Drafts {
         }
     }
 
+    /// **A form whose op the document ACCEPTED comes to rest** — called
+    /// once per op a batch performed without a refusal.
+    ///
+    /// Only the add-profile form has anything to settle: its drafts ARE
+    /// the viewport's preview (`sketch::preview` is replayed from them
+    /// every frame), so a form left holding the shape it just committed
+    /// would keep drawing that shape in the probe tint over the
+    /// committed drawing of the node it became. Resting the shape
+    /// (`None`) is what the form means by "nothing being composed"; the
+    /// frame picked and the field values stay, so a second profile on
+    /// the same frame starts from where the first one left off.
+    ///
+    /// A REFUSED add leaves the drafts alone, so correcting what was
+    /// refused does not cost what was typed.
+    pub(crate) fn accepted(&mut self, op: &SessionOp) {
+        if matches!(op, SessionOp::AddProfile { .. }) {
+            self.profile_shape = None;
+        }
+    }
+
     /// **The notation these forms are authoring in** — the two pickers,
     /// as the lowering wants them.
     pub(crate) fn notation(&self) -> sketch::Notation {
@@ -487,13 +507,19 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{
+        CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram,
+        RecipeNodeId, apply, evaluate,
+    };
+    use pncad::geom_core::Tol;
 
     use super::Drafts;
-    use crate::forms::DatumKindChoice;
+    use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::seats::Seat;
+    use crate::session::SessionOp;
     use crate::session::author::datum_node;
     use crate::session::{NodeKindWanted, admits};
+    use crate::sketch;
 
     /// **Every seat a datum fills can be filled from the add-datum
     /// form.** Each choice the form offers is lowered from its default
@@ -535,6 +561,81 @@ mod tests {
                 wanted.name(),
             );
         }
+    }
+
+    /// **A profile the add form just committed is drawn once**, as the
+    /// document's, and not a second time as the form's preview.
+    ///
+    /// The form's drafts are what the preview replays every frame, so
+    /// a form still holding the shape it committed drew that shape in
+    /// the probe tint over the committed drawing of its own node. This
+    /// commits the form's own programs as the node `AddProfile` inserts,
+    /// hands the op to `Drafts::accepted` as the app's batch does on an
+    /// accepted op, and then asks both drawings the viewport makes: the
+    /// committed pass holds the circle, and the preview replayed from
+    /// the settled drafts holds nothing. The control is an op that adds
+    /// no profile, which must leave the draft being composed.
+    #[test]
+    fn a_committed_profile_is_not_drawn_again_as_its_preview() {
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let length = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+        let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+        let frame = Node::Datum(Datum::Frame {
+            origin: [length(0.0), length(0.0), length(0.0)],
+            u: [scalar(1.0), scalar(0.0), scalar(0.0)],
+            v: [scalar(0.0), scalar(1.0), scalar(0.0)],
+        });
+        let insert = |doc: &Doc<ProfileProgram>, node| {
+            let applied =
+                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            let id = applied.record.minted.expect("an insert mints an id");
+            (applied.doc, id)
+        };
+        let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
+        let mut drafts = Drafts {
+            profile_plane: Some(plane),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+
+        // The control: an accepted op that adds no profile leaves the
+        // form composing.
+        drafts.accepted(&SessionOp::Hover(None));
+        assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
+
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        let (doc, _) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: loops.clone(),
+            }),
+        );
+        drafts.accepted(&SessionOp::AddProfile { plane, loops });
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let placement =
+            sketch::frame_placement(&doc, &evaluation, plane).expect("the frame has a placement");
+        let committed = sketch::committed(&doc, &evaluation, chord, None);
+        assert_eq!(
+            committed.drawn.len(),
+            1,
+            "the circle is drawn as the document's"
+        );
+        let preview = sketch::preview(placement, &drafts.profile_loops(), tol, chord)
+            .expect("an empty form previews");
+        assert!(
+            preview.loops.is_empty(),
+            "the committed circle is drawn again as the form's preview"
+        );
     }
 
     /// An axis in a sketch with no frame picked lowers to nothing,

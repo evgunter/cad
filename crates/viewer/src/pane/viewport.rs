@@ -19,7 +19,51 @@ use crate::marks;
 use crate::pickcache;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
-use crate::sketch::{TIP_MARK_PX, heading};
+use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
+
+/// **One sketch-plane segment, placed and appended to an overlay lane**
+/// as the line-list pair the edge pass draws.
+fn push_segment(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    a: [f64; 2],
+    b: [f64; 2],
+) {
+    for [x, y] in [a, b] {
+        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
+        lane.push([world.x as f32, world.y as f32, world.z as f32]);
+    }
+}
+
+/// **One drawn loop, placed on its plane and appended to a lane.**
+///
+/// A CLOSED loop's segment list wraps — the last point joins the
+/// first, which is the same thing `ProfileLoop` means by being closed
+/// by construction. An OPEN one's must not: the leg back to the start
+/// is the provisional close `sketch::preview` walked the chain under
+/// and nobody authored, so the wrap is dropped and what is drawn is the
+/// authored legs exactly. That is the whole of "a path draws while it
+/// is still being written".
+fn push_loop(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    polyline: &PreviewLoop,
+) {
+    let points = &polyline.points;
+    let segments = if polyline.closed {
+        points.len()
+    } else {
+        points.len().saturating_sub(1)
+    };
+    for index in 0..segments {
+        push_segment(
+            lane,
+            plane,
+            points[index],
+            points[(index + 1) % points.len()],
+        );
+    }
+}
 
 /// Land a fold: take the camera it reached, and show the refusal that
 /// stopped it.
@@ -512,27 +556,12 @@ impl ViewerBehavior<'_> {
                 .selected
                 .extend(tool.mark_segments(index, self.display));
         }
-        // **The profile being authored, drawn where it would land.**
-        //
-        // The form's loops are on a sketch plane, so they HAVE a
-        // place: the wireframe goes in the viewport, at that place,
-        // rather than into a pane of its own — a preview beside the
-        // model cannot show what a preview is mostly for, which is
-        // whether the shape is the right size and in the right spot
-        // relative to what is already there.
-        //
-        // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A
-        // preview that failed to replay draws nothing and says why in
-        // the form; one that replayed but does not VALIDATE draws
-        // anyway, which is the case where looking at it is the whole
-        // point.
-        // **The document's construction geometry**, drawn before the
-        // preview so a form composing something over a datum reads on
-        // top of it. Sized against the VIEW (`datums::draws`): a datum
-        // has no size of its own, and one sized against the model
-        // opens into a hole the moment the camera is closer than a
-        // grid cell is wide.
+        // **The document's construction geometry.** Which lane is drawn
+        // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
+        // these blocks fill them in. Sized against the VIEW
+        // (`datums::draws`): a datum has no size of its own, and one
+        // sized against the model opens into a hole the moment the
+        // camera is closer than a grid cell is wide.
         if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
             // **A window this camera has no view of is the projection
             // refusal, said one step earlier and by name.** The door
@@ -576,6 +605,43 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+        // **The profiles the document holds**, from the landed
+        // evaluation, every frame — the treatment datums get, because a
+        // profile node has no body until something extrudes it and so
+        // nothing else would draw it. Not behind the datum toggle: a
+        // profile is authored content, not construction geometry.
+        //
+        // `except: None`: the one form that previews is the create
+        // form, whose profile is not a node while it is being
+        // composed, and which comes to rest when its add is accepted
+        // (`Drafts::accepted`) — so the node it became is drawn here
+        // once the evaluation holding it lands, and never also as the
+        // preview. A form that previews an edit of a committed profile
+        // must pass that node here, or it is drawn twice.
+        if let Some((doc, evaluation)) = self.session.landed_pair() {
+            let committed = sketch::committed(doc, evaluation, self.delta.get(), None);
+            *self.profiles_undrawn = committed.undrawn.len();
+            for profile in &committed.drawn {
+                for polyline in &profile.loops {
+                    push_loop(&mut edges.profiles, &profile.plane, polyline);
+                }
+            }
+        }
+        // **The profile being authored, drawn where it would land.**
+        //
+        // The form's loops are on a sketch plane, so they HAVE a
+        // place: the wireframe goes in the viewport, at that place,
+        // rather than into a pane of its own — a preview beside the
+        // model cannot show what a preview is mostly for, which is
+        // whether the shape is the right size and in the right spot
+        // relative to what is already there.
+        //
+        // Drawn in the probe mark, never the selection mark, because
+        // it is not in the document (`EdgeOverlay::preview`). A
+        // preview that failed to replay draws nothing and says why in
+        // the form; one that replayed but does not VALIDATE draws
+        // anyway, which is the case where looking at it is the whole
+        // point.
         if let Some(Ok(drawn)) = self.profile_preview {
             let plane = drawn.plane;
             // The marks are sized in pixels, read at each vertex's own
@@ -585,31 +651,10 @@ impl ViewerBehavior<'_> {
             let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
-                // A CLOSED loop's segment list wraps — the last point
-                // joins the first, which is the same thing
-                // `ProfileLoop` means by being closed by construction.
-                // An OPEN one's must not: the leg back to the start is
-                // the provisional close `sketch::preview` walked the
-                // chain under and nobody authored, so the wrap is
-                // dropped and what is drawn is the authored legs
-                // exactly. That is the whole of "a path draws while it
-                // is still being written".
-                let segments = if polyline.closed {
-                    points.len()
-                } else {
-                    points.len().saturating_sub(1)
-                };
+                push_loop(&mut edges.preview, &plane, polyline);
                 let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    for [x, y] in [a, b] {
-                        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-                        edges
-                            .preview
-                            .push([world.x as f32, world.y as f32, world.z as f32]);
-                    }
+                    push_segment(&mut edges.preview, &plane, a, b);
                 };
-                for index in 0..segments {
-                    segment(points[index], points[(index + 1) % points.len()]);
-                }
                 // **The directed point at each step.** A tip is a
                 // position and, once a verb has bound one, a
                 // direction — the pair the lattice calls a directed
