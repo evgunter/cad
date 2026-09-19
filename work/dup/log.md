@@ -1034,3 +1034,66 @@ standing, a constant recording a measurement — and now **a baseline
 inherited from a report and re-issued as an instruction.** The first
 four rotted in place. This one was propagated by the person whose job
 is to catch that.
+
+## 2026-09-19 — the same error a third time, and it was in my review brief
+
+The walk unit's style review found no unsafe code — every fold is
+behaviour-preserving and the three guards are real guards. What it
+found is that **the claims are false**, and they sit in a row that
+stays `open` and binds future work.
+
+**"The 3-hop walk is spelled once in `topo/src`" is false.** I checked
+two myself. `crates/topo/src/boolean/rest.rs:1498-1505` is literally
+`body.get_loop(body.get_half_edge(mate)?…parent_loop)?.face` — the exact
+form the PR's own structural instrument reports as having **one** hit in
+`topo/src` afterwards. And `boolean/reduce.rs:547` is a plain `Option`
+`face_of` closure with **no posture argument at all**, sitting in a file
+the PR folded two other sites in. The reviewer counts at least ten
+residual spellings.
+
+**And the hazard population was measured at two.** The PR's central
+argument — that folding an entity-naming refusal onto the `Option` door
+changes a verdict with every test green — is now *established*, and it
+applies to at least eight sites, seven of them inside `topo/src`,
+including `shell.rs`, which the row itself named as half of its
+"cheapest pair" and which this PR edited. **Exactly one is guarded.**
+
+**The error is mine, and it is the third of its shape today.** My
+review brief said the class had three members and asked whether there
+was "a fourth flattening". I took that population from the
+implementer's report and built the review's question on it — the same
+move as the baseline I propagated unmeasured two units ago, and the
+same move as the `17` I wrote into a row after a single-line grep.
+Three times in one sitting: **a number arrived in a report, I used it
+to frame the next step, and I never re-derived it.** The guard budget
+was sized to a figure nobody had measured.
+
+**A ratified rule I let a lane talk me out of.** The lane filed no new
+rows, reasoning that separate rows would mint the duplicate this
+program exists to prevent. It is a sympathetic argument and
+`work/README.md` settles it the other way (Ev, 2026-09-06, quoted in
+CLAUDE.md): *"That sweep sees items, not sentences … Disclosing a
+residue is therefore not scheduling it — give it its own file at the
+moment you disclose it."* The argument against duplicate rows is an
+argument for **one row per seam owner**, not for zero. I read that
+reasoning in the hand-back and did not check it against the rule,
+which is the orchestrator's one job at that moment.
+
+**Two more instruments, and the better one turns the change on
+itself.** The reviewer re-censused the door this PR cites as its
+*precedent* — `Body::solid_of_face` — and found four hand-written
+face → shell → solid walks outside it, two of them byte-identical
+`faces_of` helpers. The instrument is: **take the door a change cites
+as precedent and re-census that door's own walk.** The second is a
+closure-name census over `let face_of = |…`, which is cheap, over-fires,
+and reaches `demos/` and feature-gated files no compiler probe can —
+because `cargo check --workspace` does not compile four cargo roots and
+feature-gated code never type-checks, so it never warns. `demos/tour`
+spells this walk three times, two of them a byte-identical twin pair,
+and **no census in this program has ever had a `demos` bucket**.
+
+So the type-directed probe's "103/145 is the ceiling" is not a ceiling,
+and the row's "20 of the 145 sites" divides folded 3-hop reads by a
+denominator that also counts field *writes* and 2-hop reads. Against
+the comparable instrument it is 20 of 32 — a different sentence
+entirely. **Two numbers of different kinds, divided.**
