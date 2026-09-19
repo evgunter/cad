@@ -2,7 +2,8 @@
 id: doc-param-refusals-keep-two-conventions-inside-one-enum
 kind: issue
 title: EditError's other doc-param refusals keep the old convention the four param-ref arms left
-status: open
+status: spec
+branch: edit/prose-one-home
 opened: 2026-09-19
 ---
 
@@ -71,3 +72,34 @@ every Python suite that reads one of those words — the same sweep
 `edit/param-ref-one-convention` ran. If it does not, the reason
 belongs on `EditError`'s enum doc beside the convention, replacing the
 pointer at this row that stands there today.
+
+## Ruled and spec'd (2026-09-19, EDIT orchestrator) — E-class, branch `edit/prose-one-home` (shared with `payload-carrier-lists-have-seven-prose-homes`)
+
+**Ruling: the convention's scope is a param REFERENCE, and the enum
+says so; nothing is renamed.** `{Slot,Payload}` × `{UnknownDocParam,
+DocParamDimension}` names two facts about a reference at an address.
+`DocParamUnitMismatch`, `DocParamValueKindMismatch`,
+`DocParamCountHasNoUnit`, `DocParamCountHasNoDistribution`,
+`DocParamNotDeclared` and `ContinuousParamCannotBeCount` are refusals
+about the parameter's DECLARATION (or a carry-forward door's payload),
+which has no address word to lead with — the `{address}{fact}` shape
+does not apply, and forcing it would mint a fact-only convention with
+a vacuous address. `EvalError::ParamDimensionMismatch` is the same
+dimension fact raised at EVALUATION, where the address is the
+expression path the error carries, not a door's slot/payload word; it
+stays. So the change is prose: `EditError`'s enum doc, where the
+convention lives, gains one paragraph stating the two families — the
+reference refusals (the product) and the declaration refusals (named
+by their fact, address-free) — and naming `EvalError`'s arm as the
+evaluation-time spelling; the row's sweep-by-subject blind spot is
+recorded there as the rule for the next arm. No tag word moves.
+
+**Rows.** None new (a prose ruling). If the lane finds an arm in the
+declaration family that DOES carry an address word (a slot or payload
+the refusal names), report it in the PR body as the one that would
+need the reference convention, without renaming it.
+
+**Territory.** `crates/editor-core/src/edit.rs` (one doc paragraph),
+`crates/editor-core/src/expr.rs` only if `ParamDimensionMismatch`'s
+doc should point at the paragraph (EDIT). E-class: merges on green CI
+and the orchestrator's read; no review lane.

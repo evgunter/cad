@@ -47,9 +47,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
-    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
-    ValuePayload, resolve_loops,
+    Datum, DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram,
+    Node, ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
@@ -356,14 +356,285 @@ pub fn loop_program(
 /// lower alike preview alike. A list that does not lower compares by
 /// its refusal, which is also what the preview shows for it.
 pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
-    let lowered = |shapes: &[ProfileShape]| {
-        shapes
-            .iter()
-            .map(|shape| loop_program(shape, Notation::CANONICAL))
-            .collect::<Vec<_>>()
-    };
-    lowered(a) == lowered(b)
+    loop_programs(a, Notation::CANONICAL) == loop_programs(b, Notation::CANONICAL)
 }
+
+/// **A list of shapes lowered loop by loop** — [`loop_program`] over
+/// each, in description order, the whole list refusing with the first
+/// loop that does. The one lowering every door of the profile editor
+/// hands the session, and the one the preview's change test compares.
+///
+/// # Errors
+///
+/// [`loop_program`]'s.
+pub fn loop_programs(
+    shapes: &[ProfileShape],
+    notation: Notation,
+) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    shapes
+        .iter()
+        .map(|shape| loop_program(shape, notation))
+        .collect()
+}
+
+/// **Held loops as the shapes the preview and the lowering take** —
+/// one [`ProfileShape::Path`] per loop, in authoring order. The path
+/// editor holds the kernel's steps loop by loop; this is the one place
+/// that list becomes the form's currency.
+pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
+    loops
+        .iter()
+        .map(|steps| ProfileShape::Path {
+            steps: steps.clone(),
+        })
+        .collect()
+}
+
+// ------------------------------------------------------------------
+// The edit door: a committed program into the editor, and back
+// ------------------------------------------------------------------
+
+/// **The loops of a committed profile as the editor holds them** —
+/// the kernel's own [`Step`] at plain numbers, per loop, which is the
+/// currency the create form authors in. What makes the two doors one
+/// editor is that both hold this and nothing else.
+///
+/// The inverse of [`loop_program`], read through the document layer's
+/// own resolver ([`resolve_loops`]) rather than a second verb-by-verb
+/// walk: a resolved literal IS its recorded number, so a program the
+/// form authored comes back as the steps it was authored from, bit
+/// for bit, and a verb the vocabulary gains reaches here through the
+/// resolver's own arm for it.
+///
+/// # Errors
+///
+/// [`HeldRefusal`]: the node is not a profile; an argument is driven
+/// by an expression, which a `Step<f64>` has no way to hold — the
+/// whole node is refused rather than shown as numbers that would be
+/// written back over a computation, and every driven argument is
+/// named so the reader knows which rows to edit instead; or the
+/// resolver refused a stored expression.
+pub fn held_loops(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+    let Some(Node::Profile(program)) = doc.node(node) else {
+        return Err(HeldRefusal::NotAProfile { node });
+    };
+    held_program(node, program, &doc.param_env::<f64>())
+}
+
+/// [`held_loops`] of a program in hand — `node` only names it in a
+/// refusal, and `env` is the parameter environment it resolves under.
+///
+/// # Errors
+///
+/// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
+/// [`held_loops`].
+pub fn held_program(
+    node: RecipeNodeId,
+    program: &ProfileProgram,
+    env: &ParamEnv<f64>,
+) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+    let held = Node::Profile(program.clone());
+    // Every argument, asked of the node's own slot walk. An address
+    // the walk lists and `expr` denies is the node layer's broken
+    // postcondition, which `props::slot_row` reports as a row; here
+    // it reads as driven, the refusing direction.
+    let driven: Vec<(SlotId, String)> = held
+        .slots()
+        .into_iter()
+        .filter_map(|slot| match held.expr(slot) {
+            Some(expr) if expr.literal_value().is_some() => None,
+            Some(expr) => Some((slot, unparse(expr))),
+            None => Some((slot, String::new())),
+        })
+        .collect();
+    if !driven.is_empty() {
+        return Err(HeldRefusal::Driven {
+            node,
+            slots: driven,
+        });
+    }
+    resolve_loops(&program.loops, env)
+        .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
+}
+
+/// Why a committed node cannot be held by the path editor.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HeldRefusal {
+    /// The node is not a profile.
+    NotAProfile {
+        /// The node named.
+        node: RecipeNodeId,
+    },
+    /// One or more arguments are expressions, which the editor's
+    /// plain-number steps cannot hold. Each is named with its source
+    /// text; an empty source is an address the node lists and carries
+    /// no expression for.
+    Driven {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Every driven argument, in slot order.
+        slots: Vec<(SlotId, String)>,
+    },
+    /// A stored expression did not resolve under the document's
+    /// parameters.
+    Resolve {
+        /// The argument that refused.
+        slot: SlotId,
+        /// The evaluator's own reason.
+        source: EvalError,
+    },
+}
+
+impl core::fmt::Display for HeldRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotAProfile { node } => write!(f, "feature {} is not a profile", node.0),
+            Self::Driven { node, slots } => {
+                write!(
+                    f,
+                    "feature {}'s program is driven by expressions, which the editor's \
+                     number fields cannot hold — edit those in the slot rows: ",
+                    node.0
+                )?;
+                for (index, (slot, source)) in slots.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    if source.is_empty() {
+                        write!(f, "{} (no expression)", slot.label())?;
+                    } else {
+                        write!(f, "{} = {source}", slot.label())?;
+                    }
+                }
+                Ok(())
+            }
+            Self::Resolve { slot, source } => {
+                write!(f, "{} did not resolve: {source}", slot.label())
+            }
+        }
+    }
+}
+
+impl core::error::Error for HeldRefusal {}
+
+/// **The slot writes that take a committed program to the editor's**
+/// — one `(slot, expression)` per argument whose number moved, and
+/// nothing for the rest.
+///
+/// Compared by VALUE, at the bits ([`Expr::bit_eq`]): an argument the
+/// editor re-minted in the form's notation but still holding the
+/// number it was loaded with is not a change, so an editor opened on
+/// a node and applied untouched writes nothing — the no-op the edit
+/// door owes (no edit, no history entry). An argument that moved is
+/// written as the editor minted it, in the notation the picker beside
+/// the fields says it writes in.
+///
+/// # Errors
+///
+/// [`Restructure`] when `loops` does not have `current`'s STRUCTURE —
+/// a different loop count, or a loop whose verbs, arc modes, target
+/// forms, structural tags or step count differ. The document's edit
+/// vocabulary writes slots and has no door that rewrites a program's
+/// shape, which is why the editor locks its structural controls on a
+/// committed node; this is the door's own check behind those
+/// controls, held by writing every argument of `loops` into a copy of
+/// `current` and asking whether the copy then IS `loops`.
+pub fn program_edits(
+    current: &ProfileProgram,
+    loops: &[LoopProgram],
+) -> Result<Vec<(SlotId, Expr)>, Restructure> {
+    if current.loops.len() != loops.len() {
+        return Err(Restructure::LoopCount {
+            was: current.loops.len(),
+            now: loops.len(),
+        });
+    }
+    let held = Node::Profile(ProfileProgram {
+        plane: current.plane,
+        loops: loops.to_vec(),
+    });
+    let mut probe = Node::Profile(current.clone());
+    let mut edits = Vec::new();
+    for slot in held.slots() {
+        let Some(new) = held.expr(slot) else {
+            unreachable!(
+                "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
+                slot.label()
+            )
+        };
+        let SlotId::Profile { loop_, .. } = slot else {
+            unreachable!(
+                "a profile node lists only profile slots, and {} is not one",
+                slot.label()
+            )
+        };
+        let Some(old) = probe.expr_mut(slot) else {
+            return Err(Restructure::Loop {
+                loop_: loop_ as usize,
+            });
+        };
+        if !old.bit_eq(new) {
+            edits.push((slot, new.clone()));
+        }
+        *old = new.clone();
+    }
+    // Every argument of `loops` is now written into the copy, so the
+    // copy and `loops` differ exactly where the STRUCTURE does: a step
+    // the copy has and `loops` lacks, a tag, a target form, a mode.
+    // The comparison is the program vocabulary's own equality, which
+    // reads expressions by value and is blind to notation.
+    let Node::Profile(probe) = probe else {
+        unreachable!("the probe was built as a profile node")
+    };
+    for (loop_, (was, now)) in probe.loops.iter().zip(loops).enumerate() {
+        if was != now {
+            return Err(Restructure::Loop { loop_ });
+        }
+    }
+    Ok(edits)
+}
+
+/// Why the editor's program cannot be written over a committed one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Restructure {
+    /// The two programs have different loop counts.
+    LoopCount {
+        /// The committed loop count.
+        was: usize,
+        /// The editor's.
+        now: usize,
+    },
+    /// One loop's shape — its verbs, arc modes, target forms,
+    /// structural tags or step count — differs.
+    Loop {
+        /// The loop, in authoring order.
+        loop_: usize,
+    },
+}
+
+impl core::fmt::Display for Restructure {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::LoopCount { was, now } => write!(
+                f,
+                "the committed profile has {was} loop(s) and the editor holds {now}; the \
+                 document's edit vocabulary writes a program's numbers and has no door that \
+                 changes its shape"
+            ),
+            Self::Loop { loop_ } => write!(
+                f,
+                "loop {loop_}'s verbs, arc forms, targets or step count differ from the \
+                 committed program's; the document's edit vocabulary writes a program's \
+                 numbers and has no door that changes its shape"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Restructure {}
 
 // ------------------------------------------------------------------
 // The preview: what the loops being authored would actually draw

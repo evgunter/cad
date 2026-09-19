@@ -50,14 +50,25 @@
 //! # The extrusion family
 //!
 //! [`extruded`] is the primitive — loops on a plane, pushed along its
-//! normal — and [`prism_on`], [`prism`], [`prism_at`], [`brick`] and
-//! [`cube`] are its named specializations. All of them are generic in
-//! the scalar, because the `Interval` and `Probe` lanes build the same
-//! bodies as the `f64` one and the only alternative is a second copy at
-//! each scalar: a per-scalar copy per suite is what this family was
-//! before it was one. A shape that is not here yet joins by naming the
-//! primitive and its own loops — it needs no new door, no new gate and
-//! no new manifest edge beyond the one its crate already has.
+//! normal — and [`prism_on`], [`prism`] and [`prism_at`] are its named
+//! specializations. All of them are generic in the scalar, because the
+//! `Interval` and `Probe` lanes build the same bodies as the `f64` one
+//! and the only alternative is a second copy at each scalar: a
+//! per-scalar copy per suite is what this family was before it was
+//! one. A shape that is not here yet joins by naming the primitive and
+//! its own loops — it needs no new door, no new gate and no new
+//! manifest edge beyond the one its crate already has.
+//!
+//! **The axis-aligned box is not one of them.** [`brick`] is
+//! `topo::test_support::brick`, and [`block`] and [`cube`] are its two
+//! views — by extent from the origin, and with one extent. The box has
+//! one construction in this tree and it lives in `topo`, below every
+//! crate that wants one: a second construction here would be a second
+//! body that is the same solid, differing only in the order its curve
+//! arena holds twelve keys and in which way round four of its twelve
+//! edges name the surfaces they intersect. Those three doors are
+//! generic in the scalar like the rest of this module and take their
+//! extents as `f64` at every scalar, for the reason [`corners`] gives.
 //!
 //! # The loft family
 //!
@@ -131,7 +142,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
+pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
     block(l, l, l, tol)
 }
 
@@ -141,11 +152,11 @@ pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
 /// **The second view of [`brick`], not a second body**: the suites are
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
-/// and both reach the same four-corner loop through the same door. The
+/// and both reach the same construction through the same door. The
 /// alternative was seven private copies of the construction under one
 /// more name, which is what this replaced.
-pub fn block<T: Decide>(w: T, d: T, h: T, tol: Tol) -> Body<T> {
-    brick((T::zero(), w), (T::zero(), d), (T::zero(), h), tol)
+pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
+    brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
 
 /// **The pocketed die's two operands**: the unit block at
@@ -190,15 +201,22 @@ pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
 /// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
 /// intervals `(lo, hi)` — the plainest body in the kernel and the one
 /// its acceptance suites reach for first.
-pub fn brick<T: Decide>(x: (T, T), y: (T, T), z: (T, T), tol: Tol) -> Body<T> {
-    prism_at(rect(x, y), z.0, z.1 - z.0, tol)
+///
+/// **`topo`'s construction, named here.** The box is built by the
+/// Euler sequence `topo::test_support::brick` runs, not by this
+/// module's extrusion primitive; this door exists so that a suite
+/// which already depends on `sweep` does not reach past it for the
+/// plainest body there is.
+pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<T> {
+    topo::test_support::brick(x, y, z, tol)
 }
 
-/// The square of side `l` with a corner at the origin, as profile
-/// vertices — the one spelling of the block outline the fixtures here
-/// build on when they need the loop rather than the body.
-fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
-    rect((T::zero(), l), (T::zero(), l))
+/// The square of side `l` with a corner at the origin, counter-clockwise
+/// from that corner, as profile vertices — the one spelling of the block
+/// outline the fixtures here build on when they need the loop rather
+/// than the body.
+fn square<T: Decide>(l: f64) -> Vec<ProfileVertex<T>> {
+    corners(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)])
 }
 
 /// Profile vertices from xy pairs, every bulge zero — the straight
@@ -211,15 +229,6 @@ fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
 pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<ProfileVertex<T>> {
     pts.iter()
         .map(|&(x, y)| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
-        .collect()
-}
-
-/// The axis-aligned rectangle `x` x `y`, counter-clockwise from its
-/// low corner, as profile vertices.
-fn rect<T: Decide>(x: (T, T), y: (T, T)) -> Vec<ProfileVertex<T>> {
-    [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
-        .into_iter()
-        .map(|(u, v)| ProfileVertex::new(Point2::new(u, v), T::zero()))
         .collect()
 }
 
