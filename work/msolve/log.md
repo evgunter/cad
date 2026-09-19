@@ -504,3 +504,30 @@ refuses; one `PartReach::with_resolver` at every resolver-only door;
 Spec into the ledger at the unit head. Closes the lever item and the
 reconcile fork. Next: MSOLVE-7 (member.rs residue + the `MatePrimitive`
 wire hole), then MSOLVE-8, -9, -10 per `plan.md`.
+
+## MSOLVE-7 reviews adjudicated, fix pass dispatched (2026-09-19)
+
+PR 2885, head `6e27dac6a`. Correctness arm: C1–C4 HOLD (the offset
+is the document's nominal parameter bit for bit and follows a
+`SetDocParamValue`; the dangling-transform seat is the transform on
+both roads; 219 mate rows unchanged at three ε; the stray key refuses
+at the load door and loaded before the attribute). One MINOR: a
+transform over a DATUM as a circular pattern's axis is reachable
+through `apply`, and there the derivation still seats `WrongOperand`
+at the pattern while the evaluation seats it at the transform — the
+unit's own "live transform" row asserts one road on a fixture the
+evaluation refuses. Ruled: the unit's thesis is one seat, so that
+shape is seated at the transform through the one classifier, not a
+copied rule, with both roads on the row. Style: no MAJOR; the
+evaluator builds its nominal environment and then calls the solve,
+which builds a second (the class this unit closes, open at its own
+boundary — ruled: a crate-private solve entry that takes the
+evaluator's environment); the eight-parameter `solve_cluster` behind
+a clippy allow (ruled: a per-solve context, which the spec's "no
+cache that outlives the solve" never forbade); the seated pair spelled
+three ways; `node_value_kind` taking an id and its node; the A1 scan
+row's vacuous-green shapes; the environment sentence restated six
+times beside its new home; debug-string asserts; a stale
+`PlacerRefused::placer` doc. Thirteen items to the lane; two rows to
+file (the maintenance half of `solve.rs`, the `null` spelling of a
+unit variant).
