@@ -1127,13 +1127,35 @@ mod scope_walks {
     /// onto it has to pick one of the two sentences and tell the other
     /// caller something false. This row is the only thing in the tree
     /// that reads the difference.
+    ///
+    /// **What arm 2 cannot separate.** `Corrupt` is also the refusal of
+    /// the terminal `Scope::of_solids(..).ok_or(Corrupt)`, so the
+    /// variant alone does not say WHICH of the two raised it. The arm
+    /// closes that by bracketing: the same face and the same body
+    /// build a scope before the back-pointer is broken and refuse
+    /// after, so the refusal is the corruption's and not the body's.
+    /// It still cannot tell hop 2 from an `of_solids` that the same
+    /// corruption also broke — what it guards is the flattening, and a
+    /// fold of hop 2 onto `StaleFace` changes the variant here either
+    /// way.
     #[test]
     fn the_two_hops_refuse_differently() {
         let (mut body, first, _second) = two_boxes();
 
         // Hop 1 — a key the caller handed over. The refusal names it,
-        // so the caller can say WHICH of its faces went stale.
-        let dead = FaceKey::default();
+        // so the caller can say WHICH of its faces went stale. The
+        // witness is a face that LIVED and was killed through the
+        // public operators, not a never-minted `FaceKey::default()`:
+        // a stale key is the case this door promises to catch, and a
+        // foreign key is the case it documents that it does not, so
+        // only the first witnesses the refusal under test.
+        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0)).unwrap();
+        let dead = scratch.face;
+        body.kvfs(scratch.solid).expect("the scratch solid dies whole");
+        assert!(
+            body.get_face(dead).is_none(),
+            "the witness is a real face key the body has since killed"
+        );
         let moves = vec![ChartMove {
             faces: vec![dead],
             distance: 0.0,
@@ -1150,11 +1172,15 @@ mod scope_walks {
         // back-pointer is not. Every key the caller holds is good, so
         // the refusal names none of them.
         let live = faces_of(&body, first)[0];
-        body.get_face_mut(live).expect("the face is live").shell = ShellKey::default();
         let moves = vec![ChartMove {
             faces: vec![live],
             distance: 0.0,
         }];
+        assert!(
+            scope_of_moves(&body, &moves).is_ok(),
+            "the same face and the same body build a scope before the corruption"
+        );
+        body.get_face_mut(live).expect("the face is live").shell = ShellKey::default();
         let Err(err) = scope_of_moves(&body, &moves) else {
             panic!("a dangling shell back-pointer refuses the scope walk")
         };
