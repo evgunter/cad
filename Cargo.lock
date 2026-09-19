@@ -752,6 +752,7 @@ name = "editor-core"
 version = "0.0.0"
 dependencies = [
  "bvh",
+ "editor-core",
  "geom",
  "geom-brep",
  "geom-core",

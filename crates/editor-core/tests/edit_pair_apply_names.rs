@@ -649,11 +649,18 @@ fn the_pairing_refusal_wins_over_standing() {
 /// What is left is the raw path, `PickTarget::new`, where the caller
 /// supplies a mesh index of its own and DECLARES what it is of. This
 /// row measures that the declaration is not checked — in the document
-/// half exactly as in the node half, which is what `PickTarget`'s
-/// contract now says in one voice. `NodePick` is the door that closes
-/// it, and the ignored witness
+/// half exactly as in the node half.
+///
+/// **Which is why this row is now the door's whole reachable
+/// statement.** `PickTarget::new` and `MeshPick::build` live behind
+/// `editor-core`'s `test-support` feature, on a dev-dependency edge no
+/// consumer's build graph carries, so the two calls below exist in
+/// this binary and in no shipped build: what the row measures is the
+/// cost of the TEST-SUPPORT door, not a lane a consumer can take.
+/// `NodePick` is the only mint a consumer has, and the ignored witness
 /// `gui1_pick_r2::a_mesh_paired_with_the_wrong_node_does_not_answer_a_name`
-/// holds the node half of the same class (#1098).
+/// holds the node half of the same class (#1098) under the same
+/// feature.
 #[test]
 fn a_raw_target_is_a_claim_in_every_half() {
     let t = Twins::build();

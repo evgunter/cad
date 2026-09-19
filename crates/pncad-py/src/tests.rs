@@ -2754,6 +2754,7 @@ fn import_report_row_tags_are_stable() {
         promoted_curve_kind_tag(&PromotedCurveKind::Circle),
         "circle"
     );
+    assert_eq!(promoted_curve_kind_tag(&PromotedCurveKind::Line), "line");
 }
 
 #[test]
@@ -4742,7 +4743,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_curve_kind_tag",
-        values: &["circle"],
+        values: &["circle", "line"],
         delegates: &[],
     },
     TagEntry {

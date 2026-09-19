@@ -2,8 +2,8 @@
 //! the reviewer's session worktree into CI per the standing convention:
 //! does a PR 4-shaped sweep consumer and a PR 3-shaped dihedral
 //! consumer actually compose with ValidatedProfile + SketchPlane +
-//! `geom`'s Circle conventions? Independent derivations — keep
-//! verbatim (promotion adapted the header only).
+//! `geom`'s Circle conventions? Independent derivations (promotion
+//! adapted the header only).
 //!
 //! `geom` is a dev-dependency here (acyclic — profile does not depend
 //! on `geom`). NOTE: the axis-from-turn convention these dry-runs

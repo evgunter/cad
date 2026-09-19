@@ -23,8 +23,8 @@
 //! the badge family beside it. **The draft and the offer a refused
 //! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
-//! [`fold_status`]), and **what a frame says about work outstanding**
-//! ([`progress`]).
+//! [`fold_status`]), **what a frame says about work outstanding**
+//! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
 //!
 //! The frame loop still decides WHEN to call one. It no longer decides
 //! what one MEANS.
@@ -192,6 +192,8 @@
 //! frame. And the gather's verdict badges rather than writes, because
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
+
+use std::path::Path;
 
 use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
 use pncad::select::HitTestError;
@@ -1514,6 +1516,50 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
 
+/// **Where a file dialog opens**, from the three places it could: the
+/// current document's own directory, the directory the last dialog
+/// returned a path in, and the directory the viewer was launched from
+/// — in that order, the first that `is_dir` confirms.
+///
+/// The order is by how recently a person pointed at the place. The
+/// document's directory is where THIS work lives; the last dialog's is
+/// where they went most recently, and it outlives the session through
+/// the preferences (`crate::prefs::Prefs::last_dir`); the launch
+/// directory is where they were when they started. `None` — reached
+/// only when all three are absent or gone — leaves the dialog to its
+/// backend's own default, whatever that is.
+///
+/// **A candidate that is not a directory falls through** rather than
+/// refusing. A remembered directory deleted since is the ordinary way
+/// a preferences file goes stale, and a dialog refused over it would
+/// cost a person the save to protect a memory. `is_dir` is handed in
+/// rather than read here so the rule is a function of its arguments —
+/// `Path::is_dir` at the one live caller, a table in the rows that
+/// exercise it.
+///
+/// A document's directory is its [`containing_dir`].
+pub fn dialog_dir<'a>(
+    document: Option<&'a Path>,
+    last: Option<&'a Path>,
+    launch: Option<&'a Path>,
+    is_dir: impl Fn(&Path) -> bool,
+) -> Option<&'a Path> {
+    [document.and_then(containing_dir), last, launch]
+        .into_iter()
+        .flatten()
+        .find(|dir| is_dir(dir))
+}
+
+/// **The directory a file lives in, as a place a dialog can open**:
+/// its `parent`, or `None` when that parent is EMPTY. The parent of a
+/// bare relative file name is `""`, which names no directory — as a
+/// dialog candidate it would stop the search before the candidates
+/// behind it, and as a remembered directory it would overwrite a real
+/// one with nothing.
+pub fn containing_dir(path: &Path) -> Option<&Path> {
+    path.parent().filter(|dir| !dir.as_os_str().is_empty())
+}
+
 /// **What a cursor action the pick index refused says.**
 ///
 /// [`Subject::Document`], not [`Subject::Cursor`]: the refusal is the
@@ -1870,6 +1916,27 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
             Subject::Camera,
             format!("datums: {vanished} {noun} this view draws nothing of"),
             Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
+///
+/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
+/// The cause is narrower than a datum's: a profile is drawn from its
+/// validated value at the display tolerance, and what empties it is an
+/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// — a fact about the document at this tolerance, so the subject is
+/// the document and the tone [`Tone::Advisory`]: there is no camera
+/// move that brings it back.
+pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
+    (undrawn > 0).then(|| {
+        let noun = if undrawn == 1 { "profile" } else { "profiles" };
+        Badge::read(
+            Subject::Document,
+            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
         )
     })
 }

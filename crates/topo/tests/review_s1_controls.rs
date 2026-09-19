@@ -83,8 +83,8 @@ fn assert_ring_senses(body: &Body<f64>, label: &str) -> usize {
 /// transversal subtract — no REST lane, no hole-closing merge.
 #[test]
 fn control_same_shape_via_subtract() {
-    let big = brick((0.0, 3.0), (0.0, 1.0), (0.0, 2.0));
-    let notch = brick((1.0, 2.0), (-0.5, 1.5), (1.0, 1.5));
+    let big = brick((0.0, 3.0), (0.0, 1.0), (0.0, 2.0), Tol::witness());
+    let notch = brick((1.0, 2.0), (-0.5, 1.5), (1.0, 1.5), Tol::witness());
     let BooleanResult::Body(s) = subtract(&big, &notch, Tol::witness()).unwrap() else {
         panic!("control subtract yields a body");
     };
@@ -101,9 +101,16 @@ fn control_same_shape_via_subtract() {
 /// ring senses correct.
 #[test]
 fn control_ring_face_from_interior_pillar() {
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0));
-    let g = match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()).unwrap() {
+    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0), Tol::witness());
+    let g = match union_with(
+        &a,
+        &b,
+        &flush_declarations(&a, &b, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("pillar union cannot be empty"),
     };
@@ -119,16 +126,16 @@ fn control_ring_face_from_interior_pillar() {
 /// outer −0.5 / ring +6.0 on both merged side faces.
 #[test]
 fn ring_sense_bridge_census() {
-    let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0));
-    let blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0));
-    let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5));
+    let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
+    let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness());
     let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
     let g = match union_with(
         &a,
         &bb.body,
-        &flush_declarations(&a, &bb.body),
+        &flush_declarations(&a, &bb.body, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

@@ -2,7 +2,7 @@
 id: param-ref-refusals-spell-two-facts-four-ways
 kind: issue
 title: The param-table rule's two facts are spelled four ways across eight refusal arms
-status: open
+status: spec
 opened: 2026-09-17
 ---
 Disclosed by the style review of `edit/load-door-payload-refs` (PR
@@ -48,3 +48,49 @@ payload arms), and the mapper shape — `persist::check`'s
 over `ParamRefAddress`, while the edit door keeps its two
 destructurings because they feed a different error type with a
 different subject.
+
+## Ruled and spec'd (2026-09-17, EDIT orchestrator) — middle tier, branch `edit/param-ref-one-convention`
+
+**Ruling: one convention, the load door's — the ADDRESS leads and the
+FACT trails, with one noun.** At both doors the eight arms become
+`{Slot,Payload}UnknownDocParam` and `{Slot,Payload}DocParamDimension`:
+`EditError::UnknownDocParam` → `SlotUnknownDocParam`,
+`DocParamDimensionMismatch` → `SlotDocParamDimension`,
+`UnknownPayloadParam` → `PayloadUnknownDocParam`,
+`PayloadParamDimensionMismatch` → `PayloadDocParamDimension`; the
+four `SnapshotError` arms already read so and do not move. The load
+door's spelling wins because it is the walk's — the address is what
+`Walk::ORDER` iterates and what `ParamRefAddress` carries — and the
+edit door's slot pair gains the `Slot` word it always meant. The
+binding's tag words follow the names (`slot_unknown_doc_param`,
+`slot_doc_param_dimension`, `payload_unknown_doc_param`,
+`payload_doc_param_dimension` at the edit door too), because a tag
+that no longer matches its arm is worse than either spelling; the
+three Python tests that read `"unknown_doc_param"` move with it, and
+the PR body says in one line that the Python-facing tag word changed
+and why (LIB's surface, crossed by announcement — the rule is the
+row's, already stated).
+
+**What moves together, in one PR.** The four `EditError` arms and
+every `match` on them; `tags.rs`'s `edit_error_tag` and the committed
+tag inventory; `display_contract.rs`'s `f6_variants!` rosters and F6
+cases; `test_binding_census.py`'s name map; `persist::check`'s walk
+placement census where it names an edit-door arm; every doc sentence
+that spells an old name (sweep by the old identifiers AND by their
+tag words). `Display` sentences do not change (already one vocabulary
+after #2793); the mapper shapes do not change (the row's "not in
+scope" stands).
+
+**Rows.** No new row: the F6 cases, the tag census and the binding
+census ARE the rows, and each must be green with the new names and
+red with a stale roster (state the census that would red on a missed
+site). One guard the unit adds if it is cheap: a `display_contract`
+row that the four edit-door arms and the four load-door arms carry the
+same four suffixes (the convention, pinned).
+
+**Territory.** `crates/editor-core/src/{edit.rs, persist/check.rs}`
+(EDIT); `crates/editor-core/tests/display_contract.rs` (TCOST/TINT);
+`crates/pncad-py/src/tags.rs`, `tests/test_binding_census.py`,
+`tests/test_{document,placed_union,slot_edits}.py` (LIB, mechanical).
+Middle tier rather than E-class because the Python tag words move:
+one opus style review with a correctness arm, then the fix pass.

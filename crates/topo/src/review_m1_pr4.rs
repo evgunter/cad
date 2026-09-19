@@ -1,8 +1,10 @@
 //! Adversarial e2e review artifact for M1 PR 4 (2026-07-16), promoted
-//! into the shipped suite per the standing convention
-//! (`memories/review-and-dependency-policy.md`): reviewers write and run
-//! real consumer programs against the API under review, and the
-//! programs are kept.
+//! into the shipped suite. A review exercises the API by writing and
+//! running real consumer programs, and the useful ones enter the
+//! permanent suite as ORDINARY rows
+//! (`memories/review-and-dependency-policy.md`): nothing here is a
+//! protected class, and these rows are trimmed, gated, shared or
+//! retired under the same rules as any other.
 //!
 //! Unlike PR 3's artifact this one lives in `src/` (cfg(test)) rather
 //! than `tests/`: several probes attack the pub(crate) test-support
@@ -49,10 +51,11 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::{deep_snapshot, ops_cube};
+use crate::fixtures::deep_snapshot;
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
 use crate::seqgen;
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
 use geom_core::Tol;
 
@@ -229,7 +232,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let tol = Tol::witness();
     // Chords general (valence > minimal: cut a cube face corner to
     // corner).
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let before = canonical_form(&body);
     // two half-edges of the top face's loop, two apart
@@ -828,7 +831,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 fn component_formula_holds_on_reference_bodies() {
     let tol = Tol::witness();
     // Cube: c = 1, g = 0.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let shell = t.body.shells().next().unwrap().0;
     let comps = shell_components(&t.body, shell);
     assert_eq!(comps.len(), 1);
@@ -1040,8 +1043,7 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
         let r1 = plant(&mut body, seg.he_plus);
         let _r2 = plant(&mut body, seg.he_plus);
         if split {
-            let other = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-            let other = body.get_loop(other).unwrap().face;
+            let other = body.face_of_half_edge(seg.he_minus).unwrap();
             assert_ne!(other, faces.face);
             body.ring_move(r1.ring, other).unwrap();
         }
@@ -1668,7 +1670,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     // Cube; kfmrh(top, front): front's outer becomes a ring of top;
     // the shared top/front edge now has one half in top's outer, the
     // other in top's ring.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let top = t.seed.face;
     let front = t.mefs[1].face;

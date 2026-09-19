@@ -1237,6 +1237,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         declared_contacts: vec![ImportContact::VertexRest {
             at: [0.0, 0.0, 0.5],
         }],
+        examine_chart_coherence: true,
     };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
@@ -1296,6 +1297,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         normalizations,
         curve_promotions,
         instances,
+        coherence,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1306,6 +1308,26 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
+    // The chart-coherence channel, spelled from the prelude down to
+    // the vocabulary a consumer matches on. The import above asked
+    // for no examination, so the field is `None` — which is the
+    // CONFIGURATION half of this channel's distinction and not an
+    // empty report; `topo`'s own door draws the same line about the
+    // two lists inside a report it did produce.
+    named::<Option<CoherenceReport>>(coherence.clone());
+    assert!(
+        coherence.is_none(),
+        "the default import asked for no chart-coherence examination"
+    );
+    // The report's own two lists, spelled from here too, because a
+    // consumer that holds the answer reads them. No `assert_ne!`
+    // against `Some(empty)`: the assertion above is the whole runtime
+    // claim, and the fold it would guard against — an unasked import
+    // rendering as an empty report — is unrepresentable in
+    // `Option<CoherenceReport>` and would fail `is_none` first.
+    let empty = CoherenceReport::default();
+    named::<&Vec<CoherenceFinding>>(&empty.findings);
+    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
@@ -1344,6 +1366,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         named::<&f64>(&promotion.residual);
         named::<&str>(match promotion.kind {
             PromotedCurveKind::Circle => "circle",
+            PromotedCurveKind::Line => "line",
         });
     }
 }
@@ -3439,8 +3462,17 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 #[test]
 fn asm_r2b_child_crossing_probe() {
     use pncad::document::{DocEdit, Node};
+    use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    let face = |cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node: WS_PART_BODY,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
+    };
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
@@ -3455,16 +3487,8 @@ fn asm_r2b_child_crossing_probe() {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             mate: ids[0],
             class: ContactClass::Rest,
-            outer: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            inner: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            },
+            outer: face(CapEnd::End),
+            inner: face(CapEnd::Start),
         }],
     };
     let doc = pncad::document::apply(
@@ -4277,15 +4301,21 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` stays, and that is what closes the raw-target lane
-///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget`'s raw mint
-///   (`PickTarget::new`) takes a `&MeshPick` — so with the index
-///   unnameable here, the target whose contract warns of a
-///   confidently wrong name has no constructor a façade consumer can
-///   reach, and `NodePick` is not merely the preferred door but the
-///   only one. `PickTarget` is carried because `pick_face`'s
-///   signature names it, not because it can be built.
+///   **`MeshPick` stays, and the raw-target lane is now closed on
+///   both sides of the seal.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and leaving it unnameable here means no
+///   façade consumer can hold one. The kernel closed the same lane at
+///   the API: both raw mints (`MeshPick::build` and
+///   `PickTarget::new`) live behind `editor-core`'s `test-support`
+///   feature, which no consumer's manifest wires onto an edge of its
+///   own — the claim `scripts/gates/test-features-dev-only.sh` holds
+///   across every manifest in the repository, and the strongest one a
+///   feature carries, because a build COMMAND may always ask for a
+///   feature by name (that gate's header retracted the absolute this
+///   stanza used to make). `NodePick` is not
+///   merely the preferred door but the only one, and `PickTarget` is
+///   carried because `pick_face`'s signature names it, not because it
+///   can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
 ///   above is untouched by that.** An index is BUILT and a refusal is

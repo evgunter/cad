@@ -98,6 +98,15 @@ document; PR-1's spec is cut from §8 by the orchestrator.
 
 ## 2. Premise survey — what held and what was refuted
 
+> **Dated note (2026-09-18, CURVED-SPIRIC PR-1a).** The door this
+> paragraph measures moved again when the carrier landed: the elbow's
+> rims now mint as `Curve3::Spiric` and the hollow refuses one door
+> later, at its equator seams' re-author
+> (`offset_axial_reauthor_plane`; `torax_axial`, `verbs_shell`), while
+> the sectioned torus vessel — no such seam — reaches tier 3's volume
+> (`crates/sweep/tests/spiric_rim.rs`). The paragraph stays as the
+> survey it was.
+
 **Refuted: the klein elbow's door is no longer `TogetherAxialCorner`.**
 RIMCAP §"What this unit is" and `docs/KERNEL-VERBS.md` row
 *shell / hollow* both say the elbow refuses `TogetherAxialCorner

@@ -47,33 +47,33 @@ fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
     vec![
         (
             "crossing bricks",
-            brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0)),
-            brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0)),
+            brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+            brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0), Tol::witness()),
         ),
         (
             "flush-stacked bricks",
-            brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
-            brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0)),
+            brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+            brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
         ),
         (
             "corner kiss",
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-            brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+            brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness()),
         ),
         (
             "disjoint bricks",
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)),
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+            brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), Tol::witness()),
         ),
         (
             "nested bricks",
-            brick((0.0, 4.0), (0.0, 4.0), (0.0, 4.0)),
-            brick((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)),
+            brick((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), Tol::witness()),
+            brick((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
         ),
         (
             "skew edge cross",
-            brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)),
-            brick((1.0, 3.0), (1.0, 3.0), (-0.5, 2.5)),
+            brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+            brick((1.0, 3.0), (1.0, 3.0), (-0.5, 2.5), Tol::witness()),
         ),
     ]
 }
@@ -111,8 +111,8 @@ fn realized_candidates_superset_of_idealized_accepted() {
 /// engages): disjoint operands examine strictly fewer pairs.
 #[test]
 fn disjoint_bodies_are_pruned() {
-    let a: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b: Body<f64> = brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0));
+    let a: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b: Body<f64> = brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), Tol::witness());
     let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
     let (i_ab, i_ba) =
         sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
@@ -143,7 +143,7 @@ fn results_bit_equal_realized_vs_idealized() {
     ];
     for (name, a, b) in scenarios() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let decls = common::flush_declarations(&a, &b);
+            let decls = common::flush_declarations(&a, &b, Tol::witness());
             let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
             let ideal =
                 boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
@@ -196,8 +196,8 @@ fn results_bit_equal_realized_vs_idealized() {
 /// report the loss — proof the suite can fail.
 #[test]
 fn planted_degradation_is_caught() {
-    let a: Body<f64> = brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0));
-    let b: Body<f64> = brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0));
+    let a: Body<f64> = brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b: Body<f64> = brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0), Tol::witness());
     let (i_ab, _) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     let &(_, face) = i_ab
         .accepted
@@ -221,8 +221,13 @@ fn planted_degradation_is_caught() {
 /// apart, definite at every ε row).
 fn tower(gap: f64) -> (Body<f64>, Body<f64>) {
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-        brick((0.25, 0.75), (0.25, 0.75), (1.0 + gap, 2.0 + gap)),
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick(
+            (0.25, 0.75),
+            (0.25, 0.75),
+            (1.0 + gap, 2.0 + gap),
+            Tol::witness(),
+        ),
     )
 }
 
@@ -353,8 +358,8 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
     );
     for k in [0.5, 2.0, 5.0, 9.0, 20.0] {
         let d = k * zero;
-        let a: Body<f64> = brick((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d));
-        let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+        let a: Body<f64> = brick((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d), Tol::witness());
+        let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
         let realized = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness());
         let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness());
         let (r_ab, r_ba) = realized.expect("realized never examines the remote pair");

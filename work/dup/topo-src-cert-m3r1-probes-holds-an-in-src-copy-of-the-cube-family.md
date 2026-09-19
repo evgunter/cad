@@ -2,8 +2,10 @@
 id: topo-src-cert-m3r1-probes-holds-an-in-src-copy-of-the-cube-family
 kind: issue
 title: cert_m3r1_probes.rs carries a verbatim in-src copy of the whole geometric-cube fixture family
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-18
+refs: [half-edge-to-face-walk-is-spelled-once-per-suite]
 ---
 
 
@@ -62,3 +64,103 @@ One thing does NOT delete with them: `cert_m3r1_probes.rs` also carries
 `face_surface_of_he`, which `tests/common`'s
 `describe_as_intersections` spells as a local closure. Whichever home
 wins, that helper is one function, not two.
+
+## The "copied verbatim" claim went staler again (2026-09-18, `dup/one-prism-builder`)
+
+`cert_m3r1_probes.rs:49`'s *"`topo/tests/common::geometric_cube`, copied
+verbatim (in-crate)"* is now wrong **twice over**, and neither is a
+defect — the bodies are still equal, proved byte-for-byte by that
+unit's before/after dumps. It is doc rot, and it is worth recording
+because it is the second time the same sentence has decayed without
+anyone touching either file's code:
+
+- **Link 1 (PR #2727)** made `tests/common`'s `geometric_cube` a thin
+  caller of a shared `cube_ops`, so the in-`src` copy stopped being a
+  copy of the named function and became a copy of what that function
+  used to be.
+- **This unit** goes further: `tests/common`'s `geometric_cube` is now
+  four lines over `prism_ops` at `UNIT_SQUARE`, N-general, while the
+  in-`src` copy is still the unrolled eight-corner ladder with `a`,
+  `b`, `cc`, `d` spelled out. Nothing about them is verbatim any more
+  except the body they build.
+
+Nothing in `crates/topo/src/` was touched to fix it — out of this
+unit's fence, and the sentence is the mover's to correct when the
+family lands in `src/test_support_impl.rs`. The lesson for whoever
+does: **a doc comment naming another file's function as its source
+rots every time that function is refactored**, and this one has no
+guard. If the in-`src` copy survives the move at all, the claim it
+carries should be one a test can check (the two build equal bodies)
+rather than one only a reader can.
+
+## The witness gate does not reach this copy (measured 2026-09-18, link 2)
+
+`work/dup/brick-has-two-constructions-and-two-homes.md` names this file
+as unblocking with link 2, and that is right about namability and wrong
+about the gate. `crates/topo/src/lib.rs:169` mounts it
+`#[cfg(test)] mod cert_m3r1_probes;`, and
+`scripts/gates/witness-not-ambient.sh` runs `gate_production_sources`,
+whose `gate_filter_test_only_paths` takes a `#[cfg(test)] mod x;` module
+**out of the file set entirely** — the gate never reads this file. Its
+**12** `Tol::witness()` calls are legal where they sit and will stay
+legal.
+
+Established by the measurement on the same day at the other mount:
+planting one `Tol::witness()` in
+`crates/topo/src/test_support_impl.rs` — whose
+`#[cfg(any(debug_assertions, test, feature = "test-support"))]` mount
+`GATE_CFG_TEST_NOT_RE` refuses to narrow — fires the gate and names the
+line, while this file's twelve sit in the same crate untouched. The
+difference is the cfg shape, not the directory.
+
+**So a mover gets no help from the gate here.** If this copy is folded
+into the shared family after link 3, its call sites have to thread
+`tol: Tol` because the family's doors now take it (link 2), not because
+anything would red if they did not.
+
+
+## Closed (2026-09-18, `dup/move-the-fixture-family`)
+
+**Folded.** `crates/topo/src/cert_m3r1_probes.rs` no longer holds a
+copy of anything. `GeoCube`, `line`, `plane`, `geometric_cube`,
+`describe_as_intersections` and the local `face_surface_of_he` are
+deleted from it; it now names
+`crate::test_support_fixtures::{geometric_cube, describe_as_intersections,
+face_surface_of_he}` and builds nothing box-shaped. The file went from
+382 lines to 225. What it keeps is its own subject: `nurbs_wall`,
+`m7_8_cube`, `six_doors`, `edge_cert_count`, `DOOR_NAMES` and the row.
+
+**The two stale "copied verbatim" sentences are gone with the code they
+described**, so the doc-rot this row tracked over two decays has no
+carrier left. The lesson it drew — *if the in-`src` copy survives the
+move, the claim it carries should be one a test can check* — is
+discharged the other way: the copy did not survive.
+
+**The header's `Body::surfaces` argument still holds and is still
+served.** The corruption route needs `pub(crate)` access
+(`body.surfaces[wall] = nurbs_wall(0.05)`), which is why this module is
+in-crate; the fold does not move it out. `test_support_fixtures` is
+mounted `#[cfg(any(test, feature = "test-support"))]`, so it exists in
+the `cfg(test)` build this module compiles in, and an in-crate module
+names it by path.
+
+**The witness note was right and cost nothing.** This module is still
+`#[cfg(test)] mod cert_m3r1_probes;`, so the gate still does not reach
+it; its `Tol::witness()` calls stay legal. Two of them are new, at the
+two folded doors, because the family's signatures take `tol: Tol` after
+link 2 — exactly as this row predicted.
+
+### Correction (2026-09-19, PR 2842's fix pass): the `face_surface_of_he` half is a HALF-fix
+
+This row's *"whichever home wins, that helper is one function, not
+two"* was written about the two spellings **this row could see**, and
+PR 2842 folded four. That closes the row's own claim and nothing
+wider. The helper is a member of a class this row never measured: the
+half-edge → loop → face walk is spelled in 56 tracked files, including
+two byte-identical closures in `topo/src` (`shell.rs`'s `face_of_he`,
+`replace_face.rs`'s `face_of`) that no census in links 1–3 disclosed.
+Filed as `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`,
+which carries the measurement and names those two as the cheapest next
+pair. **A name census closes name collisions; this class is one thing
+under many names**, which is why folding four of them is not closing
+it.

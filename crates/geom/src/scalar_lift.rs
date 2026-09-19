@@ -177,6 +177,21 @@ impl<T: Real> Curve3<T> {
                 minor: f(*minor),
                 u_ref: u_ref.map(&f),
             },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                u_ref: u_ref.map(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                offset: f(*offset),
+            },
             Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
         }
     }

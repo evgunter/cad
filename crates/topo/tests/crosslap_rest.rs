@@ -40,13 +40,13 @@ const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
-    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
-    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
+    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), Tol::witness());
+    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), Tol::witness());
     let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).expect("notch A") else {
         panic!("notch A yields a body");
     };
-    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
-    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
+    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), Tol::witness());
+    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), Tol::witness());
     let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).expect("notch B") else {
         panic!("notch B yields a body");
     };
@@ -65,8 +65,13 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
 /// The glued union (the declared door), shared by the pins below.
 fn glued() -> topo::BooleanBody<f64> {
     let (a, b) = notched_beams();
-    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness())
-        .expect("declared mate unions")
+    match union_with(
+        &a,
+        &b,
+        &flush_declarations(&a, &b, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("declared mate unions")
     {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("mated union cannot be empty"),

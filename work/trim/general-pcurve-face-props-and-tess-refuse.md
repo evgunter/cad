@@ -1,11 +1,13 @@
 ---
 id: general-pcurve-face-props-and-tess-refuse
-kind: issue
+kind: unit
 title: Volume, area and tessellation still refuse typed on a face carrying a General pcurve (P-2 residue)
 status: open
 opened: 2026-08-29
 github: 1179
 refs: [498]
+branch: trim/2-quadrature
+pr: 2564
 ---
 
 ## From GitHub issue 1179
@@ -23,31 +25,50 @@ every one of them citing "the cut-loft unit". That is a real improvement over
 "cannot be built at all" and it is narrower than #498's acceptance text, so it is
 filed rather than left implicit in a PR body.
 
-## The sites, as they are in the tree today
+## The sites — MEASURED, not enumerated (TRIM-2 PR-1, §8 item 4)
 
-Located by grep on `main`-as-of-P-2, not copied from the spec:
+The "six static sites" list this item opened with was a grep, and a grep
+over refusal TEXT is not a trace. Re-taken by running the two lanes on
+the fixture that reaches them — the P-2 body re-widened to a degree-2
+`u` chart (`m8_4_intersection_iso.rs::widened_u_chart_deg2`), at
+ε ∈ {1e-6, 1e-9, 1e-12}, `f64` lane. **Exactly two sites are on the
+trace**, and they are the only two this unit had to open:
 
-- `crates/topo/src/props.rs:1125` — `QuadratureUnsupported`, "a NURBS-face pcurve
-  endpoint is not exact structure"
-- `crates/topo/src/props.rs:1151` — `QuadratureUnsupported`, "a NURBS-face half-edge
-  carries a non-iso pcurve — a trimmed NURBS region's quadrature is the cut-loft
-  unit's"
-- `crates/topo/src/props.rs:1163` — `QuadratureUnsupported`, "a NURBS-face pcurve is
-  not axis-aligned — a diagonal trim"
-- `crates/topo/src/props.rs:1217` — `QuadratureUnsupported`, "a NURBS-face boundary
-  vertex sits strictly inside the UV rectangle"
-- `crates/mesh/src/trimmed.rs:975`
-- `crates/mesh/src/chords.rs:558`
+- `crates/topo/src/props.rs`, `quad_lane::nurbs_face`'s **non-iso**
+  return: `MassPropsError::Face { source: QuadratureUnsupported { what:
+  "a NURBS-face half-edge carries a non-iso pcurve — a trimmed NURBS
+  region's quadrature is the cut-loft unit's …" } }`, identical at all
+  three ε.
+- `crates/mesh/src/chords.rs`, `nurbs_tighten`'s **`General`** arm:
+  `TessellateError::UnsupportedCurve { note: "NURBS-face half-edge
+  carries a GENERAL curve-in-UV pcurve — no certified UV speed bound is
+  wired for a spline chart image's chord schedule" }`, identical at all
+  three ε. The C⁰ crease gate the degree-1 widening hit
+  (TRIM-1's measurement, below) is gone on the degree-2 chart.
 
-**Correction to P-2's spec, worth recording.** The spec named six sites as
-`mesh/src/trimmed.rs:982`, `mesh/src/chords.rs:564`, `topo/src/props.rs:1147`
-and `:1160`, `topo/src/chart_region.rs:1224`, `topo/src/replace_face.rs:1675`.
-The count is right and the two `mesh` sites are right (±6 lines), but
-**`chart_region.rs` carries no such refusal at all** (no match for `cut-loft`,
-`trimmed`, `rectangle lane` or `*Unsupported` in its 3206 lines), and
-`replace_face.rs`'s nearest relative is `FittedBoundaryUnsupported` at `:1331`,
-which is a different statement. `props.rs` carries **four**, not two. A list of
-sites in a spec is worth re-deriving before it is built against.
+The other three `props.rs` sites the original list named are the
+RECTANGLE certificate's own (endpoint-not-exact, diagonal,
+vertex-inside) and stay: an all-iso loop keeps that lane bit for bit
+(TRIM-2 §8.1). `crates/mesh/src/trimmed.rs`'s `General` arm is real but
+is NOT reached — the chord pass runs before any face lane
+(`tessellate.rs`, `compute_chords` precedes the face loop), so it opens
+only once `chords.rs` admits the class, which is PR-2's.
+
+**The offset claim is refuted.** `replace_face_offset` on the bowed face
+is not a `General` frontier at all:
+
+| ε | degree-2 body (carries `General`) | ORACLE prism's own bowed wall (no restatement, no `General`) |
+| --- | --- | --- |
+| 1e-6 | `FittedBoundaryUnsupported { what: "a chart image of a neighbour's chart" }` | the same |
+| 1e-9 | the same | the same |
+| 1e-12 | `Fit { BudgetExhausted { grid (40, 27), achieved 2.865e-10, tolerance 1e-12 } }` | `FittedBoundaryUnsupported` |
+
+A body with no `General` anywhere earns the same refusal, so the class
+is **SHELL's `work/shell/no-approx-faced-body-is-both-movable-and-valid.md`**
+(an `Approx` face's boundary has no route), and this measurement is
+added there rather than opening a second row. At 1e-12 the widened body
+reaches the FIT first and exhausts its budget — a different door of the
+same class, and still not a statement about `General`.
 
 ## What is NOT the blocker
 
@@ -57,7 +78,7 @@ the class, measured working on an interior column (envelope 3.86e-14 m at
 an axis-aligned rectangle in its chart — the quadrature and tessellation lanes'
 own frontier — not about the pcurve.
 
-## Measured (TRIM-1, `m8_4_intersection_iso.rs::an_interior_column_intersection_mints_a_general_image`)
+## Measured (TRIM-1) — now the degree-1 CONTROL row
 
 With the interior-column seam minting exactly (TRIM-1), the P-2 body
 mints and validates at rest, and the row calls the two lanes on it:
@@ -83,4 +104,15 @@ not called by the row.
 
 ## Home
 
-Named PCURVE exit-walk residue that is explicitly not that (closed) program's; the sites straddle S-CERT's props ground and S-MESH's crate, so it lands unowned under `work/issues/`.
+Named PCURVE exit-walk residue that is explicitly not that (closed) program's; the sites straddle S-CERT's props ground and S-MESH's crate, so it lands unowned under `work/issues/`. TRIM adopted it as its unit 2; the spec is `docs/TRIM-2-SPEC.md` and the two PRs are `trim/2-quadrature` (props) and `trim/2-tessellation` (mesh).
+
+## PR-1 merged (2026-09-19)
+
+PR #2564 merged (ordinal 2503, sample #222; block TRIM-B2 slot 0
+concluded): volume and area ANSWER on a face carrying a `General`
+pcurve through the trimmed-region quadrature. The unit stays OPEN for
+PR-2 (tessellation, `mesh/chords.rs` + `trimmed.rs`, S / NUMERIC,
+spec §2) — its seam is TESS's ground now (S-MESH exited 2026-09-16),
+announced at dispatch. Record: MODEL-AB-LOG row T2Q; adjudication
+comment 5734849876. Seam gate: Ev ruled PROPS paused (in-chat,
+2026-09-19); merged on that ruling.

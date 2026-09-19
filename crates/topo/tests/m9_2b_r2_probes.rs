@@ -19,7 +19,10 @@ fn band() -> Band {
 }
 
 fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(s * x + dx, s * y + dy, s * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(s * x + dx, s * y + dy, s * z + dz),
+        Tol::witness(),
+    )
 }
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {

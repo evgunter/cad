@@ -51,11 +51,13 @@ fn spike_overhang_seat() -> (Body<f64>, FaceKey, FaceKey) {
         ],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();

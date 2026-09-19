@@ -67,11 +67,13 @@ fn overhang_seat_full() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey, FaceK
         ],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let post_side_ha = post.side_faces[7];
     let post_side_ab = post.side_faces[0];
@@ -203,11 +205,13 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
         ],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();

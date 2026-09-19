@@ -967,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 9, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1030,6 +1030,37 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
+    assert_eq!(
+        frame::profiles_badge(0),
+        None,
+        "every committed profile drew, or there are none — the same zero"
+    );
+}
+
+/// **The profiles badge counts, in agreeing words, and says it is the
+/// document's.** One and two are the two nouns; the subject is the
+/// document because no camera move brings an undrawable arc back.
+#[test]
+fn the_profiles_badge_counts_what_it_could_not_draw() {
+    for (undrawn, label) in [
+        (
+            1,
+            "profiles: 1 profile with an arc the viewport cannot draw",
+        ),
+        (
+            2,
+            "profiles: 2 profiles with an arc the viewport cannot draw",
+        ),
+    ] {
+        let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
+        assert_eq!(badge.label(), label);
+        assert_eq!(badge.subject(), frame::Subject::Document);
+        assert_eq!(
+            badge.tone(),
+            frame::Tone::Advisory,
+            "no camera move brings the arc back"
+        );
+    }
 }
 
 /// **The datums badge says how many, and says it in agreeing
@@ -1255,6 +1286,74 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
     );
+}
+
+#[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
+    );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
 }
 
 #[test]
@@ -2789,16 +2888,22 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 /// A worker that takes one request and panics inside it, over the two
 /// channel ends a seam handle keeps.
 ///
-/// **A real panic on a real thread, which is the only way this state is
-/// reachable.** `ThreadIndexer` and `ThreadEvaluator` own their
+/// **A hand-written mirror of the shipped bookkeeping, and it no longer
+/// agrees with it.** `ThreadIndexer` and `ThreadEvaluator` own their
 /// worker's entry point — the loop is a private function with no door
 /// to inject a failure through — so nothing above the seam can make a
-/// shipped worker die, and the state is reachable only by a panic
-/// inside a build. What a test can stand up instead is the same pair of
-/// channels behind a worker that really panicked: the request sender
-/// whose receiver went down with the thread, and the result receiver
-/// that will only ever report `Disconnected`. Both handles' arms for
-/// that are mirrored below.
+/// shipped worker die, and a test stands up the same pair of channels
+/// behind a worker that really panicked instead.
+///
+/// What the mirror below now models is a seam that goes QUIET: it
+/// clears its flag on a failed `send` and on a `Disconnected` receive
+/// and says nothing, which is what the shipped handles used to do. They
+/// do not any more — a request channel still in hand at either arm is a
+/// crash, and the shipped machine panics (`evalseam`). So these fakes
+/// certify the consumers against a seam implementation that exists
+/// nowhere in `src/`, which is worth exactly what it is worth and no
+/// more. `work/view/the-dying-seam-fakes-mirror-a-machine-they-do-not-share.md`
+/// carries the repair.
 ///
 /// The worker prints one `thread '…' panicked` line to stderr when a
 /// row lets it die. That line is what the rows are about, not a
@@ -2915,9 +3020,9 @@ impl EvalService for DyingEvaluator {
 
 /// **A promise nobody is left to keep, withdrawn.**
 ///
-/// The seam notices a worker that has gone; what this holds is that the
-/// CONSUMER asks. `PickCache::outstanding` is cleared by an answer, so
-/// a build whose worker panicked leaves it set for the life of the
+/// The seam reports that nobody will answer; what this holds is that
+/// the CONSUMER asks. `PickCache::outstanding` is cleared by an answer,
+/// so a build nobody will answer leaves it set for the life of the
 /// window — and reporting it alone spun `indexing…` forever, repainted
 /// every frame to collect a result nobody would send, and refused every
 /// click with *the picture is still being indexed*, of a picture nobody
@@ -2925,8 +3030,21 @@ impl EvalService for DyingEvaluator {
 ///
 /// The three reads the chrome actually makes are all here: the toolbar's
 /// progress state, the pick refusal's sentence, and the indicator itself.
+///
+/// **NO SHIPPED SEAM REACHES THIS STATE ANY MORE**, and the row is
+/// named for what it drives rather than for what it used to model. A
+/// `ThreadIndexer` whose worker crashes now panics on the UI thread at
+/// the point of detection (`evalseam`'s `Coalescing::crashed`, and the
+/// rows beside it), so the quiet-seam state below belongs to an
+/// `IndexService` implementation that goes quiet without crashing —
+/// which `DyingIndexer` is and nothing in `src/` is. What the row still
+/// covers is `PickCache`'s own contract against an arbitrary
+/// implementation of the trait it is handed; what it no longer is, is
+/// evidence about a worker panic.
+/// `work/view/the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer.md`
+/// carries the consequence.
 #[test]
-fn a_build_whose_worker_panicked_stops_promising_an_answer() {
+fn a_seam_that_goes_quiet_stops_promising_an_answer() {
     let tol = Tol::witness();
     let (session, _extrude) = plate_session(tol);
     let (seam, worker) = DyingIndexer::new();
@@ -2985,16 +3103,20 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
     assert!(!cache.indexing());
 }
 
-/// The same worker under the EVALUATION seam, which already asks.
+/// The same fake under the EVALUATION seam, which already asks.
 ///
 /// `DocSession::busy` is about the picture — is it older than the
 /// document — and stays true, correctly, because it is. What answers
 /// *is anyone doing something about it* is `DocSession::running`, which
 /// is the seam's own `busy`, and the two are folded into `Outstanding`
-/// before any chrome sees them. So a panicked evaluator lands on
+/// before any chrome sees them. So a quiet evaluator lands on
 /// `Canceled` and its recourse rather than on a permanent `evaluating…`.
+///
+/// Renamed with its sibling above and for its reason: a shipped
+/// `ThreadEvaluator` whose worker crashes takes the process down
+/// instead of arriving here.
 #[test]
-fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
+fn a_quiet_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
     let tol = Tol::witness();
     let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let (seam, worker) = DyingEvaluator::new();
