@@ -2,9 +2,10 @@
 id: mate-fault-subject-spelled-in-three-crates
 kind: issue
 title: Which mate a MateFault is about has no home on the enum, and two consumers spell it per-arm
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1769]
+closed: 2026-09-19
 ---
 
 Found by CHROME's style lane on PR 1769, as a class. **Re-homed to

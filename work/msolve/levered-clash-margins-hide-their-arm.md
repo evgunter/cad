@@ -2,8 +2,9 @@
 id: levered-clash-margins-hide-their-arm
 kind: issue
 title: Three levered mate-fold clash margins reach the refusal with their arm invisible
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-19
 ---
 
 

@@ -487,7 +487,7 @@ fn the_axis_door_refuses_exactly_as_the_placement_does() {
         [eps * 0.5, 0.0, 0.0],
     ] {
         let f = frame([0.0, 0.0, 0.0], axis, [1.0, 0.0, 0.0]);
-        let placed: Result<(), FrameError> = f.placement(tol).map(|_| ()).map_err(|e| e);
+        let placed: Result<(), FrameError> = f.placement(tol).map(|_| ());
         let decided: Result<(), FrameError> = f.axis(tol).map(|_| ());
         assert_eq!(
             decided, placed,

@@ -701,14 +701,13 @@ impl Measured {
 }
 
 /// Whether `x` lies in `g` (as a subgroup of SE(3), not a coset).
-/// Returns the failing predicate with what it measured when it does
-/// not — the CONTRADICTORY refusal's own quotation.
-fn member_of(
-    g: Subgroup,
-    x: Affine3<f64>,
-    band: Band,
-    arm: f64,
-) -> Result<Result<(), FoldStop>, Indeterminate> {
+///
+/// # Errors
+///
+/// [`FoldStop::Clash`] naming the failing predicate with what it
+/// measured — the CONTRADICTORY refusal's own quotation — or
+/// [`FoldStop::Indeterminate`] when a check landed in the band.
+fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: f64) -> Result<(), FoldStop> {
     let axis_fixed = |axis: UnitVec3<f64>| {
         (
             "mate_member_axis_fixed",
@@ -731,11 +730,11 @@ fn member_of(
         // The empty set holds nothing, and no margin decides that —
         // the answer is structural, so it never reaches the funnel.
         Subgroup::Empty => {
-            return Ok(Err(FoldStop::Clash {
+            return Err(FoldStop::Clash {
                 predicate: super::MATE_MEMBER_EMPTY,
                 margin: f64::INFINITY,
                 lever: None,
-            }));
+            });
         }
         Subgroup::Se3 => Vec::new(),
         Subgroup::Trivial => vec![
@@ -781,14 +780,14 @@ fn member_of(
     for (predicate, measured) in checks {
         let margin = measured.margin();
         if decide(predicate, margin, band)? != Sign::Zero {
-            return Ok(Err(FoldStop::Clash {
+            return Err(FoldStop::Clash {
                 predicate,
                 margin: margin.value(),
                 lever: measured.lever(),
-            }));
+            });
         }
     }
-    Ok(Ok(()))
+    Ok(())
 }
 
 /// A rotation's departure from the identity as a pure number: the
@@ -833,10 +832,12 @@ pub fn intersect(held: Coset, added: Coset, band: Band, arm: f64) -> Result<Cose
     let translation = candidate_translation(held, added, residual, rotation);
     let x = Affine3::from_parts(rotation, translation);
     for coset in [held, added] {
-        let relative = x * coset.representative.inverse();
-        if let Err(clash) = member_of(coset.subgroup, relative, band, arm)? {
-            return Err(clash);
-        }
+        member_of(
+            coset.subgroup,
+            x * coset.representative.inverse(),
+            band,
+            arm,
+        )?;
     }
     Ok(Coset {
         subgroup: residual,

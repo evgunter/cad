@@ -2,8 +2,9 @@
 id: subgroup-directions-are-unit-by-prose
 kind: issue
 title: mate/coset.rs Subgroup's directions are unit by prose, and parallel/perpendicular read them as unit — the witness exists now and no constructor mints it
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-19
 ---
 
 ## Where this came from
