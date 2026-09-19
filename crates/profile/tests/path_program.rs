@@ -353,10 +353,6 @@ fn the_eye_is_one_fused_step() {
     validate_ok(&pinned(closed));
 }
 
-/// **`circle`'s two-pole lowering.** The primitive is a ONE-STEP
-/// complete-loop program; the ±x poles and the unit bulges are its
-/// private lowering, and the replay reproduces them from `(centre, r)`
-/// alone.
 /// **A partial path reports the prefix of the program it publishes.**
 ///
 /// `PartialPath::recorded` is what lets a caller writing a notation
@@ -444,6 +440,10 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     validate_ok(&pinned(closed));
 }
 
+/// **`circle`'s two-pole lowering.** The primitive is a ONE-STEP
+/// complete-loop program; the ±x poles and the unit bulges are its
+/// private lowering, and the replay reproduces them from `(centre, r)`
+/// alone.
 #[test]
 fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
     let closed = profile::circle(p2(1.5, -2.25), 0.75, Tol::witness()).unwrap();

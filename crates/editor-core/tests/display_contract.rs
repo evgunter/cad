@@ -2055,11 +2055,14 @@ fn maintenance_display_says_what_the_edit_did() {
 }
 
 test_utils::f6_variants! {
-    /// `RecordedProgramError`'s census — see [`NODE_PICK_ERROR`]. The
-    /// recorded-path lift's refusals: two of them are about the
-    /// recording, two about the notation written beside it, and a
-    /// consumer telling those apart is the point of them being four
-    /// arms rather than one.
+    /// `RecordedProgramError`'s census — see [`NODE_PICK_ERROR`].
+    /// Five arms: three are about the RECORDING the lift was handed,
+    /// two about the notation written beside it, and a consumer
+    /// telling those apart is the point of them being five arms
+    /// rather than one. One of the five — `NotationBeforeAnyStep` —
+    /// is raised at the WRITING door rather than at the lift, so this
+    /// census covers a sentence a caller can read without ever
+    /// lifting anything.
     const RECORDED_PROGRAM_ERROR: RecordedProgramError = [
         Literal,
         SubdivisionCount,

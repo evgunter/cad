@@ -724,6 +724,29 @@ impl core::error::Error for StepSegmentsError {}
 // Slot access
 // ------------------------------------------------------------------
 
+/// **The one home for narrowing a program address from a `usize`** —
+/// a step's index in a recording, the index of the loop it sits in, or
+/// a segment it produced — to the `u32` [`crate::SlotId::Profile`],
+/// [`ProgramRefusal`] and [`crate::ProfileEdgeRef`] carry it as.
+///
+/// D2 addendum row 4. Every caller of this holds the collection the
+/// index came from, so an index past `u32` would be 2^32 elements in
+/// memory at once: a typed refusal here would guard a state the
+/// machine excludes, unlike [`RecordedProgramError::SubdivisionCount`],
+/// whose count is one number a caller writes and whose refusal is
+/// therefore real. Stated once, here, so no site has to restate it.
+///
+/// # Panics
+///
+/// Never, for the reason above; the `unreachable!` is the fail-loud
+/// spelling of "the machine got there anyway".
+fn program_index(i: usize) -> u32 {
+    let Ok(narrowed) = u32::try_from(i) else {
+        unreachable!("a collection of {i} elements does not fit in memory")
+    };
+    narrowed
+}
+
 /// The argument roles a target contributes ([] for `Start`).
 ///
 /// Exhaustive on the target vocabulary rather than a test for one
@@ -1038,7 +1061,7 @@ impl LoopProgram {
                 .enumerate()
                 .filter_map(|(i, step)| {
                     let arg = radius_arg(step)?;
-                    Some((i as u32, step_expr(step, arg)?))
+                    Some((program_index(i), step_expr(step, arg)?))
                 })
                 .collect(),
             LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
@@ -1062,7 +1085,7 @@ impl LoopProgram {
                 for (i, step) in steps.iter().enumerate() {
                     let mut args = Vec::new();
                     step_slots(step, &mut args);
-                    out.extend(args.into_iter().map(|a| (i as u32, a)));
+                    out.extend(args.into_iter().map(|a| (program_index(i), a)));
                 }
             }
             LoopProgram::Circle { .. } => {
@@ -1349,7 +1372,7 @@ impl LoopProgram {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| res_step(s, env, loop_, i as u32))
+                .map(|(i, s)| res_step(s, env, loop_, program_index(i)))
                 .collect(),
             LoopProgram::Circle { centre, radius } => Ok(vec![Step::Circle {
                 centre: Point2::new(
@@ -1403,7 +1426,7 @@ pub fn resolve_loops<T: Decide>(
     loops
         .iter()
         .enumerate()
-        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .map(|(li, lp)| lp.resolve(env, program_index(li)))
         .collect()
 }
 
@@ -1621,7 +1644,7 @@ impl ProfileProgram {
             .iter()
             .map(|s| ProfileEdgeRef {
                 loop_index: loop_,
-                segment: s as u32,
+                segment: program_index(s),
             })
             .collect())
     }
@@ -1722,15 +1745,15 @@ impl ProfileProgram {
             let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
-                        loop_: li as u32,
-                        step: e.step as u32,
+                        loop_: program_index(li),
+                        step: program_index(e.step),
                         state,
                         verb,
                     }
                 }
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: li as u32,
-                    step: e.step as u32,
+                    loop_: program_index(li),
+                    step: program_index(e.step),
                     kind: source.kind(),
                     rendered: source.to_string(),
                 },
@@ -1970,7 +1993,7 @@ impl ProfilePayload for ProfileProgram {
         for (li, lp) in self.loops.iter().enumerate() {
             for (step, arg) in lp.step_args() {
                 out.push(SlotId::Profile {
-                    loop_: li as u32,
+                    loop_: program_index(li),
                     step,
                     arg,
                 });
@@ -2038,7 +2061,11 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 }
 
 /// Why a recorded PATHS program could not be lifted
-/// ([`LoopProgram::from_recorded`]).
+/// ([`LoopProgram::from_recorded`]) — and, in one arm, why a notation
+/// could not be WRITTEN against the recording it describes
+/// ([`RecordedNotation::set_after`], which refuses before any lift so
+/// that the notation door and the lift speak one vocabulary rather
+/// than two).
 ///
 /// Every verb the transition table declares now has a document
 /// spelling, so there is no vocabulary arm: `from_recorded` is
@@ -2051,10 +2078,9 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// caller, because a notation is written against a recording the door
 /// does not make the caller hand over at the same time.
 ///
-/// One arm is raised before any lift:
-/// [`RecordedNotation::set_after`] refuses a recording with no last
-/// step at the door where the notation is written, so the notation
-/// door and the lift speak one refusal vocabulary rather than two.
+/// The arm the opening sentence names is
+/// [`RecordedProgramError::NotationBeforeAnyStep`]: a recording with
+/// no last step, refused where the notation is written.
 ///
 /// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
 /// tag map is an exhaustive match over this enum, and the tag inventory
@@ -2188,9 +2214,18 @@ impl core::error::Error for RecordedProgramError {}
 ///
 /// # A unit measures what its role holds
 ///
-/// [`Self::set`] refuses a unit whose quantity is not the dimension
-/// [`StepArg::dimension`] requires, at the door where the caller writes
-/// it, so a lift can never meet a mismatched pairing. A Scalar role — a
+/// **Both doors refuse a unit whose quantity is not the dimension
+/// [`StepArg::dimension`] requires**, at the door where the caller
+/// writes it, so a lift can never meet a mismatched pairing. It is
+/// one predicate asked in one place: [`Self::set`] asks
+/// [`UnitSym::checked_for`] — the same predicate `Expr::literal_with_unit`
+/// asks, asked here because a notation is written before any literal
+/// exists to refuse it — and [`Self::set_after`] delegates to
+/// [`Self::set`] once it has derived the index, so the two doors
+/// cannot drift apart on what a role admits. They differ only in
+/// their refusal vocabulary: `set` returns the [`DimensionError`]
+/// itself and `set_after` the [`RecordedProgramError::Literal`]
+/// carrying it, which is the vocabulary the lift speaks. A Scalar role — a
 /// bulge, a director component — therefore admits only the
 /// dimensionless row `quantity::ONE`, which is the notation every
 /// Scalar literal carries already: a ratio names no unit, and this is
@@ -2253,9 +2288,8 @@ impl RecordedNotation {
         arg: StepArg,
         unit: quantity::UnitDef,
     ) -> Result<(), DimensionError> {
-        // The same predicate `Expr::literal_with_unit` asks, asked here
-        // because this door writes a notation down BEFORE any literal
-        // exists to refuse it.
+        // The one predicate, asked once for both doors (see the type's
+        // "A unit measures what its role holds").
         let sym = UnitSym::checked_for(arg.dimension(), unit)?;
         self.units.insert((step, arg), sym);
         Ok(())
@@ -2281,6 +2315,16 @@ impl RecordedNotation {
     /// the lift, so `recorded.len() - 1` IS the `step` half of the
     /// address [`RecordedNotation::set`] takes.
     ///
+    /// **Two moments, two spellings of the recording.** MID-CHAIN it
+    /// is `recorded()`, which every path state that holds the core
+    /// answers — the partial path and each arrival builder a verb
+    /// hands back — so the door is reachable wherever an author has
+    /// just recorded. AFTER THE CLOSER the chain is a
+    /// `profile::ClosedLoop` and the recording is its public
+    /// `program` field, which addresses the closing step. The two are
+    /// the same slice at the same index; which one a caller writes is
+    /// decided by which value they are holding.
+    ///
     /// This closes the miscount, not the misnaming: a role the last
     /// step does not carry is still the lift's
     /// [`RecordedProgramError::NotationOffProgram`], now with the
@@ -2304,19 +2348,7 @@ impl RecordedNotation {
         let Some(last) = recorded.len().checked_sub(1) else {
             return Err(RecordedProgramError::NotationBeforeAnyStep { arg });
         };
-        // D2 addendum row 4. The index comes from the LENGTH of a
-        // slice the caller already holds, so a recording past `u32`
-        // would be 2^32 `Step`s in memory at once; a typed refusal
-        // here would be a guard for a state the machine excludes,
-        // unlike `SubdivisionCount`, whose count is one number a
-        // caller writes.
-        let Ok(step) = u32::try_from(last) else {
-            unreachable!(
-                "a recording of {} steps does not fit in memory",
-                recorded.len()
-            )
-        };
-        self.set(step, arg, unit)?;
+        self.set(program_index(last), arg, unit)?;
         Ok(())
     }
 

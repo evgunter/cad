@@ -16,9 +16,17 @@
 //! that carries the same role is accepted. `set_after` takes the
 //! recording instead and writes its last step, so the leg is the
 //! recorder's own count. Every row here that authors a leg writes
-//! through `set_after`; the rows that keep `set` say why they do, and
-//! the trap it leaves open is pinned as behaviour rather than
-//! described.
+//! through `set_after`, and the trap the addressed door leaves open
+//! is pinned as behaviour rather than described.
+//!
+//! **Three rows keep `set`, each for a reason the derived door does
+//! not cover.** `a_hand_counted_index_that_is_off_by_one_lands_on_the
+//! _wrong_leg` needs a hand index because the acceptance it pins is
+//! what a hand index buys. `a_unit_must_measure_what_its_role_holds`
+//! authors no recording at all, so there is nothing for `set_after`
+//! to derive an index from. `a_notation_entry_off_the_program_refuses`
+//! pins sentences only a hand-written index can provoke — a step past
+//! the end, and a role the step named does not carry.
 //!
 //! **What these rows pin, and where the claim is stated.** The reading
 //! is written once, on `RecordedNotation`'s own rustdoc — the notation
@@ -42,9 +50,9 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EvalOptions, ExprPath, LoopProgram, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepArg,
-    ValuePayload, evaluate, load, save,
+    DocEdit, DocumentId, EvalOptions, ExprPath, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepArg, ValuePayload, load,
+    save,
 };
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step};
@@ -201,13 +209,7 @@ fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'st
 /// The replayed loop's vertices, bit for bit — what "one geometry"
 /// means where two documents are compared.
 fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
-    let ev = evaluate::<f64>(
-        doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
+    let ev = fixture::run(doc, &EvalOptions::default());
     let Some(v) = ev.value(PROFILE) else {
         panic!("the profile evaluates")
     };
@@ -727,12 +729,12 @@ fn a_unit_must_measure_what_its_role_holds() {
 /// verb does not carry. Both are the caller's own mistake and both are
 /// told.
 ///
-/// **The one row that keeps the hand-written index**, because the
-/// refusal it pins is the addressed door's own: a step past the end
-/// is a sentence only a caller who wrote an index can provoke, and
-/// `set` is a door this crate keeps
-/// (`the_derived_door_writes_the_leg_the_author_had_just_recorded`
-/// covers the derived one).
+/// **Written through `set`** (one of the three rows that are — the
+/// module header lists them), because the refusals it pins are the
+/// addressed door's own: a step past the program's end is a sentence
+/// only a caller who wrote an index can provoke.
+/// `the_derived_door_still_refuses_a_role_the_last_step_does_not_carry`
+/// covers the half the derived door reaches.
 #[test]
 fn a_notation_entry_off_the_program_refuses() {
     let steps = square(0.025);
@@ -770,21 +772,27 @@ fn a_notation_entry_off_the_program_refuses() {
 }
 
 // ------------------------------------------------------------------
-// REVIEW PROBES (lane `notation-rv`, PR 2876) — not the unit's rows.
-// Each probe states the claim it tries to falsify and what it found.
+// The derived index over the whole verb vocabulary
 // ------------------------------------------------------------------
 
-/// PROBE 1 — **the derived index is the lift's index for a FUSED verb,
-/// a BINDER and the closer.** A chain of `arc_fillet_arc` (entry,
-/// fused), `arc_fillet(Radius)` (fused, with its own binders after
-/// it), `at`, `toward`, `line`, `line_to(Start)`: `set_after` written
-/// at each verb, and the lifted document read at every address.
+/// **Every verb moves the derived index by exactly one, fused verbs
+/// and binders included, and the unit lands on the verb the author
+/// had just written.**
 ///
-/// Claim 1 of the review brief. Holds: every verb moved the derived
-/// index by exactly one, and each unit landed on the verb the author
-/// had just written.
+/// The chain walks the shapes that could break the correspondence
+/// between "the verb I just called" and "the step the lift numbers":
+/// `arc_fillet_arc` as the entry (two arcs and a fillet in ONE step),
+/// `arc_fillet(Radius)` mid-chain (fused again, with its binders
+/// still to come), the re-entry pair `at`/`toward`, a `line`, and the
+/// closer. `set_after` is written at each verb and the lifted
+/// document is read at every address, so a verb that recorded two
+/// steps or none would put every later unit on the wrong leg.
+///
+/// The direction row is the negative half: an argument written with
+/// no notation reads back none, so the assertions above are about
+/// what was written rather than about a unit the lift supplies.
 #[test]
-fn probe_the_derived_index_is_the_lift_index_for_fused_binder_and_closer() {
+fn the_derived_index_tracks_every_verb_including_fused_ones() {
     use profile::{ArcSide, ArcSweep, Center, Radius};
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
@@ -854,13 +862,18 @@ fn probe_the_derived_index_is_the_lift_index_for_fused_binder_and_closer() {
     assert_eq!(n.len(), 4, "four writes, four legs, no arithmetic anywhere");
 }
 
-/// PROBE 2 — **a plain `fillet(r)` binder takes its notation through
-/// the derived door**, and the leg after it is a different step.
+/// **A `fillet(r)` binder IS the last recorded step**, so its radius
+/// takes its notation through the derived door like any leg's
+/// argument, and the verb after it is a different step.
 ///
-/// The spec's premise (1) says "last recorded" after `fillet(r)` is
-/// that binder and the radius is its `StepArg::Radius`. It is.
+/// A binder records a step and emits geometry only when the next verb
+/// resolves it, which is the one place "the verb I just called" and
+/// "the last thing that drew something" come apart. The derived door
+/// follows the recording, not the drawing: after `fillet(0.2)` the
+/// address is the binder's own, and `get` is read at the index the
+/// author never wrote.
 #[test]
-fn probe_a_fillet_binder_is_the_last_recorded_step() {
+fn a_fillet_binder_is_the_last_recorded_step() {
     use profile::{ArcSide, Sweep};
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
@@ -900,21 +913,84 @@ fn probe_a_fillet_binder_is_the_last_recorded_step() {
     assert_eq!(read_back(&doc_of(program), 3, StepArg::Radius).1, "mm");
 }
 
-/// PROBE 3 — **the derived door is unavailable exactly where the
-/// count is hardest.** `recorded()` lives on `PartialPath`; the
-/// arrival-builder states a `Radius`/`Via` arrival returns
-/// (`RadiusArrival`, `RadiusArrivalAt`, …) are not `PartialPath`, and
-/// `ClosedLoop` is not one either.
+/// **An arrival state's author reaches the derived door too.**
 ///
-/// So a caller who has just written the verb whose notation they want
-/// must reach the recording a SECOND way — `ClosedLoop.program`, the
-/// public field — and that is a second spelling of "the recording",
-/// which the suite itself uses (`a_carrier_form_takes_its_notation_at
-/// _step_zero`). This probe pins the asymmetry as behaviour: after
-/// the closer, the only door is the field, and `set_after` over it
-/// addresses the closing step.
+/// `fillet_arc` into a `Radius` arrival hands back a
+/// `profile::RadiusArrival`, not a `PartialPath`: a state that holds
+/// the recording and whose binders are still to come. The author has
+/// just recorded the fused step whose radius they want to write, so
+/// the door is there — every builder state that holds the core
+/// answers `recorded()`, which is what keeps the derived index
+/// available at the moment the step exists rather than one state
+/// later.
+///
+/// Binding the arrival APPENDS: the prefix the arrival reported is
+/// still the prefix of the finished program, so the index written
+/// here is the index the lift reads.
 #[test]
-fn probe_after_the_closer_the_recording_is_reached_by_a_second_spelling() {
+fn an_arrival_states_author_reaches_the_derived_door() {
+    use profile::{ArcSide, Radius};
+    let t = Tol::witness();
+    let mut n = RecordedNotation::new();
+    let path = Open.at(p2(0.0, 0.0)).angle(0.0, t).expect("a departure");
+    let arrival = path
+        .fillet_arc(
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            t,
+        )
+        .expect("a fillet into a radius arrival");
+    assert_eq!(
+        arrival.recorded().len(),
+        3,
+        "at, angle, fillet_arc — one step per verb, in the arrival state too"
+    );
+    n.set_after(arrival.recorded(), StepArg::Radius, quantity::MM.def())
+        .expect("the fused step's fillet radius is a length");
+    assert_eq!(
+        n.get(2, StepArg::Radius).map(|u| u.symbol()),
+        Some("mm"),
+        "the fused step is step two, and the author counted nothing"
+    );
+    let prefix = format!("{:?}", arrival.recorded());
+
+    let closed = arrival
+        .at(p2(6.0, 1.0))
+        .toward(0.0, 1.0, t)
+        .expect("the arrival's director, which resolves the fillet")
+        // The arrival leaves the tip tangent-continuous, so the
+        // departure is declared rather than authored as an angle.
+        .tangent()
+        .line(1.0, t)
+        .expect("a leg")
+        .line_to(Start, t)
+        .expect("the chain closes");
+    assert_eq!(
+        format!("{:?}", &closed.program[..3]),
+        prefix,
+        "binding the arrival appended; the prefix the author wrote against did not move"
+    );
+    let program = LoopProgram::from_recorded_with_notation(&closed.program, &n)
+        .expect("the arrival chain with its notation lifts");
+    assert_eq!(read_back(&doc_of(program), 2, StepArg::Radius).1, "mm");
+}
+
+/// **After the closer the recording is the finished loop's `program`
+/// field**, and `set_after` over it addresses the CLOSING step.
+///
+/// The derived door takes a slice, so it does not care which value
+/// the caller is holding — mid-chain the slice comes from
+/// `recorded()`, and once the chain has closed the chain is gone and
+/// what is left is `ClosedLoop::program`. Those are the two moments
+/// and the two spellings, and this row pins the second: the index
+/// derived from a finished program is the closer's own, which is why
+/// a role the closer does not carry refuses AT that index rather than
+/// at the leg before it.
+#[test]
+fn after_the_closer_the_recording_is_the_finished_loops_program() {
     let t = Tol::witness();
     let closed = Open
         .at(p2(0.0, 0.0))
@@ -924,8 +1000,8 @@ fn probe_after_the_closer_the_recording_is_reached_by_a_second_spelling() {
         .expect("a leg")
         .line_to(Start, t)
         .expect("the chain closes");
-    // No `recorded()` here: `closed` is a `ClosedLoop`, so the door is
-    // the public field, and the index it derives is the CLOSER's.
+    // `closed` is a `ClosedLoop`: the chain is over, so the slice is
+    // the public field and the index it derives is the CLOSER's.
     let mut n = RecordedNotation::new();
     n.set_after(&closed.program, StepArg::TargetX, quantity::MM.def())
         .expect("mm measures a length");
