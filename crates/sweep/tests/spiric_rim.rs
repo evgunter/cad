@@ -1080,5 +1080,80 @@ mod interval_rows {
             }
         }
         assert_eq!(n, 2, "two spiric rims at the certified scalar");
+
+        // **Row 9 at the certified scalar.** Every new `decide` site
+        // executed to get here — the mint's `pcurve_spiric_chart_axis`
+        // and check 1's four scalar gates — and the wall's identity
+        // compare ran at BRACKETED fields: the image's three scalars
+        // are the carrier's own brackets, endpoint for endpoint, which
+        // is what makes the drift term exactly zero and the statement
+        // an identity rather than a bound (§8 STOP 3's named risk, not
+        // fired).
+        let mut walls = 0;
+        for (edge, e) in cavity.edges() {
+            let Some(c) = cavity.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } = *c.carrier()
+            else {
+                continue;
+            };
+            for he in [e.he_plus, e.he_minus] {
+                let face = cavity
+                    .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
+                    .expect("loop")
+                    .face;
+                if !matches!(
+                    cavity.get_surface(cavity.get_face(face).expect("face").surface),
+                    Some(Surface::Torus { .. })
+                ) {
+                    continue;
+                }
+                walls += 1;
+                let cache = cavity
+                    .pcurve(he)
+                    .unwrap_or_else(|| panic!("{edge:?}'s wall side carries a stored cache"));
+                let geom_brep::Pcurve::Spiric {
+                    major,
+                    minor,
+                    offset: image_offset,
+                    image: geom_brep::SpiricImage::Wall { sense, .. },
+                } = *cache.pcurve()
+                else {
+                    panic!("the wall's image is a spiric wall image");
+                };
+                for (what, a, b) in [
+                    ("major", major, major_radius),
+                    ("minor", minor, minor_radius),
+                    ("offset", image_offset, offset),
+                ] {
+                    assert!(
+                        a.lo() == b.lo() && a.hi() == b.hi(),
+                        "{what}: the image's bracket {a:?} is not the carrier's {b:?}"
+                    );
+                }
+                assert!(
+                    sense.abs().lo() == 1.0 && sense.abs().hi() == 1.0,
+                    "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
+                );
+                let cert = cache.certificate();
+                assert_eq!(
+                    cert.statement,
+                    geom_brep::EnvelopeStatement::SpiricIdentity,
+                    "the wall's between-samples statement at Interval"
+                );
+                assert!(
+                    cert.envelope.lo() == 0.0 && cert.envelope.hi() == 0.0,
+                    "a minted wall image pays no drift: {:?}",
+                    cert.envelope
+                );
+            }
+        }
+        assert_eq!(walls, 2, "two wall-side half-edges at the certified scalar");
     }
 }
