@@ -230,6 +230,10 @@ impl<T: Decide> Body<T> {
             // of accepting a split that is not clear of the endpoints
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
+            // The spiric's speed floor is its minor radius (`|dP/dv|
+            // ≥ r`, the variant docs), the same meter certification
+            // spans it at.
+            geom::Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
         };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),

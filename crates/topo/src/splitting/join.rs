@@ -353,7 +353,11 @@ impl<T: Decide> Sweep<T> {
                     minor,
                     ..
                 } => (center, axis, major, minor),
-                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => continue,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_) => {
+                    continue;
+                }
             };
             let (t0, t1) = curve.params();
             let span = t1 - t0;
