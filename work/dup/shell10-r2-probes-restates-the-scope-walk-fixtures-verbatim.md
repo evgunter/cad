@@ -37,3 +37,17 @@ The prose disclosure is the finding's own instrument: the reviewer
 brief's Q1 sweep (`rg -n 'verbatim|re-derived|ported from|mirror of'`)
 would have found it at any point since the module landed, and nothing
 in CI, review or the logs reads that prose.
+
+## Why this is filed on dup and not on shell
+
+`scripts/work.py territory` puts `crates/topo/src/offset_together.rs`
+on **shell**'s ground; `crates/topo/src/shell10_r2_probes.rs` is
+unclaimed. The row is filed on dup because its subject is the
+duplication — one fixture family under two homes — and the decision it
+asks for is *where the shared copy lives*, which is a test-support
+layout question rather than an offset-together one. **A shell lane
+opening `offset_together.rs` will not see this row**, so it is
+cross-referenced from
+`work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`;
+a shell lane that would rather own it should move the file, per
+`work/README.md`'s one-file-one-item rule.

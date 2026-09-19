@@ -1,7 +1,7 @@
 ---
 id: the-face-to-solid-walk-is-spelled-per-test-file
 kind: issue
-title: The face to shell to solid walk is spelled once per test file in topo/tests and sweep/tests
+title: The face to shell to solid walk is spelled once per test file in topo/tests and sweep/tests (tint and tcost ground)
 status: open
 opened: 2026-09-19
 ---
@@ -45,6 +45,25 @@ by `(file, line)`, `--workspace --all-targets --features topo/interval`)
 plus two structural regexes and a name census over every tracked file.
 The probe cannot see a root outside `--workspace`, and the regexes
 cannot see a walk split across a function boundary. Five is a floor.
+
+## Territory: tint AND tcost
+
+`scripts/work.py territory` puts all five paths on **tcost** as well
+as tint (`verbs_shell.rs` adds shell). The row is filed on tint's
+slate because the subject is duplicated test text, but a tcost lane
+opening any of these files owns the same ground and should read it.
+
+## One hop short: five `shell_of` closures in the same suites
+
+`sweep/tests/shell5_r1_probes.rs` (~:200),
+`sweep/tests/shell5_r2_probes.rs` (~:100), `sweep/tests/verbs_shell.rs`
+(~:490 and ~:542) and `topo/tests/m3_pr3_split.rs` (~:384) each spell
+`body.get_face(f).expect(..).shell` as a local closure — the same
+duplication one hop short of this class, and no door exists for that
+hop either (`Face::shell` is a plain field read after `get_face`).
+Recorded here rather than as a sixth row: the fix for the five
+`solid_of`/walk sites and the fix for these five closures is the same
+decision about where a suite's per-file topology helpers live.
 
 **Two of the sites the parent row listed are NOT members** and are not
 carried here: `crates/sweep/tests/revolve_ring.rs` (~:58) and
