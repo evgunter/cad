@@ -10,11 +10,11 @@ use crate::fixture;
 use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName,
-    ValuePayload, evaluate,
+    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
+    ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName, ValuePayload,
+    evaluate,
 };
-use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
+use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
 pub(crate) use fixture::{flush_pairs, member_face};
 use geom_core::Tol;
 
@@ -33,12 +33,6 @@ pub(crate) fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     );
     fixture::assert_no_nested_merged(&ev);
     ev
-}
-
-pub(crate) fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {
@@ -855,17 +849,14 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let vertex = StableName {
-        kind: EntityKind::Vertex,
-        node: a,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        )],
-    };
+    let vertex = fixture::cap_vertex(
+        a,
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex: 0,
+        },
+    );
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
     // Two entities of ONE member, sited there: the same pair reads as
     // that member's carried contact wherever the member sits.

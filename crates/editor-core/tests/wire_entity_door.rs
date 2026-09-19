@@ -43,26 +43,23 @@ use crate::fixture;
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, evaluate,
+    ProfileDoc, ProfileVertexRef, RecipeNodeId, SitedRef, StableName, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
 
-/// A vertex name at `node` — the extrude's own cap vertex, so the name
-/// RESOLVES and the refusal is about its kind rather than about a name
-/// that names nothing.
-fn vname(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
+/// A vertex name at `node` — the extrude's own END cap vertex on the
+/// document's one outer loop, so the name RESOLVES and the refusal is
+/// about its kind rather than about a name that names nothing.
+fn end_cap_vertex(node: RecipeNodeId, vertex: u32) -> StableName {
+    fixture::cap_vertex(
         node,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
-        )],
-    }
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        },
+    )
 }
 
 /// A square prism and the four names every row below miswires with: a
@@ -85,7 +82,7 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
     );
     let face = fname(body, wall(2));
     let edge = fixture::prism_edges(body, 4).remove(2);
-    let vertex = vname(body, 0);
+    let vertex = end_cap_vertex(body, 0);
     (doc, body, face, edge, vertex)
 }
 
