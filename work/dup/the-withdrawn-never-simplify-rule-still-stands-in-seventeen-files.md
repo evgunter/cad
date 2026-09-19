@@ -12,18 +12,17 @@ opened: 2026-09-19
 - **Where**: **19** files under `crates/`, in **two different sentences
   with two different objects** — a distinction that decides the
   disposition and that this row missed when it was opened:
-  - **15 say "…to match shipped fixtures"**, which is verbatim the
+  - **16 say "…to match shipped fixtures"**, which is verbatim the
     phrase the memory names as withdrawn: `topo/src/review_m0_pr7.rs`,
     `topo/src/review_m1_pr1.rs`, all six `topo/src/review_m1_pr2/*`,
     five `geom-core/tests/review_m0_pr*.rs`, two
     `geom/tests/surfaces/review_m2_pr1*.rs`, and
     `profile/tests/review_m2_pr2.rs`.
-  - **2 say "…to match the implementation"** and scope it to *the
+  - **3 say "…to match the implementation"** and scope it to *the
     derivations* (ledgers, anchor rules, orbit orders,
     slot/generation semantics), not to fixtures:
-    `topo/src/review_m1_pr3.rs` and `topo/src/review_m1_pr4.rs`. Plus
-    `topo/tests/review_m1_pr5.rs`, same sentence, same scope — **3 in
-    this group.**
+    `topo/src/review_m1_pr3.rs`, `topo/src/review_m1_pr4.rs` and
+    `topo/tests/review_m1_pr5.rs`.
   **That second sentence is not the withdrawn rule.** It is close to
   what the memory *kept*: *"keep their own code only where a row's claim
   needs its own derivation."*
@@ -36,6 +35,15 @@ opened: 2026-09-19
   were missed. A multiline scan (`rg -U 'do not\s*(//!)?\s*"simplify"'`)
   returns 19. The id keeps "seventeen" because ids are stable
   (`work/README.md`); the title is corrected.
+
+  **A line-shaped instrument then undercounted the SPLIT too**, twice: a
+  regex for the object after *"to match"* put `review_m1_pr4.rs` in the
+  wrong group, because there *"the"* ends one `//!` line and
+  *"implementation's comments"* begins the next. The counts above were
+  taken by **joining each file's `//!` block into one string and reading
+  the object** — not by matching a pattern against lines. Three separate
+  undercounts in one row, all the same cause: **this class of text wraps,
+  and a line is not its unit.**
 - **Importance**: high — it is binding-shaped text, it is withdrawn, and
   it is the exact instruction that decides whether a duplication row may
   fold a reviewer-written fixture
@@ -43,7 +51,7 @@ opened: 2026-09-19
   itself; the 19 carriers are a multiline scan at `origin/main`
 - **Raised by**: the S-DUP orchestrator, 2026-09-19, out of the
   cube-sequence fold's lane asking for a second reader on exactly one of
-  the 17
+  the 19
 
 ## The withdrawal
 
@@ -135,7 +143,7 @@ test, applied per file:
 row's claim, which is the whole point of the clause that replaced the
 blanket rule. What this row owes first is the census: for each of the 19,
 does that file's claim need its own derivation, or is it sharing-eligible?
-The two groups start from different places — the 15 state a withdrawn
+The two groups start from different places — the 16 state a withdrawn
 rule and have to justify themselves afresh; the 3 state a surviving one
 and keep their code unless their claim turns out not to need it.
 
