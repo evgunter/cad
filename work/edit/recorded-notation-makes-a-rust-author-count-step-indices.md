@@ -250,3 +250,8 @@ The review's findings, each as the invariant it asked for.
   `vertex_bits` was `fixture::run`'s body spelled again and now
   imports it; `square_authored`, `arg_bits` and `read_back` match no
   door and stay.
+
+Green on hosted CI run 35462469877 (head `03d168452`): 39 jobs, 35
+success and 4 the change filter's own skips; twelve `test (…)`, five
+`k-lint (gate, …)`, the python suite, `gate ok`. Read at the step
+level: 422 success, 102 skipped, nothing else.
