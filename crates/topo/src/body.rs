@@ -867,9 +867,38 @@ impl<T: Real> Body<T> {
     }
 
     /// The solid owning `face` — through its shell's back-pointer — or
-    /// `None` where the face or its shell does not resolve. The one
-    /// spelling of face → shell → solid the census, the point-in-solid
-    /// door and their suites read.
+    /// `None` where the face or its shell does not resolve. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign face key does not stop at
+    /// the first hop: it resolves to whatever face the arena's slot
+    /// holds and answers about the shell THAT face names.
+    ///
+    /// **`None` is the only refusal this door can make**, and it is a
+    /// `&self` read, so three shapes of caller keep a hand-written
+    /// walk. Each is a population, not an exception:
+    ///
+    /// - **A refusal that distinguishes the hops.**
+    ///   `offset_together::scope_of_moves` names the caller's own
+    ///   stale face key on hop 1 and the body's incoherence on hop 2;
+    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
+    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
+    ///   `EntityId::Shell` on hop 2.
+    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   reds on either way of collapsing `scope_of_moves`'s two.
+    /// - **A caller still using the intermediate shell key.**
+    ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
+    ///   shell key is live past the `.solid` read, so this door cannot
+    ///   replace that walk — only add a second resolution of a face
+    ///   key the function has already resolved.
+    /// - **A write.** `euler_ring`'s corruption fixtures set
+    ///   `Shell::solid` through `get_shell_mut`.
+    ///
+    /// **No census is claimed here.** How many hand-written spellings
+    /// remain, where, and under which instrument they were counted is
+    /// measured in
+    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`
+    /// — dated there, held true by no mechanical guard, and
+    /// re-measured by a lane rather than by this sentence.
     #[must_use]
     pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
         self.get_face(face)
@@ -882,8 +911,8 @@ impl<T: Real> Body<T> {
     /// [`Loop::face`] — or `None` where either key is stale. A foreign
     /// key is not caught (see the [module docs](self)), and this door
     /// composes TWO lookups, so a foreign half-edge key does not stop
-    /// at the first hop: it walks on and answers about whatever face
-    /// the arena's second slot holds.
+    /// at the first hop: it resolves to whatever half-edge the arena's
+    /// slot holds and answers about the loop THAT half-edge names.
     ///
     /// Every spelling in this crate that STOPS at the face and refuses
     /// uniformly across the two hops reads through here. Six more
