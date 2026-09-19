@@ -1153,3 +1153,72 @@ Which is the same defect as the withdrawn no-simplify rule, the "no
 manifest edge" justification and the `DOORS_MEASURED` constant, in a
 fourth costume: **text whose scope was true when written, read later as
 though it had none.**
+
+## 2026-09-19 — the solid_of_face fold merged, and the instrument that ends the argument
+
+PR #2865 merged green on the full matrix. Eight walks folded, **four
+kept with their reasons stated**, one guarded. The class went **11 →
+14 → 17** across three independent re-derivations in one unit.
+
+**The review found the PR committing its own headline finding.** The
+PR documented that *"a door minted by a fix pass inherits that pass's
+fence, and its doc sentence inherits it silently"* — then wrote a fresh
+unscoped sentence of its own (*"Every spelling in THIS CRATE that
+refuses uniformly across the two hops reads through here"*) whose
+counterexample, `seqgen::fusion_remake_shell`, sat **in a file the same
+PR edited, between two sites it folded**.
+
+**And the fix pass refused the review's remedy, with a better reason
+than either the review or I had.** The review said the site "folds with
+no behaviour change"; I caught that `shell2` is reused once more and
+flagged the fork. The lane read it properly: `shell2` is read **twice**
+more, so folding cannot delete the `let` and would *add* a second
+resolution of a key the function already holds. The four `seqgen` folds
+each **replaced** a lookup; this one would only add one. So the site
+stays and the sentence narrows — and the carve-out is written as a
+**shape** (*"a caller still using the intermediate shell key"*) rather
+than as a site, which is what stops it going stale again.
+
+**The door now claims no census at all.** Three populations, each with
+members, and at the claim site: *"No census is claimed here … held true
+by no mechanical guard."* That is a better answer than guarding the
+sentence — a rustdoc on a three-line `pub fn` should carry an invariant
+for a user, not a measurement for a future lane. The six lines counting
+the project's own test suites moved to the row. Filed as a class:
+**two doors in a row shipped an unguarded census sentence**, and
+`face_of_half_edge`'s "sixteen sites" is still one.
+
+### Denominator-first classification, and why it ends the argument
+
+Five instruments had run on this class and the count kept moving. The
+sixth settles it by inverting the question. Instead of searching for the
+*walk*, enumerate the **terminal read** — every textual `.solid` in
+every tracked `.rs` file, all roots, all cfgs, all features, 149 hits —
+and classify each one **backwards** by where its receiver came from.
+
+It cannot miss what a `Face::shell`-oriented instrument misses, because
+**every member must terminate in a `Shell::solid` read**. Its closable
+blind spots were closed by measurement rather than asserted: no
+`.solid()` accessor exists, no `Shell { solid, .. }` destructuring
+exists, eight `shell_of` helpers exist and none feeds a `.solid`. What
+remains is a macro-assembled walk, which the method cannot falsify and
+says so.
+
+**The general form: when a class keeps growing under every instrument
+you point at it, stop searching for the pattern and enumerate the
+narrowest thing every member must contain, then classify backwards.**
+A search over a shape has a blind spot for every way the shape can be
+written; an enumeration over a required atom has one only where the
+atom itself can hide.
+
+### The receipt rule earned its keep
+
+`implementer-discipline.md` §5 — *"a pattern with no hits recorded is a
+claim; a hit list is a receipt"* — caught the whole thing. The PR gave
+instrument 2's pattern and its delta but not its hits. Reconstructed,
+it returns 14 hits and **fires on the missed site**: the member was
+inside the instrument's reach and simply was not dispositioned. That
+also exposed a blind spot nobody had stated — a face datum arriving
+from a `body.faces()` **iterator** rather than a lookup, which is **six
+of the eight sites this PR folded**. The instrument could not see most
+of what the unit closed.
