@@ -116,9 +116,7 @@ posture under §Process.
 
 Three tiers, by the row's weight — the tiers and what each one gets
 are `docs/MODEL-AB-LOG.md`'s v7 triage entry, repo-wide since
-2026-09-19 (this program's 2026-09-16 statement of them is where the
-E-class description came from). Ordinals for the protocol tier come
-from the band above.
+2026-09-19. Ordinals for the protocol tier come from the band above.
 
 The tier is named in the row when it is dispatched. Issues are files;
 anything for Ev is an `[ev]` PR. This program runs from a remote
