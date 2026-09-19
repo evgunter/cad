@@ -499,11 +499,37 @@ impl core::fmt::Display for CarryForwardDoor {
 /// which measures both halves: the four names per door, and that each
 /// arm's address word is the address its sentence reports.
 ///
-/// The convention governs those eight arms. It is not yet the shape of
-/// this enum's other document-parameter refusals
-/// ([`EditError::DocParamUnitMismatch`] and its siblings), which is a
-/// filed row rather than an exception with a reason
-/// (`work/edit/doc-param-refusals-keep-two-conventions-inside-one-enum.md`).
+/// **Its SCOPE is a param REFERENCE, and there are two families.**
+/// Those eight arms name two facts about a reference AT an address,
+/// which is why the address can lead. This enum's other
+/// document-parameter refusals are about the parameter's
+/// DECLARATION — [`EditError::DocParamUnitMismatch`],
+/// [`EditError::DocParamValueKindMismatch`],
+/// [`EditError::DocParamCountHasNoUnit`],
+/// [`EditError::DocParamCountHasNoDistribution`],
+/// [`EditError::ContinuousParamCannotBeCount`] and
+/// [`EditError::DocParamNotDeclared`] — and a declaration has no
+/// address: the parameter IS the subject, so each is named by its
+/// FACT alone. Forcing them into `{address}{fact}` would mint an
+/// address word denoting nothing, so the shape is deliberately not
+/// theirs. ([`EditError::DocParamNotDeclared`]'s `door` says which
+/// carry-forward edit was refused — which edit, not where a
+/// reference sits.)
+///
+/// [`crate::expr::EvalError::ParamDimensionMismatch`] is the
+/// dimension fact raised at EVALUATION instead of at a door, and it
+/// keeps its own name because the split lands elsewhere there: the
+/// arm carries the fact and the WRAPPER carries the address —
+/// [`crate::eval::NodeErrorKind::Expr`] names a node and a slot,
+/// [`crate::eval::NodeErrorKind::PayloadExpr`] names a node and a
+/// payload, and both forward the refusal unaltered.
+///
+/// **Which family a new arm joins is decided by what it refuses**, a
+/// reference or a declaration — never by the words already in its
+/// name. A sweep by SHAPE misses half of the declaration family:
+/// [`EditError::DocParamCountHasNoUnit`] and its siblings carry no
+/// `Mismatch` in them, so sweep by SUBJECT (`DocParam`, `Param`) too.
+///
 /// Every other mention of the convention in this tree cites this
 /// paragraph instead of re-wording it.
 #[derive(Debug, Clone, PartialEq)]
@@ -2323,13 +2349,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // Spec D3 carve-out (ruled): a payload's name refs must
             // point at LIVE nodes at edit time — a never-existed id is
             // a typo. They are not DAG edges: later deletes may strand
-            // them (N5), so this is the ONLY door that checks, for
-            // every payload that carries a name (`Node::payload_names`
-            // — Declare pairs, a BLEND's selection (fillet under M6-5,
-            // chamfer alongside it), a SHELL's ordered open list, a
-            // derived frame's face, a measure's references, a mate's
-            // two heads under A12, an instance's interface crossings'
-            // remainder-side `outer`s under ASM-R2b).
+            // them (N5), so this is the ONLY door that checks, and it
+            // checks every payload name — `Node::payload_names` is the
+            // list.
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -2601,25 +2623,13 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if from.node.0 >= new.next_id {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
-            // One-shot rewrite of every EXACT reference (sites:
-            // Declare pairs, blend selections — fillet and chamfer
-            // alike — a shell's open list, appearance-store keys).
-            // Zero sites = nothing to repair, refused.
-            // Every payload site, by the one list that says which
-            // payloads carry a name (`Node::payload_names`' twin): the
-            // rewrite reaches a mate's heads exactly as it reaches a
-            // Declare pair, and a blend selection's GROWTH PATH (M6-5,
-            // ruled #217) re-canonicalizes there — for a chamfer's
-            // selection exactly as for a fillet's, since both are the
-            // same canonical set; a shell's ORDERED list re-canonicalizes
-            // to its own form, dropping a repeat and keeping the
-            // earlier position. A mate reference read AT ITS OWN
-            // MINT stays read at its own mint; one read elsewhere
-            // keeps its operand, which is an authored fact this edit
-            // knows nothing about. An instance's crossing `outer` is
-            // on that same list, so the record and the mate it
-            // records are repaired together and cannot disagree about
-            // the seam afterwards.
+            // One-shot rewrite of every EXACT reference, at every
+            // payload site — `Node::payload_names` is the list and
+            // `Node::rebind_payload_names` is its rewriting twin, so
+            // no carrier can be repaired here and missed there. The
+            // appearance store is the document's OTHER carrier and is
+            // rewritten below, not by this loop. Zero sites across
+            // both = nothing to repair, refused.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);
@@ -2659,9 +2669,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
             EditRecord {
                 minted: None,
-                // Declare payloads or blend selections changed:
-                // content keys move and the threading consumes them
-                // — structural. An appearance-only rebind is
+                // A payload name changed: content keys move and the
+                // threading consumes them — structural, whichever
+                // carrier held it. An appearance-only rebind is
                 // presentation motion: no content key moves, nothing
                 // recomputes.
                 structural: declare_sites > 0,
