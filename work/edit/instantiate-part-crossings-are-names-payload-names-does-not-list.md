@@ -2,7 +2,7 @@
 id: instantiate-part-crossings-are-names-payload-names-does-not-list
 kind: issue
 title: An InstantiatePart's crossing references are names payload_names does not list
-status: spec
+status: review
 branch: edit/instance-crossing-names
 opened: 2026-09-17
 refs: [interface-crossing-heads-are-bare-stable-names, 2814]
@@ -166,3 +166,43 @@ if a comment is now false (FIX, by announcement); `crates/pncad-py`
 only if a binding enumerates payload names (LIB, by announcement).
 Middle tier: one opus style review with a correctness arm, then the
 fix pass.
+
+## Built (2026-09-19)
+
+Ruled as spec'd. `Node::InstantiatePart` left `name_free_node!` and
+gained an arm in both twins (`crates/editor-core/src/node.rs`):
+`payload_names` answers each crossing's `outer` in record order, and
+`rebind_payload_names` rewrites an `outer` exactly equal to `from`
+through `FaceName::map_derivation`. No `inner` is listed, and the arm
+says why (the part's id space). No other code: the three doors follow
+from the one list.
+
+Six rows, five in the new suite
+`crates/editor-core/tests/edit_instance_crossing_names.rs` (the list
+in record order with no `inner` and `named_nodes` beside it; the
+insert door's refusal over a dead `outer`, with the live control; the
+rebind that moves the record and the carrying mate together; the
+unrelated rebind that leaves the record alone; the DM7 strand carried
+by the instance) and one in `doc.rs`'s
+`name_carriers_reads_the_payloads_then_the_store`, which now holds an
+instance as a payload carrier.
+
+Premises: (1) confirmed — leaving `InstantiatePart` in the macro
+alongside the new arms is `unreachable_patterns` at BOTH twins, an
+error under `-D warnings`. (2) confirmed — `Doc::name_carriers` reads
+`payload_names`, and the strand row went green with no change in
+`doc.rs` beyond its unit test. (3) **fell**: four of the five existing
+fixtures were inserting a record whose `outer` named a node that is
+not live — `asm_r2b_assembly`'s `row5_b`/`row5_c`/`row6` reused the
+part-side `inner` as the `outer`, and `asm_r2b_interface_wire`'s
+`doc_with_a_crossing` named the instance being inserted. Each now
+holds a plain instance whose remainder-side face the crossing keeps,
+which is the shape a split mints; `edit_one_predicate`'s rows and
+`fix_pattern_mate_crossing` were already correct and are unchanged.
+(4) confirmed — `resolve`'s insert census extends `payload_names` and
+now sees `outer`s; its rows measure resolution against an evaluation's
+tables and stayed green (no row there authors a record).
+
+Not built, filed instead: the crossing's third reference, its `mate`
+id, is checked by no door —
+`crossing-mate-back-pointer-is-checked-by-no-door`.
