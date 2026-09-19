@@ -143,3 +143,26 @@ corrections are on the row.
   Recommended (N); the half-measure named and rejected. `needs_ev` is
   on the cap row. The away-channel monitor is armed on `tess/` (it
   expires every 30 min in this harness and is re-armed at each expiry).
+
+## (N) ruled; the message unit in review (2026-09-18)
+
+- **Ev, in chat: (N), with (E) deliberately tabled** — a `deferred` row
+  pointing at a SHA where the code (N) retires is whole. `[ev]` PR 2850
+  now carries the DESIGN sentence ("A chart singularity inside a face is
+  a vertex of it", written for the cone apex too — flagged for Ev), the
+  tabled row, and the work filed on EXCH (import normalization, first)
+  and TOPO (the validity rule, with the props arm's retirement riding it
+  because **PROPS is paused**, Ev same message). Waits on Ev's 👍 for
+  the DESIGN text only.
+- **PR 2848** (domination assert messages) reported green on the full
+  matrix at `cd07a9ad`. The unit outgrew the bottom tier — a shared
+  test helper now decides thirteen domination rows — so it takes the
+  middle tier: one style review with a correctness arm (no row), whose
+  first claim is that no converted assert got weaker or had its
+  operands swapped. The lane filed the out-of-fence hits on TINT and
+  INSTR.
+- **PROPS paused changes the NURBS bound's owner in practice.** TESS
+  will take `patch_bound::rational_cells`' unenclosed refinement as an
+  ANNOUNCED territory crossing (INSTR's precedent on paused S-MESH
+  ground), as TESS-2 on the full dual, specced once TESS-1's head is
+  frozen — one kernel unit on the build mutex at a time. Told to Ev.
