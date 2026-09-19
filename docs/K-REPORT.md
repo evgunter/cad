@@ -848,10 +848,20 @@ Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
 the chart's own metric rate along the chord, hence metres like the rest
 of the `props_quad_*` family. It is asked **once per trim piece per
 round**, so on a face that takes several rounds its population is the
-largest in the family by an order — and it pools with nothing: a chord's
-monotonicity margin is set by the image's control polygon, not by the
-chart's extent, so reading it against `props_quad_converged`'s ladder
-would be reading two different quantities.
+largest in the family by an order.
+
+**Its margin carries the ROUND's lever, and reading the population
+without that is reading the wrong quantity.** An earlier draft of this
+entry said the margin was "set by the image's control polygon, not by
+the chart's extent"; the v6 dual measured that false from both sides.
+The span is the REFINED block's least advance, so it halves with every
+uniform cut and every bisection and it scales with the face: the same
+smooth arc certifies at every round on a 10 µm face, refuses at round 4
+on a 1 µm face, and refuses at every round on a 0.1 µm face. So the row
+pools with nothing — not with `props_quad_converged`'s ladder, whose
+lever is the enclosure width, and not across faces of different size or
+runs that reached different rounds. A `k-lint` reading of it has to key
+on the round as well as the ε.
 
 **It emits nothing on today's corpus.** The trimmed lane is reached only
 by a face whose loop carries a `Pcurve::General` image, and on this head

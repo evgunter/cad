@@ -4137,6 +4137,11 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         dv = RingInterval::hull(dv, q.1);
     }
     #[allow(clippy::cast_precision_loss)]
+    // NO ROW CAN SEE THIS TERM at `f64`: it is `k·diam·2⁻⁵²` against
+    // enclosures whose own width is the same order, so dropping it reds
+    // nothing. It is here because the soundness argument needs it — the
+    // clamped-end fact and the block hull are each claimed about the
+    // EXACT refined net — not because a fixture caught its absence.
     let lam_pad = (add.len() as f64) * (du.width() + dv.width()) * f64::EPSILON;
     if lam_pad > 0.0 {
         for q in &mut ctl {
@@ -4444,6 +4449,17 @@ fn trim_cells<T: Decide>(
             // scaled.
             match piece_monotone::<T>(&block, a, b, su, sv, band)? {
                 Sign::Positive => {}
+                // NO ROW PINS THIS LADDER, and the reason is worth
+                // knowing: the round has ALREADY split the image into
+                // `TRIM_INIT_PIECES` blocks before the row sees one, and
+                // on every fixture built for this lane that split alone
+                // resolves a cubic's backward control step — removing
+                // the ladder entirely reds nothing (row Q5b passes
+                // either way). It is kept because the two resolutions
+                // are different knobs: the round's lever is the image's
+                // arc length and this one is the block's own, and a
+                // feature sharp enough to survive eight uniform cuts is
+                // exactly the case that has no other recourse.
                 Sign::Zero | Sign::Negative if depth < TRIM_MONOTONE_DEPTH => {
                     let (l, r) = bezier_bisect(&block);
                     stack.push((r, depth + 1));
@@ -5078,6 +5094,22 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         let winding = polygon_winding(&cells);
         let (flux_raw, sliver) =
             chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, &wu, &wv);
+        // **Two of the terms below are not independently guarded, and
+        // saying so is cheaper than implying they are.** Dropping the
+        // GAP term reds no row: inside the closure check's admitted
+        // region (`|Δ| ≤ the two brackets' slacks`) the VERTEX pad
+        // already bounds a displacement of the same size, so on every
+        // fixture one covers the other. They are kept apart because
+        // they bound different things in general — the vertex pad pays
+        // for a connector from a bracket's midpoint to a point inside
+        // THAT bracket, the gap for a disagreement between two
+        // different brackets' midpoints — and neither subsumes the
+        // other for arbitrary slacks. Halving the SLIVER constant also
+        // reds nothing: the `v`-crossing bracket is thin at `f64`
+        // (measured `1.49e-30` on Q7's chart), so the term is
+        // structurally right and numerically invisible until the
+        // interval lane instantiates the door.
+        //
         // §1(iii)'s constant, written whole: the mismatch sliver is
         // `½·w²·|ℓ′|` on EACH side of the definite cut and the
         // integrand over it is bounded by `sup|f|`, so the pad is
@@ -6701,16 +6733,40 @@ mod tests {
             )
         };
         let (r0, r2) = (read(0), read(2));
+        // The exactness claim is not "the two enclosures happen to
+        // meet" — both are ring-rounding wide, so overlap is a weak
+        // test that a slightly-too-low order can pass. It is that the
+        // two ANSWER THE SAME NUMBER: an exact rule integrates each
+        // sub-chord exactly, so cutting the chord into four times as
+        // many pieces cannot move the sum at all.
+        // Measured on this fixture: the shipped order answers round 0
+        // and round 2 BIT FOR BIT (difference exactly 0, against
+        // enclosure widths of 2.5e-13 and 1.0e-12), and a rule two
+        // counts short answers them one ulp apart (5.55e-17 on 0.325).
+        // A quarter-ulp gate separates those two and leaves room for a
+        // sub-ulp summation-order wobble the head does not produce.
+        let (m0, m2) = (mid(r0.flux), mid(r2.flux));
+        assert!(
+            (m0 - m2).abs() <= 0.25 * f64::EPSILON * m0.abs(),
+            "Q9: an EXACT rule answers the same integral at every chord count — round 0 \
+             {m0:e} and round 2 {m2:e} differ by {:e}, so the rule is CONVERGING rather \
+             than exact",
+            (m0 - m2).abs()
+        );
         assert!(
             overlaps(r0.flux, r2.flux),
-            "Q9: an EXACT rule answers the same integral at every chord count — round 0 \
-             {:?} and round 2 {:?} do not overlap, so the rule is converging rather than \
-             exact",
+            "Q9: round 0 {:?} and round 2 {:?} must also overlap as enclosures",
             r0.flux,
             r2.flux
         );
         // …and it is exact to ring rounding, not merely consistent: a
-        // composite one order short would agree only to its own error.
+        // composite short of the degree would agree only to its own
+        // error. **Short of the degree, not short of the order**: a
+        // closed Newton–Cotes rule on an EVEN interval count is exact
+        // one degree past its order, so `mu − 1` (even here) still
+        // integrates this integrand exactly and reds nothing — `mu − 2`
+        // is the mutant this row kills, and the spec's `mu` is the
+        // first count that is exact for every parity.
         assert!(
             r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
             "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",
@@ -6798,21 +6854,66 @@ mod tests {
             }
             other => panic!("Q11: Green's theorem has no answer for an open walk: {other:?}"),
         }
-        // In-bracket: the two sides of one shared vertex disagree by
-        // `d`, and both brackets contain both readings — the lane pays
-        // the gap and still encloses the truth.
-        let d = 1.0e-5;
+        // In-bracket: the two sides of one shared vertex are DIFFERENT
+        // brackets, each containing the other's reading — which is the
+        // shipped assembler's own case, two pcurves reading one vertex.
+        // Their midpoints differ by `d`, so the walk does not close
+        // exactly and the lane PAYS the gap rather than refusing it.
+        let d = 1.0e-3;
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = (RingInterval::from_bounds(1.0 - d, 1.0), pt(1.0));
         let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
-        g.a = (RingInterval::from_bounds(1.0 - d, 1.0), pt(1.0));
+        g.a = (RingInterval::from_bounds(1.0 - 2.0 * d, 1.0 - d), pt(1.0));
         g.piece.as_mut().unwrap().control[0] = g.a;
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(
             &trimmed(&ku, &kvv, &control, &w, &closed, RoundWindow::SCHEDULE)
                 .unwrap_or_else(|e| panic!("Q11: an in-bracket gap is paid, not refused: {e:?}")),
         );
+        // The truth is the polygon the caller MEANT — the corner at
+        // (1,1) — and the gap pad `|Δu|·sup|G_f|` is what reaches it
+        // from the walk that was actually handed over.
         encloses(b.flux, c * 0.5, "Q11 in-bracket flux");
+    }
+
+    /// **Q13 — an in-band monotone verdict ESCALATES.**
+    ///
+    /// Bisection halves the very span `props_trim_piece_monotone`
+    /// meters, so a margin that sits in the ambiguity band arrives at
+    /// the depth limit still in it: refining it is a four-level detour
+    /// to a foregone refusal, and the refusal would misreport an
+    /// undecided margin as a decided fold. The funnel's own answer for
+    /// an in-band margin is an escalation, which is what every other
+    /// lane in this file returns.
+    ///
+    /// The fixture puts the first Bézier block's backward step inside
+    /// `(ε, K·ε)`: the image is split into `TRIM_INIT_PIECES = 8`, so a
+    /// control step of `40ε` on the whole image is `5ε` on the block.
+    /// Adopted from the t2q-r2 reviewer probe P2b.
+    #[test]
+    fn q13_an_in_band_monotone_verdict_escalates() {
+        let eps = Tol::witness().get().eps;
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            iso((1.0, 1.0), (0.0, 1.0)),
+            general(&[(0.0, 1.0), (0.0, 1.0 + 40.0 * eps), (0.0, 0.0)], 0.0),
+        ];
+        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+            Err(PropsError::Escalated { cause }) => {
+                assert!(
+                    cause
+                        .predicate
+                        .is_some_and(|p| p == "props_trim_piece_monotone"),
+                    "Q13: the escalation names the row that could not decide: {cause:?}"
+                );
+            }
+            other => panic!(
+                "Q13: an in-band monotone margin is the funnel's to report, not a refusal \
+                 to mint: {other:?}"
+            ),
+        }
     }
 
     /// **Q12 — a chart knot an ulp from the chord's end is still a

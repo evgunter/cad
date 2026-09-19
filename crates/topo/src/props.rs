@@ -2937,6 +2937,16 @@ mod quad_lane {
                     // structure, like every other read on this path.
                     let (d0, d1) = image.domain();
                     let (r0, r1) = (ring(t0), ring(t1));
+                    // NO ROW AND NO KNOWN PRODUCER, stated so a reader
+                    // does not take the guard for evidence of the case:
+                    // `derive_general_image` mints an image over the
+                    // carrier's whole interval, so nothing at rest
+                    // stores a sub-range, and nothing in the suites
+                    // hand-builds one. It is here because the trimmed
+                    // lane subdivides the STORED image whole, and a
+                    // future producer that stored a sub-range would get
+                    // a certified number for chart the face does not
+                    // bound rather than a refusal.
                     if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
                     {
                         return Err(PropsError::QuadratureUnsupported {

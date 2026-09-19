@@ -13,9 +13,14 @@ opened: 2026-09-13
 loop's chord polygon EXACTLY: Green's theorem on
 `G_f(u, v) = ∫_{v₀}^{v} f`, with a nested closed Newton–Cotes rule whose
 outer order is `3p_u + 3p_v − 1` in `u` and inner order `3p_v − 1` in
-`v`. `newton_cotes_weights` builds its nodes as exact `i128` fractions
-and tops out at **12 nodes** (the `i128` headroom, and the `< 2^53`
-exactness check on the reduced fraction). So the exact rule runs while
+`v`. `newton_cotes_weights` builds its nodes as exact `i128` fractions and
+tops out at **12 INTERVALS — 13 nodes** (the `i128` headroom, and the
+`< 2^53` exactness check on the reduced fraction): `newton_cotes_weights(m)`
+returns `m + 1` weights and refuses `m > 12`. The fence arithmetic below
+counts intervals and is right; an earlier wording of this file and of
+the PR said "12 nodes", which is off by one in the reader's favour and
+would make the window look one degree tighter than it is. So the exact
+rule runs while
 
 ```text
 3·(p_u + p_v) − 1 ≤ 12   ⟺   p_u + p_v ≤ 4
