@@ -1,7 +1,7 @@
 ---
 id: the-cylindrical-patch-rim-builder-is-written-nine-times
 kind: issue
-title: The two-rim cylindrical-patch builder is written five times in crates/topo/tests, all as closures a name census cannot see; the src spellings are a second construction
+title: The two-rim cylindrical-patch builder is written five times in crates/topo/tests, all as closures a name census cannot see; the src spellings are the same construction with a visibility scar
 status: review
 opened: 2026-09-19
 branch: dup/cyl-rim-builder
@@ -11,8 +11,9 @@ refs: [topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one, censu
 
 > **The count in this row's id is the opening one and it was wrong.**
 > Re-taken 2026-09-19 at merge base `5b4979ef2`: the class is five, in
-> four files, and the `src` spellings it counted are a different
-> construction. The re-take, its instruments and the hit list are
+> four files, and the `src` spellings it counted are the same
+> construction reached by a different door, which is why they are not
+> folded here. The re-take, its instruments and the hit list are
 > below; the id stays as it was minted (`work/README.md`: ids are
 > stable).
 
@@ -121,8 +122,8 @@ the body owned and no source. 5 is the same construction at
 
 6. `crates/topo/src/census.rs` `cyl_sheet` and 7.
    `crates/topo/src/chart_region.rs` `cyl_sheet` — one construction
-   written twice (dumps diff empty), and **not** the one the `tests/`
-   family builds. Row:
+   written twice (dumps diff empty), and the SAME construction as the
+   `tests/` family reached through a door `tests/` cannot open. Row:
    `topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one`.
 8. `crates/topo/src/census.rs` `cyl_sheet_b` — same shape, reparameterised
    frame, and it keeps the pre-repair projection read. Row:
@@ -166,14 +167,28 @@ with its key, sorted and diffed.
   is the whole difference, and it is now the door's `source` parameter.
 - `src` members 6 against 7: **empty diff**, `set_face_sense(face,
   true)` included.
-- `tests/` family against `src` family: **not identical, and not
-  close** — 3 solids / 4 faces / 6 vertices against 1 / 2 / 4. The
-  `tests/` members mint a scaffold `mvfs` per rim because
-  `Body::add_surface` is `pub(crate)` and a `tests/` binary cannot
-  reach it. **The two constructions diverged along the crate boundary,
-  not along intent**, and that is the finding: merging them changes
-  what `census.rs`'s solid-and-face rows measure, so it is a unit of
-  its own rather than a step in this one.
+- `tests/` family against `src` family: **3 solids / 4 faces / 6
+  vertices against 1 / 2 / 4** — and the whole delta is two scaffold
+  `mvfs` calls. Line by line the two are the same Euler skeleton, the
+  same rim closure with the same `ccw` / reversed-axis /
+  `radial(u1)` branch, the same `Intersection { s1, s2, witness }` at
+  the same midpoint. The `tests/` members mint a scaffold face per rim
+  ONLY because `Body::add_surface` is `pub(crate)` and a `tests/`
+  binary cannot reach it.
+
+  **So this is one construction with a visibility scar, not two
+  constructions**, and the earlier wording here ("a second
+  construction") said the opposite of what the same paragraph measured.
+  Keeping the `src` pair out of this unit is still right, because
+  removing the scar moves arena counts `census.rs`'s rows read — but a
+  future lane must read this as one thing to unify, not two things to
+  reconcile.
+
+  **The scar is inert to every row, measured.** Switching the door's
+  rim planes to `add_surface` — the `src` form, the scar removed —
+  reds only this unit's own arena row and leaves **all 617 integration
+  rows green at both lanes**. No suite using this door can see the
+  difference.
 
 **2. Where the shared home goes.** `crates/topo`'s existing
 `test_support_fixtures.rs`, behind `topo::test_support`. **It cost
@@ -204,6 +219,31 @@ between sheet call sites. What the `src` pair takes as an
 `Option<SurfaceKey>` is a different question — *sharing one key between
 two sheets* — and it belongs with row 6/7.
 
+## The frame constructors, folded at the style-review fix pass
+
+The first cut unified `CylFrame` the TYPE and left its constructors
+duplicated — three local types became one, and the seven-going-on-
+twelve ways of building one did not. A reader who did not write the
+fix caught it, which is method item 5 exactly. Re-censused over the
+three files: **twelve spellings, three families**, all now on
+`CylFrame`:
+
+| family | spellings before | after |
+| --- | --- | --- |
+| axis tilted about +y, seam co-rotated | `r1::tilted_frame(theta)`, `r1::tilted_at(theta, radius)`, `r2::tilted_frame(radius, theta)`, `mate5` inline | `CylFrame::tilted(radius, theta)` |
+| origin +0.25ẑ, axis reversed, seam at `d` | `mate5::frame_b()`, `r1::frame_b_at(d)`, `r2` inline ×2 | `CylFrame::opposed(seam)` |
+| the canonical frame, renamed | `mate5::frame_a()`, `r1::frame_a()`, `r1::frame_a_r(radius)`, `r2::frame_a(radius)` | `CylFrame::canonical(radius)`, called directly |
+
+The brief named seven; the census found twelve, because `tilted_at`
+and `frame_a_r` are a second parameterisation of two of the families
+inside one file. Item 1 again, one level down.
+
+One site keeps a struct-update rather than a constructor and it is a
+result, not a residue: `radius_disagreement_is_three_outcome_honest`
+and its edge-case sibling write `CylFrame { radius: r, ..opposed(0.7) }`
+because a radius that varies against an otherwise fixed frame IS that
+row's subject, and a constructor taking both would hide it.
+
 ## What the fold left standing, on purpose
 
 `try_wall_sheet` — a `catch_unwind` stand-down wrapper — stays
@@ -220,7 +260,20 @@ left unnegated — reds **23 rows across all four folded suites**
 `r2_probes` 4, `split_edge_pcurve_rows` 3), 594 of 617 passing. Every
 folded site is live, the `interval` member included.
 
-A second mutation is the finding: **deleting the source write left all
-617 rows green**, at both lanes, although three suites document the
-distinct `GeomSource` as their subject. Row:
-`topo-cylinder-sheet-geomsources-are-asserted-by-nothing`.
+Four mutations in all, re-run after the style-review fix pass:
+
+| mutation | lib | integration |
+| --- | --- | --- |
+| descending rim's carrier axis left unnegated | 1 red | **23 red** in all four suites, `interval_lane` included (594/617) |
+| the source never recorded | 1 red | **0 red** |
+| `GeomSource::minted(source, 0)` → `minted(source, 7)` | 1 red | **0 red** |
+| rim planes via `add_surface` (the scar removed) | 1 red | **0 red** |
+
+The first is the fold's proof: every folded site is live at both lanes.
+**The other three are findings.** Two say the sheets' `GeomSource` —
+both its `node` and its minted index — is asserted by nothing in any
+suite, although three of them name the distinct-source fingerprint as
+their subject in prose; this unit's own row now catches both at the
+door, and the suite-level claim is
+`topo-cylinder-sheet-geomsources-are-asserted-by-nothing`. The fourth
+is what dates the scar above.

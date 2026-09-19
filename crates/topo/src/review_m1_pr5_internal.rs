@@ -278,7 +278,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Test-support fixture builders. Why they are in this
     // population at all is stated once, on
     // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
-    // them: each writes only through the asserting operators above. ----
+    // them: each writes only through doors already on this list, so
+    // each entry names the ones it composes. That is the whole claim —
+    // "the asserting operators" is NOT it, because a builder may also
+    // compose a door listed below for writing fields tier 1 does not
+    // constrain, and one here does. ----
     (
         "prism_ops",
         "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
@@ -295,8 +299,9 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cyl_wall_sheet",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
-         `set_face_surface`, then mints pcurves — every mutation is one of those, each \
-         asserting",
+         `set_face_surface` (asserting), and then through `set_surface_source` and \
+         `mint_pcurves` — which do not assert, and are on this list below for writing \
+         fields tier 1 does not constrain",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

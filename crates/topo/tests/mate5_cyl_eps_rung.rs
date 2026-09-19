@@ -35,33 +35,13 @@ fn band() -> Band {
     Band::linear(tol).unwrap()
 }
 
-/// The canonical frame: axis +z through the origin, seam at +x,
-/// radius 1 — the world frame the fixtures reason in.
-fn frame_a() -> CylFrame {
-    CylFrame::canonical(1.0)
-}
-
-/// The divergent frame of the SAME locus: origin shifted a quarter up
-/// the axis, axis direction OPPOSED, seam rotated by 0.7 rad — every
-/// field a real seat's two instances disagree on, and none of it
-/// moving the cylinder as a locus.
-fn frame_b() -> CylFrame {
-    let d = 0.7_f64;
-    CylFrame {
-        origin: Point3::new(0.0, 0.0, 0.25),
-        axis: -Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::new(d.cos(), d.sin(), 0.0),
-    }
-}
-
 /// The A-side sheet of the seat: an arc wall in the canonical frame,
 /// world azimuth `[t0, t1]`, world height `[z0, z1]`.
 fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let f = cyl_wall_sheet(
         &mut body,
-        frame_a(),
+        CylFrame::canonical(1.0),
         Some(7001),
         (t0, t1),
         (z0, z1),
@@ -78,7 +58,7 @@ fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let f = cyl_wall_sheet(
         &mut body,
-        frame_b(),
+        CylFrame::opposed(0.7),
         Some(7002),
         (0.7 - t1, 0.7 - t0),
         (0.25 - z1, 0.25 - z0),
@@ -253,12 +233,7 @@ fn one_axis_tilt_two_levers_two_answers() {
     let tilt = 40.0 * Tol::witness().k() * eps;
     let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
-        let frame = CylFrame {
-            origin: Point3::origin(),
-            axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            radius: r,
-            u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
-        };
+        let frame = CylFrame::tilted(r, tilt);
         let f = cyl_wall_sheet(
             &mut body,
             frame,
@@ -271,10 +246,7 @@ fn one_axis_tilt_two_levers_two_answers() {
     };
     let small = |u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
-        let frame = CylFrame {
-            radius: 1e-3,
-            ..frame_a()
-        };
+        let frame = CylFrame::canonical(1e-3);
         let f = cyl_wall_sheet(
             &mut body,
             frame,
@@ -328,7 +300,7 @@ fn radius_disagreement_is_three_outcome_honest() {
         let mut body = Body::<f64>::new();
         let frame = CylFrame {
             radius: r,
-            ..frame_b()
+            ..CylFrame::opposed(0.7)
         };
         let f = cyl_wall_sheet(
             &mut body,
@@ -425,7 +397,7 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
         let mut body = Body::<f64>::new();
         let frame = CylFrame {
             radius: r,
-            ..frame_b()
+            ..CylFrame::opposed(0.7)
         };
         let f = cyl_wall_sheet(
             &mut body,

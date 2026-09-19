@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol};
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
 
@@ -15,20 +15,26 @@ fn band() -> Band {
     Band::linear(tol).unwrap()
 }
 
-fn frame_a(radius: f64) -> CylFrame {
-    CylFrame::canonical(radius)
-}
-
-/// A frame of the SAME radius through the SAME origin whose axis is
-/// tilted by `theta` about +y (u_ref co-rotated so it stays a unit
-/// vector perpendicular to the axis, delta = 0 against `frame_a`).
-fn tilted_frame(radius: f64, theta: f64) -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
-        radius,
-        u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
-    }
+/// This suite's spelling of the shared door: the frame, the source and
+/// the two chart windows, flat, so a row that turns on how A's window
+/// and B's differ can be read as two adjacent lines.
+fn wall_sheet(
+    body: &mut Body<f64>,
+    frame: CylFrame,
+    src_id: u64,
+    u0: f64,
+    u1: f64,
+    v0: f64,
+    v1: f64,
+) -> FaceKey {
+    cyl_wall_sheet(
+        body,
+        frame,
+        Some(src_id),
+        (u0, u1),
+        (v0, v1),
+        Tol::witness(),
+    )
 }
 
 /// The builder, fallible at the MINT: a tilted frame's chart images
@@ -49,14 +55,7 @@ fn try_wall_sheet(
     v1: f64,
 ) -> Option<FaceKey> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        cyl_wall_sheet(
-            body,
-            frame,
-            Some(src_id),
-            (u0, u1),
-            (v0, v1),
-            Tol::witness(),
-        )
+        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
     }))
     .ok()
 }
@@ -107,11 +106,11 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
     let r = 1.0_f64;
     let w = 2000.0 * eps;
     let mut ba = Body::<f64>::new();
-    let Some(fa) = try_wall_sheet(&mut ba, frame_a(r), 9001, 0.2, 1.2, 0.0, w) else {
+    let Some(fa) = try_wall_sheet(&mut ba, CylFrame::canonical(r), 9001, 0.2, 1.2, 0.0, w) else {
         println!("the fixture cannot be minted at this ε — standing down");
         return;
     };
-    let bframe = tilted_frame(r, theta);
+    let bframe = CylFrame::tilted(r, theta);
     let mut bb = Body::<f64>::new();
     let Some(fb) = try_wall_sheet(&mut bb, bframe, 9002, 0.3, 1.3, -0.3 * w, 0.7 * w) else {
         println!("the tilted fixture cannot be minted at this ε — standing down");
@@ -131,7 +130,7 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
     let mut min_d2 = f64::MAX;
     let samples_a: Vec<Point3<f64>> = (0..=60)
         .flat_map(|i| (0..=6).map(move |j| (0.2 + (i as f64) / 60.0, (j as f64) * w / 6.0)))
-        .map(|(u, v)| frame_a(r).at(u, v))
+        .map(|(u, v)| CylFrame::canonical(r).at(u, v))
         .collect();
     for i in 0..=60 {
         for j in 0..=6 {
@@ -181,24 +180,10 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     let r = 100.0_f64;
     let w = 100.0 * eps;
     let mut ba = Body::<f64>::new();
-    let fa = cyl_wall_sheet(
-        &mut ba,
-        frame_a(r),
-        Some(9003),
-        (0.2, 1.2),
-        (0.0, w),
-        Tol::witness(),
-    );
-    let bframe = tilted_frame(r, theta);
+    let fa = wall_sheet(&mut ba, CylFrame::canonical(r), 9003, 0.2, 1.2, 0.0, w);
+    let bframe = CylFrame::tilted(r, theta);
     let mut bb = Body::<f64>::new();
-    let fb = cyl_wall_sheet(
-        &mut bb,
-        bframe,
-        Some(9004),
-        (0.3, 1.3),
-        (-0.3 * w, 0.7 * w),
-        Tol::witness(),
-    );
+    let fb = wall_sheet(&mut bb, bframe, 9004, 0.3, 1.3, -0.3 * w, 0.7 * w);
     // Max z over B's trim: 0.7w − r·sinθ·cos(1.3) — every point of B
     // below it; A's trim at z ∈ [0, w].
     let max_z_b = 0.7 * w * theta.cos() - r * theta.sin() * (1.3_f64).cos();
@@ -231,24 +216,11 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
 fn r2_what_does_the_short_tilt_pair_actually_return() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
+    let (aframe, bframe) = (CylFrame::canonical(1.0), CylFrame::tilted(1.0, tilt));
     let mut ba = Body::<f64>::new();
-    let fa = cyl_wall_sheet(
-        &mut ba,
-        frame_a(1.0),
-        Some(9101),
-        (0.2, 1.6),
-        (0.0, 1e-3),
-        Tol::witness(),
-    );
+    let fa = wall_sheet(&mut ba, aframe, 9101, 0.2, 1.6, 0.0, 1e-3);
     let mut bb = Body::<f64>::new();
-    let fb = cyl_wall_sheet(
-        &mut bb,
-        tilted_frame(1.0, tilt),
-        Some(9102),
-        (0.2, 1.6),
-        (0.0, 1e-3),
-        Tol::witness(),
-    );
+    let fb = wall_sheet(&mut bb, bframe, 9102, 0.2, 1.6, 0.0, 1e-3);
     let short = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
     println!("short tilt pair verdict: {short:?}");
     // RE-MEASURED at the fix pass. On the pre-fix head this pair
@@ -272,34 +244,14 @@ fn r2_what_does_the_short_tilt_pair_actually_return() {
 /// run both ways. Any verdict-class asymmetry is a finding.
 #[test]
 fn r2_seam_hugging_pair_is_frame_invariant_both_ways() {
-    let d = 0.7_f64;
-    let frame_b = CylFrame {
-        origin: Point3::new(0.0, 0.0, 0.25),
-        axis: -Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::new(d.cos(), d.sin(), 0.0),
-    };
+    let (frame_a, frame_b) = (CylFrame::canonical(1.0), CylFrame::opposed(0.7));
     // World window: azimuth [-0.15, 0.15] (A-chart: straddles 0;
     // B-chart: [0.55, 1.0] − mid-chart), z [0.1, 0.6] and [0.2, 0.5].
-    let mut ba = Body::<f64>::new();
-    let fa = cyl_wall_sheet(
-        &mut ba,
-        frame_a(1.0),
-        Some(9005),
-        (-0.15, 0.15),
-        (0.1, 0.6),
-        Tol::witness(),
-    );
-    let mut bb = Body::<f64>::new();
-    // world θ = 0.7 − u_B, so world [-0.2, 0.3] is u_B [0.4, 0.9].
-    let fb = cyl_wall_sheet(
-        &mut bb,
-        frame_b,
-        Some(9006),
-        (0.4, 0.9),
-        (0.25 - 0.5, 0.25 - 0.2),
-        Tol::witness(),
-    );
+    // World θ = 0.7 − u_B, so world [-0.2, 0.3] is u_B [0.4, 0.9]: the
+    // two windows are the whole subject, so they are adjacent lines.
+    let (mut ba, mut bb) = (Body::<f64>::new(), Body::<f64>::new());
+    let fa = wall_sheet(&mut ba, frame_a, 9005, -0.15, 0.15, 0.1, 0.6);
+    let fb = wall_sheet(&mut bb, frame_b, 9006, 0.4, 0.9, 0.25 - 0.5, 0.25 - 0.2);
     let ab = verdict_class(declared_pair_overlap(
         &ba,
         fa,
@@ -338,24 +290,13 @@ fn r2_diag_mintable_tilts() {
         ] {
             let theta = theta_e * eps;
             let got = std::panic::catch_unwind(|| {
+                // One frame, two windows — the pair under test is two
+                // trims of ONE description, so the frame is named once.
+                let f = CylFrame::tilted(r, theta);
                 let mut bb = Body::<f64>::new();
-                let fb = cyl_wall_sheet(
-                    &mut bb,
-                    tilted_frame(r, theta),
-                    Some(9300),
-                    (0.3, 1.3),
-                    (-0.3 * w, 0.7 * w),
-                    Tol::witness(),
-                );
+                let fb = wall_sheet(&mut bb, f, 9300, 0.3, 1.3, -0.3 * w, 0.7 * w);
                 let mut bb2 = Body::<f64>::new();
-                let fb2 = cyl_wall_sheet(
-                    &mut bb2,
-                    tilted_frame(r, theta),
-                    Some(9301),
-                    (0.2, 1.2),
-                    (0.0, w),
-                    Tol::witness(),
-                );
+                let fb2 = wall_sheet(&mut bb2, f, 9301, 0.2, 1.2, 0.0, w);
                 verdict_class(declared_pair_overlap(
                     &bb,
                     fb,
@@ -379,33 +320,13 @@ fn r2_diag_mintable_tilts() {
 /// arm's docs disclose. Pins the decline the PR states but never rows.
 #[test]
 fn r2_flush_cylinder_seat_declines_touching_boundary() {
-    let d = 0.7_f64;
-    let frame_b = CylFrame {
-        origin: Point3::new(0.0, 0.0, 0.25),
-        axis: -Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::new(d.cos(), d.sin(), 0.0),
-    };
+    let (frame_a, frame_b) = (CylFrame::canonical(1.0), CylFrame::opposed(0.7));
     let mut ba = Body::<f64>::new();
-    let fa = cyl_wall_sheet(
-        &mut ba,
-        frame_a(1.0),
-        Some(9007),
-        (0.2, 1.6),
-        (0.0, 0.5),
-        Tol::witness(),
-    );
+    let fa = wall_sheet(&mut ba, frame_a, 9007, 0.2, 1.6, 0.0, 0.5);
     let mut bb = Body::<f64>::new();
     // world z [0.5, 1.0] = v_B [0.25 − 1.0, 0.25 − 0.5]; azimuth
     // [0.5, 1.3] = u_B [0.7 − 1.3, 0.7 − 0.5].
-    let fb = cyl_wall_sheet(
-        &mut bb,
-        frame_b,
-        Some(9008),
-        (-0.6, 0.2),
-        (-0.75, -0.25),
-        Tol::witness(),
-    );
+    let fb = wall_sheet(&mut bb, frame_b, 9008, -0.6, 0.2, -0.75, -0.25);
     let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
     match got {
         Err(ChartRegionError::TouchingBoundary) => {}

@@ -1423,3 +1423,61 @@ an entry, not a feature.
 second X4 the fold left standing: `try_wall_sheet`, token-identical in
 two probe suites, whose reason to exist was the local builder and
 which now wraps the shared one.
+
+### The style-review fix pass, same day
+
+Nine items, and two of them are this program's own method firing on
+this unit.
+
+**X4 a third time, and I did not self-report it.** The unit unified
+`CylFrame` the TYPE and left its CONSTRUCTORS duplicated — and put the
+shared home in the file it was editing, so the duplication had a home
+and did not go there. Re-censused: twelve spellings in three families
+(the review said seven; two families had a second parameterisation
+inside one file, which is item 1 one level down). All twelve now sit on
+`CylFrame::canonical` / `::tilted` / `::opposed`. **The reader who did
+not write the fix is the only one who has ever caught an X4 here, three
+units running.**
+
+**"A second construction" was wrong, and my own row said so two
+paragraphs above the phrase.** The `src` `cyl_sheet` pair is the same
+construction as the folded door with one difference — two scaffold
+`mvfs` calls that exist only because `add_surface` is `pub(crate)`. The
+row measured that and then labelled it "a second construction", which
+is what a future lane would have read. **A measurement and a summary of
+it can disagree inside one file**, and the summary is the part that
+travels.
+
+**The scar is inert, and now that is measured rather than asserted.**
+Switching the door's rim planes to `add_surface` — the `src` form —
+reds only the unit's own arena row and leaves all 617 integration rows
+green at both lanes. So the word "inert" in the door's rustdoc, which
+the review correctly called an unmeasured claim, is now a row's
+measurement and not the door's prose (method item 13).
+
+**Two more silent mutations.** The reviewer changed
+`GeomSource::minted(source, 0)` to `minted(source, 7)` and got 566 + 730
+green: the minted INDEX of every sheet's source is asserted by nothing,
+as its `node` already was. The unit's row now asserts the whole
+`GeomSource`, and the S-TINT row was widened from one claim to three —
+`node`, the index, and the pairwise distinctness a single-sheet row
+cannot reach at all. **A row about one field of a struct is a half-fix
+of a class.**
+
+**A gate decided an open question.** The review asked whether `tol` —
+passed as `Tol::witness()` at all 23 call sites and never anything else
+— is a knob that is never varied. It is, and it cannot go:
+`scripts/gates/witness-not-ambient.sh` forbids `Tol::witness()` under
+`crates/*/src` and does not exempt the `#[cfg(any(...))]` mount, which
+`work/dup/thread-the-tolerance-through-the-prism-fixture-family.md`
+established by planting a violation. Planted one in the door; the gate
+fired and named the line. So the readability fix is the other arm — the
+suite that had no local adapter got one, and its eleven eight-line call
+blocks are one-liners again with each row's two chart windows adjacent.
+
+**And one guard that cannot see what it says.** The unit's own
+allowlist entry in `review_m1_pr5_internal` was materially false and
+both guards reading that table went green, because they check
+membership and never an entry's reason. Filed on GUARD, with the two
+entries anyone has checked named and no count of the rest published,
+because nobody has measured one.

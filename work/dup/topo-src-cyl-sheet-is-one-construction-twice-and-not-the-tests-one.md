@@ -1,7 +1,7 @@
 ---
 id: topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one
 kind: issue
-title: census.rs and chart_region.rs build the same cylinder sheet, and it is not the construction the tests/ door now shares
+title: census.rs and chart_region.rs build the same cylinder sheet twice, and the tests/ door is that construction with a pub(crate) scar
 status: open
 opened: 2026-09-19
 ---
@@ -20,32 +20,40 @@ diffed empty, and `census.rs`'s extra `set_face_sense(face, true)` at
 the end moves nothing. So they are one construction written twice, and
 `chart_region.rs`'s `rim_spec` is the factoring the other lacks.
 
-## Why it is not the door `crates/topo/tests/` now shares
+## Why it was not folded with the `tests/` half
 
 `cyl_wall_sheet` (`crates/topo/src/test_support_fixtures.rs`, PR for
-`the-cylindrical-patch-rim-builder-is-written-nine-times`) is the same
-Euler sequence but a **different construction**, and the difference is
-measurable rather than stylistic:
+`the-cylindrical-patch-rim-builder-is-written-nine-times`) is **the
+same construction**, reached through a door a `tests/` binary cannot
+open. Read line by line the two are one thing: same Euler skeleton,
+same rim closure with the same `ccw` / reversed-axis / `radial(u1)`
+branch, same `Intersection { s1, s2, witness }` at the same midpoint.
+One difference, and it is a visibility scar rather than a design:
 
 | | `src` pair | the shared door |
 | --- | --- | --- |
-| rim plane's surface | `Body::add_surface` | scaffold `mvfs` + `set_face_surface` |
+| rim plane's surface | `Body::add_surface` (`pub(crate)`) | scaffold `mvfs` + `set_face_surface` |
 | arena counts | 1 solid, 2 faces, 4 vertices | 3 solids, 4 faces, 6 vertices |
 
 The scaffold exists because `add_surface` is `pub(crate)` and a
-`tests/` binary cannot call it, so the two constructions diverged
-along the crate boundary, not along intent. Folding the `src` pair
-onto the shared door — or the door onto them — therefore **changes
-what a suite measures**: `census.rs`'s rows are about solids and
-faces. That is a full-tier unit under this program's review posture,
-not a declaration-site move, which is why it was dispositioned out of
-the folding unit rather than swept into it.
+`tests/` binary cannot call it. Nothing else differs.
+
+**The scar is inert to every row that uses the shared door**, measured
+2026-09-19: switching the door's rim planes to `add_surface` reds only
+the door's own arena row and leaves all 617 `topo` integration rows
+green at both lanes. So no suite on the `tests/` side is defending the
+scaffolds. What stops the fold being free is the other side —
+`census.rs`'s rows are about solids and faces, and removing the scar in
+the other direction moves what they count. That is a full-tier unit
+under this program's review posture, not a declaration-site move, which
+is why it was dispositioned out of the folding unit rather than swept
+into it.
 
 ## What a unit here owes
 
-1. Decide which construction is right for both, and say what the
-   scaffold solids are worth at the predicate doors (the door's
-   rustdoc claims they are inert; nothing measures that).
+1. Decide which of the two doors both sides use. The scaffolds are
+   already measured inert on the `tests/` side (above), so the open
+   half is what `census.rs`'s solid-and-face rows mean to assert.
 2. Re-take the count first — `census.rs` and `chart_region.rs` are
    live files and this was measured 2026-09-19.
 
