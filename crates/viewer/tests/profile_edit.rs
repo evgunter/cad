@@ -201,6 +201,7 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
             let state = session.history().current();
             let out = session.perform(SessionOp::EditProfile {
                 node: profile,
+                base: program(&session, profile).clone(),
                 loops: lowered(&held, other),
             });
             assert!(out.refusal.is_none(), "{name}: {:?}", out.refusal);
@@ -267,6 +268,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
     held[0][1] = Step::LineTo(Target::Point(pt(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
+        base: program(&session, profile).clone(),
         loops: lowered(&held, MM),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
@@ -333,6 +335,7 @@ fn a_reshaped_program_refuses_restructure() {
     ] {
         let out = session.perform(SessionOp::EditProfile {
             node: profile,
+            base: program(&session, profile).clone(),
             loops: lowered(&loops, Notation::CANONICAL),
         });
         match out.refusal {
@@ -412,6 +415,7 @@ fn an_invalid_program_refuses_as_itself() {
     held[0][3] = Step::LineTo(Target::Point(pt(0.01, 0.01)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
+        base: program(&session, profile).clone(),
         loops: lowered(&held, Notation::CANONICAL),
     });
     match out.refusal {
@@ -459,6 +463,7 @@ fn a_move_whose_first_write_alone_crosses_still_lands() {
     let state = session.history().current();
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
+        base: program(&session, profile).clone(),
         loops: lowered(std::slice::from_ref(&moved), Notation::CANONICAL),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
@@ -485,6 +490,10 @@ fn editing_a_non_profile_refuses_wrong_kind() {
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::EditProfile {
         node: plane,
+        base: ProfileProgram {
+            plane,
+            loops: Vec::new(),
+        },
         loops: Vec::new(),
     });
     assert!(
@@ -492,4 +501,141 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         "{:?}",
         out.refusal
     );
+}
+
+/// A closed polygon through `points`, in order.
+fn polygon(points: &[(f64, f64)]) -> Vec<Step<f64>> {
+    let mut steps = vec![Step::At(pt(points[0].0, points[0].1))];
+    for &(x, y) in &points[1..] {
+        steps.push(Step::LineTo(Target::Point(pt(x, y))));
+    }
+    steps.push(Step::LineTo(Target::Start));
+    steps
+}
+
+/// **Numbers valid together that no order of one-slot writes reaches
+/// refuse `ProfileEditOrder`**, and nothing lands. The pentagon pair
+/// was found by `profile_edit_order`'s search; the door searched every
+/// order of its writes before saying so.
+#[test]
+fn numbers_no_order_reaches_refuse_edit_order() {
+    let base = [
+        (0.721_070_807_093_289_2, 0.024_685_130_330_262_216),
+        (0.106_151_747_868_981_88, 0.953_850_357_115_103_9),
+        (-0.675_152_065_374_494_7, 0.226_295_352_329_219_46),
+        (-0.335_828_105_609_440_3, -0.486_568_152_102_961_9),
+        (0.235_145_486_038_303_8, -0.579_976_097_390_286_7),
+    ];
+    let target = [
+        base[0],
+        base[1],
+        (0.691_776_936_062_037_2, 0.226_295_352_329_219_46),
+        (0.893_949_020_659_274_2, -0.158_427_872_150_871_17),
+        base[4],
+    ];
+    let (mut session, profile) = with_profile(
+        &[ProfileShape::Path {
+            steps: polygon(&base),
+        }],
+        Notation::CANONICAL,
+    );
+    let before = session.committed_doc().clone();
+    let state = session.history().current();
+    let out = session.perform(SessionOp::EditProfile {
+        node: profile,
+        base: program(&session, profile).clone(),
+        loops: lowered(&[polygon(&target)], Notation::CANONICAL),
+    });
+    match out.refusal {
+        Some(refusal @ Refusal::ProfileEditOrder { .. }) => {
+            let said = refusal.to_string();
+            assert!(said.contains("every order"), "{said}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(session.committed_doc().bit_eq(&before));
+    assert_eq!(session.history().current(), state);
+}
+
+/// **Past the search cap, a refusal says the search was capped** —
+/// not that no order exists. A heptagon turned half a turn moves all
+/// fourteen of its coordinates, more than the cap, and its first
+/// corner written alone crosses the loop.
+#[test]
+fn a_move_past_the_search_cap_says_it_was_capped() {
+    use viewer::session::ORDER_SEARCH_CAP;
+    let corners = |turn: f64| {
+        (0..7)
+            .map(|i| {
+                let a = core::f64::consts::TAU * f64::from(i) / 7.0 + turn;
+                (0.01 * a.cos(), 0.01 * a.sin())
+            })
+            .collect::<Vec<_>>()
+    };
+    let (mut session, profile) = with_profile(
+        &[ProfileShape::Path {
+            steps: polygon(&corners(0.0)),
+        }],
+        Notation::CANONICAL,
+    );
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::EditProfile {
+        node: profile,
+        base: program(&session, profile).clone(),
+        loops: lowered(
+            &[polygon(&corners(core::f64::consts::PI))],
+            Notation::CANONICAL,
+        ),
+    });
+    match out.refusal {
+        Some(refusal @ Refusal::ProfileEditOrderCapped { writes, cap, .. }) => {
+            assert_eq!((writes, cap), (14, ORDER_SEARCH_CAP));
+            assert!(writes > cap);
+            let said = refusal.to_string();
+            assert!(said.contains("capped"), "{said}");
+            assert!(!said.contains("every order"), "{said}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(session.committed_doc().bit_eq(&before));
+}
+
+/// **Numbers loaded from a program the document no longer holds are
+/// not written over it.** The editor loads, an undo-like change lands
+/// underneath (here, the same edit from elsewhere), and the stale
+/// numbers refuse `ProfileEditStale` rather than landing on top.
+#[test]
+fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
+    let (mut session, profile) = with_profile(
+        &[ProfileShape::Path {
+            steps: square(0.0, 0.01),
+        }],
+        Notation::CANONICAL,
+    );
+    let loaded = program(&session, profile).clone();
+    let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
+    // Something else moves corner 2 first.
+    let out = session.perform(SessionOp::SetSlot {
+        node: profile,
+        slot: SlotId::Profile {
+            loop_: 0,
+            step: 2,
+            arg: StepArg::TargetY,
+        },
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.02),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let between = session.committed_doc().clone();
+    held[0][1] = Step::LineTo(Target::Point(pt(0.015, 0.0)));
+    let out = session.perform(SessionOp::EditProfile {
+        node: profile,
+        base: loaded,
+        loops: lowered(&held, Notation::CANONICAL),
+    });
+    assert!(
+        matches!(out.refusal, Some(Refusal::ProfileEditStale { node }) if node == profile),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&between));
 }

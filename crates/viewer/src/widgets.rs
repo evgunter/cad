@@ -761,10 +761,17 @@ pub(crate) fn path_step_fields(
             // The count is the loop's vertex count — its SHAPE, not one
             // of its arguments — so a locked editor shows it and
             // does not take it.
+            //
+            // The range bounds what a person AUTHORS here, never what
+            // is shown: the field can be handed a committed profile's
+            // count, which the document admits above the cap, and a
+            // drawn widget must not rewrite a document value. egui
+            // clamps an existing value into the range by default.
             ui.add_enabled(
                 shape.free(),
                 number_field(n, COUNT_DRAG_SPEED)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
+                    .clamp_existing_to_range(false)
                     .prefix("n "),
             );
             named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);

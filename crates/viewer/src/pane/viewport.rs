@@ -579,7 +579,10 @@ impl ViewerBehavior<'_> {
         // **Both doors of the one profile editor draw the same way**:
         // the add-profile form's loops and the loops an edit of a
         // committed profile holds, each where it would land.
-        let previews = [self.profile_preview, self.edit_preview]
+        let previews = self
+            .profile_previews
+            .as_ref()
+            .into_array()
             .into_iter()
             .filter_map(|preview| preview.as_ref()?.as_ref().ok());
         for drawn in previews {

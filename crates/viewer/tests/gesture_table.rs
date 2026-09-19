@@ -318,6 +318,10 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         },
         SessionOp::EditProfile {
             node,
+            base: pncad::document::ProfileProgram {
+                plane: node,
+                loops: vec![],
+            },
             loops: vec![],
         },
     ]

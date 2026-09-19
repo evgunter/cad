@@ -456,14 +456,24 @@ pub enum SessionOp {
     /// insert door's own words ([`Refusal::Edit`]). The slot writes
     /// then land in an order the door accepts one at a time — each
     /// write re-validates the program, so a corner moved past another
-    /// can refuse until its neighbour follows, and a write the door
-    /// refuses waits for the rest. A program that is valid whole and
-    /// has no such order is [`Refusal::ProfileEditOrder`], the cost of
-    /// the missing whole-program door said out loud rather than as a
-    /// refusal about a state nobody wrote.
+    /// can refuse until its neighbour follows. The order is searched
+    /// exactly up to [`crate::session::ORDER_SEARCH_CAP`] writes; a
+    /// program that is valid whole and has no such order is
+    /// [`Refusal::ProfileEditOrder`], and one past the cap whose slot
+    /// order does not land is [`Refusal::ProfileEditOrderCapped`] —
+    /// the cost of the missing whole-program door said out loud rather
+    /// than as a refusal about a state nobody wrote.
+    ///
+    /// `base` is the program the editor was loaded from. A document
+    /// whose program is no longer that one (compared by value) refuses
+    /// [`Refusal::ProfileEditStale`]: the numbers were an edit of a
+    /// program that is not there any more.
     EditProfile {
         /// The profile node.
         node: RecipeNodeId,
+        /// The committed program the editor's numbers were loaded
+        /// from.
+        base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram>,
     },

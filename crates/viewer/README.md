@@ -320,6 +320,7 @@ list. A third driver is an amendment here, not a header edit.
 | `pane` | the pane bodies' parent |
 | `pane::create` | the create pane |
 | `pane::features` | the feature-tree pane |
+| `pane::profile` | the profile editor both profile doors draw (create form, Properties pane) |
 | `pane::properties` | the property pane |
 | `pane::view` | the view pane |
 | `pane::viewport` | the viewport pane |

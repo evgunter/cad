@@ -33,18 +33,12 @@ impl ViewerBehavior<'_> {
             Selection::None => {
                 ui.weak("select a feature");
             }
-            // A profile is edited in the add-profile form's own editor
-            // (`edit_profile_ui`), not as generic slot rows; the rows
-            // are what a profile the editor cannot hold falls back to.
-            Selection::Node(node) if self.profile_editor_ui(ui, node) => {}
             Selection::Node(node) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, node, group);
-                }
+                self.feature_rows_ui(ui, node, &groups);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -61,12 +55,8 @@ impl ViewerBehavior<'_> {
                 // `Some` on these two arms, and read rather than
                 // re-derived so the rows and the edits land on the
                 // node `slot_groups` answered for.
-                if let Some(feature) = self.session.selection().node()
-                    && !self.profile_editor_ui(ui, feature)
-                {
-                    for group in &groups {
-                        self.slot_group_ui(ui, feature, group);
-                    }
+                if let Some(feature) = self.session.selection().node() {
+                    self.feature_rows_ui(ui, feature, &groups);
                 }
             }
             Selection::Param(name) => {
@@ -141,13 +131,37 @@ impl ViewerBehavior<'_> {
         self.add_param_ui(ui);
     }
 
-    /// **The profile editor, when `node` is a profile it can hold** —
-    /// `true` when it drew, so the caller's slot rows stand down.
-    fn profile_editor_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) -> bool {
-        matches!(
+    /// **A feature's editing rows**: its slot rows — and, for a
+    /// profile, the add-profile form's own editor above them
+    /// ([`ViewerBehavior::edit_profile_ui`]).
+    ///
+    /// Under the editor the slot rows are FOLDED, not dropped: they are
+    /// the door for what the editor's number fields do not carry —
+    /// driving an argument by an expression, re-noting its unit,
+    /// probing its range. A profile the editor cannot hold (an argument
+    /// already driven) shows its refusal and the rows open.
+    fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
+        let profile = matches!(
             self.session.committed_doc().node(node),
             Some(Node::Profile(_))
-        ) && self.edit_profile_ui(ui, node)
+        );
+        if profile && self.edit_profile_ui(ui, node) {
+            egui::CollapsingHeader::new("arguments")
+                .id_salt(("profile_arguments", node.0))
+                .show(ui, |ui| {
+                    ui.weak(
+                        "each argument as a slot: drive it by an expression, change the unit it \
+                         is written in, or probe its range — an edit here reloads the editor above",
+                    );
+                    for group in groups {
+                        self.slot_group_ui(ui, node, group);
+                    }
+                });
+        } else {
+            for group in groups {
+                self.slot_group_ui(ui, node, group);
+            }
+        }
     }
 
     /// The create half of the document-parameters section: name,

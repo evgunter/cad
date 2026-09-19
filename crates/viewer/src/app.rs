@@ -54,12 +54,11 @@ use std::sync::atomic::AtomicU64;
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
-use crate::drafts::Drafts;
+use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
@@ -75,7 +74,7 @@ use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
-use crate::sketch::{self, PreviewError, ProfilePreview, ProfileShape};
+use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
 
@@ -431,11 +430,11 @@ pub struct ViewerApp {
     /// wireframe appears the frame after the section is opened and
     /// leaves the frame after it is closed, which is the same
     /// staleness the preview itself carries and for the same reason.
-    profile_form_drawn: bool,
-    /// The same latch for the add-profile form's editor opened on a
-    /// committed profile (`ViewerBehavior::edit_profile_ui`): whether
-    /// it was drawn last frame, and so whether its loops are previewed.
-    profile_edit_drawn: bool,
+    ///
+    /// One latch per door of the profile editor: the add-profile form,
+    /// and the same editor opened on a committed profile
+    /// (`ViewerBehavior::edit_profile_ui`).
+    profile_drawn: ProfileDoors<bool>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -801,8 +800,7 @@ impl ViewerApp {
             fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
-            profile_form_drawn: false,
-            profile_edit_drawn: false,
+            profile_drawn: ProfileDoors::default(),
             checks_shown: false,
             camera,
             input,
@@ -1732,16 +1730,16 @@ impl eframe::App for ViewerApp {
         // are compared afterwards and a frame that changed them asks
         // for another, so the picture catches up on the next one
         // rather than waiting for the next input event.
-        let authored = self.drafts.profile_loops();
-        // A selection that left the profile an edit was loaded from
-        // abandons the edit, before anything previews it.
-        self.drafts
-            .abandon_profile_edit_off(self.session.selection().node());
-        let edited = self
-            .drafts
-            .profile_edit
-            .as_ref()
-            .map(|edit| (edit.plane(), edit.shapes()));
+        //
+        // The edit draft is brought up to the document FIRST: a
+        // selection that left its node drops it, and an undo that
+        // changed its program reloads it — so the preview taken below
+        // is of the draft the pane is about to show, not last frame's.
+        self.drafts.sync_profile_edit(
+            self.session.committed_doc(),
+            self.session.selection().node(),
+        );
+        let held = self.drafts.door_loops();
         // **No frame picked, no preview.** The form draws on a frame
         // the document holds, so with none picked there is no plane to
         // place the loops on and nothing honest to show — the form
@@ -1749,24 +1747,17 @@ impl eframe::App for ViewerApp {
         // a shape nobody chose. The edit door's frame is the
         // committed profile's own.
         let (tol, delta) = (self.session.tol(), self.delta.get());
-        let preview_on = |frame: Option<RecipeNodeId>, loops: &[ProfileShape]| {
-            frame
-                .zip(self.session.landed_pair())
+        let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
+            held.as_ref()
+                .filter(|_| drawn)
+                .and_then(|held| held.frame.zip(self.session.landed_pair()))
                 .and_then(|(frame, (doc, evaluation))| {
                     sketch::frame_placement(doc, evaluation, frame)
                 })
-                .map(|plane| sketch::preview(plane, loops, tol, delta))
-        };
-        let profile_preview = self
-            .profile_form_drawn
-            .then(|| preview_on(self.drafts.profile_plane, &authored))
-            .flatten();
-        let edit_preview = edited
-            .as_ref()
-            .filter(|_| self.profile_edit_drawn)
-            .and_then(|(plane, loops)| preview_on(Some(*plane), loops));
-        let mut profile_form_drawn = false;
-        let mut profile_edit_drawn = false;
+                .zip(held.as_ref())
+                .map(|(plane, held)| sketch::preview(plane, &held.loops, tol, delta))
+        });
+        let mut profile_drawn = ProfileDoors::<bool>::default();
         // **Zeroed here and assigned back below, every frame.** The
         // viewport writes it while it draws; a frame the viewport does
         // not draw at all is a frame with no datums vanishing in it,
@@ -1810,10 +1801,8 @@ impl eframe::App for ViewerApp {
                     display: &display,
                     tools: &mut self.tools,
                     part_chooser: &mut self.part_chooser,
-                    profile_preview: &profile_preview,
-                    profile_form_drawn: &mut profile_form_drawn,
-                    edit_preview: &edit_preview,
-                    profile_edit_drawn: &mut profile_edit_drawn,
+                    profile_previews: &profile_previews,
+                    profile_drawn: &mut profile_drawn,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     datums_vanished: &mut datums_vanished,
@@ -1830,26 +1819,23 @@ impl eframe::App for ViewerApp {
                 self.tree.ui(&mut behavior, ui);
             });
         self.checks_window(ui.ctx(), &mut ops);
-        self.profile_form_drawn = profile_form_drawn;
-        self.profile_edit_drawn = profile_edit_drawn;
+        self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        let edit_moved = || {
-            let now = self.drafts.profile_edit.as_ref();
-            match (now, &edited) {
-                (Some(now), Some((plane, loops))) => {
-                    now.plane() != *plane || !sketch::authors_same_loops(&now.shapes(), loops)
-                }
-                (None, None) => false,
-                _ => true,
-            }
-        };
-        if profile_form_drawn
-            && !sketch::authors_same_loops(&self.drafts.profile_loops(), &authored)
-            || profile_edit_drawn && edit_moved()
-        {
+        let moved =
+            profile_drawn
+                .zip(held.zip(self.drafts.door_loops()))
+                .map(|(drawn, (before, now))| {
+                    drawn
+                        && match (before, now) {
+                            (Some(before), Some(now)) => !before.previews_as(&now),
+                            (None, None) => false,
+                            _ => true,
+                        }
+                });
+        if moved.into_array().contains(&true) {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a
@@ -1936,24 +1922,18 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) tools: &'a mut Tools,
     /// The `Add part…` chooser, if open.
     pub(crate) part_chooser: &'a mut Option<PartChooser>,
-    /// What the add-profile form's loops would draw, taken once for
-    /// the frame: the panel says what it refuses and the viewport
-    /// draws what it replayed, from ONE reading.
+    /// What each door of the profile editor's loops would draw, taken
+    /// once for the frame: the panel says what it refuses and the
+    /// viewport draws what it replayed, from ONE reading.
     ///
-    /// `None` is "no preview was taken this frame" — the frame the
-    /// form first comes on screen, before the latch below has told
-    /// anyone to take one. Distinct from `Some(Ok(empty))`, which is
-    /// a preview that WAS taken and drew nothing, and which the form
-    /// is entitled to say so about.
-    pub(crate) profile_preview: &'a Option<Result<ProfilePreview, PreviewError>>,
-    /// Set by the add-profile form while it draws; read next frame.
-    pub(crate) profile_form_drawn: &'a mut bool,
-    /// What the loops an edit of a committed profile holds would draw
-    /// — [`Self::profile_preview`]'s twin for the same editor's other
-    /// door, taken the same way.
-    pub(crate) edit_preview: &'a Option<Result<ProfilePreview, PreviewError>>,
-    /// Set by the edit door's editor while it draws; read next frame.
-    pub(crate) profile_edit_drawn: &'a mut bool,
+    /// `None` is "no preview was taken this frame" — the frame a door
+    /// first comes on screen, before the latch below has told anyone
+    /// to take one. Distinct from `Some(Ok(empty))`, which is a
+    /// preview that WAS taken and drew nothing, and which the form is
+    /// entitled to say so about.
+    pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
+    /// Set by each door's editor while it draws; read next frame.
+    pub(crate) profile_drawn: &'a mut ProfileDoors<bool>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -1972,7 +1952,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// after, whether or not the viewport was one of them, so a
     /// viewport dragged shut or tabbed away reports none rather than
     /// leaving the last count it made standing. That is
-    /// `profile_form_drawn`'s discipline above, and it is the one
+    /// `profile_drawn`'s discipline above, and it is the one
     /// `work/view/projection-fault-has-no-sweeper.md` says the fault
     /// still lacks.
     pub(crate) datums_vanished: &'a mut usize,

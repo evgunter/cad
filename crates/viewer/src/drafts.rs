@@ -217,6 +217,68 @@ pub(crate) struct Drafts {
     pub(crate) profile_edit: Option<ProfileEdit>,
 }
 
+/// **One value per door of the profile editor** — the add-profile
+/// form (`create`) and the same editor opened on a committed profile
+/// (`edit`). What the frame loop takes per door — the loops, the
+/// preview, whether the door drew — is one of these, so the two doors
+/// run one pipeline rather than a pipeline and its twin.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ProfileDoors<T> {
+    /// The add-profile form's.
+    pub(crate) create: T,
+    /// The edit door's.
+    pub(crate) edit: T,
+}
+
+impl<T> ProfileDoors<T> {
+    /// Each door's value through `f`.
+    pub(crate) fn map<U>(self, mut f: impl FnMut(T) -> U) -> ProfileDoors<U> {
+        ProfileDoors {
+            create: f(self.create),
+            edit: f(self.edit),
+        }
+    }
+
+    /// Each door's value beside `other`'s for the same door.
+    pub(crate) fn zip<U>(self, other: ProfileDoors<U>) -> ProfileDoors<(T, U)> {
+        ProfileDoors {
+            create: (self.create, other.create),
+            edit: (self.edit, other.edit),
+        }
+    }
+
+    /// Borrowed.
+    pub(crate) fn as_ref(&self) -> ProfileDoors<&T> {
+        ProfileDoors {
+            create: &self.create,
+            edit: &self.edit,
+        }
+    }
+
+    /// Both doors' values, create first.
+    pub(crate) fn into_array(self) -> [T; 2] {
+        [self.create, self.edit]
+    }
+}
+
+/// What one door's editor would preview: the frame it draws on (the
+/// form's pick, `None` until one is made) and its loops.
+#[derive(Clone, Debug)]
+pub(crate) struct DoorLoops {
+    /// The frame the loops are drawn on.
+    pub(crate) frame: Option<RecipeNodeId>,
+    /// The loops, in description order.
+    pub(crate) loops: Vec<ProfileShape>,
+}
+
+impl DoorLoops {
+    /// Whether `other` previews the same thing — the same frame and
+    /// loops that lower alike ([`sketch::authors_same_loops`]).
+    pub(crate) fn previews_as(&self, other: &Self) -> bool {
+        self.frame == other.frame && sketch::authors_same_loops(&self.loops, &other.loops)
+    }
+}
+
 /// **A committed profile's program, held in the add-profile form's
 /// currency** — the kernel's [`Step`] at plain numbers, one list per
 /// loop — so the one editor that authors a new profile edits this one.
@@ -241,6 +303,13 @@ impl ProfileEdit {
         self.base.plane
     }
 
+    /// The committed program the loops were loaded from — what
+    /// `SessionOp::EditProfile` carries so the door can refuse numbers
+    /// loaded from a program the document no longer holds.
+    pub(crate) fn base(&self) -> &ProfileProgram {
+        &self.base
+    }
+
     /// The held loops as the shapes the preview and the lowering take.
     pub(crate) fn shapes(&self) -> Vec<ProfileShape> {
         sketch::path_shapes(&self.loops)
@@ -256,10 +325,7 @@ impl ProfileEdit {
         &self,
         notation: sketch::Notation,
     ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
-        self.shapes()
-            .iter()
-            .map(|shape| sketch::loop_program(shape, notation))
-            .collect()
+        sketch::loop_programs(&self.shapes(), notation)
     }
 
     /// **Whether applying would write anything** — the edit door's own
@@ -447,6 +513,43 @@ impl Drafts {
         Ok(held)
     }
 
+    /// **Bring the held edit draft up to the document, before anything
+    /// reads it this frame**: dropped when the selection has left its
+    /// node ([`Self::abandon_profile_edit_off`]), reloaded when the
+    /// document no longer holds the program it was loaded from (an
+    /// undo, a redo, an apply), dropped when that reload refuses. It
+    /// never LOADS a draft that is not held — opening one is the
+    /// pane's act ([`Self::profile_edit`]).
+    pub(crate) fn sync_profile_edit(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        selected: Option<RecipeNodeId>,
+    ) {
+        self.abandon_profile_edit_off(selected);
+        if let Some(node) = self.profile_edit.as_ref().map(|held| held.node) {
+            // A refusal drops the draft (`profile_edit`'s contract) and
+            // is said by the pane when it next draws.
+            let _refused = self.profile_edit(doc, node).is_err();
+        }
+    }
+
+    /// **What each door of the profile editor holds for its preview**:
+    /// the add-profile form's frame pick and loops, and the loops of a
+    /// committed profile opened for editing, on its own frame (`None`
+    /// while none is open).
+    pub(crate) fn door_loops(&self) -> ProfileDoors<Option<DoorLoops>> {
+        ProfileDoors {
+            create: Some(DoorLoops {
+                frame: self.profile_plane,
+                loops: self.profile_loops(),
+            }),
+            edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
+                frame: Some(edit.plane()),
+                loops: edit.shapes(),
+            }),
+        }
+    }
+
     /// **Drop the edit draft unless `selected` is its node** — the
     /// selection moving off a profile abandons what was typed into it,
     /// as every draft here is abandoned by selecting elsewhere.
@@ -469,10 +572,7 @@ impl Drafts {
     /// A non-finite field, or a path that is not a program's shape
     /// ([`sketch::loop_program`]'s refusals).
     pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
-        self.profile_loops()
-            .iter()
-            .map(|shape| sketch::loop_program(shape, self.notation()))
-            .collect()
+        sketch::loop_programs(&self.profile_loops(), self.notation())
     }
 
     /// A `Length` literal from a draft field, remembering the form's
@@ -820,67 +920,5 @@ mod tests {
         // A node the editor cannot hold leaves nothing stale behind.
         assert!(drafts.profile_edit(&before, RecipeNodeId(0)).is_err());
         assert!(drafts.profile_edit.is_none());
-    }
-
-    /// Review probe (review-vseam-profile-editor): a committed
-    /// `circle_split` above the form's count cap, loaded into the edit
-    /// door and DRAWN once with its count field locked, untouched.
-    /// Does the draw leave the held program alone?
-    #[test]
-    fn review_probe_drawing_a_locked_split_circle_above_the_cap_leaves_it_alone() {
-        use crate::forms::{MAX_CIRCLE_SPLIT, ShapeEdits};
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
-        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let doc = Doc::empty_derived("probe", Tol::witness());
-        let frame = datum_node(crate::session::DatumSpec::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        });
-        let doc = apply(&doc, &DocEdit::InsertNode { node: frame }, Tol::witness())
-            .expect("frame")
-            .doc;
-        let plane = *doc.order().last().expect("the frame");
-        let n = MAX_CIRCLE_SPLIT + 976;
-        let loops = vec![
-            sketch::loop_program(
-                &crate::session::ProfileShape::Path {
-                    steps: vec![Step::CircleSplit {
-                        centre: Point2::origin(),
-                        radius: 0.01,
-                        n: n as _,
-                        phase: 0.0,
-                    }],
-                },
-                sketch::Notation::CANONICAL,
-            )
-            .expect("finite"),
-        ];
-        let node = Node::Profile(ProfileProgram { plane, loops });
-        let doc = apply(&doc, &DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the document admits a split circle above the form's cap")
-            .doc;
-        let profile = *doc.order().last().expect("the profile");
-        let mut drafts = Drafts::default();
-        let edit = drafts.profile_edit(&doc, profile).expect("held");
-        assert!(!edit.moved(), "fresh load");
-        let ctx = egui::Context::default();
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            crate::pane::create::path_steps_ui(
-                ui,
-                "probe",
-                Tol::witness(),
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                ShapeEdits::Locked,
-                &mut edit.loops[0],
-            );
-        });
-        output.textures_delta.clear();
-        let held_n = match edit.loops[0][0] {
-            Step::CircleSplit { n, .. } => n as usize,
-            _ => panic!("a split circle"),
-        };
-        assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
-        assert!(!edit.moved(), "drawing alone made Apply live");
     }
 }

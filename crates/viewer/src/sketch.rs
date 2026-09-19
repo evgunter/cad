@@ -356,13 +356,25 @@ pub fn loop_program(
 /// lower alike preview alike. A list that does not lower compares by
 /// its refusal, which is also what the preview shows for it.
 pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
-    let lowered = |shapes: &[ProfileShape]| {
-        shapes
-            .iter()
-            .map(|shape| loop_program(shape, Notation::CANONICAL))
-            .collect::<Vec<_>>()
-    };
-    lowered(a) == lowered(b)
+    loop_programs(a, Notation::CANONICAL) == loop_programs(b, Notation::CANONICAL)
+}
+
+/// **A list of shapes lowered loop by loop** — [`loop_program`] over
+/// each, in description order, the whole list refusing with the first
+/// loop that does. The one lowering every door of the profile editor
+/// hands the session, and the one the preview's change test compares.
+///
+/// # Errors
+///
+/// [`loop_program`]'s.
+pub fn loop_programs(
+    shapes: &[ProfileShape],
+    notation: Notation,
+) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    shapes
+        .iter()
+        .map(|shape| loop_program(shape, notation))
+        .collect()
 }
 
 /// **Held loops as the shapes the preview and the lowering take** —

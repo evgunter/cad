@@ -1,9 +1,10 @@
-//! Review probes (review-vseam-profile-editor, PR #2862): does
-//! `session::accepted_order` refuse `ProfileEditOrder` only when NO
-//! order of the one-slot writes works, as its doc and the refusal's
-//! sentence claim? The walk is greedy, so this searches small random
-//! polygon edits for one it refuses where some permutation of the same
-//! writes lands.
+//! **The edit door's write order is exact**: `SessionOp::EditProfile`
+//! refuses `ProfileEditOrder` only when NO order of its one-slot writes
+//! lands, as the refusal's sentence claims. Random small polygon edits
+//! (a fixed-seed search) are pushed through the door; every one it
+//! refuses for order is checked against a brute-force search over
+//! every permutation of the same writes, and every one it lands must
+//! land where asked, as one undo step.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -51,6 +52,14 @@ fn with_profile(points: &[(f64, f64)]) -> (DocSession, RecipeNodeId) {
         },
     );
     (session, profile)
+}
+
+/// The committed program of `node`.
+fn base_program(session: &DocSession, node: RecipeNodeId) -> ProfileProgram {
+    match session.committed_doc().node(node) {
+        Some(Node::Profile(program)) => program.clone(),
+        other => panic!("feature {} is not a profile: {other:?}", node.0),
+    }
 }
 
 /// Every permutation of `edits`, depth-first; true when one applies
@@ -125,6 +134,7 @@ fn accepted_order_refuses_only_when_no_order_lands() {
         let state = session.history().current();
         let out = session.perform(SessionOp::EditProfile {
             node: profile,
+            base: base_program(&session, profile),
             loops: lowered(&polygon(&target)),
         });
         match out.refusal {
