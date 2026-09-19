@@ -1030,12 +1030,7 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     let (gt, gi) = patch_size(&body, &got, key);
     let oracle_walls: Vec<(usize, usize)> = oracle
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                oracle.get_surface(f.surface),
-                Some(geom::Surface::Nurbs(_))
-            )
-        })
+        .filter(|(_, f)| matches!(oracle.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
         .map(|(_, f)| patch_size(&oracle, &want, f.surface))
         .collect();
     println!(
