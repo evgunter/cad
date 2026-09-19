@@ -108,3 +108,27 @@ on either.
   premise is PROPS' predicate and D2's refusal vocabulary.
 - The diag lane's clone (`cad-work/tess-nurbs-diag`) is kept until
   PROPS answers on its row; its evidence is pushed.
+
+## The cap survey adjudicated; TESS-1 specced (2026-09-18)
+
+`tess/rim-only-cap-diag` at `83833e586`. With assertions off the face
+meshes as a HOLE (`Ok`, zero triangles); in-repo release still panics
+because `[profile.release]` keeps `debug-assertions`. The reach is STEP
+import (since PR 2741) and the Euler door; no native verb mints the
+face; it is a class (cone apex cap, one-rim cylinder). Numbers and
+corrections are on the row.
+
+- **TESS-1** (`docs/TESS-1-SPEC.md`): the class refuses typed on the
+  structural fact — no meridian traversal. Pre-draw fields, logged
+  before the block draw: **difficulty M, task-class structural** (the
+  refusal reads the traversal list; no float decides it). Block
+  TESS-B1, record branch-side on `tess/b1-block`.
+- **Fork for Ev** (`[ev]` PR, `needs_ev` on the cap row): mesh learns
+  the interior pole and emits the sphere cap, or import normalizes the
+  rim-only statement into the seamed form and TESS-1's refusal stands.
+  TESS-1 is true under either, so it does not wait.
+- Filed: `check-mesh-passes-the-empty-mesh`.
+- CLASS noted for the record: **a row's prose about another program's
+  door goes stale the day that program lands** — the cap row said
+  "import route dead" two days after PR 2741 opened it. Measure-first
+  caught it; nothing else would have.
