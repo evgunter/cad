@@ -154,6 +154,8 @@ mod edit_recorded_notation;
 mod edit_ruled_carve;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "review_radius_emission_r2_probes.rs"]
+mod review_radius_emission_r2_probes;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
