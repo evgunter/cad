@@ -668,6 +668,10 @@ pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// The name table `id` published, or a panic naming what it did
 /// instead.
 pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+    // PROBE MUTANT (review/helpers-rv): the door answers the WRONG
+    // node's table. Every suite that imported the door instead of
+    // keeping its copy must red on this.
+    let id = ev.nodes.keys().next().copied().unwrap_or(id);
     &ev.value(id)
         .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
         .name_table
