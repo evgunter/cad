@@ -667,10 +667,13 @@ seam) to the re-spell unit's spec.
 **Shipped form: the invariant NOW HOLDS (LIB-RTABLE).** The one
 declaration is `transition_table!` in
 `crates/profile/src/path/program.rs`: one row per (state, verb,
-kernel fn, next state), expanded into all four projections — the
+kernel fn, next state), expanded into all six projections — the
 typed method (rustdoc and signature carried by the row, geometry
-by the kernel fn it names), the driver arm, the `Step` variant
-and the `Verb` tag — so deleting a row breaks all four at
+by the kernel fn it names), the driver arm, the `Step` variant,
+the `Verb` tag, the verb's row set (`Verb::states`) and, for an
+arc-spec verb, the forms its spec takes at each state
+(`arc_specs_at`, read off the arc-spec dispatchers, each declared
+once by `spec_dispatch!`) — so deleting a row breaks all six at
 compile, and there is no second place to write a transition.
 
 **The family (line is the unmarked middle-position default):**
