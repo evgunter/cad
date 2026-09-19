@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
 branch: dup/sweep-brick-delegation
+pr: 2877
 ---
 
 ## Finding
