@@ -247,7 +247,9 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 }
 
 /// The stable tag for a recorded-program lift refusal
-/// (`LoopProgram::from_recorded` and its notation-bearing twin). The
+/// (`LoopProgram::from_recorded` and its notation-bearing twin), and
+/// for the one refusal raised at the WRITING door instead
+/// (`RecordedNotation::set_after` against an empty recording). The
 /// literal arm carries the expression layer's own tag through rather
 /// than flattening it.
 ///
@@ -255,12 +257,30 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// which argument role the notation named. Nothing is lost that a
 /// Python caller could not say for itself — it wrote the entry — and
 /// the Rust sentence still names both.
+///
+/// `notation_before_any_step` is the derived notation door's own
+/// refusal, kept apart from `notation_off_program` because the
+/// caller named no step for that tag to be about.
+///
+/// **Both notation words are vocabulary no Python caller can reach
+/// today, and this is where that is said.** The binding's only lift
+/// is `py::path::loop_program`, which calls
+/// `LoopProgram::from_recorded` — the notation-free twin — and no
+/// Python door builds a `RecordedNotation` at all, so neither
+/// `notation_off_program` nor `notation_before_any_step` can arrive
+/// on the wire. They are carried because this map is exhaustive over
+/// the enum and a word that appears the day the door does is better
+/// than a build break then; they become live the day a Python path
+/// builder threads a notation, which is
+/// `work/lib/path-legs-erase-the-authored-notation-one-layer-down`'s
+/// work and not this crate's.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
         RecordedProgramError::NotationOffProgram { .. } => "notation_off_program",
+        RecordedProgramError::NotationBeforeAnyStep { .. } => "notation_before_any_step",
     }
 }
 

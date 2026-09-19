@@ -648,7 +648,7 @@ impl CheckedRecords<'_, '_> {
         }
         Ok(ProfileEdgeRef {
             loop_index: loop_,
-            segment: segment as u32,
+            segment: program_index(segment),
         })
     }
 }
@@ -786,6 +786,29 @@ impl core::error::Error for StepSegmentsError {}
 // ------------------------------------------------------------------
 // Slot access
 // ------------------------------------------------------------------
+
+/// **The one home for narrowing a program address from a `usize`** —
+/// a step's index in a recording, the index of the loop it sits in, or
+/// a segment it produced — to the `u32` [`crate::SlotId::Profile`],
+/// [`ProgramRefusal`] and [`crate::ProfileEdgeRef`] carry it as.
+///
+/// D2 addendum row 4. Every caller of this holds the collection the
+/// index came from, so an index past `u32` would be 2^32 elements in
+/// memory at once: a typed refusal here would guard a state the
+/// machine excludes, unlike [`RecordedProgramError::SubdivisionCount`],
+/// whose count is one number a caller writes and whose refusal is
+/// therefore real. Stated once, here, so no site has to restate it.
+///
+/// # Panics
+///
+/// Never, for the reason above; the `unreachable!` is the fail-loud
+/// spelling of "the machine got there anyway".
+fn program_index(i: usize) -> u32 {
+    let Ok(narrowed) = u32::try_from(i) else {
+        unreachable!("a collection of {i} elements does not fit in memory")
+    };
+    narrowed
+}
 
 /// The argument roles a target contributes ([] for `Start`).
 ///
@@ -1103,7 +1126,7 @@ impl LoopProgram {
                     step_slots(step, &mut args);
                     for arg in args.into_iter().filter(|a| a.is_radius()) {
                         if let Some(expr) = step_expr(step, arg) {
-                            out.push((i as u32, expr));
+                            out.push((program_index(i), expr));
                         }
                     }
                 }
@@ -1130,7 +1153,7 @@ impl LoopProgram {
                 for (i, step) in steps.iter().enumerate() {
                     let mut args = Vec::new();
                     step_slots(step, &mut args);
-                    out.extend(args.into_iter().map(|a| (i as u32, a)));
+                    out.extend(args.into_iter().map(|a| (program_index(i), a)));
                 }
             }
             LoopProgram::Circle { .. } => {
@@ -1417,7 +1440,7 @@ impl LoopProgram {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| res_step(s, env, loop_, i as u32))
+                .map(|(i, s)| res_step(s, env, loop_, program_index(i)))
                 .collect(),
             LoopProgram::Circle { centre, radius } => Ok(vec![Step::Circle {
                 centre: Point2::new(
@@ -1471,7 +1494,7 @@ pub fn resolve_loops<T: Decide>(
     loops
         .iter()
         .enumerate()
-        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .map(|(li, lp)| lp.resolve(env, program_index(li)))
         .collect()
 }
 
@@ -1801,12 +1824,7 @@ impl ProfileProgram {
         }
         let mut out = Vec::new();
         for emission in &checked.replay.radii {
-            let step = u32::try_from(emission.step).map_err(|_| {
-                StepSegmentsError::RadiusNotAnArgument {
-                    step: u32::MAX,
-                    arg: radius_arg_of(emission.role),
-                }
-            })?;
+            let step = program_index(emission.step);
             let arg = radius_arg_of(emission.role);
             let expr = checked
                 .program
@@ -1831,15 +1849,15 @@ impl ProfileProgram {
             let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
-                        loop_: li as u32,
-                        step: e.step as u32,
+                        loop_: program_index(li),
+                        step: program_index(e.step),
                         state,
                         verb,
                     }
                 }
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: li as u32,
-                    step: e.step as u32,
+                    loop_: program_index(li),
+                    step: program_index(e.step),
                     kind: source.kind(),
                     rendered: source.to_string(),
                 },
@@ -2079,7 +2097,7 @@ impl ProfilePayload for ProfileProgram {
         for (li, lp) in self.loops.iter().enumerate() {
             for (step, arg) in lp.step_args() {
                 out.push(SlotId::Profile {
-                    loop_: li as u32,
+                    loop_: program_index(li),
                     step,
                     arg,
                 });
@@ -2147,18 +2165,26 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 }
 
 /// Why a recorded PATHS program could not be lifted
-/// ([`LoopProgram::from_recorded`]).
+/// ([`LoopProgram::from_recorded`]) — and, in one arm, why a notation
+/// could not be WRITTEN against the recording it describes
+/// ([`RecordedNotation::set_after`], which refuses before any lift so
+/// that the notation door and the lift speak one vocabulary rather
+/// than two).
 ///
 /// Every verb the transition table declares now has a document
 /// spelling, so there is no vocabulary arm: `from_recorded` is
 /// exhaustive on [`profile::Step`], and a verb the table gains breaks
 /// this file at compile rather than reaching a typed refusal.
 ///
-/// Two of the four arms are unreachable through the authoring
-/// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build. The fourth is reachable from any
+/// Two arms are unreachable through the authoring algebra — they
+/// exist because the door takes a `&[Step<f64>]`, which a caller can
+/// also hand-build. The two notation arms are reachable from any
 /// caller, because a notation is written against a recording the door
 /// does not make the caller hand over at the same time.
+///
+/// The arm the opening sentence names is
+/// [`RecordedProgramError::NotationBeforeAnyStep`]: a recording with
+/// no last step, refused where the notation is written.
 ///
 /// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
 /// tag map is an exhaustive match over this enum, and the tag inventory
@@ -2190,6 +2216,19 @@ pub enum RecordedProgramError {
         /// The argument role it named.
         arg: StepArg,
     },
+    /// [`RecordedNotation::set_after`] was asked to write the notation
+    /// of the last recorded step, and nothing has been recorded.
+    ///
+    /// The derived door names no index — that is the whole point of it
+    /// — so this is not
+    /// [`RecordedProgramError::NotationOffProgram`] at step 0: the
+    /// caller wrote no step number for that arm to report back, and
+    /// step 0 of a one-step recording whose verb lacks the role is a
+    /// different mistake with a different recourse.
+    NotationBeforeAnyStep {
+        /// The argument role the entry named.
+        arg: StepArg,
+    },
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -2211,6 +2250,12 @@ impl core::fmt::Display for RecordedProgramError {
             Self::NotationOffProgram { step, arg } => write!(
                 f,
                 "the notation names the {} of step {step}, which this recording has no argument at",
+                arg.label()
+            ),
+            Self::NotationBeforeAnyStep { arg } => write!(
+                f,
+                "the notation names the {} of the step just recorded, and nothing has been \
+                 recorded yet",
                 arg.label()
             ),
         }
@@ -2260,14 +2305,31 @@ impl core::error::Error for RecordedProgramError {}
 /// through the same addressing the slot doors read; there is no second
 /// table of which argument is which for the two to disagree about. A
 /// recorded step keeps its index through the lift (a carrier form
-/// authors one step, numbered 0), so the step a caller counted as it
-/// recorded is the step it addresses here.
+/// authors one step, numbered 0), so the step a recording holds is the
+/// step it addresses here.
+///
+/// **Which half of the address the author has to know.** The ROLE is
+/// the verb's own vocabulary and a caller writing `line_to` knows it
+/// wrote a target. The INDEX is a position in the recording, and a
+/// caller who counts it is describing the recording a second time —
+/// [`Self::set_after`] derives it from the recording instead, and
+/// [`Self::set`] is for the callers whose index is already derived
+/// from the program.
 ///
 /// # A unit measures what its role holds
 ///
-/// [`Self::set`] refuses a unit whose quantity is not the dimension
-/// [`StepArg::dimension`] requires, at the door where the caller writes
-/// it, so a lift can never meet a mismatched pairing. A Scalar role — a
+/// **Both doors refuse a unit whose quantity is not the dimension
+/// [`StepArg::dimension`] requires**, at the door where the caller
+/// writes it, so a lift can never meet a mismatched pairing. It is
+/// one predicate asked in one place: [`Self::set`] asks
+/// `UnitSym::checked_for` — the same predicate `Expr::literal_with_unit`
+/// asks, asked here because a notation is written before any literal
+/// exists to refuse it — and [`Self::set_after`] delegates to
+/// [`Self::set`] once it has derived the index, so the two doors
+/// cannot drift apart on what a role admits. They differ only in
+/// their refusal vocabulary: `set` returns the [`DimensionError`]
+/// itself and `set_after` the [`RecordedProgramError::Literal`]
+/// carrying it, which is the vocabulary the lift speaks. A Scalar role — a
 /// bulge, a director component — therefore admits only the
 /// dimensionless row `quantity::ONE`, which is the notation every
 /// Scalar literal carries already: a ratio names no unit, and this is
@@ -2306,6 +2368,20 @@ impl RecordedNotation {
     /// Records that the argument at (`step`, `arg`) was written in
     /// `unit`, replacing any notation already there.
     ///
+    /// **The ADDRESSED door.** A hand-written `step` is the caller's
+    /// SECOND description of the recording — the first being the
+    /// recording itself — and the two can disagree. The lift catches a
+    /// disagreement it can see
+    /// ([`RecordedProgramError::NotationOffProgram`]), but an index
+    /// that is off by one and lands on a step carrying the SAME role
+    /// puts the unit on a different argument and is accepted.
+    /// [`RecordedNotation::set_after`] is the door that cannot
+    /// miscount: it derives the index from the recording. Write this
+    /// one where the index is DERIVED from the program rather than
+    /// counted — the viewer's sketch notation walks
+    /// [`LoopProgram::step_args`] and addresses what that walk hands
+    /// it.
+    ///
     /// # Errors
     ///
     /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
@@ -2316,11 +2392,67 @@ impl RecordedNotation {
         arg: StepArg,
         unit: quantity::UnitDef,
     ) -> Result<(), DimensionError> {
-        // The same predicate `Expr::literal_with_unit` asks, asked here
-        // because this door writes a notation down BEFORE any literal
-        // exists to refuse it.
+        // The one predicate, asked once for both doors (see the type's
+        // "A unit measures what its role holds").
         let sym = UnitSym::checked_for(arg.dimension(), unit)?;
         self.units.insert((step, arg), sym);
+        Ok(())
+    }
+
+    /// Records that `arg` of the LAST step in `recorded` was written
+    /// in `unit`, replacing any notation already there.
+    ///
+    /// **The derived door.** The index is `recorded.len() - 1` and
+    /// never a number the caller wrote, so the leg a notation lands on
+    /// is the leg the author had just recorded when they wrote it:
+    ///
+    /// ```ignore
+    /// let path = path.line_to(p1, t)?;
+    /// n.set_after(path.recorded(), StepArg::TargetX, MM.def())?;
+    /// ```
+    ///
+    /// Every verb records exactly one step
+    /// (`profile::PartialPath::recorded`), binders included, so "the
+    /// last recorded step" is the verb just called — after `fillet(r)`
+    /// it is that binder, whose radius is
+    /// [`StepArg::Radius`]. A recorded step keeps its index through
+    /// the lift, so `recorded.len() - 1` IS the `step` half of the
+    /// address [`RecordedNotation::set`] takes.
+    ///
+    /// **Two moments, two spellings of the recording.** MID-CHAIN it
+    /// is `recorded()`, which every path state that holds the core
+    /// answers — the partial path and each arrival builder a verb
+    /// hands back — so the door is reachable wherever an author has
+    /// just recorded. AFTER THE CLOSER the chain is a
+    /// `profile::ClosedLoop` and the recording is its public
+    /// `program` field, which addresses the closing step. The two are
+    /// the same slice at the same index; which one a caller writes is
+    /// decided by which value they are holding.
+    ///
+    /// This closes the miscount, not the misnaming: a role the last
+    /// step does not carry is still the lift's
+    /// [`RecordedProgramError::NotationOffProgram`], now with the
+    /// index certainly the author's own leg.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordedProgramError::NotationBeforeAnyStep`] when `recorded`
+    /// is empty — there is no last step to write against — and
+    /// [`RecordedProgramError::Literal`] carrying
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's
+    /// quantity is not the dimension the role holds, which is
+    /// [`RecordedNotation::set`]'s refusal in the vocabulary the lift
+    /// speaks.
+    pub fn set_after(
+        &mut self,
+        recorded: &[Step<f64>],
+        arg: StepArg,
+        unit: quantity::UnitDef,
+    ) -> Result<(), RecordedProgramError> {
+        let Some(last) = recorded.len().checked_sub(1) else {
+            return Err(RecordedProgramError::NotationBeforeAnyStep { arg });
+        };
+        self.set(program_index(last), arg, unit)?;
         Ok(())
     }
 

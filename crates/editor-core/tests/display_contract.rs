@@ -20,9 +20,9 @@ use editor_core::{
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, LeverRefusal, Maintenance,
     MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal,
     NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PersistError,
-    PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate,
-    RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg,
-    StepSegmentsError,
+    PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -2197,6 +2197,72 @@ fn maintenance_display_says_what_the_edit_did() {
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `RecordedProgramError`'s census — see [`NODE_PICK_ERROR`].
+    /// Five arms: three are about the RECORDING the lift was handed,
+    /// two about the notation written beside it, and a consumer
+    /// telling those apart is the point of them being five arms
+    /// rather than one. One of the five — `NotationBeforeAnyStep` —
+    /// is raised at the WRITING door rather than at the lift, so this
+    /// census covers a sentence a caller can read without ever
+    /// lifting anything.
+    const RECORDED_PROGRAM_ERROR: RecordedProgramError = [
+        Literal,
+        SubdivisionCount,
+        CarrierInChain,
+        NotationOffProgram,
+        NotationBeforeAnyStep,
+    ];
+}
+
+/// **Every recorded-program refusal states what the lift could not
+/// take**, including the two that are about the notation rather than
+/// the recording.
+///
+/// The two notation arms are the pair a caller has to tell apart: one
+/// says the entry names an argument the recording has none of, the
+/// other that the derived door was asked to write against nothing.
+/// They differ by more than a step number, so the sentences differ by
+/// more than a step number.
+#[test]
+fn a_recorded_program_refusal_says_what_the_lift_could_not_take() {
+    let cases = [
+        (
+            RecordedProgramError::Literal(DimensionError::DisplayUnitMismatch {
+                unit: Dimension::Angle,
+                literal: Dimension::Length,
+            }),
+            vec!["recorded literal was refused", "measures angle"],
+        ),
+        (
+            RecordedProgramError::SubdivisionCount(1 << 40),
+            vec!["subdivision count", "does not fit a u32"],
+        ),
+        (
+            RecordedProgramError::CarrierInChain,
+            vec!["complete-loop carrier step", "inside a chain"],
+        ),
+        (
+            RecordedProgramError::NotationOffProgram {
+                step: 3,
+                arg: StepArg::TargetX,
+            },
+            vec!["target x", "step 3", "no argument at"],
+        ),
+        (
+            RecordedProgramError::NotationBeforeAnyStep {
+                arg: StepArg::Radius,
+            },
+            vec!["radius", "step just recorded", "nothing has been recorded"],
+        ),
+    ];
+    assert_f6_every_variant(
+        &cases,
+        &RECORDED_PROGRAM_ERROR,
+        &as_strs(&dimension_dump_words()),
+    );
 }
 
 test_utils::f6_variants! {

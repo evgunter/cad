@@ -2,7 +2,9 @@
 id: recorded-notation-makes-a-rust-author-count-step-indices
 kind: issue
 title: a RecordedNotation entry is keyed by an index the path algebra never hands its caller
-status: spec
+status: closed
+closed: 2026-09-19
+pr: 2876
 branch: edit/notation-derived-index
 opened: 2026-09-16
 ---
@@ -144,3 +146,143 @@ announcement); `crates/editor-core/tests/*` and one `profile` unit row
 (TCOST/TINT); `crates/pncad-py/src/tags.rs` only if an arm is added
 (LIB, by announcement). Middle tier: one opus style review with a
 correctness arm, then the fix pass.
+
+
+## Built (2026-09-19, lane `notation`)
+
+Both doors landed as ruled, and every premise the spec asked to be
+verified held.
+
+- `profile`: `PartialPath::recorded(&self) -> &[Step<T>]` — the steps
+  recorded so far, the prefix of the program the chain publishes. One
+  accessor over data the path already holds; no `quantity`, no
+  `UnitSym`. PATHS's crate, crossed by announcement.
+- `editor-core`: `RecordedNotation::set_after(&mut self, recorded,
+  arg, unit) -> Result<(), RecordedProgramError>` — writes the last
+  recorded step's `arg`, index `recorded.len() - 1`, never a count.
+  `set` stays the ADDRESSED door and its doc now says a hand-written
+  index is the caller's second description of the recording, naming
+  `set_after` as the door that cannot miscount.
+- The empty recording refuses as a NEW arm,
+  `RecordedProgramError::NotationBeforeAnyStep { arg }`, argued rather
+  than reusing `NotationOffProgram { step: 0, arg }`: that sentence
+  attributes an index 0 the author never wrote, and step 0 of a
+  recording whose entry verb lacks the role is a live, different
+  mistake the suite already pins. One tag word
+  (`notation_before_any_step`) in `crates/pncad-py/src/tags.rs` and its
+  inventory in `src/tests.rs` — LIB's, by announcement, mechanical.
+- Rows: the three-leg chain written through `set_after` after leg two
+  (`get(2, TargetX)` answers, `get(1, …)` does not); the trap pinned as
+  ACCEPTANCE — a hand `set(1, …)` off by one lands on the wrong leg and
+  nobody is told; the empty recording refusing typed with its `Display`
+  sentence; a role the last step does not carry still refusing at the
+  lift with `step == recorded.len() - 1`; `PartialPath::recorded`
+  equalling the published program's prefix after every verb of a mixed
+  chain (arc, `fillet` binder, re-entry, legs, closer) in
+  `crates/profile/tests/path_program.rs`; and a `display_contract`
+  census over the whole of `RecordedProgramError`, which had none.
+  Every existing row that authors a leg now authors it through
+  `set_after`; `const LEG` survives as the suite's READ address, which
+  is what makes the derived write checkable.
+- Premises: every verb records exactly one step, fused verbs and
+  binders included (51 `Core::record` call sites, one step each — of
+  the 54 `.record(` calls in `crates/profile/src/`, three belong to
+  other `record` fns: `structure.rs`'s fillet-decision recorder and
+  the two `guide.record` sites in `validate.rs` and
+  `path/arc_fillet.rs`);
+  `from_recorded` numbers steps by recording index; no Python door
+  binds `RecordedNotation` (`pncad`'s prelude and `document.rs`
+  re-export it, the viewer builds one), so LIB's
+  `path-legs-erase-the-authored-notation-one-layer-down` is still where
+  a Python builder would use this.
+
+Green on hosted CI run 35457612872 (head `33d36280d`): 35 jobs success,
+4 the change filter's own skips, twelve `test (…)`, five
+`k-lint (gate, …)`, the python suite, `gate ok`.
+
+Not closed, and said in the doc: `set` with a hand index stays
+expressible, because the viewer's `Notation::over` derives its indices
+from `LoopProgram::step_args()` and needs the addressed door. A wrong
+ROLE on the right step stays the lift's `NotationOffProgram` refusal.
+
+
+## Built — fix pass (2026-09-19, lane `notation-fix`)
+
+The review's findings, each as the invariant it asked for.
+
+- **One home for narrowing a program address.**
+  `program.rs`'s private `program_index(usize) -> u32` holds the
+  `u32::try_from` and the D2-row-4 justification once, and the ten
+  bare `as u32` narrowings in that file plus the derived door call
+  it. The eight-line paragraph at the door is gone; its argument is
+  the helper's doc.
+- **The derived door is reachable wherever an author has just
+  recorded.** `recorded()` now answers on all five arrival builders
+  (`RadiusArrival`, `RadiusArrivalAt`, `RadiusArrivalDir`,
+  `ViaArrival`, `ViaArrivalStart`) as well as on `PartialPath` — one
+  accessor shape, the reason stated once on the arrival-builder
+  banner. PATHS's crate, by announcement. After the closer the
+  recording is `ClosedLoop::program`, and `set_after`'s doc names the
+  two moments and the two spellings.
+- **The dead vocabulary is said to be dead.** Neither notation tag
+  can reach a Python caller (`py::path::loop_program` lifts through
+  `from_recorded`), and `recorded_program_error_tag`'s doc now says
+  so and points at
+  `work/lib/path-legs-erase-the-authored-notation-one-layer-down`,
+  which gained a `## Widened` section naming both doors.
+- **The record.** 51 `Core::record` sites, not 54; the
+  `display_contract` census doc counts five arms, three about the
+  recording, and names the one raised at the writing door;
+  `program.rs`'s enum and `tags.rs`'s map say that in their first
+  sentence; three rows keep `set` and the suite header names each
+  with its reason; the profile row got its own doc block and
+  `circle_is_a_one_step_program_that_replays_to_its_two_poles` its
+  paragraph back.
+- **One predicate.** `RecordedNotation`'s "A unit measures what its
+  role holds" names both doors and says `set_after` delegates to
+  `set`, so `UnitSym::checked_for` is asked in one place.
+- **The review's three probes** are the unit's rows now, each headed
+  by the invariant it pins: the derived index over fused verbs,
+  binders and the closer; the `fillet` binder as the last recorded
+  step; and — turned from an asymmetry into the door's own row — an
+  arrival state's author reaching `recorded()`, plus the finished
+  loop's `program` as the second spelling.
+- **The suite's helpers, checked against the fixture's doors:**
+  `vertex_bits` was `fixture::run`'s body spelled again and now
+  imports it; `square_authored`, `arg_bits` and `read_back` match no
+  door and stay.
+
+Green on hosted CI run 35462469877 (head `03d168452`): 39 jobs, 35
+success and 4 the change filter's own skips; twelve `test (…)`, five
+`k-lint (gate, …)`, the python suite, `gate ok`. Read at the step
+level: 422 success, 102 skipped, nothing else.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2876 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `PartialPath::recorded`
+(and the same accessor on all five arrival builders — every state an
+author has just recorded from) hands back the steps so far, and
+`RecordedNotation::set_after(recorded, arg, unit)` writes the LAST
+recorded step's argument with the index derived, never counted; an
+empty recording refuses through a new arm, `NotationBeforeAnyStep`,
+raised at the writing door (the reuse of `NotationOffProgram { step:
+0 }` would attribute an index the author never wrote — the one row
+that tells the arms apart pins it). `set` stays as the addressed door
+the viewer's `Notation::over` derives its indices for, and the
+miscount trap is pinned as acceptance through it, with the reason it
+is kept. The review (0 MAJOR, 4 MINOR, all prose or counts) found the
+door's index conversion a third spelling beside nine silent casts in
+the same file, the derived door absent from the arrival states where
+a hand count is hardest, and the new tag word unreachable from Python
+with nothing saying so; the fix pass gave the conversion one home
+(`program_index` — ten sites, four of them loop indices, so the name
+the brief proposed would have been false at half of them: the lane's
+spelling stands), put the accessor on every builder state, said the
+dead vocabulary on the tag map's doc per its convention, corrected
+the counts (51 `Core::record` sites, five census arms, three rows
+keeping `set`), and appended the hand-off to LIB's
+`path-legs-erase-the-authored-notation-one-layer-down`. Territory
+crossed by announcement: `crates/profile/src/path.rs` (PATHS — the
+accessors), `crates/pncad-py/src/{tags.rs, tests.rs}` (LIB — one tag
+word), three suites (TCOST/TINT), one LIB row appended.
