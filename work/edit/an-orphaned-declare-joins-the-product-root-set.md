@@ -23,17 +23,22 @@ what KIND they are. So the very delete that PR 2874 makes report
 `Declare` as a product root: deleting the union of a declared union
 leaves `doc.roots() == [decl]`.
 
-Measured: `crates/editor-core/tests/rv_orphan_probes.rs`'s
-`rv_the_orphaned_declaration_is_re_rooted_by_the_same_delete`, on
-branch `review/orphan-rv`.
+Measured: `crates/editor-core/tests/dm7_delete_strands.rs`'s
+`the_orphaned_declaration_is_re_rooted_by_the_same_delete` (written
+on branch `review/orphan-rv` as `rv_orphan_probes.rs`'s
+`rv_the_orphaned_declaration_is_re_rooted_by_the_same_delete`, and
+adopted into the unit's suite by PR 2874's fix pass).
 
 The behaviour predates 2874 — nothing in that PR touches `roots.rs` —
 but it is the fact two of that PR's new sentences are written against:
 
-- `crates/editor-core/src/edit.rs:1686` the arm's `Display`: "nothing
-  reads the declaration until a boolean or union names it again". The
-  root set reads it.
-- `crates/pncad-py/pncad.pyi:5267` "no longer read by anything".
+- the arm's `Display` in `crates/editor-core/src/edit.rs` said
+  "nothing reads the declaration until a boolean or union names it
+  again"; the root set reads it, so PR 2874's fix pass re-worded it to
+  "no node consumes the declaration". The sentence is now true, and
+  this row is what it is true BY.
+- `crates/pncad-py/pncad.pyi`'s `orphaned_declare` paragraph said "no
+  longer read by anything", re-worded the same way in the same pass.
 
 A `Declare` is not a body, so the gather yields nothing for it and the
 evaluation stays clean

@@ -1725,13 +1725,10 @@ pub fn inline(
     else {
         return Err(InlineError::NotAnInstance { node: instance });
     };
-    for &by in doc.order() {
-        if by != instance
-            && let Some(consumer) = doc.node(by)
-            && consumer.inputs().contains(&instance)
-        {
-            return Err(InlineError::InstanceConsumed { node: instance, by });
-        }
+    // Who reads this node is `roots`' question, asked here for the
+    // witness the refusal names.
+    if let Some(by) = crate::roots::consumer(doc, instance) {
+        return Err(InlineError::InstanceConsumed { node: instance, by });
     }
     let part = resolver
         .resolve(doc_ref, tol)

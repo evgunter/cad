@@ -362,11 +362,12 @@ class TestDetectDeclareDoors(unittest.TestCase):
                 self.assertEqual(body.mass_properties().volume, 1.125)
 
     def test_deleting_the_consumer_reports_the_declaration_it_orphaned(self):
-        """DM7's third row, over the doors this surface has: a
-        `Declare` whose last consumer a delete removed rides the
-        accepted edit as `orphaned_declare`, whose `node` is the
-        declaration that survived and whose `name` is None — nothing
-        dangles, the node is simply no longer read.
+        """The delete door's third row, beside DM7's strands, over
+        the doors this surface has: a `Declare` whose last consumer a
+        delete removed rides the accepted edit as `orphaned_declare`,
+        whose `node` is the declaration that survived and whose
+        `name` is None — nothing dangles, and no node consumes the
+        declaration any more.
 
         The rule is a transition, so the same document reports
         nothing when an unrelated node goes, and nothing at the

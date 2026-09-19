@@ -2203,7 +2203,8 @@ pub enum Node<P> {
     /// evaluates to its own payload and refuses nothing — so what
     /// says the node went inert is the delete that TOOK its last
     /// consumer, as a [`crate::edit::Maintenance::OrphanedDeclare`]
-    /// on the accepted edit (DM7's vocabulary).
+    /// on the accepted edit — the delete door's orphan report,
+    /// beside DM7's strands, whose arm carries the transition rule.
     ///
     /// **A union's own fold rows are therefore UNREPRESENTABLE here,
     /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the

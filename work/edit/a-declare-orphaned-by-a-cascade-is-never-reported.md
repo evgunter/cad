@@ -195,3 +195,79 @@ Rows: `review_decl_r1::a_declare_orphaned_by_a_cascade_is_reported_at_the_delete
 (re-headed), four in `dm7_delete_strands`, the `Display` case and
 census entry in `display_contract`, the split case in
 `asm4_split_inline`, the Python row and the census entry.
+
+## Built — fix pass (2026-09-19, PR #2874)
+
+The style review (`review/orphan-rv`) came back MERGEABLE; its probes
+and the one row it filed are merged here authorship-preserving, and
+the orchestrator's rulings are built.
+
+**The transient is ruled.** The lane's shape stands at `apply`: it is
+a function of `(document, edit)` and reports what that one delete
+did. The NET over an ACTION is the CASCADE door's answer —
+`Session::commit_action` in the viewer; Python has no cascade door —
+and nothing computes it. So the cancellation is filed where that door
+lives: `work/chrome/cascade-delete-shows-the-strand-count.md` gains a
+`## Widened (2026-09-19, PR #2874)` section saying the affordance owes
+the net of strands AND orphans over the doomed set, with the
+reviewer's one-line filter and the probe that measures it. The arm's
+doc states the transient once; `pncad.pyi` states it once too,
+because Python is the external consumer with no cascade door.
+
+**One home for "who consumes this node".** `roots::consumer` is that
+home — the first live node whose `inputs()` hold the id, walked in
+document order — and `roots::is_sink` is its predicate half.
+`orphaned_declares` calls `is_sink` instead of its own
+`doc.nodes.values().any(…)` copy, and iterates the DELETED node's
+inputs rather than the whole document order, so the doc's cost
+sentence is now true of the code. `apply`'s `DeleteNode` dangle check
+and `refactor::inline`'s `InstanceConsumed` check call `consumer` for
+the witness they name.
+
+**The set is at most one today, said so.** `Applied::maintenance`'s
+"in the document's node order" clause becomes "at most one today —
+`Node::declare_input` is an `Option` — in the deleted node's input
+order should a kind ever hold two", and
+`dm7_delete_strands::no_delete_can_report_two_orphans_today` is the
+guard that reds the day a kind holds two.
+
+**The arm is nobody's but the delete door's.** Nowhere does the code
+call it DM7's: it is "the delete door's orphan report, beside DM7's
+strands (ruled at EDIT's wave 11; for Ev's objection)". The transition
+rule is stated once, in the arm's doc, and pointed to from
+`Node::Declare`, `DocEdit::DeleteNode`, the order contract and the
+`.pyi`.
+
+**The `Display` sentence is true now.** It said "nothing reads the
+declaration"; the root set reads it — the same delete re-roots the
+`Declare` into `doc.roots()` — so it says "no node consumes the
+declaration". `display_contract` pins the new clause, the `.pyi`
+paragraph is re-worded the same way, and
+`an-orphaned-declare-joins-the-product-root-set` (the reviewer's row,
+filed on this slate) is cited from the arm's doc as the open question
+of whether a `Declare` may be a root at all.
+
+**The probes are adopted and the probe suite deleted.** Into
+`dm7_delete_strands`: the at-most-one guard, the mixed
+`Boolean`/`Union` consumer pair (both orders, folded into the
+two-consumer row), the transient's cancellability at the cascade
+door, `SetMembers` cannot orphan, and the re-rooting row the filed
+issue cites. Into `asm4_split_inline::row3_severing_cut_refuses_naming_the_edge`:
+the declare edge refused in BOTH directions, plus the closed cut
+accepted. `crates/editor-core/tests/rv_orphan_probes.rs` is gone.
+
+**MINOR-1/NOTE-3.** `pncad.pyi`'s `last_maintenance` contract sentence
+names all three kinds and their order ("Empty after an edit that moved
+no mate graph, stranded no name and orphaned no declaration"); the
+`DeleteNode` arm's comment says the input list feeds both
+`roots::on_delete` and the orphan door.
+
+**LIB's row cited and appended.**
+`work/lib/maintenance-crosses-python-as-a-nine-attribute-union-class.md`
+gains a `## Widened (2026-09-19, PR #2874)` paragraph: a seventh
+variant, and `node` answering a second question.
+
+**Disclosed deviation.** The asm4 fixture: the spec asked for one
+assertion in an existing row, and the build added a four-node fixture
+inside that row because `part()` has no union. Kept, and now widened
+with the mirror cut and the closed cut.

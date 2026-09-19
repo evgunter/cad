@@ -2059,6 +2059,10 @@ fn maintenance_display_says_what_the_edit_did() {
             vec![
                 "node 5 declares contacts",
                 "deleted the last node that consumed it",
+                // What it lost is a CONSUMER. "nothing reads it"
+                // would be false — the same delete re-roots the
+                // declaration into the document's product roots.
+                "so no node consumes the declaration",
                 "until a boolean or union names it again",
             ],
         ),
