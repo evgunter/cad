@@ -57,3 +57,38 @@ conventions" and wanted them "empty in §D" at exit; the register §D
 belonged to left the tree on 2026-09-11 (`work/README.md`, sweep 11) and
 Ev did not recognise the reference. The clauses now say what they can
 mean: the seven rows are closed in `work/tess/`.
+
+## The diagnostic lane's report (2026-09-18)
+
+`tess/nurbs-bound-diag` at `db4cb45a8`; report adjudicated the same
+hour. **The first row was misfiled by its own evidence**: the assertion
+prints `(sampled) vs (bound)`, the row read it the other way, and the
+"1.7 % wrong `vv` bound" never existed — both hosted reds are one
+defect, a 2-ULP `uu` excess on a bilinear rational patch. I checked the
+message order and the refinement site against the tree before building
+on either.
+
+- **Cause**: `geom_brep::patch_bound::rational_cells` hulls the
+  f64-refined net, so the described patch escapes the enclosure by
+  insertion rounding ×16. Proven in exact rational arithmetic (the
+  described surface's true `‖S_uu‖` exceeds `muu`). PROPS' file —
+  filed on PROPS' slate with the numbers
+  (`rational-cells-hull-the-f64-refined-net-…`), and the TESS row
+  corrected in place with what stays ours (labelled 17-digit assertion
+  messages; the header's "end to end" sentence; a bilinear-stratified
+  census as the closing evidence).
+- **CLASS, not instance — an assertion message that cannot show the
+  margin it failed on, or which side is which.** Two in `mesh`
+  (`r1_random_rational_soundness_sweep`, `assert_dominates`); the unit
+  that fixes them sweeps `crates/mesh` for two-tuple `vs` messages and
+  sub-17-digit formats on domination asserts and says what the sweep
+  could not match.
+- **Second finding filed**:
+  `exact-zero-second-partial-leaves-cell-component-as-subnormal-dust` —
+  `cell_component`'s load-bearing `== 0.0` arm is dead because the
+  ring's `add` widens `0 + 0`.
+- **Sequencing consequence.** The kernel fix is PROPS'; TESS does not
+  cross into `patch_bound.rs` while PROPS has a live orchestrator. TESS'
+  unit on this row is the message fix (bottom tier: test text only),
+  dispatched now; the row stays open on PROPS' fix. Next kernel unit is
+  `rim-only-sphere-cap-panics-at-census`, measure-first.
