@@ -253,7 +253,7 @@ impl HandWalked {
         }
         match self.edge_names.get(start + id.boundary) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(error.clone())),
             None => Err(EdgeNameFault::OutOfRange {
                 node: id.node,
                 body: id.body,

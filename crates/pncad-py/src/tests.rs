@@ -542,6 +542,14 @@ fn picking_refusal_tags_are_stable() {
         "evaluation_of_another_document"
     );
 
+    // The certified tie between faces, under the word the name-level
+    // interrogation already answers with for "this denotes more than
+    // one thing".
+    assert_eq!(
+        hit_test_error_tag(&H::Ambiguous { hits: Vec::new() }),
+        "ambiguous"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -561,7 +569,7 @@ fn picking_refusal_tags_are_stable() {
         },
     ] {
         assert_eq!(
-            node_pick_error_tag(&N::Standing(standing)),
+            node_pick_error_tag(&N::Standing(standing.clone())),
             hit_test_error_tag(&standing)
         );
     }
@@ -4283,6 +4291,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "ambiguous",
             "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
@@ -4447,8 +4456,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_resolve",
             "crossing_unverified",
             "curved_solid_frontier",
-            "declare_both_operands",
             "declare_resolve",
+            "declare_site_not_an_operand",
             "declare_unsupported_pair",
             "degenerate_direction",
             "derived_frame_section",
@@ -4500,9 +4509,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_conflict",
             "transform",
             "tube",
+            "undeclarable_contact",
             "undeclared_contact",
             "underflowed_direction",
-            "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -5289,7 +5298,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    ("ambiguous", 2),
+    ("ambiguous", 3),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("assertion_target", 2),

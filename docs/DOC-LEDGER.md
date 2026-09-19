@@ -3932,6 +3932,34 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-DECL's spec (2026-09-19)
+
+Recoverable at `git show df47b36ab:docs/EDIT-DECL-SPEC.md` (PR
+#2809's fix-pass head, carrying the `## Amended at the fix pass`
+section). EDIT's first kernel unit of block EDIT-B2, built on Ev's
+ruling from `[ev]` PR #2795 (sited declarations: a `Declare`'s pairs
+name entities at their members, one pass, the site is the side, DM6
+untouched). Its central premises held — the sited payload, the side
+from the site, the union's routing by site with the member-space
+rewrite ahead of the shared look-through, the doors following the
+payload — and three fell before the build, each corrected by the
+implementer against the tree: `persist/pairs.rs` is the
+appearance-store codec and not the declare one; `pncad::select`'s
+declare doors are re-exports of `editor-core`'s; `declare_node` holds
+no consumer context, so the flush finding carries its sites rather
+than the door siting names. One fell to the dual: premise 4's "fold-
+minted rows are not declaration subjects, by type" left a union's
+refusal against a `Merged` row with no site to carry, and the build
+degraded it to an emission bug — both blinded reviewers found it with
+red probes on the real door, and the fix pass ruled the refusal's
+shape (sited at a constituent for a merged row; typed
+`UndeclarableContact` for a row no member stands for), the decision
+unchanged and Ev told on the next `[ev]` PR. Premise 7's "refuses
+typed … has no case" was withdrawn with it. The rule above; the
+unit's record is its row's `## Closed`, its row in `MODEL-AB-LOG.md`
+(ordinals 4804/4805, sample #216; block EDIT-B2 slot 0 concluded) and
+the MERGED entry in `work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-PICK3's spec (2026-09-17)
 
 Recoverable at `git show af694692:docs/EDIT-PICK3-SPEC.md` (PR

@@ -1687,8 +1687,13 @@ impl core::fmt::Display for Maintenance {
 /// is what makes the rows TRUE of the document each step produced;
 /// `cascade_delete_order` is a walk of the same shape already, and a
 /// caller who wants one number for the whole cascade computes it from
-/// the doomed set instead of from these rows (the transients cancel —
-/// `rv_a_cascade_reports_strands_on_carriers_it_then_deletes`).
+/// the doomed set instead of from these rows. Under the vocabulary as
+/// it stands there are no transients to cancel: a payload name points
+/// at a producer UPSTREAM of its carrier and a cascade deletes
+/// dependents first, so a doomed carrier is always gone before the
+/// node it names (`rv_dm7_probes`'s
+/// `rv_a_sited_declaration_strands_nothing_inside_a_cascade` states
+/// the argument and measures the declaration case).
 fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
     doc.name_carriers()
         .filter(|carrier| carrier.name().node == deleted)

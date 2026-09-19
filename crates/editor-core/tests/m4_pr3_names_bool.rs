@@ -15,7 +15,7 @@ use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
+use fixture::{ang, declare_x_offset_flush, declare_x_offset_flush_at, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -309,7 +309,6 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
         let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, decl) = declare_x_offset_flush(doc, a, b0);
         let (doc, tb) = insert(
             doc,
             Node::Transform {
@@ -319,6 +318,8 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
                 rotation_angle: ang(0.0),
             },
         );
+        // The B side is read at the TRANSFORM, the boolean's operand.
+        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
@@ -352,7 +353,6 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, decl) = declare_x_offset_flush(doc, a, b0);
         let (doc, tb) = insert(
             doc,
             Node::Transform {
@@ -362,6 +362,8 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
                 rotation_angle: ang(0.0),
             },
         );
+        // The B side is read at the TRANSFORM, the boolean's operand.
+        let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
         let (doc, u) = insert(
             doc,
             Node::Boolean {
