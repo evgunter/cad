@@ -1644,11 +1644,9 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// whose nodes are unevaluated, failed, or poisoned in `eval` are
 /// not checkable here and defer to evaluation-time resolution.
 ///
-/// Checked sites: the name-carrying payload of an `InsertNode`
-/// ([`crate::node::Node::payload_names`] — Declare pairs, a blend's
-/// selection, a shell's open list, a derived frame's face, a measure's
-/// references, a mate's two heads, an instance's crossing `outer`s)
-/// and `Rebind`'s target. Every other
+/// Checked sites: every payload name an `InsertNode` carries
+/// ([`crate::node::Node::payload_names`] is the list) and `Rebind`'s
+/// target. Every other
 /// edit validates exactly as [`crate::edit::apply`] — including the
 /// four appearance edits, which DO carry a name: theirs resolves at
 /// evaluation, into a typed [`crate::appearance::AppearanceLoss`].

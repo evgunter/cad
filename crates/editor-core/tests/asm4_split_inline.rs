@@ -19,11 +19,13 @@ use crate::fixture;
 
 use std::collections::BTreeSet;
 
+use crate::docm7_union_declare::{block, declared_union};
 use editor_core::{
     DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
     RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, content_pin, inline,
     load, product_named, save, split,
 };
+use fixture::flush_pairs;
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Tol;
@@ -503,6 +505,72 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
     }
+    // …and the `declare` edge, which is an input like any other, in
+    // BOTH directions: a cut that carried a declared union into the
+    // part and left its `Declare` in the remainder is refused here,
+    // and so is the mirror that moved the declaration and kept its
+    // union. Together they are why no refactoring can produce a
+    // consumerless declaration the remainder keeps (the delete
+    // door's `Maintenance::OrphanedDeclare` is where that would be
+    // reported, and `split` deletes through `apply`).
+    let doc = block(
+        ProfileDoc::empty_derived("asm4-r3s-declared", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        0.0,
+        1.0,
+    );
+    let (doc, a) = doc;
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, declared, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let everything_but_the_declaration: BTreeSet<RecipeNodeId> =
+        doc.order().iter().copied().filter(|n| *n != decl).collect();
+    match split(
+        &doc,
+        &everything_but_the_declaration,
+        DocumentId::derive("n3"),
+        Tol::witness(),
+    ) {
+        Err(SplitError::SeveredEdge {
+            consumer,
+            input,
+            consumer_is_cut,
+        }) => {
+            assert_eq!((consumer, input), (declared, decl));
+            assert!(consumer_is_cut);
+        }
+        other => panic!("expected SeveredEdge, got {other:?}"),
+    }
+    // The mirror: the declaration alone moves, and the union it
+    // feeds stays behind. The severed edge named is the same one,
+    // and the consumer is the node LEFT behind this time.
+    let just_the_declaration: BTreeSet<RecipeNodeId> = BTreeSet::from([decl]);
+    match split(
+        &doc,
+        &just_the_declaration,
+        DocumentId::derive("n3-mirror"),
+        Tol::witness(),
+    ) {
+        Err(SplitError::SeveredEdge {
+            consumer,
+            input,
+            consumer_is_cut,
+        }) => {
+            assert_eq!((consumer, input), (declared, decl));
+            assert!(!consumer_is_cut, "the consumer is the one left behind here");
+        }
+        other => panic!("expected SeveredEdge, got {other:?}"),
+    }
+    // And the cut that closes over the edge is accepted: the whole
+    // document moves, so nothing is severed and nothing is orphaned.
+    let everything: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    split(
+        &doc,
+        &everything,
+        DocumentId::derive("n3-all"),
+        Tol::witness(),
+    )
+    .expect("a cut closed under the DAG is accepted");
 }
 
 /// Row 3b — a cut node referencing a parameter a kept node also

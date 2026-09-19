@@ -3137,12 +3137,14 @@ class Doc:
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, and the payload names its delete
-        stranded. The strands lead and the cluster acts follow, so
-        read `variant`, never a position. Empty after an edit that
-        moved no mate graph and stranded no name, and on a document
-        that has applied none; a REFUSED edit leaves it untouched, as
-        it leaves the document untouched.
+        cluster-record acts, the payload names its delete stranded,
+        and the declarations that delete left with no consumer. The
+        strands lead, the orphaned declarations follow them and the
+        cluster acts come last, so read `variant`, never a position.
+        Empty after an edit that moved no mate graph, stranded no
+        name and orphaned no declaration, and on a document that has
+        applied none; a REFUSED edit leaves it untouched, as it
+        leaves the document untouched.
 
         The reading begins at the load boundary: a Doc from
         `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -5264,13 +5266,30 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    An `orphaned_declare` is not a loss of that kind: its `node` is a
+    `Declare` that SURVIVED the delete, and what went is the last node
+    that consumed it (`Node.union`/`Node.boolean`'s `declare=`). It
+    carries no `name` — nothing dangles, and no node consumes the
+    declaration any more (the document's `roots` do gain it, since a
+    node nothing reads is a product root). The repair is the author's:
+    delete the declaration, or give it a new consumer. A declaration
+    that has never had a consumer is not reported: a `Declare` is
+    inserted before the union that consumes it, so what the row says
+    is that a delete MADE it consumerless.
+
+    The row is TRANSIENT when the declaration itself is what the
+    author is deleting: the consumer must go first, that delete
+    reports the orphan, and the delete that follows removes its
+    subject — so a caller walking a node and its dependents reads the
+    net effect off the document the walk ended at, not off the rows.
+
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`, or
-        `stranded_appearance`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
+        `stranded_appearance`, or `orphaned_declare`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...

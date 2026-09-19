@@ -2204,7 +2204,13 @@ pub enum Node<P> {
     /// inserted first and the boolean or union carrying its edge
     /// second. The site is also the SIDE — a name carried by both
     /// operands says which one it means — so nothing about a
-    /// declaration depends on the consumer's own name space.
+    /// declaration depends on the consumer's own name space. A
+    /// `Declare` left with no consumer is a legal document — it
+    /// evaluates to its own payload and refuses nothing — so what
+    /// says the node went inert is the delete that TOOK its last
+    /// consumer, as a [`crate::edit::Maintenance::OrphanedDeclare`]
+    /// on the accepted edit — the delete door's orphan report,
+    /// beside DM7's strands, whose arm carries the transition rule.
     ///
     /// **A union's own fold rows are therefore UNREPRESENTABLE here,
     /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the
@@ -3265,6 +3271,13 @@ impl<P> Node<P> {
     /// The single answer to "which payloads carry a name": every reader
     /// reads this rather than its own copy of the list. The negative
     /// half is [`name_free_node`], shared with the rewriting twin.
+    ///
+    /// **The list has TWO prose homes and no others**: this doc, beside
+    /// the match that enforces it, and `REFERENCES.md` §0's `Carriers:`
+    /// clause, which a reader without the code reads. A new carrier is
+    /// therefore two edits. Every other site says what it DOES with the
+    /// list and points here for what is in it, so a site that spells
+    /// variant names is a third home to delete rather than maintain.
     ///
     /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
     /// the space every reader of the answer reasons in — the insert
