@@ -2,8 +2,9 @@
 id: a-declared-union-has-no-one-pass-authoring-path
 kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
-status: review
+status: closed
 opened: 2026-09-06
+closed: 2026-09-19
 refs: [2028, 2028]
 pr: 2809
 branch: edit/sited-declarations
@@ -267,3 +268,40 @@ pair, and `RoleSeg::Seam` mints only edges and vertices while
 `OutputBody` names the body, so `Fragment` is the only kind reachable;
 `docm8_flat_merged::a_contact_against_a_fold_minted_fragment_is_undeclarable`
 pins it and states the reach.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2809 (kernel unit, v6 dual, block EDIT-B2 slot
+0; sample #216, ordinals 4804/4805). Ev's ruling is the code: a
+declared pair names two SITED entities (`SitedRef`, reused), the site
+is the side (`DeclareBothOperands` retired; one site door,
+`site_operand`, after rung 1 at both doors), the union routes each
+pair to the step its two sites derive and rewrites it into member
+space by `names::member_name` — the one member-keying rule — before
+the shared resolver, and a declaration is authored in one pass: the
+five-edit workaround is gone. Three spec premises were corrected by
+the implementer before building (`persist/pairs.rs` is the
+appearance-store codec; `pncad::select`'s declare doors are
+re-exports; `declare_node` holds no consumer context, so the FLUSH
+FINDING carries its sites). The dual converged on one MAJOR: a
+union's undeclared contact against a fold-minted row degraded to an
+"emission bug" — the fold-minted class Ev's ruling made unrepresentable
+is exactly where the detect→declare protocol was not total. The
+orchestrator ruled the refusal's shape, the decision unchanged: a
+`Merged` row's contact is refused `UndeclaredContact` sited at its
+first constituent (any constituent declares the same contact through
+the look-through, so the choice is immaterial and said so; the flat
+set rides the finding), and a row no member stands for refuses typed
+`UndeclarableContact` — `Fragment` being the only such face row a
+contact can reach, since `Seam` never mints a face. The spec carries
+the amendment (`## Amended at the fix pass`), and **Ev is told on the
+next `[ev]` PR** that a mechanism of the ruling moved. The fix pass
+also pinned the site-is-the-side direction the suite lacked, both
+sides of `payload_read_sites`, the compile-time twin on
+`Node::Declare`, and cut the name-table-hash claim to the one corpus
+union it measures; two rows filed
+(`work/lib/python-flush-findings-do-not-carry-their-sites`,
+`a-declare-orphaned-by-a-cascade-is-never-reported`). Territory
+crossed by announcement: WIRE (`eval/{mod,wire}.rs`, `names/flush.rs`),
+FIX (`refactor.rs`), LIB (`tags.rs`, `tests.rs`, `py/flush.rs`,
+`py/doc.rs`), 33 TCOST/TINT suites, six corpus documents re-authored.
