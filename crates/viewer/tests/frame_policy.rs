@@ -568,7 +568,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
         from_gpu: None,
-        from_ray: None,
+        from_ray: Vec::new(),
     };
     assert_eq!(
         disagreement.notice().subject(),
@@ -1511,6 +1511,76 @@ fn answer(serial: u32, id: u32) -> u64 {
     u64::from(serial) << 32 | u64::from(id)
 }
 
+/// **The status line tells two tied faces apart.**
+///
+/// A refusal whose whole subject is that two answers cannot be
+/// separated cannot render them as the same words. The kernel's own
+/// message numbers its faces by name alone — `StableName`'s `Display`
+/// omits the role path on purpose, so two faces of ONE node come out
+/// as one phrase twice, and the ordinal is all a reader has. That is
+/// right for the kernel, whose typed payload carries the path; it is
+/// not enough on a status line, where there is no payload to open.
+///
+/// So `frame::pick_refusal` renders each tied face the way
+/// `idpass::Disagreement` does — kind and minting node, then the role
+/// path. The premise is asserted first: these two names really do
+/// render identically through `Display` alone.
+#[test]
+fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    let index = index_of(&session);
+    let eval = session.evaluation().expect("landed");
+    let names: Vec<StableName> = index
+        .ids()
+        .ids()
+        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .cloned()
+        .collect();
+    let first = names.first().expect("the plate draws a face").clone();
+    let second = names
+        .iter()
+        .find(|name| name.path != first.path && name.to_string() == first.to_string())
+        .expect("the plate draws two faces of one node, which render as one phrase")
+        .clone();
+    let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
+        name,
+        node: index.parts().first().expect("a part").node(),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
+    let refusal = pickindex::PickError::HitTest(pncad::select::HitTestError::Ambiguous {
+        hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
+    });
+    let _ = eval;
+
+    // The premise: by name alone the two faces are one phrase.
+    assert_eq!(
+        first.to_string(),
+        second.to_string(),
+        "the two faces render identically through `Display` alone"
+    );
+
+    let text = frame::pick_refusal(&refusal).text().to_owned();
+    let rendered = |name: &StableName| format!("{name} ({:?})", name.path);
+    assert!(
+        text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
+        "each tied face is rendered with its role path: {text}"
+    );
+    assert_ne!(
+        rendered(&first),
+        rendered(&second),
+        "and the two renderings differ, which is the whole point"
+    );
+    assert!(
+        !text.contains("PickHit"),
+        "a refusal's message is prose, not a struct dump: {text}"
+    );
+}
+
 #[test]
 fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let tol = Tol::witness();
@@ -1527,30 +1597,73 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&hit.name)
+        ),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        idpass::disagreement(&index, answer(6, id), Some(7), None),
+        idpass::disagreement(&index, answer(6, id), Some(7), &[]),
         None
     );
-    assert_eq!(
-        idpass::disagreement(&index, answer(7, id), None, None),
-        None
-    );
+    assert_eq!(idpass::disagreement(&index, answer(7, id), None, &[]), None);
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), &[]),
         None
     );
     // A real disagreement reports both sides.
-    let report = idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
-        .expect("nothing vs a face is a disagreement");
+    let report = idpass::disagreement(
+        &index,
+        answer(7, IdMap::NOTHING),
+        Some(7),
+        std::slice::from_ref(&hit.name),
+    )
+    .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
-    assert_eq!(report.from_ray.as_ref(), Some(&hit.name));
+    assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
+
+    // **A certified tie the id pass chose inside is NOT a
+    // disagreement.** The kernel said these two faces cannot be
+    // ordered; the rasterizer picking one of them is depth rounding,
+    // not a contradiction. A name from OUTSIDE the tie still is one,
+    // and the sentence says the ray path was tied.
+    let others: Vec<_> = index
+        .ids()
+        .ids()
+        .filter_map(|any| index.name_of(any).and_then(|n| n.as_ref().ok()))
+        .filter(|name| **name != hit.name)
+        .cloned()
+        .collect();
+    let second = others
+        .first()
+        .expect("the plate draws a second face")
+        .clone();
+    let outside = others
+        .iter()
+        .find(|name| **name != second)
+        .expect("the plate draws a third face")
+        .clone();
+    let tied = [hit.name.clone(), second];
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), Some(7), &tied),
+        None,
+        "the id pass named one of the tied faces, which is agreement"
+    );
+    let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
+    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), &tied)
+        .expect("a face outside the tie is a disagreement");
+    assert_eq!(report.from_ray, tied.to_vec());
+    assert!(
+        report.to_string().contains("tied between"),
+        "the sentence says the ray path was tied: {report}"
+    );
 }
 
 /// **The diagnostic's subject is the PATCH under the cursor, and the
@@ -1602,23 +1715,36 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         })
         .expect("some drawn edge of the plate is hoverable from its own midpoint");
 
-    let face = index
-        .face_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
-        .expect("the cursor un-projects")
+    // One face under an ordinary edge cursor, the two faces the edge
+    // divides where the cursor is on their shared pixels — the ray
+    // path's whole answer either way, which is what the id buffer's
+    // cross-check is compared against.
+    let faces = index
+        .faces_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
+        .expect("the cursor un-projects");
+    let face = faces
+        .first()
         .expect("an edge is only reachable where its body is, so a face is under it too");
     let id = *index
-        .ids_of_target(&face)
+        .ids_of_target(face)
         .first()
         .expect("the face under the cursor is drawn");
+    let named: Vec<StableName> = faces.iter().map(|face| face.name.clone()).collect();
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&edge.name)
+        )
+        .is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), &named),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1651,7 +1777,12 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
         .expect("a second occurrence");
     assert_eq!(
-        idpass::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
+        idpass::disagreement(
+            &index,
+            answer(3, other),
+            Some(3),
+            std::slice::from_ref(&hit.name)
+        ),
         None,
         "two ids of one name are the same answer"
     );

@@ -2337,6 +2337,14 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
 /// four projected fields do not carry and the message states, the
 /// `product` door's convention.
 ///
+/// `ambiguous` is the certified tie BETWEEN FACES: the survivors of
+/// the interval order name more than one face and nothing orders
+/// them, so the door names them all and chooses none. The word is the
+/// one [`interrogate_error_tag`] already answers with for "this
+/// denotes more than one thing" — one fact, one tag, whichever door a
+/// caller meets it at — and its payload, the tied hits, crosses as
+/// `hits` beside the tag.
+///
 /// `unnamed` is the BUG arm (spec D4): the node evaluated and the
 /// entity has no name in its table. Its payload is an `EntityRef`,
 /// which is an arena key plus a body index — the key does not cross
@@ -2349,6 +2357,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
         HitTestError::NodeFailed { .. } => "node_failed",
         HitTestError::NodePoisoned { .. } => "node_poisoned",
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
+        HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
     }
 }
