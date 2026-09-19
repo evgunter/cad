@@ -2,7 +2,8 @@
 id: param-ref-refusals-spell-two-facts-four-ways
 kind: issue
 title: The param-table rule's two facts are spelled four ways across eight refusal arms
-status: review
+status: closed
+closed: 2026-09-19
 opened: 2026-09-17
 branch: edit/param-ref-one-convention
 pr: 2819
@@ -200,3 +201,33 @@ rename moves a Python tag.
 appendix trimmed to its three facts and a pointer; and the PR body's
 census list gained its negative — a tag word quoted in a DOCSTRING
 (`pncad.pyi`, `py/doc.rs`) is guarded by nothing but a hand audit.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2819 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). One convention at both
+doors, the load door's: `{Slot,Payload}` × `{UnknownDocParam,
+DocParamDimension}` on `EditError` as on `SnapshotError`, the four
+`EditError` arms renamed and made adjacent, the edit door's four tag
+words following (the Python-facing words moved — LIB's surface,
+crossed by announcement). The rule has ONE home, `EditError`'s enum
+doc, with `SnapshotError`'s doc and every paraphrase pointing at it.
+Four spec premises were corrected by the lane (`persist/check.rs`
+names no edit arm; no `f6_variants!` roster moved — the only two are
+the macro-welded `SNAPSHOT_ERROR` rosters; five Python assertions, not
+three; nine files beyond the territory list swept). The review (0
+MAJOR, 2 MINOR) found the guard measuring a SET — the pairwise swap
+of the edit door's slot and payload pairs survived every row, stopped
+only by a payload-shape accident — and the fix pass folded the
+reviewer's probe into the convention row as its second half, so each
+name is tied to the address its rendered sentence reports. The four
+shared tag words are pinned per `tags.rs`'s own one-fact-pair
+convention (an agreement row reading both maps, a sentence at each
+map site), the "four closed rows" disclosure corrected to two (a sweep
+without word boundaries), and the class the review named — the
+`EditError` siblings over the same subject keeping the old shape —
+filed as `doc-param-refusals-keep-two-conventions-inside-one-enum`.
+Stated unguarded: a tag word quoted in a docstring is caught only by a
+hand audit. Territory crossed by announcement: TCOST/TINT suites, LIB
+(`tags.rs`, `tests.rs`, `edit_payload.rs`, `py/doc.rs`, `pncad.pyi`,
+four Python suites), CENSUS (one row's evidence).
