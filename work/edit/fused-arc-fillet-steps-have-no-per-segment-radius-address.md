@@ -3,6 +3,7 @@ id: fused-arc-fillet-steps-have-no-per-segment-radius-address
 kind: issue
 title: A fillet arc's radius never reaches the wall it drew: the radius binds on one step and the segments are credited to another
 status: review
+pr: 2892
 branch: edit/radius-emission-record
 opened: 2026-09-17
 ---
