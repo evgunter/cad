@@ -3,6 +3,7 @@ id: a-declare-orphaned-by-a-cascade-is-never-reported
 kind: issue
 title: A Declare orphaned by a cascade that deleted its consumer is silent forever
 status: review
+pr: 2874
 branch: edit/orphaned-declare-report
 opened: 2026-09-17
 ---
