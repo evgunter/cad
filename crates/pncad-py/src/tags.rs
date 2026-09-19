@@ -2875,7 +2875,10 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// moved, a `drop` the registry row that went away, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,
-/// because the appearance store is what carries it.
+/// because the appearance store is what carries it. An
+/// `orphaned_declare` names the declaration the delete left with no
+/// consumer, on `node`, and carries no name at all: nothing is
+/// dangling there, the node is simply no longer read.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
@@ -2884,6 +2887,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Cluster(ClusterMaintenance::Drop { .. }) => "drop",
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
+        Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
     }
 }
 

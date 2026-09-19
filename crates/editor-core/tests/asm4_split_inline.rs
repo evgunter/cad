@@ -19,12 +19,12 @@ use crate::fixture;
 
 use std::collections::BTreeSet;
 
+use crate::docm7_union_declare::{block, declared_union};
 use editor_core::{
     DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
     RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, content_pin, inline,
     load, product_named, save, split,
 };
-use crate::docm7_union_declare::{block, declared_union};
 use fixture::flush_pairs;
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};

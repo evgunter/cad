@@ -1631,9 +1631,9 @@ pub enum Maintenance {
     /// refuses nothing, and the repair is the author's — a
     /// [`DocEdit::DeleteNode`] of the `Declare`, or a new consumer.
     ///
-    /// **It has a transient the strands do not** (contrast
-    /// [`stranded_references`]' cost paragraph, which is about
-    /// strands and stays true of them). Deleting the `Declare`
+    /// **It has a transient the strands do not** (the strand walk's
+    /// own cost paragraph says there are none to cancel there, and
+    /// stays true of strands). Deleting the `Declare`
     /// itself means cascading its consumers first
     /// ([`cascade_delete_order`]), and the consumer's step is the
     /// same `(document, edit)` pair as the delete of that consumer

@@ -5264,13 +5264,23 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    An `orphaned_declare` is not a loss of that kind: its `node` is a
+    `Declare` that SURVIVED the delete, and what went is the last node
+    that consumed it (`Node.union`/`Node.boolean`'s `declare=`). It
+    carries no `name` — nothing dangles, the declaration is simply no
+    longer read by anything. The repair is the author's: delete the
+    declaration, or give it a new consumer. A declaration that has
+    never had a consumer is not reported: a `Declare` is inserted
+    before the union that consumes it, so what the row says is that a
+    delete MADE it consumerless.
+
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`, or
-        `stranded_appearance`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
+        `stranded_appearance`, or `orphaned_declare`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
