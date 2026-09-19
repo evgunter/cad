@@ -7,11 +7,9 @@
 
 use crate::corpus;
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{
-    block, declared_union, failure, flush_pairs, member_face, run, table,
-};
+use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
 use crate::fixture;
-use crate::fixture::{Recorder, flush_segs, fname, insert, len, wall};
+use crate::fixture::{Recorder, flush_segs, fname, insert, len, table, wall};
 
 use editor_core::{
     BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,

@@ -49,19 +49,14 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName, StepSegmentsError, ValuePayload, eval::ProfileNaming,
-    evaluate,
+    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node, ProfileDoc,
+    ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
-use fixture::{insert, len, on_frame};
-use geom_core::{Point2, Tol};
+use fixture::{insert, len, on_frame, tol};
+use geom_core::Point2;
 use profile::{CanonicalStructure, ProfileStructure, SketchPlane, Step, Target};
-use topo::{Body, FaceKey, LoopBoundary};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
+use topo::{Body, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -202,37 +197,21 @@ fn assert_refuses_off_the_program(
     );
 }
 
-/// Where one vertex sits.
-fn point_of(body: &Body<f64>, v: topo::VertexKey) -> geom_core::Point3<f64> {
-    let key = body.get_vertex(v).expect("vertex").point;
-    *body.get_point(key).expect("the vertex's point")
-}
-
-/// Every vertex the face touches, as 3-D points.
-fn face_points(body: &Body<f64>, face: FaceKey) -> Vec<geom_core::Point3<f64>> {
-    let data = body.get_face(face).expect("the named face is in the body");
-    let mut out = Vec::new();
-    for l in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        match body.get_loop(l).expect("loop").boundary {
-            LoopBoundary::Empty { vertex } => out.push(point_of(body, vertex)),
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).expect("cycle") {
-                    out.push(point_of(body, body.get_half_edge(he).expect("he").start));
-                }
-            }
-        }
-    }
-    out
+/// The point of every vertex the face touches — a LIST, not the set
+/// `fixture::face_vertices` answers with: `Point3<f64>` is not
+/// hashable, and the one caller matches a point within a tolerance
+/// rather than by equality.
+fn face_vertex_points(body: &Body<f64>, face: FaceKey) -> Vec<geom_core::Point3<f64>> {
+    fixture::face_vertices(body, face)
+        .into_iter()
+        .map(|v| fixture::point(body, v))
+        .collect()
 }
 
 /// The face a lateral name addresses, `None` where the table has no
 /// such name.
 fn lateral(ev: &Evaluation<f64>, node: RecipeNodeId, e: ProfileEdgeRef) -> Option<FaceKey> {
-    let name = StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::Lateral(e)],
-    };
+    let name = fixture::fname(node, RoleSeg::Lateral(e));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -425,7 +404,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
             let face = lateral(&ev, ext, *e)
                 .unwrap_or_else(|| panic!("{id}: step {step}'s ref {e:?} names no wall"));
             walls.insert(face);
-            let pts = face_points(body, face);
+            let pts = face_vertex_points(body, face);
             let s = e.segment as usize;
             for end in [r.verts[0][s].0, r.verts[0][(s + 1) % n].0] {
                 assert!(

@@ -140,6 +140,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
+#[path = "edit_instance_crossing_names.rs"]
+mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
 #[path = "edit_one_predicate.rs"]
