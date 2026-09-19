@@ -33,9 +33,10 @@ the function names are the durable anchors.
    NOT one assignment per op — so the stranded line says the opposite
    of what the doc argues.
 
-3. **`remember_theme` / `apply_status`, `app.rs:1809-1811` and
-   `:1840` — one function's doc glued on top of another's, leaving the
-   second undocumented.** The block above `remember_theme`
+3. **`remember_theme` (now `ViewerApp::remember_prefs`) /
+   `apply_status`, `app.rs:1809-1811` and `:1840` — one function's doc
+   glued on top of another's, leaving the second undocumented.** The
+   block above `remember_theme`
    (`app.rs:1827`) opens with three lines that describe
    `apply_status`: *"Apply a policy verdict to the status line — the
    one place a `StatusUpdate` becomes the field, shared by the batch

@@ -24,7 +24,7 @@ The crate now answers *"can this facility do anything?"* two ways:
 
 A reader of `app.rs` meets both: `chooser.usable()` gating the two
 dialog buttons, and `self.store.unusable()` at the guard in
-`remember_theme` and at the badge beside the palette picker. Two
+`remember_prefs` and at the badge beside the palette picker. Two
 adjacent environmental facts, read three lines of scrolling apart,
 answering inverted questions.
 
