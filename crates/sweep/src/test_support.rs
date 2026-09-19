@@ -152,7 +152,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// **The second view of [`brick`], not a second body**: the suites are
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
-/// and both reach the same four-corner loop through the same door. The
+/// and both reach the same construction through the same door. The
 /// alternative was seven private copies of the construction under one
 /// more name, which is what this replaced.
 pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
@@ -215,16 +215,8 @@ pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather
 /// than the body.
-fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
-    [
-        (T::zero(), T::zero()),
-        (l, T::zero()),
-        (l, l),
-        (T::zero(), l),
-    ]
-    .into_iter()
-    .map(|(u, v)| ProfileVertex::new(Point2::new(u, v), T::zero()))
-    .collect()
+fn square<T: Decide>(l: f64) -> Vec<ProfileVertex<T>> {
+    corners(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)])
 }
 
 /// Profile vertices from xy pairs, every bulge zero — the straight
