@@ -967,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 9, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1030,6 +1030,37 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
+    assert_eq!(
+        frame::profiles_badge(0),
+        None,
+        "every committed profile drew, or there are none — the same zero"
+    );
+}
+
+/// **The profiles badge counts, in agreeing words, and says it is the
+/// document's.** One and two are the two nouns; the subject is the
+/// document because no camera move brings an undrawable arc back.
+#[test]
+fn the_profiles_badge_counts_what_it_could_not_draw() {
+    for (undrawn, label) in [
+        (
+            1,
+            "profiles: 1 profile with an arc the viewport cannot draw",
+        ),
+        (
+            2,
+            "profiles: 2 profiles with an arc the viewport cannot draw",
+        ),
+    ] {
+        let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
+        assert_eq!(badge.label(), label);
+        assert_eq!(badge.subject(), frame::Subject::Document);
+        assert_eq!(
+            badge.tone(),
+            frame::Tone::Advisory,
+            "no camera move brings the arc back"
+        );
+    }
 }
 
 /// **The datums badge says how many, and says it in agreeing
@@ -1255,6 +1286,74 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
     );
+}
+
+#[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
+    );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
 }
 
 #[test]

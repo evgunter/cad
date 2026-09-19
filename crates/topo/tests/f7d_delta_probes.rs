@@ -21,7 +21,12 @@ use topo::{Body, MefSite, MevSite, validate_closed, validate_geometric};
 /// through an interior vertex at `mid` (the PR's own split_top shape,
 /// with the mid point free).
 fn split_top_at(mid: Point3<f64>) -> Body<f64> {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let he1 = he_at(&b, p.top_face, 0.0, 0.0);
@@ -160,7 +165,12 @@ fn d2_near_collinear_band_arms() {
 /// refuse whole with the body untouched.
 #[test]
 fn d3_four_sector_pole_is_not_licensed() {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let mid = Point3::new(1.0, 1.0, 1.0);
@@ -246,7 +256,12 @@ fn cycle_has_corner(b: &Body<f64>, fk: topo::FaceKey, x: f64, y: f64) -> bool {
 /// it must not commit a body that lost the junction vertices silently.
 #[test]
 fn d4_bigon_same_direction_is_not_opposed() {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let mid = Point3::new(1.0, 1.0, 1.0);

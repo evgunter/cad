@@ -428,6 +428,30 @@ pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     cap_angular(curvature_step(delta_s, r_eff))
 }
 
+/// The per-chord parameter step for chord deviation ≤ `delta_s` on a
+/// spiric `Curve3::Spiric { major_radius: R, minor_radius: r, offset:
+/// d, .. }`, capped at [`MAX_ANGULAR_STEP`].
+///
+/// Certified-conservative from [`curvature_step`] with the closed-form
+/// bound `sup|C″| ≤ r + (r² + r·ρ_max)/f_min + r²·ρ_max²/f_min³`,
+/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`: from
+/// `C″ = m·f″ − axis·(r sin v)` with
+/// `|f″| = r·|(ρ cos v − r sin²v)/f + r·ρ²·sin²v/f³|
+/// ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`, plus the axis channel's
+/// `r`. Plain `f64` like [`ellipse_step`] — a sizing quantity,
+/// conservative by the bound's slack rather than by rounding. An
+/// off-regime carrier (`f_min` poison or zero) takes the cap through
+/// [`cap_angular`]'s non-finite arm; certification refuses such a
+/// carrier before a mesh is asked for.
+pub(crate) fn spiric_step(delta_s: f64, major: f64, minor: f64, offset: f64) -> f64 {
+    let rho_max = major + minor;
+    let (f_min, _) = geom::spiric_f_range(major, minor, offset);
+    let m = minor
+        + (minor.powi(2) + minor * rho_max) / f_min
+        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3);
+    cap_angular(curvature_step(delta_s, m))
+}
+
 /// The torus chart's two grid steps `(h_u, h_v)` — azimuth θ and
 /// minor angle φ — for chord deviation ≤ `delta_s` on every triangle
 /// of an `h_u × h_v` cell grid, from the doubly-curved interpolation

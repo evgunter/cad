@@ -98,7 +98,12 @@ fn box_at<F: Fn(f64) -> f64>(
     y: (f64, f64),
     z: (f64, f64),
 ) -> topo::Body<Probe> {
-    brick::<Probe>((s(x.0), s(x.1)), (s(y.0), s(y.1)), (s(z.0), s(z.1)))
+    brick::<Probe>(
+        (s(x.0), s(x.1)),
+        (s(y.0), s(y.1)),
+        (s(z.0), s(z.1)),
+        Tol::witness(),
+    )
 }
 
 /// Runs both boolean configurations at `scale`, returning the fired

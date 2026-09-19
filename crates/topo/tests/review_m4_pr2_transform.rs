@@ -28,7 +28,7 @@ fn tiers_ok(b: &Body<f64>) {
 /// refuse typed — never return Ok with poisoned points.
 #[test]
 fn non_finite_translation_is_refused_not_laundered() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     for t in [
         Vec3::new(f64::NAN, 0.0, 0.0),
         Vec3::new(0.0, f64::INFINITY, 0.0),
@@ -66,7 +66,7 @@ fn non_finite_translation_is_refused_not_laundered() {
 fn near_rigid_door_band_behavior() {
     let tol = geom_core::Tol::witness().get();
     let (eps, kesc) = (tol.eps, tol.eps * tol.k);
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let with_c0x = |s: f64| {
         Affine3::from_parts(
             Mat3::from_cols(
@@ -112,8 +112,8 @@ fn near_rigid_door_band_behavior() {
 /// bit-identical — every point, every arena Debug line.
 #[test]
 fn transform_is_bit_deterministic() {
-    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
-    describe_as_intersections(&mut b);
+    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
+    describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0).normalize(), FRAC_PI_3),
         Vec3::new(0.1, -0.2, 0.3),
@@ -136,8 +136,8 @@ fn transform_is_bit_deterministic() {
 /// certificate.
 #[test]
 fn rotation_composition_keeps_witness_residuals_honest() {
-    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
-    describe_as_intersections(&mut b);
+    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
+    describe_as_intersections(&mut b, Tol::witness());
     let axes = [
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
@@ -174,8 +174,8 @@ fn rotation_composition_keeps_witness_residuals_honest() {
 /// degraded body is the only failure mode.
 #[test]
 fn long_thin_feature_transform_is_honest_either_way() {
-    let mut b = brick((0.0, 1.0e6), (0.0, 0.1), (0.0, 0.1));
-    describe_as_intersections(&mut b);
+    let mut b = brick((0.0, 1.0e6), (0.0, 0.1), (0.0, 0.1), Tol::witness());
+    describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
@@ -207,8 +207,8 @@ fn long_thin_feature_transform_is_honest_either_way() {
 /// falsifier.
 #[test]
 fn extreme_scale_fires_the_certify_door_or_stays_valid() {
-    let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0));
-    describe_as_intersections(&mut b);
+    let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
@@ -253,8 +253,8 @@ fn max_witness_residual(b: &Body<f64>) -> f64 {
 /// the geometry the keys point at.
 #[test]
 fn keys_and_topology_are_bit_stable_under_rotation() {
-    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5));
-    describe_as_intersections(&mut b);
+    let mut b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
+    describe_as_intersections(&mut b, Tol::witness());
     let map = Affine3::from_parts(
         Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
         Vec3::new(-3.0, 7.0, 0.5),

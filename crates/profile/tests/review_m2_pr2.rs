@@ -3,9 +3,7 @@
 //! per the standing convention. These are **independent derivations** —
 //! AutoCAD's bulge/center/apex formulas re-derived by hand, ulp-tied
 //! canonicalization attacks, hand-solved ray/arc parity, 16-spoke
-//! graze-exhaustion alignment, far-from-origin shoelace probes — do not
-//! "simplify" them to match shipped fixtures; the independence is the
-//! regression value.
+//! graze-exhaustion alignment, far-from-origin shoelace probes.
 //!
 //! Promotion adaptations (mechanical, plus one semantic): the header,
 //! and `hair_thin_near_full_arc_is_refused_but_mislabeled` updated to

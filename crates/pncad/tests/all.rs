@@ -1237,6 +1237,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         declared_contacts: vec![ImportContact::VertexRest {
             at: [0.0, 0.0, 0.5],
         }],
+        examine_chart_coherence: true,
     };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
@@ -1296,6 +1297,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         normalizations,
         curve_promotions,
         instances,
+        coherence,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1306,6 +1308,26 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
+    // The chart-coherence channel, spelled from the prelude down to
+    // the vocabulary a consumer matches on. The import above asked
+    // for no examination, so the field is `None` — which is the
+    // CONFIGURATION half of this channel's distinction and not an
+    // empty report; `topo`'s own door draws the same line about the
+    // two lists inside a report it did produce.
+    named::<Option<CoherenceReport>>(coherence.clone());
+    assert!(
+        coherence.is_none(),
+        "the default import asked for no chart-coherence examination"
+    );
+    // The report's own two lists, spelled from here too, because a
+    // consumer that holds the answer reads them. No `assert_ne!`
+    // against `Some(empty)`: the assertion above is the whole runtime
+    // claim, and the fold it would guard against — an unasked import
+    // rendering as an empty report — is unrepresentable in
+    // `Option<CoherenceReport>` and would fail `is_none` first.
+    let empty = CoherenceReport::default();
+    named::<&Vec<CoherenceFinding>>(&empty.findings);
+    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
@@ -1344,6 +1366,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         named::<&f64>(&promotion.residual);
         named::<&str>(match promotion.kind {
             PromotedCurveKind::Circle => "circle",
+            PromotedCurveKind::Line => "line",
         });
     }
 }

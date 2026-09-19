@@ -1438,7 +1438,10 @@ fn ring_run_ccw<T: Decide>(
             geom::Curve3::Ellipse {
                 axis, major, minor, ..
             } => (axis, major, minor),
-            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
+            // A spiric's winding contribution has no conic-bulge
+            // closed form; chord only, as a spline. Unreachable behind
+            // the operand gate today.
+            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 return Ok((zero, chord()?));
             }
         };

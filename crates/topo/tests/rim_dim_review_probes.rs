@@ -51,7 +51,12 @@ const FIXED: &[&str] = &[
 fn which_fixed_predicates_fire_in_the_twin_configs() {
     let s = |v: f64| v * 1e-3;
     let bx = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
-        brick::<Probe>((s(x.0), s(x.1)), (s(y.0), s(y.1)), (s(z.0), s(z.1)))
+        brick::<Probe>(
+            (s(x.0), s(x.1)),
+            (s(y.0), s(y.1)),
+            (s(z.0), s(z.1)),
+            Tol::witness(),
+        )
     };
     k_stats::start_recording();
     let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
@@ -144,7 +149,12 @@ fn silent_fixed_predicates_scale_linearly() {
     let run = |scale: f64| {
         let s = |v: f64| v * scale;
         let bx = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
-            brick::<Probe>((s(x.0), s(x.1)), (s(y.0), s(y.1)), (s(z.0), s(z.1)))
+            brick::<Probe>(
+                (s(x.0), s(x.1)),
+                (s(y.0), s(y.1)),
+                (s(z.0), s(z.1)),
+                Tol::witness(),
+            )
         };
         k_stats::start_recording();
         // Flush: b's x-max face lies IN a's x=2 face plane. Undeclared,

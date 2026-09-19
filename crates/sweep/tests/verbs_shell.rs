@@ -1169,18 +1169,24 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// the elbow meets the rest of the bottle. That is the "paid once per
 /// wall" debt the demo's own findings list records.
 ///
-/// **It does not retire in this unit, and this row is why.** A partial
-/// revolve of a disc gives a TORUS wall and two PLANAR meridian end
-/// caps, so every rim is a torus × meridian-plane seam vertex. The
-/// rim-construction capability (VERBS-RIMCAP) moved the elbow's wall
-/// one door deeper: the corner now SOLVES — a meridian cap stops
-/// containing the axis the instant it is offset inward, and the
-/// carried-datum arm answers the displaced corner from the wall's own
-/// profile circle plus the moved cap — but the rim EDGE between them
-/// has no carrier. The moved cap stands `t` off the axis, parallel to
-/// it, and cuts the torus in a spiric QUARTIC; the latitude mint
-/// refuses the off-axis centre it will not pretend is a latitude, and
-/// this row pins that payload.
+/// **It does not retire yet, and this row is why.** A partial revolve
+/// of a disc gives a TORUS wall and two PLANAR meridian end caps, so
+/// every rim is a torus × meridian-plane seam vertex. The corner
+/// SOLVES (the carried-datum arm), and the rim EDGE between wall and
+/// moved cap now MINTS: the moved cap stands `t` off the axis,
+/// parallel to it, and cuts the torus in a spiric, which the axial
+/// door mints as the exact `Curve3::Spiric` it is. What this row pins
+/// now is the door AFTER the carrier: the elbow's EQUATOR SEAMS, the
+/// disc's two profile vertices revolved as `RevolvedPoint`-declared
+/// chart seams, whose re-author refuses a corner the moved cap has
+/// displaced off the family's own sketch plane
+/// (`offset_axial_reauthor_plane`).
+///
+/// **The old door, verbatim (measured at the unit's head before the
+/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
+/// circular edge between two charts whose centre is off the axis" } }`
+/// — the latitude mint's `offset_axial_centre` predicate, on the same
+/// door face, edge and predicate for the open and the sealed arm.
 ///
 /// **This is not a torus gap — and it is not every curved wall's gap
 /// either.** A partial revolve whose wall is a CYLINDER hollows today:
@@ -1194,18 +1200,17 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// premise — a wall its OPERAND already stands behind. What is missing
 /// here is exactly the torus's moved-rim CARRIER.
 ///
-/// **What would retire it**, concretely, is the SPIRIC carrier: a
-/// plane parallel to a torus's axis at distance `t` cuts it in a
-/// spiric section, not a circle, and `Curve3` has no quartic kind. The
-/// C5 table now routes `plane × torus` (VERBS-C5ARMS shipped the two
-/// exact-degenerate closed forms), but the shipped arm REFUSES exactly
-/// this configuration — the axis-parallel offset plane routes to the
-/// general rung, named at the arm's own refusal — so the rim waits on
-/// the spiric carrier (the VERBS-RIMCAP spec's design-gated PR-2
-/// conversation), not on the C5 table and no longer on the corner.
-/// `torax_axial` carries that measurement too — on this elbow's own
-/// numbers the section's half-width and half-height differ by
-/// `2.03e-4` m, a circle's do not.
+/// **What would retire it**, concretely, is two doors: a re-author
+/// for a revolved point's declaration whose corner leaves the sketch
+/// plane (the seam's family still passes through the moved corner —
+/// rotated to the corner's own azimuth — but that re-authoring is a
+/// design question, not this row's), and then the props quadrature
+/// lane for a spiric-bounded face, where the sectioned vessel already
+/// stands (`spiric_rim`). The C5 table is not involved: the axial
+/// door mints the rim inline, and `plane_torus_section` keeps refusing
+/// the tilted pose. `torax_axial` carries the section's own
+/// measurement — on this elbow's numbers the half-width and
+/// half-height differ by `2.03e-4` m, a circle's do not.
 ///
 /// The comparison this row would make once that lands: topology exactly
 /// equal, stored radii within one ulp (the two spellings reach the
@@ -1241,50 +1246,33 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let e = topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
-        .expect_err("the elbow's moved rim is a spiric section away from a carrier");
-    let ShellError::Face {
-        face: open_door,
-        error: open_error,
-    } = e
-    else {
-        panic!("expected the offset door's refusal, got {e}");
+    let seam_reauthor = |e: ShellError<f64>| {
+        let ShellError::Face { face, error } = e else {
+            panic!("expected the offset door's refusal, got {e}");
+        };
+        let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
+            panic!("expected the seam re-author's refusal, got {error}");
+        };
+        assert_eq!(
+            what,
+            "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+        );
+        (face, edge, what)
     };
-    let topo::ReplaceFaceError::TogetherAxialEdge {
-        edge: open_edge,
-        what: open_what,
-    } = *open_error
-    else {
-        panic!("expected the latitude mint's off-axis refusal, got {open_error}");
-    };
-    assert_eq!(
-        open_what, "a circular edge between two charts whose centre is off the axis",
-        "the latitude mint names the off-axis centre"
+    let open = seam_reauthor(
+        topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
+            .expect_err("the opened elbow's equator seam cannot be re-authored off its plane"),
     );
 
-    // The sealed arm stops at the same wall, on the same edges — the
-    // blocker is the rim pair, not the opening — asserted on the
-    // PAYLOAD (same door face, same edge, same predicate), not just
-    // the variant.
-    let sealed = topo::shell(&solid, KLEIN_WALL, Tol::witness())
-        .expect_err("the sealed arm meets the same rim");
-    let ShellError::Face {
-        face: sealed_door,
-        error: sealed_error,
-    } = sealed
-    else {
-        panic!("the sealed arm must refuse at the offset door too, got {sealed}");
-    };
-    let topo::ReplaceFaceError::TogetherAxialEdge {
-        edge: sealed_edge,
-        what: sealed_what,
-    } = *sealed_error
-    else {
-        panic!("the sealed arm must stop at the same carrier mint, got {sealed_error}");
-    };
+    // The sealed arm stops at the same wall, on the same edge — the
+    // blocker is the seam, not the opening — asserted on the PAYLOAD
+    // (same door face, same edge, same predicate).
+    let sealed = seam_reauthor(
+        topo::shell(&solid, KLEIN_WALL, Tol::witness())
+            .expect_err("the sealed arm meets the same seam"),
+    );
     assert_eq!(
-        (sealed_door, sealed_edge, sealed_what),
-        (open_door, open_edge, open_what),
+        sealed, open,
         "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
     );
 }

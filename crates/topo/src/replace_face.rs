@@ -756,7 +756,8 @@ fn transport_curve<T: Decide>(
                 },
                 None,
             )),
-            Curve3::Ellipse { .. } => None,
+            // Neither an ellipse nor a spiric lies on a cylinder.
+            Curve3::Ellipse { .. } | Curve3::Spiric { .. } => None,
         },
         Surface::Cone {
             apex,
@@ -803,7 +804,8 @@ fn transport_curve<T: Decide>(
                         None,
                     ))
                 }
-                Curve3::Ellipse { .. } => None,
+                // Neither an ellipse nor a spiric lies on a cone.
+                Curve3::Ellipse { .. } | Curve3::Spiric { .. } => None,
             }
         }
         // The sphere's offset IS the homothety of ratio `(R + d)/R`
@@ -938,6 +940,21 @@ pub(crate) fn translate_curve<T: Real>(
             minor: *minor,
             u_ref: *u_ref,
         },
+        Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => Curve3::Spiric {
+            center: *center + delta,
+            axis: *axis,
+            u_ref: *u_ref,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(NurbsCurve3::new(
             n.knots().clone(),
             n.control().iter().map(|p| *p + delta).collect(),
@@ -971,9 +988,10 @@ fn homothety<T: Real>(
             n.control().iter().map(|p| map(*p)).collect(),
             n.weights().to_vec(),
         )?)),
-        // A line or an ellipse does not lie on a sphere, so a carrier
-        // of either kind is not a curve this map was derived for.
-        Curve3::Line { .. } | Curve3::Ellipse { .. } => return Ok(None),
+        // A line, an ellipse or a spiric does not lie on a sphere, so
+        // a carrier of any of those kinds is not a curve this map was
+        // derived for.
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => return Ok(None),
     }))
 }
 
@@ -1423,6 +1441,12 @@ fn cone_v_range<T: Decide>(
                 hi = Some(hi.map_or(v, |x: T| x.max(v)));
             }
             (lo.unwrap_or_else(T::zero), hi.unwrap_or_else(T::zero))
+        }
+        // A spiric lies on no cone, and this range is asked of a cone
+        // face's own boundary edges — every one certified on its chart
+        // at rest — so a spiric here is a kernel bug, not a body's.
+        Curve3::Spiric { .. } => {
+            unreachable!("cone_v_range: a spiric carrier bounds no cone face")
         }
     }
 }
@@ -2151,15 +2175,17 @@ fn move_mapped_endpoint<T: Real>(
 
 /// The two faces an edge separates (they coincide on a seam).
 ///
-/// **One of two spellings in this crate, and the disclosure is the
-/// resolution**: `Body::edge_faces` in `merge_faces` takes the two
-/// HALF-EDGES (it already has them from the edge walk) where this one
-/// takes the edge key and looks them up. Same three link hops, two
-/// call shapes; the shell verb uses THIS one. Collapsing them would
-/// mean giving one caller an argument it does not have.
+/// **One of two spellings, and the twin is in another crate**:
+/// `sweep::blend::surgery::edge_faces` takes the same edge key and
+/// composes the same two half-edge walks, over `surgery`'s own
+/// `face_of_half` rather than [`Body::face_of_half_edge`]. Both hops
+/// now read through the door on this side; folding the two functions
+/// together is a crate-boundary question and is filed on `carve`'s
+/// slate.
 pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
     let e = body.get_edge(edge)?;
-    let face_of =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
-    Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
+    Some((
+        body.face_of_half_edge(e.he_plus)?,
+        body.face_of_half_edge(e.he_minus)?,
+    ))
 }

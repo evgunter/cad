@@ -1043,11 +1043,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             let v1 = body.half_edge_end(edge.he_plus)?;
             let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
             let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
-            let f_plus = body.loops.get(plus.parent_loop)?.face;
-            let f_minus = body
-                .loops
-                .get(body.half_edges.get(edge.he_minus)?.parent_loop)?
-                .face;
+            let f_plus = body.face_of_half_edge(edge.he_plus)?;
+            let f_minus = body.face_of_half_edge(edge.he_minus)?;
             let chord = p1 - p0;
             Some(EdgeGeo {
                 key,
@@ -2531,7 +2528,9 @@ fn boundary_axial<T: Decide>(
                         .and_then(CurveGeom::certified)
                         .map(geom_brep::EdgeCurve::carrier);
                     let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
-                        EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                        // No axial-span closed form is written for the
+                        // spiric (the boolean lane's own reading).
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
                         EdgeBoxRule::Chord => AxialCarrier::Chord,
                         EdgeBoxRule::ConicAmplitude {
                             center,
@@ -2624,6 +2623,46 @@ fn edge_reach<T: Decide>(
     match crate::boolean::boxes::edge_box_rule(carrier) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
+        // The spiric's whole-period amplitude box at this lane's
+        // scalar — `spiric_arc_aabb`'s construction without its
+        // outward rounding, as every conic arm here is: per axis the
+        // `m` channel ranges over `[f_min, f_max]` (the one
+        // `geom::spiric_f_range` spelling) and the `axis` channel over
+        // `r·[−1, 1]`, hulled with the chord. No public door builds a
+        // spiric-bearing operand that reaches the contact census at
+        // this head (the boolean's operand gate refuses the kind; a
+        // hollowed partial revolve stops at tier 3's check 7 before
+        // the census), so the arm is exercised by the box module's
+        // hand-built sector row (`boolean/boxes.rs`,
+        // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
+        crate::boolean::boxes::EdgeBoxRule::Spiric => {
+            let Some(geom::Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            }) = carrier
+            else {
+                return None;
+            };
+            let m = axis.cross(*u_ref);
+            let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
+            let base = *center + *u_ref * *offset;
+            let per = |b: T, me: T, ae: T| {
+                let (p, q) = (me * f_min, me * f_max);
+                let amp = ae.abs() * *minor_radius;
+                (b + p.min(q) - amp, b + p.max(q) + amp)
+            };
+            let (xl, xh) = per(base.x, m.x, axis.x);
+            let (yl, yh) = per(base.y, m.y, axis.y);
+            let (zl, zh) = per(base.z, m.z, axis.z);
+            Some((
+                Point3::new(xl.min(chord.0.x), yl.min(chord.0.y), zl.min(chord.0.z)),
+                Point3::new(xh.max(chord.1.x), yh.max(chord.1.y), zh.max(chord.1.z)),
+            ))
+        }
         crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
             center,
             axis,
@@ -3248,16 +3287,13 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             EntityId::Face(f) => body.solid_of_face(f),
             EntityId::Loop(l) => body.get_loop(l).and_then(|d| body.solid_of_face(d.face)),
             EntityId::HalfEdge(h) => body
-                .half_edges
-                .get(h)
-                .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| body.solid_of_face(l.face)),
+                .face_of_half_edge(h)
+                .and_then(|f| body.solid_of_face(f)),
             EntityId::Edge(e) => body
                 .edges
                 .get(e)
-                .and_then(|d| body.half_edges.get(d.he_plus))
-                .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| body.solid_of_face(l.face)),
+                .and_then(|d| body.face_of_half_edge(d.he_plus))
+                .and_then(|f| body.solid_of_face(f)),
             EntityId::Vertex(v) => geo
                 .vertex_faces
                 .get(&v)
@@ -4811,7 +4847,7 @@ mod tests {
     /// marginal angle to an axis-aligned cube's.
     fn cube_at_turned(at: Vec3<f64>, theta: f64, tol: Tol) -> Body<f64> {
         use geom_brep::EdgeCurveSpec;
-        let mut p = crate::fixtures::prism(4, tol);
+        let mut p = crate::fixtures::raw_prism(4, tol);
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let (c, sn) = (theta.cos(), theta.sin());
         for (i, (x, y)) in corners.into_iter().enumerate() {
@@ -5127,10 +5163,8 @@ mod tests {
         let (f_plus, f_minus) = {
             let e = body.get_edge(edge).expect("the edge");
             let face_of = |he| {
-                body.loops
-                    .get(body.get_half_edge(he).expect("a half-edge").parent_loop)
-                    .expect("a loop")
-                    .face
+                body.face_of_half_edge(he)
+                    .expect("a half-edge and its loop")
             };
             (face_of(e.he_plus), face_of(e.he_minus))
         };

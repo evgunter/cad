@@ -244,7 +244,7 @@ fn conic_edge(carrier: Curve3<f64>) -> (Body<f64>, EdgeKey) {
 /// does not move; what changes is the carrier's KIND, which is the
 /// only thing these rows read.
 fn nurbs_edge() -> (Body<f64>, EdgeKey) {
-    let cube = common::geometric_cube::<f64>();
+    let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
     let (edge_key, edge) = body
         .edges()

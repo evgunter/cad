@@ -2,10 +2,11 @@
 id: step-import-degree-one-line-promotion
 kind: issue
 title: step-import — promote degree-1 NURBS carriers to Curve3::Line, needs an ExtrudedPoint rung in the NURBS-chart pcurve lane first
-status: open
+status: closed
 opened: 2026-08-11
 github: 388
 refs: [327, 389, 390, 391]
+closed: 2026-09-17
 ---
 
 ## From GitHub issue 388
@@ -37,3 +38,14 @@ Line promotion plus the `ExtrudedPoint` rung this issue asks for is what would g
 ## Home
 
 `work/issues/`: the rung lives in `topo::pcurves::nurbs_iso_derive` and `step-import`, ground the closed PCURVE program vacated and that no open program's `paths` covers.
+
+## Closed (2026-09-17)
+
+Closed by unit `EXCH-H1` (PR #1798): the certified line-recognition
+limb (zero-radius cylinder composite, `√sup` residual, Greville
+map obligation), the wall-column adoption candidate (which hands
+`#389` its reversed-column candidate), and the seam-class
+`Curve3::Line` limb in `run_iso_checks` — the true rung, re-scoped
+from this issue's `nurbs_iso_derive` premise by measurement
+(`docs/EXCH-H1-SPEC.md` §Re-scope, recoverable per
+`docs/DOC-LEDGER.md`).

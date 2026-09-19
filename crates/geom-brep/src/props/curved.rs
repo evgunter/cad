@@ -1527,7 +1527,9 @@ fn cylinder_boundary<T: Decide>(
                            the stored pcurves this key-free pass cannot see",
                 });
             }
-            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
+            // A spiric lies on no cylinder or cone: refused beside the
+            // spline, typed.
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // The cylinder's level and azimuth turn about the same radius, and
@@ -1672,7 +1674,9 @@ fn cone_boundary<T: Decide>(
                            quadrature lane has nothing to consume",
                 });
             }
-            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
+            // A spiric lies on no cylinder or cone: refused beside the
+            // spline, typed.
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
@@ -2598,7 +2602,9 @@ fn sphere_boundary<T: Decide>(
         } = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs(_) => PropsError::Unimplemented,
+                // A spiric lies on no sphere: refused beside the
+                // spline, typed.
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
                     what: "sphere boundary edge is not a circle",
                 },
@@ -2840,6 +2846,23 @@ fn torus_boundary<T: Decide>(
         else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) => PropsError::Unimplemented,
+                // The spiric rim of a partial revolve's hollowed torus
+                // wall — a boundary edge that IS on the torus but is
+                // neither rim nor meridian, so this parse has no arm
+                // for it and says which edge kind it met. Named rather
+                // than folded into the wildcard so a reader knows the
+                // kind was considered. Reached through the closed-form
+                // door (`curved_face`) directly; `topo`'s own face flux
+                // never gets here for a spiric-bounded face — a loop
+                // carrying one routes to the quadrature lane first,
+                // which refuses at its chart gate (`props.rs`,
+                // `cut_face_rounds`: only the cylinder chart has a
+                // lane) — and a stored pcurve cache does not change
+                // that. The spiric quadrature lane is the spiric unit's
+                // props PR.
+                Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
+                    what: "torus boundary edge is not a circle",
+                },
                 _ => PropsError::NotIsoRectangle {
                     what: "torus boundary edge is not a circle",
                 },

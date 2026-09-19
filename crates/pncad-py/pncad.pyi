@@ -1258,10 +1258,22 @@ pi_rad: Final[AngleUnit]  # the half-turn, symbol `pi rad`: a NOTATION carried a
 #
 # Two spellings of one verb (an authored point, or `Start`) are
 # @overload pairs, because the RETURN follows the target: targeting
-# `Start` closes the loop.
+# `Start` — bare or `Start.arrives_tangent()` — closes the loop.
 
 class StartToken:
     """The type of `Start`, the bound entry as a value."""
+
+    def arrives_tangent(self) -> ArrivesTangentToken:
+        """`Start` with the seam's tangent joint DECLARED: the kernel
+        checks the arriving direction against `Start`'s own."""
+
+class ArrivesTangentToken:
+    """The type of `Start.arrives_tangent()`, the seam's declared
+    tangent arrival. `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))`
+    take it; `Via` and `Center` do not."""
+
+# A closing target: `Start`, with or without the seam's declaration.
+_Close: TypeAlias = StartToken | ArrivesTangentToken
 
 class ArcSweep:
     """Travel sense about a centre — structural, never a value."""
@@ -1332,7 +1344,8 @@ _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
 # plus `Radius` — arc extension (carrier derived from the tip's own
 # position and tangent; the incoming side's anchor is the tip).
 _LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
-_PointClose: TypeAlias = Bulge[StartToken] | Via[StartToken] | Center[StartToken]
+_BulgeClose: TypeAlias = Bulge[StartToken] | Bulge[ArrivesTangentToken]
+_PointClose: TypeAlias = _BulgeClose | Via[StartToken] | Center[StartToken]
 _Tangent: TypeAlias = Sweep | ArcLen
 
 class Open:
@@ -1427,7 +1440,7 @@ class PathPoint:
     @overload
     def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    def line_to(self, target: _Close) -> ClosedLoop: ...
     @overload
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
@@ -1479,7 +1492,7 @@ class PathDirectedPoint:
     @overload
     def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    def line_to(self, target: _Close) -> ClosedLoop: ...
     @overload
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
@@ -1549,7 +1562,7 @@ class PathDirected:
     @overload
     def tangent_arc_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def tangent_arc_to(self, target: StartToken) -> ClosedLoop: ...
+    def tangent_arc_to(self, target: _Close) -> ClosedLoop: ...
 
 Start: Final[StartToken]
 
@@ -3605,6 +3618,7 @@ class CurveKind:
     Line: Final[CurveKind]
     Circle: Final[CurveKind]
     Ellipse: Final[CurveKind]
+    Spiric: Final[CurveKind]
     Nurbs: Final[CurveKind]
 
 class SurfaceKind:
