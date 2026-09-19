@@ -135,6 +135,8 @@ mod prefs;
 mod profile_edit;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
+#[path = "review_probe_profile_edit.rs"]
+mod review_probe_profile_edit;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
 #[path = "review_gui2_r1.rs"]

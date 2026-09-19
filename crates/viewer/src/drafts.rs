@@ -821,4 +821,66 @@ mod tests {
         assert!(drafts.profile_edit(&before, RecipeNodeId(0)).is_err());
         assert!(drafts.profile_edit.is_none());
     }
+
+    /// Review probe (review-vseam-profile-editor): a committed
+    /// `circle_split` above the form's count cap, loaded into the edit
+    /// door and DRAWN once with its count field locked, untouched.
+    /// Does the draw leave the held program alone?
+    #[test]
+    fn review_probe_drawing_a_locked_split_circle_above_the_cap_leaves_it_alone() {
+        use crate::forms::{MAX_CIRCLE_SPLIT, ShapeEdits};
+        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
+        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+        let doc = Doc::empty_derived("probe", Tol::witness());
+        let frame = datum_node(crate::session::DatumSpec::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        });
+        let doc = apply(&doc, &DocEdit::InsertNode { node: frame }, Tol::witness())
+            .expect("frame")
+            .doc;
+        let plane = *doc.order().last().expect("the frame");
+        let n = MAX_CIRCLE_SPLIT + 976;
+        let loops = vec![
+            sketch::loop_program(
+                &crate::session::ProfileShape::Path {
+                    steps: vec![Step::CircleSplit {
+                        centre: Point2::origin(),
+                        radius: 0.01,
+                        n: n as _,
+                        phase: 0.0,
+                    }],
+                },
+                sketch::Notation::CANONICAL,
+            )
+            .expect("finite"),
+        ];
+        let node = Node::Profile(ProfileProgram { plane, loops });
+        let doc = apply(&doc, &DocEdit::InsertNode { node }, Tol::witness())
+            .expect("the document admits a split circle above the form's cap")
+            .doc;
+        let profile = *doc.order().last().expect("the profile");
+        let mut drafts = Drafts::default();
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        assert!(!edit.moved(), "fresh load");
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            crate::pane::create::path_steps_ui(
+                ui,
+                "probe",
+                Tol::witness(),
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                ShapeEdits::Locked,
+                &mut edit.loops[0],
+            );
+        });
+        output.textures_delta.clear();
+        let held_n = match edit.loops[0][0] {
+            Step::CircleSplit { n, .. } => n as usize,
+            _ => panic!("a split circle"),
+        };
+        assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
+        assert!(!edit.moved(), "drawing alone made Apply live");
+    }
 }
