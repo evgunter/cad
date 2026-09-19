@@ -356,15 +356,6 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
   makes a one-band wire sweep unrepresentable, so axis-touching full
   revolves sweep two π-bands and poles have valence 2.
-- **A chart singularity inside a face is a vertex of it.** A face on a
-  revolution chart is an iso-rectangle whose sides are edges, a side at
-  a sphere pole or a cone apex collapsing to a vertex where meridian
-  edges meet. A loop of rims only — a latitude circle with the pole in
-  the face's interior and no meridian — is not a face of this kernel:
-  validity refuses the statement, and STEP import re-mints it into the
-  seamed form (two half-faces on meridians through the singular
-  vertex), reported as a normalization like the edge-free sphere. No
-  lane downstream of those two doors sees an interior singularity.
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
   complete loci; an edge's bounds derive from its vertices via the

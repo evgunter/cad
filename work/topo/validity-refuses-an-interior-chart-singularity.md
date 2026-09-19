@@ -9,12 +9,15 @@ refs: [rim-only-sphere-cap-panics-at-census, import-normalizes-the-rim-only-cap]
 
 
 Filed by the TESS orchestrator from Ev's ruling on `[ev]` PR 2850
-(2026-09-18): DESIGN.md, "A chart singularity inside a face is a vertex
-of it".
+(2026-09-18, in chat): **a chart singularity inside a face is a vertex
+of it** — a loop of rims only, with the sphere pole (or cone apex) in
+the face's interior, is not a face of this kernel. Deliberately not in
+DESIGN.md (Ev: provisional, "too much weight" there); this unit states
+the rule in validity's own docs, present tense.
 
 Tiers 1–3 accept a sphere face bounded by one latitude circle with the
 pole interior (measured: `validate`, `validate_closed`,
-`validate_geometric` all `Ok`). DESIGN now says that statement is not a
+`validate_geometric` all `Ok`). The ruling says that statement is not a
 face, so validity refuses it — by the structural fact (the face's loop
 on a revolution chart classifies with no meridian), in whichever tier
 owns rim/meridian classification; the unit says which and why. The

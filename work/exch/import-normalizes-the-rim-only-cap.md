@@ -9,12 +9,16 @@ refs: [rim-only-sphere-cap-panics-at-census]
 
 
 Filed by the TESS orchestrator from Ev's ruling on `[ev]` PR 2850
-(2026-09-18): DESIGN.md, "A chart singularity inside a face is a vertex
-of it".
+(2026-09-18, in chat): **a chart singularity inside a face is a vertex
+of it** — a loop of rims only, with the sphere pole (or cone apex) in
+the face's interior, is not a face of this kernel; import re-mints it
+and validity refuses it. Deliberately not in DESIGN.md (Ev: provisional,
+"too much weight" there); this unit states it in `NormalizationKind`'s
+docs, present tense.
 
 A STEP sphere cap stated with one latitude circle and no meridian — as
 two half arcs or as ONE closed circle edge — imports today as `Solid`,
-unnormalized, and is the face DESIGN now says is not one. Import owes a
+unnormalized, and is the face the ruling says is not one. Import owes a
 fifth `NormalizationKind` beside `EdgeFreeSphere` and
 `DegenerateApexCone`: re-mint as two half-caps on meridians through a
 pole vertex (the form revolve and the boolean plane cut mint), reported.

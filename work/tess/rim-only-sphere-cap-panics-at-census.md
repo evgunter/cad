@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-03
 github: 1615
 refs: [897, 1571]
-needs_ev: true
 ---
 
 ## From GitHub issue 1615
@@ -154,8 +153,10 @@ Evidence and numbers: §Measured above; `work/tess/log.md`.
 
 ## Ruled: (N) (Ev, in-chat, 2026-09-18)
 
-The seamed form is the only one; the text is DESIGN.md's "A chart
-singularity inside a face is a vertex of it". (E) is tabled with a
+The seamed form is the only one: a chart singularity inside a face is
+a vertex of it. Provisional by Ev's own word, and kept out of DESIGN.md
+for that reason; the rule is stated on the EXCH and TOPO rows and lands
+in those doors' docs. (E) is tabled with a
 pointer at the code (N) retires:
 `consider-emitting-the-rim-only-cap-instead-of-normalizing-it`. The
 work is filed where it lands — import's normalization on EXCH, the

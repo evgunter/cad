@@ -9,8 +9,11 @@ refs: [rim-only-sphere-cap-panics-at-census]
 
 
 **Deliberately tabled (Ev, in-chat, 2026-09-18, deciding `[ev]` PR
-2850).** The ratification this `deferred` row cites is DESIGN.md's "A
-chart singularity inside a face is a vertex of it", which chose (N).
+2850).** The ratification this `deferred` row cites is that ruling: (N)
+for now, entertained rather than enshrined — Ev kept it OUT of
+DESIGN.md on purpose (same conversation: "too much weight"), so the
+rule lives on the rows that carry its work and, once they land, in the
+docs of the two doors that enforce it.
 
 ## What is tabled
 
