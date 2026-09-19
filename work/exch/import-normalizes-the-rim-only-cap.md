@@ -35,3 +35,13 @@ lands. Order: this before TOPO's validity rule
 import starts refusing files it accepts today.
 
 Signed: (TESS orchestrator)
+
+**Fixtures landed (TESS-1's lane, 2026-09-18).** On TESS-1's branch the
+two files are `crates/step-import/tests/fixtures/rim-only-cap/`
+(`rimonly1.step`, `rimonly2.step`, generator `gen_rim_only_cap.py`),
+not the survey branch's `tess-cap-diag/` path, and the row that reads
+them is `crates/step-import/tests/meridian_free_cap.rs`. That row
+asserts the body is adopted AS STATED (its edge count, tier 3 `Ok`, the
+closed-form volume) before it asserts `mesh`'s refusal, so it goes red
+the day this normalization lands — which is the row telling this unit
+to turn it into the normalization's own.
