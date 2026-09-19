@@ -341,10 +341,14 @@ amended:
      (`docs/prompts/reviewer-style-lane.md`) by default, and a FULL
      review — claims to falsify alongside the style questions — where
      the unit carries a meaningful chance of CORRECTNESS bugs. That
-     judgement is a read of the unit, not a severity class: a
-     mechanical extraction carries none, a one-predicate move on a
-     live door carries some. **The one class that still merges on the
-     ORCHESTRATOR'S OWN READ stays exactly what it was** — a ruled
+     judgement is a read of the unit, not a severity class, and the
+     question is whether anything mechanical checks the answer: an
+     extraction the compiler follows end to end carries none; a unit
+     that re-routes an existing predicate through a new path, or
+     recomputes a bound at a new site, carries some — the answer has
+     to come out the same and only a test says whether it did.
+     **The one class that still merges on the ORCHESTRATOR'S OWN READ
+     stays exactly what it was** — a ruled
      rename, a prose fix, a one-predicate move whose shape is already
      written in the row (Ev, in chat, 2026-09-16, as EDIT's E-class
      tier; the description moves here from `work/edit/plan.md`
