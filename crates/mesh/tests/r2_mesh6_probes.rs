@@ -169,11 +169,10 @@ fn r2_scaffold_strut_body_through_tessellate() {
     use geom_core::Point3;
     use topo::{MevSite, test_support};
     let tol = Tol::witness();
-    // The §9.4.2 cube sequence with its face geometry declined -- the
-    // shared door, not a copy. Declined is what this probe wants: the
-    // faces stay on the `mvfs` placeholder, which is why `tessellate`
-    // answers `UnsupportedSurface` here and the strut's effect is read
-    // off the census rather than off a mesh.
+    // Declined is what this probe wants: the faces stay on the `mvfs`
+    // placeholder, which is why `tessellate` answers `UnsupportedSurface`
+    // here and the strut's effect is read off the census rather than off
+    // a mesh.
     let cube = test_support::declined_cube::<f64>(tol);
     let mut body = cube.body;
     // `mevs[0]` is the bottom rim's A->B edge; its `he_plus` starts at A,

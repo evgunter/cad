@@ -1,5 +1,5 @@
 //! `Body<Interval>` instantiation (the M0 carry, discharged at M1 PR 5):
-//! the ops cube built at `T = Interval` through the public Euler
+//! the declined cube built at `T = Interval` through the public Euler
 //! operators, validated at both tiers.
 //!
 //! This is Q1's genericity boundary exercised end to end: topology is
@@ -44,8 +44,13 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
 
-    // The geometry arenas really carry intervals: a corner's enclosure
-    // is the exact point it was built from (from_f64 embeds exactly).
+    // The geometry arenas really carry intervals, and this corner's
+    // enclosure is a single POINT rather than a bracket: `Real::from_f64`
+    // is an exact embedding and the shared door's coordinates are the
+    // unit square's dyadic 0.0/1.0, so nothing here is widened. That is
+    // this file's premise, not an incidental convenience — a door built
+    // on coordinates no `f64` represents exactly would make these
+    // equalities the wrong assertion rather than a failing one.
     let b_prime = body.get_vertex(e_bb.vertex).unwrap();
     let p = body.get_point(b_prime.point).unwrap();
     assert_eq!((p.x.lo(), p.x.hi()), (1.0, 1.0));

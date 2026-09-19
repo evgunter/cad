@@ -403,7 +403,8 @@ mod tests {
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{deep_snapshot, ops_cube};
+    use crate::fixtures::deep_snapshot;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::{validate, validate_closed};
 
     /// Splitting a cube edge (line carrier) at mid-parameter: intervals
@@ -411,7 +412,7 @@ mod tests {
     /// the cube stays a tier-2 closed solid.
     #[test]
     fn split_line_edge_mid() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge; // A → B, chord length 1, params [0,1]
         let created = body.split_edge(edge, 0.5, Tol::witness()).unwrap();
@@ -563,7 +564,7 @@ mod tests {
     /// reads prev(hm) after the first).
     #[test]
     fn split_strut_edge() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let anchor = cube.mevs[0].he_plus;
         let strut = body
@@ -593,7 +594,7 @@ mod tests {
     /// Band so the test holds at every ε row.
     #[test]
     fn split_param_refusals_are_typed_and_atomic() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge;
         let band = Band::linear(Tol::witness()).unwrap();
@@ -622,7 +623,7 @@ mod tests {
     /// Splitting a null-scaffold edge is refused by type.
     #[test]
     fn split_null_edge_is_refused() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -644,7 +645,7 @@ mod tests {
     #[test]
     fn split_replay_is_byte_identical() {
         let build = || {
-            let cube = ops_cube(Tol::witness());
+            let cube = declined_cube::<f64>(Tol::witness());
             let mut body = cube.body;
             body.split_edge(cube.mevs[0].edge, 0.25, Tol::witness())
                 .unwrap();

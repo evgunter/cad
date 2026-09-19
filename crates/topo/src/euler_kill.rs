@@ -1142,11 +1142,10 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{
-        ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
-    };
+    use crate::fixtures::{ArenaSnapshot, arena_snapshot, deep_snapshot, ops_holed_box, prov};
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
+    use crate::test_support_fixtures::declined_cube;
     use crate::test_support_impl::ArenaCounts;
     use crate::validate::validate;
 
@@ -2165,7 +2164,7 @@ mod tests {
 
     #[test]
     fn cube_tears_down_to_the_empty_body() {
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let mut body = t.body;
         // Undo the five mefs in reverse: each kef(created.he_minus)
         // kills the face that mef made.

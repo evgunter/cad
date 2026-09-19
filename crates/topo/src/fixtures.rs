@@ -23,9 +23,10 @@
 //! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
 //! (key-for-key, field-for-field, provenance-for-provenance).
 //!
-//! Plus the **operator-built** family — [`ops_cube`], [`ops_holed_box`]
-//! and [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
-//! the kill-direction, oracle, and teardown tests, and
+//! Plus the **operator-built** family — [`ops_holed_box`] and
+//! [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
+//! the kill-direction, oracle, and teardown tests over
+//! [`crate::test_support_fixtures::declined_cube`], and
 //! [`ops_ring_bridge`] and [`ops_strut_cube`], the two shapes here
 //! whose edge has both halves in one loop — the holed box with its hole
 //! rim bridged back into the top face's outer loop, and the cube with a
@@ -55,6 +56,7 @@ use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::readback::euler_counts;
+use crate::test_support_fixtures::{CubeOps, declined_cube};
 use crate::test_support_impl::ArenaCounts;
 use geom_core::Tol;
 
@@ -741,34 +743,11 @@ pub(crate) fn mvfs_state() -> MvfsState {
 // Operator-built fixtures (M1 PR 4): the acceptance-test bodies rebuilt
 // through the public Euler operators, in-crate, for the kill-direction
 // unit tests, the isomorphism-oracle tests, and the teardown property
-// test (which needs crate access to the provenance maps). The
-// construction sequences mirror `tests/cube_by_hand.rs` and
-// `tests/box_with_hole.rs`.
+// test (which needs crate access to the provenance maps). The cube each
+// one grows from is `test_support_fixtures::declined_cube`, not a
+// sequence written here; what is written here is the §9.3 surgery on
+// top of it.
 // ---------------------------------------------------------------------
-
-/// Key bundle for [`ops_cube`] — [`crate::test_support_fixtures::GeoCube`]
-/// at `f64`, which is the same four fields in the same order:
-/// `mevs` is the bottom chain `[e_ab, e_bc, e_cd]` then the four
-/// verticals `[e_aa, e_bb, e_cc, e_dd]`, and `mefs` is
-/// `[f_bottom, f_front, f_right, f_back, f_left]` with the seed face
-/// surviving as the top.
-pub(crate) type OpsCube = crate::test_support_fixtures::GeoCube<f64>;
-
-/// The unit cube through the operators (1 mvfs + 7 mev + 5 mef, the
-/// §9.4.2-minimal sequence), **with its face geometry declined**:
-/// [`crate::test_support_fixtures::declined_cube`] at `f64`.
-///
-/// The declined half is the point, not an omission. This body's
-/// consumers are the operator-count, atomicity, revert and
-/// coplanar-merge suites, and all six faces sitting on the one `mvfs`
-/// placeholder key is a thing several of them read
-/// (`merge_faces`' coincidence rows, `revert`'s posture rows). The
-/// certified sibling is
-/// [`crate::test_support_fixtures::geometric_cube`], which is the same
-/// operators with real Newell planes.
-pub(crate) fn ops_cube(tol: Tol) -> OpsCube {
-    crate::test_support_fixtures::declined_cube::<f64>(tol)
-}
 
 /// Key bundle for [`ops_holed_box`].
 #[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
@@ -793,12 +772,12 @@ pub(crate) struct OpsHoledBox {
 /// identical).
 pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     let pt = Point3::new;
-    let OpsCube {
+    let CubeOps {
         mut body,
         seed,
         mevs,
         mefs,
-    } = ops_cube(tol);
+    } = declined_cube::<f64>(tol);
     let strut = |body: &mut Body<f64>, at, x, y, z| {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
@@ -981,7 +960,7 @@ pub(crate) struct OpsRingBridge {
 ///
 /// **The shape [`Body::kemr`] needs, which no other fixture here
 /// presents.** `kemr` takes two halves of ONE edge lying in ONE loop;
-/// every edge of [`ops_cube`], [`ops_holed_box`] and [`ops_genus2`]
+/// every edge of [`crate::test_support_fixtures::declined_cube`], [`ops_holed_box`] and [`ops_genus2`]
 /// borders two distinct faces, so its halves sit in two loops and
 /// `kemr`'s plan phase refuses at `NotSameLoop` on every pair those
 /// bodies present. A bridge edge is the M1 shape whose two halves share
@@ -1052,7 +1031,7 @@ pub(crate) struct OpsStrutCube {
 }
 
 /// Builds the cube with one pendant strut planted on the top face's
-/// outer loop — [`ops_cube`] plus one `mev_line` at a `Fan` site, which
+/// outer loop — [`crate::test_support_fixtures::declined_cube`] plus one `mev_line` at a `Fan` site, which
 /// is the state [`ops_holed_box`] passes through at its hole anchor and
 /// kills with `kemr` in the next line.
 ///
@@ -1064,7 +1043,7 @@ pub(crate) struct OpsStrutCube {
 /// so the two fixtures together present both shapes of `kemr`'s
 /// mutation phase.
 pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     // The same site `ops_holed_box` plants its hole anchor at: a `Fan`
     // on the front face's plus half, which lies in the top face's loop.

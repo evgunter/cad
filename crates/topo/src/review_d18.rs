@@ -95,9 +95,8 @@ use geom_core::Point3;
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
-use crate::fixtures::{
-    deep_snapshot, ops_cube, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
-};
+use crate::fixtures::{deep_snapshot, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube};
+use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
 #[cfg(not(debug_assertions))]
 use test_utils::vacuity::Exposure;
@@ -163,7 +162,7 @@ fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
 #[test]
 fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
     let tol = Tol::witness();
-    let cube = ops_cube(tol);
+    let cube = declined_cube::<f64>(tol);
     let mut base = cube.body;
     let edge = cube.mevs[0].edge;
     let recycled = recycled_dead_half_edge(&mut base, tol);
@@ -299,7 +298,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
             "generic cube edge",
             0.5,
             Box::new(move || {
-                let cube = ops_cube(tol);
+                let cube = declined_cube::<f64>(tol);
                 let edge = cube.mevs[0].edge;
                 (cube.body, edge)
             }),
@@ -308,7 +307,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
             "strut: next(he_plus) == he_minus",
             0.5,
             Box::new(move || {
-                let cube = ops_cube(tol);
+                let cube = declined_cube::<f64>(tol);
                 let mut body = cube.body;
                 let anchor = cube.mevs[0].he_plus;
                 let strut = body
@@ -545,7 +544,7 @@ fn link_half_edges_still_announces_rather_than_discards() {
 /// The converse is the half that explains the gap: it is not that the
 /// sweep drew too few samples, it is that the closed fixtures have no
 /// input for `kemr` at all. Every mate pair of every edge of
-/// [`crate::fixtures::ops_cube`], [`crate::fixtures::ops_holed_box`]
+/// [`crate::test_support_fixtures::declined_cube`], [`crate::fixtures::ops_holed_box`]
 /// and [`crate::fixtures::ops_genus2`] — both argument orders — refuses
 /// at `NotSameLoop`, because in each of them every edge borders two
 /// distinct faces and its halves therefore sit in two loops. No amount
@@ -646,7 +645,7 @@ fn kemr_splices_twice_on_the_ring_bridge_once_on_a_strut_and_never_on_a_closed_f
     assert_eq!(crate::validate::validate(&body), Ok(()));
 
     for (name, body) in [
-        ("ops_cube", ops_cube(tol).body),
+        ("declined_cube", declined_cube::<f64>(tol).body),
         ("ops_holed_box", ops_holed_box(tol).body),
         ("ops_genus2", ops_genus2(tol)),
     ] {
@@ -872,7 +871,7 @@ const CALLS: &str = "operator calls";
 /// the floors.
 #[cfg(not(debug_assertions))]
 const FIXTURES: [(&str, fn(Tol) -> Body<f64>); 3] = [
-    ("ops_cube", |tol| ops_cube(tol).body),
+    ("declined_cube", |tol| declined_cube::<f64>(tol).body),
     ("ops_ring_bridge", |tol| ops_ring_bridge(tol).body),
     ("ops_strut_cube", |tol| ops_strut_cube(tol).body),
 ];
@@ -1212,7 +1211,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
 #[cfg(not(debug_assertions))]
 fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     let tol = Tol::witness();
-    let cube = ops_cube(tol);
+    let cube = declined_cube::<f64>(tol);
     let mut src = cube.body;
     src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
     // The DESTINATION carries the ring bridge, so the spent body still
