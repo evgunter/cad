@@ -1046,6 +1046,7 @@ fn set_members_cannot_orphan_a_declaration() {
             members: vec![a, b, c],
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the member list is replaceable");
     assert_eq!(

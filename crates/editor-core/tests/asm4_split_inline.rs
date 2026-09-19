@@ -548,6 +548,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &everything_but_the_declaration,
         DocumentId::derive("n3"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -568,6 +569,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &just_the_declaration,
         DocumentId::derive("n3-mirror"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -587,6 +589,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &everything,
         DocumentId::derive("n3-all"),
         Tol::witness(),
+        None,
     )
     .expect("a cut closed under the DAG is accepted");
 }

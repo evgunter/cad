@@ -1987,7 +1987,12 @@ impl<P> Applied<P> {
             .iter()
             .filter_map(|m| match m {
                 Maintenance::Cluster(act) => Some(act.clone()),
-                Maintenance::Strand { .. } | Maintenance::StrandedAppearance { .. } => None,
+                // A strand and an orphaned Declare are facts the next
+                // evaluation reports from the document; only a cluster
+                // act is state replay has to re-apply.
+                Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
             })
             .collect()
     }
