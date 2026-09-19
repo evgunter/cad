@@ -149,21 +149,12 @@ a sentence saying the collision is deliberate.
 Territory: `crates/pncad-py/*` is LIB's fence and CENSUS's `keep_out`
 announces its pncad-py rows there.
 
-## Four more dispositioned, by EDIT's `edit/param-ref-one-convention` (2026-09-17)
+## Four more dispositioned, by EDIT's `edit/param-ref-one-convention` (PR #2819)
 
-That unit moved the edit door's four param-ref refusal tags onto the
-load door's convention — `slot_unknown_doc_param`,
+The four param-ref words — `slot_unknown_doc_param`,
 `slot_doc_param_dimension`, `payload_unknown_doc_param`,
-`payload_doc_param_dimension` at BOTH doors — so four words that no
-map shared now have two minters each (`edit_error_tag` and
-`snapshot_error_tag`). They are **one fact, deliberately**: one rule
-(`Doc::param_ref_fault`) answering two facts at two addresses, and a
-door that re-mints a word of its own is the defect the convention
-exists to prevent. `SHARED_TAG_WORDS` carries them with that sentence
-beside them.
+`payload_doc_param_dimension` — are now minted at BOTH doors, and
+are dispositioned as ONE fact under the convention stated on
+`editor_core::EditError`'s enum doc.
 
-The population is **67** at that branch's head and **twelve** of it
-have been read (the eight this row names plus these four); 55 have
-not. The count in `SHARED_TAG_WORDS`'s doc comment moved with it. The
-row's question — one fact or coincidence, per remaining pair — is
-unchanged.
+Population 63 → 67. Read-count 8 → 12.

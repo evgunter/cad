@@ -1031,78 +1031,87 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
 }
 
-/// **One rule, two facts, two addresses — and one set of four names at
-/// both doors.**
+/// **The param-ref convention, measured in both halves** — the four
+/// names at each door, and the MAPPING of name to address.
 ///
-/// `Doc::param_ref_fault` answers `Unknown` or `Dimension`, and each
-/// door asks it at two addresses: a slot expression and a payload
-/// expression. That is four meanings, and both doors must spell them
-/// the same way or a reader who knows one door's pair cannot predict
-/// the other's. The convention is the walk's — the ADDRESS leads, the
-/// FACT trails, one noun for the parameter — so
-/// `{Slot,Payload}` x `{UnknownDocParam,DocParamDimension}` is the
-/// whole vocabulary, written below as that product rather than as a
-/// third list of four names.
+/// The rule the two doors follow is stated once, on `EditError`'s own
+/// enum doc; this row is its guard and states none of it again.
 ///
-/// The names are read back off `Debug`, the one runtime value that
-/// carries them: a door that re-mints a name of its own reds here, and
-/// so does a rename applied at one door only.
+/// **Half one, the set.** The eight names are read back off `Debug`,
+/// the one runtime value that carries them, and each door's four are
+/// compared with the `{address} x {fact}` product written as a product
+/// rather than as a third list of four names. A door that re-mints a
+/// name of its own reds here, and so does a rename applied at one door
+/// only.
+///
+/// **Half two, the mapping.** A set has no opinion about WHICH arm
+/// carries which member, so half one alone survives swapping the edit
+/// door's slot pair with its payload pair — measured: that swap leaves
+/// every row in this file green. Half two ties each name to its
+/// address through the one place the address is externally visible,
+/// the rendered sentence, which names a slot at a slot arm and says
+/// "payload expression" at a payload arm, at both doors. That is what
+/// makes `{Slot,Payload}` a convention rather than four interchangeable
+/// tokens spelled the same at both doors.
 #[test]
-fn the_two_doors_spell_the_four_param_ref_refusals_with_the_same_four_names() {
+fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_name_reports_its_address() {
     /// The variant identifier a `Debug` dump opens with, up to the
-    /// first byte that cannot be part of one.
-    fn variant_of<T: core::fmt::Debug>(value: &T) -> String {
-        format!("{value:?}")
+    /// first byte that cannot be part of one, paired with what the arm
+    /// renders. `Debug` carries the name and `Display` carries the
+    /// address, and both halves below read this one pair.
+    fn arm<T: core::fmt::Debug + core::fmt::Display>(value: &T) -> (String, String) {
+        let variant = format!("{value:?}")
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect()
+            .collect();
+        (variant, value.to_string())
     }
 
     let node = RecipeNodeId(5);
     let name = ParamName::new("width");
 
-    let mut edit_door: Vec<String> = vec![
-        variant_of(&EditError::SlotUnknownDocParam {
+    let edit_door: Vec<(String, String)> = vec![
+        arm(&EditError::SlotUnknownDocParam {
             name: name.clone(),
             node,
             slot: SlotId::Radius,
         }),
-        variant_of(&EditError::SlotDocParamDimension {
+        arm(&EditError::SlotDocParamDimension {
             name: name.clone(),
             node,
             slot: SlotId::Radius,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
-        variant_of(&EditError::PayloadUnknownDocParam {
+        arm(&EditError::PayloadUnknownDocParam {
             name: name.clone(),
             node,
         }),
-        variant_of(&EditError::PayloadDocParamDimension {
+        arm(&EditError::PayloadDocParamDimension {
             name: name.clone(),
             node,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
     ];
-    let mut load_door: Vec<String> = vec![
-        variant_of(&SnapshotError::SlotUnknownDocParam {
+    let load_door: Vec<(String, String)> = vec![
+        arm(&SnapshotError::SlotUnknownDocParam {
             node,
             slot: SlotId::Radius,
             name: name.clone(),
         }),
-        variant_of(&SnapshotError::SlotDocParamDimension {
+        arm(&SnapshotError::SlotDocParamDimension {
             node,
             slot: SlotId::Radius,
             name: name.clone(),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
-        variant_of(&SnapshotError::PayloadUnknownDocParam {
+        arm(&SnapshotError::PayloadUnknownDocParam {
             node,
             name: name.clone(),
         }),
-        variant_of(&SnapshotError::PayloadDocParamDimension {
+        arm(&SnapshotError::PayloadDocParamDimension {
             node,
             name,
             declared: Dimension::Length,
@@ -1118,18 +1127,45 @@ fn the_two_doors_spell_the_four_param_ref_refusals_with_the_same_four_names() {
                 .map(move |fact| format!("{address}{fact}"))
         })
         .collect();
-
-    edit_door.sort();
-    load_door.sort();
     convention.sort();
+
+    let names_of = |arms: &[(String, String)]| {
+        let mut names: Vec<String> = arms.iter().map(|(variant, _)| variant.clone()).collect();
+        names.sort();
+        names
+    };
     assert_eq!(
-        edit_door, convention,
+        names_of(&edit_door),
+        convention,
         "the edit door's four param-ref refusals have left the address-then-fact convention"
     );
     assert_eq!(
-        load_door, convention,
+        names_of(&load_door),
+        convention,
         "the load door's four param-ref refusals have left the address-then-fact convention"
     );
+
+    for (door, arms) in [("edit", &edit_door), ("load", &load_door)] {
+        for (variant, rendered) in arms {
+            let says_slot = rendered.contains("slot ");
+            let says_payload = rendered.contains("payload expression");
+            if let Some(fact) = variant.strip_prefix("Slot") {
+                assert!(
+                    says_slot && !says_payload,
+                    "the {door} door's {variant} claims a SLOT address (fact {fact}) but renders \
+                     {rendered:?}"
+                );
+            } else if let Some(fact) = variant.strip_prefix("Payload") {
+                assert!(
+                    says_payload && !says_slot,
+                    "the {door} door's {variant} claims a PAYLOAD address (fact {fact}) but \
+                     renders {rendered:?}"
+                );
+            } else {
+                panic!("{door} door: {variant} does not open with an address word");
+            }
+        }
+    }
 }
 
 /// A predicate flip names the two signs as words: `Sign` has a

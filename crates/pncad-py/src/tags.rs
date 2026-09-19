@@ -87,11 +87,14 @@
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Two are pinned against each other in `src/tests.rs` and each says
+//! Three are pinned against each other in `src/tests.rs` and each says
 //! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
-//! where both layers speak of one entity, and [`class_admission_tag`]
+//! where both layers speak of one entity, [`class_admission_tag`]
 //! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
-//! second (see that function for the arm it does not). **That is not
+//! second (see that function for the arm it does not), and
+//! [`edit_error_tag`] with [`snapshot_error_tag`] over the four
+//! param-ref words, where both doors raise one fault at one address.
+//! **That is not
 //! the whole set of pairs that owe a pin**, only the set these maps
 //! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
 //! and [`stale_declaration_tag`] share contact words by prose alone,
@@ -487,6 +490,12 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
 }
 
 /// The stable tag for an edit refusal.
+///
+/// Its four param-ref words are the same four
+/// [`snapshot_error_tag`] mints, pinned by
+/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`:
+/// the arms they follow carry one convention across the two doors
+/// (stated on `editor_core::EditError`), so the words do too.
 pub fn edit_error_tag(err: &EditError) -> &'static str {
     match err {
         EditError::UnknownNode { .. } => "unknown_node",
@@ -509,13 +518,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
         EditError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
+        EditError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
         EditError::PayloadUnknownDocParam { .. } => "payload_unknown_doc_param",
         EditError::PayloadDocParamDimension { .. } => "payload_doc_param_dimension",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
         EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
-        EditError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
         EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
@@ -1680,6 +1689,10 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// each naming a different one. The arm's own payload is node ids,
 /// names and counts the snapshot door owns; the word is what the
 /// persistence door carries out.
+///
+/// Its four param-ref words are the same four [`edit_error_tag`]
+/// mints, pinned by
+/// `tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",

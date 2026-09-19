@@ -244,8 +244,6 @@ mod msolve4_mate_memo;
 mod msolve5_read_below_a_root;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
-#[path = "rv_paramref_probes.rs"]
-mod rv_paramref_probes;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 

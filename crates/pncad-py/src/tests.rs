@@ -3803,6 +3803,124 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
     );
 }
 
+/// **Two doors spell one param-table fault the same way.**
+///
+/// The kernel names the eight param-ref refusal arms under one
+/// convention, stated once on `editor_core::EditError` and guarded
+/// there; this is that convention's image on the wire. A caller that
+/// branches on `EditError.variant` and one that branches on the
+/// snapshot door's `variant` are reading ONE fault at ONE address, so
+/// learning two words for it would be a fact about this crate rather
+/// than about the kernel.
+///
+/// Pinned by CONSTRUCTION, so it pins the MAPPING and not just the
+/// vocabulary: each of the four (address, fact) pairs is built at both
+/// doors and the two words compared. A door that re-mints a word of
+/// its own reds here by name. The four entries `SHARED_TAG_WORDS`
+/// carries are the population half of the same fact; this row is why
+/// they are one concept rather than a coincidence.
+#[test]
+fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
+    use crate::tags::{edit_error_tag, snapshot_error_tag};
+    use pncad::document::{
+        Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError,
+    };
+
+    let node = RecipeNodeId(5);
+    let name = || ParamName::new("width");
+
+    let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
+        (
+            "slot",
+            "unknown",
+            EditError::SlotUnknownDocParam {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+            },
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+            },
+        ),
+        (
+            "slot",
+            "dimension",
+            EditError::SlotDocParamDimension {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+        (
+            "payload",
+            "unknown",
+            EditError::PayloadUnknownDocParam {
+                name: name(),
+                node,
+            },
+            SnapshotError::PayloadUnknownDocParam { node, name: name() },
+        ),
+        (
+            "payload",
+            "dimension",
+            EditError::PayloadDocParamDimension {
+                name: name(),
+                node,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::PayloadDocParamDimension {
+                node,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+    ];
+
+    for (address, fact, edit, snapshot) in &pairs {
+        assert_eq!(
+            edit_error_tag(edit),
+            snapshot_error_tag(snapshot),
+            "the edit and load doors have drifted apart on the {fact} fact at the {address} \
+             address"
+        );
+    }
+
+    // The words themselves, against the `{address} x {fact}` product
+    // written once: the pairing above stays true if BOTH maps drift
+    // together, and this is what catches that.
+    let mut spoken: Vec<&str> = pairs
+        .iter()
+        .map(|(_, _, edit, _)| edit_error_tag(edit))
+        .collect();
+    let mut convention: Vec<String> = ["slot", "payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["unknown_doc_param", "doc_param_dimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}_{fact}"))
+        })
+        .collect();
+    spoken.sort_unstable();
+    convention.sort_unstable();
+    assert_eq!(
+        spoken, convention,
+        "the four param-ref words have left the address-then-fact convention on the wire"
+    );
+}
+
 /// **The class table's `no_at_rest_record` arm predicts the mint
 /// door's refusal in the mint door's own word.**
 ///
@@ -5335,12 +5453,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_body", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    // The param-table rule's two facts at their two addresses, ONE
-    // concept and pinned as one: `Doc::param_ref_fault` answers
-    // `Unknown` or `Dimension`, both doors ask it of a slot
-    // expression and of a payload expression, and the eight arms
-    // carry four names between them on purpose. A door that
-    // re-mints a word of its own drops out of these four rows.
+    // ONE concept, and pinned as one: the param-ref convention
+    // `editor_core::EditError`'s enum doc states. That the two maps
+    // agree word for word is held by
+    // `the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`;
+    // these four rows say only that the sharing is deliberate.
     ("payload_doc_param_dimension", 2),
     ("payload_unknown_doc_param", 2),
     ("pcurve", 5),
@@ -5353,7 +5470,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("skin", 2),
     ("sliver_join", 2),
     ("sliver_rim", 2),
-    // The slot-addressed half of the four above.
+    // The slot-addressed half of the four above, same pin.
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
     ("split", 2),
