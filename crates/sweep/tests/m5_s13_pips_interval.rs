@@ -24,7 +24,7 @@ mod certified {
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+    use sweep::{Revolution, RevolveAxis, revolve};
     use topo::{Body, mass_properties};
 
     fn iv(x: f64) -> Interval {
@@ -43,19 +43,7 @@ mod certified {
 
     /// The 4 × 4 × 1 slab of the finding row.
     fn slab() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(4.0, 0.0),
-            p2(4.0, 4.0),
-            p2(0.0, 4.0),
-        ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(1.0)),
-            Tol::witness(),
-        )
-        .unwrap()
-        .body
+        sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
     }
 
     /// A radius-`r` ball at `centre` (horizontal polar axis — the §1

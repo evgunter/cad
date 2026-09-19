@@ -24,28 +24,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Point2, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, SketchPlane};
+use geom_core::Tol;
 use sweep::blend::fillet_edges;
-use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
 
-/// A unit cube through the real profile → extrude path (the die blank's
-/// shape; `test_support::cube` is feature-gated and not nameable here).
+/// The die blank: a cube of side `l` with a corner at the origin.
 fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(l, 0.0),
-        Point2::new(l, l),
-        Point2::new(0.0, l),
-    ]);
-    let validated = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the square is a valid profile");
-    extrude(&validated, Extrusion::Distance(l), Tol::witness())
-        .expect("the square extrudes")
-        .body
+    sweep::test_support::cube(l, Tol::witness())
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {

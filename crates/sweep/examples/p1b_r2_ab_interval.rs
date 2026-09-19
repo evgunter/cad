@@ -17,29 +17,15 @@
 #[cfg(feature = "interval")]
 fn main() {
     use geom::Surface;
-    use geom_core::{Bounds, Interval, Point2, Real, Tol};
-    use profile::RawLoop;
-    use profile::{Profile, ProfileLoop, SketchPlane};
+    use geom_core::{Bounds, Interval, Real, Tol};
     use sweep::blend::fillet_edges;
-    use sweep::{Extrusion, extrude};
     use topo::{Body, EdgeKey};
 
     let _ = <Interval as Bounds>::lo;
     let i = Interval::from_f64;
     let (l, r) = (1.0_f64, 0.15_f64);
 
-    let lp = ProfileLoop::polygon([
-        Point2::new(i(0.0), i(0.0)),
-        Point2::new(i(l), i(0.0)),
-        Point2::new(i(l), i(l)),
-        Point2::new(i(0.0), i(l)),
-    ]);
-    let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the square validates");
-    let blank: Body<Interval> = extrude(&vp, Extrusion::Distance(i(l)), Tol::witness())
-        .expect("the square extrudes")
-        .body;
+    let blank: Body<Interval> = sweep::test_support::cube(l, Tol::witness());
 
     let planes = blank
         .faces()

@@ -2,7 +2,8 @@
 id: private-extruded-box-builders-outside-the-brick-door
 kind: issue
 title: Seven private builders still extrude a rectangle into a box, one per suite, now that the box door is topo's
-status: open
+status: review
+branch: dup/private-box-builders
 opened: 2026-09-19
 ---
 
@@ -68,3 +69,81 @@ any of theirs, and S-DUP claims no territory by design (`plan.md`,
 one row rather than four, because the four would be one sentence each
 of the same finding; a program that wants its share claims it by
 `git mv` per `work/README.md`.
+
+## Re-taken 2026-09-19 (branch `dup/private-box-builders`, merge base `5b4979ef2`): seven was a floor and the floor was 34
+
+The row's own needle reproduces its seven exactly at the merge base,
+and the row is right that it is a floor. Three further instruments were
+run over **every tracked file, no path argument**:
+
+- **the row's needle** — `Extrusion::Distance(z.1 - z.0)` and its
+  `real(...)` spelling: 7 sites plus `docs/GUIDE.md` (7) and
+  `docs/guide/fail-loud.md` (1). Reproduced.
+  *Blind: a literal height, `Extrusion::Vector`, a differently-named
+  local, a profile assembled away from the call.*
+- **rectangle-literal**: every 4-pair coordinate list in every tracked
+  `.rs`/`.md`, filtered to axis-aligned rectangles — 709 lists, **529**
+  rectangles.
+  *Blind: a rectangle spelled as four `p2(..)`/`Point2::new(..)` calls
+  or a `.line_to` chain, which is how `benches` and the three
+  `verbs_cylcyl*` slabs write theirs.*
+- **function-scoped union (the one that settled it)**: for every `fn`
+  in every tracked `.rs`, a body containing an extrusion atom AND, in
+  it, any four CONSECUTIVE two-coordinate expressions forming an
+  axis-aligned rectangle. 165 functions at the merge base, of which
+  **66** return a `Body`.
+  *Blind: it matches four rectangle corners inside a LARGER polygon, so
+  letterform prisms and notched profiles are hits without being boxes;
+  and it cannot see a box whose corners are not consecutive in the
+  source, or a profile assembled in a loop.*
+- **mutation** (a sweep instrument, method item 4): three plants in
+  `topo::test_support::brick` — `z.1 + 0.001`, x extent halved, box
+  translated `+10` in x. It found the one folded site that nothing
+  asserts on.
+
+Reading the 66 by hand gives **34 private builders that build an
+axis-aligned box by extruding a rectangle**; the rest are holed,
+bulged, arced or lofted and are not members. So the class is
+**34, not 7** — and a further **100** sites in 59 files write the same
+construction INLINE inside a test body, which is
+`the-box-extrusion-written-inline-inside-test-bodies`.
+
+### Two of the row's own readings were wrong
+
+- **`s16_box_soundness` and `n3r1_prune` do not have the extrusion as
+  their subject.** The row guessed they did. Their headers say
+  otherwise — the census's instance-containment arm and the
+  pruning-delta corpus — and the boxes are operands. Both folded.
+- **The choice is not "fold to `brick` or leave alone".** There is a
+  third door and it is the right one wherever the extrusion IS the
+  subject: `sweep::test_support::prism` / `prism_at` is
+  *rectangle profile → extrude z0..z1* through the shared door, so the
+  private re-spelling goes and the construction stays. That is what
+  `reporting_door_bit_digest::box_extrusion` took, and its committed
+  per-eps digest did not move.
+
+### Of the row's seven
+
+| site | disposition |
+| --- | --- |
+| `benches/benches/kernel.rs` | **no.** `benches/Cargo.toml` depends on `pncad` alone, deliberately — *"the benchmarks are measurements of the PUBLIC surface"* — so a test-support door is not reachable and would not be right if it were |
+| `crates/pncad/tests/all.rs` | **no.** The row is *"the end-to-end proof that the Boolean vocabulary is prelude-complete"*; building its operand any other way removes the proof |
+| `crates/sweep/tests/n3r1_prune.rs` | **folded**, and so is `small_box` beside it, which the row's needle could not see |
+| `crates/sweep/tests/s16_box_soundness.rs` | **folded**, same pair |
+| `crates/sweep/tests/verbs_cylcyl_probe.rs` | **folded**; its header claimed every body was authored through the public extrude door, which is now true of the cylinders only, and says so |
+| `crates/sweep/tests/verbs_cylcyl_r1_review_probes.rs` | **folded** |
+| `crates/sweep/tests/verbs_cylcylb_r1_blinded_probes.rs` | **folded** |
+
+### Three more said no
+
+- `crates/sweep/tests/m3_pr5_extrude_booleans.rs` — its header is
+  *"operands built through the REAL profile → `extrude` path — whose
+  edges carry `Intersection { s1, s2 }` descriptions"*. The extrude
+  path is every row's premise.
+- `crates/sweep/tests/pcurve_p1b_r2_probes.rs` — its R2-S1 roster lists
+  the body as `("extrude slab", …)`; the construction is what that row
+  covers.
+- `crates/step-import/tests/verbs_chamfer_roundtrip.rs` — the fixture
+  says it is *"built through the public doors a consumer would use"*,
+  and `test_support` is not one.
+

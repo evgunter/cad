@@ -54,18 +54,7 @@ fn vol(body: &Body<f64>) -> f64 {
 
 /// The 4 × 4 × 1 slab (the S12 finding's own dimensions).
 fn slab() -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// A radius-`r` ball (two half-sphere bands on ONE sphere surface, the
