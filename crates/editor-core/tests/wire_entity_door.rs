@@ -43,7 +43,7 @@ use crate::fixture;
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, evaluate,
+    ProfileDoc, ProfileVertexRef, RecipeNodeId, SitedRef, StableName, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
@@ -52,17 +52,14 @@ use geom_core::Tol;
 /// RESOLVES and the refusal is about its kind rather than about a name
 /// that names nothing.
 fn vname(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
+    fixture::cap_vertex(
         node,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
-        )],
-    }
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        },
+    )
 }
 
 /// A square prism and the four names every row below miswires with: a

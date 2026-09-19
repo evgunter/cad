@@ -12,10 +12,10 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
+    BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
+use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl, table};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -33,12 +33,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     );
     fixture::assert_no_nested_merged(&ev);
     ev
-}
-
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {

@@ -10,11 +10,10 @@ use crate::fixture;
 use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RecipeNodeId, RoleSeg, StableName, ValuePayload,
-    evaluate,
+    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate,
 };
-use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
+use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -32,12 +31,6 @@ pub(crate) fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     );
     fixture::assert_no_nested_merged(&ev);
     ev
-}
-
-pub(crate) fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {

@@ -11,11 +11,11 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node, ProfileDoc,
+    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, Node, ProfileDoc,
     ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName, band, band_pi, band_rim, evaluate,
     meridian_vertex,
 };
-use fixture::{ang, axis_in_plane, insert, on_frame_keeping};
+use fixture::{ang, axis_in_plane, insert, on_frame_keeping, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -26,12 +26,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {

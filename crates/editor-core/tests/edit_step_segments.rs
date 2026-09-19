@@ -54,14 +54,10 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, StepSegmentsError, ValuePayload, eval::ProfileNaming,
     evaluate,
 };
-use fixture::{insert, len, on_frame};
-use geom_core::{Point2, Tol};
+use fixture::{insert, len, on_frame, tol};
+use geom_core::Point2;
 use profile::{CanonicalStructure, ProfileStructure, SketchPlane, Step, Target};
-use topo::{Body, FaceKey, LoopBoundary};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
+use topo::{Body, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -202,27 +198,12 @@ fn assert_refuses_off_the_program(
     );
 }
 
-/// Where one vertex sits.
-fn point_of(body: &Body<f64>, v: topo::VertexKey) -> geom_core::Point3<f64> {
-    let key = body.get_vertex(v).expect("vertex").point;
-    *body.get_point(key).expect("the vertex's point")
-}
-
 /// Every vertex the face touches, as 3-D points.
 fn face_points(body: &Body<f64>, face: FaceKey) -> Vec<geom_core::Point3<f64>> {
-    let data = body.get_face(face).expect("the named face is in the body");
-    let mut out = Vec::new();
-    for l in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        match body.get_loop(l).expect("loop").boundary {
-            LoopBoundary::Empty { vertex } => out.push(point_of(body, vertex)),
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).expect("cycle") {
-                    out.push(point_of(body, body.get_half_edge(he).expect("he").start));
-                }
-            }
-        }
-    }
-    out
+    fixture::face_vertices(body, face)
+        .into_iter()
+        .map(|v| fixture::point(body, v))
+        .collect()
 }
 
 /// The face a lateral name addresses, `None` where the table has no

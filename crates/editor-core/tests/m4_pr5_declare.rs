@@ -22,7 +22,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
-use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
+use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
@@ -65,14 +65,6 @@ fn block(
             distance: len(dz),
         },
     )
-}
-
-fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {

@@ -9,11 +9,11 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node, ProfileDoc,
-    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName, ValuePayload, evaluate, vertex_position,
+    CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload, evaluate, vertex_position,
 };
-use fixture::{ang, insert, len, scl};
+use fixture::{ang, insert, len, scl, table, vname};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -26,21 +26,14 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
 fn pole(node: RecipeNodeId, v: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
+    vname(
         node,
-        path: vec![RoleSeg::Pole(ProfileVertexRef {
+        RoleSeg::Pole(ProfileVertexRef {
             loop_index: 0,
             vertex: v,
-        })],
-    }
+        }),
+    )
 }
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
