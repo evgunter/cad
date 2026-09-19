@@ -21,12 +21,12 @@
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, solve_document,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame,
+    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, assemble,
+    solve_document,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, run, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -52,17 +52,6 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
 
 fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {

@@ -24,7 +24,7 @@ use editor_core::{
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS, SideVerdict,
     SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
-use fixture::{ang, insert, len, on_frame, scl, step};
+use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 
@@ -392,14 +392,6 @@ fn the_orderalong_half_of_the_issue_is_not_recovered() {
 // subject here — the rung's PLACE is).
 // ---------------------------------------------------------------
 
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
-}
-
 fn body_ent(i: u32) -> editor_core::EntityRef {
     editor_core::EntityRef {
         body: i,
@@ -480,7 +472,7 @@ fn hand(partners: usize) -> Hand {
         Node::declare_rest(vec![]),
     );
     let (doc, m) = insert(doc, Node::declare_rest(vec![]));
-    let of = name1(EntityKind::Body, n, RoleSeg::OutputBody);
+    let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let vector: Vec<(StableName, SideVerdict)> = (0..partners)
         .map(|i| {
             (

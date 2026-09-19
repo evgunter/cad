@@ -2928,8 +2928,8 @@ class DocEdit:
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `unknown_doc_param` /
-        `doc_param_dimension_mismatch` for a parameter reference the
+        required and offered dimensions, and `slot_unknown_doc_param` /
+        `slot_doc_param_dimension` for a parameter reference the
         document does not answer."""
 
     @staticmethod

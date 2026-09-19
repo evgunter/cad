@@ -22,7 +22,7 @@ use editor_core::{
     RoleSeg, StableName, assemble, clusters, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, relations, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, relations, run, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -51,20 +51,6 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
 /// The unit cube `[0,1]³` — the leg.
 fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-/// A face of pattern copy `i` — the `Instance(i)` spelling the rider
-/// makes canonical: the PATTERN node as head, the master's own name
-/// under the qualifier.
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
