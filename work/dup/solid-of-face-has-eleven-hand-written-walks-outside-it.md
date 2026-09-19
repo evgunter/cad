@@ -81,7 +81,11 @@ argument**. What each added is below. The class, corrected:
   (`t.cavities[0]`, `t.shell`); no face is walked. The structural
   regex matched the handle field's NAME (`t.shell`), not a
   `Face::shell` read. This is the instrument's own blind spot, and it
-  is the opposite of the one the row stated.
+  is the opposite of the one the row stated. **The same shape stands
+  in `demos/tour/src/ring.rs` (~:277) and `demos/tour/src/tubewall.rs`
+  (~:361)** — the only `shell -> solid` reads in any cargo root
+  outside `--workspace`, and non-members for the same reason.
+  Recorded here so the next lane does not re-find them as the class.
 - **`crates/topo/src/offset_together.rs`'s `scope_of_moves` (~:931)
   was missed**, and it is the only PRODUCTION site in the class. The
   regex could not see it because the walk is split over two `let`s.
