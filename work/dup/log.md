@@ -903,3 +903,62 @@ unnamed four-file bucket, and a second file from that same bucket
 (`m3_pr1_surgery.rs`) was still in it. **A bucket disposition is where
 a census loses things**; one line per hit is what this program already
 asks for, and this is the receipt for why.
+
+## 2026-09-19 — the cube fold merged; what five instruments cost and what they bought
+
+PR #2843 merged green on the full matrix (12 `test`, 5 `k-lint`, 36
+success, 3 skipped). The §9.4.2 class is closed: eight spellings folded
+onto `prism_ops`, every body proved **byte-identical before and after**
+by `deep_snapshot` over all ten arenas — and the two late members proved
+identical **before** the edit rather than after, by a scratch probe
+building each hand-written body beside its replacement.
+
+**The unit's own count went 5 → 8 while it was being worked.** Three
+members were not on the row: `review_m3_pr1.rs::ops_cube_public`,
+`interval_body.rs`'s interval cube, and — after the style review —
+`m3_pr1_surgery.rs`'s outer cube and `boolean/ops.rs::far_cube`. The
+row's census had been re-run at the head each time. **A class does not
+hold still while you close it**, and the count on a duplication row is
+a lower bound with a date on it, never a total.
+
+**Three refusals from lanes, all of them better than what this
+orchestrator asked for.** I told the fix pass to wire
+`cube_doors_agree.rs` to the newly exported `UNIT_SQUARE`; it refused,
+because that file's own doc says a guard reaching for the builder's
+constant compares it against itself, and wiring it would delete the
+row's independence. It un-exported the constant instead — the third
+option neither I nor the reviewer had offered. I told it to delete
+three `expect`s as documentation; it showed that `<[T; N]>::try_from`
+returns a `Result` so something must consume it, and that the very
+convention I cited **keeps** its own `expect`. And it declined to fold
+the nine-spelling cylindrical-patch class it found, on the ground that
+the class straddles `src/` and `tests/` on another program's territory
+and its bodies were never dumped.
+
+**The instrument story, which is this program's real output.** Four
+censuses (arity, geometry, name, prose) closed the unit; a **fifth,
+structural** one — `git grep 'find_half_edge(seed.face'`, the sequence's
+distinctive bottom-close step — found two more members after the first
+review passed. Its 26 hits then paid for themselves twice over: three
+are a quad-sheet helper written three times across two files, and
+**nine are one two-rim cylindrical-patch builder spelled nine times
+across seven files**, seven of them with a token-identical closing
+`mef` block. Eight of those nine are **closures**, so no name census can
+see them; they loop, so no arity census can; their surface is a
+cylinder, so the geometry census cannot. Both filed.
+
+So the five-instruments result now has its own measurement attached:
+this unit ran five, and the **fifth found members the other four could
+not**, in a class four instruments had already declared closed. The
+corollary stands and hardens — *no single instrument has ever found even
+half of any class* — with the practical form: **when a census closes a
+class, the next instrument is not optional work, it is the check.**
+
+**And the bucket lesson, which is new.** The row's census had matched
+`review_m3_pr1.rs` at 20 `mev` / 14 `mef` — three times its threshold —
+and then lost it inside an unnamed line reading *"four `topo/tests/`
+suites already dispositioned"*. Two of those four were mis-dispositioned;
+the first pass found one and re-buried the other. All four are now named
+with their reasons so the bucket cannot swallow a third.
+**A bucket disposition is where a census loses things** — not the
+threshold, which is where everyone looks.
