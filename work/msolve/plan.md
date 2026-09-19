@@ -99,8 +99,10 @@ and a transform moves one. The alternatives weighed and rejected are in
     naming the transform), and
     `mate-solve-rebuilds-the-nominal-environment-per-check` (build
     `param_env` once per `solve_document`, pass it down — the same
-    shape EVAL-9/10 gave the evaluator). Spec after MSOLVE-6 merges;
-    the walk and the check are the files MSOLVE-2 and -6 just left.
+    shape EVAL-9/10 gave the evaluator). Spec `docs/MSOLVE-7-SPEC.md`
+    (2026-09-19), with item 14 folded in; EVAL-6 had already landed
+    the flat-index decomposition, so the first item closes by
+    citation and a ruling (the walk keeps the flat `Part`).
 11. **`MSOLVE-8` — `levered-clash-margins-hide-their-arm`**: three
     coset clash margins reach `Contradictory` with `lever: None`, and
     the socket is typed radians while a sine, a Frobenius departure
