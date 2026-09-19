@@ -1201,16 +1201,15 @@ mod tests {
             let Some(chart) = Chart::of(body.get_surface(face.surface).unwrap()) else {
                 continue;
             };
-            let walk = loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).map(
-                |poly| {
+            let walk =
+                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).map(|poly| {
                     // The same lever arms `tessellate_curved` builds.
                     let levers = poly
                         .iter()
                         .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
                         .collect();
                     (poly, levers)
-                },
-            );
+                });
             out.push((fk, walk));
         }
         out
