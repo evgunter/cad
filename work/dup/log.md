@@ -727,3 +727,60 @@ a title (`topo-tests-brick-copies`, 24), a live use inside its own
 correction (same row), an intermediate figure left standing as if
 final (34), and now **a constant that records a measurement nobody
 re-took**. The first three are prose. The fourth compiles.
+
+## 2026-09-19 — link 3 merged; the brick unit is closed and the wall is down
+
+PR #2842 merged green on the full code tier (12 `test`, 5 `k-lint`, 35
+success, 4 skipped, zero failures). `crates/topo/tests/common/mod.rs`
+is now `crates/topo/src/test_support_fixtures.rs`, re-exported through
+`topo::test_support` — option 3, the sibling module, so `ArenaCounts`
+keeps its allow-free file. `cert_m3r1_probes.rs`'s in-`src` copy is
+folded and its row closed. **All three links of the brick unit are
+done**, and the row that opened this thread —
+`brick-has-two-constructions-and-two-homes` — is closed.
+
+**One `mod` declaration moved and 279 references did not.** `mod
+common;` became `use topo::test_support as common;` at `tests/all.rs`;
+a crate-root `use` is private but visible to descendants, so all 74
+suite files compiled unchanged. The row's *"read, not compiled"*
+caveat is retired by the build.
+
+**The collision was resolved by renaming the incumbent.**
+`fixtures::prism`/`Prism` are `raw_prism`/`RawPrism` — 12 sites against
+125 the other way — so each name has one definition in the crate. Four
+proofs, none count-shaped, and the fourth is a test that asserts the
+two families agree on *every arena length* before separating them on
+surfaces, carriers and volume. The review then sharpened what it
+guards: bodies converging, not names re-colliding. Names are covered
+by the structural three.
+
+**A false CI failure worth remembering.** A `check_run.completed` wake
+said `gate ok` **failed** on the previous head. The run it belonged to
+had concluded **cancelled** with `failed_jobs: 0` — my own next push
+superseded it mid-flight and the aggregate reported failure because
+its dependencies were cancelled under it. The check-run layer and the
+run layer disagreed, and only the second is a fact about the code.
+That is exactly why the check-in discipline says read the workflow
+**runs** list rather than the PR's checks list.
+
+**The slate after this unit.** Six rows closed, four open:
+`the-cube-sequence-is-written-five-times-and-twice-inside-src`
+(unparked by this merge — all five copies are now under
+`crates/topo/src/` and the shared builder is nameable from every one
+of them), `half-edge-to-face-walk-is-spelled-once-per-suite` (56
+tracked files, filed by the review), `sweep-test-support-brick-is-\
+still-a-second-box-construction`, and
+`f6-display-predicate-is-spelled-three-times-with-no-home`.
+
+**Next unit: the cube sequence**, taken as a sequencing decision with
+a recommendation per `memories/orchestration-model.md`. It is the
+direct payoff of link 3 rather than a new front — the wall link 3 took
+down is precisely what blocked it, all five copies now sit in one
+crate, and it closes the class this program opened on. The half-edge
+walk follows, starting at its cheapest pair (`shell.rs`'s `face_of_he`
+and `replace_face.rs`'s `face_of`, byte-identical closure bodies under
+two names, both in `topo/src`). The `sweep` row waits: what holds it
+is a reading of the adjudication's *"no manifest edge is added at any
+step"* against a feature appended to an existing forward list, and
+that is Ev's sentence to interpret, not mine to reinterpret in my own
+favour.
