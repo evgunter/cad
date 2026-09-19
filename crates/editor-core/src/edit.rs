@@ -479,6 +479,32 @@ impl core::fmt::Display for CarryForwardDoor {
 }
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
+///
+/// **The param-ref naming convention is stated here and nowhere else.**
+/// `Doc::param_ref_fault` answers TWO facts about a reference to a
+/// document parameter — undeclared, wrong dimension — and each door
+/// asks it at TWO addresses: a slot expression and a payload
+/// expression (a measured expression's value leaf, an assertion's
+/// bound — the expressions no slot addresses). Those four meanings are
+/// named as the product `{Slot,Payload}` x
+/// `{UnknownDocParam,DocParamDimension}`: the ADDRESS leads, the FACT
+/// trails, and the parameter is ONE noun (`DocParam`) in every arm.
+/// The load door's four ([`crate::SnapshotError::SlotUnknownDocParam`]
+/// and its three siblings) are the SAME four names, because the
+/// address is what the walk iterates and the fact is what the rule
+/// answers — so a reader who knows one of the eight arms can spell the
+/// other seven. The guard is
+/// `display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address`,
+/// which measures both halves: the four names per door, and that each
+/// arm's address word is the address its sentence reports.
+///
+/// The convention governs those eight arms. It is not yet the shape of
+/// this enum's other document-parameter refusals
+/// ([`EditError::DocParamUnitMismatch`] and its siblings), which is a
+/// filed row rather than an exception with a reason
+/// (`work/edit/doc-param-refusals-keep-two-conventions-inside-one-enum.md`).
+/// Every other mention of the convention in this tree cites this
+/// paragraph instead of re-wording it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
     /// The edit targets a node id that is not live.
@@ -615,21 +641,46 @@ pub enum EditError {
         /// The continuous slot.
         slot: SlotId,
     },
-    /// A node's PAYLOAD expression (a measured expression's value
-    /// leaf, an assertion's bound — the expressions no slot addresses)
-    /// references a document parameter that does not exist. The same
-    /// fault as [`EditError::UnknownDocParam`] at an address that is
-    /// not a slot, so it says so rather than borrowing a slot name
-    /// from a node that has one.
-    UnknownPayloadParam {
+    /// A SLOT expression references a document parameter the document
+    /// does not declare. First of the four arms of
+    /// `Doc::param_ref_fault` at this door, which sit together and are
+    /// named under the convention this enum's own doc states.
+    SlotUnknownDocParam {
+        /// The missing parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+        /// The referencing slot.
+        slot: SlotId,
+    },
+    /// A SLOT expression's recorded ref dimension disagrees with the
+    /// document parameter's declared dimension.
+    SlotDocParamDimension {
+        /// The parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+        /// The referencing slot.
+        slot: SlotId,
+        /// The document table's declared dimension.
+        declared: Dimension,
+        /// The dimension the expression's ref recorded.
+        referenced: Dimension,
+    },
+    /// A PAYLOAD expression — a measured expression's value leaf, an
+    /// assertion's bound, the expressions no slot addresses —
+    /// references a document parameter the document does not declare.
+    /// The address is the NODE rather than a slot, so the arm says so
+    /// instead of borrowing a slot name from a node that has one.
+    PayloadUnknownDocParam {
         /// The missing parameter.
         name: ParamName,
         /// The referencing node.
         node: RecipeNodeId,
     },
-    /// A payload expression's recorded ref dimension disagrees with the
+    /// A PAYLOAD expression's recorded ref dimension disagrees with the
     /// document parameter's declared dimension.
-    PayloadParamDimensionMismatch {
+    PayloadDocParamDimension {
         /// The parameter.
         name: ParamName,
         /// The referencing node.
@@ -679,30 +730,6 @@ pub enum EditError {
         measured: Dimension,
         /// The bound's.
         bound: Dimension,
-    },
-    /// An expression references a document parameter that does not
-    /// exist.
-    UnknownDocParam {
-        /// The missing parameter.
-        name: ParamName,
-        /// The referencing node.
-        node: RecipeNodeId,
-        /// The referencing slot.
-        slot: SlotId,
-    },
-    /// An expression's recorded ref dimension disagrees with the
-    /// document parameter's declared dimension.
-    DocParamDimensionMismatch {
-        /// The parameter.
-        name: ParamName,
-        /// The referencing node.
-        node: RecipeNodeId,
-        /// The referencing slot.
-        slot: SlotId,
-        /// The document table's declared dimension.
-        declared: Dimension,
-        /// The dimension the expression's ref recorded.
-        referenced: Dimension,
     },
     /// A `Continuous` doc param declared with `Dimension::Count` —
     /// Count parameters use [`DocParam::Count`] (exact integers).
@@ -1267,13 +1294,13 @@ impl core::fmt::Display for EditError {
             Self::NotStructuralSlot { slot } => {
                 write!(f, "slot {} is continuous, not structural", slot.label())
             }
-            Self::UnknownPayloadParam { name, node } => write!(
+            Self::PayloadUnknownDocParam { name, node } => write!(
                 f,
                 "document parameter {name} does not exist (referenced by node {}'s \
                  payload expression)",
                 node.0
             ),
-            Self::PayloadParamDimensionMismatch {
+            Self::PayloadDocParamDimension {
                 name,
                 node,
                 declared,
@@ -1313,13 +1340,13 @@ impl core::fmt::Display for EditError {
                 measure.0,
                 bound.article()
             ),
-            Self::UnknownDocParam { name, node, slot } => write!(
+            Self::SlotUnknownDocParam { name, node, slot } => write!(
                 f,
                 "document parameter {name} does not exist (referenced by node {}, slot {})",
                 node.0,
                 slot.label()
             ),
-            Self::DocParamDimensionMismatch {
+            Self::SlotDocParamDimension {
                 name,
                 node,
                 slot,
@@ -1865,13 +1892,13 @@ fn check_param_refs<P>(
     match doc.param_ref_fault(expr) {
         None => Ok(()),
         Some(ParamRefFault::Unknown { name }) => {
-            Err(EditError::UnknownDocParam { name, node, slot })
+            Err(EditError::SlotUnknownDocParam { name, node, slot })
         }
         Some(ParamRefFault::Dimension {
             name,
             declared,
             referenced,
-        }) => Err(EditError::DocParamDimensionMismatch {
+        }) => Err(EditError::SlotDocParamDimension {
             name,
             node,
             slot,
@@ -2045,14 +2072,14 @@ fn check_node_slots<P: crate::ProfilePayload>(
         match doc.param_ref_fault(expr) {
             None => {}
             Some(ParamRefFault::Unknown { name }) => {
-                return Err(EditError::UnknownPayloadParam { name, node: id });
+                return Err(EditError::PayloadUnknownDocParam { name, node: id });
             }
             Some(ParamRefFault::Dimension {
                 name,
                 declared,
                 referenced,
             }) => {
-                return Err(EditError::PayloadParamDimensionMismatch {
+                return Err(EditError::PayloadDocParamDimension {
                     name,
                     node: id,
                     declared,

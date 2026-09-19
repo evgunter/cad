@@ -75,7 +75,10 @@ posture under §Process.
    together as round three (PR #2780, middle tier; the census is now
    the code's). `recorded-program-arguments-carry-no-notation` is
    **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
-   doc-param precedent; LIB's Python half unparked at that merge).
+   doc-param precedent; LIB's Python half unparked at that merge); its
+   residue `recorded-notation-makes-a-rust-author-count-step-indices`
+   is ruled and **spec'd** (middle tier, wave 12: the recorder hands
+   back its steps and the notation's authoring door derives the index).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
    **merged** (PR #2793, middle tier). DM8's residue

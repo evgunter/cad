@@ -13,6 +13,22 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
+//!
+//! **This file is the ONE home for what a name-reading suite works an
+//! evaluation with**: the die document above, the [`Recorder`] and the
+//! `insert`/`step` authoring shorthands a suite builds a document
+//! with, the name-authoring shorthands ([`minted`], [`fname`],
+//! [`ename`], [`vname`], [`rim_edge`], [`cap_vertex`], [`pole`],
+//! [`in_copy`]) and, below the banner, the reader doors over a
+//! published table and body ([`table`], [`key_of`], [`face_of`],
+//! [`edge_of`], [`vertex_of`], [`count`], [`point`], [`ends`],
+//! [`face_vertices`], [`face_edges`]). A suite **imports a door; it
+//! never copies one** — a copy diverges silently, and the divergence
+//! is discovered by the row it breaks rather than by the reader of
+//! either file. Where the door does not fit, the suite either widens
+//! the door here or writes an adapter that DELEGATES to it; an
+//! adapter never reuses a door's name, because a door's name in a
+//! suite means the door.
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
@@ -590,6 +606,12 @@ pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> Stable
 /// carries at profile vertex `vertex`.
 pub fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: ProfileVertexRef) -> StableName {
     vname(node, RoleSeg::CapVertex(end, vertex))
+}
+
+/// **A POLE vertex of a revolve**, by name — the vertex the axis pins,
+/// minted for profile vertex `vertex`.
+pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    vname(node, RoleSeg::Pole(vertex))
 }
 
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —
