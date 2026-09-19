@@ -292,6 +292,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "cube_into",
         "calls `prism_ops` at the unit square, then `describe_as_intersections`",
     ),
+    (
+        "cyl_wall_sheet",
+        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
+         `set_face_surface`, then mints pcurves — every mutation is one of those, each \
+         asserting",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
         "begin_surgery",

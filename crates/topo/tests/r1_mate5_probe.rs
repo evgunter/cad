@@ -4,178 +4,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{
-    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface, MefSite, MevSite,
-    declared_pair_overlap,
-};
+use topo::test_support::{CylFrame, cyl_wall_sheet};
+use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
     Band::linear(tol).unwrap()
 }
 
-#[derive(Clone, Copy)]
-struct CylFrame {
-    origin: Point3<f64>,
-    axis: Vec3<f64>,
-    radius: f64,
-    u_ref: Vec3<f64>,
-}
-
-impl CylFrame {
-    fn surface(&self) -> Surface<f64> {
-        Surface::Cylinder {
-            origin: self.origin,
-            axis: self.axis,
-            radius: self.radius,
-            u_ref: self.u_ref,
-        }
-    }
-    fn at(&self, u: f64, v: f64) -> Point3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.origin + (self.u_ref * u.cos() + w * u.sin()) * self.radius + self.axis * v
-    }
-}
-
 fn frame_a() -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    }
-}
-
-/// Verbatim from `tests/mate5_cyl_eps_rung.rs` (the unit's own fixture
-/// builder) so the probes stand on the unit's own ground.
-fn wall_sheet(
-    body: &mut Body<f64>,
-    frame: CylFrame,
-    src_id: u64,
-    u0: f64,
-    u1: f64,
-    v0: f64,
-    v1: f64,
-) -> FaceKey {
-    let (p00, p10, p11, p01) = (
-        frame.at(u0, v0),
-        frame.at(u1, v0),
-        frame.at(u1, v1),
-        frame.at(u0, v1),
-    );
-    let seed = body.mvfs(p00).unwrap();
-    let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
-        .unwrap();
-    body.set_surface_source(cyl, topo::GeomSource::minted(src_id, 0))
-        .unwrap();
-    let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
-        let center = frame.origin + frame.axis * v;
-        let scaffold = body.mvfs(center).unwrap();
-        let plane = body
-            .set_face_surface(
-                scaffold.face,
-                FaceSurface::New(Surface::Plane {
-                    origin: center,
-                    normal: frame.axis,
-                    u_ref: frame.u_ref,
-                }),
-            )
-            .unwrap();
-        let (carrier, t0, t1) = if ccw {
-            (
-                Curve3::Circle {
-                    center,
-                    axis: frame.axis,
-                    radius: frame.radius,
-                    u_ref: frame.u_ref,
-                },
-                u0,
-                u1,
-            )
-        } else {
-            // The radial direction at u1, from the frame fields
-            // directly — the projection-based read cancels
-            // catastrophically for tilted/small frames and mints a
-            // non-structural chart image (the fix-pass port of the
-            // unit builder's own repair).
-            let w = frame.axis.cross(frame.u_ref);
-            let s = frame.u_ref * u1.cos() + w * u1.sin();
-            (
-                Curve3::Circle {
-                    center,
-                    axis: -frame.axis,
-                    radius: frame.radius,
-                    u_ref: s,
-                },
-                0.0,
-                u1 - u0,
-            )
-        };
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: frame.at((u0 + u1) * 0.5, v),
-            },
-            carrier,
-            param_start: t0,
-            param_end: t1,
-        }
-    };
-    let bottom = rim(body, v0, true);
-    let e_b = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            p10,
-            bottom,
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_r = body
-        .mev_line(
-            MevSite::Fan {
-                he1: e_b.he_minus,
-                he2: e_b.he_minus,
-            },
-            p11,
-            Tol::witness(),
-        )
-        .unwrap();
-    let top = rim(body, v1, false);
-    let e_t = body
-        .mev(
-            MevSite::Fan {
-                he1: e_r.he_minus,
-                he2: e_r.he_minus,
-            },
-            p01,
-            top,
-            Tol::witness(),
-        )
-        .unwrap();
-    let he = body
-        .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-        .unwrap();
-    let face = body
-        .mef(
-            MefSite::Chords {
-                he1: he,
-                he2: e_b.he_plus,
-            },
-            EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
-            Tol::witness(),
-        )
-        .unwrap()
-        .face;
-    topo::pcurves::mint_pcurves(body, Tol::witness()).unwrap();
-    face
+    CylFrame::canonical(1.0)
 }
 
 /// The builder, fallible at the MINT: a tilted frame's chart images
@@ -196,7 +35,14 @@ fn try_wall_sheet(
     v1: f64,
 ) -> Option<FaceKey> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
+        cyl_wall_sheet(
+            body,
+            frame,
+            Some(src_id),
+            (u0, u1),
+            (v0, v1),
+            Tol::witness(),
+        )
     }))
     .ok()
 }
@@ -344,7 +190,14 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
 
 fn sheet(frame: CylFrame, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = wall_sheet(&mut body, frame, src, u0, u1, v0, v1);
+    let f = cyl_wall_sheet(
+        &mut body,
+        frame,
+        Some(src),
+        (u0, u1),
+        (v0, v1),
+        Tol::witness(),
+    );
     (body, f)
 }
 
