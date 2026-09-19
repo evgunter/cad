@@ -76,7 +76,7 @@ pose, and the run/chord pairing is the first thing to read there.
 - The planar cap row in `verbs_pierce.rs`, which has been refusing at
   the join since #1068.
 - **A user's blind pocket in a cylinder's end cap** (2026-09-18, Ev,
-  the tour's `dumbbell` document): a cylinder r = 0.04 along +y over
+  a scratch `dumbbell` document of theirs, not part of the tour): a cylinder r = 0.04 along +y over
   y ∈ [0, 0.5], minus a letter-shaped prism (a "B"-ish profile of
   two lines and two arcs, x ∈ [0, 0.01], z ∈ [−0.02, 0.02], on the
   XZ frame) sunk from y = −0.005 to y = 0.005, so its section with the
