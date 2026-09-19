@@ -30,12 +30,20 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **one** of the five doors that read a box from
+//! PRUNES. That is **two** of the six doors that read a box from
 //! here; at the other four, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
+//! - `census`'s pre-filter (`census::Trees`) PRUNES on the same
+//!   terms: the at-rest sweeps examine the C10 tree's candidates over
+//!   these boxes, and a loose box only admits more pairs to the exact
+//!   sweeps. The backstop's two classes — its reach boxes over
+//!   `face_reach` and its instance extents — read the same direction
+//!   through the same door (`census::Candidates::class`); they are
+//!   built from `face_reach`, not from these constructors, so the
+//!   inventory below does not count them.
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
@@ -47,16 +55,20 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
-//! - `census`'s arm 2 clears an instance pair only on a definitely
-//!   negative margin against a CONTAINING box, so a bigger box turns
-//!   a genuinely-outside instance into `CensusUndecidable` — the
-//!   interference class.
+//! - `census`'s arm 2 clears an instance pair at its gate on a
+//!   definitely negative margin against a CONTAINING box and sends
+//!   every other pair to the material test, so over-width would cost
+//!   a genuinely-outside instance a point-in-solid probe of its
+//!   vertices. Measured, not reached: on planar-only pairs the reach
+//!   box IS the vertex hull, and a reach box a curved face inflates
+//!   belongs to a pair arm 1 refuses first
+//!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The five are not
+//! about a door, and the door has to be named. The six are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a fifth door cannot land unargued. **It pins WHERE the doors are
+//! a seventh door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -1363,7 +1375,12 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                                 .and_then(crate::null::CurveGeom::certified)
                                 .map(geom_brep::EdgeCurve::carrier);
                             let axial = match edge_box_rule(carrier) {
-                                EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                                // No axial-span closed form is written
+                                // for the spiric; a box that cannot
+                                // claim is the honest answer.
+                                EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
+                                    AxialCarrier::Unclaimable
+                                }
                                 EdgeBoxRule::Chord => AxialCarrier::Chord,
                                 EdgeBoxRule::ConicAmplitude {
                                     center,
@@ -1748,6 +1765,12 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
+    /// The spiric's whole-period box through `geom`'s
+    /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
+    /// No axial projection is written for it (the census lane reads
+    /// it as unclaimable); reachable only from its own rows today,
+    /// because the operand gate refuses the kind.
+    Spiric,
 }
 
 /// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
@@ -1782,6 +1805,7 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
             semi_v: *minor,
             u_ref: *u_ref,
         },
+        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
         Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
     }
 }
@@ -1816,6 +1840,17 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         EdgeBoxRule::Chord => chord,
+        EdgeBoxRule::Spiric => certified
+            .and_then(|curve| {
+                let (t0, t1) = curve.params();
+                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
+            })
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "edge box: the spiric rule is minted only from a certified Spiric \
+                     carrier, and the exact arc door answers for it"
+                )
+            }),
         EdgeBoxRule::ConicAmplitude { .. } => {
             // The exact arc box, read from its one home one crate down:
             // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
@@ -2837,8 +2872,11 @@ mod tests {
     ///   changes nothing about what looseness costs.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
-    ///   arm 2 clears only on a definitely negative margin against a
-    ///   CONTAINING box, so over-width is a false `CensusUndecidable`.
+    ///   arm 2 clears for free only on a definitely negative margin
+    ///   against a CONTAINING box, so over-width would send a separated
+    ///   pair to the material test instead of clearing it — a case the
+    ///   planar-only corpus does not reach (the hull is the box) and a
+    ///   curved reach box hands to arm 1 first.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling
@@ -2874,7 +2912,9 @@ mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts FIVE, and two of them are not doors:
+        // `census.rs` counts SEVEN: the pre-filter's `face_box` and
+        // `edge_box` reads (`census::Trees::build`, the pruning door),
+        // three rule reads of its own, and two that are not doors —
         // the adopted CERT-N2 reviewer probes in its test module call
         // `face_box` to execute what a partially poisoned control net
         // answers there. The number is stated with that content rather
@@ -2885,7 +2925,7 @@ mod tests {
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
-            ("census.rs", 5),
+            ("census.rs", 7),
             ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";
@@ -4310,6 +4350,98 @@ mod tests {
                     .then_some((k, c))
             })
             .unwrap()
+    }
+
+    /// A hand-built SPIRIC sector: one spiric arc `a → b` on the
+    /// elbow's numbers (`R = 1.2`, `r = 0.225`, stand-off `d = 0.05`,
+    /// the run `[0.4, 2.9]`), described as the plane × torus
+    /// intersection and closed by two chords in the cap plane. The
+    /// carrier is minted through the kind's deciding door.
+    fn spiric_sector() -> (Body<f64>, FaceKey, EdgeKey) {
+        let (big_r, r, d) = (1.2, 0.225, 0.05);
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let carrier = Curve3::spiric(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            big_r,
+            r,
+            d,
+            band,
+        )
+        .unwrap();
+        let plane_surface = Surface::Plane {
+            origin: Point3::new(d, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let torus_surface = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let (t0, t1) = (0.4, 2.9);
+        let (body, face) = conic_sector(
+            plane_surface,
+            torus_surface,
+            carrier.clone(),
+            (t0, t1),
+            carrier.eval(0.5 * (t0 + t1)),
+            (carrier.eval(t0), carrier.eval(t1), Point3::new(d, 0.0, 0.0)),
+        );
+        let edge = body
+            .edges()
+            .find_map(|(k, e)| {
+                let c = body
+                    .get_curve_geom(e.curve)
+                    .and_then(crate::null::CurveGeom::certified)?;
+                matches!(c.carrier(), Curve3::Spiric { .. }).then_some(k)
+            })
+            .unwrap();
+        (body, face, edge)
+    }
+
+    /// **The spiric arm of `edge_box`, and the census's reach twin,
+    /// contain a dense sample of the arc** — the two readers of
+    /// [`EdgeBoxRule::Spiric`], each executed on the hand-built sector
+    /// (no public door builds a spiric-bearing operand that reaches
+    /// either at this head: the boolean's operand gate refuses the
+    /// kind, and a hollowed partial revolve stops at tier 3 before the
+    /// census). The whole-period box is asserted over the whole
+    /// period, which is what the door claims.
+    #[test]
+    fn the_spiric_edge_box_and_reach_contain_a_dense_sample() {
+        let (body, face, edge) = spiric_sector();
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let b = edge_box(&body, edge, 0.0).unwrap();
+        let (lo, hi) = crate::census::face_reach(&body, face).unwrap();
+        for i in 0..=20_000 {
+            let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+            let p = curve.carrier().eval(t);
+            assert!(
+                p.x >= b.min_x
+                    && p.x <= b.max_x
+                    && p.y >= b.min_y
+                    && p.y <= b.max_y
+                    && p.z >= b.min_z
+                    && p.z <= b.max_z,
+                "the spiric point at v = {t} ({p:?}) left the edge box {b:?}"
+            );
+            assert!(
+                p.x >= lo.x - 1e-15
+                    && p.x <= hi.x + 1e-15
+                    && p.y >= lo.y - 1e-15
+                    && p.y <= hi.y + 1e-15
+                    && p.z >= lo.z - 1e-15
+                    && p.z <= hi.z + 1e-15,
+                "the spiric point at v = {t} ({p:?}) left the face reach {lo:?}..{hi:?}"
+            );
+        }
     }
 
     /// The conic's frame as `(centre, a·û, b·v̂)`: coordinate `i` of a

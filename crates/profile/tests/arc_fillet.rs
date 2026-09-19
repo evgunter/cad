@@ -29,8 +29,8 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
-    ArcSweep, Center, FilletLeg, FilletLegCarrier, NoCornerReason, Open, PathError, Profile,
-    ProfileLoop, Start,
+    ArcSweep, Center, FILLET_NO_CORNER_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, Open,
+    PathError, Profile, ProfileLoop, Start,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -1003,9 +1003,10 @@ fn corner_advance_trio() {
         .expect_err("an in-band advance must escalate");
     assert_eq!(escalated_predicate(&err), "path_corner_advance");
     // The two-tolerance discipline: the escalation renders the shared
-    // sub-ε_input recourse, one situation, one sentence.
+    // sub-ε_input recourse, one situation, one sentence. Named, not
+    // restated: a copied sentence agrees with itself.
     assert!(
-        err.to_string().contains("lower the tolerance"),
+        err.to_string().contains(geom_core::COINCIDENCE_RECOURSE),
         "recourse: {err}"
     );
 }
@@ -1033,7 +1034,7 @@ fn carrier_meet_trio() {
         .expect_err("a hairline-crossing carrier pair must escalate");
     assert_eq!(escalated_predicate(&err), "path_carrier_meet");
     assert!(
-        err.to_string().contains("lower the tolerance"),
+        err.to_string().contains(geom_core::COINCIDENCE_RECOURSE),
         "recourse: {err}"
     );
 }
@@ -1055,8 +1056,11 @@ fn fillet_offset_line_circle_trio() {
     let err = line_arc_internal(0.5f64.mul_add(-in_band(), 1.0))
         .expect_err("an in-band offset clearance must escalate");
     assert_eq!(escalated_predicate(&err), "fillet_offset_line_circle");
+    // A fillet gate's in-band verdict renders the corner-existence
+    // recourse, not the shared coincidence one: the caller asked for a
+    // fillet and authored no joint, so the lever is the radius.
     assert!(
-        err.to_string().contains("lower the tolerance"),
+        err.to_string().contains(FILLET_NO_CORNER_RECOURSE),
         "recourse: {err}"
     );
 }

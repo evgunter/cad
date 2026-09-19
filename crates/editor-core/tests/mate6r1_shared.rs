@@ -1,71 +1,28 @@
 //! **R1 review probes for MATE-6, the tree-portable half.**
 //!
-//! Every row here compiles and runs on BOTH the merge base and the
-//! MATE-6 branch: it touches only `assemble`, `product_recorded`'s
-//! Ok/Err discrimination, and `run_checks` — never `Product::minted`
-//! or `Product::unminted`, which exist only after the change. That is
-//! deliberate: these rows are the DIFFERENTIAL instrument. Each one
-//! prints a `R1-PROBE:` line, so the two trees' outputs can be diffed
-//! verbatim rather than compared by narration.
+//! Every row touches only `assemble`, `product_recorded`'s Ok/Err
+//! discrimination, and `run_checks`, and every row ends in a
+//! `R1-PROBE:` line and NO assertion. That shape was a differential
+//! instrument while MATE-6 was a branch and its outputs could be
+//! diffed against the merge base's. **The branch merged; there is no
+//! second tree.** So nothing here can go red, and the printed answers
+//! are the whole record —
+//! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+//! owns deciding, row by row, what assertion replaces the diff.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
-    assemble, content_pin, evaluate, product_recorded, run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, assemble, product_recorded, run_checks,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
-// ---- store / eval plumbing (ASM-R2a's shape, as the unit's own suite) ----
-
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- store / eval plumbing (the shared resolver, `fixture::resolver`) ----
 
 fn block(
     doc: ProfileDoc,
@@ -101,23 +58,8 @@ fn cube_part(label: &str) -> ProfileDoc {
     doc
 }
 
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
-}
-
-/// A reference that resolves to NO product face: the part's node 1 has
-/// caps, but node 99 does not exist in it at all.
+/// A reference that resolves to NO product face: the part's extrude
+/// has caps, but node 99 does not exist in it at all.
 fn dangling(instance: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -148,8 +90,8 @@ fn mate_of(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -195,12 +137,18 @@ fn row_of(
 fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String {
     match result {
         Ok(a) => format!("Ok(minted={})", a.minted.len()),
-        Err(AssemblyError::NoAtRestRecord { mate, class, .. }) => {
-            format!("NoAtRestRecord(mate={}, class={class:?})", mate.0)
-        }
-        Err(AssemblyError::Reference { mate, side, .. }) => {
-            format!("Reference(mate={}, side={side:?})", mate.0)
-        }
+        Err(AssemblyError::Mint { refusals }) => refusals
+            .iter()
+            .map(|r| match r {
+                editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
+                    format!("NoAtRestRecord(mate={}, class={class:?})", mate.0)
+                }
+                editor_core::MintRefusal::Reference { mate, side, .. } => {
+                    format!("Reference(mate={}, side={side:?})", mate.0)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("+"),
         Err(AssemblyError::AtRest { findings }) => format!(
             "AtRest({} findings: {})",
             findings.len(),
@@ -228,7 +176,7 @@ fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String
 /// only a claim if the order can change the answer.
 #[test]
 fn r1_two_bad_mates_noatrest_then_reference() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-2bad-a-cube"), Tol::witness());
     let (doc, ids) = row_of("r1-2bad-a", part, 3, 4.0);
     // mate #1 (earlier in document order): Tangent -> NoAtRestRecord.
@@ -255,7 +203,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_noatrest_then_reference m1={:?} m2={:?} => {v}",
@@ -267,7 +215,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
 /// The same pair, authored in the OPPOSITE document order.
 #[test]
 fn r1_two_bad_mates_reference_then_noatrest() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-2bad-b-cube"), Tol::witness());
     let (doc, ids) = row_of("r1-2bad-b", part, 3, 4.0);
     let (doc, m1) = step(
@@ -292,7 +240,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_reference_then_noatrest m1={:?} m2={:?} => {v}",
@@ -309,7 +257,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
 /// the totality change is invisible at this door.
 #[test]
 fn r1_a_good_mate_after_a_bad_one() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-goodafterbad-cube"), Tol::witness());
     let (doc, ids) = row_of("r1-goodafterbad", part, 3, 4.0);
     let (doc, bad) = step(
@@ -334,7 +282,7 @@ fn r1_a_good_mate_after_a_bad_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE good_mate_after_bad bad={:?} good={:?} => {v}",
@@ -358,7 +306,7 @@ fn r1_a_good_mate_after_a_bad_one() {
 /// trees; if it inverted, this tree answers `AtRest(UndeclaredContact)`.
 #[test]
 fn r1_mint_refusal_precedes_the_census() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-prec-cube"), Tol::witness());
     let (doc, ids) = row_of("r1-prec", part, 2, 4.0);
     let (doc, m) = step(
@@ -372,7 +320,7 @@ fn r1_mint_refusal_precedes_the_census() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     // The gather must still ANSWER (record-not-raise), whatever
     // `assemble` does with the refusal.
     let gathers = product_recorded(&doc, &ev, Tol::witness()).is_ok();
@@ -401,7 +349,7 @@ fn r1_mint_refusal_precedes_the_census() {
 ///   drops, a FALSE declaration has bought silence in this resident.
 #[test]
 fn r1_false_carried_declaration_at_both_doors() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-false-cube"), Tol::witness());
     // seat 1.5 on a unit cube: a definite half-unit gap. The inner mate
     // declares a Rest that the geometry refutes.
@@ -426,7 +374,7 @@ fn r1_false_carried_declaration_at_both_doors() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-false-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness())
         .expect("the registry runs");
@@ -444,7 +392,7 @@ fn r1_false_carried_declaration_at_both_doors() {
 /// baseline the false-declaration row is read against.
 #[test]
 fn r1_true_carried_declaration_at_both_doors() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-true-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("r1-true-stand"), Tol::witness());
     let mut sub = Vec::new();
@@ -467,7 +415,7 @@ fn r1_true_carried_declaration_at_both_doors() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-true-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness())
         .expect("the registry runs");
@@ -488,7 +436,7 @@ fn r1_true_carried_declaration_at_both_doors() {
 /// both. This row is the one that can show the resident going quieter.
 #[test]
 fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-dp-cube"), Tol::witness());
     let (doc, ids) = row_of("r1-dp", part, 3, 4.0);
     // Bad mate FIRST (dangling), then a good Rest seating cube 2 on
@@ -515,7 +463,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the registry runs");
     let sep = report
@@ -533,10 +481,10 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
 /// both trees. Bit-identity is the claim; this row is the observable.
 #[test]
 fn r1_no_mates_document_digest() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-bare-cube"), Tol::witness());
     let (doc, _) = row_of("r1-bare", part, 3, 4.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let g = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
     println!(
         "R1-PROBE no_mates solids={} contacts={:?} roots={} names_empty={}",
@@ -555,7 +503,7 @@ fn r1_no_mates_document_digest() {
 /// 3 carried patch records.
 #[test]
 fn r1_three_stands_exact_counts() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-x3-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("r1-x3-stand"), Tol::witness());
     let mut sub = Vec::new();
@@ -577,7 +525,7 @@ fn r1_three_stands_exact_counts() {
     );
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-x3-outer", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let g = product_recorded(&outer, &ev, Tol::witness()).expect("gathers");
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     println!(
@@ -600,7 +548,7 @@ fn r1_three_stands_exact_counts() {
 /// false declaration bought silence in a lane that re-verifies nothing.
 #[test]
 fn r1_overlapping_false_carried_declaration() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-ovl-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("r1-ovl-stand"), Tol::witness());
     let mut sub = Vec::new();
@@ -625,7 +573,7 @@ fn r1_overlapping_false_carried_declaration() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness());
     let sep = match &report {
@@ -648,7 +596,7 @@ fn r1_overlapping_false_carried_declaration() {
 /// be read as "nothing to suppress" rather than "suppressed".
 #[test]
 fn r1_two_overlapping_false_stands() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-ovl2-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("r1-ovl2-stand"), Tol::witness());
     let mut sub = Vec::new();
@@ -670,7 +618,7 @@ fn r1_two_overlapping_false_stands() {
     );
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl2-outer", inner_ref, 2, 4.0);
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let g = product_recorded(&outer, &ev, Tol::witness()).expect("gathers");
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness());
     let sep = match &report {

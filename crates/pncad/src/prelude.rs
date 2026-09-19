@@ -102,12 +102,16 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
 // refusal carries when the kernel could not certify a sign at the
-// tolerance it was given. THIRTEEN prelude-curated refusals carry it
+// tolerance it was given. TWELVE prelude-curated refusals carry it
 // — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
 // `LoftError`, `MateFault`, `PathError`, `ProfileError`,
-// `RevolveError`, `SelectRefusal`, `TubeError`, `UnitVec3Error`,
-// `ValidationError` — against one carrier for the payload CUR3
-// carried and one apiece for CUR4's four. A caller holding an
+// `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
+// against one carrier for the payload CUR3 carried and one apiece
+// for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
+// witness's refusal, and `geom_core::OrthoFrameError`, the frame
+// witness's, carry it too and are reached at `pncad::geom_core`
+// beside the types they refuse for, not through this prelude —
+// kernel types' refusals, not curated façade names.) A caller holding an
 // `Escalated` arm out of any of them reads `band` off it to decide
 // whether tightening ε would help, and could not name what it was
 // holding without a module hop.
@@ -136,7 +140,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // moves, off a struct this list already carries.
 //
 // So the rung under a carried struct is carried too: a caller holding
-// an `Escalated` arm out of any of the thirteen reads `band`,
+// an `Escalated` arm out of any of the twelve reads `band`,
 // `predicate` and `margin` by bare name in one import. `Indeterminate`,
 // `MarginDiag` and `Band` sit at ONE root together
 // (`pncad::geom_core`) for anyone who prefers the module path — a
@@ -147,8 +151,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, Point2, Point3, Real, Tol,
-    Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, Mat3, OrthoFrame, Point2, Point3, Real,
+    Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -224,11 +228,14 @@ pub use ::profile::{
 //   isolated endpoint touch, or a shared sub-locus of positive
 //   length. Three self-intersections with three repairs, and the arm
 //   is the only place the profile says which.
-// - `EscalationSite` is `Escalated`'s: which decision could not be
-//   made — one segment, a segment PAIR, a loop's orientation, or the
-//   fillet construction. The first three are facts about the authored
-//   geometry and the fourth is a fact about the requested radius, so
-//   the recourse forks on this discriminant before it reads the band.
+// - `EscalationSite` is `ProfileError::Escalated`'s: which decision
+//   could not be made — one segment, a segment PAIR, or a loop's
+//   orientation. All three are facts about the authored geometry, and
+//   a caller that cannot name the site cannot act on the refusal. The
+//   fillet construction is NOT among them: its gates leave through
+//   `PathError::Escalated`, whose Display selects the gate's own
+//   recourse from the predicate name rather than from a site
+//   discriminant.
 // - `SegmentRef` is the rung under that one, and under four arms
 //   besides: `DegenerateSegment` and `NearFullArc` carry one,
 //   `NonSimple` and `TangentialContact` two apiece. It is where in
@@ -571,9 +578,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // The Python halves differ, and the difference follows the carrier
 // each time. `StepImportError` projects a tag, so `PromotedKind`
 // projects its own beside it (`StepImportError.promoted_kind`);
-// `ImportOptions` does not cross at all — Python's `import_step`
-// takes only the text — so `ImportContact` has nothing to project
-// until that argument does.
+// `ImportOptions` crosses FIELD BY FIELD rather than as a type —
+// Python's `import_step` takes `eps_in=`, and the declaration channel
+// is the field it withholds, because a list keyword whose elements a
+// caller cannot build is a door onto nothing — so `ImportContact`
+// has nothing to project until it gains a value class of its own.
 // **The SUCCESS half crosses under the same clause, and it is the
 // reach one.** `import_step` answers
 // `Result<StepImport, StepImportError>`. The refusal above is
@@ -615,11 +624,49 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // spelling: it is the gate's own certified `MassProperties`, so a
 // Python caller who reads it measures the import once instead of
 // twice.
+//
+// **`StepImport::Solid::coherence` is the one field whose type is not
+// step-import's**, and the curated-type rule reaches through it
+// anyway: it is `topo`'s `CoherenceReport`, handed across whole
+// rather than restated, so a caller able to hold the answer must be
+// able to spell the answer's vocabulary. `CoherenceFinding` is the
+// measurement and `CoherenceCondition` says which of the three
+// conditions it is about; `Unexamined` is a loop out of the door's
+// reach and `Unexaminable` is why. Both discriminants are closed
+// enums the kernel put there to be MATCHED, and a prelude carrying
+// the report without them would hand a caller a value it could only
+// print.
+//
+// **`StructureRead` is NOT here**, one level further in: it is
+// `Unexaminable::Corrupt`'s payload, saying which arena read failed
+// on a loop whose structure did not resolve. Its own recourse routes
+// out of this vocabulary entirely — a corrupt loop is a tier-1
+// defect and `validate` is the door that names it — so a consumer
+// that wants the read is already holding a validation refusal, and
+// one matching `Corrupt { at }` here binds `at` without naming the
+// type. Reachable at `pncad::topo::StructureRead`, one module hop,
+// which is this prelude's rule for a name the corpus reaches for
+// less than corpus-wide.
+//
+// **The falsifier**: a curated consumer that BRANCHES on which read
+// failed rather than handing the loop to `validate`. The moment one
+// does, the eight arms are eight different facts a prelude caller
+// acts on differently and the rung is a discriminant like the two
+// above it, not a detail of a defer. Today the only consumer in tree
+// renders it — `editor_core`'s resident reaches a user with `{at:?}`
+// — which is the second-vocabulary hazard `topo`'s own module names
+// and not a branch. Stated so the next curation pass re-measures
+// rather than re-deriving.
+//
+// The report has no Python half: the binding's import door asks for
+// no examination, and `pncad-py`'s surface census carries that as a
+// `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportContact, ImportOptions, NormalizationKind, PlacedInstance,
     PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
     import_step,
 };
+pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option
@@ -647,11 +694,20 @@ pub use stl::{
 // `DocEdit::SetDocParam` and `Expr::param` take, so a prelude user
 // could previously hold the param-editing doors and not open them —
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
+// `RecordedNotation` rides beside `LoopProgram` because it is the other
+// argument of `LoopProgram::from_recorded_with_notation`: a prelude user
+// holding the lift door but not the notation can only lift a recording
+// with the unit its author wrote thrown away.
+// `SitedFace` is a mate's head and `FaceName` is the name in it, whose
+// one constructor answers `NotAFaceName`: a prelude user who can spell
+// `Node::Mate` can spell its two heads, and handle the refusal a name
+// read out of a file gets.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
-    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
+    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName, ParseError,
+    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
+    apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 
@@ -677,8 +733,8 @@ pub use crate::select::{
     ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
     TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare, declare_all,
-    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

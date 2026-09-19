@@ -54,7 +54,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -1057,9 +1057,10 @@ impl<T: Real> EdgeCurve<T> {
     /// — is therefore still the certificate of exactly this geometry,
     /// and travels verbatim, like provenance.
     ///
-    /// This is the only door that mints an `EdgeCurve` without a run
-    /// of the schedule, and it is narrow on purpose: nothing but the
-    /// keys may differ, so it cannot express a geometry change. Its
+    /// One of two doors that mint an `EdgeCurve` without a run of the
+    /// schedule (the other is [`EdgeCurve::with_chart_v_mirrored`]),
+    /// and it is narrow on purpose: nothing but the keys may differ,
+    /// so it cannot express a geometry change. Its
     /// existence is what lets a transplant carry descriptions whose
     /// surfaces the certification lanes cannot re-certify at all (a
     /// rational NURBS wall certifies nowhere — see
@@ -1105,6 +1106,47 @@ impl<T: Real> EdgeCurve<T> {
             param_end: self.param_end,
             certificate: self.certificate,
         })
+    }
+
+    /// The same certified carrier with its **chart image mirrored in
+    /// `v`** ([`crate::Pcurve::mirror_v`]), for a chart whose second
+    /// frame axis was negated — the certificate travels verbatim, the
+    /// carrier, interval, authority and seam flag untouched. A
+    /// description that carries no chart image (the two intrinsic
+    /// arms and the scaffolding door) states nothing in chart
+    /// coordinates, so the map is the identity on it and the curve
+    /// comes back as it is.
+    ///
+    /// The second of the two doors that mint an `EdgeCurve` without a
+    /// run of the schedule, and narrow for the same reason as
+    /// [`EdgeCurve::with_remapped_surfaces`]: it cannot express a
+    /// geometry change. Why the certificate of the source is the
+    /// certificate of the result is stated once, on
+    /// [`crate::Pcurve::mirror_v`] — the mirrored image on the
+    /// mirrored chart evaluates to the same 3-D points, so
+    /// `|C(t) − S(P(t))|` at every sample is the number the run
+    /// produced. Whoever negates a chart's frame owes this
+    /// re-statement to every image on it, which is what makes an
+    /// orientation reversal a certification-preserving map rather
+    /// than a geometry change with a stale certificate beside it.
+    #[must_use]
+    pub fn with_chart_v_mirrored(&self) -> Self {
+        let description = match self.description {
+            EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
+                surface: c.surface,
+                pcurve: c.pcurve.mirror_v(),
+                seam: c.seam,
+            }),
+            ref other => other.clone(),
+        };
+        Self {
+            description,
+            authority: self.authority,
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        }
     }
 
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
@@ -1309,6 +1351,14 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 ///   the honest extent of a full-period rim. The winding bound
 ///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
 ///   its honest range.
+/// - **Spiric** (minor radius r, span Δv): `max(chord,
+///   r·(1 − cos(Δv/2)))` — the circle fold at the MINOR radius. A
+///   lower bound because in the `(m, axis)` plane the spiric is the
+///   image of the minor circle `(r cos v, r sin v)` under
+///   `(x, y) ↦ (g(x), y)`, `g(x) = √((R + x)² − d²)`, whose derivative
+///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
+///   point-set diameter dominates the r-circle arc's, and the circle
+///   bound below applies to that circle verbatim.
 /// - **Nurbs** — the chord: a certified lower bound on the point-set
 ///   diameter for the open fitted branches the zip mints (M5 PR 9);
 ///   closed rung-3 loops are split at crossing vertices before they
@@ -1325,9 +1375,15 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(radius * (T::one() - half_span.cos()))
         }
-        // The minor semi-axis is the certified direction (doc above):
-        // the ellipse dominates its minor-radius circle pointwise.
-        Curve3::Ellipse { minor, .. } => {
+        // The minor semi-axis / minor radius is the certified direction
+        // (doc above): the ellipse and the spiric each dominate their
+        // minor-radius circle pointwise, so both take the circle fold
+        // at that radius.
+        Curve3::Ellipse { minor, .. }
+        | Curve3::Spiric {
+            minor_radius: minor,
+            ..
+        } => {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(minor * (T::one() - half_span.cos()))
         }
@@ -1342,6 +1398,7 @@ fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
         Curve3::Ellipse { .. } => "ellipse",
+        Curve3::Spiric { .. } => "spiric",
         Curve3::Nurbs(_) => "Nurbs",
     }
 }
@@ -1568,8 +1625,14 @@ fn run_checks<T: Decide>(
 
     // ---- Check 2: interval span (forward direction; circle winding
     // bound) — see the check-sequence docs. Spans are metered as arc
-    // length (radians × radius for circles) so they classify against
-    // the linear band like every other margin (dimensional honesty).
+    // length so they classify against the linear band like every other
+    // margin (dimensional honesty). Every arm is the CARRIER'S OWN
+    // parameter rate — a circle's radius, an ellipse's minor
+    // semi-axis, a net's `speed_lower_bound` — so every arm here is an
+    // `InfSpeed` through the metric door, the same numbers
+    // `pcurve_cache::param_rate` mints for the same kinds. All three
+    // claims are "definitely apart" (forward, or headroom to one
+    // period), which is the inf side.
     let span = t1 - t0;
     // The span decision runs once, before the schedule: not a sample.
     let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
@@ -1579,7 +1642,8 @@ fn run_checks<T: Decide>(
     };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
-            let arc = Margin::levered(span, *radius);
+            let rate = InfSpeed::new(*radius);
+            let arc = Margin::metered(span, rate);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -1588,7 +1652,7 @@ fn run_checks<T: Decide>(
             // Zero (exactly full period, the scaffolding/rim case) and
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
-            let headroom = Margin::levered(T::tau() - span, *radius);
+            let headroom = Margin::metered(T::tau() - span, rate);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
@@ -1601,13 +1665,21 @@ fn run_checks<T: Decide>(
         // spans escalate rather than sneak through). The same winding
         // bound applies: the 8kτ sample-alias argument is about the
         // parameter period, which the ellipse shares with the circle.
-        Curve3::Ellipse { minor, .. } => {
-            let arc = Margin::levered(span, *minor);
+        // A spiric's speed floor is its MINOR radius (`|dP/dv| ≥ r`,
+        // the variant docs) and its period is the same 2π, so it takes
+        // this arm at that meter.
+        Curve3::Ellipse { minor, .. }
+        | Curve3::Spiric {
+            minor_radius: minor,
+            ..
+        } => {
+            let rate = InfSpeed::new(*minor);
+            let arc = Margin::metered(span, rate);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
-            let headroom = Margin::levered(T::tau() - span, *minor);
+            let headroom = Margin::metered(T::tau() - span, rate);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),

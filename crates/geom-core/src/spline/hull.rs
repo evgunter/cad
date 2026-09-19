@@ -259,12 +259,21 @@ pub struct SplineCoeffs<'a, E: CertifiedEnclosure> {
 /// through the references at every `{:?}`, which is the one cost a
 /// borrow-carrying token can impose by accident. The addresses are
 /// also what equality reads.
+///
+/// **Every hand-written `Debug` and `PartialEq` in this module
+/// destructures `Self` exhaustively**, so a field added to the
+/// declaration is an E0027 unbound-pattern error rather than a value
+/// silently outside the dump and outside equality. A field a walk will
+/// not carry binds to `_` and the walk ends in
+/// `finish_non_exhaustive`; `finish` says every field is shown, and a
+/// field shown as a SUMMARY — an address, a length — is still shown.
 impl<E: CertifiedEnclosure> core::fmt::Debug for SplineCoeffs<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { knots, coeffs } = self;
         f.debug_struct("SplineCoeffs")
-            .field("knots", &core::ptr::from_ref(self.knots))
-            .field("coeffs", &self.coeffs.as_ptr())
-            .field("len", &self.coeffs.len())
+            .field("knots", &core::ptr::from_ref(*knots))
+            .field("coeffs", &coeffs.as_ptr())
+            .field("len", &coeffs.len())
             .finish()
     }
 }
@@ -274,7 +283,12 @@ impl<E: CertifiedEnclosure> core::fmt::Debug for SplineCoeffs<'_, E> {
 /// and neither is [`Eq`] by value (the knots are `f64`).
 impl<E: CertifiedEnclosure> PartialEq for SplineCoeffs<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.knots, other.knots) && core::ptr::eq(self.coeffs, other.coeffs)
+        let Self { knots, coeffs } = self;
+        let Self {
+            knots: other_knots,
+            coeffs: other_coeffs,
+        } = other;
+        core::ptr::eq(*knots, *other_knots) && core::ptr::eq(*coeffs, *other_coeffs)
     }
 }
 
@@ -330,11 +344,16 @@ pub struct RationalCoeffs<'a, E: CertifiedEnclosure> {
 /// Address-printed, never followed (see [`SplineCoeffs`]).
 impl<E: CertifiedEnclosure> core::fmt::Debug for RationalCoeffs<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            knots,
+            coeffs,
+            weights,
+        } = self;
         f.debug_struct("RationalCoeffs")
-            .field("knots", &core::ptr::from_ref(self.knots))
-            .field("coeffs", &self.coeffs.as_ptr())
-            .field("len", &self.coeffs.len())
-            .field("weights", &self.weights.as_ptr())
+            .field("knots", &core::ptr::from_ref(*knots))
+            .field("coeffs", &coeffs.as_ptr())
+            .field("len", &coeffs.len())
+            .field("weights", &weights.as_ptr())
             .finish()
     }
 }
@@ -343,9 +362,19 @@ impl<E: CertifiedEnclosure> core::fmt::Debug for RationalCoeffs<'_, E> {
 /// [`SplineCoeffs`]).
 impl<E: CertifiedEnclosure> PartialEq for RationalCoeffs<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.knots, other.knots)
-            && core::ptr::eq(self.coeffs, other.coeffs)
-            && core::ptr::eq(self.weights, other.weights)
+        let Self {
+            knots,
+            coeffs,
+            weights,
+        } = self;
+        let Self {
+            knots: other_knots,
+            coeffs: other_coeffs,
+            weights: other_weights,
+        } = other;
+        core::ptr::eq(*knots, *other_knots)
+            && core::ptr::eq(*coeffs, *other_coeffs)
+            && core::ptr::eq(*weights, *other_weights)
     }
 }
 
@@ -366,16 +395,22 @@ pub struct CoeffWindow<'a, E: CertifiedEnclosure> {
 /// Address-printed like the pair it holds (see [`SplineCoeffs`]).
 impl<E: CertifiedEnclosure> core::fmt::Debug for CoeffWindow<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { pair, span } = self;
         f.debug_struct("CoeffWindow")
-            .field("pair", &self.pair)
-            .field("span", &self.span)
+            .field("pair", pair)
+            .field("span", span)
             .finish()
     }
 }
 
 impl<E: CertifiedEnclosure> PartialEq for CoeffWindow<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        self.pair == other.pair && self.span == other.span
+        let Self { pair, span } = self;
+        let Self {
+            pair: other_pair,
+            span: other_span,
+        } = other;
+        pair == other_pair && span == other_span
     }
 }
 
@@ -395,16 +430,22 @@ pub struct RationalWindow<'a, E: CertifiedEnclosure> {
 /// Address-printed like the pair it holds (see [`SplineCoeffs`]).
 impl<E: CertifiedEnclosure> core::fmt::Debug for RationalWindow<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { pair, span } = self;
         f.debug_struct("RationalWindow")
-            .field("pair", &self.pair)
-            .field("span", &self.span)
+            .field("pair", pair)
+            .field("span", span)
             .finish()
     }
 }
 
 impl<E: CertifiedEnclosure> PartialEq for RationalWindow<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        self.pair == other.pair && self.span == other.span
+        let Self { pair, span } = self;
+        let Self {
+            pair: other_pair,
+            span: other_span,
+        } = other;
+        pair == other_pair && span == other_span
     }
 }
 

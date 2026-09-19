@@ -43,9 +43,66 @@ fn what_is_written_is_what_is_read() {
     let written = Prefs {
         theme: Some("colorblind-safe".to_owned()),
         keys: Some("default".to_owned()),
+        last_dir: Some(PathBuf::from("/home/someone/models")),
     };
     let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
     assert_eq!(read, written);
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// The names are carried back from the file unvalidated — an unknown
+/// preset is kept so the next write does not drop it — so a name read
+/// back can hold a quote or a backslash too. Every value is rendered by
+/// the TOML library; a hand-written `"{name}"` goes red here.
+#[test]
+fn a_name_with_a_quote_and_a_backslash_round_trips() {
+    let written = Prefs {
+        theme: Some(r#"dark "neutral"\x"#.to_owned()),
+        keys: Some(r#"say "hi"\now"#.to_owned()),
+        last_dir: None,
+    };
+    let (read, _unknown_names) =
+        Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written, "the names read back are the ones written");
+}
+
+/// The remembered directory is a path a person chose, not a name from
+/// a registry, so it can hold the two characters a TOML basic string
+/// has to escape. A renderer that wrote `"{dir}"` by hand would write
+/// a document its own parser refuses — or, worse, one that parses to
+/// a different directory.
+#[test]
+fn a_directory_with_a_quote_and_a_backslash_round_trips() {
+    let written = Prefs {
+        theme: None,
+        keys: None,
+        last_dir: Some(PathBuf::from(r#"/models/say "hi"\now"#)),
+    };
+    let (read, notices) = Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written, "the directory read back is the one written");
+    assert!(notices.is_empty(), "{notices:?}");
+}
+
+/// A directory whose name is not UTF-8 cannot be spelled in a TOML
+/// string. It is left out and the file says so — never rendered
+/// lossily, because a path with a character replaced names a
+/// different directory.
+#[cfg(unix)]
+#[test]
+fn a_directory_the_file_cannot_spell_is_left_out_and_says_so() {
+    use std::os::unix::ffi::OsStrExt;
+    let written = Prefs {
+        theme: None,
+        keys: None,
+        last_dir: Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/models/\xff"))),
+    };
+    let text = written.to_toml();
+    assert!(
+        text.contains("not kept"),
+        "the file says what it left out:\n{text}"
+    );
+    let (read, notices) = Prefs::from_toml(&text).expect("the document still parses");
+    assert_eq!(read.last_dir, None, "nothing lossy was written");
     assert!(notices.is_empty(), "{notices:?}");
 }
 
@@ -190,7 +247,7 @@ fn an_absent_store_reports_rather_than_pretends() {
 /// is the SECOND member of that class, and the browser is not its
 /// subject.
 ///
-/// `frame::prefs_path` answers `None` there, `FileStore::new` keeps it,
+/// `platform::prefs_path` answers `None` there, `FileStore::new` keeps it,
 /// and everything the chrome does about it keys on this read rather
 /// than on `target_family` — which is why one fix covers both. A
 /// `FileStore` reached only through `FileStore::at` cannot be built
@@ -268,6 +325,7 @@ fn the_file_store_round_trips_through_a_real_path() {
     let prefs = Prefs {
         theme: Some("colorblind-safe".to_owned()),
         keys: None,
+        last_dir: Some(PathBuf::from("/models")),
     };
     store.save(&prefs.to_toml()).expect("saves");
     let text = store.load().expect("loads").expect("something is there");

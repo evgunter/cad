@@ -28,6 +28,7 @@ from pncad import (
     Assembly,
     AxisSense,
     Bulge,
+    ClosedLoop,
     BooleanOp,
     CancelToken,
     CapEnd,
@@ -42,7 +43,7 @@ from pncad import (
     CurveKind,
     CheckFinding,
     ClassAdmission,
-    ClusterMaintenance,
+    Maintenance,
     Datum,
     DocParam,
     Denotation,
@@ -450,6 +451,28 @@ lens = Open.arc_fillet_arc(
 )
 lens_vertices: int = lens.vertex_count
 
+# The seam's declared tangent arrival closes like bare `Start`, on
+# every closer that takes it.
+declared_d: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .angle(90 * deg)
+    .line(2 * m)
+    .arc_to(Bulge((0 * m, -2 * m), 1.0))
+    .line_to(Start.arrives_tangent())
+)
+declared_bulge: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .line_to((1 * m, 0 * m))
+    .arc_to(Bulge(Start.arrives_tangent(), 1.0))
+)
+declared_stadium: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .angle(0 * deg)
+    .line(2 * m)
+    .tangent()
+    .tangent_arc_to(Start.arrives_tangent())
+)
+
 # LIB-PYG5: the detect/declare protocol, typed end to end. Findings
 # are values; the declare doors consume THEM, not name text; the id
 # feeds the boolean's declare= input.
@@ -558,7 +581,7 @@ cluster_frame: Frame = doc.placement(instance)
 registry: dict[NodeId, Frame] = doc.placements()
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
-after_edit: list[ClusterMaintenance] = doc.last_maintenance
+after_edit: list[Maintenance] = doc.last_maintenance
 
 # The authored mate datum: two frames, a primitive, an axis sense, and
 # an optional clocking rider.

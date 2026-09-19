@@ -3,9 +3,7 @@
 //! review artifact for M1 PR 2 (2026-07-16); promoted per Ev's
 //! request (PR #17 thread).
 //!
-//! These are **independent derivations** — do not "simplify" them to
-//! match shipped fixtures (e.g. `fixtures.rs::deep_snapshot`); the
-//! independence is the regression value.
+//! These are **independent derivations**.
 //!
 //! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
 //! raw builder retreated to `pub(crate)`: the atomicity, degenerate-
@@ -26,7 +24,8 @@ mod degenerates_and_sequences;
 mod fan_semantics;
 mod release_corruption;
 
-use crate::{Body, EntityId, LoopBoundary};
+use crate::readback::euler_counts;
+use crate::{Body, EntityId, EulerCounts, LoopBoundary};
 
 /// A full deep snapshot of a body: every key in all 10 arenas with its
 /// Debug-formatted payload, plus the provenance record of every topology
@@ -146,9 +145,6 @@ pub(crate) fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64,
 /// until PR 5" — the validator's component pass derives it now, but the
 /// probe keeps its independent caller-supplied form).
 pub(crate) fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, face)| face.rings.len() as i64).sum();
+    let EulerCounts { v, e, f, r, .. } = euler_counts(body);
     v - e + f - r == 2 * (shells - genus)
 }

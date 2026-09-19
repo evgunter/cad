@@ -450,37 +450,42 @@ fn cavity_at_closed_form(
     cavity
 }
 
-/// **A cap with a collinear vertex — the door takes it, `shell` stops
-/// at void insertion (measured, a STOP that is not this verb's).** The
-/// top cap is one plane in four faces, its mid-radius ring a
+/// **A cap with a collinear vertex — the door takes it, and `shell`
+/// closes it.** The top cap is one plane in four faces, its mid-radius ring a
 /// same-surface latitude circle on a PLANE, and the ring's vertices'
 /// only surface is that plane: the station-line arm, door-built.
 /// Through the direct door the cavity is tier-3 valid at
-/// `π(r−t)²(h−2t)` with the ring at its foot `(r/2, h − t)`. Through
-/// `shell` the same cavity is refused by the void-insertion door's
-/// graft re-certification (`ChartResidual`), and the cause is
-/// `Body::revert`: it negates the plane's normal, which mirrors the
-/// plane's chart (`v_ref = normal × u_ref`), and leaves the ring's
-/// `Chart` images on that plane unmirrored, so the two half-circles —
-/// the only plane images with a non-zero `v` channel — no longer
-/// certify (`shell9_probe`, the drum rows). TOPO's
-/// `work/topo/revert-does-not-mirror-plane-chart-images.md`; the
-/// corner, the carrier and this verb's closing mint are all
-/// downstream of it, and the row stays refusing until that item
-/// lands.
+/// `π(r−t)²(h−2t)` with the ring at its foot `(r/2, h − t)`; through
+/// `shell` the same cavity is inserted and the thin solid closes at
+/// `π r² h − π(r−t)²(h−2t)`, tier-3 valid and watertight. The void
+/// door's graft re-certifies the reverted cavity's images, and
+/// `Body::revert` mirrors the ring's plane `Chart` images with the
+/// plane's frame (`v_ref = normal × u_ref` negates with the normal), so
+/// the two half-circles — the only plane images with a non-zero `v`
+/// channel — certify on the reverted plane (`shell9_probe`, the drum
+/// rows; `revert_plane_charts` for the reversal itself).
 #[test]
-fn a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion() {
+fn a_collinear_cap_vertex_drum_shells_to_its_closed_form() {
     let (r, h, t) = (1.0, 2.0, 0.05);
     let body = polyline(
         &[(0.0, 0.0), (r, 0.0), (r, h), (r / 2.0, h), (0.0, h)],
         Revolution::Full,
     );
-    let want = PI * (r - t) * (r - t) * (h - 2.0 * t);
-    cavity_at_closed_form("collinear cap", &body, t, want, |(rho, hh)| {
+    let ring_foot = |(rho, hh): (f64, f64)| {
         ((hh - h).abs() <= 1e-12 && (rho - r / 2.0).abs() <= 1e-12).then_some((r / 2.0, h - t))
-    });
-    let e = topo::shell(&body, t, tol()).expect_err("measured: stops at void insertion");
-    assert!(matches!(e, ShellError::Insert { .. }), "got {e}");
+    };
+    let cavity = PI * (r - t) * (r - t) * (h - 2.0 * t);
+    cavity_at_closed_form("collinear cap", &body, t, cavity, ring_foot);
+    let want = PI * r * r * h - cavity;
+    let out = shells_with_one_surface_vertices("collinear cap", &body, t, want, ring_foot);
+    let props = topo::mass_properties(&out.body, tol()).expect("props");
+    assert!(
+        (props.volume - want).abs() <= 1e-12,
+        "collinear cap: volume {} vs the closed form {want}",
+        props.volume
+    );
+    let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin drum tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
 /// **A frustum with a collinear generator vertex**: the wall is one
@@ -530,11 +535,12 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
 /// through `shell` the thin solid is tier-3 valid at
 /// `4/3·π(r³ − (r−t)³) = 0.5974262029576595` to `1e-12` with the same
 /// vertices at the same images, and tessellates watertight. What sits
-/// between the two is the void
-/// door's `Transfers` posture: the reverted cavity's stored pcurve
-/// rows arrive on the twins with a one-period azimuth wrap mid-chain
-/// (`shell9_probe`, the sphere rows), and the verb's closing mint
-/// re-derives them before the validate.
+/// between the two is the void door's `Transfers` posture: the
+/// reverted cavity's stored pcurve rows arrive on the twins verbatim
+/// and continuous — the reversal moves each loop's anchor with its
+/// direction, so the grafted body is tier-3 valid on the carried rows
+/// (`shell9_probe`, the sphere rows) — and the verb's closing mint
+/// re-derives them all the same, the `Transfers` row's contract.
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);
@@ -603,16 +609,25 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     );
 }
 
-/// **A partial two-arc torus stops at its spiric rim** (R1's row): the
-/// quarter-turn elbow of the two-arc profile has a [torus, meridian
-/// cap] corner whose azimuth the MOVED cap fixes — off the sketch
-/// plane — but the rim edge between the torus and the cap has no
-/// carrier (the klein elbow's spiric wall), and the door refuses there
-/// before any latitude seam or its re-author is reached. So no
-/// door-built operand reaches the re-author's out-of-plane decide; its
-/// presence is its row.
+/// **A partial two-arc torus mints its spiric rims and stops at its
+/// equator seams' re-author** (R1's row, flipped): the quarter-turn
+/// elbow of the two-arc profile has a [torus, meridian cap] corner
+/// whose azimuth the MOVED cap fixes — off the sketch plane — and the
+/// rim edge between the torus and the cap is minted as the spiric it
+/// is (the klein elbow's wall, `torax_axial`). The old door,
+/// verbatim: `TogetherAxialEdge { what: "a circular edge between two
+/// charts whose centre is off the axis" }`, the latitude mint's
+/// `offset_axial_centre`.
+///
+/// The claim this row used to carry — that no door-built operand
+/// reaches the re-author's out-of-plane decide — is REFUTED by the
+/// same run: the two equator seams are `RevolvedPoint` declarations,
+/// their moved start corners stand `t` off the sketch plane (the
+/// moved cap's own displacement), and `offset_axial_reauthor_plane`
+/// refuses typed. That decide is now door-built-reachable, and this
+/// row is what reaches it.
 #[test]
-fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
+fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
         RawLoop::new(vec![
@@ -622,11 +637,11 @@ fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
+    let e = topo::shell(&body, 0.05, tol()).expect_err("the seam re-author");
     let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
     assert_eq!(
         what,
-        "a circular edge between two charts whose centre is off the axis"
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
     );
 }
 

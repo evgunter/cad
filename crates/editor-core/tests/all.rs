@@ -53,6 +53,10 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod corpus;
 mod fixture;
+// The wire-surgery helper, editor-core's alone — `tests/fixture/` and
+// `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
+// one is not, because its subject is `serde_json`.
+mod wire;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
@@ -88,6 +92,12 @@ mod bool12r2_ec_probe;
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
+#[path = "bool7_shadow_exec.rs"]
+mod bool7_shadow_exec;
+#[path = "bool7r1_probes.rs"]
+mod bool7r1_probes;
+#[path = "bool7r2_probes.rs"]
+mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
@@ -96,6 +106,8 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm7_delete_strands.rs"]
+mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
 #[path = "docm1_face_frame_interval.rs"]
@@ -116,10 +128,30 @@ mod docm6_seam_declarations;
 mod docm7_union_declare;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
+#[path = "docm9_range.rs"]
+mod docm9_range;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "edit_blend_canonical.rs"]
+mod edit_blend_canonical;
+#[path = "edit_doc_param_distribution.rs"]
+mod edit_doc_param_distribution;
+#[path = "edit_doc_param_unit.rs"]
+mod edit_doc_param_unit;
+#[path = "edit_ladder_rim.rs"]
+mod edit_ladder_rim;
+#[path = "edit_one_predicate.rs"]
+mod edit_one_predicate;
+#[path = "edit_pair_apply_names.rs"]
+mod edit_pair_apply_names;
+#[path = "edit_recorded_notation.rs"]
+mod edit_recorded_notation;
+#[path = "edit_ruled_carve.rs"]
+mod edit_ruled_carve;
+#[path = "edit_step_segments.rs"]
+mod edit_step_segments;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -134,6 +166,11 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "rv_dm7_probes.rs"]
+mod rv_dm7_probes;
+
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
 
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
@@ -167,6 +204,10 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "load_door_payload_param_ref.rs"]
+mod load_door_payload_param_ref;
+#[path = "load_door_slot_dimension.rs"]
+mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]
@@ -203,6 +244,8 @@ mod msolve4_mate_memo;
 mod msolve5_read_below_a_root;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
+#[path = "rv_payloadrefs_probes.rs"]
+mod rv_payloadrefs_probes;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
@@ -356,8 +399,14 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "perf12_census_bvh_diff.rs"]
+mod perf12_census_bvh_diff;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
+#[path = "pick3_early_out.rs"]
+mod pick3_early_out;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
@@ -387,6 +436,8 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
+#[path = "review_decl_r1.rs"]
+mod review_decl_r1;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -403,8 +454,18 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "review_pick3_r1_probes.rs"]
+mod review_pick3_r1_probes;
+#[path = "review_pick3_r2_probes.rs"]
+mod review_pick3_r2_probes;
+#[path = "review_pick_r2_probes.rs"]
+mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "rv_onepred3_probes.rs"]
+mod rv_onepred3_probes;
+#[path = "scalar_frame_r1_probes.rs"]
+mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]
@@ -429,19 +490,14 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "trim_3_windows_interval.rs"]
+mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "cert_m2r1_corpus.rs"]
 mod cert_m2r1_corpus;
@@ -488,9 +544,40 @@ mod kstats_bracket_rows;
 
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
+
+#[path = "m10_10_evidence_interval.rs"]
+mod m10_10_evidence_interval;
+#[path = "m10_10_pins_interval.rs"]
+mod m10_10_pins_interval;
+
+#[path = "m10_10_r1_probes_interval.rs"]
+mod m10_10_r1_probes_interval;
+#[path = "m10_10_r2_probes_interval.rs"]
+mod m10_10_r2_probes_interval;
+#[path = "m10_bulge_interval.rs"]
+mod m10_bulge_interval;
+#[path = "m10_derived_frame_interval.rs"]
+mod m10_derived_frame_interval;
+#[path = "m10_derived_frame_tilted_interval.rs"]
+mod m10_derived_frame_tilted_interval;
+#[path = "m10_sym_drive_memo_interval.rs"]
+mod m10_sym_drive_memo_interval;
+#[path = "m10_sym_profile_interval.rs"]
+mod m10_sym_profile_interval;
+
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
+#[path = "wire_entity_door.rs"]
+mod wire_entity_door;
 #[path = "wire_frame_placement_carry.rs"]
 mod wire_frame_placement_carry;
+#[path = "wire_legal_union_refusals.rs"]
+mod wire_legal_union_refusals;
+#[path = "wire_operand_door.rs"]
+mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
+#[path = "wire_rv_bytes.rs"]
+mod wire_rv_bytes;
+#[path = "wire_rv_unknown.rs"]
+mod wire_rv_unknown;

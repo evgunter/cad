@@ -9,9 +9,12 @@
 
 use std::time::Instant;
 
+use std::collections::BTreeMap;
+
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
+use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
 /// The dials with a chosen rule set, the tier on at the shipped budget.
@@ -95,4 +98,158 @@ pub(crate) fn ceiling(
         }
     }
     (lo, hi, spent / probes)
+}
+
+/// **THE PER-PREDICATE SPLIT of one replay**: `predicate -> [theorem,
+/// sign-gated, registered, numeric]`, every predicate that decided at
+/// all. The one spelling of the table the pins, the evidence rows and
+/// the probes read; a pin asserts it whole (`assert_split`).
+pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]> {
+    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
+    for s in shapes {
+        let row = table.entry(s.predicate).or_default();
+        row[match s.outcome {
+            ShapeOutcome::Theorem => 0,
+            ShapeOutcome::SignGated => 1,
+            ShapeOutcome::Registered => 2,
+            _ => 3,
+        }] += 1;
+    }
+    table
+}
+
+/// The split of `doc`'s NOMINAL replay under `rules` ([`split`] over
+/// [`nominal_box`]).
+pub(crate) fn split_at_the_nominal(
+    doc: &ProfileDoc,
+    rules: SymRules,
+    tol: Tol,
+) -> BTreeMap<&'static str, [u64; 4]> {
+    let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+    let (shapes, _, _) =
+        crate::m10_8_arc_family_interval::replay(doc, &nominal_box(&analyzed), rules, tol);
+    split(&shapes)
+}
+
+/// **Asserts a split WHOLE**: every listed predicate at its listed
+/// counts, and no predicate outside the list — one that appears reds
+/// naming it, so a pin holds the whole table and not the rows it
+/// remembered to name. Zero-count predicates never appear in a split,
+/// so the list is exactly the predicates that decided.
+#[allow(clippy::panic)]
+pub(crate) fn assert_split(
+    name: &str,
+    table: &BTreeMap<&'static str, [u64; 4]>,
+    expected: &[(&str, [u64; 4])],
+) {
+    for (pred, want) in expected {
+        let got = table
+            .get(pred)
+            .copied()
+            .unwrap_or_else(|| panic!("{name}: no {pred} decisions — the pinned table lists it"));
+        assert_eq!(
+            got, *want,
+            "{name}: {pred} moved at the nominal (theorem/gated/registered/numeric); if a rule              took it, re-pin and say which"
+        );
+    }
+    let unlisted: Vec<String> = table
+        .iter()
+        .filter(|(p, _)| !expected.iter().any(|(e, _)| e == *p))
+        .map(|(p, row)| format!("{p} {row:?}"))
+        .collect();
+    assert!(
+        unlisted.is_empty(),
+        "{name}: predicates decided that the pinned table does not list: {unlisted:?}"
+    );
+}
+
+/// One predicate over the band in a replay: its name, the widest
+/// enclosure the band could not classify, how many of its decisions
+/// were over the band, and how many it made in all.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct OverBand {
+    pub(crate) predicate: &'static str,
+    pub(crate) enclosure: (f64, f64),
+    pub(crate) over: usize,
+    pub(crate) all: usize,
+}
+
+/// **THE OVER-BAND SET of one replay**: every predicate with at least
+/// one decision the band could not classify, the widest such enclosure,
+/// and the counts — sorted widest-band first, so the predicate furthest
+/// over the band is the one a slightly narrower study would still be
+/// stopped by.
+///
+/// This is what a BOUND is, and it is the only spelling the tree uses.
+/// A drive stops at its FIRST refusal, and at any scale past the
+/// ceiling several predicates can be over the band at once, so the
+/// name a drive reports is a fact about evaluation ORDER (validation
+/// before certification, the sample schedule in order) and not about
+/// the document. The set, read at the refusing end of the bisection
+/// bracket ([`bound`]), is a fact about the document.
+pub(crate) fn over_band_set(shapes: &[DecisionShape]) -> Vec<OverBand> {
+    let mut out: BTreeMap<&'static str, OverBand> = BTreeMap::new();
+    for s in shapes {
+        let e = out.entry(s.predicate).or_insert(OverBand {
+            predicate: s.predicate,
+            enclosure: (f64::INFINITY, f64::NEG_INFINITY),
+            over: 0,
+            all: 0,
+        });
+        e.all += 1;
+        if !matches!(
+            s.outcome,
+            ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+        ) {
+            continue;
+        }
+        e.over += 1;
+        if let Some((lo, hi)) = s.enclosure {
+            e.enclosure.0 = e.enclosure.0.min(lo);
+            e.enclosure.1 = e.enclosure.1.max(hi);
+        }
+    }
+    let mut rows: Vec<OverBand> = out.into_values().filter(|e| e.over > 0).collect();
+    rows.sort_by(|a, b| {
+        (b.enclosure.1 - b.enclosure.0)
+            .partial_cmp(&(a.enclosure.1 - a.enclosure.0))
+            .unwrap_or(core::cmp::Ordering::Equal)
+    });
+    rows
+}
+
+/// **WHAT BOUNDS A DOCUMENT**: its whole-certifying bracket
+/// (`(certifies, refuses)`, [`ceiling`]) and the over-band set at the
+/// REFUSING END of that bracket — ceiling + δ, never a multiple of it.
+/// `None` for the set when the bracket has no finite refusing end.
+pub(crate) fn bound(
+    doc_at: &dyn Fn(f64) -> ProfileDoc,
+    rules: SymRules,
+    tol: Tol,
+    lo: f64,
+    hi: f64,
+    steps: usize,
+) -> (f64, f64, Option<Vec<OverBand>>) {
+    let (lo, hi, _) = ceiling(doc_at, rules, tol, lo, hi, steps);
+    if !(lo.is_finite() && hi.is_finite()) {
+        return (lo, hi, None);
+    }
+    let doc = doc_at(hi);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let (shapes, _, _) =
+        crate::m10_8_arc_family_interval::replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+    (lo, hi, Some(over_band_set(&shapes)))
+}
+
+/// One line per over-band predicate, for the evidence rows.
+pub(crate) fn render_over_band(set: &[OverBand]) -> String {
+    set.iter()
+        .map(|e| {
+            format!(
+                "OVER BAND {:<34} [{:>11.4e},{:>11.4e}] {:>3}/{:<4}",
+                e.predicate, e.enclosure.0, e.enclosure.1, e.over, e.all
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }

@@ -30,13 +30,13 @@ use crate::common;
 
 use std::path::PathBuf;
 
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The imports-class corpus: files that import to a first-class,
 /// tier-valid body, each with an oracle-derived `.expect` sidecar.
-const WILD_IMPORTS: [&str; 9] = [
+pub(crate) const WILD_IMPORTS: [&str; 9] = [
     "adafruit/328_2500mAh_battery.step",
     "adafruit/1982_MPR121.step",
     "adafruit/805_slide_switch.step",
@@ -65,24 +65,9 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // `RevolvedPoint` at the full period) carry it. Every edge of
     // every instance now adopts and every pcurve mints and certifies.
     //
-    // What refuses now is the SHARED AT-REST GATE, on the file's
-    // rational cylinder walls: `VolumeUncomputable` /
-    // `QuadratureBudget` — the exact-B-rep volume enclosure stalls at
-    // a mean boundary displacement of ~1.9·10⁻⁶ m against a 1.024·10⁻⁶
-    // m target. The miss is not a floor: the enclosure quarters
-    // cleanly per refinement round (measured, round by round), so this
-    // wall is inside a factor of two of the target and one round short
-    // of the FIXED round budget. It is the
-    // same lane a NATIVELY built rational-walled loft refuses on, and
-    // import refuses it for exactly the reason the crate promises to:
-    // an imported body is held to the same tiers, by the same
-    // function, as a native one.
-    //
-    // **The fragment carries the stalled quadrature by name**, not the
-    // gate's preamble: the preamble alone would also match a tier-1/2
-    // structural verdict, which would be a regression rather than the
-    // quadrature. Still the class and not the prose — no widths, no
-    // face key.
+    // **The fragment carries the refusing door by name**, not a
+    // preamble a different regression would also match. Still the
+    // class and not the prose — no residual widths, no keys.
     //
     // **This fragment is checked elsewhere.** dm1 stays in the table —
     // the obligation sweep and the dialect pin read the whole corpus —
@@ -92,15 +77,17 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // `tier_gate.rs`'s three ε_in cells and structurally by
     // `r1_dm1_probe`.
     //
-    // The fragment is the D7 ladder's, not the quadrature's. It was
-    // the at-rest gate's rational-flux stall until check 7 began
-    // certifying a SIGN: dm1's volume enclosure excludes zero at round
-    // 0 at every band, so the gate admits the solid and the import
-    // goes on to the ladder gap at edge `#389` that the stall masked.
-    (
-        "stepcode/dm1-id-214.stp",
-        "no intensional description certifies",
-    ),
+    // The fragment is the pcurve MINT's, not the quadrature's and not
+    // the ladder's. It was the at-rest gate's rational-flux stall
+    // until check 7 began certifying a SIGN (dm1's volume enclosure
+    // excludes zero at round 0 at every band), then briefly the
+    // ladder's `#389` polyline gap that stall had masked — retired by
+    // #388 (degree-1 carriers promote to `Curve3::Line` and the slit
+    // adopts through its reversed wall column). What refuses now is
+    // the arc-rim mint on the l-bracket wall `#382` (four stated u
+    // spans against three-arc rational rim circles): `MapResidual`,
+    // typed.
+    ("stepcode/dm1-id-214.stp", "MapResidual"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -123,7 +110,7 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
 
 /// A wild fixture's text (bytes as committed — CRLF line endings and
 /// column-72 string folds included, which is the point).
-fn wild(name: &str) -> String {
+pub(crate) fn wild(name: &str) -> String {
     let path: PathBuf = [
         env!("CARGO_MANIFEST_DIR"),
         "tests",
@@ -328,7 +315,7 @@ fn wild_files_import_and_agree_with_the_oracle() {
     for name in WILD_IMPORTS {
         let (body, eps_in) = solid(name);
         let e = oracle(name);
-        assert_eq!(census(&body), e.census, "{name}: census");
+        assert_eq!(arena_census(&body), e.census, "{name}: census");
         assert!(eps_in.is_finite() && eps_in > 0.0, "{name}: ε_in {eps_in}");
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
@@ -461,8 +448,8 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             panic!("{name}: the re-import must be a solid");
         };
         assert_eq!(
-            census(&body),
-            census(&again),
+            arena_census(&body),
+            arena_census(&again),
             "{name}: census across the wire"
         );
         // Volume across the wire: the same per-face contributions,
@@ -510,12 +497,12 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
 #[test]
 fn wild_refusals_are_typed_and_name_their_class() {
     for (name, class) in WILD_REFUSALS {
-        // **dm1's row lives in `r1_dm1_probe`.** Its two ε cells (the
-        // fine bands' rational-flux stall, ambient 1e-6's `#389`
-        // ladder gap) are pinned there STRUCTURALLY — the typed
-        // variant, `id == 389`, `attempts.is_empty()`, and the
-        // stalled-quadrature fragment — which is strictly more than
-        // the substring this loop checks, plus the entity-naming
+        // **dm1's row lives in `r1_dm1_probe`.** Its disposition —
+        // the arc-rim mint's `MapResidual` at every band, past the
+        // retired `#389` gap (#388), with the gap's tripwire and the
+        // l-bracket witness beside it — is pinned there STRUCTURALLY,
+        // on the typed variants, which is strictly more than the
+        // substring this loop checks, plus the entity-naming
         // check moved there with it. dm1 alone costs ~30× the other
         // three fixtures put together to import, so it is imported
         // once per run, where the sharper assertions are.
@@ -605,7 +592,7 @@ fn the_band_re_mint_reports_its_normalizations() {
         else {
             panic!("{name}: the band fixture imports first-class since M7-5");
         };
-        let census = |(faces, edges, vertices)| FaceCensus {
+        let face_census = |(faces, edges, vertices)| FaceCensus {
             faces,
             edges,
             vertices,
@@ -620,8 +607,8 @@ fn the_band_re_mint_reports_its_normalizations() {
                 (
                     face,
                     NormalizationKind::SeamlessPeriodicBand,
-                    census(file),
-                    census(kernel),
+                    face_census(file),
+                    face_census(kernel),
                 )
             })
             .collect();

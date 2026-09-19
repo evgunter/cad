@@ -185,12 +185,14 @@ impl fmt::Display for DocRef {
 /// is the document the door is about, `found` the document the handed
 /// value is actually of.
 ///
-/// One payload for every pairing refusal, because the three doors that
-/// check a pairing — [`crate::product_recorded`], the memo inside
-/// `evaluate`, and [`crate::mate::SolvedPoses::placement`] — ask the
-/// SAME question and their answers must not be able to drift apart in
-/// shape. Each wraps this in its own arm, keeping its own name and its
-/// own tag at the Python boundary.
+/// One payload for every pairing refusal, because every door that
+/// checks a pairing asks the SAME question and their answers must not
+/// be able to drift apart in shape. Each wraps this in its own arm,
+/// keeping its own name and its own tag at the Python boundary.
+///
+/// WHICH doors those are is `crates/editor-core/ASSEMBLY.md`'s A2a and
+/// is not restated here: the set grows as a door is built, and a
+/// second copy of it is a second thing to keep true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mispaired {
     /// The document the door is a statement about.

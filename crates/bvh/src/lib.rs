@@ -1,11 +1,16 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **four of them wired so far** (the count
+//! One tree, several duties — **five of them wired so far** (the count
 //! was stale before this crate gained its proximity lane; the bullets
 //! below are the roster, and LIVE/INTENDED is the truth of each):
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
+//! - **At-rest census pre-filter** — LIVE (`topo::census`): one tree
+//!   per entity class over a body's vertices, `Line` edges and planar
+//!   faces, and the five vertex-granular coincidence sweeps examine
+//!   [`Bvh::overlapping`]'s candidates instead of every pair, under the
+//!   same conservative-superset contract and the boolean sweep's pad.
 //! - **Placement separation** — LIVE (`topo::separation`): the
 //!   pairwise certificate that no two placed copies of a prototype
 //!   can meet.

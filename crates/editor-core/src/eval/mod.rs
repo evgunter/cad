@@ -54,7 +54,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
-use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SitedRef, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -72,22 +72,16 @@ pub struct Evaluation<T: Decide> {
     /// reuse, so the version half would cost a canonicalization per
     /// run for a check the keys already make.
     ///
-    /// THREE doors read this field to refuse a mispairing typed,
-    /// before reading anything of the value: [`product`](fn@crate::product)
-    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
-    /// through them, and — for the solve's own twin of this stamp —
-    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
-    /// reader and refuses differently, below. Node ids alone could not
-    /// decide any of it: they are minted by a per-document counter, so
-    /// two documents built from one recipe carry the SAME ids for the
-    /// same nodes, and every lookup would hit.
+    /// The pairing doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value; the memo reads it too and
+    /// refuses differently, below. Node ids alone could not decide any
+    /// of it: they are minted by a per-document counter, so two
+    /// documents built from one recipe carry the SAME ids for the same
+    /// nodes, and every lookup would hit.
     ///
-    /// Other doors taking such a pair — `run_checks`,
-    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
-    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
-    /// covered downstream by `product_recorded`); that gap is tracked
-    /// at
-    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    /// Which doors those are, and which doors taking such a pair do
+    /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
+    /// one place for a set that grows as each door is built.
     ///
     /// The field is `pub` like every other field of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
@@ -346,8 +340,9 @@ pub enum ValuePayload<T: Decide> {
     /// values; directions normalized, degenerate refused).
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
-    /// through the driver, then the profile crate's validation door)
-    /// plus its program-anchor naming map ([`ProfileValue`]).
+    /// through the driver, then the profile crate's validation door),
+    /// its program-anchor naming map, and the radius expression each
+    /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, placed union, instantiate,
@@ -391,7 +386,7 @@ pub enum ValuePayload<T: Decide> {
     /// `declare` input). The class travels WITH its pair from
     /// authoring to the kernel door — the one vocabulary end-to-end
     /// (SELECT-DESIGN §3d).
-    Declarations(Vec<((StableName, StableName), ContactClass)>),
+    Declarations(Vec<((SitedRef, SitedRef), ContactClass)>),
     /// A Mate node's ROLE in the solve (A11 rule 4; ASM-R2a D-1): a
     /// tree mate determined its child, a non-tree mate declared and
     /// solved nothing. Not body-denoting, so the product gather skips
@@ -439,22 +434,143 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **One family word, as a literal** — so [`concat!`] can compose a
+/// phrase out of it at compile time, which a `const` cannot be fed
+/// to. [`family`]'s consts are defined FROM this macro and
+/// [`phrase`]'s are composed from it, so each word is spelled once in
+/// the tree and a composed phrase cannot drift from the `found:` word
+/// that answers beside it.
+// OPERAND-VOCABULARY BEGIN — the region
+// `every_family_word_has_exactly_one_const` reads. An arm with no
+// const, or a const with no arm, reds that row.
+macro_rules! family_word {
+    (datum) => {
+        "datum"
+    };
+    (profile) => {
+        "profile"
+    };
+    (body) => {
+        "body"
+    };
+    (boolean) => {
+        "boolean"
+    };
+    (split) => {
+        "split"
+    };
+    (instances) => {
+        "instances"
+    };
+    (declarations) => {
+        "declarations"
+    };
+    (mate) => {
+        "mate"
+    };
+    (measure) => {
+        "measure"
+    };
+    (assertion) => {
+        "assertion"
+    };
+}
+
 /// **The family words** — the vocabulary a typed operand mismatch
 /// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
 /// written once. [`ValuePayload::kind_name`] says them over a value,
-/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
-/// say them in the refusals they build.
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
+/// says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = "datum";
-    pub(crate) const PROFILE: &str = "profile";
-    pub(crate) const BODY: &str = "body";
-    pub(crate) const BOOLEAN: &str = "boolean";
-    pub(crate) const SPLIT: &str = "split";
-    pub(crate) const INSTANCES: &str = "instances";
-    pub(crate) const DECLARATIONS: &str = "declarations";
-    pub(crate) const MATE: &str = "mate";
-    pub(crate) const MEASURE: &str = "measure";
-    pub(crate) const ASSERTION: &str = "assertion";
+    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const PROFILE: &str = family_word!(profile);
+    pub(crate) const BODY: &str = family_word!(body);
+    pub(crate) const BOOLEAN: &str = family_word!(boolean);
+    pub(crate) const SPLIT: &str = family_word!(split);
+    pub(crate) const INSTANCES: &str = family_word!(instances);
+    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
+    pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const MEASURE: &str = family_word!(measure);
+    pub(crate) const ASSERTION: &str = family_word!(assertion);
+}
+// OPERAND-VOCABULARY END
+
+/// **The composed phrases** — every `expected:` a refusal names that is
+/// not exactly one family word.
+///
+/// # The rule
+///
+/// An `expected:` names what to author, and it comes from a const:
+/// [`family`] when it is exactly a value family, this module when it is
+/// anything else. **No `expected:` is a literal written at a call
+/// site.** The reason is not that two copies of a two-word phrase are
+/// expensive to keep in step — they are not — it is that the phrases a
+/// document author has to learn are then enumerable in one screen,
+/// instead of being the set you get by grepping every refusal that
+/// speaks one.
+///
+/// `found:` never appears here. The door computes it from the value it
+/// was handed ([`ValuePayload::kind_name`]) or from the node
+/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// its own `expected:` and leave a reader told twice what the input is
+/// not and never what it is.
+///
+/// # The three shapes, and how each is composed
+///
+/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
+///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+///   still in the phrase — and is exactly the word `found:` answers
+///   beside it — so it is composed from `family_word!` rather than
+///   respelled.
+/// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
+///   the conjunction between them, and nothing else; both words are
+///   composed.
+/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
+///   word names, so there is nothing to compose and the const is the
+///   literal. It is here for the rule above — one home per phrase —
+///   rather than for a vocabulary it shares.
+///
+/// # What this module is NOT, and where the neighbouring words live
+///
+/// The rule above governs `expected:` and nothing else. A second
+/// user-visible vocabulary sits beside it — the DIRECTION-ROLE words a
+/// [`NodeErrorKind::DegenerateDirection`] or
+/// [`NodeErrorKind::NonFiniteDirection`] refusal carries, which name the SLOT
+/// whose vector would not normalize rather than the kind an operand
+/// had to be. They keep their own home beside the arithmetic that
+/// raises them (`eval::wire`'s `*_ROLE` consts, `pub(crate)` because
+/// the mate solve re-derives the same refusals), and every one of them
+/// is a named const rather than a literal at its call site — that half
+/// of the rule they do follow.
+///
+/// **What they do NOT do is compose: they RESPELL.** Four of them open
+/// with a phrase declared here and write it out again as a literal —
+/// `"datum frame x axis"`, `"datum frame y axis"`, `"datum plane
+/// normal"`, `"datum axis direction"`. That is not a boundary and not
+/// a choice: `concat!` takes literals and a `const` is not one, so
+/// composing them needs this module's macro layer extended from the
+/// WORDS to the PHRASES, which is a design step rather than a rename.
+/// It is a residue, and it has a row —
+/// `work/wire/direction-role-words-respell-the-operand-phrases.md`.
+/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
+/// word with anything here, so they are not that row.
+pub(crate) mod phrase {
+    /// A frame datum: [`crate::node::Datum::Frame`] or
+    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
+    /// [`super::DatumValue::Frame`].
+    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    /// A plane datum ([`crate::node::Datum::Plane`]).
+    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// What a placer places: one body, or a list of placed ones.
+    pub(crate) const BODY_OR_INSTANCES: &str =
+        concat!(family_word!(body), " or ", family_word!(instances));
+    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
+    /// in this refusal, so the sentence has to say what to author
+    /// instead: the seat is not "an axis", it is an axis written in the
+    /// sketch the profile is drawn on.
+    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -595,11 +711,11 @@ pub enum SplitSide<T: Decide> {
 // where a degenerate, decided-zero-length vector becomes a typed
 // refusal; this layer maps that refusal onto its own node error and
 // invents nothing. `DatumValue` is re-exported at its historical home,
-// so no consumer's path to it moved — but the surface GREW: the two
-// `UnitVec3` names are new here, and they are not optional decoration.
-// A consumer cannot build a datum, or read a normal back out of one,
-// without naming the type that carries the invariant.
-pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
+// so no consumer's path to it moved. The type that carries its
+// directions, `geom_core::UnitVec3`, is NOT re-exported here: a
+// consumer that builds a datum, or reads a normal back out of one,
+// names the witness at the crate that mints it.
+pub use topo::query::DatumValue;
 
 // `NodeErrorKind::VerbArity` carries the kernel's verb name and
 // declared-arity types in a pub payload, so both cross with it — the
@@ -687,6 +803,139 @@ impl PartialEq for NodeRefusal {
 impl core::fmt::Display for NodeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+/// **The entity-kind door**: one home for *read a thing, test what kind
+/// of entity it is, refuse* — and, unlike a door built out of a
+/// convention, one a road cannot go around.
+///
+/// Four refusals in `eval::wire` ask that question — a shell's open
+/// designation, a blend's selection, a derived frame's face, a
+/// measure's scope. They differ in the entity they admit, in the word
+/// they use for the road, and in what else the refusal carries (a
+/// name, a verb). They do NOT differ in how the answer to *"what was
+/// it instead"* is obtained, and that half is this module's.
+///
+/// # Why a token rather than a rule
+///
+/// The obvious shape hands the road an [`crate::names::EntityKind`]
+/// and asks it not to make one up. That is a rule, and a rule over a
+/// spelling is enforceable only by a reader or a census — both of
+/// which can be walked past by a road that computes its own answer and
+/// passes it where the door's belongs. [`entity_door::Found`] removes
+/// that: it carries the kind, its field is private to this module, and
+/// [`entity_door::entity`] is the only thing that can mint one.
+///
+/// The refusals therefore keep their own identities — four variants,
+/// four sentences — while the one fact they share has one source.
+///
+/// # Why the door is in two files
+///
+/// [`entity_door::entity`] is here and `eval::wire`'s `named_entity` — the
+/// designation road, which resolves an authored name and then comes
+/// here — is there. That split is not a preference: [`entity_door::Found`]'s field
+/// must be private to a module that is NOT an ancestor of the roads,
+/// and the roads live in `eval::wire`, so the minting site cannot live
+/// there with them. Putting [`entity_door::Found`] beside
+/// [`crate::names::EntityKind`] instead would need a crate-visible
+/// constructor, which every road could call — the guarantee would be
+/// gone. `named_entity`'s own docs carry the other half of this
+/// sentence.
+///
+/// **What an outside reader gets from this module is [`entity_door::Found`]**, which
+/// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
+/// itself is `pub(crate)`: nothing outside this crate resolves an
+/// entity, so nothing outside it has a key to ask about.
+///
+/// # What this does NOT promise, stated because the difference matters
+///
+/// **The WORD is unforgeable; the KEY it is read off is the caller's.**
+/// [`entity_door::entity`] computes the kind from the
+/// [`crate::names::EntityKey`] it was handed, so a road that hands it
+/// the wrong key gets a refusal that truthfully describes that key and
+/// falsely describes the entity the road was talking about. Nothing
+/// here prevents that, and no census in this repo does either: closing
+/// it would mean making [`crate::names::EntityKey`] itself unforgeable,
+/// and the naming layer constructs one in about 150 places.
+///
+/// What IS closed is the shape that made such a substitution
+/// invisible. `read` is a `fn` pointer, not a closure, so it cannot
+/// capture a second key: it answers from the key the door holds or not
+/// at all. A road that substitutes a key therefore substitutes it for
+/// its own success path too and stops working, rather than succeeding
+/// on one entity while refusing about another. The byte-exact refusals
+/// in `crates/editor-core/tests/wire_entity_door.rs` are what covers
+/// the rest, and
+/// `work/wire/the-entity-doors-key-comes-from-its-caller.md` is the row.
+pub mod entity_door {
+    use crate::names::{EntityKey, EntityKind};
+
+    use super::NodeErrorKind;
+
+    /// **What an entity turned out to be**, as a value only
+    /// [`entity`] can make.
+    ///
+    /// Readable by anyone (a refusal renders it; a test asserts on
+    /// it), constructible by nobody outside this module — the private
+    /// field is the whole mechanism, and it is why no census guards
+    /// the rule this type states.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Found(EntityKind);
+
+    impl Found {
+        /// The kind, for a reader.
+        #[must_use]
+        pub fn kind(self) -> EntityKind {
+            self.0
+        }
+
+        /// The indefinite article agreeing with [`Found::noun`] — the
+        /// value decides it ("an edge", "a face"), so a sentence that
+        /// hard-codes one is wrong for some kind it can reach.
+        pub(crate) fn article(self) -> &'static str {
+            self.0.article()
+        }
+
+        /// The kind as a prose noun, for a refusal's own sentence.
+        pub(crate) fn noun(self) -> &'static str {
+            self.0.noun()
+        }
+    }
+
+    /// **What kind of entity is this, and refuse if it is not** — the
+    /// one home for that question, over a resolved
+    /// [`crate::names::EntityKey`].
+    ///
+    /// `read` is the only thing a caller decides about the ADMITTED
+    /// set: the projection that either finds on the key what this
+    /// door's consumer needs ([`EntityKey::face`], [`EntityKey::edge`],
+    /// or a wider one where a road admits two kinds), or says it is
+    /// not there. `refuse` is that road's OWN refusal — a shell
+    /// designation names a face, a blend's names an edge under its
+    /// verb, a measure's reference names a scope — and it is handed
+    /// the one thing it could not otherwise have.
+    ///
+    /// **`read` is a `fn` pointer rather than a closure, and that is
+    /// the door's second guarantee.** A capturing `read` can ignore its
+    /// argument and answer from a key it closed over, which lets a road
+    /// succeed on one entity while the refusal beside it describes
+    /// another — a lie with a byte-identical success path. A `fn`
+    /// cannot capture, so the value this door returns and the kind it
+    /// reports come off the same key. What remains is that the key is
+    /// the caller's (module docs), and a road that substitutes one
+    /// breaks its own success path in the same stroke.
+    ///
+    /// # Errors
+    ///
+    /// `refuse`'s own refusal, when `read` finds the key is not the
+    /// entity asked for.
+    pub(crate) fn entity<R>(
+        key: EntityKey,
+        read: fn(EntityKey) -> Option<R>,
+        refuse: impl FnOnce(Found) -> NodeErrorKind,
+    ) -> Result<R, NodeErrorKind> {
+        read(key).ok_or_else(|| refuse(Found(key.kind())))
     }
 }
 
@@ -907,8 +1156,10 @@ pub enum NodeErrorKind {
     },
     /// A direction-valued vector decided to zero length. Which
     /// vectors those are is the ROLE constants' to say, not this
-    /// doc's: `wire`'s `DATUM_AXIS_ROLE`, `PATTERN_DIRECTION_ROLE` and
-    /// `TRANSFORM_AXIS_ROLE`, and `placement`'s `PLACEMENT_AXIS_ROLE`.
+    /// doc's — every `*_ROLE` const in `wire` and in `placement`, as a
+    /// CLASS rather than as a list, because a list here is a second
+    /// copy of a set those modules already hold and it went stale the
+    /// first time one of them was added.
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
@@ -1043,41 +1294,41 @@ pub enum NodeErrorKind {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
-    /// A `Declare` name resolves in BOTH operands' tables (the same
-    /// body value feeding both sides) — the declaration cannot pick a
-    /// side; refused, never guessed.
-    DeclareBothOperands {
-        /// The ambiguous name.
-        name: Box<crate::names::StableName>,
-    },
-    /// A `Declare` pair wired to a [`crate::Node::Union`] names two
-    /// entities that are never the two sides of ONE fold step: an
-    /// entity of the accumulation paired with a member the fold had
-    /// already joined when that entity was minted, two accumulation
-    /// entities with no step left after them, a row this node publishes
-    /// that is the output of a step rather than an input to one (its
-    /// own body), or a face a step consumed — a declared merge
-    /// publishes a `Merged` row in place of the two faces it joins, so
-    /// a later pair naming one of them has no step.
+    /// A declared entity is SITED at a node that is not one of the
+    /// consumer's operands — not a member of the union, nor `a` or
+    /// `b` of the pair boolean.
     ///
-    /// The step a pair is fed at is DERIVED from the member ids its two
-    /// names carry (no fold position is recorded anywhere), so when
-    /// that derivation has no answer the declaration is refused — never
-    /// fed to a step where one of its names does not denote, and never
-    /// dropped. This is the refusal for a name this node DOES denote:
-    /// one it does not denote at all is
-    /// [`Self::DeclareResolve`]'s vanished rung.
-    UnionDeclareStep {
-        /// The pair, as the recipe carries it.
-        pair: Box<(crate::names::StableName, crate::names::StableName)>,
+    /// The site IS the side (DM4), so a site the consumer does not
+    /// have is a declaration the consumer cannot read: there is no
+    /// table to resolve the name in. It is the EVALUATION's refusal
+    /// and not the insert door's, because a `Declare` may exist
+    /// unconsumed and the insert door checks only that the site is a
+    /// live node ([`crate::Node::payload_read_sites`]).
+    DeclareSiteNotAnOperand {
+        /// The site the pair named.
+        at: crate::node::RecipeNodeId,
     },
-    /// A `Declare` pair outside the v1 threading vocabulary
-    /// (supported: cross-operand Face–Face; same-operand
-    /// Vertex–Vertex and Vertex–Face).
+    /// A `Declare` pair outside the v1 threading vocabulary, which is
+    /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
+    /// deliberately not re-listed here, so a fourth pair shape cannot
+    /// be added to the code and left out of this sentence.
+    ///
+    /// Asked and answered BEFORE either name is resolved to one
+    /// entity: a pair the vocabulary has no step for is unsupported
+    /// however many entities answer to either name (`wire`'s
+    /// `resolve_declarations`, and `assembly::resolve_face` for the
+    /// same rule at the mate doors).
     DeclareUnsupportedPair {
-        /// The pair's entity kinds, declaration order.
+        /// The pair's entity kinds, declaration order — the AUTHORED
+        /// names' kinds, which is the only source available before
+        /// resolution and which the name table makes every
+        /// candidate's kind (`NameTable::insert_ref` and
+        /// `insert_tied_ref` are its only two writers and both refuse
+        /// a row whose name's kind is not its key's).
         kinds: (crate::names::EntityKind, crate::names::EntityKind),
-        /// Whether the names resolved in different operands.
+        /// Whether the two names LANDED in different operands — the
+        /// side pick, made before resolution, so a tied name has a
+        /// side here without having a single entity.
         cross_operand: bool,
     },
     /// The boolean refused an UNDECLARED contact (F6) and the raise
@@ -1102,6 +1353,39 @@ pub enum NodeErrorKind {
     UndeclaredContact {
         /// The candidate declaration, in the detector's value shape.
         finding: Box<crate::names::FlushFinding>,
+        /// **Each side's MERGED constituent set**, when the refusing
+        /// operand row is a face a union's fold merged: the flat set
+        /// (N3) as the member entities it retired, in the union's own
+        /// member order (D9). `finding`'s side for that half is this
+        /// list's FIRST entry, and any other entry declares the SAME
+        /// contact — a declaration resolves to the merged row through
+        /// the fold's look-through — so the choice is deterministic
+        /// rather than meaningful.
+        ///
+        /// Empty on both halves for every other refusal: a pair
+        /// boolean's operands are nodes, so their rows are their own,
+        /// and a union's contact against an unmerged member face is
+        /// that member's.
+        merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
+        /// The refusing predicate's diagnostics, unaltered.
+        diag: Indeterminate,
+    },
+    /// **A union's undeclared contact against a row its own FOLD
+    /// minted** — a fragment of a member's face, the union's body,
+    /// anything the member-keying rule does not collapse to a member's
+    /// entity or to a merge of them.
+    ///
+    /// Such a row does not exist before the union, so no `SitedRef`
+    /// names it (DM4: a declaration names what is live before its
+    /// consumer) and the two-armed menu
+    /// [`NodeErrorKind::UndeclaredContact`] carries has no declare
+    /// arm here. The refusal says so in the type rather than degrading
+    /// to an emission bug, which would blame this crate for a
+    /// document a user wrote.
+    UndeclarableContact {
+        /// The fold-minted row, in the union's PUBLISHED name space —
+        /// the space its other refusals name.
+        row: Box<crate::names::StableName>,
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
@@ -1129,8 +1413,9 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
@@ -1172,8 +1457,9 @@ pub enum NodeErrorKind {
     ShellOpenKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// **This evaluation scalar cannot form the shell door's call.**
     /// The door validates what it built with a certified claim, so it
@@ -1202,8 +1488,9 @@ pub enum NodeErrorKind {
     FaceFrameKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A derived frame's face is not planar (DM1b): a sketch frame
     /// needs a plane, and the carrier found is named so a headless
@@ -1235,6 +1522,37 @@ pub enum NodeErrorKind {
         profile: RecipeNodeId,
         /// The derived frame it is drawn on.
         frame: RecipeNodeId,
+    },
+    /// A profile needed an AUTHORED frame's `f64` placement and the
+    /// frame's own direction slots refused, so the refusal is raised
+    /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
+    ///
+    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
+    /// its ids, because this refusal reaches the same third node.**
+    /// `profile_plane_f64` is read from the profile node's own
+    /// evaluation, where the error lands on the profile and its id is
+    /// confirmation — and from `wire`'s section seam, where the error
+    /// lands on the LOFT or SWEEP and neither node in the sentence is
+    /// the one it is attached to. One id would leave that road naming
+    /// half of what it refused about.
+    ///
+    /// **The carried refusal is the fact, not a second one.** A frame
+    /// slot that refuses reaches a human two ways — raised at the
+    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
+    /// to the reader that needed the nominal
+    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
+    /// through [`DirectionRefusal::node_error`], so the sentence and
+    /// the tag are the same on both roads. What this arm adds is the
+    /// ids, which the role word alone cannot supply: "the datum frame
+    /// x axis has zero length" names no frame in a document with two.
+    FrameDirection {
+        /// The profile that needed the placement.
+        profile: RecipeNodeId,
+        /// The frame node whose direction slot refused.
+        frame: RecipeNodeId,
+        /// The frame's own refusal, unaltered — which vector, and
+        /// which of the direction door's four facts.
+        refusal: DirectionRefusal,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -1357,8 +1675,9 @@ pub enum NodeErrorKind {
     MeasureSelectionKind {
         /// Which primitive.
         verb: &'static str,
-        /// What the reference resolved to instead, as its class.
-        found: &'static str,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
@@ -1390,6 +1709,9 @@ pub enum NodeErrorKind {
 struct UndeclaredContactFinding<'a> {
     /// The candidate declaration, in the detector's value shape.
     finding: &'a crate::names::FlushFinding,
+    /// Each side's merged constituent set, empty where the side is a
+    /// row of one node.
+    merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
     /// The refusing predicate's diagnostics.
     diag: &'a Indeterminate,
 }
@@ -1408,7 +1730,7 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         write!(
             f,
             "a face pair of its operands is {} without a shared source or declared \
-             intent; the coincidence ladder reports: {}",
+             intent{}; the coincidence ladder reports: {}",
             match self.finding.evidence.relation {
                 topo::PlaneRelation::SameOpposite =>
                     "coincident with opposed orientations (resting contact)",
@@ -1417,6 +1739,13 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
                 // Never constructed on a finding; rendered honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
+            // A merged side is the one place a caller reading the
+            // pair alone would be misled: the face the contact is
+            // against is a MERGE of member faces, and the pair names
+            // one constituent of it. Which constituent is immaterial
+            // — each declares the same contact — so the prose says
+            // that rather than leaving the pick unexplained.
+            MergedSides(self.merged),
             self.diag.payload()
         )
     }
@@ -1425,6 +1754,67 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         "the refusal carries the candidate declaration (the pair, by stable name, \
          with its relation); declare that finding and wire it into the Boolean's \
          declare input, or move the geometry"
+    }
+}
+
+/// The merged-side clause of an undeclared contact's story: silent
+/// when neither side is a merged row, and otherwise naming the
+/// constituents the fold retired into it.
+struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
+
+impl core::fmt::Display for MergedSides<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
+            let Some((chosen, rest)) = set.split_first() else {
+                continue;
+            };
+            write!(
+                f,
+                " (the {side} face is a merge the fold minted, of {}",
+                chosen.name
+            )?;
+            for r in rest {
+                write!(f, ", {}", r.name)?;
+            }
+            f.write_str(
+                "; the pair names one constituent and any other declares the \
+                         same contact)",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// The finding shape of [`NodeErrorKind::UndeclarableContact`]: the
+/// same refusal, minus the declare arm, because the row it names has
+/// no site to declare it at.
+struct UndeclarableContactFinding<'a> {
+    /// The fold-minted row, in the union's published space.
+    row: &'a crate::names::StableName,
+    /// The refusing predicate's diagnostics.
+    diag: &'a Indeterminate,
+}
+
+impl crate::finding::Finding for UndeclarableContactFinding<'_> {
+    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the union refused a contact against a row its own fold minted")
+    }
+
+    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a member's face rests on {}, which the fold minted and no member carries; \
+             the coincidence ladder reports: {}",
+            self.row,
+            self.diag.payload()
+        )
+    }
+
+    fn recourse(&self) -> &str {
+        "a declaration names entities that exist BEFORE the union (each sited at a \
+         member), and this row exists only inside the fold, so there is no pair to \
+         declare: move the geometry, or reach the row through the member whose \
+         face it was minted from by unioning in two nodes"
     }
 }
 
@@ -1666,20 +2056,12 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
-            // Forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase; the pin
-            // builds its expectation from the impl.
-            Self::DeclareBothOperands { name } => write!(
+            Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
-                "the declared {name} resolves in BOTH operands — the declaration cannot \
-                 pick a side"
-            ),
-            Self::UnionDeclareStep { pair } => write!(
-                f,
-                "the declared pair ({}, {}) names two entities of this union that no single \
-                 fold step has as its two operands — declare the pair at a step that does: \
-                 one member against the accumulation of the members before it in the list",
-                pair.0, pair.1
+                "a declared entity is sited at node {}, which is not an operand of this \
+                 node — site each side at the member (or the boolean operand) whose table \
+                 holds it",
+                at.0
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -1693,8 +2075,20 @@ impl core::fmt::Display for NodeErrorKind {
             // replacement for it: the ladder's own account of what it
             // measured rides the story, exactly as `Escalated` carries
             // the same type.
-            Self::UndeclaredContact { finding, diag } => {
-                crate::finding::compose(f, &UndeclaredContactFinding { finding, diag })
+            Self::UndeclaredContact {
+                finding,
+                merged,
+                diag,
+            } => crate::finding::compose(
+                f,
+                &UndeclaredContactFinding {
+                    finding,
+                    merged,
+                    diag,
+                },
+            ),
+            Self::UndeclarableContact { row, diag } => {
+                crate::finding::compose(f, &UndeclarableContactFinding { row, diag })
             }
             Self::BlendSelectionResolve { verb, error } => {
                 write!(f, "a {verb} selection name failed to resolve: {error}")
@@ -1750,6 +2144,22 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the derived frame's face resolved to a key its body could not read back: {error}"
             ),
+            // Both ids FIRST, then the fact. Three of the four facts
+            // end in a remedy clause and the escalation's runs to
+            // hundreds of characters, so a locator appended after one
+            // of those is a locator nobody reaches.
+            Self::FrameDirection {
+                profile,
+                frame,
+                refusal,
+            } => write!(
+                f,
+                "profile node {} is drawn on datum frame node {}, and the frame refused \
+                 its own direction: {}",
+                profile.0,
+                frame.0,
+                refusal.node_error()
+            ),
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
@@ -1790,7 +2200,9 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureSelectionKind { verb, found } => write!(
                 f,
                 "`{verb}` measures between two selections — a whole body or one of its faces — \
-                 and this reference resolves to {found}"
+                 and this reference resolves to {} {}",
+                found.article(),
+                found.noun()
             ),
             Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
             Self::AssertionDimension { measured, bound } => write!(
@@ -2750,7 +3162,7 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(results, program.plane) {
+            let placement = match wire::profile_plane_f64(results, id, program.plane) {
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
@@ -3147,9 +3559,9 @@ mod tag {
         /// loop's step count and its steps; the lane stream, when the
         /// lift's second pass ran, is `LANE`, the loop count, then per
         /// loop `LOOP_START`, the loop's scalar count and its scalars,
-        /// each under `LANE_SCALAR`; then, per carrier loop whose
-        /// radius is flow-bearing, `CARRIER_RADIUS` and the radius
-        /// expression.
+        /// each under `LANE_SCALAR`; then, per authored radius of every
+        /// loop in program order while the profile edge's radius is
+        /// flow-bearing, `CARRIER_RADIUS` and the radius expression.
         ///
         /// The counts are what make a loop boundary a SINGLE
         /// vocabulary: a reader that has consumed a loop's declared
@@ -3570,8 +3982,8 @@ where
     // the compile breaks. It cannot default to "tag plus slots" and
     // hash identically to a node that differs in that payload — a memo
     // hit would then serve another node's geometry, which is not
-    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
-    // with `ArcContinue`'s and was caught by a reviewer, not a type).
+    // hypothetical (see S4: two steps once shared a content-key tag,
+    // and a reviewer caught it rather than a type).
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -3630,7 +4042,7 @@ where
                     }
                 }
             }
-            // A carrier loop's RADIUS EXPRESSION, when a migrated verb
+            // A profile edge's RADIUS EXPRESSION, when a migrated verb
             // declares that operand-carried scalar into a stored field
             // (SEAT-7, key format v5). The stream above carries the
             // radius's VALUE, at f64 bits, which is what the geometry
@@ -3650,6 +4062,22 @@ where
             // moment no verb declares the profile edge's radius into a
             // field, nothing is written and the keys are the v4 ones.
             //
+            // **What is fed is the PROGRAM's answer, and the attach's
+            // is a subset of it.** This feed has no record of the
+            // evaluation in hand — it runs before one exists — so it
+            // asks `LoopProgram::step_radii`, which reads the program
+            // alone. The attach asks `ProfileProgram::segment_radii`,
+            // which additionally reads the replay's spans and drops
+            // what they leave ambiguous. That inclusion is the whole
+            // guard, and it is the direction that cannot go stale: a
+            // spelling can be keyed and not attached, which costs a
+            // memo hit and nothing else, and cannot be attached without
+            // having been keyed, which is what would serve a wall whose
+            // token names an expression the document no longer holds.
+            // It stays true of a THIRD per-edge scalar someone adds
+            // later only while that scalar's two doors keep the same
+            // relation, which is why each says so at its own end.
+            //
             // **How wide this is, stated rather than implied.** Three
             // separate breadths, none of which moves a VALUE — keys are
             // process-internal and never persisted (spec D3), so what
@@ -3657,9 +4085,10 @@ where
             //
             // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
             //    the whole vocabulary, not this document, so the word is
-            //    written for every profile with a carrier loop in every
-            //    document — one that no sweep ever consumes included.
-            // 2. Keys FOLD upstream keys, so a carrier radius
+            //    written for every profile that authors a radius
+            //    anywhere in every document — one that no sweep ever
+            //    consumes included.
+            // 2. Keys FOLD upstream keys, so a radius
             //    re-spelled invalidates the whole downstream subtree,
             //    not only its sweeps: a loft, a section or a boolean
             //    over that profile re-runs too, and none of them
@@ -3684,21 +4113,19 @@ where
                 verbs::EdgeScalar::Radius,
             )) {
                 for lp in &program.loops {
-                    if let Some(expr) = lp.carrier_radius() {
+                    // Every step's own radius, in program-step order: a
+                    // carrier form's one, a chain's per radius-bearing
+                    // step. The loop shapes are not distinguished here
+                    // because the question is not per loop — it is
+                    // "which spellings of this program can reach a
+                    // stored field", and a chain's arc radii reach the
+                    // walls its arcs sweep exactly as a carrier's does.
+                    for (_, expr) in lp.step_radii() {
                         // Opened by its word in the profile-payload
                         // vocabulary (`tag::program`).
                         h.write_tag(tag::program::CARRIER_RADIUS);
                         crate::param_source::feed_content_key(&mut h, expr);
                     }
-                    // A CHAIN loop answers `None` above and writes
-                    // nothing, which is correct exactly while nothing
-                    // attaches its per-segment arc radii either. The
-                    // guard cannot see the difference — the declaration
-                    // this feed reads is true of the profile edge's
-                    // radius already — so chain radii enter the key in
-                    // the same change that attaches them
-                    // (`LoopProgram::carrier_radius` carries the same
-                    // obligation at the door that would widen).
                 }
             }
         }
@@ -3770,8 +4197,19 @@ where
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
             for ((a, b), class) in pairs {
-                feed_stable_name(&mut h, a);
-                feed_stable_name(&mut h, b);
+                // BOTH halves of each side, as a measure's reference
+                // feeds both: the name says which entity and the SITE
+                // says which operand's table it is read in, so two
+                // declarations differing only in a site declare
+                // contacts between different members. The site is a
+                // node id, which content keys otherwise exclude (D8);
+                // it is fed for the measure's reason — it is RECIPE
+                // PAYLOAD selecting a reading, not a Merkle link to an
+                // input, and this node has no inputs at all.
+                for r in [a, b] {
+                    h.write_u64(r.at.0);
+                    feed_stable_name(&mut h, &r.name);
+                }
                 // The CLASS is part of the node's identity: two
                 // declarations of the same pair under different
                 // classes are different nodes, and a memo keyed
@@ -4058,7 +4496,6 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::CloseTo => 24,
         V::Circle => 26,
         V::CircleSplit => 27,
-        V::ArcContinue => 28,
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
@@ -4073,6 +4510,7 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (19, "ArcVia"),
     (20, "ArcCenter"),
     (25, "CloseToOn"),
+    (28, "ArcContinue"),
     (29, "AtToward"),
 ];
 
@@ -4202,7 +4640,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
+        Step::At(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
@@ -4317,7 +4755,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
     }
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::At(p) | Step::FarEndTo(p) => pt(h, p),
         Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
         Step::Toward { dx, dy } => {
             f(h, dx);
@@ -4583,7 +5021,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CornerFace => 30,
         S::TrimEdge => 31,
         S::FootVertex => 32,
-        S::CornerArc => 33,
+        S::EndArc => 33,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -4768,7 +5206,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             feed_stable_name(h, vertex);
             feed_stable_name(h, support);
         }
-        RoleSeg::CornerArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } => {
             feed_stable_name(h, vertex);
             feed_stable_name(h, edge);
         }
@@ -4967,8 +5405,8 @@ mod tag_vocabulary_tests {
     /// it would stay green while a new inline node claimed 17 or 24 —
     /// which is precisely the accident that moving two tags out of the
     /// match created the room for, and precisely the accident the S4
-    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
-    /// a reviewer rather than a type) says costs a memo hit serving
+    /// lesson (two steps sharing one content-key tag, caught by a
+    /// reviewer rather than a type) says costs a memo hit serving
     /// another node's geometry.
     ///
     /// **It is a source census, and that is the honest shape here.** The
@@ -4998,13 +5436,15 @@ mod tag_vocabulary_tests {
     #[test]
     fn node_kind_vocabulary_is_injective() {
         const SOURCE: &str = include_str!("mod.rs");
-        let region = SOURCE
-            .split_once("NODE-KIND-VOCABULARY BEGIN")
-            .expect("the tag match carries its opening sentinel")
-            .1
-            .split_once("NODE-KIND-VOCABULARY END")
-            .expect("the tag match carries its closing sentinel")
-            .0;
+        // The sentinel walk is `test_utils::source`'s, not this row's:
+        // three sites had written it themselves, and the third was
+        // nearly line-for-line the second.
+        let region = &SOURCE[test_utils::source::sentinel_region(
+            SOURCE,
+            "eval/mod.rs",
+            "NODE-KIND-VOCABULARY BEGIN",
+            "NODE-KIND-VOCABULARY END",
+        )];
         // Comments inside the region discuss tag numbers in prose ("24
         // is the chamfer's"), which are not arms — blanked through the
         // SHARED Rust reader rather than a `split("//")` this test rolled

@@ -327,6 +327,40 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
+/// **The pip caps measure through the CLOSED FORM, and were never the
+/// rim-only shape** — measured, because the interior-side unit's spec
+/// assumed otherwise.
+///
+/// A pip is a `revolve`d ball, so its surface carries a SEAM meridian
+/// from pole to pole; the cap face the cut leaves is bounded by the
+/// intersection rim AND that seam, and the seam's span-derived pole
+/// extreme is in its levels. It is therefore an ordinary rim-plus-
+/// meridian face, not the rim-only cap of issue 1250, and it took the
+/// closed form before that issue was served and takes it after: this
+/// body reads `volume_pad = 0` on both sides of the fold. What this
+/// row pins is that it stays there — every pad exactly zero, the 21
+/// caps measured by `R²·Δu·(sin v_hi − sin v_lo)` and the volume a
+/// closed form end to end rather than a bracket whose midpoint happens
+/// to land. The rim-only cap's own public-door evidence is
+/// `topo/tests/props_sphere_cap_door.rs`, which builds the shape the
+/// die does not have.
+#[test]
+fn the_pip_caps_measure_through_the_closed_form() {
+    let pipped = subtract(&cube(DIE_L, Tol::witness()), &pip_tool());
+    let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
+    println!(
+        "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
+        props.volume, props.volume_pad, props.surface_area, props.area_pad
+    );
+    let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
+    assert_eq!(
+        props.volume_pad, 0.0,
+        "a rim-only spherical cap is a closed-form face; got volume {} vs {want}",
+        props.volume
+    );
+    assert_eq!(props.area_pad, 0.0, "and its area is one too");
+}
+
 /// **DEVIATION 1, now FLIPPED at both doors** (kept, per the S9
 /// pattern, as the record of the two frontiers it used to pin; its M5
 /// name was `deviation_1_the_blank_and_the_pips_do_not_compose_yet`,

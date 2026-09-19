@@ -20,13 +20,12 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, content_pin, derivation_nodes, split,
+    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    content_pin, derivation_nodes, split,
 };
+use fixture::resolver::in_part;
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
-
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn block(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -53,21 +52,6 @@ fn block_ref(label: &str) -> DocRef {
     DocRef { id: doc.id(), pin }
 }
 
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
-}
-
 fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -89,8 +73,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),

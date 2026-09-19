@@ -262,8 +262,8 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
 /// entity that could not be read.
 #[test]
 fn a_line_and_a_dangling_key_refuse_typed() {
-    let brick = common::prism_z::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 0.0, 1.0);
-    let body = &brick.body;
+    let brick = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let body = &brick;
     let edge = query::all_edges(body)[0];
     assert_eq!(
         rim_of(body, edge),

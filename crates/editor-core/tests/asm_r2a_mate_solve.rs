@@ -13,17 +13,14 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
-    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, apply, clusters, content_pin,
-    evaluate, load, product, relative_freedom_components, save, solve_document,
+    Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
+    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
+    clusters, load, product, relative_freedom_components, save, solve_document,
 };
-use fixture::{insert, len, on_frame, square, step};
+use fixture::resolver::{PART_BODY, PartStore, with_resolver};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -34,38 +31,6 @@ fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (Profile
 }
 
 // ---- Substrate ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
 
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
@@ -89,8 +54,8 @@ fn part(label: &str) -> ProfileDoc {
 
 /// An assembly of `n` instances of one part, plus the store that
 /// resolves them.
-fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore) {
-    let mut store = StubStore::default();
+fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore) {
+    let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -101,14 +66,6 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore)
     }
     (doc, ids, store)
 }
-
-/// An instance-qualified name: a face of `instance`'s part product.
-/// The HEAD is the instantiate node, which is exactly what A12's
-/// reading edge is recomputed from.
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
     StableName {
@@ -143,8 +100,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, PART_BODY)),
-        b: SitedRef::at_mint(in_part(b, PART_BODY)),
+        a: crate::fixture::head(in_part(a, PART_BODY)),
+        b: crate::fixture::head(in_part(b, PART_BODY)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -172,17 +129,6 @@ fn z_up() -> MateFrame {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
-
 fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFault {
     match ev.result(node) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -202,7 +148,7 @@ fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFaul
 /// perpendicular gives prismatic — so the clocking rider is what
 /// closes it, which is exactly the combination A11 rule 1 lists as its
 /// own DETERMINED example.
-fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, StubStore, RecipeNodeId) {
+fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId) {
     let (doc, ids, store) = assembly("asm-r2a-row1", 2);
     // Coaxial about the shared +z, clocked at zero: prismatic along z.
     let (doc, _) = step(
@@ -283,7 +229,7 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
         "the gauge's own relative pose is the bit-exact identity"
     );
 
-    let o = opts(store);
+    let o = with_resolver(store);
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
@@ -304,7 +250,7 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
 #[test]
 fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let (doc, ids, store, _) = determined_pair();
-    let o = opts(store);
+    let o = with_resolver(store);
     let first = run(&doc, &o);
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
@@ -371,7 +317,7 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
 
     // The instances refuse too — they have no pose — and the evaluation
     // says so in the mate's own vocabulary.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(
         mate_fault(&ev, ids[1]),
         editor_core::MateFault::Under { .. }
@@ -472,11 +418,11 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
     assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: ids[0],
             absorbed: ids[1],
             absorbed_frame: Some(Frame::translation([0.0, 5.0, 0.0])),
-        }],
+        })],
         "the join names the survivor and CONSUMES the absorbed frame"
     );
     assert_eq!(
@@ -507,11 +453,11 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
     assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::Split {
+        vec![Maintenance::Cluster(ClusterMaintenance::Split {
             from: ids[0],
             to: ids[1],
             frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        }],
+        })],
         "the orphan's frame is RE-MINTED from its solved pose, so its \
          world pose is unchanged"
     );
@@ -538,13 +484,30 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
     let before = doc.clone();
     let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
         .expect("the gauge deletes");
+    // The mate names the dead instance with an instance-qualified
+    // head, which is a payload NAME and not a DAG edge: the delete
+    // stands and DM7's report rides beside the registry act, read at
+    // the door before the registry reconciles.
+    let mate_node = applied
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
+        .expect("the mate survives its member");
     assert_eq!(
         applied.maintenance,
-        vec![ClusterMaintenance::GaugeRewrite {
-            from: ids[0],
-            to: ids[1],
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        }],
+        vec![
+            Maintenance::Strand {
+                node: mate_node,
+                name: in_part(ids[0], PART_BODY),
+            },
+            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
+                from: ids[0],
+                to: ids[1],
+                frame: Some(Frame::translation([0.0, 0.0, 5.0])),
+            }),
+        ],
         "the key moves to the next representative, composed with the \
          already-solved relative pose, so the survivor's world pose \
          does not move"
@@ -1029,7 +992,7 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
         near(relative, Frame::translation([0.0, 0.0, 2.0]), 1e-12),
         "the plate seats at the rest, unturned (both patterns agree): {relative:?}"
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
 }
 
@@ -1094,7 +1057,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
 #[test]
 fn row6c_the_gather_ignores_the_mate_root() {
     let (doc, ids, store, _) = determined_pair();
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let mates: Vec<RecipeNodeId> = doc
         .order()
         .iter()
@@ -1151,7 +1114,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
     };
     assert_eq!(*head, ids[1]);
     assert!(fault.to_string().contains("rebind"), "{fault}");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(
         mate_fault(&ev, mate_id),
         editor_core::MateFault::DanglingHead { .. }
@@ -1297,7 +1260,10 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (in_part(ids[1], PART_BODY), in_part(ids[0], PART_BODY)),
+                    (
+                        SitedRef::new(ids[1], in_part(ids[1], PART_BODY)),
+                        SitedRef::new(ids[0], in_part(ids[0], PART_BODY)),
+                    ),
                     ContactClass::Rest,
                 )],
             },
@@ -1317,9 +1283,13 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         panic!("the declare is still there");
     };
     assert_eq!(
-        pairs[0].0.0,
+        pairs[0].0.0.name,
         in_part(ids[2], PART_BODY),
-        "the declaration was rewritten"
+        "the declaration's NAME was rewritten"
+    );
+    assert_eq!(
+        pairs[0].0.0.at, ids[1],
+        "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
         editor_core::reading_edges(&applied.doc),
@@ -1413,7 +1383,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
 #[test]
 fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     let (doc, ids, store) = assembly("asm-r2a-mate-name-door", 2);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(
         editor_core::apply_with_names(
             &doc,
@@ -1472,7 +1442,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &DocEdit::InsertNode {
             node: Node::Mate {
                 a,
-                b: SitedRef::at_mint(bogus.clone()),
+                b: crate::fixture::head(bogus.clone()),
                 class,
                 alignment,
             },
@@ -1665,7 +1635,7 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
         mates.push(id);
     }
     let outer = geom_core::k_stats::Bracket::open();
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let outside = outer.finish();
     let named = |escalations: &[geom_core::k_stats::Escalation]| {
         escalations

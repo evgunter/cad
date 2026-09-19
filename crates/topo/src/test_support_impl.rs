@@ -51,10 +51,11 @@
 //! `cargo test --release` satisfies `test` independently — which is why
 //! `debug_assertions` alone cannot serve as the existence gate.
 //!
-//! # Which home a new test item goes in (this crate has three)
+//! # Which home a new test item goes in (three under `src/`, and
+//! `tests/` besides)
 //!
 //! Stated here because this is the module the gate's argument lives in;
-//! the other two point at this paragraph rather than restating it. The
+//! the others point at this paragraph rather than restating it. The
 //! question that routes an item is **who needs to name it**:
 //!
 //! - **The library itself needs it** (a debug assert, an in-crate
@@ -68,16 +69,33 @@
 //!   `tests/` binary nothing because it is not compiled for one, and it
 //!   needs no feature. Do not move an item here just to share it with
 //!   `tests/`: a `tests/` binary cannot name it.
-//! - **Only `tests/` binaries need it, and the library never does** —
-//!   `tests/common/mod.rs`, which is compiled into the test binary
-//!   itself. Nothing in the library pays for it and no feature is
-//!   involved, so this is the cheapest home and the right default for
-//!   test-only scaffolding. The geometric cube lives there for exactly
-//!   this reason.
+//! - **A `tests/` binary needs it and the library's own probes may
+//!   too** — `crate::test_support_fixtures`, a sibling module behind
+//!   the same `test_support` door, gated on the test arms alone and so
+//!   not linkable from here either. The Euler-op fixture family lives
+//!   there. It is the only home the two can share: `src/fixtures.rs`
+//!   cannot be named from `tests/`, and a module under `tests/` cannot
+//!   be named from `src/`, so an item both must name has nowhere else
+//!   to go.
 //!
-//! The rule in one line: **an item lives at the narrowest of the three
-//! that all of its consumers can reach.** Reaching for this module when
-//! `tests/common` would do widens the library for nothing.
+//! A module under `tests/` is a home too, and the cheapest one —
+//! nothing in the library pays for it and no feature is involved —
+//! but it is not a fourth *vocabulary* home, because `src/` cannot
+//! reach it. It is where a fixture that exactly one suite family reads
+//! belongs; `tests/fixture/mod.rs` is the one such module today.
+//!
+//! **The unit that moves is the family, not the item.** An item's
+//! consumers set its floor — the narrowest home all of them can reach
+//! — and where a choice remains the narrowest wins, because widening
+//! the library for a `tests/`-only item buys nothing. But a builder,
+//! the key bundle it returns and the helpers that read that bundle are
+//! one vocabulary, and splitting them across two homes to save the
+//! library a few functions costs every reader the question of which
+//! half is where. So a family goes whole, to the floor of its widest
+//! member. That is the rule the Euler-op family follows: three of its
+//! items — `geometric_cube`, `describe_as_intersections` and
+//! `face_surface_of_he` — are named from `src/`, and the rest of the
+//! family sits beside them rather than in `tests/`.
 
 use geom_core::Real;
 

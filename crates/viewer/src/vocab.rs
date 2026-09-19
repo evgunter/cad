@@ -1,16 +1,18 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! **Ten** enums in this crate are *closed vocabularies*: a fixed set
+//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
-//! walk in order — a radio row, a combo's options, a suite's sweep.
-//! Each of them used to carry a hand-written `const ALL` beside the
+//! walk in order — a radio row, a combo's options, a suite's sweep —
+//! and one of them, `crate::marks::EdgeLane`, is a renderer's draw
+//! order walked the same way.
+//! Each of the chrome's used to carry a hand-written `const ALL` beside the
 //! enum, and that second copy of the membership was free to fall
 //! behind the first: **adding a variant compiled**, the radio row
 //! silently lost a button, and every sweep keyed on the list quietly
 //! narrowed.
 //!
-//! [`vocabulary!`] removes the second copy. The macro takes ONE list
+//! [`vocabulary`] removes the second copy. The macro takes ONE list
 //! of variants and expands it into the enum AND its `ALL`, so there is
 //! no way to add a variant without adding it to the list, and no way
 //! to add it to the list without adding it to the enum: they are the
@@ -22,9 +24,7 @@
 //! Where something walks a vocabulary's table and reads every entry's
 //! word — a combo drawing an option per row, a picker drawing a
 //! button per mode — the word belongs to the declaration and the
-//! table carries it; the accessor a single value's word is asked
-//! through is projected from that same list rather than written
-//! beside it as a second ordered reading. Where nothing walks the
+//! table carries it. Where nothing walks the
 //! table for words, they are not table data and a match beside the
 //! enum is the whole of it (`crates/viewer/README.md`, **Closed
 //! vocabularies are declared once**).
@@ -53,22 +53,29 @@
 //! beside its declaration and the form maps over it, which is what the
 //! boolean operations do — and the answer for one that claims none
 //! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
-//! deliberately partial list would force the wrong thing. Either way
-//! it is not a hole in this one.
+//! deliberately partial list would force the wrong thing. What such a
+//! list wants is to be TOLD its enum grew, which is the OTHER macro on
+//! this page: [`partial_mirror`] classifies every mirrored variant as
+//! offered or as deliberately absent, over a match with no wildcard.
+//! Either way it is not a hole in this one.
 //!
-//! A DELIBERATELY PARTIAL list is not a vocabulary either
+//! A DELIBERATELY PARTIAL mirror is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
 //! `Subject`s on purpose, and each tool's own seat list names its own
 //! seats). Those stay hand-written, because completeness is exactly
-//! what they do not claim.
+//! what they do not claim — and a MIRROR among them takes
+//! [`partial_mirror`] for the weaker thing that is true of it. A
+//! tool's seat list is not one: it specifies that tool rather than
+//! tracking `Seat`'s membership, so a new seat no tool asked for is
+//! absent from it correctly and there is nothing to be told.
 //!
 //! # What this costs: rustfmt stops at the invocation
 //!
 //! **`rustfmt` does not reach inside a `macro_rules!` invocation in
-//! item position**, so the ten enums declared through
-//! [`vocabulary!`] — every variant and every variant doc of
-//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and six
-//! more — are no longer mechanically formatted. Indentation in these
+//! item position**, so the eight enums declared through
+//! [`vocabulary`] — every variant and every variant doc of `Seat` (9),
+//! `ToolKind` (7) and six more — are no longer mechanically
+//! formatted. Indentation in these
 //! blocks is kept by hand.
 //!
 //! Demonstrated, not assumed: a variant re-indented to column 21
@@ -94,7 +101,7 @@
 //!
 //! **No explicit discriminants.** The labelled arm spends `= …` on the
 //! variant's word, so `Mate = 3` and `#[repr(u8)]` numbering are not
-//! available to these ten enums without un-converting them. **This is
+//! available to these eight enums without un-converting them. **This is
 //! a one-way door** and is the reason to state it here: an enum that
 //! later needs a wire number has to leave the macro to get one.
 //!
@@ -113,25 +120,6 @@
 /// fails to compile, which is the right answer to "which shape is
 /// this".
 ///
-/// A labelled vocabulary whose word is ALSO asked for one value at a
-/// time declares `fn label;` under its `ALL`, and gets that accessor
-/// projected from the same list as a match. **Declaring it is how the
-/// vocabulary asks for it**: a projection nobody asked for would be
-/// dead code in the five labelled vocabularies that never read one,
-/// and an `#[allow(dead_code)]` blanketing all of them would silence
-/// the report that an accessor has lost its last reader.
-///
-/// The name is `label` and the matcher spells it literally, not as a
-/// free parameter. A free one would let each site name the accessor
-/// whatever it liked, and the crate already spells this concept two
-/// ways — `ToolKind::label` and `Seat::name`, hand-written beside
-/// their bare enums. That is this macro's own argument turned on
-/// itself: `vocabulary!` exists because a second hand-written copy of
-/// a list drifts from the first, and an accessor whose name is a
-/// parameter reintroduces the drift one level up, in what the readers
-/// have to call. The VISIBILITY stays free, because it is a fact about
-/// who may read the word rather than a second spelling of anything.
-///
 /// `N` is counted from the same list, so no count is written down
 /// either.
 ///
@@ -148,9 +136,6 @@
 ///
 ///     /// Both ends with their button labels, in form order.
 ///     pub const ALL;
-///
-///     /// This end's word.
-///     pub fn label;
 /// }
 /// ```
 macro_rules! vocabulary {
@@ -158,51 +143,6 @@ macro_rules! vocabulary {
     (@count) => { 0usize };
     (@count $head:ident $($tail:ident)*) => {
         1usize + crate::vocab::vocabulary!(@count $($tail)*)
-    };
-
-    // LABELLED, and the word is asked for one value at a time too:
-    // the accessor is projected from the same list, so declaring it is
-    // how a vocabulary asks for it and no vocabulary carries one it
-    // never reads.
-    (
-        $(#[$emeta:meta])*
-        $evis:vis enum $name:ident {
-            $(
-                $(#[$vmeta:meta])*
-                $variant:ident = $label:literal
-            ),+ $(,)?
-        }
-
-        $(#[$ameta:meta])*
-        $avis:vis const $all:ident;
-
-        $(#[$fmeta:meta])*
-        $fvis:vis fn label;
-    ) => {
-        crate::vocab::vocabulary! {
-            $(#[$emeta])*
-            $evis enum $name {
-                $( $(#[$vmeta])* $variant = $label ),+
-            }
-
-            $(#[$ameta])*
-            $avis const $all;
-        }
-
-        impl $name {
-            $(#[$fmeta])*
-            ///
-            /// A match over the same list the array above is built
-            /// from, projected by the crate's `vocabulary!` macro
-            /// (`crates/viewer/src/vocab.rs`): the two readings are
-            /// the same tokens, and a variant with no word does not
-            /// parse.
-            $fvis const fn label(self) -> &'static str {
-                match self {
-                    $( Self::$variant => $label, )+
-                }
-            }
-        }
     };
 
     // LABELLED: every variant states the word the chrome shows.
@@ -270,3 +210,169 @@ macro_rules! vocabulary {
 }
 
 pub(crate) use vocabulary;
+
+/// **A partial mirror, told when the mirrored enum grows.**
+///
+/// Takes the mirrored enum, what the chrome OFFERS, and a ROSTER that
+/// classifies every variant of that enum as offered or as deliberately
+/// absent with the reason it is absent. Nothing here forces the
+/// offering to be COMPLETE — completeness is exactly what a
+/// deliberately partial mirror does not claim, and a mechanism that
+/// forced it would be forcing the wrong thing. What it forces is that
+/// every variant is one or the other, so a variant added to the
+/// mirrored enum is neither until someone writes one of the two, and
+/// the build says so.
+///
+/// # The half every shape has
+///
+/// `every_variant_is_offered_or_named_absent` is a match over the
+/// mirrored enum with one arm per roster entry — both sections — and
+/// no wildcard. A variant added to the enum has no arm, so `E0004`
+/// reds here and names it. The only way to silence it is to put that
+/// variant in one section or the other, which is the decision this
+/// instrument exists to force.
+///
+/// **The absent section is not a second hand-written list.** It is the
+/// other half of the one roster that match holds against the enum, so
+/// it cannot fall behind what it mirrors any more than the offered
+/// half can. The reason is required by the GRAMMAR rather than
+/// asserted over: an author cannot write an absence without saying
+/// what makes it deliberate.
+///
+/// # Three shapes, because the crate has three
+///
+/// What the offering IS decides the rest, and the three differ in
+/// whether a seat of it can drift from the roster:
+///
+/// - **`labelled <list>`** — a hand-written `[(Variant, &str); N]`.
+/// - **`bare <list>`** — a hand-written `[Variant; N]`. The two list
+///   shapes are [`vocabulary`]'s two, which is why they carry its
+///   words: a list is one or the other and a seat reads `list[n].0` or
+///   `list[n]` accordingly.
+/// - **`onto <Choice>`** — a separate FIELDLESS enum whose variants
+///   are the offering, each offered entry naming its counterpart in it
+///   (`Variant => Counterpart`).
+///
+/// **The two list shapes get a seat half**: one `assert!` per offered
+/// entry, in a `const` block, saying the list holds that variant at
+/// that seat. Classifying a new variant as offered therefore asserts
+/// `list[n]` for a seat the old list does not have — a const-eval
+/// error, out of bounds, until the list itself grows. Classifying it
+/// as absent asserts nothing further, which is the whole point: the
+/// list stays its own length and the roster says why. A trailing count
+/// check closes the third direction: an entry added to the list with
+/// no roster classification leaves the list longer than the offered
+/// section, and an entry moved from offered to absent leaves it
+/// shorter. **The offered section is therefore written in the LIST's
+/// order**, which is the order the chrome draws.
+///
+/// **`onto` has no seat half, and that is not a weaker arm.** Its
+/// offering is an enum, and a `vocabulary!` enum's `ALL` is projected
+/// from the declaration rather than written beside it, so naming
+/// `Choice::X` as a counterpart already says the chrome offers it —
+/// there is no second copy of the membership for a seat assertion to
+/// hold. What it expands to is the exhaustive half alone, with the
+/// counterpart named in each offered arm so the roster IS the mapping
+/// rather than a bare list of names. Order is inert in this arm, so
+/// the roster is written in the mirrored enum's own order.
+///
+/// # What `onto` cannot express
+///
+/// **A fieldless counterpart only.** The arm names `Choice::X` as a
+/// VALUE, so a counterpart carrying a payload does not compile. That
+/// is the same restriction [`vocabulary`] states, and it holds this
+/// arm to the case it argues: a form's choice enum. A partial mirror
+/// whose offering is a payload-carrying enum
+/// (`session::author::PatternRuleSpec` over `PatternKind`) is not
+/// served by this arm.
+macro_rules! partial_mirror {
+    // The exhaustive half, which is the same match whatever the
+    // offering is.
+    (@exhaustive $ty:ident,
+        [ $($ov:ident $({ $($op:tt)* })?),* ],
+        [ $($av:ident $({ $($ap:tt)* })?),* ]
+    ) => {
+        #[allow(dead_code)]
+        fn every_variant_is_offered_or_named_absent(value: $ty) {
+            match value {
+                $($ty::$ov $({ $($op)* })? => (),)*
+                $($ty::$av $({ $($ap)* })? => (),)*
+            }
+        }
+    };
+
+    // LABELLED list: a seat is `(Variant, &str)`.
+    (
+        $ty:ident, labelled $list:expr,
+        offered [ $($ov:ident $({ $($op:tt)* })?),+ $(,)? ],
+        absent [ $($av:ident $({ $($ap:tt)* })? => $why:literal),* $(,)? ] $(,)?
+    ) => {
+        const _: () = {
+            crate::vocab::partial_mirror!(@exhaustive $ty,
+                [ $($ov $({ $($op)* })?),+ ],
+                [ $($av $({ $($ap)* })?),* ]
+            );
+            let mut seat = 0;
+            $(
+                assert!(
+                    matches!($list[seat].0, $ty::$ov $({ $($op)* })?),
+                    "the offering has drifted from its roster: this seat \
+                     does not offer the variant the roster puts here"
+                );
+                seat += 1;
+            )+
+            assert!(
+                seat == $list.len(),
+                "the offering holds a variant its roster does not classify"
+            );
+        };
+    };
+
+    // BARE list: a seat is the variant itself.
+    (
+        $ty:ident, bare $list:expr,
+        offered [ $($ov:ident $({ $($op:tt)* })?),+ $(,)? ],
+        absent [ $($av:ident $({ $($ap:tt)* })? => $why:literal),* $(,)? ] $(,)?
+    ) => {
+        const _: () = {
+            crate::vocab::partial_mirror!(@exhaustive $ty,
+                [ $($ov $({ $($op)* })?),+ ],
+                [ $($av $({ $($ap)* })?),* ]
+            );
+            let mut seat = 0;
+            $(
+                assert!(
+                    matches!($list[seat], $ty::$ov $({ $($op)* })?),
+                    "the offering has drifted from its roster: this seat \
+                     does not offer the variant the roster puts here"
+                );
+                seat += 1;
+            )+
+            assert!(
+                seat == $list.len(),
+                "the offering holds a variant its roster does not classify"
+            );
+        };
+    };
+
+    // ONTO a fieldless choice enum: the offering is projected from its
+    // own declaration, so there is no seat to hold and the roster is
+    // the mapping.
+    (
+        $ty:ident, onto $cty:ident,
+        offered [ $($ov:ident $({ $($op:tt)* })? => $cv:ident),+ $(,)? ],
+        absent [ $($av:ident $({ $($ap:tt)* })? => $why:literal),* $(,)? ] $(,)?
+    ) => {
+        const _: () = {
+            #[allow(dead_code)]
+            fn every_variant_is_offered_or_named_absent(value: $ty) -> Option<$cty> {
+                match value {
+                    $($ty::$ov $({ $($op)* })? => Some($cty::$cv),)+
+                    $($ty::$av $({ $($ap)* })? => None,)*
+                }
+            }
+        };
+    };
+}
+
+pub(crate) use partial_mirror;

@@ -21,8 +21,9 @@ use editor_core::eval::WitnessSlot;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
-    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
+    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
+    resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -86,7 +87,6 @@ fn slide_union(tx: f64) -> Slide {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
     let (doc, transform) = insert(
         doc,
         Node::Transform {
@@ -96,6 +96,10 @@ fn slide_union(tx: f64) -> Slide {
             rotation_angle: ang(0.0),
         },
     );
+    // The B side is read at the TRANSFORM — the boolean's operand —
+    // and named in `b0`'s vocabulary, which the transform carries
+    // verbatim (N1).
+    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Boolean {
@@ -374,7 +378,13 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    let (doc, _decl) = insert(doc, Node::declare_rest(vec![(cap_a, cap_b.clone())]));
+    let (doc, _decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::at_mint(cap_a),
+            SitedRef::at_mint(cap_b.clone()),
+        )]),
+    );
     // b has no DAG dependents (Declare names are refs, not edges):
     // deletion is allowed and strands cap_b — N5's ratified dangling
     // semantics.
@@ -450,6 +460,7 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
             eval: &ev1,
         },
         &probe,
+        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -469,12 +480,17 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
         predicate,
         from,
         to,
+        source,
     } = diagnosis
     else {
         panic!("expected PredicateFlip, got {diagnosis:?}");
     };
     assert!(!predicate.is_empty());
     assert_ne!(from, to);
+    // The pillar's promise is a RECORDED flip: this scenario's two
+    // runs both logged the predicate, so the source is the log and
+    // not the shadow-exec recovery rung (issue 134).
+    assert_eq!(*source, editor_core::FlipSource::VerdictLog);
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
     let t = last_good.as_ref().expect("prior run resolved the name");
@@ -552,6 +568,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
             eval: &ev1,
         },
         &inst2,
+        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -627,6 +644,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
             eval: &ev1,
         },
         &inst,
+        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -652,6 +670,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
             eval: &ev1,
         },
         &master,
+        Tol::witness(),
     );
     let Resolution::Failed(fm) = res_master else {
         panic!("expected Failed, got {res_master:?}");
@@ -744,7 +763,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(cap_a.clone(), cap_b.clone())])
+                node: Node::declare_rest(vec![(
+                    SitedRef::at_mint(cap_a.clone()),
+                    SitedRef::at_mint(cap_b.clone()),
+                )])
             },
             &ev,
             Tol::witness(),
@@ -763,7 +785,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let err = apply_with_names(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::declare_rest(vec![(cap_a.clone(), bogus.clone())]),
+            node: Node::declare_rest(vec![(
+                SitedRef::at_mint(cap_a.clone()),
+                SitedRef::at_mint(bogus.clone()),
+            )]),
         },
         &ev,
         Tol::witness(),
@@ -782,7 +807,10 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         apply_with_names(
             &doc2,
             &DocEdit::InsertNode {
-                node: Node::declare_rest(vec![(cap_a, cap_c)])
+                node: Node::declare_rest(vec![(
+                    SitedRef::at_mint(cap_a),
+                    SitedRef::at_mint(cap_c),
+                )])
             },
             &ev,
             Tol::witness(),
@@ -916,7 +944,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
             vertex: x,
             support: y,
         }
-        | RoleSeg::CornerArc { vertex: x, edge: y } => under(x) || under(y),
+        | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // ANOTHER document's id space: a local name and a part-local
@@ -1157,6 +1185,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
             eval: &ev1,
         },
         &target,
+        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -1429,6 +1458,7 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
                 predicate: "name_frag_side_of",
                 from: Sign::Negative,
                 to: Sign::Positive,
+                source: editor_core::FlipSource::VerdictLog,
             },
             "the recorded qualifier delta is the honest flip"
         );
@@ -1458,6 +1488,7 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
             eval: &prior_ev,
         },
         &old_name,
+        Tol::witness(),
     ));
     let t = last_good.expect("the prior run resolved the name");
     assert_eq!(t.patch.node, n);

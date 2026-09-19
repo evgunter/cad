@@ -35,6 +35,7 @@ from pncad import (
     EvaluationError,
     Expr,
     Frame,
+    FrameError,
     GeomPred,
     NamePat,
     Node,
@@ -1038,20 +1039,33 @@ class TestTheSketchPlaneVocabulary(unittest.TestCase):
         with self.assertRaises(TypeError):
             Node.sketch_frame(elevation=1 * m, plane=SketchPlane.yz())
 
-    def test_rigidity_is_an_unchecked_convention(self):
-        """The Rust contract, verbatim: a non-rigid frame is a
-        well-defined SKEWED sketch, not a refusal. The binding adds no
-        orthogonality predicate — it would be a check the kernel does
-        not make."""
-        skewed = SketchPlane.from_frame(
+    def test_rigidity_is_the_doors_not_the_callers(self):
+        """The Rust contract, verbatim: `from_frame` ORTHONORMALIZES
+        the pair it is given — `u` normalized and kept, `v` yielding
+        its component along `u` — so what a caller reads back off a
+        plane built here is perpendicular whatever they passed in. It
+        is the DOOR that decides, not the class. The binding adds no
+        predicate of its own; what it adds is that the pair must span
+        a plane."""
+        # `v` leans 45 degrees into `u`, and comes back as the part of
+        # itself that does not: the world xy plane, exactly.
+        leaning = SketchPlane.from_frame(
             (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)
         )
+        self.assertEqual(leaning.u, (1.0, 0.0, 0.0))
+        self.assertEqual(leaning.v, (0.0, 1.0, 0.0))
+        self.assertEqual(leaning.normal, (0.0, 0.0, 1.0))
         doc = Doc()
-        prism = letter(doc, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], skewed, 1.0)
-        # A sheared prism, not a cube: the sketch square lands as a
-        # parallelogram (unit area, since det[u v n] = 1) swept 1 up
-        # the frame's normal. Well-defined geometry either way.
+        prism = letter(doc, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], leaning, 1.0)
         self.assertAlmostEqual(volume_of(doc, prism), 1.0, delta=1e-12)
+        # And a pair that spans NO plane refuses, naming the axis the
+        # length question was asked of.
+        with self.assertRaises(FrameError) as caught:
+            SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0))
+        self.assertEqual(caught.exception.variant, "degenerate_v_axis")
+        with self.assertRaises(FrameError) as caught:
+            SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+        self.assertEqual(caught.exception.variant, "degenerate_u_axis")
 
 
 # ------------------------------------------------------------------
@@ -4121,7 +4135,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "delete_node",
                 "insert_node", "rebind", "set_doc_param",
-                "set_doc_param_value", "set_members", "set_param",
+                "set_doc_param_distribution", "set_doc_param_unit",
+                "set_doc_param_value",
+                "set_members", "set_param",
                 "set_placement", "set_roots", "set_tolerance",
                 "update_reference",
             ],

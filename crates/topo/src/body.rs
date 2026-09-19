@@ -3,9 +3,13 @@
 //!
 //! A body is a plain value (D1): cheaply cloneable, serializable later,
 //! validatable now. It owns ten slotmap arenas — seven topology kinds,
-//! each with its own key type, and three geometry kinds — plus one D5
-//! provenance `SecondaryMap` per topology kind (**uniform across all
-//! seven** — half-edges carry provenance like everything else).
+//! each with its own key type, and three geometry kinds — and the side
+//! tables parallel to them: one D5 provenance `SecondaryMap` per
+//! topology kind (**uniform across all seven** — half-edges carry
+//! provenance like everything else); one [`crate::GeomOrigin`] row per
+//! geometric description, total over live keys; the per-field
+//! `ParamSource` rows beside the surfaces; the half-edges' fitted
+//! pcurves; and the null-face pairs.
 //!
 //! # Determinism (D9)
 //!
@@ -62,7 +66,7 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
-use crate::source::{GeomSource, SourceAttachError};
+use crate::source::{GeomOrigin, GeomSource, SourceAttachError};
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -170,16 +174,20 @@ pub struct Body<T: Real> {
     pub(crate) half_edge_provenance: SecondaryMap<HalfEdgeKey, Provenance>,
     pub(crate) edge_provenance: SecondaryMap<EdgeKey, Provenance>,
     pub(crate) vertex_provenance: SecondaryMap<VertexKey, Provenance>,
-    // N6 GeomSource records (M4 PR 5), parallel to the geometry arenas
-    // exactly as provenance parallels the topology arenas: the recipe
-    // source of each description, stamped by the recipe layer
-    // (`editor-core`) after each op and carried by clone and graft.
-    // An absent row = no recipe source (raw/kernel-level
-    // construction); absence never certifies coincidence (the
-    // ladder's conservative direction).
-    pub(crate) point_sources: SecondaryMap<PointKey, GeomSource>,
-    pub(crate) curve_sources: SecondaryMap<CurveKey, GeomSource>,
-    pub(crate) surface_sources: SecondaryMap<SurfaceKey, GeomSource>,
+    // Where each geometric description came from (`crate::GeomOrigin`),
+    // parallel to the geometry arenas exactly as provenance parallels
+    // the topology arenas, and carried by clone and graft. ONE row per
+    // description: N6's recipe `GeomSource` (M4 PR 5) is the `Recipe`
+    // arm's payload, which `Body::surface_source` and its siblings
+    // project, and the other three arms are the origins a description
+    // with no recipe can have. TOTAL over live keys — the mint doors
+    // write `KernelDirect` — so a live key with no row is a kernel bug,
+    // not an origin. Absence of a RECIPE never certifies coincidence
+    // (the ladder's conservative direction); what it means is this
+    // row's arm, never an inference.
+    pub(crate) point_origins: SecondaryMap<PointKey, GeomOrigin>,
+    pub(crate) curve_origins: SecondaryMap<CurveKey, GeomOrigin>,
+    pub(crate) surface_origins: SecondaryMap<SurfaceKey, GeomOrigin>,
     // ParamSource records (VERB-SEAT-DESIGN P1), one level finer than
     // the GeomSource maps above: the recipe expression behind each
     // STORED SCALAR FIELD of a surface description, stamped by the
@@ -224,9 +232,9 @@ impl<T: Real> Body<T> {
             half_edge_provenance: SecondaryMap::new(),
             edge_provenance: SecondaryMap::new(),
             vertex_provenance: SecondaryMap::new(),
-            point_sources: SecondaryMap::new(),
-            curve_sources: SecondaryMap::new(),
-            surface_sources: SecondaryMap::new(),
+            point_origins: SecondaryMap::new(),
+            curve_origins: SecondaryMap::new(),
+            surface_origins: SecondaryMap::new(),
             surface_field_sources: SecondaryMap::new(),
             #[cfg(debug_assertions)]
             surgery: crate::surgery::SurgeryDepth::default(),
@@ -260,17 +268,28 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion (see the builder-API note in the
     /// source): no validity promises.
+    ///
+    /// **The point's origin is written here**
+    /// ([`GeomOrigin::KernelDirect`]): this is the one door a point
+    /// enters the arena through, and nothing above it carries recipe
+    /// context down. That is what makes the origin map total over live
+    /// keys — see [`GeomOrigin`].
     pub(crate) fn add_point(&mut self, point: Point3<T>) -> PointKey {
-        self.points.insert(point)
+        let key = self.points.insert(point);
+        self.point_origins.insert(key, GeomOrigin::KernelDirect);
+        key
     }
 
     /// Inserts curve geometry (a certified [`EdgeCurve`] — certification
     /// is the only way to build one), returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises beyond what
-    /// the `EdgeCurve` itself carries.
+    /// the `EdgeCurve` itself carries. Writes the description's origin
+    /// ([`Body::add_point`]).
     pub(crate) fn add_curve(&mut self, curve: EdgeCurve<T>) -> CurveKey {
-        self.curves.insert(CurveGeom::Certified(curve))
+        let key = self.curves.insert(CurveGeom::Certified(curve));
+        self.curve_origins.insert(key, GeomOrigin::KernelDirect);
+        key
     }
 
     /// Inserts a null-edge scaffolding entry
@@ -279,16 +298,23 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion: no validity promises (the attribute
     /// vertices may dangle — scaffolding coherence is the minting op's
-    /// contract).
+    /// contract). Writes the entry's origin ([`Body::add_point`]): a
+    /// scaffolding entry occupies a live curve key like any other, so
+    /// the map stays total.
     pub(crate) fn add_null_curve(&mut self, attr: NullEdge) -> CurveKey {
-        self.curves.insert(CurveGeom::NullScaffold(attr))
+        let key = self.curves.insert(CurveGeom::NullScaffold(attr));
+        self.curve_origins.insert(key, GeomOrigin::KernelDirect);
+        key
     }
 
     /// Inserts surface geometry, returning its key.
     ///
-    /// Crate-internal raw insertion: no validity promises.
+    /// Crate-internal raw insertion: no validity promises. Writes the
+    /// description's origin ([`Body::add_point`]).
     pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
-        self.surfaces.insert(surface)
+        let key = self.surfaces.insert(surface);
+        self.surface_origins.insert(key, GeomOrigin::KernelDirect);
+        key
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
@@ -444,7 +470,7 @@ impl<T: Real> Body<T> {
         let Some(removed) = self.curves.remove(curve) else {
             return false;
         };
-        self.curve_sources.remove(curve);
+        self.curve_origins.remove(curve);
         for surface in Self::description_surfaces(&removed) {
             self.remove_surface_if_orphaned(surface);
         }
@@ -473,7 +499,7 @@ impl<T: Real> Body<T> {
         }
         let removed = self.surfaces.remove(surface).is_some();
         if removed {
-            self.surface_sources.remove(surface);
+            self.surface_origins.remove(surface);
             self.surface_field_sources.remove(surface);
         }
         removed
@@ -511,34 +537,120 @@ impl<T: Real> Body<T> {
         }
         let removed = self.points.remove(point).is_some();
         if removed {
-            self.point_sources.remove(point);
+            self.point_origins.remove(point);
         }
         removed
     }
 
     // ------------------------------------------------------------------
-    // GeomSource records (N6, M4 PR 5) — see `crate::source`.
+    // Description provenance (N6's `GeomSource` on the `Recipe` arm,
+    // and where a description with no recipe came from) — see
+    // `crate::source`.
     // ------------------------------------------------------------------
 
     /// The recipe source of a surface description, if the recipe layer
-    /// stamped one (`None` for raw/kernel-level constructions — never
-    /// coincidence-certifying).
+    /// stamped one — never coincidence-certifying. The projection of
+    /// [`GeomOrigin`]'s `Recipe` arm, and N6's whole channel.
+    ///
+    /// **`None` answers "is there a recipe source", not "where did
+    /// this come from".** Reading it as the second question conflates
+    /// an import, a hand-built description, a kernel-derived one and a
+    /// CLEARED one whose re-stamp never ran; [`Body::surface_origin`]
+    /// is the total read that separates them.
     pub fn surface_source(&self, key: SurfaceKey) -> Option<&GeomSource> {
-        self.surface_sources.get(key)
+        self.surface_origins.get(key)?.source()
     }
 
-    /// The recipe source of a curve description ([`Body::surface_source`]).
+    /// The recipe source of a curve description ([`Body::surface_source`]),
+    /// with the same caveat on `None` ([`Body::curve_origin`]).
     pub fn curve_source(&self, key: CurveKey) -> Option<&GeomSource> {
-        self.curve_sources.get(key)
+        self.curve_origins.get(key)?.source()
     }
 
-    /// The recipe source of a point ([`Body::surface_source`]).
+    /// The recipe source of a point ([`Body::surface_source`]), with the
+    /// same caveat on `None` ([`Body::point_origin`]).
     pub fn point_source(&self, key: PointKey) -> Option<&GeomSource> {
-        self.point_sources.get(key)
+        self.point_origins.get(key)?.source()
+    }
+
+    /// **Where the surface description at `key` came from**
+    /// ([`GeomOrigin`]) — total over live keys, with no absence arm.
+    ///
+    /// `None` here is not an origin and never was one: it is the key
+    /// failing to resolve, the same answer [`Body::get_face`] and every
+    /// other lookup on this type gives a stale key. A live description
+    /// always has an origin, and that is the point of the door.
+    ///
+    /// # Panics
+    ///
+    /// `unreachable!` if the key resolves in the arena and carries no
+    /// origin row (D9 row 4, a state observable in a branch): the mint
+    /// doors write one, so a live description without one means a
+    /// description reached the arena outside [`Body::add_surface`], or
+    /// a door dropped the row of a description it kept.
+    pub fn surface_origin(&self, key: SurfaceKey) -> Option<&GeomOrigin> {
+        self.surfaces.get(key)?;
+        Some(self.surface_origins.get(key).unwrap_or_else(|| {
+            unreachable!(
+                "live surface {key:?} carries no origin row: `Body::add_surface` writes one at \
+                 every mint, so the map is total over live keys (kernel bug — a description \
+                 entered the arena outside the mint door, or a door dropped a live row)"
+            )
+        }))
+    }
+
+    /// Where the curve description at `key` came from
+    /// ([`Body::surface_origin`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::surface_origin`], for `Body::add_curve` and
+    /// `Body::add_null_curve`.
+    pub fn curve_origin(&self, key: CurveKey) -> Option<&GeomOrigin> {
+        self.curves.get(key)?;
+        Some(self.curve_origins.get(key).unwrap_or_else(|| {
+            unreachable!(
+                "live curve {key:?} carries no origin row: the curve mint doors write one at \
+                 every mint, so the map is total over live keys (kernel bug — a description \
+                 entered the arena outside a mint door, or a door dropped a live row)"
+            )
+        }))
+    }
+
+    /// Where the point at `key` came from ([`Body::surface_origin`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::surface_origin`], for `Body::add_point`.
+    pub fn point_origin(&self, key: PointKey) -> Option<&GeomOrigin> {
+        self.points.get(key)?;
+        Some(self.point_origins.get(key).unwrap_or_else(|| {
+            unreachable!(
+                "live point {key:?} carries no origin row: `Body::add_point` writes one at \
+                 every mint, so the map is total over live keys (kernel bug — a point entered \
+                 the arena outside the mint door, or a door dropped a live row)"
+            )
+        }))
     }
 
     /// Stamps (or replaces) the recipe source of a surface description
     /// — the recipe layer's post-op attachment door.
+    ///
+    /// **The description's origin becomes the recipe**
+    /// ([`GeomOrigin::Recipe`]), superseding whatever it was: a
+    /// [`GeomOrigin::Cleared`] mark is discharged exactly here, which
+    /// IS the re-stamp the clearing door expects.
+    ///
+    /// **Lossy in one direction, deliberately.** Stamping over
+    /// [`GeomOrigin::Imported`] erases the import fact for good — the
+    /// description reads `Recipe`, and a later
+    /// [`Body::clear_geom_sources`] leaves it `Cleared`, never
+    /// `Imported`. That is the right precedence (a recipe is the finer
+    /// identity, and a body the recipe layer evaluates is one the
+    /// document owns), and it is unreachable today: no in-tree caller
+    /// stamps an adopted body. The row
+    /// `geom_origin_rows::stamping_an_imported_body_erases_the_import_fact`
+    /// characterises it against the day one does.
     ///
     /// # Errors
     ///
@@ -552,7 +664,7 @@ impl<T: Real> Body<T> {
         if self.surfaces.get(key).is_none() {
             return Err(SourceAttachError::StaleKey);
         }
-        self.surface_sources.insert(key, source);
+        self.surface_origins.insert(key, GeomOrigin::Recipe(source));
         Ok(())
     }
 
@@ -570,7 +682,7 @@ impl<T: Real> Body<T> {
         if self.curves.get(key).is_none() {
             return Err(SourceAttachError::StaleKey);
         }
-        self.curve_sources.insert(key, source);
+        self.curve_origins.insert(key, GeomOrigin::Recipe(source));
         Ok(())
     }
 
@@ -587,7 +699,7 @@ impl<T: Real> Body<T> {
         if self.points.get(key).is_none() {
             return Err(SourceAttachError::StaleKey);
         }
-        self.point_sources.insert(key, source);
+        self.point_origins.insert(key, GeomOrigin::Recipe(source));
         Ok(())
     }
 
@@ -655,10 +767,85 @@ impl<T: Real> Body<T> {
     /// channels: a rigid map rewrites a description's bits but cannot
     /// change a radius, so a field's identity survives the placement
     /// verbatim (`crate::param_source`).
+    ///
+    /// **The clear leaves a trace the re-stamp overwrites.** Every
+    /// description that held a source reads [`GeomOrigin::Cleared`]
+    /// afterwards ([`Body::surface_origin`]), so a lost re-stamp is a
+    /// state a reader can NAME rather than a silence it cannot tell
+    /// from a hand-built body's. Descriptions that held no source are
+    /// untouched: their origin did not change, because nothing was
+    /// dropped.
     pub fn clear_geom_sources(&mut self) {
-        self.point_sources.clear();
-        self.curve_sources.clear();
-        self.surface_sources.clear();
+        for (_, origin) in self.point_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::Recipe(_)) {
+                *origin = GeomOrigin::Cleared;
+            }
+        }
+        for (_, origin) in self.curve_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::Recipe(_)) {
+                *origin = GeomOrigin::Cleared;
+            }
+        }
+        for (_, origin) in self.surface_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::Recipe(_)) {
+                *origin = GeomOrigin::Cleared;
+            }
+        }
+    }
+
+    /// **Declares every description this body now holds to have been
+    /// adopted from an exchange file** ([`GeomOrigin::Imported`], D7) —
+    /// the importer's door, called once on the body it ships.
+    ///
+    /// Body-wide rather than per-key because that is the claim a
+    /// producer is in a position to make: an importer knows the whole
+    /// body came out of a file, and no kernel op can tell one of its
+    /// descriptions from another's. Descriptions minted AFTER this call
+    /// read [`GeomOrigin::KernelDirect`] from their own mint, which is
+    /// the truth — a boolean run on an imported body derives new
+    /// geometry that was in no file.
+    ///
+    /// **It marks the [`GeomOrigin::KernelDirect`] arm and nothing
+    /// else**, because that is the only arm the claim is true of. The
+    /// claim is *a producer adopting a body it has just built from a
+    /// file*: every description of such a body is kernel-direct at the
+    /// moment of the call — the importer minted them all and no recipe
+    /// evaluated any of them — so the other two arms are descriptions
+    /// the caller did not get from the file.
+    ///
+    /// - [`GeomOrigin::Recipe`] is left alone: the recipe is the finer
+    ///   identity, and the two never coexist.
+    /// - [`GeomOrigin::Cleared`] is left alone, and that is the arm
+    ///   this matters for. `Cleared` says a recipe source was dropped
+    ///   and the re-stamp never ran — the defect this channel exists
+    ///   to name. Overwriting it with a legitimate origin would erase
+    ///   exactly that evidence, one public door over from the door
+    ///   that recorded it.
+    ///
+    /// **The direction it does NOT take** is refusing. A non-
+    /// `KernelDirect` row is not a caller bug this door can prove: the
+    /// caller is making a true statement about the descriptions it
+    /// minted and an unfounded one about the rest, and the narrower
+    /// answer — mark what the claim covers, leave what it does not —
+    /// costs no caller anything. The one in-tree caller
+    /// (`step-import`'s `import_step`) ships a body whose every row is
+    /// `KernelDirect`, so it marks all of them.
+    pub fn mark_imported(&mut self) {
+        for (_, origin) in self.point_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::KernelDirect) {
+                *origin = GeomOrigin::Imported;
+            }
+        }
+        for (_, origin) in self.curve_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::KernelDirect) {
+                *origin = GeomOrigin::Imported;
+            }
+        }
+        for (_, origin) in self.surface_origins.iter_mut() {
+            if matches!(origin, GeomOrigin::KernelDirect) {
+                *origin = GeomOrigin::Imported;
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -677,6 +864,73 @@ impl<T: Real> Body<T> {
     /// not caught — see the [module docs](self)).
     pub fn get_shell(&self, key: ShellKey) -> Option<&Shell> {
         self.shells.get(key)
+    }
+
+    /// The solid owning `face` — through its shell's back-pointer — or
+    /// `None` where the face or its shell does not resolve. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign face key does not stop at
+    /// the first hop: it resolves to whatever face the arena's slot
+    /// holds and answers about the shell THAT face names.
+    ///
+    /// **`None` is the only refusal this door can make**, and it is a
+    /// `&self` read, so three shapes of caller keep a hand-written
+    /// walk. Each is a population, not an exception:
+    ///
+    /// - **A refusal that distinguishes the hops.**
+    ///   `offset_together::scope_of_moves` names the caller's own
+    ///   stale face key on hop 1 and the body's incoherence on hop 2;
+    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
+    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
+    ///   `EntityId::Shell` on hop 2.
+    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   reds on either way of collapsing `scope_of_moves`'s two.
+    /// - **A caller still using the intermediate shell key.**
+    ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
+    ///   shell key is live past the `.solid` read, so this door cannot
+    ///   replace that walk — only add a second resolution of a face
+    ///   key the function has already resolved.
+    /// - **A write.** `euler_ring`'s corruption fixtures set
+    ///   `Shell::solid` through `get_shell_mut`.
+    ///
+    /// **No census is claimed here.** How many hand-written spellings
+    /// remain, where, and under which instrument they were counted is
+    /// measured in
+    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`
+    /// — dated there, held true by no mechanical guard, and
+    /// re-measured by a lane rather than by this sentence.
+    #[must_use]
+    pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
+        self.get_face(face)
+            .and_then(|d| self.get_shell(d.shell))
+            .map(|s| s.solid)
+    }
+
+    /// The face owning `he`'s loop — through the half-edge's
+    /// [`HalfEdge::parent_loop`] back-pointer and that loop's
+    /// [`Loop::face`] — or `None` where either key is stale. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign half-edge key does not stop
+    /// at the first hop: it resolves to whatever half-edge the arena's
+    /// slot holds and answers about the loop THAT half-edge names.
+    ///
+    /// Every spelling in this crate that STOPS at the face and refuses
+    /// uniformly across the two hops reads through here. Six more
+    /// compose a further hop past the face (`.surface`, `Face::shell`)
+    /// and are deferred with that decision, not kept for a reason.
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose own refusal distinguishes the hops — naming which key
+    /// went stale — keeps its own walk: collapsing it here would
+    /// replace a refusal that identifies an entity with one that does
+    /// not. That is a population, not an exception. It is sixteen
+    /// sites in this crate alone, and they are enumerated with their
+    /// postures in
+    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`;
+    /// a lane adding a seventeenth reads that list, not this sentence.
+    #[must_use]
+    pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
+        self.get_loop(self.get_half_edge(he)?.parent_loop)
+            .map(|l| l.face)
     }
 
     /// The face at `key`, or `None` if the key is stale (a foreign key is
@@ -1053,6 +1307,8 @@ impl<T: Real> Default for Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::EntityId;
+    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, pillow, prov};
     use geom_core::Tol;
 
@@ -1230,6 +1486,61 @@ mod tests {
     }
 
     #[test]
+    fn face_of_half_edge_walks_and_refuses_on_either_stale_key() {
+        let mut t = pillow(Tol::witness());
+        // Both halves of e0 reach their own face, and they differ.
+        let fa = t.body.face_of_half_edge(t.hes_a[0]).unwrap();
+        let fb = t.body.face_of_half_edge(t.hes_b[0]).unwrap();
+        assert_eq!(fa, t.face_a);
+        assert_eq!(fb, t.face_b);
+        assert_ne!(fa, fb);
+        // A stale half-edge key.
+        assert_eq!(t.body.face_of_half_edge(HalfEdgeKey::default()), None);
+        // A live half-edge whose loop back-pointer is stale: the second
+        // hop is the one that refuses, and it refuses the same way.
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
+    }
+
+    /// All three refusal postures over the one door, because a fold
+    /// that flattened any of them into another leaves every other row
+    /// green.
+    #[test]
+    fn the_walk_consumers_keep_their_own_refusal() {
+        let mut t = pillow(Tol::witness());
+        // `Option`: the edge door names WHICH faces, in
+        // `he_plus`-then-`he_minus` order. `is_some()` would pass on an
+        // `(f_plus, f_plus)` — the typo a re-spelling of two
+        // near-identical lines makes — so the pair is asserted.
+        let e = t.body.get_edge(t.edges[0]).unwrap().clone();
+        assert_eq!(e.he_plus, t.hes_a[0]);
+        assert_eq!(e.he_minus, t.hes_b[0]);
+        assert_eq!(
+            crate::replace_face::edge_faces(&t.body, t.edges[0]),
+            Some((t.face_a, t.face_b))
+        );
+        assert_ne!(t.face_a, t.face_b);
+        let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
+        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
+        // REFUSAL, not a `None` a caller may drop.
+        assert!(matches!(
+            crate::offset_together::faces_at_vertex(&t.body, v),
+            Err(ReplaceFaceError::Corrupt)
+        ));
+        // Typed `Result` that NAMES the entity. This is the arm the
+        // door cannot express, so it is the arm a fold would flatten
+        // silently; the agnostic arm above is never at risk.
+        assert!(matches!(
+            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
+            Err(crate::sector_face::SectorFaceError::Corrupt(
+                EntityId::Loop(_)
+            ))
+        ));
+    }
+
+    #[test]
     fn half_edge_end_is_derived_from_next() {
         let t = pillow(Tol::witness());
         // a0 runs v0 → v1; its end is the start of its next (a1).
@@ -1329,6 +1640,41 @@ mod tests {
         t.body.half_edges.remove(dead);
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = dead;
         assert_eq!(t.body.loop_cycle(t.hes_a[0]), None);
+    }
+
+    /// `None` from an origin reader is the key failing to resolve, not
+    /// an origin — the same answer every other lookup on `Body` gives a
+    /// key it does not hold.
+    ///
+    /// The key is made stale **inside one body** (mint, remove, read),
+    /// not borrowed from another: a foreign key is documented as
+    /// possibly resolving to an arbitrary entity (module docs), so a
+    /// row that reads one against an empty body is pinning the fixture,
+    /// not staleness. These rows live here rather than in
+    /// `tests/geom_origin_rows.rs` because the mint and orphan doors
+    /// are crate-internal.
+    #[test]
+    fn a_stale_key_has_no_origin() {
+        let mut body = Body::<f64>::new();
+        let point = body.add_point(origin());
+        let surface = body.add_surface(Surface::Plane {
+            origin: Point3::origin(),
+            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert_eq!(body.point_origin(point), Some(&GeomOrigin::KernelDirect));
+        assert_eq!(
+            body.surface_origin(surface),
+            Some(&GeomOrigin::KernelDirect)
+        );
+
+        assert!(body.remove_point_if_orphaned(point));
+        assert!(body.remove_surface_if_orphaned(surface));
+        assert_eq!(body.point_origin(point), None);
+        assert_eq!(body.surface_origin(surface), None);
+        // And so does the projection the recipe layer reads.
+        assert_eq!(body.point_source(point), None);
+        assert_eq!(body.surface_source(surface), None);
     }
 
     #[test]

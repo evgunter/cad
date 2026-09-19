@@ -19,36 +19,50 @@
 //! spelling does. Nothing here is a threshold, so there is no magnitude
 //! to go stale against a format.
 //!
-//! # Why this is a module and not four format strings
+//! # Why this is a module and not a format string per site
 //!
-//! Four places in the chrome render a length: the δ badge and the
-//! budget's status line ([`crate::frame::delta_badge`],
-//! [`crate::scene::FittedDelta::wording`]), the range probe's sentence
-//! ([`crate::bounds::Bounds::wording`]) and the view pane's camera
-//! readout. Two of them hold a [`crate::scene::DisplayTolerance`] and
-//! two hold a bare `f64` in some display unit, so the rule cannot be a
-//! method on that type without being written twice — once as the
-//! method and once, by hand, wherever the type is absent. It is one
-//! function over the value, and
-//! [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing door
-//! onto it: the millimetre conversion, and nothing else.
+//! **The population is every render of a number this crate writes**,
+//! which is not a list anyone can hold: the sweep that produces it is
+//! *every `{…}` in the crate whose argument is a quantity*, and it
+//! reaches both the sentences the chrome composes and the fields a
+//! person edits. The read-only half holds a
+//! [`crate::scene::DisplayTolerance`] in two places and a bare `f64` in
+//! a display unit in the others, so the rule cannot be a method on that
+//! type without being written twice — once as the method and once, by
+//! hand, wherever the type is absent. It is one function over the
+//! value, [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing
+//! door onto it (the millimetre conversion, and nothing else), and
+//! `crate::widgets::number_text` is the fields' door.
 //!
 //! # What it is not
 //!
-//! It is not exact, and it is not a commit path. Four significant
-//! figures is what the character bound buys, and a δ the triangle
-//! budget chose is `constant / TRIANGLE_BUDGET` — seventeen. The number
-//! a value moves to is one a user types, never one the chrome echoed at
-//! them.
+//! It is not exact wherever the character bound is what ends the
+//! search: four significant figures is what ten characters buy, and a δ
+//! the triangle budget chose is `constant / TRIANGLE_BUDGET` —
+//! seventeen. The one band where it IS exact is the top of `f64`, and
+//! that is the bound giving way rather than the rule: four figures round
+//! out of the type there, and a text that reads as infinity names no
+//! value at all.
+//!
+//! **It is reached from a commit path and is not one.** An
+//! `egui::DragValue` seeds its keyboard edit with the text it last
+//! showed and writes the parse back when it loses focus, so what a
+//! field renders is what clicking into it and away again commits —
+//! which is why `crate::widgets::number_text` exists and why
+//! [`REL_TOLERANCE`] bounds that commit as well as that render. The
+//! number a value moves to on purpose is one a user types, never one
+//! the chrome echoed at them.
 
 /// How far [`number`]'s text may read from the value it renders, as a
 /// fraction of that value.
 ///
-/// **Not a taste: it is the scientific form's own worst case.** Four
-/// significant figures can misread the value they render by half a unit
-/// in the fourth — 5·10⁻⁴ of it — so a decimal spelling is preferred
-/// exactly while it is no less truthful than the form that would
-/// replace it.
+/// **Not a taste: it is the four-figure scientific form's own worst
+/// case.** Four significant figures can misread the value they render
+/// by half a unit in the fourth — 5·10⁻⁴ of it — so a decimal spelling
+/// is preferred exactly while it is no less truthful than the form that
+/// would replace it. It is the same test that chooses between the two
+/// scientific spellings in [`scientific`], which is what keeps the four
+/// figures wherever they are honest.
 ///
 /// That is also why it is a property of this module rather than
 /// something a caller passes: the tolerance and the fallback spelling
@@ -58,11 +72,13 @@ pub const REL_TOLERANCE: f64 = 5.0e-4;
 
 /// The longest decimal spelling [`number`] will search, in characters.
 ///
-/// **The scientific arm's own worst case over a positive value**, which
-/// is `f64`'s smallest subnormal: a four-figure mantissa, `e`, a sign
-/// and three exponent digits — `4.941e-324`. The decimal arm is held to
-/// the same bound, so ten characters can show every positive value this
-/// renders and a negative one spends one more on its sign.
+/// **The four-figure scientific arm's own worst case over a positive
+/// value**, which is `f64`'s smallest subnormal: a four-figure mantissa,
+/// `e`, a sign and three exponent digits — `4.941e-324`. The decimal arm
+/// is held to the same bound, so ten characters show every render but
+/// one: the band at the top of `f64`, where four figures round out of
+/// the type and [`scientific`] spells the value exactly instead —
+/// twenty-two characters, twenty-three with a sign.
 ///
 /// Like [`REL_TOLERANCE`] this is the rule's own number and not a field
 /// width. It is what ENDS the search: a subnormal needs three hundred
@@ -96,42 +112,74 @@ pub const MAX_CHARS: usize = 10;
 /// the chrome hands this one; the behaviour is stated because it is
 /// what the rule produces rather than a case it handles.
 ///
-/// **The rule has one exception and it is at the top of the type.** The
-/// scientific arm is the last resort and is not itself held to reading
-/// back, and it ROUNDS: within half a unit in the fourth figure of
-/// `f64::MAX` it rounds out of the type, so `f64::MAX` renders as
-/// `1.798e308` and that text reads back as infinity. The alternative is
-/// the exact spelling, which is twenty-two characters, and [`MAX_CHARS`]
-/// is what a real field is sized against
-/// (`crate::pane::view`'s `FIELD_WIDTH`) — a render the box cannot show
-/// is clipped, and a clipped render misreads silently too. So the width
-/// is the guarantee and this is the carve-out, for a magnitude no
-/// length in this chrome can be;
-/// `the_top_of_the_type_is_the_one_value_that_does_not_read_back` pins
-/// it rather than letting it be discovered twice, and
-/// `work/view/the-scientific-arm-rounds-out-of-the-type.md` owns the
-/// repair if the trade is ever worth re-taking.
+/// **The rule holds at the top of the type, and [`MAX_CHARS`] is what
+/// gives way there.** Four significant figures round, and from
+/// `1.7975000000000001e308` up they round out of `f64` — `1.798e308` is
+/// not a spelling of any finite number, it reads back as infinity. So
+/// that band, and only that band, is rendered by the exact scientific
+/// spelling at twenty-two characters ([`scientific`]).
+/// `the_top_of_the_type_is_spelled_exactly` is the row, and
+/// `every_value_reads_back_as_itself` no longer stops short of it.
+///
+/// **The bound ends the SEARCH; it does not license a text that names
+/// another value.** That is [`reads_back`]'s own rule — a wide text that
+/// names this value is not improved by a narrow one that does not — and
+/// a last resort exempt from it would be the one place the module's rule
+/// is false, at the one magnitude no caller can sanity-check. What it
+/// costs is one widget: `crate::pane::view`'s `FIELD_WIDTH` is sized for
+/// [`MAX_CHARS`], so a δ in that band is shown clipped. Clipped is not
+/// the same failure as misread here, because the field is a draft the
+/// user commits: it holds the whole text and hands the whole text back,
+/// where `1.798e308` handed back infinity.
 pub fn number(value: f64) -> String {
     // Decimal counts past the character bound cannot fit whatever they
     // spell, so the bound is what ends the search; the range only has
     // to reach past the last count that could.
     (0..=MAX_CHARS)
         .map(|decimals| format!("{value:.decimals$}"))
-        .find(|spelling| reads_back_as(spelling, value))
-        .unwrap_or_else(|| format!("{value:.3e}"))
+        .find(|spelling| spelling.chars().count() <= MAX_CHARS && reads_back(spelling, value))
+        .unwrap_or_else(|| scientific(value))
 }
 
-/// Whether `spelling` fits [`MAX_CHARS`] and reads within
-/// [`REL_TOLERANCE`] of `value`.
+/// `value` in scientific notation: four significant figures where that
+/// reads back, and the exact spelling where it does not.
+///
+/// **The four-figure form is the one [`MAX_CHARS`] is the width of**, and
+/// it carries every value a decimal spelling cannot — its worst case is
+/// [`REL_TOLERANCE`] by construction, so it reads back everywhere its
+/// rounding stays inside `f64`. The exact arm is for the one place that
+/// rounding leaves the type: the band up to `f64::MAX`, where four
+/// figures round to `1.798e308` and that text is infinity.
+///
+/// **A non-finite value takes the exact arm and is unchanged by it.**
+/// Nothing reads back as `NaN`, so the test fails and the exact spelling
+/// is asked for — and `{:e}` writes `NaN` and `inf` exactly as `{:.3e}`
+/// did. The arm is reached, not the behaviour.
+fn scientific(value: f64) -> String {
+    let rounded = format!("{value:.3e}");
+    if reads_back(&rounded, value) {
+        rounded
+    } else {
+        format!("{value:e}")
+    }
+}
+
+/// Whether `spelling` reads within [`REL_TOLERANCE`] of `value`.
 ///
 /// The tolerance is relative to the MAGNITUDE, so the test says the
 /// same thing on both sides of zero: a rendered number is judged by how
 /// far it reads from the value, and a sign is not a distance.
-fn reads_back_as(spelling: &str, value: f64) -> bool {
-    spelling.chars().count() <= MAX_CHARS
-        && spelling
-            .parse::<f64>()
-            .is_ok_and(|read| (read - value).abs() <= REL_TOLERANCE * value.abs())
+///
+/// **Width is no part of reading back, which is why it is no part of
+/// this.** [`number`] is bounded by [`MAX_CHARS`] because it searches
+/// every precision and something has to end the search; a caller
+/// judging a spelling SOMEONE ELSE chose is asking only whether that
+/// text names this value, and a wide text that does is not improved by
+/// replacing it with a narrow one that does not.
+pub(crate) fn reads_back(spelling: &str, value: f64) -> bool {
+    spelling
+        .parse::<f64>()
+        .is_ok_and(|read| (read - value).abs() <= REL_TOLERANCE * value.abs())
 }
 
 #[cfg(test)]
@@ -143,15 +191,16 @@ mod tests {
     use super::{MAX_CHARS, REL_TOLERANCE, number};
 
     /// What the rule claims, checked as a property rather than a table:
-    /// a render fits the bound and reads back within the render's own
-    /// accuracy — and therefore a value that is not zero never renders
-    /// as zero, which is the whole defect this module closes.
+    /// a render reads back within the render's own accuracy — and
+    /// therefore a value that is not zero never renders as zero, which
+    /// is the whole defect this module closes.
+    ///
+    /// **The character bound is asserted separately**, by
+    /// [`fits_and_reads_back`], because it is not part of the rule: it
+    /// ends the decimal search, and the band at the top of the type is
+    /// spelled exactly and is wider.
     fn reads_back(value: f64) {
         let text = number(value);
-        assert!(
-            text.trim_start_matches('-').chars().count() <= MAX_CHARS,
-            "{value} renders as {text}, past the {MAX_CHARS} character bound"
-        );
         let read: f64 = text
             .parse()
             .unwrap_or_else(|error| panic!("{value} renders as {text}, not a number: {error}"));
@@ -165,6 +214,18 @@ mod tests {
         );
     }
 
+    /// [`reads_back`], and inside the character bound — which is every
+    /// value below the band `the_top_of_the_type_is_spelled_exactly`
+    /// covers.
+    fn fits_and_reads_back(value: f64) {
+        let text = number(value);
+        assert!(
+            text.trim_start_matches('-').chars().count() <= MAX_CHARS,
+            "{value} renders as {text}, past the {MAX_CHARS} character bound"
+        );
+        reads_back(value);
+    }
+
     /// The whole range a chrome number can come from, both signs: a
     /// decade below the kernel's finest length to well above the
     /// coarsest a camera band reaches.
@@ -173,43 +234,94 @@ mod tests {
         let mut sampled: u32 = 0;
         let mut value = 1.0e-12_f64;
         while value < 1.0e6 {
-            reads_back(value);
-            reads_back(-value);
+            fits_and_reads_back(value);
+            fits_and_reads_back(-value);
             sampled += 1;
             value *= 1.01;
         }
         assert!(sampled > 2_000, "the sweep covered only {sampled} values");
-        // And the bottom of the type, which a geometric grid does not
-        // reach. The TOP is the rule's one exception and has its own
-        // row below; a sweep that quietly stopped short of it would be
-        // the same fact recorded as an absence.
+        // And both ends of the type, which a geometric grid does not
+        // reach. The top is in the band the character bound does not
+        // cover, so it is asserted by the rule alone and its width has
+        // its own row below.
         for end in [5.0e-324, f64::MIN_POSITIVE] {
-            reads_back(end);
-            reads_back(-end);
+            fits_and_reads_back(end);
+            fits_and_reads_back(-end);
         }
+        reads_back(f64::MAX);
+        reads_back(-f64::MAX);
     }
 
-    /// **The one value the rule does not hold for**, pinned rather than
-    /// left to be found again.
+    /// **The one band where the render passes [`MAX_CHARS`]**, and why
+    /// it does: four significant figures round out of `f64` here, so
+    /// the only text that names the value is the exact one.
     ///
-    /// The scientific arm rounds, and within half a unit in the fourth
-    /// figure of `f64::MAX` it rounds out of the type. Rendering it
-    /// truthfully costs twenty-two characters and [`MAX_CHARS`] is what
-    /// a real field is sized against, so the width is the guarantee and
-    /// this is the exception. No length this chrome shows is within
-    /// three hundred decades of it.
+    /// **It is a band and not a value.** Every `f64` from
+    /// `1.7975000000000001e308` to `f64::MAX` rounds to `1.798e308`,
+    /// which is infinity — about 9.7·10¹¹ of them, each sign. The row
+    /// samples across it rather than pinning an end, and pins the edge
+    /// by stepping one `f64` below it, where four figures still read
+    /// back and the render is nine characters again.
     #[test]
-    fn the_top_of_the_type_is_the_one_value_that_does_not_read_back() {
-        let text = number(f64::MAX);
-        assert_eq!(text, "1.798e308");
-        assert!(
-            text.parse::<f64>().is_ok_and(f64::is_infinite),
-            "the exception is that this text reads as infinity; if it no \
-             longer does, the carve-out in `number`'s doc is stale"
+    fn the_top_of_the_type_is_spelled_exactly() {
+        assert_eq!(number(f64::MAX), "1.7976931348623157e308");
+        assert_eq!(number(-f64::MAX), "-1.7976931348623157e308");
+        assert_eq!(
+            number(f64::MAX).parse::<f64>(),
+            Ok(f64::MAX),
+            "the exact spelling is the arm because it is the one that reads back"
         );
-        // Just below the rounding band the rule holds, which is what
-        // makes this an exception rather than a region.
-        reads_back(1.0e308);
+        assert!(
+            "1.798e308".parse::<f64>().is_ok_and(f64::is_infinite),
+            "and the four-figure text it replaces names no finite value at all"
+        );
+
+        // The edge, from both sides. One `f64` below it the four-figure
+        // arm still reads back, so nothing wider is spent there.
+        let low = 1.797_500_000_000_000_1e308_f64;
+        let below = f64::from_bits(low.to_bits() - 1);
+        assert_eq!(number(below), "1.797e308");
+        fits_and_reads_back(below);
+        assert_eq!(number(1.0e308), "1.000e308");
+
+        // And across the band, both signs. The character bound is not
+        // asserted: this is the band it does not cover.
+        let (low_bits, top_bits) = (low.to_bits(), f64::MAX.to_bits());
+        let stride = (top_bits - low_bits) / 512;
+        assert!(stride > 0, "the band is wider than the grid over it");
+        for step in 0..=512 {
+            let value = f64::from_bits(low_bits + stride * step);
+            reads_back(value);
+            reads_back(-value);
+        }
+        reads_back(low);
+    }
+
+    /// **Nothing below the band renders differently than it did**, which
+    /// is what makes the exact arm a repair rather than a restyle: the
+    /// four-figure arm still wins wherever it reads back, and that is
+    /// everywhere the millimetre and metre magnitudes of this chrome
+    /// live.
+    #[test]
+    fn the_four_figure_arm_still_carries_everything_below_the_band() {
+        let mut value = 1.0e-320_f64;
+        let mut scientific: u32 = 0;
+        while value < 1.0e300 {
+            let text = number(value);
+            if text.contains('e') {
+                assert!(
+                    text.chars().count() <= MAX_CHARS,
+                    "{value} renders as {text}, which is the exact arm below the band"
+                );
+                scientific += 1;
+            }
+            fits_and_reads_back(value);
+            value *= 1.05;
+        }
+        assert!(
+            scientific > 1_000,
+            "only {scientific} values took a scientific arm"
+        );
     }
 
     /// **Zero is the value the δ door's own predicate could not have

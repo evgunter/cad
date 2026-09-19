@@ -762,25 +762,11 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     assert!(!m.contains(" mm"), "{m}");
 }
 
-/// **Loud skip.** The row below needs `viewer::app`, which is not in a
-/// default-feature build; say so rather than letting the run report one
-/// fewer test and nothing else. Its seat is the hosted row
-/// `cargo nextest run -p viewer --features app`
-/// (`.github/workflows/ci.yml`).
-///
-/// **This row closes no gate and cannot fail** — its payload is its
-/// NAME in the PASS list. It names the row by hand, so a second
-/// `app`-gated row added to this file leaves the marker quietly
-/// incomplete.
-#[cfg(not(feature = "app"))]
-#[test]
-fn app_lane_skipped_parameter_field_units_not_checked_here() {
-    println!(
-        "SKIPPED (no --features app): a_parameter_field_is_written_the_way_its_declaration_says \
-         does not run - the parameter field's shown number, its authored number and its drag \
-         tick are unchecked in this build."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "app",
+    row = app_lane_skipped_no_panel_display_coverage_here,
+    absent = "coverage of the parameter panel's writing",
+);
 
 /// **A parameter field is shown, scrubbed and authored in the unit its
 /// DECLARATION names** — `app::FieldWriting`, the value the panel
@@ -873,10 +859,17 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 
     // Each dimension keeps its own tick, and a count keeps whole
     // numbers: the mistakes `drag_tick`'s branch and the `Count` arm
-    // exist to answer.
+    // exist to answer. "Each" is `Dimension::ALL`, so the claim is
+    // about the lattice rather than about the dimensions a list
+    // written here happens to name.
     let canonical = |dimension| FieldWriting::of(dimension, None).tick;
-    let length = canonical(Dimension::Length);
-    assert_ne!(canonical(Dimension::Angle), length);
-    assert_ne!(canonical(Dimension::Scalar), length);
+    let ticks: Vec<f64> = Dimension::ALL.iter().map(|dim| canonical(*dim)).collect();
+    for (i, tick) in ticks.iter().enumerate() {
+        assert!(
+            !ticks[..i].contains(tick),
+            "{:?} scrubs at {tick}, the tick an earlier dimension already took",
+            Dimension::ALL[i]
+        );
+    }
     assert_eq!(canonical(Dimension::Count), 1.0);
 }

@@ -67,7 +67,13 @@ pub(crate) enum FlushRung {
 /// cosurface on a plane, a sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
-/// query's first node, `b` from its second); `relation` is the verify
+/// query's first node, `b` from its second). Each side also carries
+/// the NODE it was read at, which is what makes a finding declarable
+/// straight back through `Doc.declare` / `Node.declare` — the site is
+/// the side, so nothing downstream has to recover it. That site is
+/// not exposed as an attribute: a name here is opaque text, and a
+/// node id beside it would be the one part a caller could act on
+/// wrongly. `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
 /// material sides; `SameOriented` = flush walls, the merge-stage
 /// flavor); `class_` names the contact class (trailing underscore:
@@ -133,16 +139,22 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
         // refusal becomes a panic at the funnel. Whoever adds one
         // decides then: give the kernel enum a `Display`, or render
         // the name alone here.
+        //
+        // The word is the query door's own, from one map
+        // (`crate::tags::unmirrored_select_tag`): a caller reads the
+        // same `reason` off either crossing because it learns the same
+        // fact from both. The attributes are the whole class's, from
+        // `crate::py::select::refusal_fields`, so this path answers
+        // `None` where the others answer a payload rather than raising
+        // `AttributeError` on the one door that hand-built its list.
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,
             format!("a contact class this binding predates: {other:?}"),
-            &[(
-                "reason",
-                pyo3::types::PyString::new(py, "unclassified")
-                    .unbind()
-                    .into_any(),
-            )],
+            &crate::py::select::refusal_fields(
+                py,
+                crate::tags::unmirrored_select_tag(crate::errors::UnmirroredSelect::ContactClass),
+            ),
         )),
     }
 }
@@ -163,13 +175,13 @@ impl FlushFinding {
     /// opaque name text.
     #[getter]
     fn a(&self, py: Python<'_>) -> PyResult<String> {
-        name_text(py, &self.0.pair.0)
+        name_text(py, &self.0.pair.0.name)
     }
 
     /// The pair's second name (the query's `b` node side).
     #[getter]
     fn b(&self, py: Python<'_>) -> PyResult<String> {
-        name_text(py, &self.0.pair.1)
+        name_text(py, &self.0.pair.1.name)
     }
 
     /// The verify door's relation verdict.

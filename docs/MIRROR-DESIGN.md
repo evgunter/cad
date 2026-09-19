@@ -88,8 +88,11 @@ door (`mirror_body`, or `transform_isometry` with the improper
 branch) that composes: reflect geometry per P1's convention +
 rewrite parameter payloads + the outward-normal flip `revert`
 already implements exactly once per face (plane arm: negate stored
-normal; curved arm: flip `sense`) + re-certify carriers and re-mint
-witnesses per the transform layer's existing discipline. The +V
+normal, and re-state every `Chart` image and every stored pcurve row
+on that plane under the chart reflection `(u, v) ↦ (u, −v)` the
+negation is, certificates verbatim — `Pcurve::mirror_v`; curved arm:
+flip `sense`) + re-certify carriers and re-mint witnesses per the
+transform layer's existing discipline. The +V
 tier-3 invariant is the acceptance instrument: a reflection without
 the flip produces `NegativeVolume`, and the correct door must not.
 One claim the survey flags as **checkable, not assumable** (conv. 4

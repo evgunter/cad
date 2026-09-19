@@ -494,7 +494,8 @@ mod tests {
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{ops_cube, ops_holed_box};
+    use crate::fixtures::ops_holed_box;
+    use crate::test_support_fixtures::declined_cube;
 
     fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
         Point3::new(x, y, z)
@@ -525,10 +526,41 @@ mod tests {
         body
     }
 
-    /// The same digon pillow built through the OTHER degenerate route:
-    /// mvfs, mef(Lone) — the circular self-loop edge — then a fan mev
-    /// splitting the self-loop vertex into two.
-    fn pillow_via_circle() -> Body<f64> {
+    /// The same digon pillow with the chord addressed from the OTHER
+    /// side: mvfs, mev(Lone), mef(Chords) with the two halves swapped,
+    /// so the mint carves the complementary face and both loops anchor
+    /// on different halves.
+    fn pillow_via_mirrored_chord() -> Body<f64> {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                pt(1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_minus,
+                he2: seg.he_plus,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        body
+    }
+
+    /// The route this test USED to take, kept as the row that says why
+    /// it cannot: mvfs, mef(Lone) — the circular self-loop edge — then
+    /// a fan mev splitting the self-loop vertex in two. The split moves
+    /// the circle's plus half onto the new vertex while the circle
+    /// still runs from the old one, so the built pillow carried an edge
+    /// its own carrier missed. `mev`'s re-basing gate refuses it now.
+    #[test]
+    fn the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier() {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let circle = body
@@ -539,35 +571,50 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mev_line(
-            MevSite::Fan {
-                he1: circle.he_plus,
-                he2: circle.he_minus,
-            },
-            pt(1.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-        body
+        assert!(matches!(
+            body.mev_line(
+                MevSite::Fan {
+                    he1: circle.he_plus,
+                    he2: circle.he_minus,
+                },
+                pt(1.0, 0.0, 0.0),
+                Tol::witness(),
+            ),
+            Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == circle.edge
+        ));
     }
 
     #[test]
     fn identical_builds_have_identical_forms() {
-        let a = ops_cube(Tol::witness());
-        let b = ops_cube(Tol::witness());
+        let a = declined_cube::<f64>(Tol::witness());
+        let b = declined_cube::<f64>(Tol::witness());
         assert_eq!(canonical_form(&a.body), canonical_form(&b.body));
         assert!(isomorphic(&a.body, &b.body));
     }
 
     #[test]
-    fn pillow_is_isomorphic_across_different_op_orders() {
+    fn pillow_is_isomorphic_when_the_chord_is_addressed_from_the_other_half() {
         // Same structure (v2 e2 f2 digon pillow, same coordinates)
-        // reached through two entirely different operator sequences —
-        // different key histories, different loop anchors.
+        // reached by the SAME three operators in the same order with
+        // the same keys, and `mef_chord`'s two halves swapped: the
+        // mint carves the complementary face, so the two loops anchor
+        // on different halves and the chord runs the other way. That
+        // — anchor choice and chord direction — is what this row
+        // pins, and the two canonical forms come out EQUAL, so the
+        // oracle's verdict is not the only witness to it.
+        //
+        // This row used to reach `b` through a genuinely different
+        // operator sequence (mef(Lone)'s self-loop circle, then a fan
+        // mev splitting its vertex), which is a wider claim than what
+        // stands here. That route built its pillow by moving the
+        // circle's plus half off the vertex the circle still ran from:
+        // it is a refusal now, pinned as
+        // `the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier`.
         let a = pillow_via_segment();
-        let b = pillow_via_circle();
+        let b = pillow_via_mirrored_chord();
         assert_eq!(crate::validate::validate(&a), Ok(()));
         assert_eq!(crate::validate::validate(&b), Ok(()));
+        assert_eq!(canonical_form(&a), canonical_form(&b));
         assert!(isomorphic(&a, &b));
     }
 
@@ -602,7 +649,7 @@ mod tests {
         // Cycle::first is a representation-internal anchor; rotating it
         // must not change the canonical form (the kill ops re-anchor
         // loops unconditionally, so roundtrips depend on this).
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let before = canonical_form(&t.body);
         let mut rotated = t.body.clone();
         let loops: Vec<_> = rotated.loops().map(|(k, _)| k).collect();
@@ -621,7 +668,7 @@ mod tests {
     fn form_is_invariant_under_emanating_choice() {
         // Vertex::emanating names an arbitrary orbit member; re-anchoring
         // it must not change the form.
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let before = canonical_form(&t.body);
         let mut reanchored = t.body.clone();
         let vertices: Vec<_> = reanchored.vertices().map(|(k, _)| k).collect();
@@ -638,7 +685,7 @@ mod tests {
 
     #[test]
     fn cube_is_not_the_holed_box() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let holed = ops_holed_box(Tol::witness());
         assert!(!isomorphic(&cube.body, &holed.body));
     }
@@ -687,8 +734,7 @@ mod tests {
             if split {
                 // Move ONE ring to the other face. ring_move is not an
                 // Euler op; counts are unchanged.
-                let other_face = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-                let other_face = body.get_loop(other_face).unwrap().face;
+                let other_face = body.face_of_half_edge(seg.he_minus).unwrap();
                 assert_ne!(other_face, split_faces.face);
                 body.ring_move(r1.ring, other_face).unwrap();
             }

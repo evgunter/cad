@@ -60,6 +60,7 @@
 //! pretend otherwise: it neither gates on it nor asserts tier 3.
 
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
@@ -200,7 +201,7 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
 /// The rule is a bracket read — `lo() > 0` — and nothing else: it
 /// screens a size that is not positive AT ALL, and says nothing about
 /// a positive size below the band's zero
-/// (`work/fillet/blend-size-gate-unmetered-under-epsilon.md` owns
+/// (`work/props/blend-size-gate-unmetered-under-epsilon.md` owns
 /// that). Written through `partial_cmp` rather than `<= 0` so the
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other
@@ -312,6 +313,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         })?;
         let planar = |f: FaceKey| {
             outward_of(body, f)
+                .map(OutwardNormal::vec)
                 .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
         };
         let (n_a, n_b) = (planar(l.face_a)?, planar(l.face_b)?);
@@ -337,11 +339,12 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded
-/// through the stored sense bit (S10 category A — never sampled).
-pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec3<T>> {
+/// through the stored sense bit (S10 category A — never sampled),
+/// typed so the fold cannot be applied twice.
+pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface)? {
-        Surface::Plane { normal, .. } => Some(*normal * f.sense_sign::<T>()),
+        Surface::Plane { normal, .. } => Some(OutwardNormal::from_chart(*normal, f.sense)),
         _ => None,
     }
 }

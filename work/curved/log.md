@@ -161,3 +161,213 @@ without loss. `work.py --selftest`'s date-pinned fixture expired on
 ## Announced from LIB (2026-09-09): a derive word on `SurfaceKind` and `CarrierRelation`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `geom_brep::SurfaceKind` (`intersect.rs:109`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; nothing else in either file moves.
+
+## Resumed after a six-day outage (2026-09-13)
+
+A Fable-side limit killed the merge-door lane mid-fix-pass on
+2026-09-07 and blocked this session until 2026-09-13; the account's
+weekly window has since reset (Ev, in-chat: proceed with the rest of
+the slate). Main moved ~3000 commits meanwhile; two items were filed
+onto this slate by other orchestrators and are acknowledged:
+`axis-coincident-lap-trips-the-planar-join-invariant` (a box lap whose
+plane contains the cylinder axis reaches `chord_join.rs`'s planar-lane
+conic guard through the public subtract door — the operand-reach lane)
+and LIB's derive announcement on `SurfaceKind`/`CarrierRelation`.
+Block CURVED-B2 drawn branch-side (byte 22 ⇒ fable at slot 1): slot 0 =
+CURVED-TORUS PR-2 (Opus) on `curved/torus-arm`; slot 1 = the spiric
+carrier unit (Fable; spec lane opened); slot 2 banks. The merge-door
+lane (B1 slot 2, Fable) resumes its re-scope. Operations: a merge of
+main into the block branch conflicted in the A/B log and the
+orchestrator committed the markers before noticing — repaired by a
+resolving commit (union of both appended sections), never rewritten;
+the whole-tree marker grep is now part of every merge here.
+
+## Announced seam from TOPO (2026-09-14): the `loop_shape` change is on your ground too
+
+`crates/topo/src/boolean/*` is claimed by both S-BOOL and this
+program, so the announcement written on `work/bool/log.md` for
+2026-09-14 — `contain::loop_shape` and `LoopShape` going
+`pub(crate)`, and `LoopShape::Parity` splitting into `Polygon` and
+`ArcParity` with `contfp`'s behaviour unchanged — is repeated here
+rather than left visible from one side only. Read it there; nothing
+differs. TOPO PR 2529, branch `topo/tier3-ring-nesting`. No action
+asked. Signed (TOPO, the ring-nesting lane).
+
+## Announced from TOPO (2026-09-14): `docs/CURVED-MERGEDOOR-SPEC.md`'s citations of `merge_faces.rs` moved; its design did not
+
+TOPO `D263` (PR 2548, `topo/d263-placeholder-regime`) gives the merge
+door a third surface kind, `topo::MergeKind { Plane, Curved,
+Placeholder }`: `group_regime` is now `group_contract` (returning
+`GroupContract::Runs { regime, kind } | SetAside`), `GroupKindSplit`'s
+fields are `face, kind, other, other_kind`, and a `Nurbs` net in
+`NetState::Poisoned` refuses `MergeCoplanarError::PoisonedSurfaceDescription`
+before any group forms. The spec's citations of `group_regime`
+"untouched" and of `GroupKindSplit`'s old lines were re-worded on that
+branch — a description that moved, not a design change; the spec's
+shape and fences are as they were. One note was added beside the
+plan's "one non-planar kind on both sides → a skip record" arm: it
+must read `MergeKind`, not `SurfaceKind` alone, or a declared
+placeholder pair would be skipped where the door refuses it. The
+finding is recorded on `cylindrical-rest-pair-hits-planar-merge`
+(`## Read MergeKind at the classification`). No action asked. Signed
+(TOPO, the D263 fix pass).
+
+## Merge-door and torus-arm duals adjudicated (2026-09-14)
+
+Merge-door (PR #2105, ordinal 2202): both arms MERGEABLE-AFTER-FIXES
+and both EXECUTED the honesty crux the same way — the bore chord
+pre-exists on the merge base (with the door reverted, the record
+suppressed, and the whole recorded-faces walk removed, scene A still
+refuses `JoinDesync`; with `describe_minted_edges` skipped the volume
+backstop rejects the same body); the STOP-2 re-scope stands. Fixes:
+the record's liveness invariant pinned (the PR's "M6 not observable"
+was false — a sub-period curved run commits through the kind-agnostic
+same-key rung), no record for a pair with zero live faces, sphere/torus
+rows, the vacuous `merge_groups` assertions replaced, dedup at the
+door, the mechanism and additivity history corrected. Torus arm
+(PR #2535, ordinal 2203): both arms MERGEABLE-AFTER-FIXES; the bound
+and enclosure held under both arms' random dense oracles, but the
+shipped rows could not see a wrong bound on an ordinary fixture (the
+PR's "M2 merely loose" was false in the unsafe direction — real
+escapes on random fixtures); a torus family in the dense-sampling
+soundness suite and a random-configuration row are the fix; the spec
+amended (the monotonicity theorem, the charge table at the arc-scoped
+`f2`). Both fix passes dispatched. Pacing: **the spiric PR-1a dual is
+HELD for next week's budget**; PR-1a itself continues.
+
+## CURVED-MERGEDOOR merged (2026-09-14) — block CURVED-B1 concludes
+
+PR #2105, ordinal 2202, sample #192; block CURVED-B1's last slot. The
+dual's fix pass took all eleven items (fourteen rows, fifteen mutants
+red); the record is keyed off the declaration and documented so. Next
+on the merge-door lane: `rest-zip-seam-chord-on-cylinder-wall` (the zip
+defect the door had hidden). Operations: the fix pass's push produced
+no `synchronize` run and the lane dispatched the workflow by hand (the
+render lanes skip on a dispatch); the state-sync push re-rolls a real
+run before the merge.
+
+## CURVED-MERGEDOOR close-out (2026-09-14)
+
+Block CURVED-B1 concluded at #2105's merge: slot 2 recorded on
+`curved/b1-block` (1c10adfa7) and the block record folded to main in
+#2578 (6781958cb), which also deleted `docs/CURVED-MERGEDOOR-SPEC.md`
+per the ledger. Lane and target reclaimed. CURVED-B2's draw stays
+branch-side. Running: torus-arm fix pass (#2535), TRIM-3 PR-2 dual
+(#2554). Held for the weekly reset: spiric PR-1a (#2566) and TRIM-2
+PR-1 (#2564) duals.
+
+## CURVED-TORUS PR-2 merged (2026-09-15) — block CURVED-B2 slot 0 concludes
+
+PR #2535, ordinal 2203, sample #200. The dual (R1 Fable, R2 Opus) both
+MERGEABLE-AFTER-FIXES; adjudication on the PR (comment 5662086549);
+twelve union items all taken. The substantive change from review: the
+suite had no random dense-oracle row for the torus, so four planted
+defects passed every shipped row — a torus family and a random row now
+red them; the PR's "M2 merely loose" sentence was wrong in the unsafe
+direction and is withdrawn in the body. Headline bilateral — no tally
+candidate; R2 paused once by the usage limit (3(e)). The spec's
+2026-09-14 amendments stand; `docs/CURVED-TORUS-SPEC.md` is now fully
+delivered (PR-1 #1907, PR-2 #2535) and leaves `docs/` per the ledger in
+the post-merge docs PR. Filed by the unit:
+`the-chord-dip-charge-has-two-homes`. Operations: the account behind
+this session changed at Ev's re-login (2026-09-15); the weekly window
+on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
+the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Both of this orchestrator's first blocks are concluded (CURVED-B1 at
+#2105, TRIM-B1 at #2554); CURVED-B2 slot 0 concluded at #2535. Open
+against the budget: the spiric PR-1a dual (#2566, CURVED-B2 slot 1,
+FABLE) and the TRIM-2 PR-1 dual (#2564, TRIM-B2 slot 0). The account's
+weekly window sits at 83 % with its reset at 2026-09-18 17:00Z; both
+duals stay HELD until that reset, then dispatch together (each dual
+plus fix pass has cost 0.6–1.0 M tokens on this program). No new
+implementer dispatch before the reset; CURVED-B2 slot 2's unit is
+chosen at dispatch from the plan's lanes (leading candidates:
+`equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
+PR-1b once 1a merges). Idle lanes: none; every finished lane and
+target reclaimed (44 G free).
+
+## Spiric PR-1a dual dispatched (2026-09-15)
+
+Ev, in-chat after the box's reboot: finish the open duals and get all
+state on main before the usage limit. The hold is lifted: ordinal 2204
+claimed (PR #2669); byte 226, parity 0 ⇒ R1 Opus, R2 Fable; frozen
+head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
+together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
+Session monitors re-armed after the crash; nothing of this program's
+was running when the box went down.
+
+## Spiric PR-1a dual adjudicated (2026-09-18)
+
+Ev, in-chat: the usage limit has reset. R2 (Fable) had been killed by a
+model-side 429 during the hold and was resumed from transcript; both
+arms MERGEABLE-AFTER-FIXES with no MAJOR (R1 Opus 4 MINOR/8 NOTE,
+rubric 4/4/3/4/5; R2 Fable 3 MINOR/3 NOTE, rubric 3/4/3/4/5). No wrong
+number in the shipped kernel: both arms re-derived the closed forms by
+hand, reproduced every PR mutant with its exact payload, and both
+demonstrated M7 on the vessel (STOP-1 ruling 4 closed). Converged:
+row 2 cannot see M3 on the vessel (`R/r′ = 1.33`; needs `R ≥ 3r`),
+`edge_pose`'s `Pose` contract, M5's reader (R2's wide-bracket Interval
+row; the shipped Interval box row is its f64 twin bit-for-bit), the
+Python-mirror contradiction, the refuted row names. Unique: R2 the dead
+`torus_boundary` arm (the wall takes the uncached-pcurve quadrature
+door until 1b) — claims-class; R1 four unexercised census arms and the
+missing deciding constructor. Adjudication on the PR (comment
+5733631165); thirteen items; fix pass dispatched. Tally: no candidate;
+R2 killed once by a 429, and R1 disclosed reading the arm's name in the
+STOP-1 ruling comment (an orchestrator text — instrument leak noted:
+STOP rulings on a PR under review must not name the slot's arm) — 3(e)
+excludes the pair. **Slate change**: S-BOOL exited (walk 2026-09-16)
+and re-homed its residue by file — CURVED received ~30 items,
+including `cosurface-disjoint-curved-walls-refuse` and
+`boolean-declarations-has-no-geometric-producer` from the plan's
+"S-BOOL's today" lanes; the handover the plan waited on happened by
+exit rather than reply. The plan is re-cut after the two open units
+merge.
+
+## CURVED-SPIRIC PR-1a merged (2026-09-19) — block CURVED-B2 slot 1 concludes
+
+PR #2566, ordinal 2204, sample #221. Fix pass from the dual: all
+thirteen items taken; the one behaviour-shaped change is the deciding
+constructor `Curve3::spiric(...)` (four named regime predicates on the
+audit; `mint_carrier` mints through it; bit-identity re-run identical).
+The main merge crossed main's new `InfSpeed` speed meter in five files
+(spiric arms answer `InfSpeed::new(minor_radius)`) and the lune's
+renamed premise `props_meridian_great`; the merged head's real
+`pull_request` run is the verification of record (a dispatch run on
+the conflicting pre-merge head had its render lanes skipped). Next in
+the lane: PR-1b (`Pcurve::Spiric` + STEP) on `curved/spiric-1b`, then
+`equator-seam-reauthor-refuses-the-hollowed-elbow`. Instrument note
+for the A/B log: STOP rulings posted on a PR under review must not name
+the slot's arm (R1 read "FABLE" in comment 5662340417).
+
+## Spiric PR-1b dispatched (2026-09-19)
+
+Ev, in-chat: proceed to the next dispatch. CURVED-B2 slot 2 = spiric
+PR-1b (`Pcurve::Spiric` + STEP, spec §3/§5, rows 9–10, the C4 README
+line 1a deferred), pre-draw M / STRUCTURAL logged branch-side, arm
+OPUS by the block's draw; brief stored (sha256 758dec8323…); lane
+`curved-spiric-1b`, branch `curved/spiric-1b`. The brief carries 1a's
+adjudication notes that are 1b's to close (the wall's payload once the
+cache lands; the `param_on` anchor branch if a longer-span fixture
+appears). Operations: the session's Monitor tool expires every 30
+minutes (a harness bug, Ev in-chat) — the four watchdog scripts run
+detached into one event log and the orchestrator waits on it with
+one-shot background commands.
+
+## Spiric PR-1b delivered; dual dispatched (2026-09-19)
+
+PR #2861 (head b0afaf200, run 35435836485 green; `render drift (uv)`
+neutral — the uv-montage legend row). The variant, the certification
+arm (deviation 1: a banded structural compare, `certify` being a
+`Decide` door), fourteen consumer sites, STEP export with the
+`FILE_DESCRIPTION` sentence. Opening measurement found the whole torus
+face's cache set had been EMPTY at the merge base (the missing arm made
+`mint_faces` clear the face, circle rims included) — a regression 1a
+left and 1b closes. Finding filed against the ratified §5:
+`spiric-step-spline-bound-is-second-order` (the export's `ε/4` gate is
+unreachable on real fixtures; a sharper `sup‖C″‖` candidate would move
+mesh chord counts) — ruled after the dual. Dual: ordinal 2205, byte
+240 ⇒ R1 Opus, R2 Fable.

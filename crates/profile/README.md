@@ -104,7 +104,9 @@ Structural edits may renumber; stale selections then refuse Vanished.
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1). The wire
-shape is `WireProfile { plane, loops }` with `deny_unknown_fields`; the
+shape is `WireProfile { plane, loops }` with `deny_unknown_fields`,
+which denies an unknown KEY and nothing else — a `plane` written in the
+pre-node shape refuses at `plane_ref`'s own visitor instead; the
 format carries no schema version and no migration, and a file this
 build cannot read refuses `PersistError::Unreadable` with the regenerate
 recourse. `plane` references a `Datum::Frame` node, so a profile has a
@@ -215,11 +217,61 @@ pair's other crossing turns the other way and may serve the same radius
 as an ordinary tangency. It is its own reason, not laundered into a "no
 corner" one: the corner exists; a fillet of it at this radius does not.
 
+## The fillet door never mints a joint the verify layer refuses
+
+A fillet's declared tangency is a claim about the carriers the loop
+STORES, and a loop stores an arc as its chord and a bulge. Two things can
+happen to that claim between the door's arithmetic and the stored form,
+and both are refused at the door rather than left for validation. A
+fillet whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read back as
+a straight segment, so the carrier is simply not there
+(`PathError::FilletArcFlattenedInStorage`; the levers are a larger turn
+or a larger radius). A fillet whose stored arc IS an arc can still lose
+its joint to arithmetic: a carrier clearance is a difference of lengths
+at the scene's own magnitude, so it resolves only to about that
+magnitude times 2⁻⁵², and past the radius or the distance from the origin
+where that floor is coarser than ε the joint cannot be classified at all
+(`PathError::FilletCarrierBelowSceneResolution`; the levers run the other
+way — a smaller radius, or the geometry nearer the origin). Both read
+back through `seg::build_seg` and `seg::joint_tangency`, the verify
+layer's own classifications, so the door's answer is the verify layer's
+answer and no new predicate name enters the K stream. The in-band twin of
+either is relayed as `PathError::Escalated` naming the same
+classification. The pins are `tests/fillet_stored_tangency.rs` and the
+three sentences' rows in `tests/fillet_recourse_followability.rs`.
+
+**Every fillet gate's in-band verdict carries that gate's own recourse.**
+`PathError::Escalated`'s `Display` asks `validate::fillet_recourse_for`
+for the sentence belonging to the escalation's predicate name — the one
+map from the nine `fillet_*` names to the six `FILLET_*_RECOURSE`
+sentences, several names sharing a sentence because they share a user
+situation (D4 ¶1's addendum) — and renders the site it was resolving
+with that sentence and no coincidence tail: a fillet the caller asked for
+has no joint they declared, so "declare the coincidence" names a
+declaration that does not exist. The fillet names are asked first, ahead
+of the stored-form classifications and the junction keys, and are
+disjoint from both. `tests/fillet_recourse_followability.rs` censuses the
+nine against the `decide("fillet_…")` call sites across `src`, so a gate
+added anywhere in the crate without a sentence is a red row, and so is a
+gate that disappears — the census is an equality with the tree.
+
+Six of the nine take an in-band verdict from a request a caller can
+author. Of the other three, `fillet_corner_arm` is shadowed by
+magnitude — its margin IS the lever arm, so putting it in the band puts a
+length-shaped path gate in the band on the same request — and
+`fillet_leg_fit` and `fillet_leg_reach` classify against the exact-order
+band, which no representable `f64` lies inside: that last is a statement
+about `f64` alone, and the interval lane already drives `fillet_leg_fit`
+in band. Two of the six are levered or scene-scaled rather than radius-
+scaled, which is why their sentences name the leg extent and the bound on
+the lever's own window.
+
 **What stays.** `Leg::tangent_point`'s antipodal flip (the ρ < 0 tangent
 point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach
-`NoCornerReason::NoCornerSideCandidate` since the class refuses earlier
-(`work/issues/nocornersidecandidate-has-no-producer.md`). The pins are
+`NoCornerReason::NoCornerSideCandidate` since the class refuses earlier;
+the item that owned that reading was deleted with its program's tracker
+directory and is recoverable at the SHA `docs/DOC-LEDGER.md` names. The pins are
 `tests/review_s2.rs`'s `the_lattice_door_never_emits_an_enclosing_tangency`,
 `enclosing_fillet_swallows_both_leg_carriers` and
 `an_enclosing_leg_forces_an_equally_enclosing_partner`. The 3-D blend
@@ -281,3 +333,25 @@ most plausibly meant. The sort key is an `f64` enclosure read of a
 quantity nothing decides on; nothing in the kernel branches on the
 order, and no entry outranks another. The pins are
 `tests/fillet_refusal_envelope.rs`.
+
+**One level down, the candidate.** At an arc-carrier corner the offset
+carriers admit up to two candidate circles, and an anchor-fit entry
+(`AnchorOutsideTrimmedExtent`) can have both of them round the corner
+and overrun a leg. The entry's numbers are the candidate nearest to
+fitting IN THE SETBACK METRIC — `fillet_select::nearest_candidate`'s
+ladder over the candidates' setback pairs, the one home of "the nearest
+candidate at one corner" — on that candidate's worse leg, the one whose
+setback outruns its extent by more (ties name the incoming leg; a
+candidate tie is unreachable by geometry, one candidate being shallower
+on both legs). The construction (`sugar::arc_fillet_trims`) carries
+every overrunning candidate out at the scalar and compares nothing; the
+pick is the door's (`path::arc_fillet::map_refusal`), an `f64` enclosure
+read off the diagnostic channel like the sort key above, and nothing
+branches on it. What the numbers are NOT: a radius amount.
+`setback − available` is the leg's overrun in the setback metric; the
+recourse "reduce the radius or move the anchor" is un-metered and true,
+and a setback does not scale 1:1 with the radius on either leg kind.
+The pins are `tests/fillet_overrun_nearest_fit.rs` and the two review
+probe suites beside it (`review_fillet_overrun_nearest_fit_r1_probes`,
+`_r2_probes`), whose grid-A recourse census says which way reading the
+number as a radius reduction errs.
