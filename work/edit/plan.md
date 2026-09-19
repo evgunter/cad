@@ -46,8 +46,9 @@ posture under §Process.
    (PR #2874, middle tier, wave 11: the delete that orphans a
    `Declare` reports it as maintenance; the ruling and its transient
    put to Ev on `[ev]` #2869); its residue
-   `an-orphaned-declare-joins-the-product-root-set` stands open (a
-   `Declare` as a product root wants a ruling).
+   `an-orphaned-declare-joins-the-product-root-set` was ruled a
+   non-issue and **closed** (PR #2882, E-class: the root set is the
+   sink set, non-body roots contribute nothing).
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -83,9 +84,9 @@ posture under §Process.
    **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
    doc-param precedent; LIB's Python half unparked at that merge); its
    residue `recorded-notation-makes-a-rust-author-count-step-indices`
-   is **in its fix pass** (PR #2876, middle tier, wave 12: the recorder
-   hands back its steps and the notation's authoring door derives the
-   index; review MERGEABLE).
+   is **merged** (PR #2876, middle tier, wave 12: the recorder hands
+   back its steps and the notation's authoring door derives the
+   index).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
    **merged** (PR #2793, middle tier). DM8's residue
