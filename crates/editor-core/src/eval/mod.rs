@@ -638,18 +638,19 @@ impl<T: Decide> ValuePayload<T> {
 /// `node`'s own id, which is where the walk starts and what it names
 /// when the first transform's input is the one that dangles.
 /// Unreachable through `apply`, which takes a node's dependents with
-/// it on delete; refused typed anyway.
+/// it on delete; refused typed anyway. Boxed: the pair is the cold
+/// half of every classification, and a `NodeErrorKind` is wide.
 pub(crate) fn node_value_kind<P>(
     doc: &Doc<P>,
     id: RecipeNodeId,
     node: &crate::node::Node<P>,
-) -> Result<&'static str, (RecipeNodeId, NodeErrorKind)> {
+) -> Result<&'static str, Box<(RecipeNodeId, NodeErrorKind)>> {
     use crate::node::Node;
     let (mut at_id, mut at) = (id, node);
     while let Node::Transform { input, .. } = at {
         at = doc
             .node(*input)
-            .ok_or((at_id, NodeErrorKind::MissingInput { input: *input }))?;
+            .ok_or_else(|| Box::new((at_id, NodeErrorKind::MissingInput { input: *input })))?;
         at_id = *input;
     }
     Ok(match at {

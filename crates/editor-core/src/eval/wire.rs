@@ -775,7 +775,7 @@ fn node_operand<'d, P, R>(
         None => Err(operand_refusal(
             input,
             expected,
-            super::node_value_kind(doc, input, node).map_err(|(_, kind)| kind)?,
+            super::node_value_kind(doc, input, node).map_err(|seated| seated.1)?,
         )),
     }
 }

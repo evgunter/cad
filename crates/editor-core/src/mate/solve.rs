@@ -899,6 +899,10 @@ fn unordered<T: Ord>(x: T, y: T) -> (T, T) {
 /// twice (two copies of the same pattern mated to each other) can
 /// never be a tree edge at all — the pattern already determined both
 /// ends — so it stays declaring the same way.
+///
+/// Every input of the solve is a parameter here, the environment
+/// included; none is cached on a struct.
+#[allow(clippy::too_many_arguments)]
 fn solve_cluster<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     env: &ParamEnv<f64>,

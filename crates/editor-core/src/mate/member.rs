@@ -745,7 +745,7 @@ fn axis_datum<P>(
                     found,
                 },
             ))),
-            Err(seated) => Err(Box::new(seated)),
+            Err(seated) => Err(seated),
         },
         None => Err(Box::new((
             pattern,
