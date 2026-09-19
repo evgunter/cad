@@ -618,3 +618,59 @@ row's evidence for method item 1.
 The rule this hardens, for every row this program closes: **correct the
 number everywhere it is asserted, and leave it everywhere it is
 quoted.** A closed row's title is an assertion.
+
+## 2026-09-19 — the cube-sequence fold
+
+`dup/fold-the-cube-sequence`. `prism_ops` gains the declined axis as a
+`FaceGeometry` parameter; `splitting::reassembly::quad_prism`,
+`fixtures::ops_cube`, `review_m1_pr3::build_box`, `mesh`'s MESH-6
+scaffold probe, `review_m3_pr1::ops_cube_public` and
+`interval_body`'s interval cube all fold onto it. Every body
+byte-identical (`deep_snapshot`, all ten arenas + provenance).
+`cube_independent.rs` untouched, as its header requires.
+
+Two of the row's three unmeasured questions are now measured and
+written into it: the placeholder surfaces ARE depended on as
+placeholders (10 rows red when handed planes), `build_box`'s 2x scale
+is read by NO assertion but is kept because the hole recipes planted on
+it live outside a unit cube and nothing would go red. The X4 re-census
+turned up the §9.3 holed-box class, filed as
+`work/dup/the-9-3-holed-box-sequence-is-written-out-four-times.md`.
+
+The `mesh` dev-edge question the brief flagged is NOT the `sweep` one:
+`sweep` needs the feature at LIBRARY build time (its `test_support` is
+a `src/` module), `mesh` needs it on a dev edge only, and
+`crates/step-export/Cargo.toml` and `crates/step-import/Cargo.toml`
+already carry exactly the shape `mesh` takes — a featureless `topo`
+in `[dependencies]` beside a `topo = { features = ["test-support"] }`
+in `[dev-dependencies]`. `scripts/gates/test-features-dev-only.sh`
+passes.
+
+## 2026-09-19 — the fold's fix pass
+
+Same branch. The fold's own disclosed residue — `fixtures::ops_cube`
+and `OpsCube` reduced to names for `declined_cube::<f64>` and
+`CubeOps` — is deleted rather than carried: 74 call sites across 20
+files re-pointed, both destructuring sites with them. The argument is
+the two module headers, which after the fold said incompatible things
+about one function.
+
+A fifth instrument, structural rather than arity/name/import/prose —
+`git grep -n 'find_half_edge(seed.face'`, 26 hits — found two more
+members (`tests/m3_pr1_surgery.rs`'s outer cube, `boolean/ops.rs`'s
+`far_cube`), both folded and both proved body-identical by
+`deep_snapshot` BEFORE the edit. It also turned up two classes that are
+not cubes, filed as their own rows: the quad-sheet helper (3 copies)
+and the two-rim cylindrical patch (**9 copies, seven files, eight of
+them closures**). That count is the largest this program has opened a
+row with, and every one of the nine is invisible to all four of the
+censuses links 1–3 ran.
+
+**The correction that matters for method.** The row said
+`review_m3_pr1.rs` was missed because it was loop-written and under the
+arity threshold. Re-run at the merge base it scores 20 `mev` / 14 `mef`
+— three times the threshold. It was matched and then lost inside an
+unnamed four-file bucket, and a second file from that same bucket
+(`m3_pr1_surgery.rs`) was still in it. **A bucket disposition is where
+a census loses things**; one line per hit is what this program already
+asks for, and this is the receipt for why.

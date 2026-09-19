@@ -42,6 +42,8 @@ Ev's standing instructions for implementation work:
 
 **Standing operational rules:**
 
+- **Read `local-scripts/monitors/README.md` before arming anything** —
+  while its temporary note stands, do not arm.
 - **Monitors are tools, not mandates (Ev)**: arm, tune, re-cadence or
   disarm any of them at will. The default at session start is
   `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`

@@ -298,5 +298,12 @@ fn plane_section_winding_is_consistent() {
 /// incidental to that: nothing below reads a description.
 fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     let profile = [(x0, 0.0), (x0 + 2.0, 0.0), (x0 + 2.0, 2.0), (x0, 2.0)];
-    crate::common::prism_ops(body, &profile, (0.0, 1.0), Point3::new, Tol::witness());
+    common::prism_ops(
+        body,
+        &profile,
+        (0.0, 1.0),
+        Point3::new,
+        common::FaceGeometry::Certified,
+        Tol::witness(),
+    );
 }
