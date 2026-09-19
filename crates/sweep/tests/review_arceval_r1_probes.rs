@@ -19,17 +19,29 @@
 //!   enclosure, in either direction, is loud here too.
 //!
 //!   **What holds "the same fixture" is the compiler, not this
-//!   sentence.** E2 calls
-//!   `crate::m5_s12_curved_ops_interval::certified::plate` and reads
-//!   that module's `RECUT_MAPPED_ENCLOSURE_HI`; there is one plate and
-//!   one constant. It was two of each until 2026-09-19, held together
-//!   by a sentence here — which is precisely what a staleness pin must
-//!   not rest on.
+//!   sentence.** E2 builds its operands from
+//!   `crate::m5_s12_curved_ops_interval::certified`'s `plate` and
+//!   `recut_ball`, and reads that module's
+//!   `RECUT_MAPPED_ENCLOSURE_HI`. One plate, one ball, one constant.
+//!   Each was two until 2026-09-19, held together by a sentence here —
+//!   which is precisely what a staleness pin must not rest on.
 //!
-//!   The shipped row's own guard has since been tightened to the same
-//!   both-sides form this row was written to supply, so E2 is now a
-//!   second witness rather than the only one. That is a reviewer
-//!   probe's job and it is left standing.
+//!   **And that leaves E2 with nothing of its own, which is worth
+//!   saying rather than letting "second witness" carry it.** It now
+//!   runs the same subtract on the same two bodies and asserts the same
+//!   predicate against the same constant, read from the place the other
+//!   row reads it. So it cannot go red while the shipped row's arm is
+//!   green, and it cannot catch that constant going stale, because it
+//!   is not a second statement of the constant — it is the same one.
+//!   What it still is: a second execution, in a second binary module,
+//!   of a row that only runs at (interval, 1e-12).
+//!
+//!   That is a smaller claim than the one this row was opened with. The
+//!   shipped row's guard was tightened to the both-sides form E2 was
+//!   written to supply, so the independence E2 had has been absorbed
+//!   rather than removed. Whether a probe with no residual independence
+//!   earns its place is this file's owner's call, not a duplication
+//!   unit's; it is filed and left standing.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -37,42 +49,12 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2, Vec3};
+    use geom_core::{Bounds, Interval, Tol};
 
-    use crate::m5_s12_curved_ops_interval::certified::RECUT_MAPPED_ENCLOSURE_HI;
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::{Revolution, RevolveAxis, revolve};
+    use crate::m5_s12_curved_ops_interval::certified::{
+        RECUT_MAPPED_ENCLOSURE_HI, ball, plate, recut_ball,
+    };
     use topo::{Body, mass_properties};
-
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn p2(x: f64, y: f64) -> Point2<Interval> {
-        Point2::new(iv(x), iv(y))
-    }
-
-    fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
-        Profile::new(SketchPlane::xy(), loops)
-            .validate(Tol::witness())
-            .unwrap()
-    }
-
-    /// A ball of radius `r` at the origin: semicircular profile (bulge
-    /// exactly 1) revolved fully about the sketch y-axis.
-    fn ball(r: f64) -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
-            ProfileVertex::new(p2(0.0, r), iv(0.0)),
-        ]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
-    }
 
     /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
     /// — the cap cutter.
@@ -123,13 +105,8 @@ mod certified {
         }
         // The m5_s12 fixture itself: its 3x3x0.8 plate, minus the unit
         // ball at (1.5, 1.5, 0.5).
-        let plate = crate::m5_s12_curved_ops_interval::certified::plate();
-        let ball = topo::transform_rigid(
-            &ball(1.0),
-            &geom_core::Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
-            Tol::witness(),
-        )
-        .unwrap();
+        let plate = plate();
+        let ball = recut_ball();
         let cut = topo::subtract(&plate, &ball, Tol::witness());
         let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
             panic!("below the constant the chain must escalate, got {cut:?}");

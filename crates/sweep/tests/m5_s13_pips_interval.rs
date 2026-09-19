@@ -42,8 +42,8 @@ mod certified {
     }
 
     /// The 4 × 4 × 1 slab of the finding row.
-    /// **The 4×4×1 box, declared at five sites in this tree** — one of
-    /// them by bounds where the others are by extent.
+    /// `m5_pr9_boss_union::plate`'s box, spelled again here at the
+    /// interval scalar.
     fn slab() -> Body<Interval> {
         sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
     }

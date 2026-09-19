@@ -37,8 +37,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A 6×4 plate, z ∈ [z0, z0 + 1] — **the same box is declared at
-/// three sites in this tree**.
+/// `r1_probes_m9_3::plate6`, copied: a 6×4 plate, z ∈ [z0, z0 + 1].
 fn plate6(z0: f64) -> Body<f64> {
     sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
 }

@@ -61,7 +61,6 @@ fn notched() -> Body<Interval> {
 }
 
 /// The pellet strictly inside the notch (the S10 witness fixture).
-/// **The pellet, declared twice**: also `m5_s10_face_sense::pellet`.
 fn pellet() -> Body<Interval> {
     sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }

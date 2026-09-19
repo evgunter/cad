@@ -357,8 +357,6 @@ fn fixed_concave_arc_wall_sense_is_false() {
 /// `y ∈ [1.25, 1.35]`, `z ∈ [0.3, 0.7]`, volume `0.2·0.1·0.4 = 0.008`.
 /// Every point of it is genuinely OUTSIDE `mixed_turn_arcs` (the notch
 /// floor at `x = 1` is `y ≈ 1.0858`), so the two solids are disjoint.
-/// **The pellet, declared twice**: also
-/// `m5_s11_concave_sense_interval::pellet`.
 fn pellet() -> Body<f64> {
     sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }

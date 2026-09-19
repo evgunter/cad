@@ -53,8 +53,7 @@ fn vol(body: &Body<f64>) -> f64 {
 }
 
 /// The 4 × 4 × 1 slab (the S12 finding's own dimensions).
-/// **The 4×4×1 box, declared at five sites in this tree** — one of
-/// them by bounds where the others are by extent.
+/// `m5_pr9_boss_union::plate`'s box, spelled again here.
 fn slab() -> Body<f64> {
     sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }

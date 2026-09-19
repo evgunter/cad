@@ -109,7 +109,7 @@ by reading the two example binaries — `benches/benches/kernel.rs`'s
 CLOSURE in `crates/pncad/tests/all.rs`, and the blank built inline in
 `crates/sweep/examples/p1b_r2_ab_interval.rs`'s `main`.
 
-**44 members. 32 folded, 12 not, and the two sum.** A further **100**
+**44 members. 33 folded, 11 not, and the two sum.** A further **100**
 functions (166 − 66) write the same construction inline inside a test
 body; that is
 `the-box-extrusion-written-inline-inside-test-bodies`, censused at the
@@ -129,7 +129,7 @@ merge base because the fold blinds this instrument over its own area.
   `reporting_door_bit_digest::box_extrusion` took, and its committed
   per-eps digest did not move.
 
-### The 32 folded
+### The 33 folded
 
 `crates/sweep/tests/` (31): `census_containment_cause::boxx`,
 `common/approx::unit_box`, `curved_mergedoor::plate6`,
@@ -150,14 +150,15 @@ merge base because the fold blinds this instrument over its own area.
 `verbs_germarms_r1_probes::boxx`, `verbs_pierce::boxx`,
 `verbs_pierce_r2_probes::boxx`.
 `crates/mesh/tests/` (1): `r2_bool_door::slab`.
+`crates/editor-core/src/` (1): `resolve/pick.rs`'s `unit_prism`, in
+that file's `#[cfg(test)] mod tests`.
 
-### The 12 not folded, each with its reason
+### The 11 not folded, each with its reason
 
 | site | why not |
 | --- | --- |
 | `benches/benches/kernel.rs::slab` | `benches/Cargo.toml` depends on `pncad` alone, deliberately: *"the benchmarks are measurements of the PUBLIC surface"*. The door is unreachable and would be wrong if it were |
 | `crates/pncad/tests/all.rs`'s `slab` closure | its row is *"the end-to-end proof that the Boolean vocabulary is prelude-complete"* |
-| `crates/editor-core/src/resolve/pick.rs::unit_prism` | it is in `src/`, so the door needs a LIBRARY edge — the route `scripts/gates/test-features-dev-only.sh` refuses |
 | `crates/mesh/tests/r1_probe_bool_route.rs::slab` | returns `Result<Body, ExtrudeError>`; the refusal is the subject and `brick` panics |
 | `crates/step-import/tests/verbs_chamfer_roundtrip.rs::chamfered_cube` | the fixture states it is *"built through the public doors a consumer would use"* |
 | `crates/sweep/examples/p1b_r2_ab.rs::cube` | frozen reviewer evidence: it prints and asserts nothing, so re-authoring its blank would silently stop it reproducing the numbers it was cited for |
@@ -183,8 +184,57 @@ the folded `plate()`. Run under `CAD_TOLERANCE_EPS=1e-12` with
 | --- | --- |
 | merge base, extrude-built | `1.1362773333939659e-12` |
 | head, `block(3.0, 3.0, 0.8)` | `1.1362773333939659e-12` |
-| control, `block(4.0, 4.0, 0.8)` | `1.1361065349779188e-12` |
+| **geometry control**, `block(4.0, 4.0, 0.8)` | `1.1361065349779188e-12` |
+| **arena control**, the same box with its corner list rotated one place | `1.1362773333939659e-12` |
 
-The control is what makes the first two rows mean something: the number
-IS sensitive to the plate, and the two CONSTRUCTIONS of the same box
-feed it identically.
+The two controls answer different questions and both are needed.
+
+- The **geometry** control shows `hi` is not degenerate in the plate:
+  change the box and the number moves.
+- The **arena** control is the discriminating one, because the two
+  constructions of this box differ in **curve-arena ordering and in the
+  `(s1, s2)` sense on four rim edges** — not in geometry. Starting the
+  same rectangle's corner list at a different vertex builds the same
+  box with a permuted arena, and `hi` does not move.
+
+**The arena control is itself live**, which is what stops it being a
+second vacuous row: under that rotation
+`crates/topo/tests/cube_doors_agree.rs`'s two arena-comparison rows
+(`every_box_door_builds_one_body`,
+`every_door_builds_the_prism_its_inputs_name`) go **red**, so the
+permutation is real and observable at arena level.
+
+**What this does and does not establish.** It establishes that this
+predicate's enclosure width is insensitive to the arena ORDERING of its
+plate operand, on this fixture, at this eps. It does not separately
+control the `(s1, s2)` sense — the rotation permutes the arena but was
+not shown to flip that bit — so the `(s1, s2)` half of the
+constructions' difference is covered only by the head-vs-merge-base row,
+which varies both axes at once and shows the sum of them moving nothing.
+Do not read it as a general result about the two constructions.
+
+### A decline that was wrong, corrected 2026-09-19
+
+This row said `crates/editor-core/src/resolve/pick.rs::unit_prism` was
+declined because *"it is in `src/`, so the door needs a LIBRARY edge —
+the route `scripts/gates/test-features-dev-only.sh` refuses"*. **Both
+halves are false** and the site is now folded:
+
+- `unit_prism` is inside that file's `#[cfg(test)] mod tests` (opens
+  `:2331`), so it is not library code and needs no library edge.
+- `crates/editor-core/Cargo.toml`'s `[dev-dependencies]` already reads
+  `sweep = { path = "../sweep", features = ["test-support"] }` (`:169`),
+  which is the spelling the gate PERMITS — it refuses `features` on a
+  `[dependencies]` line, which this is not. The same manifest uses that
+  permitted spelling for `profile` too, and the module in question
+  already said `use sweep::{Extrusion, extrude};`.
+
+So the door was nameable there with no manifest change at all. Folded
+to `sweep::test_support::cube(1.0, Tol::witness())`;
+`cargo test -p editor-core --lib` is 152 passed, 0 failed.
+
+The reason was written for a member surfaced late, and it was not
+checked against that member's manifest. A wrong decline is invisible in
+a green diff, which is why it is recorded here rather than quietly
+fixed.
+

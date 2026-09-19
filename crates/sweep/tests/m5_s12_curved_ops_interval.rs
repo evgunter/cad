@@ -60,6 +60,42 @@ pub(crate) mod certified {
         sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
     }
 
+    /// A ball of radius `r` about the origin: a half-disc lamina —
+    /// semicircle out of `(0, -r)`, straight diameter back — revolved
+    /// a full turn about `+y`.
+    ///
+    /// **`pub(crate)` for the same reason [`plate`] is**: this is the
+    /// other operand of the sphere-recut fixture, and
+    /// `review_arceval_r1_probes` builds bodies from it too. It takes
+    /// `r` because that suite's E1 row varies it; this file only ever
+    /// wants 1.
+    pub(crate) fn ball(r: f64) -> Body<Interval> {
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
+            ProfileVertex::new(p2(0.0, r), iv(0.0)),
+        ]);
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(iv(0.0), iv(1.0)),
+        };
+        revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body
+    }
+
+    /// The sphere-recut fixture's cutter: the unit [`ball`] at
+    /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
+    /// both rows that pin `RECUT_MAPPED_ENCLOSURE_HI` build it from
+    /// here — this one and `review_arceval_r1_probes`'s E2.
+    pub(crate) fn recut_ball() -> Body<Interval> {
+        topo::transform_rigid(
+            &ball(1.0),
+            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
+            Tol::witness(),
+        )
+        .unwrap()
+    }
+
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
     fn boss(z0: f64, len: f64) -> Body<Interval> {
         let theta = 2.0 * PI / 3.0;
@@ -279,25 +315,7 @@ pub(crate) mod certified {
     /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
-        // The half-disc lamina: a semicircle out of (0, -1) and the
-        // straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), iv(1.0)),
-            ProfileVertex::new(p2(0.0, 1.0), iv(0.0)),
-        ]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body;
-        let ball = topo::transform_rigid(
-            &ball,
-            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
-            Tol::witness(),
-        )
-        .unwrap();
+        let ball = recut_ball();
 
         let cut = topo::subtract(&plate(), &ball, Tol::witness());
         if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {

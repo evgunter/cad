@@ -40,8 +40,8 @@ fn cylinder() -> Body<f64> {
     cylinder_at(0.0)
 }
 
-/// **Declared twice**: `n3r1_prune` and `s16_box_soundness` carry
-/// this whole corpus, byte for byte.
+/// `s16_box_soundness`'s fixture, adopted with the rest of that
+/// corpus — see this file's header.
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }
