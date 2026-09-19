@@ -107,6 +107,17 @@ test, applied per file:
   the derivations run on. PR #2843 folds its `build_box` onto the shared
   builder and proves the body byte-identical by `deep_snapshot`. That
   fold is what the surviving clause directs, not an exception to it.
+  **But its header carries a different withdrawn citation**, found by
+  PR #2843's style review: it opens *"promoted into the shipped suite per
+  the standing convention (`memories/review-and-dependency-policy.md`) …
+  and the programs are kept."* The memory no longer says the programs are
+  kept; it says the useful ones enter as normal rows and are *"trimmed,
+  gated or retired under the same rules as every other row."* So the file
+  cites a named memory for a rule that memory withdrew — **a carrier shape
+  this row's grep structurally cannot see, because it paraphrases the
+  withdrawn rule instead of quoting it.** How many of the 19, and how many
+  files outside them, cite that memory for something it no longer says, is
+  unmeasured, and is the sharper question this row should be asking.
 - **`review_m1_pr2/cube_independent.rs`** — plausibly still keeps its
   own code, but **on a different ground than the one this program has
   been citing**. Its claim *is* independence: it is a cross-check that
@@ -116,7 +127,7 @@ test, applied per file:
   request (PR #17 thread)"* — sourced from the file's own header and
   never checked against anything Ev ratified. The exemption should be
   restated on the ground that survives.
-- The other fifteen are unexamined here.
+- The other sixteen are unexamined here.
 
 ## What this row owes
 
