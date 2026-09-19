@@ -407,7 +407,7 @@ pub struct ViewerApp {
     /// switching it can never touch what a file says.
     ///
     /// **It is persisted where the store can keep it.**
-    /// [`Self::remember_theme`] writes it on every switch and
+    /// [`Self::remember_prefs`] writes it on every switch and
     /// `Prefs::resolve_theme` reads it back at startup, so a viewer
     /// reopened remembers. Where the store keeps nothing the switch
     /// still applies to the screen and only the memory is lost, which
