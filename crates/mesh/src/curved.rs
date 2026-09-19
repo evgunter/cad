@@ -9,8 +9,8 @@
 //! interior grid is strictly inside every boundary constraint. Every
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
-//! so it is CHECKED here rather than assumed, as THREE questions with
-//! three homes:
+//! so it is CHECKED here rather than assumed, as FOUR questions with
+//! four homes:
 //!
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
@@ -30,7 +30,16 @@
 //!    through the apex, and everything below reads ONE chart
 //!    coordinate per edge. This door is `mesh`'s and the flux lane
 //!    must not cite it — the argument is at the predicate.
-//! 3. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
+//! 3. **EXTENT** — *does the loop span the chart's v direction at
+//!    all?* Asked BY the walk, on its classified traversal list and on
+//!    nothing else (`walk::require_a_meridian`), refusing
+//!    [`TessellateError::MeridianFreeCurvedFace`]. A loop of rims only
+//!    — a sphere cap's or a cone's apex cap's, the pole in the face's
+//!    interior — walks to a rectangle of zero height, which question 4
+//!    cannot tell from a real one (every entry is on its box) and the
+//!    CDT triangulates to nothing. Props admits that face, so neither
+//!    door above refuses it.
+//! 4. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing
 //!    [`TessellateError::UnsupportedCurvedDomain`]).
