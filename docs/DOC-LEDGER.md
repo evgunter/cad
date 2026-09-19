@@ -4035,3 +4035,24 @@ left on the fourth, its row in `MODEL-AB-LOG.md` (ordinal 2406, sample
   `work/exch/log.md`. The §Re-scope ruling (the rung lives in
   `run_iso_checks`' seam class, not `nurbs_iso_derive`) travels in
   the log's adjudication entry.
+
+## Per-merge deletion — MSOLVE-6's spec (2026-09-19)
+
+Recoverable at `git show 71e92e224b64ce2a20117136282950cd10ca0728:docs/MSOLVE-6-SPEC.md`
+(the MSOLVE-6 unit head, before the state-sync commit that deleted it),
+including its "Amendment — the edit door" section, ruled by Ev on
+`[ev]` PR 2118. Its construction held: the lever, the reach trait and
+the edit door landed as written, with three deviations argued on the
+PR (`split`/`inline` take a resolver rather than a reach, because the
+part being minted is what no store holds yet; the edit refuses only
+where the prior solve reached NO verdict, and keeps the cluster's
+frame where it DECIDED there is no pose; `MateReach` is keyed by the
+part, not the instance). The orchestrator ruled against one of its
+sentences: the spec asked `lever_arm`'s doc to "keep the story" of
+the retired floor, and the implementer discipline's rule against
+retired-code archaeology in docs wins — the doc is two sentences.
+The rule above; the unit's record is its item's `## Closed` section
+and its MERGED entry in `work/msolve/log.md` (no A/B row: the program
+runs none).
+
+- `MSOLVE-6-SPEC.md` — MSOLVE-6, the mate's lever is the mated parts' own extent (#2116)
