@@ -1,24 +1,53 @@
-//! Shared test support: the geometric unit cube and the prism builders,
-//! generic over the scalar lane (`f64`, `Dual`, `Interval` — every
-//! `Decide` scalar), the intersection-upgrade pass, and the declaration
-//! flush. Most of this crate's suites declare `mod common;` — the
-//! consumers are deliberately not listed here, because the compiler
-//! knows that set and prose does not.
+//! **The Euler-op fixture family**: the geometric unit cube, the prism
+//! builders, the straddle seat, and the two construction steps they
+//! share. Generic over the scalar lane (`f64`, `Dual`, `Interval` —
+//! every `Decide` scalar) wherever the builder is, with real certified
+//! geometry at every step: a `Plane` on every face, a certified chord
+//! line on every edge, and a body whose mass properties compute.
 //!
-//! Compiled into the test binary, not the library: the cheapest of this
-//! crate's three homes for test vocabulary, and the right one whenever
-//! the library itself never names the item. `topo`'s
-//! `src/test_support_impl.rs` docs give the rule for all three.
+//! # Which home this is, and the one it is not
+//!
+//! [`crate::test_support_impl`]'s docs state this crate's homes for
+//! test vocabulary and the rule that routes an item — and a family —
+//! between them. This module is the home for what a `tests/` binary
+//! and an in-crate probe must BOTH be able to name, which is the one
+//! thing neither `src/fixtures.rs` nor a module under `tests/` can
+//! serve. Its consumers are this crate's `tests/` binaries, which
+//! reach it as `crate::test_support`, and this crate's own in-crate
+//! probes, which reach it by path. It is gated on the test arms alone
+//! — nothing the library itself needs lives here, which is why it does
+//! not carry `test_support_impl`'s `debug_assertions` arm.
+//!
+//! The family is here **whole**, which is that rule's family clause and
+//! not its narrowest-home clause: `geometric_cube`,
+//! `describe_as_intersections` and `face_surface_of_he` are what
+//! `crate::cert_m3r1_probes` names from `src/`, and the builders,
+//! bundles and assertions they share a vocabulary with travel with
+//! them rather than being split across two homes.
+//!
+//! **It is not `crate::fixtures`, and the two are not two spellings of
+//! one thing.** (Not linked: that module is `#[cfg(test)]` and does not
+//! exist in a doc build.) That module builds bodies through the raw builder
+//! with placeholder geometry — `NaN` NURBS surfaces, self-loop circle
+//! carriers, index-derived collinear points, no mass properties at all
+//! — for structural tests that never read a coordinate. This one
+//! builds them through the Euler operators with the real geometry
+//! above, for suites that do. A body from one is not a substitute for
+//! a body from the other at any call site, and
+//! `the_two_prism_families_build_different_bodies` below is the
+//! assertion that says so in a form a rebinding would break.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
+// Test-support code: panicking is a test's failure mechanism (L5), and
+// fixture unwraps are on keys the fixture itself just minted.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+use crate::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
-use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 
 /// **The two independent at-rest rules a conventional chord breaks**,
 /// asserted as a pair over exactly this body's edges — and nothing
@@ -49,18 +78,18 @@ use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCrea
 /// still fails here.
 pub fn assert_every_chord_named_by_both_rules<T: Real>(
     body: &Body<T>,
-    errs: &[topo::ValidationError],
+    errs: &[crate::ValidationError],
 ) {
-    let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let named = |pick: fn(&topo::ValidationError) -> Option<topo::EdgeKey>| {
+    let edges: Vec<crate::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    let named = |pick: fn(&crate::ValidationError) -> Option<crate::EdgeKey>| {
         errs.iter().filter_map(pick).collect::<Vec<_>>()
     };
     let scaffolds = named(|e| match e {
-        topo::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+        crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
         _ => None,
     });
     let transverse = named(|e| match e {
-        topo::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
+        crate::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
         _ => None,
     });
     assert_eq!(
@@ -82,7 +111,19 @@ pub fn assert_every_chord_named_by_both_rules<T: Real>(
 pub struct GeoCube<T: Real> {
     pub body: Body<T>,
     pub seed: MvfsCreated,
+    /// [`PrismOps::chain`] then [`PrismOps::struts`], in that order:
+    /// `[0..3]` are the bottom rim edges v0→v1, v1→v2, v2→v3 and
+    /// `[3..7]` the four struts up from v0, v1, v2, v3.
     pub mevs: [MevCreated; 7],
+    /// **The order is the interface.** [`PrismOps::bottom`] then
+    /// [`PrismOps::sides`]: `[0]` is the `z = 0` bottom cap and
+    /// `[1..5]` are the walls over [`UNIT_SQUARE`]'s segments 0 to 3,
+    /// so `[1]` is `y = 0`, `[2]` is `x = 1`, `[3]` is `y = 1` and
+    /// `[4]` is `x = 0`. The top cap is the seed face and is in
+    /// neither array. Consumers index this — `cert_m3r1_probes` takes
+    /// `[1]` as the front wall, `null` takes `[0]` and `[1]` as a face
+    /// pair — so a reordering that preserved the lengths would move
+    /// them onto other faces silently.
     pub mefs: [MefCreated; 5],
 }
 
@@ -348,13 +389,13 @@ pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> GeoCube<T> {
 pub struct StraddleSeat {
     pub body: Body<f64>,
     /// The cap's top face (the resting pair's post side).
-    pub post_top: topo::FaceKey,
+    pub post_top: crate::FaceKey,
     /// The cap's `x = 0.30` side face (the perpendicular-pair rows).
-    pub post_side_x030: topo::FaceKey,
+    pub post_side_x030: crate::FaceKey,
     /// The shelf's underside (the resting pair's shelf side).
-    pub shelf_bottom: topo::FaceKey,
+    pub shelf_bottom: crate::FaceKey,
     /// The shelf's `y = 0.30` side face (the perpendicular-pair rows).
-    pub shelf_side_y030: topo::FaceKey,
+    pub shelf_side_y030: crate::FaceKey,
 }
 
 /// Builds [`StraddleSeat`] (post grafted first, shelf second — the
@@ -378,7 +419,7 @@ pub fn straddle_seat(tol: Tol) -> StraddleSeat {
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
     let keys =
-        topo::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).expect("the straddle graft");
+        crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).expect("the straddle graft");
     StraddleSeat {
         post_top: post.top_face,
         post_side_x030,
@@ -392,13 +433,13 @@ pub fn straddle_seat(tol: Tol) -> StraddleSeat {
 pub struct Prism<T: Real> {
     pub body: Body<T>,
     /// Bottom-rim vertices, one per profile corner (same order).
-    pub bottom: Vec<topo::VertexKey>,
+    pub bottom: Vec<crate::VertexKey>,
     /// Top-rim vertices, one per profile corner (same order).
-    pub top: Vec<topo::VertexKey>,
-    pub bottom_face: topo::FaceKey,
+    pub top: Vec<crate::VertexKey>,
+    pub bottom_face: crate::FaceKey,
     /// One side face per profile segment `i → i+1` (cyclic).
-    pub side_faces: Vec<topo::FaceKey>,
-    pub top_face: topo::FaceKey,
+    pub side_faces: Vec<crate::FaceKey>,
+    pub top_face: crate::FaceKey,
 }
 
 /// Builds a right prism over a simple polygon `profile` (x, y corners,
@@ -452,9 +493,9 @@ pub fn prism_z<T: geom_core::Decide>(
 /// its rows assert on. Every other one — `brick`, [`prism`],
 /// [`prism_z`], [`mapped_cube`], [`cube_into`] — is [`prism_ops`] and
 /// then that step, so they agree arena for arena wherever their domains
-/// meet, an axis-aligned box, and they differ only in reach: any extent
-/// at any `Decide` scalar against `f64` under any point map, tilts
-/// included.
+/// meet, an axis-aligned box, and they differ only in what they vary:
+/// an extent on one side, a point map on the other with tilts included.
+/// Every one of them is generic in the `Decide` scalar.
 ///
 /// **Both halves of that are pinned by `tests/cube_doors_agree.rs`**,
 /// which is where to look before trusting either. A shared core is what
@@ -479,6 +520,19 @@ pub fn brick<T: geom_core::Decide>(
     .body
 }
 
+/// The surface carried by the face `he` bounds — the one step both
+/// [`describe_as_intersections`] and every caller that has to name an
+/// edge's two adjacent surfaces walks: half-edge to its loop, loop to
+/// its face, face to its surface key.
+pub fn face_surface_of_he<T: Real>(
+    body: &Body<T>,
+    he: crate::entity::HalfEdgeKey,
+) -> crate::geometry::SurfaceKey {
+    let he_data = body.get_half_edge(he).unwrap();
+    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
+    body.get_face(loop_data.face).unwrap().surface
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
@@ -494,13 +548,8 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
     let band = Band::linear(tol).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
-        let face_surface = |body: &Body<T>, he| {
-            let he_data = body.get_half_edge(he).unwrap();
-            let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-            body.get_face(loop_data.face).unwrap().surface
-        };
-        let s1 = face_surface(body, edge.he_plus);
-        let s2 = face_surface(body, edge.he_minus);
+        let s1 = face_surface_of_he(body, edge.he_plus);
+        let s2 = face_surface_of_he(body, edge.he_minus);
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
         let p0 = *body
@@ -527,28 +576,35 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>, tol: 
 /// transform — and **with** the description step, so its edges carry
 /// `Intersection`/`Derived` where `geometric_cube`'s carry
 /// `Scaffold(ExtrudedPoint …)`/`Declared`.
-pub fn mapped_cube(map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) -> Body<f64> {
-    let mut body = Body::<f64>::new();
+pub fn mapped_cube<T: geom_core::Decide>(
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
+) -> Body<T> {
+    let mut body = Body::<T>::new();
     cube_into(&mut body, map, tol);
     body
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
-pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64>, tol: Tol) {
+pub fn cube_into<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    map: impl Fn(f64, f64, f64) -> Point3<T>,
+    tol: Tol,
+) {
     prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, tol);
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);
 }
 
-/// Test-authoring convenience: the [`topo::BooleanDeclarations`] declaring
+/// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
 /// every flush face pair of `(a, b)`, on any carrier the `Rest`
 /// ladder verifies — the test author's
 /// stand-in for a recipe `Declare` (the author built the contact
 /// deliberately; this writes the intent down).
 ///
-/// The detection is the library's ([`topo::flush`]), so this helper
+/// The detection is the library's ([`crate::flush`]), so this helper
 /// interprets nothing: it detects through the same door the op then
 /// verifies with, and hands the findings straight to the declare
 /// sugar. Coincidence CERTIFICATION still happens inside the op
@@ -567,8 +623,94 @@ pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
-) -> topo::BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, tol)
+) -> crate::BooleanDeclarations {
+    let found = crate::flush::find_flush_candidates(a, b, tol)
         .expect("a fixture's flush pairs decide definitely");
-    topo::flush::declare_all(&found)
+    crate::flush::declare_all(&found)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// **The two `prism`s in this crate build different artifacts, and
+    /// the difference is geometric.** `crate::fixtures::raw_prism`
+    /// and this module's [`prism`] take near-identical arguments and
+    /// agree on every arena LENGTH, so a call site rebound from one to
+    /// the other still compiles and still passes any count assertion.
+    /// What separates them is what the arenas hold: a certified solid
+    /// against a structural skeleton with placeholder geometry.
+    ///
+    /// Asserted here rather than left to the names, because the names
+    /// are what nearly collided: three readings of the same surface —
+    /// a name, a signature and a neighbourhood — do not distinguish
+    /// two builders, and a body's surfaces, carriers and volume do.
+    #[test]
+    fn the_two_prism_families_build_different_bodies() {
+        let tol = Tol::witness();
+        let euler = prism::<f64>(&UNIT_SQUARE, 1.0, tol);
+        let raw = crate::fixtures::raw_prism(4, tol);
+
+        // The lengths agree, which is exactly why the rest of this test
+        // exists: a counts-only check cannot tell the two apart.
+        assert_eq!(
+            crate::test_support::arena_counts(&euler.body),
+            crate::test_support::arena_counts(&raw.body),
+            "the two families agree on every arena length"
+        );
+
+        // Surfaces: six certified Newell planes against six NURBS
+        // placeholders.
+        assert_eq!(euler.body.surfaces().count(), 6);
+        assert!(
+            euler
+                .body
+                .surfaces()
+                .all(|(_, s)| matches!(s, geom::Surface::Plane { .. })),
+            "the Euler-op family carries a real plane on every face"
+        );
+        // The count is asserted on this side too: `ArenaCounts` covers
+        // the seven TOPOLOGY arenas, so nothing above pins the surface
+        // arena, and `all` over an empty one is vacuously true.
+        assert_eq!(raw.body.surfaces().count(), 6);
+        assert!(
+            raw.body
+                .surfaces()
+                .all(|(_, s)| !matches!(s, geom::Surface::Plane { .. })),
+            "the raw family carries no plane at all"
+        );
+
+        // Carriers: every edge described as the intersection its two
+        // faces determine, against every edge still at the scaffolding
+        // door.
+        let described = |body: &Body<f64>| {
+            body.edges()
+                .filter(|(_, e)| {
+                    body.get_curve_geom(e.curve)
+                        .and_then(crate::CurveGeom::certified)
+                        .is_some_and(|c| {
+                            matches!(
+                                c.description(),
+                                geom_brep::EdgeDescription::Intersection { .. }
+                            )
+                        })
+                })
+                .count()
+        };
+        assert_eq!(described(&euler.body), 12, "twelve intrinsic carriers");
+        assert_eq!(described(&raw.body), 0, "no intrinsic carrier at all");
+
+        // Mass properties: the unit box's volume against a refusal.
+        assert_eq!(
+            crate::mass_properties(&euler.body, tol)
+                .expect("the Euler-op prism has mass properties")
+                .volume,
+            1.0
+        );
+        assert!(
+            crate::mass_properties(&raw.body, tol).is_err(),
+            "the raw prism's placeholder geometry has no mass properties"
+        );
+    }
 }

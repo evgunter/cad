@@ -38,9 +38,17 @@ use crate::props::mass_properties;
 use crate::validate::{validate, validate_closed};
 use geom_brep::EdgeCurveSpec;
 
-/// A geometric quad prism (profile in x–y, extruded +z; the
-/// tests/common builder's minimal in-crate copy): planar Newell
+/// A geometric quad prism (profile in x–y, extruded +z): planar Newell
 /// surfaces, certified chord-line carriers.
+///
+/// **A copy, not a specialisation.** This is
+/// `crate::test_support_fixtures::prism_ops` written out at `f64` and
+/// `n = 4` — same seed, same rim chain, same bottom close, same strut
+/// loop, same side loop, same closing `set_face_surface` — without the
+/// key bundle. That module is nameable from here (this one is
+/// `#[cfg(test)]`), so the copy is not forced by reachability; it is
+/// filed rather than folded, on S-DUP's
+/// `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
 pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Body<f64> {
     let c = |&(x, y): &(f64, f64), z: f64| Point3::new(x, y, z);
     let bot: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 0.0)).collect();

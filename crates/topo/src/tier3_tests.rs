@@ -505,8 +505,8 @@ fn description_references_keep_a_surface_alive() {
 /// the inner wall's material is OUTSIDE its cylinder (`sense: false`),
 /// the outer wall's INSIDE its own. Every other edge is a definite
 /// corner.
-pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::Prism {
-    let mut p = crate::fixtures::prism(3, tol);
+pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
+    let mut p = crate::fixtures::raw_prism(3, tol);
     // Cross-section corners, in the winding the fixture's caps expect
     // (counterclockwise from +z): the kiss, the outer circle's far
     // point, the inner circle's far point.
@@ -909,12 +909,12 @@ fn the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are() {
 
 /// The kissing edge of a [`cusp_prism`]: the vertical meridian at the
 /// tangency, between the two cylinder walls.
-fn kiss_edge(p: &crate::fixtures::Prism) -> crate::entity::EdgeKey {
+fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
     p.ev[0]
 }
 
 /// The `Tangent` declaration on that edge's face pair.
-fn kiss_declared(p: &crate::fixtures::Prism) -> [DeclaredContact; 1] {
+fn kiss_declared(p: &crate::fixtures::RawPrism) -> [DeclaredContact; 1] {
     [DeclaredContact {
         a: p.face_side[0],
         b: p.face_side[2],
@@ -1090,7 +1090,7 @@ fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
 #[test]
 fn material_arm_error_table() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let edge = crate::fixtures::prism(3, Tol::witness())
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
         .body
         .edges()
         .next()
