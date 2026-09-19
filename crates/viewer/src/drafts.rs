@@ -507,16 +507,17 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use pncad::document::RecipeNodeId;
-
-    use pncad::document::{Dimension, Doc, Expr};
+    use pncad::document::{
+        CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram,
+        RecipeNodeId, apply, evaluate,
+    };
     use pncad::geom_core::Tol;
 
     use super::Drafts;
     use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::seats::Seat;
+    use crate::session::SessionOp;
     use crate::session::author::datum_node;
-    use crate::session::{DatumSpec, DocSession, SessionOp};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
 
@@ -568,61 +569,62 @@ mod tests {
     /// The form's drafts are what the preview replays every frame, so
     /// a form still holding the shape it committed drew that shape in
     /// the probe tint over the committed drawing of its own node. This
-    /// runs the add the way the app's batch does — the op the form
-    /// builds, performed, and on acceptance `Drafts::accepted` — and
-    /// then asks both drawings the viewport makes: the committed pass
-    /// holds the circle, and the preview replayed from the settled
-    /// drafts holds nothing. The control is a REFUSED add, which must
-    /// leave the draft (and so its preview) where it was.
+    /// commits the form's own programs as the node `AddProfile` inserts,
+    /// hands the op to `Drafts::accepted` as the app's batch does on an
+    /// accepted op, and then asks both drawings the viewport makes: the
+    /// committed pass holds the circle, and the preview replayed from
+    /// the settled drafts holds nothing. The control is an op that adds
+    /// no profile, which must leave the draft being composed.
     #[test]
     fn a_committed_profile_is_not_drawn_again_as_its_preview() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let mut session = DocSession::inline(Doc::empty_derived("drafts-accepted", tol), tol);
         let length = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
         let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let frame = SessionOp::AddDatum {
-            datum: DatumSpec::Frame {
-                origin: [length(0.0), length(0.0), length(0.0)],
-                u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-            },
+        let frame = Node::Datum(Datum::Frame {
+            origin: [length(0.0), length(0.0), length(0.0)],
+            u: [scalar(1.0), scalar(0.0), scalar(0.0)],
+            v: [scalar(0.0), scalar(1.0), scalar(0.0)],
+        });
+        let insert = |doc: &Doc<ProfileProgram>, node| {
+            let applied =
+                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            let id = applied.record.minted.expect("an insert mints an id");
+            (applied.doc, id)
         };
-        assert!(session.perform(frame).refusal.is_none());
-        let plane = *session
-            .committed_doc()
-            .order()
-            .last()
-            .expect("the frame landed");
+        let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
         let mut drafts = Drafts {
             profile_plane: Some(plane),
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
-        let add = |drafts: &Drafts, plane| SessionOp::AddProfile {
-            plane,
-            loops: drafts
-                .profile_programs()
-                .expect("the default circle lowers"),
-        };
 
-        // The control: an add aimed at a node that is not a frame is
-        // refused, and the draft is still being composed.
-        let refused = add(&drafts, RecipeNodeId(9_999));
-        assert!(session.perform(refused).refusal.is_some());
-        assert!(
-            !drafts.profile_loops().is_empty(),
-            "a refusal costs no draft"
+        // The control: an accepted op that adds no profile leaves the
+        // form composing.
+        drafts.accepted(&SessionOp::Hover(None));
+        assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
+
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        let (doc, _) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: loops.clone(),
+            }),
         );
-
-        let op = add(&drafts, plane);
-        assert!(session.perform(op.clone()).refusal.is_none());
-        drafts.accepted(&op);
-        session.pump();
-        let (doc, evaluation) = session.landed_pair().expect("the inline seam landed");
+        drafts.accepted(&SessionOp::AddProfile { plane, loops });
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
         let placement =
-            sketch::frame_placement(doc, evaluation, plane).expect("the frame has a placement");
-        let committed = sketch::committed(doc, evaluation, chord, None);
+            sketch::frame_placement(&doc, &evaluation, plane).expect("the frame has a placement");
+        let committed = sketch::committed(&doc, &evaluation, chord, None);
         assert_eq!(
             committed.drawn.len(),
             1,
