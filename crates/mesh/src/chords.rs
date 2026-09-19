@@ -797,11 +797,8 @@ mod tests {
     /// the hull bound is a genuine over-estimate and the row's job is
     /// to prove it is an over-estimate and not an under-one.
     fn cubic_image() -> geom::NurbsCurve2<f64> {
-        let kv = KnotVector::clamped(
-            vec![0.0, 0.0, 0.0, 0.0, 0.37, 1.0, 1.0, 1.0, 1.0],
-            3,
-        )
-        .unwrap();
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.37, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         let pts = vec![
             Point2::new(1.0, 0.0),
             Point2::new(1.2, 0.55),
@@ -856,8 +853,16 @@ mod tests {
     #[test]
     fn general_uv_speeds_dominate_the_sampled_image_speeds() {
         for (name, image, tight) in [
-            ("degree-1 polyline (the head's minted shape)", polyline_image(), true),
-            ("degree-3 wiggle with an off-grid knot", cubic_image(), false),
+            (
+                "degree-1 polyline (the head's minted shape)",
+                polyline_image(),
+                true,
+            ),
+            (
+                "degree-3 wiggle with an off-grid knot",
+                cubic_image(),
+                false,
+            ),
         ] {
             let (su, sv) = general_uv_speeds(&image, EdgeKey::default())
                 .expect("a unit-weight polynomial image is in the certified inventory");
