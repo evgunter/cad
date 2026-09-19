@@ -1469,3 +1469,50 @@ accounts of one unit is the defect the program exists to close.
   rather than writing `24` in its place, which is the correct repair:
   the `match` the macro writes is what holds the roster complete, and
   a doc comment carries an invariant, not a measurement (item 13).
+
+## 2026-09-19 — two lanes dispatched: the box-builder residue and the cylindrical rim
+
+Slate after F6 closed: 12 open rows, 11 closed. Two dispatched together
+because their territories do not overlap.
+
+- **`private-extruded-box-builders-outside-the-brick-door`** →
+  `dup/private-box-builders`, worktree `/home/user/dup-boxbuilders`.
+  The residue of PR #2877: the tree's box door no longer extrudes, so
+  the private builders that still do are one layer out from the class
+  this program just closed. The row publishes a **floor** and says so —
+  its needle was one literal spelling of the extrusion call, and it
+  names by hand four ways a member can decline that spelling. The brief
+  therefore asks for a second instrument before any count is published
+  (method item 8), and for a **per-site disposition rather than a
+  blanket fold**: a suite whose subject IS the extrusion loses its
+  subject by taking an Euler-built box, and the row is explicit that
+  deciding which is the unit's question, not the row's.
+- **`the-cylindrical-patch-rim-builder-is-written-nine-times`** →
+  `dup/cyl-rim-builder`, worktree `/home/user/dup-cylrim`. Nine
+  spellings, and nearly every one a **closure**, which is why the name,
+  arity and geometry censuses all missed them — the second piece of
+  evidence this program has that a structural needle catches what three
+  name/arity censuses do not. The row names three things it never
+  measured (body identity, the home, whether the surface must be a
+  parameter), and those three ARE the unit.
+
+**Neither brief carries a count or a posture as fact** (method item
+15). Both cite the row's numbers as the candidate list method item 1
+says they are, and tell the lane to re-take the census at its own merge
+base. Six times this sitting a number arrived in a report, went into
+the next brief as fact, and was wrong.
+
+**Neither row was set to `dispatched` by the orchestrator.** One file,
+one item: the lane owns its row file and sets `status`, `branch` and
+`pr` in its own PR, the way F6 and the brick row did. An orchestrator
+editing the same file on a parallel branch is the merge conflict
+`work/README.md` describes, and this sitting has already paid once for
+committing conflict markers into this log.
+
+Review tier is deliberately **not** fixed in either brief. Ev's rule is
+style-only by default with a full review reserved for units whose logic
+is tricky, and `plan.md`'s restatement makes the test *can this unit
+change a verdict?* Both units can, if the fold turns out to move what a
+suite measures — and whether it does is exactly what the lanes were
+sent to measure. The tier is decided on the hand-back, from the
+measurement, rather than asserted now from the row.
