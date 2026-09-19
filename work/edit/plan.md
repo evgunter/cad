@@ -114,18 +114,9 @@ posture under §Process.
 
 ## Process
 
-Three tiers, by the row's weight (Ev, in chat, 2026-09-16):
-
-- **Kernel unit** — standard v6: spec → one implementer drawn from a
-  {opus, opus, fable} block + the cross-model dual on a frozen head →
-  union fix pass; ordinals claimed on main at review dispatch from
-  the band above; recorded at merge; blinding verbatim.
-- **Easy but not trivially so** — excluded from the A/B protocol: one
-  implementer, one style review with a correctness arm (an opus
-  lane), no row recorded.
-- **E-class** (a ruled rename, a prose fix, a one-predicate move
-  whose shape is written in the row) — merges on green CI and the
-  orchestrator's read, no review lane, no row.
+Three tiers, by the row's weight — the tiers and what each one gets
+are `docs/MODEL-AB-LOG.md`'s v7 triage entry, repo-wide since
+2026-09-19. Ordinals for the protocol tier come from the band above.
 
 The tier is named in the row when it is dispatched. Issues are files;
 anything for Ev is an `[ev]` PR. This program runs from a remote

@@ -323,6 +323,92 @@ amended:
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
 
+- **Protocol v7 (Ev, in-chat, 2026-09-19): UNIT TRIAGE — the protocol
+  runs on the HARD units only, and every other unit runs
+  opus-implemented and opus-reviewed OUTSIDE it. THIS IS A POPULATION
+  SEAM; item 4.**
+  1. **A unit ENTERS the protocol iff its logic is especially tricky,
+     OR it makes an architectural or design decision whose impact is
+     broad or which would be hard to change later.** Such units run v6
+     unchanged: pre-draw difficulty and task class, an arm drawn from
+     the {opus, opus, fable} block, the cross-model dual on a frozen
+     head, the union fix pass, an ordinal claimed on main at review
+     dispatch, a row recorded at merge. The call is the
+     orchestrator's, made at spec time on the unit in front of it.
+  2. **Every other unit runs OUTSIDE the protocol: an OPUS implementer
+     and an OPUS reviewer, always both, with no draw, no ordinal and
+     no row.** The review is a STYLE review
+     (`docs/prompts/reviewer-style-lane.md`) by default, and a FULL
+     review — claims to falsify alongside the style questions — where
+     the unit carries a meaningful chance of CORRECTNESS bugs. That
+     judgement is the orchestrator's, and it is a feel for the unit
+     rather than a criterion: where the change can be read and
+     believed, the style review is enough; where believing it would
+     take more than reading it, the review carries the correctness
+     claims too.
+     **The mechanical change merges on the ORCHESTRATOR'S OWN READ**,
+     where neither correctness nor style is meaningfully at risk:
+     green CI and the orchestrator's read, no review lane, no row.
+     Everything between that and the protocol gets the opus
+     implementer and opus reviewer above.
+  3. **Blocks and slots are spent by protocol units only.** A block's
+     three slots are drawn as before and consumed as the program's
+     triaged-in units dispatch; a unit outside the protocol is opus by
+     this rule rather than by a slot, and takes none. It draws no
+     ordinal and gets no sample number.
+  4. **THE SEAM: the population being logged changes here, so rows
+     before and after are not drawn from the same units.** Before,
+     whole programs ran every kernel unit through the protocol, easy
+     ones included, and difficulty varied inside the stream. After,
+     only the tricky and the hard-to-reverse enter. Consequences, in
+     the v5-discontinuity convention:
+     - the difficulty distribution of new rows shifts UP and S rows
+       largely stop appearing;
+     - **findings counts, fix-pass sizes, token and wall-clock figures
+       are NOT comparable across this entry** — the units are harder,
+       not the implementations worse. **Any readout whose window spans
+       2026-09-19 must say so and report the eras separately**, as for
+       the v5 instrument boundary and the fable 5.1 boundary;
+     - within the post-seam era the difficulty COVARIATE loses
+       variance (range restriction), so difficulty-stratified
+       adjustment weakens exactly where the rows are most expensive;
+     - **both arms shrink in absolute terms, the fable stream with
+       them.** Per v3's planning note the contrast's precision is
+       governed by the SMALLER arm, so rows accrue more slowly from
+       here. The compensation is per-row signal: a unit no model would
+       get wrong separates no arms.
+  5. **The triage call is RECORDED WHERE THE UNIT LIVES** — the
+     program's `log.md`, or the unit's own item file, names the tier
+     and its one-line reason at dispatch, so an excluded unit is
+     auditable rather than invisible. Nothing else about an excluded
+     unit is recorded HERE.
+
+- **Protocol amendment (Ev, in-chat, 2026-09-19): THE ORCHESTRATOR'S
+  OWN MODEL IS RECORDED PER UNIT — unblinded in deployment, blinded in
+  analysis.**
+  1. **Every row records the model of the ORCHESTRATOR session that
+     spec'd, dispatched and adjudicated the unit**, in the row's arm
+     cell after the implementer arm (`OPUS (block EDIT-B1 slot 1; byte
+     69 → fable at slot 0); orch FABLE`) and in the dispatch record
+     that claims the ordinal on main. If the unit changes hands — a
+     handoff, a successor session, a model fallback — record each
+     model with the phase it held, the way per-phase tokens are.
+  2. **No blinding at deployment.** An orchestrator knows its own
+     model; nothing it decides can be hidden from it, and the field
+     neither names nor determines an implementer arm (arms come from
+     the block draw), so it is not a leak in the sense of the blinding
+     rules. It is recorded openly, like the reviewer models.
+  3. **BLINDED AT ANALYSIS, under v6 item 4.** The coder sees the
+     orchestrator field attribution-stripped and re-randomized per row
+     alongside the reviewer labels; a readout may report
+     orchestrator-model effects, but the coding that produces them
+     runs without knowing which label is which model.
+  4. **Not retrofitted.** Rows recorded before this entry carry no
+     orchestrator field, and it is MISSING data, never imputed — a
+     third reason this date is a seam. Some earlier rows' orchestrators
+     are recoverable from branch history; recovering them selectively
+     is worse than a clean missing column, so the field starts here.
+
 - **Protocol amendment (Ev, in-chat, 2026-09-04): IMPLEMENTER RATIO
   fable:opus 1:2.** Blocks become three slots {opus,opus,fable} with
   the fable position drawn uniformly (byte mod 3). Effective at the
