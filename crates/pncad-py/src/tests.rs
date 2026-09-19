@@ -4305,6 +4305,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "frame_fault_tag",
+        values: &["improper", "non_finite"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "hit_test_error_tag",
         values: &[
             "ambiguous",
@@ -4352,11 +4357,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_kind",
         ],
         delegates: &["readback_error_tag"],
-    },
-    TagEntry {
-        function: "frame_fault_tag",
-        values: &["improper", "non_finite"],
-        delegates: &[],
     },
     TagEntry {
         function: "lever_refusal_tag",
@@ -5358,12 +5358,14 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("node_failed", 4),
     ("node_not_evaluated", 3),
     ("node_poisoned", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("not_a_body", 2),
+    ("not_an_instance", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
+    ("part_unresolved", 2),
     ("pcurve", 5),
     ("pcurves", 3),
     ("placement_rule_mismatch", 2),
@@ -5384,10 +5386,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_param", 4),
     ("unnamed", 2),
     ("unreadable", 2),
-    // `program_refusal_tag`'s profile-program validator and
-    // `validation_refusal_tag`'s `Body.validate`: two vocabularies that
-    // share an English word and nothing else — different attributes on
-    // different classes. Coincidence, decided here.
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),

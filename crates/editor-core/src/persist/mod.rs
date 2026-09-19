@@ -322,7 +322,7 @@ pub enum PersistError {
     /// placement — non-finite, or improper (a mirror). The rows are
     /// re-applied at replay without passing the `SetPlacement` door,
     /// so the shared validator holds them to that door's rule
-    /// ([`crate::Frame::placement_fault`]): save refuses before a
+    /// ([`crate::Frame::admission_fault`]): save refuses before a
     /// byte is written, and a hand-edited file refuses at LOAD with
     /// the same diagnostics rather than loading the frame into the
     /// registry.
