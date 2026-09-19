@@ -17,18 +17,9 @@ bugs / worse code than Fable at lower cost — measured, not vibed.
 
 What binds outside the log's own text:
 
-- **Not every unit enters the protocol** (v7 triage, 2026-09-19): a
-  unit runs the protocol only if its logic is especially tricky or it
-  settles an architectural/design question that is broad or hard to
-  change later; ambiguous units enter. Every other unit runs an OPUS
-  implementer and an OPUS reviewer outside it — style review by
-  default, full review where correctness bugs are a real possibility —
-  with no draw, no ordinal and no row, and its tier named in the
-  program's log at dispatch. Program-level review postures no longer
-  decide this; the unit does.
-- **The orchestrator's own model is a recorded field** on every row
-  from 2026-09-19 — open at dispatch (it is not an implementer arm),
-  blinded at analysis like the reviewer labels.
+- **Not every unit enters the protocol.** Triage is per unit and the
+  orchestrator's call at spec time; what a unit gets on either side of
+  it, and how the call is recorded, are the log's v7 entry.
 - **Blinding vs the merge-only convention**: the harness's
   Co-Authored-By trailer NAMES THE MODEL, so implementer briefs say
   "NO Co-Authored-By trailer in lane commits (blinding overrides the

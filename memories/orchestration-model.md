@@ -14,9 +14,8 @@ Ev's standing instructions for implementation work:
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
   delegated to subagents, which may spawn their own. Implementer and
-  reviewer model follow [[model-ab-experiment]] — the A/B protocol on a
-  tricky or hard-to-reverse unit, an opus implementer and an opus
-  reviewer on every other one; design, specs and rulings stay Fable.
+  reviewer model follow [[model-ab-experiment]]; design, specs and
+  rulings stay Fable.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
