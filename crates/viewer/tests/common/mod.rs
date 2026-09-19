@@ -9,11 +9,21 @@
 //! function of those constants, so the fixtures cannot drift from the
 //! subject.
 //!
-//! The two review suites (`review_gui0_r1`, `review_gui0_r2`) keep
-//! their own fixtures on purpose: a promoted review suite's value is
-//! that it is an INDEPENDENT derivation of what the unit claims
-//! (`memories/review-and-dependency-policy.md`), and pointing it at
-//! the implementation's own constants would spend exactly that.
+//! `review_gui0_r1` and `review_gui0_r2` keep their own fixtures for a
+//! reason in their rows, not in their authorship
+//! (`memories/review-and-dependency-policy.md`): their subject is the
+//! camera contract, and `framed()` below IS a call to
+//! `Camera::framing`, so a framing row taking its camera from here
+//! would be checking that door against itself. `review_gui0_r1`'s
+//! header records the mutation that makes that concrete.
+//!
+//! The same reading decides `review_gui2_r1` and `review_gui2_r2`, and
+//! it is written here once rather than in each of them: everything
+//! below is a function of `viewer::scene`'s own constants, so a row
+//! whose oracle is *this screen point resolves to that face* cannot
+//! take its aim from here — the aim would move with the geometry it is
+//! aimed at and the row could not see it move. What those suites share
+//! from here is the sugar that carries no oracle.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]

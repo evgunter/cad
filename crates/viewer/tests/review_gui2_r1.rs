@@ -3,10 +3,12 @@
 //!
 //! Own fixtures throughout (two disjoint extrudes, a pattern with its
 //! own dimensions, the committed gallery ring), own ray and cursor
-//! constructions, own tolerance derivations — deliberately NOT the
-//! unit's plate helpers, because a promoted review suite's value is
-//! that it derives the claims independently
-//! (`memories/review-and-dependency-policy.md`).
+//! constructions, own tolerance derivations — for a reason in these
+//! rows, not in their authorship: every oracle here is a screen point
+//! and the face it must resolve to, which is the case
+//! `tests/common/mod.rs`'s header states once for this crate
+//! (`memories/review-and-dependency-policy.md`). What carries no
+//! oracle is shared — the world frame comes from `common::xy_frame`.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
@@ -24,6 +26,8 @@
 #![allow(clippy::panic)]
 
 test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+
+use crate::common::xy_frame;
 
 use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -45,22 +49,6 @@ fn delta() -> DisplayTolerance {
 
 /// A square profile at an offset — this suite's own authoring helper,
 /// so the fixtures do not share the unit's.
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
 fn offset_square(plane: RecipeNodeId, x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
         plane,
