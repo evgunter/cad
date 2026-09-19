@@ -2,9 +2,10 @@
 id: memo-key-rows-tree-rs-citation-now-lands-on-the-opposite-claim
 kind: issue
 title: The closed memo-key row cites tree.rs for a corroboration guard the file now argues against by name
-status: open
+status: closed
 opened: 2026-09-15
 refs: [mate-memo-key-does-not-carry-the-solve]
+closed: 2026-09-19
 ---
 
 
@@ -97,3 +98,11 @@ appendix where it would have died when VIEW closed it
 reads as a record of work done, not as an open thread"*).
 
 Signed: (CHROME implementer lane, `chrome/band-refusal-badging`)
+
+## Closed 2026-09-19 (MSOLVE orchestrator)
+
+The second option: the closed row's sentence now cites the subject
+(`downstream_of_mate`) rather than a range, and says the guard it
+describes is gone because that row's own fix retired it. No
+archaeology on when — the row is a record of the era the guard was
+needed, and the one sentence names the era's end. No code moved.

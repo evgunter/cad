@@ -119,8 +119,63 @@ and a transform moves one. The alternatives weighed and rejected are in
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
 
-The exit walk waits on 10–12: the program closes when the lever, the
-member residue, the margins' arm and the face-resolved frame are in.
+**Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
+CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
+2026-09-19:**
+
+13. Closed at triage, as records — the tracker edit is the change:
+    `memo-key-rows-tree-rs-citation-now-lands-on-the-opposite-claim`
+    (the closed memo-key row now cites `downstream_of_mate` by subject
+    and says the guard is gone because that row's own fix retired it)
+    and `msolve5-read-below-a-root-rows-replaced-by-face-typed-rows`
+    (ruled: an ordering over one question is empty; EDIT's typed head
+    removed the kind question from runtime, the file's header says so,
+    and the product ladder that remains is what MSOLVE-5 measured).
+14. **Into `MSOLVE-7`'s lane**, a fourth item:
+    `mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses`
+    — `#[serde(deny_unknown_fields)]` on `MatePrimitive`, the one
+    field-bearing hole in the mate wire, under the persist module's
+    own ruled policy (a stale reader must not silently drop data); a
+    load-door row on the stray key. Small; it changes what a document
+    accepts, which is why it was filed rather than taken, and this
+    program's mate wire is where that is decided.
+15. **Into `MSOLVE-8`'s lane**, two items beside the margins' arm:
+    `subgroup-directions-are-unit-by-prose` (`coset.rs`'s `Subgroup`
+    directions take `geom_core::UnitVec3` where the constructor
+    already holds one — `parallel`/`perpendicular` lever a sine or
+    cosine by the very arm MSOLVE-8 is about, so an unnormalized
+    direction scales a decided margin silently; the carrier-field
+    reads stay bare under `geom`'s at-rest rule, per SCALAR's
+    ratified ruling), and `mate-fault-subject-spelled-in-three-crates`
+    — **ruled here**: no `subject()` on `MateFault`. CHROME's evidence
+    is decisive that a bare `Option<RecipeNodeId>` erases the one fact
+    both consumers exist to carry (`Band` reaches every row of the
+    document; `PosesOfAnotherDocument` reaches none), and a richer
+    enum for two consumers, one already exhaustive, is a three-program
+    change buying nothing. The row closes by the form it sanctions: a
+    sentence on `MateFault` naming its two consumers
+    (`viewer::tree::blamed_mates`, `pncad_py::MateFaultPayload`) and
+    stating the asymmetry once, so it has one home instead of two
+    comments. Lands with MSOLVE-8 because that unit rewrites the
+    `Contradictory` arm's lever sentence on the same enum.
+16. **`mate-clocking-has-no-gui-path`**, split by half. Half (1) — a
+    nonzero clocking rider on `FrameCoincidence` is refused by the
+    coset table STATICALLY, so `AddMate` refuses it typed at authoring
+    time instead of committing an edit the next evaluation is certain
+    to fail — is this program's, small, lands as **`MSOLVE-10`** after
+    MSOLVE-8 (the door's refusal names the table's own predicate).
+    Half (2) — how a mate's roll is turned: documented roll-reference
+    conventions or a rotate-mate affordance — is MSOLVE-9's question
+    in its kernel half: `FromFace { face, reference }` names a roll
+    reference, and its spec states the convention the row says is
+    undocumented; the affordance itself is CHROME's viewer seam and
+    is handed there when MSOLVE-9's convention is ratified. The item
+    is parked on MSOLVE-10 and closes when both halves are recorded.
+
+The exit walk waits on 10–12 and 14–16: the program closes when the
+lever, the member residue (with the wire hole), the margins' arm
+(with the witness and the `MateFault` note), the face-resolved frame
+and the static clocking refusal are in.
 
 ## Territory
 

@@ -462,3 +462,27 @@ loops; two knobs for three states in `apply_maintaining`; a
 `lever_arm`'s doc (ruled: discipline §4 over the spec's "keep the
 story"); `PosesOfAnotherDocument` filed as decided (ruled: refuse).
 Twenty-seven items to the lane.
+
+## MSOLVE-6 lane resumed; six routed items triaged (2026-09-19)
+
+The implementer lane died on a session limit on 2026-09-12 with the
+whole 27-item fix pass committed locally (two commits over a merge
+with main) and nothing pushed; PR 2116 sat at `21f5a65ec` for a week
+while main moved 3506 commits and went `dirty`. Resumed 2026-09-19:
+push first, merge main again (EDIT's typed mate head, PR 2799, lands
+in the same files), the full verification as a fresh head, the PR
+body's fix-pass section, green at job level, then the head to this
+orchestrator for the item 1/2/4/8/10/11 spot-check and the merge.
+
+Six items reached `work/msolve/` from other programs while the
+orchestrator was idle. Two closed at triage as records (the stale
+`tree.rs` citation in the closed memo-key row, and MSOLVE-5's three
+kind rows that EDIT's typed head made unwritable — ruled: an ordering
+over one question is empty, nothing replaces it). `MatePrimitive`'s
+missing `deny_unknown_fields` joins MSOLVE-7's lane; `coset.rs`'s
+unit-direction witness and the `MateFault` subject row join MSOLVE-8's
+(ruled: no `subject()`, a sentence on the enum naming its two
+consumers and the `Band`/`PosesOfAnotherDocument` asymmetry); the
+clocking row splits — the static `FrameCoincidence`+clocking refusal
+at `AddMate` is MSOLVE-10, the roll convention rides MSOLVE-9's spec.
+`plan.md` items 13–16.
