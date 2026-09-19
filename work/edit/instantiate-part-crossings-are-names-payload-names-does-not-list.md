@@ -4,6 +4,7 @@ kind: issue
 title: An InstantiatePart's crossing references are names payload_names does not list
 status: review
 branch: edit/instance-crossing-names
+pr: 2872
 opened: 2026-09-17
 refs: [interface-crossing-heads-are-bare-stable-names, 2814]
 ---
