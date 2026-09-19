@@ -20,6 +20,13 @@ use topo::ContactClass;
 /// Both matches stay exhaustive: a new [`Node`] variant absent
 /// from this list breaks both builds, and adding it to this list is one
 /// decision at one site.
+///
+/// [`Node::payload_read_sites`] is a THIRD reader, and of a weaker
+/// claim: a variant that references no name references nothing to
+/// have a read site FOR, so this pattern is the no-site answer's
+/// bulk. The variants it does not cover — the named ones whose
+/// references are read at their own mints — are spelled beside it
+/// there, so that match is exhaustive too.
 macro_rules! name_free_node {
     () => {
         $crate::node::Node::Datum(
@@ -3261,11 +3268,15 @@ impl<P> Node<P> {
     ///
     /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
     /// the space every reader of the answer reasons in — the insert
-    /// door's liveness check, `Rebind`, DM7's strand walk, the insert
+    /// door's liveness check, `Rebind`, DM7's strand walk through
+    /// [`crate::Doc::name_carriers`] (which `split`'s
+    /// `PartNameReachesRemainder` precondition reads too), the insert
     /// census in `crate::resolve`. A reference a payload holds in
     /// ANOTHER document's id space is therefore not a name here: an
     /// instance's crossing `inner` is the one such reference, and the
-    /// arm below says why it is out of scope rather than absent.
+    /// arm below is the ONE home for the reason it is out of scope
+    /// rather than absent — every other site says "not a name of this
+    /// document" and points here.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             // A declared pair's two NAMES. The sites beside them
@@ -3299,8 +3310,12 @@ impl<P> Node<P> {
             // An `outer` is a REMAINDER name — it denotes a face in
             // THIS document, on a node this document can delete and
             // under a name this document can rebind — so it is a
-            // payload name like a mate's head, and the same three
-            // doors reach it.
+            // payload name like a mate's head, and the same FOUR
+            // doors reach it: the insert door's liveness check,
+            // `DocEdit::Rebind`, DM7's strand report, and `split`'s
+            // `PartNameReachesRemainder` precondition, which refuses
+            // a cut that TAKES an instance whose record names a kept
+            // node — a part cannot name the remainder.
             //
             // An `inner` is NOT listed, and the reason is the id space
             // it is spelled in: the PART's. Its `node` is a part-side
@@ -3342,6 +3357,27 @@ impl<P> Node<P> {
             } else {
                 0
             }
+        }
+        /// A FACE-typed payload name rewritten onto `to` when it is
+        /// exactly `from`, or `None` when it is some other name —
+        /// the one re-derivation both face-name payloads use (a
+        /// mate's heads, an instance's crossing `outer`s).
+        ///
+        /// A face name's kind is the TYPE's, not this rewrite's:
+        /// [`crate::DocEdit::Rebind`] refuses a cross-kind pair at
+        /// its own door, so what `to` contributes is its DERIVATION,
+        /// and `FaceName::map_derivation` is the one in-crate door
+        /// for that. It cannot change a kind, so there is no arm to
+        /// assert away and `Infallible` is the whole of what can go
+        /// wrong.
+        fn rebind_face(name: &FaceName, from: &StableName, to: &StableName) -> Option<FaceName> {
+            if name.as_ref() != from {
+                return None;
+            }
+            let Ok(next) = name.map_derivation(|_, _| {
+                Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
+            });
+            Some(next)
         }
         let mut hits = 0usize;
         match self {
@@ -3391,20 +3427,9 @@ impl<P> Node<P> {
             // re-authoring the mate.
             Node::Mate { a, b, .. } => {
                 for r in [a, b] {
-                    if &*r.name != from {
+                    let Some(next) = rebind_face(&r.name, from, to) else {
                         continue;
-                    }
-                    // A head's kind is the TYPE's, not this rewrite's:
-                    // `DocEdit::Rebind` refuses a cross-kind pair at
-                    // its own door, so what `to` contributes here is
-                    // its DERIVATION. That is the one re-derivation
-                    // door (`FaceName::map_derivation`), which cannot
-                    // change a kind — so there is no arm to assert
-                    // away, and `Infallible` is the whole of what can
-                    // go wrong.
-                    let Ok(next) = r.name.map_derivation(|_, _| {
-                        Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
-                    });
+                    };
                     let at_mint = r.at == r.name.node;
                     r.name = next;
                     if at_mint {
@@ -3437,19 +3462,9 @@ impl<P> Node<P> {
             Node::InstantiatePart { interface, .. } => {
                 for crossing in interface.crossings.iter_mut() {
                     let InterfaceCrossing::Mate { outer, .. } = crossing;
-                    if outer.as_ref() != from {
+                    let Some(next) = rebind_face(outer, from, to) else {
                         continue;
-                    }
-                    // The derivation door, for the same reason a mate
-                    // head goes through it: a face name's kind is the
-                    // TYPE's, `DocEdit::Rebind` refuses a cross-kind
-                    // pair at its own door, and this signature cannot
-                    // produce a non-face — so there is no arm to
-                    // refuse and `Infallible` is the whole of what can
-                    // go wrong.
-                    let Ok(next) = outer.map_derivation(|_, _| {
-                        Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
-                    });
+                    };
                     *outer = next;
                     hits += 1;
                 }
@@ -3466,8 +3481,9 @@ impl<P> Node<P> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — a mate's two operands, and a declared
-    /// pair's two sites.
+    /// also DAG inputs** — a mate's two operands, a declared pair's
+    /// two sites, and a provenance id the payload carries into this
+    /// document: an instance's crossing `mate`.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -3488,7 +3504,43 @@ impl<P> Node<P> {
             // consumer's operand is the EVALUATION's refusal, not the
             // insert door's.
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a.at, b.at]).collect(),
-            _ => Vec::new(),
+            // An instance's crossing `mate`, in record order: the
+            // remainder-side mate the split observed crossing its
+            // cut. It is PROVENANCE rather than an operand — nothing
+            // recomputes from it, and what reads it is prose (the
+            // `CrossingUnverified` refusal names it, and the binding
+            // republishes it) — but it is an id this payload carries
+            // INTO this document, so the typo rule is the same one:
+            // an id that never existed here is a typo, refused at
+            // this door. A later delete of it is not reported, as a
+            // read site's is not: the record then names a mate the
+            // document no longer holds, which is exactly what the id
+            // always denoted.
+            Node::InstantiatePart { interface, .. } => interface
+                .crossings
+                .iter()
+                .map(|crossing| {
+                    let InterfaceCrossing::Mate { mate, .. } = crossing;
+                    *mate
+                })
+                .collect(),
+            // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
+            // is classified here or does not compile — the promise
+            // the twins above already keep. Two groups: the
+            // name-free variants, which reference nothing that could
+            // have a read site (one home for that list,
+            // [`name_free_node`]); and the named variants whose
+            // references are read at a node the DAG ALREADY CARRIES
+            // — a blend's and a shell's at the body they consume, a
+            // derived frame's and a measure's at an `at` that
+            // [`Node::inputs`] reports — so the input check covers
+            // the site and there is nothing extra to name here.
+            name_free_node!()
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Datum(Datum::FaceFrame { .. })
+            | Node::Measure { .. } => Vec::new(),
         }
     }
 

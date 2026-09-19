@@ -13,9 +13,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
-    InterfaceCrossing, InterfaceRecord, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply,
-    load, save,
+    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
+    EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, MateFrame, MatePrimitive, Node,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -34,37 +34,58 @@ fn doc_with_a_crossing() -> ProfileDoc {
         })
         .expect("a crossing's references are face names")
     };
-    // The crossing's `outer` is a name in THIS document — a payload
-    // name the insert door checks is live — so the record rides a
-    // SECOND instance, whose remainder-side face the first one mints.
-    // (Its `inner` is spelled in the part's id space and is checked
-    // by nothing here: that is the point of the split.)
-    let host = apply(
-        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness()),
-        &DocEdit::InsertNode {
-            node: Node::instantiate_part(doc_ref),
+    // Two of the crossing's three references into this document are
+    // checked at the insert door — the `outer` is a payload name and
+    // the `mate` is a read site — so the record rides a LAST
+    // instance, behind the two mate ends and the mate itself. That is
+    // the shape a split leaves behind.
+    let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
+    let push = |doc: &ProfileDoc, node| {
+        apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
+            .expect("the fixture's nodes insert")
+            .doc
+    };
+    host = push(&host, Node::instantiate_part(doc_ref));
+    host = push(&host, Node::instantiate_part(doc_ref));
+    let sited = |node, cap| SitedFace {
+        at: node,
+        name: face(node, cap),
+    };
+    let frame = MateFrame {
+        origin: [0.0, 0.0, 0.0],
+        axis: [0.0, 0.0, 1.0],
+        reference: [1.0, 0.0, 0.0],
+    };
+    host = push(
+        &host,
+        Node::Mate {
+            a: sited(RecipeNodeId(0), CapEnd::End),
+            b: sited(RecipeNodeId(1), CapEnd::Start),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame,
+                b: frame,
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
         },
-        Tol::witness(),
-    )
-    .expect("the remainder-side instance inserts")
-    .doc;
+    );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(0),
+            mate: RecipeNodeId(2),
             class: ContactClass::Rest,
             outer: face(RecipeNodeId(0), CapEnd::End),
-            inner: face(RecipeNodeId(1), CapEnd::Start),
+            // The `inner` is spelled in the PART's id space, and the
+            // value is chosen to make that visible: `RecipeNodeId(7)`
+            // is not a live node of this document at all, so a wire
+            // that round-trips it round-trips a reference NO door
+            // here resolves — which is the distinction the record
+            // exists to carry across the seam.
+            inner: face(RecipeNodeId(7), CapEnd::Start),
         }],
     };
-    apply(
-        &host,
-        &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, record),
-        },
-        Tol::witness(),
-    )
-    .expect("an instance with a record inserts")
-    .doc
+    push(&host, Node::instantiate_part_with(doc_ref, record))
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

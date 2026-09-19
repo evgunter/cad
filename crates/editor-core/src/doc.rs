@@ -1455,9 +1455,9 @@ mod tests {
         // The third payload shape this walk reaches: an instance's
         // interface record. Its crossing's `outer` is a name in THIS
         // document and is carried by the INSTANCE — which is what a
-        // DM7 strand over it names — while its `inner` is spelled in
-        // the part's id space and is no carrier's name at all, so its
-        // absence below is asserted by the same equality.
+        // DM7 strand over it names — while its `inner` is no name of
+        // this document at all (`Node::payload_names`' arm says why),
+        // so its absence below is asserted by the same equality.
         let crossed = name(11, EntityKind::Face);
         doc.nodes.insert(
             RecipeNodeId(2),

@@ -33,11 +33,14 @@ from them:
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
   `Fillet`/`Chamfer` selections, `Declare` pairs, `Mate` heads,
   `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
-  (`Node::payload_names`; a crossing's `inner` is spelled in the part's
-  id space, so it is no name of THIS document and the list's scope
-  excludes it). A name is not a DAG edge:
-  the only door that REFUSES on it is `InsertNode`'s liveness check; a
-  later delete strands it (N5) and says so (DM7).
+  (`Node::payload_names`; a crossing's `inner` is not a name of THIS
+  document, and that list's arm is the one home for why). A name is
+  not a DAG edge, and TWO doors refuse on one: `InsertNode`'s liveness
+  check, and `split`'s `PartNameReachesRemainder` precondition, which
+  refuses a cut whose taken node carries a name reaching the kept
+  remainder — a `Declare` pair's, a `Mate` head's, an instance's
+  crossing `outer`. A later delete strands a name (N5) and says so
+  (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }`
