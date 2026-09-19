@@ -60,6 +60,7 @@ use pncad::prelude::{NameOrigin, attribute};
 use crate::display::DisplayView;
 use crate::pickindex::{EdgeId, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
+use crate::vocab::vocabulary;
 
 /// Which drawn patches the viewport should mark, and how.
 ///
@@ -193,50 +194,45 @@ pub struct EdgeOverlay {
     pub profiles: Vec<[f32; 3]>,
 }
 
-/// **One lane of an [`EdgeOverlay`]**, named so that where it is drawn
-/// relative to the others is a property of the lane and not of the
-/// order some caller happened to fill the fields in.
-///
-/// The edge pass writes no depth, so where two lanes cover one pixel
-/// the one drawn LATER is what the pixel shows. [`EdgeLane::DRAW_ORDER`]
-/// is therefore the priority, lowest first, and the renderer walks it
-/// and nothing else.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum EdgeLane {
-    /// [`EdgeOverlay::datums`].
-    Datum,
-    /// [`EdgeOverlay::profiles`].
-    Profile,
-    /// [`EdgeOverlay::preview`].
-    Preview,
-    /// [`EdgeOverlay::hovered`].
-    Hovered,
-    /// [`EdgeOverlay::selected`].
-    Selected,
-}
-
-impl EdgeLane {
-    /// **Every lane, lowest priority first** — the order the edge pass
-    /// draws them in, so each is drawn over every lane before it.
+vocabulary! {
+    /// **One lane of an [`EdgeOverlay`]**, named so that where it is
+    /// drawn relative to the others is a property of the lane and not of
+    /// the order some caller happened to fill the fields in.
     ///
-    /// - The datum grid is first: it is the backdrop the rest is
-    ///   placed against, and a plane rules its whole seen region, so
-    ///   anything it could cover it would cover everywhere.
+    /// The edge pass writes no depth, so where two lanes cover one pixel
+    /// the one drawn LATER is what the pixel shows. The variants are
+    /// therefore declared in draw order, lowest priority first, and
+    /// [`EdgeLane::DRAW_ORDER`] — projected from this declaration — is
+    /// the list the renderer walks and nothing else:
+    ///
+    /// - The datum grid is first: it is the backdrop the rest is placed
+    ///   against, and a plane rules its whole seen region, so anything
+    ///   it could cover it would cover everywhere.
     /// - A committed profile is over the grid, which is the plane it
     ///   usually lies in.
-    /// - A preview is over the committed profiles: it is what the
-    ///   person is composing now, possibly on top of one.
+    /// - A preview is over the committed profiles: it is what the person
+    ///   is composing now, possibly on top of one.
     /// - The marks are last, selected above hovered: a mark is the
     ///   answer to "which one is that", and it is worthless where
     ///   something else covers it. Selection is the state the user
     ///   committed to, so it outranks the hover.
-    pub const DRAW_ORDER: [EdgeLane; 5] = [
-        EdgeLane::Datum,
-        EdgeLane::Profile,
-        EdgeLane::Preview,
-        EdgeLane::Hovered,
-        EdgeLane::Selected,
-    ];
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum EdgeLane {
+        /// [`EdgeOverlay::datums`].
+        Datum,
+        /// [`EdgeOverlay::profiles`].
+        Profile,
+        /// [`EdgeOverlay::preview`].
+        Preview,
+        /// [`EdgeOverlay::hovered`].
+        Hovered,
+        /// [`EdgeOverlay::selected`].
+        Selected,
+    }
+
+    /// **Every lane, lowest priority first** — the order the edge pass
+    /// draws them in, so each is drawn over every lane before it.
+    pub const DRAW_ORDER;
 }
 
 impl EdgeOverlay {

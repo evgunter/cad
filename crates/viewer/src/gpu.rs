@@ -307,10 +307,9 @@ struct EdgeGeometry {
 /// the two sides cannot spell a lane differently.
 fn lane_code(lane: EdgeLane) -> u32 {
     let position = EdgeLane::DRAW_ORDER.iter().position(|drawn| *drawn == lane);
-    // Every variant is in the list (`every_lane_is_drawn_once`), so
-    // there is always a position; the fallback is never taken and is
-    // spelled so a lane missing from the list draws in the lowest lane
-    // rather than indexing past the style table.
+    // Every variant is in the list — it is projected from the enum's
+    // declaration (`vocabulary!`) — so there is always a position; the
+    // fallback is never taken.
     u32::try_from(position.unwrap_or(0)).unwrap_or(0)
 }
 
@@ -1696,37 +1695,19 @@ mod tests {
         }
     }
 
-    /// **Every lane is drawn, exactly once.** The list is spelled out
-    /// here beside a match with no wildcard, so a lane added to
-    /// `EdgeLane` fails to compile this row until it is listed — and a
-    /// lane missing from `DRAW_ORDER` would never be drawn and would
-    /// share code 0 with the datum grid ([`lane_code`]'s fallback).
+    /// **Every lane's code fits its bits and is not the probe flag** —
+    /// `DRAW_ORDER` is projected from `EdgeLane`'s declaration
+    /// (`vocabulary!`), so every lane is in it and the codes are the
+    /// positions `0..len`; what this row holds is that the positions
+    /// still fit the word the shader decodes as the lane grows.
     #[test]
-    fn every_lane_is_drawn_once() {
-        let every = [
-            EdgeLane::Datum,
-            EdgeLane::Profile,
-            EdgeLane::Preview,
-            EdgeLane::Hovered,
-            EdgeLane::Selected,
-        ];
-        for lane in every {
-            match lane {
-                EdgeLane::Datum
-                | EdgeLane::Profile
-                | EdgeLane::Preview
-                | EdgeLane::Hovered
-                | EdgeLane::Selected => {}
-            }
-            assert_eq!(
-                EdgeLane::DRAW_ORDER
-                    .iter()
-                    .filter(|drawn| **drawn == lane)
-                    .count(),
-                1,
-                "{lane:?} is not in the draw order exactly once",
-            );
+    fn every_lane_code_fits_the_word() {
+        for (position, lane) in EdgeLane::DRAW_ORDER.into_iter().enumerate() {
             let code = lane_code(lane);
+            assert_eq!(
+                code as usize, position,
+                "{lane:?}'s code is not its position"
+            );
             assert_eq!(
                 code & EDGE_LANE_BITS,
                 code,
@@ -1738,7 +1719,6 @@ mod tests {
                 "{lane:?}'s code reads as the probe flag"
             );
         }
-        assert_eq!(EdgeLane::DRAW_ORDER.len(), every.len());
     }
 
     /// **The buffer order is the draw order**, and so the priority:
