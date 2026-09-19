@@ -3269,7 +3269,7 @@ impl<P> Node<P> {
     /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
     /// the space every reader of the answer reasons in — the insert
     /// door's liveness check, `Rebind`, DM7's strand walk through
-    /// [`crate::Doc::name_carriers`] (which `split`'s
+    /// `Doc::name_carriers` (which `split`'s
     /// `PartNameReachesRemainder` precondition reads too), the insert
     /// census in `crate::resolve`. A reference a payload holds in
     /// ANOTHER document's id space is therefore not a name here: an
