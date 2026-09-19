@@ -2,8 +2,9 @@
 id: pick-tie-break-width-key-depends-on-scene-magnitude
 kind: issue
 title: the width tie-break's key depends on where the scene sits, so an exact tie between identical faces is decided by coordinate magnitude
-status: review
+status: closed
 opened: 2026-09-16
+closed: 2026-09-19
 pr: 2816
 branch: edit/pick-tie-refuses
 ---
@@ -383,3 +384,38 @@ about intervals and windows.
 The review branch is merged authorship-preserving
 (`git merge --no-ff origin/review/pickrefuse-rv`), its two probes
 re-headed to the invariants they pin.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2816 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). Ev's ruling on `[ev]`
+#2795 is the door: the order is `precedes` alone (`TSpan::survivors`,
+the one spelling); survivors naming one face are that face with the
+hull of their intervals at the member with the smallest rounded `t`;
+survivors naming more than one face are `HitTestError::Ambiguous {
+hits }`, one true hit per tied face, listed in target then face-arena
+order and deciding nothing; the width and position keys are gone and
+`TSpan::width` is a measurement only. The review found one MAJOR the
+first build had minted: the refusal reached the viewer's pick SEED, so
+a cursor on a shared edge stopped picking the edge — the clear-intent
+case Ev asked not to refuse (18 of 66 segment-midpoint cursors on the
+shipped plate). The fix pass made the seed a depth (`front_of`: the
+nearest of the faces the door names, the tied set beside it — two
+readers, the seed and the occlusion probe, recorded on the vgeom
+row), so only a FACE answer refuses; gave the group rule one home
+(`resolve::pick::answer_of`, called by the door and both reference
+loops); merged every display group's answer before refusing (a
+two-root fixture: a moved face in front of a tied batch is the
+answer, coincident faces across groups refuse with both); measured
+`aim_lost` by face identity (0 lost; 20 469 of 20 475 refusals at the
+aimed parameter name the aimed face); attributed the four- and
+six-face refusals (coincident faces of separate instances; three
+faces incident at a point in each of two coincident bodies — both the
+intended refusal); and made the status line render two tied faces as
+two phrases. Acceptance on the final head: tie aim 19 296 rays,
+`pruned_differs 0`, `refused 4 976`; wide aim 441 126 rays, `refused
+34 934`, `aim_lost 0`, `moved 1`. `docs/DESIGN.md`'s picking bullet
+describes what was built. Territory crossed by announcement: VIEW
+(three sources, six suites), LIB (the `ambiguous` tag, `hits`, stub,
+censuses, two Python rows), TCOST/TINT. `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts`
+§2 closed by announcement; §1 and §3 stand.
