@@ -294,8 +294,9 @@ fn a_frames_arrows_cannot_hide_in_its_grid() {
 /// unbalanced mark, and a head is the part of an arrow a reader
 /// actually sees against a ruling that runs along its shaft.
 ///
-/// **The values that make this false**: arms of two lengths, or the
-/// same number of barbs rooted on each axis.
+/// **The values that make this false**: arms of two lengths, the
+/// same number of barbs rooted on each axis, or two +x heads drawn at
+/// (nearly) one place, which is one head drawn twice.
 #[test]
 fn a_frames_arms_match_and_the_x_head_is_doubled() {
     let (doc, tol) = evaluated(vec![frame(
@@ -316,6 +317,8 @@ fn a_frames_arms_match_and_the_x_head_is_doubled() {
     };
     let mut arms: Vec<(usize, f64)> = Vec::new();
     let mut barbs = [0usize; 2];
+    // Per +x barb: where along x its tip is, and how far back it runs.
+    let mut x_heads: Vec<(f64, f64)> = Vec::new();
     for pair in segments.chunks_exact(2) {
         let d = [
             pair[1][0] - pair[0][0],
@@ -334,6 +337,9 @@ fn a_frames_arms_match_and_the_x_head_is_doubled() {
                     *count += 1;
                 }
             }
+            if on_axis(pair[0], 0) {
+                x_heads.push((pair[0][0], pair[0][0] - pair[1][0]));
+            }
         }
     }
     arms.sort_by_key(|&(axis, _)| axis);
@@ -349,6 +355,23 @@ fn a_frames_arms_match_and_the_x_head_is_doubled() {
         [4, 2],
         "+x carries two heads and +y one, or the picture is symmetric \
          under a quarter turn",
+    );
+    // The two +x heads are two, not one drawn twice: their tips stand
+    // apart along the axis by a real share of a head's length.
+    let head = x_heads
+        .iter()
+        .map(|&(_, back)| back)
+        .fold(0.0_f64, f64::max);
+    let (near, far) = x_heads
+        .iter()
+        .fold((f64::INFINITY, 0.0_f64), |(lo, hi), &(tip, _)| {
+            (lo.min(tip), hi.max(tip))
+        });
+    assert!(
+        head > 0.0 && far - near >= 0.5 * head,
+        "the +x tips sit {:e} m apart against a {head:e} m head — the \
+         doubled head has collapsed into one",
+        far - near,
     );
 }
 
