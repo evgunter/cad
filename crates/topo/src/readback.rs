@@ -787,13 +787,14 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{GeomRef, Vertex};
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{ops_cube, ops_genus2, ops_holed_box, prov};
+    use crate::fixtures::{ops_genus2, ops_holed_box, prov};
     use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::validate;
 
     #[test]
     fn cube_counts_and_genus_zero() {
-        let body = ops_cube(Tol::witness()).body;
+        let body = declined_cube::<f64>(Tol::witness()).body;
         let counts = euler_counts(&body);
         assert_eq!(
             counts,
@@ -958,7 +959,7 @@ mod tests {
     /// failed rather than halving an odd number into a plausible one.
     #[test]
     fn torn_store_refuses_typed() {
-        let mut body = ops_cube(Tol::witness()).body;
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
         let point = body.add_point(Point3::new(0.5, 0.5, 0.5));
         body.add_vertex(
             Vertex {
@@ -988,7 +989,7 @@ mod tests {
     /// `None`.
     #[test]
     fn a_live_edge_with_a_torn_curve_key_refuses_dangling_geometry_on_both_doors() {
-        let mut body = ops_cube(Tol::witness()).body;
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
         let edge = body.edges().next().expect("a cube has edges").0;
         let torn = CurveKey::default();
         body.get_edge_mut(edge).expect("a live edge").curve = torn;

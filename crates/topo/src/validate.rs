@@ -6257,9 +6257,10 @@ mod tests {
     use crate::entity::{Face, Loop, Shell, Solid, Vertex};
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{
-        mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
+        mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
     };
     use crate::seqgen;
+    use crate::test_support_fixtures::declined_cube;
 
     fn anchor() -> Point3<f64> {
         Point3::origin()
@@ -7419,7 +7420,7 @@ mod tests {
         // vertices and all 12 edges (each moved edge still has its
         // other face here), χ = 8 − 12 + 5 = 1; the lone face has
         // χ = 4 − 4 + 1 = 1.
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let mut body = t.body;
         let front = t.mefs[1].face;
         let old_shell = body.get_face(front).unwrap().shell;
@@ -7601,7 +7602,10 @@ mod tests {
         );
         assert_eq!(validate_closed(&raw_prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
-        assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
+        assert_eq!(
+            validate_closed(&declined_cube::<f64>(Tol::witness()).body),
+            Ok(())
+        );
         assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
         assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
     }
@@ -7821,7 +7825,11 @@ mod tests {
         // plane per face, which needs three vertices on a loop, and
         // the raw pillow/prism fixtures carry two-vertex loops. They
         // carry no rings either, so the arm would be vacuous on them.
-        for mut body in [ops_cube(tol).body, ops_holed_box(tol).body, ops_genus2(tol)] {
+        for mut body in [
+            declined_cube::<f64>(tol).body,
+            ops_holed_box(tol).body,
+            ops_genus2(tol),
+        ] {
             plane_every_face(&mut body);
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
@@ -8426,7 +8434,7 @@ mod tests {
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —
-    /// the minimum needed to reach check 6 from [`ops_cube`], whose
+    /// the minimum needed to reach check 6 from [`crate::test_support_fixtures::declined_cube`], whose
     /// faces are raw `Nurbs` placeholders (check 6 only inspects
     /// `Surface::Plane` faces, so on the raw fixture it is vacuous).
     /// The loop order is the stored one, so the minted normal is the
@@ -8476,7 +8484,7 @@ mod tests {
     /// threading (planar sweeps mint `sense: true` throughout — S11
     /// reverses only material-against-chart walls, none here — so the
     /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
-    /// before the flip". The fixture is [`ops_cube`] with real planes
+    /// before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
     /// report is about those chords and nothing else. (The all-green
     /// variant of this row, on the fully certified cube, lives in
@@ -8494,7 +8502,7 @@ mod tests {
     /// one and thirteen of the other through.
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
-        let mut cube = ops_cube(Tol::witness()).body;
+        let mut cube = declined_cube::<f64>(Tol::witness()).body;
         plane_every_face(&mut cube);
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
         let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();

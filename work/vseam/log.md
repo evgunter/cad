@@ -48,3 +48,23 @@ No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`
 if the posture ever changes; under the inherited posture it records no
 row.
+
+## 2026-09-19 — Ev's Save As row landed (PR 2858)
+
+Orchestrated from a session taking Ev's high-priority GUI rows across
+the paused viewer programs. Not an A/B-protocol unit, by Ev's
+instruction. The Fable implementer hit the account limit mid-work; Opus
+finished from its uncommitted diff, keeping the rule, the helper, the
+prefs key and the tests. It dropped a zenity/portal backend split, which
+the headless test showed the probe cannot decide. The review was
+style-only. Its fix pass took ten findings. The main ones:
+- the door also owns remembering
+- one home for the empty-parent rule
+- the sibling prefs keys rendered through TOML, which fixed an older
+  unescaped-preset bug
+- a rename sweep over prose and open rows
+- a GUARD row for the gate's `current_dir` blind spot
+- the chooser-probe row restated to match its evidence
+
+Candidate order kept as document → remembered → launch; flagged to Ev.
+The profile-editor row is still in flight.
