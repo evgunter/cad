@@ -1151,7 +1151,8 @@ mod scope_walks {
         // only the first witnesses the refusal under test.
         let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0)).unwrap();
         let dead = scratch.face;
-        body.kvfs(scratch.solid).expect("the scratch solid dies whole");
+        body.kvfs(scratch.solid)
+            .expect("the scratch solid dies whole");
         assert!(
             body.get_face(dead).is_none(),
             "the witness is a real face key the body has since killed"
