@@ -152,6 +152,8 @@ mod review_s2;
 mod review_s2_probe;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_radius_emission_r2_probes.rs"]
+mod review_radius_emission_r2_probes;
 #[path = "review_s8_probe.rs"]
 mod review_s8_probe;
 #[path = "scalar_channels.rs"]
