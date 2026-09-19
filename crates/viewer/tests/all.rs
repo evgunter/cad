@@ -135,8 +135,6 @@ mod prefs;
 mod profile_edit;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
-#[path = "review_probe_profile_edit.rs"]
-mod review_probe_profile_edit;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
 #[path = "review_gui2_r1.rs"]
@@ -155,6 +153,8 @@ mod review_gui4_r2;
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+#[path = "review_probe_profile_edit.rs"]
+mod review_probe_profile_edit;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
