@@ -2172,3 +2172,299 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         pv.edge_radii[0]
     );
 }
+
+// ------------------------------------------------------------------
+// Review probes (lane radius-r1, PR #2892)
+// ------------------------------------------------------------------
+
+/// A closed chain with a `fillet(r)` BINDER whose canonical loop is
+/// ROTATED (its lexicographic minimum (0,0) is not vertex 0) and, under
+/// `s = -1` (a mirror in y), REVERSED as well. The binder's arc is
+/// emitted by the far-end arrival, so the emission record is the only
+/// thing pairing it, and the anchor hop is a non-identity in both
+/// senses.
+fn rotated_fillet_prism(id: &str, s: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Expr) {
+    let pt = |x: f64, y: f64| [len(x), len(y * s)];
+    let radius = len(0.5);
+    let steps = vec![
+        ProgramStep::At(pt(2.0, 2.0)),
+        ProgramStep::Toward {
+            dx: fixture::scl(1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Fillet(radius.clone()),
+        ProgramStep::Toward {
+            dx: fixture::scl(0.0),
+            dy: fixture::scl(s),
+        },
+        ProgramStep::FarEndTo(pt(5.0, 5.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 6.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    (doc, profile, ext, radius)
+}
+
+/// The one answered edge is the fillet arc's wall, a cylinder at `r`,
+/// on a loop whose anchor hop is a rotation (and a reversal); and the
+/// canonical re-addressing `edge_radii` carries lands on that same wall.
+fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
+    let (doc, profile, ext, radius) = rotated_fillet_prism(id, s);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("{id}: the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("{id}: carries a profile");
+    };
+    let r = records(&doc, program);
+    let c = &r.structure.canonical.loops[0];
+    assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
+    assert_ne!(c.start, 0, "{id}: the fixture is ROTATED");
+    let a = &pv.naming.loops[0];
+    assert_ne!(a.offset, 0, "{id}: the anchor hop is a rotation");
+    assert!(
+        r.structure.replay[0].steps[3].is_empty(),
+        "{id}: the binder emitted nothing"
+    );
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
+    let [(edge, expr)] = answer[..] else {
+        panic!("{id}: one binder, one arc, one pair — got {answer:?}");
+    };
+    assert_eq!(*expr, radius);
+    assert_ne!(
+        emitter_of(&r, edge.segment),
+        3,
+        "{id}: credited to the binder, emitted elsewhere"
+    );
+    let got = wall_radius(&ev, ext, edge)
+        .unwrap_or_else(|| panic!("{id}: {edge:?} names no cylindrical wall — the neighbour"));
+    assert!((got - 0.5).abs() < 1e-9, "{id}: the wall stores {got}");
+    let mut cylinders = 0;
+    for (j, slot) in pv.edge_radii[0].iter().enumerate() {
+        let e = ProfileEdgeRef {
+            loop_index: 0,
+            segment: a.segment(j as u32),
+        };
+        match (slot, wall_radius(&ev, ext, e)) {
+            (Some(expr), Some(got)) => {
+                cylinders += 1;
+                assert_eq!(*expr, radius);
+                assert!((got - 0.5).abs() < 1e-9, "{id}: canonical {j} stores {got}");
+            }
+            (None, None) => {}
+            (slot, wall) => {
+                panic!("{id}: canonical segment {j}: radius {slot:?} but wall {wall:?}")
+            }
+        }
+    }
+    assert_eq!(cylinders, 1, "{id}: exactly one wall is the fillet arc's");
+}
+
+/// **A `fillet(r)` binder on a ROTATED loop reaches its own wall.**
+#[test]
+fn r1_a_rotated_loops_fillet_binder_reaches_its_arcs_wall() {
+    assert_rotated_fillet_is_answered("r1-fillet-rot", 1.0, false);
+}
+
+/// **A `fillet(r)` binder on a REVERSED AND ROTATED loop reaches its
+/// own wall** — the identity map from recorded segment to published
+/// ref, on the hop that is a non-identity both ways.
+#[test]
+fn r1_a_reversed_and_rotated_loops_fillet_binder_reaches_its_arcs_wall() {
+    assert_rotated_fillet_is_answered("r1-fillet-rot-rev", -1.0, true);
+}
+
+/// **An arrival step's fillet arc on a REVERSED AND ROTATED loop** —
+/// `an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not`
+/// mirrored in x: the chain runs clockwise and its lexicographic
+/// minimum is the fillet arc's own end, so the hop is both.
+#[test]
+fn r1_a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
+    let s = -1.0;
+    let pt = |x: f64, y: f64| [len(x * s), len(y)];
+    let h = 2.0_f64.sqrt();
+    let radius = len(0.5);
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::Toward {
+            dx: fixture::scl(2.0 * s),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::FilletArc {
+            radius: radius.clone(),
+            spec: ProgramArcData::Via {
+                q: pt(h, h),
+                target: ProgramTarget::Start,
+            },
+        },
+        ProgramStep::Toward {
+            dx: fixture::scl(-s),
+            dy: fixture::scl(0.0),
+        },
+    ]);
+    let doc = ProfileDoc::empty_derived("r1-via-rot-rev", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![chain],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    let c = &r.structure.canonical.loops[0];
+    assert!(c.reversed, "the mirrored chain is clockwise");
+    assert_ne!(c.start, 0, "and rotated");
+    assert_ne!(pv.naming.loops[0].offset, 0);
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let [(edge, expr)] = answer[..] else {
+        panic!("one radius — got {answer:?}");
+    };
+    assert_eq!(*expr, radius);
+    let got = wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "the FILLET arc's wall, not the Via arc's: {got}"
+    );
+    let attached: Vec<usize> = pv.edge_radii[0]
+        .iter()
+        .enumerate()
+        .filter_map(|(j, s)| s.as_ref().map(|_| j))
+        .collect();
+    let [j] = attached[..] else {
+        panic!("one canonical slot: {attached:?}");
+    };
+    let e = ProfileEdgeRef {
+        loop_index: 0,
+        segment: pv.naming.loops[0].segment(j as u32),
+    };
+    let got = wall_radius(&ev, ext, e).expect("the attached slot is a cylinder");
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "the attach lands on the fillet arc's wall: {got}"
+    );
+}
+
+/// **The EXACT-FIT close** (`family::resolve_arc_close`'s `else` arm):
+/// the fillet arc is the whole arrival side and the closing segment,
+/// recorded at that site by hand rather than through
+/// `record_fillet_arc`. The entry is placed exactly at the tangent
+/// point of the r=0.5 fillet between the ray y=0 (from the origin,
+/// heading +x) and the circle of radius 2 about the origin.
+fn exact_fit_close_doc(id: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Expr) {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let radius = len(0.5);
+    let tp = (2.0_f64.sqrt() * 4.0 / 3.0, 2.0 / 3.0);
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(tp.0, tp.1)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::Toward {
+            dx: fixture::scl(2.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::FilletArc {
+            radius: radius.clone(),
+            spec: ProgramArcData::Center {
+                c: pt(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                target: ProgramTarget::Start,
+            },
+        },
+    ]);
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![chain],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    (doc, profile, ext, radius)
+}
+
+/// **An exact-fit closing fillet arc reaches its wall**, credited to
+/// the arrival step at the closing segment.
+#[test]
+fn r1_an_exact_fit_closing_fillet_arc_reaches_its_wall() {
+    let (doc, profile, ext, radius) = exact_fit_close_doc("r1-exact-fit");
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert_eq!(
+        r.verts[0].len(),
+        3,
+        "exact fit: no carrier run was emitted, the fillet arc closes: {:?}",
+        r.verts[0]
+    );
+    let rec: Vec<(usize, profile::RadiusRole, usize)> = r.structure.replay[0]
+        .radii
+        .iter()
+        .map(|e| (e.step, e.role, e.segment))
+        .collect();
+    assert_eq!(rec, vec![(3, profile::RadiusRole::Fillet, 2)]);
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let [(edge, expr)] = answer[..] else {
+        panic!("one radius — got {answer:?}");
+    };
+    assert_eq!(*expr, radius);
+    assert_eq!(edge.segment, 2, "the closing segment");
+    let got = wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "a cylinder at the fillet's radius: {got}"
+    );
+    assert_eq!(pv.edge_radii[0].iter().flatten().count(), 1);
+}
