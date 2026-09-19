@@ -2,7 +2,7 @@
 id: MSOLVE-8
 kind: unit
 title: A levered clash names its arm as a typed lever, the coset's directions carry the unit witness, and MateFault names its two consumers
-status: open
+status: dispatched
 opened: 2026-09-19
 branch: msolve/8-levered-clash
 ---
