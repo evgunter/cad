@@ -110,7 +110,10 @@ and a transform moves one. The alternatives weighed and rejected are in
     second arm in the sentence for dimensionless residuals, a typed
     unit, or a small-angle argument) is this program's; sequenced after
     MSOLVE-6 because the arm those margins would carry is the one it
-    just changed. Small.
+    just changed. Small. Spec `docs/MSOLVE-8-SPEC.md` (2026-09-19),
+    with item 15 folded in: a closed `Lever { Roll, Residual }` enum
+    (ruled), the witness at the frame read, the `MateFault` sentence.
+    Dispatches after MSOLVE-7 merges.
 12. **`MSOLVE-9` — `mate-frames-resolve-from-a-face-at-evaluation`**:
     Ev's ruling (F) on `[ev]` PR 2256 — `MateFrame` gains a `FromFace
     { face, reference }` arm resolved at evaluation through
