@@ -67,6 +67,35 @@ fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     (body, f)
 }
 
+/// [`sheet_b`] at a radius that DISAGREES: the B instance of the
+/// standard seat whose two descriptions differ in radius by `r - 1`,
+/// which is what the rows calling this are about. The window is
+/// `sheet_b(0.5, 1.3, 0.3, 0.7)`'s, written through the same chart
+/// transfer so there is one spelling of it in this file.
+///
+/// **`src` stays per-call.** Nothing in the tree asserts that two
+/// sheets carry distinct `GeomSource`s — that is
+/// `work/tint/topo-cylinder-sheet-geomsources-are-asserted-by-nothing`
+/// — so collapsing two ids here would quietly erase the thing that row
+/// exists to measure. The bodies these callers built before this
+/// helper are the bodies they build now, bit for bit.
+fn sheet_b_at_radius(r: f64, src: u64) -> (Body<f64>, FaceKey) {
+    let (t0, t1, z0, z1) = (0.5, 1.3, 0.3, 0.7);
+    let mut body = Body::<f64>::new();
+    let f = cyl_wall_sheet(
+        &mut body,
+        CylFrame {
+            radius: r,
+            ..CylFrame::opposed(0.7)
+        },
+        Some(src),
+        (0.7 - t1, 0.7 - t0),
+        (0.25 - z1, 0.25 - z0),
+        Tol::witness(),
+    );
+    (body, f)
+}
+
 /// The tilted-frame fixtures mint exact-structural iso chart images
 /// only when the authored trig products round to exact zero bits — a
 /// bit-structural property of the BUILDER, not of the arm (measured
@@ -296,29 +325,13 @@ fn one_axis_tilt_two_levers_two_answers() {
 #[test]
 fn radius_disagreement_is_three_outcome_honest() {
     let eps = Tol::witness().eps();
-    let with_radius = |r: f64| -> (Body<f64>, FaceKey) {
-        let mut body = Body::<f64>::new();
-        let frame = CylFrame {
-            radius: r,
-            ..CylFrame::opposed(0.7)
-        };
-        let f = cyl_wall_sheet(
-            &mut body,
-            frame,
-            Some(7004),
-            (0.7 - 1.3, 0.7 - 0.5),
-            (0.25 - 0.7, 0.25 - 0.3),
-            Tol::witness(),
-        );
-        (body, f)
-    };
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b_far, fb_far) = with_radius(1.0 + 1e-3);
+    let (b_far, fb_far) = sheet_b_at_radius(1.0 + 1e-3, 7004);
     match declared_pair_overlap(&a, fa, &b_far, fb_far, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("a definite radius disagreement refuses typed: {other:?}"),
     }
-    let (b_sliver, fb_sliver) = with_radius(1.0 + 3.0 * eps);
+    let (b_sliver, fb_sliver) = sheet_b_at_radius(1.0 + 3.0 * eps, 7004);
     match declared_pair_overlap(
         &a,
         fa,
@@ -393,24 +406,8 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
     let eps = Tol::witness().eps();
     // The edge case: |Δr| = 0.7·ε — Zero at the run band, in-band at
     // the halved budget.
-    let near = |r: f64| -> (Body<f64>, FaceKey) {
-        let mut body = Body::<f64>::new();
-        let frame = CylFrame {
-            radius: r,
-            ..CylFrame::opposed(0.7)
-        };
-        let f = cyl_wall_sheet(
-            &mut body,
-            frame,
-            Some(7006),
-            (0.7 - 1.3, 0.7 - 0.5),
-            (0.25 - 0.7, 0.25 - 0.3),
-            Tol::witness(),
-        );
-        (body, f)
-    };
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
-    let (b, fb) = near(1.0 + 0.7 * eps);
+    let (b, fb) = sheet_b_at_radius(1.0 + 0.7 * eps, 7006);
     assert_eq!(
         declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
         ChartOverlap::PositiveArea,

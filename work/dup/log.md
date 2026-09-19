@@ -1481,3 +1481,49 @@ both guards reading that table went green, because they check
 membership and never an entry's reason. Filed on GUARD, with the two
 entries anyone has checked named and no count of the rest published,
 because nobody has measured one.
+
+### Third pass: a blanket claim replaced by a wider blanket claim
+
+The fix pass corrected `review_m1_pr5_internal`'s section comment
+because it was false for one of the four entries under it. **The
+replacement was false for all four**, including `prism_ops` — the entry
+that was the correct precedent. It said each builder "writes only
+through doors already on this list", and `mvfs`, `mev` and `mef` are not
+on that list and *cannot* be: it is by construction the doors that do
+NOT assert, and the guard's other-direction row reds an asserting door
+that appears on it. The true statement is the union of the two halves,
+and it is two words longer than the false one.
+
+**The failure is not the wording.** A blanket claim was rewritten and
+not re-checked against every member it now covered — which is a census
+published without being re-taken, one level up from code. The rule that
+catches it is already item 1; what is new is that it applies to a
+SENTENCE's scope as much as to a count's. A per-entry rewrite is
+checkable by a reader in one step and a blanket one is not, which is why
+the entry-level fix in the same pass was right and the section-level one
+was not.
+
+Two more from the same pass, both minted by it:
+
+- **A bound promoted out of its scope.** `CylFrame::tilted`'s doc
+  carried `radius·(1 − cos θ)` as the distance between the two loci.
+  True at `v = 0` only — the tilt displaces a point at height `v` by
+  `v·sin θ` — and the consuming suites compute exactly that, one of
+  them calling it "the tilt's first-order transfer error `r·θ`" where
+  the promoted bound is second order. It was inherited from a deleted
+  LOCAL helper where its scope was one fixture. **A sentence true of a
+  fixture becomes a claim when the fixture becomes a door**, which is
+  item 12 minted inside the pass that was fixing item 12. Dropped
+  rather than qualified: a caller of a test fixture does not reason
+  with a displacement bound.
+- **The unfolded duplicate under the folded one.** Two token-identical
+  fifteen-line closures in `mate5_cyl_eps_rung.rs`, differing only in a
+  source id. The pass edited BOTH of them — rewriting the frame
+  expression inside each — and folded neither. The judgement that the
+  inline frame expression should stay was right and was recorded; the
+  duplicate one level out was not seen, because the edit was scoped to
+  the line being changed rather than the block containing it.
+
+The fold keeps `src` per-call deliberately: nothing asserts that two
+sheets carry distinct `GeomSource`s, so merging two ids would erase the
+subject of the S-TINT row this unit filed before anyone measures it.

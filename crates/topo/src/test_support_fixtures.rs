@@ -774,10 +774,10 @@ impl CylFrame {
     /// through the same origin, the seam co-rotated so it stays a unit
     /// vector perpendicular to the axis.
     ///
-    /// The same locus as [`CylFrame::canonical`] to within
-    /// `radius·(1 − cos θ)`, and a different description of it — which
-    /// is what a pair of independently authored instances looks like
-    /// when the disagreement is a tilt.
+    /// A NEARBY locus, not the same one, and how near depends on where
+    /// on the chart you look — which is the whole subject of the rows
+    /// that use this frame, so they compute it themselves rather than
+    /// reading a bound from here.
     pub fn tilted(radius: f64, theta: f64) -> Self {
         Self {
             origin: Point3::origin(),
