@@ -2,7 +2,7 @@
 id: a-declare-orphaned-by-a-cascade-is-never-reported
 kind: issue
 title: A Declare orphaned by a cascade that deleted its consumer is silent forever
-status: spec
+status: review
 branch: edit/orphaned-declare-report
 opened: 2026-09-17
 ---
@@ -147,3 +147,50 @@ widen; `Node::Declare`'s doc gains one sentence naming the report.
 and its suite (LIB, by announcement — a new tag word, said in one
 line). Middle tier: one opus style review with a correctness arm, then
 the fix pass.
+
+## Built (2026-09-19)
+
+`Maintenance::OrphanedDeclare { declare }` is the arm, and `apply`'s
+`DeleteNode` reports it: `orphaned_declares` (`edit.rs`) takes the
+removed node's `inputs()` and the POST-removal document — the same
+document `stranded_references` is read out of — and names every
+`Declare` among those inputs that no live node's `inputs()` still
+hold, in document order. Report, never refuse, never repair. The rows
+land after the strands of the same delete and before the cluster
+acts; `Applied::maintenance`'s order contract says so and
+`dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`
+holds the boundary with a delete that produces both kinds.
+
+**The spec's "deleting the `Declare` itself reports no orphan" row is
+not buildable, and the row that replaces it says why.** A `Declare` is
+its consumer's DAG input, so deleting it means cascading the consumer
+first, and the consumer's step is the SAME `(document, edit)` pair as
+deleting that consumer for any other reason. `Applied::maintenance` is
+a function of the document and the edit, so the two cases cannot
+report differently: the cascade reports the orphan at the consumer's
+step and its next step removes the subject.
+`dm7_delete_strands::cascading_a_declare_away_reports_the_orphan_and_then_removes_it`
+pins that, the arm's doc states the transient, and a caller who wants
+a cascade's net effect reads the document it ended at.
+
+Premises, checked: (1) holds — `Node::declare_input`'s match is
+exhaustive and only `Boolean` and `Union` carry one, and both list it
+in `inputs()`; consumption is still read through `inputs()`, so a
+future consumer kind counts the day it compiles. (2) holds — nothing
+refuses a second consumer of one `Declare`, and
+`an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer`
+authors two unions over one declaration. (3) holds — the binding's
+three matches and the tag map are the readers; the tag is
+`orphaned_declare`, `Maintenance.node` answers the `Declare`, and
+unlike `stranded_appearance` this arm is REACHABLE from Python
+(`Doc.declare_all` + `Node.boolean(declare=)` + `DocEdit.delete_node`),
+which `test_document.py`'s
+`test_deleting_the_consumer_reports_the_declaration_it_orphaned`
+exercises. (4) holds — `split`'s closure check refuses a cut that
+takes a declared union and leaves its `Declare`, asserted in
+`asm4_split_inline::row3_severing_cut_refuses_naming_the_edge`.
+
+Rows: `review_decl_r1::a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it`
+(re-headed), four in `dm7_delete_strands`, the `Display` case and
+census entry in `display_contract`, the split case in
+`asm4_split_inline`, the Python row and the census entry.
