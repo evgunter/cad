@@ -330,7 +330,7 @@ fn offence(site: &str, verdict: &Governed) -> Option<String> {
 /// is one attribute's occurrences across every crate, which no type,
 /// module list or manifest enumerates. The walk is the only thing that
 /// knows it, so the copy is the only thing that can catch the walk.
-const ATTRIBUTE_SITES_TODAY: [(&str, usize); 17] = [
+const ATTRIBUTE_SITES_TODAY: [(&str, usize); 18] = [
     ("crates/editor-core/src/appearance.rs", 2),
     ("crates/editor-core/src/distribution.rs", 1),
     ("crates/editor-core/src/doc.rs", 2),
