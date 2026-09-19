@@ -1367,3 +1367,59 @@ One call site and a measurement is thinner than a unit, and the unit
 said so rather than dressing it up. What earned it its own PR is the
 census: the row's stated population was wrong in both directions, and
 the two rows filed out of it are each larger than the fold was.
+
+## 2026-09-19 — the cylindrical-patch rim builder (`dup/cyl-rim-builder`)
+
+**The count moved in both directions, which is item 1 with a twist.**
+The row opened at nine spellings across seven files. Re-taken at the
+merge base with four instruments over every tracked file and no path
+argument, the class — one construction, one home — is **five**, in
+four files, and it includes one member the row never named: a
+`#[cfg(feature = "interval")]` `wall` in `mate5_cyl_eps_rung.rs`,
+which no census that reads a default build can reach because the
+compiler never type-checks it.
+
+The row's OTHER four turned out not to be members. Two are the `src`
+`cyl_sheet` pair, which builds a **measurably different body** — 1
+solid, 2 faces, 4 vertices against the `tests/` family's 3, 4 and 6 —
+because `Body::add_surface` is `pub(crate)` and a `tests/` binary
+cannot call it, so every `tests/` spelling mints a scaffold `mvfs` per
+rim to give the rim plane a face. **The two constructions diverged
+along the crate boundary, not along intent.** Two more are torus
+patches in `boxes.rs`: the row guessed one "may be a genuine sibling",
+and measured it is a different class outright — four curved sides,
+closing on a curved meridian spec where every member of this class
+closes on a chord line.
+
+**Instrument 3 is the one that earned its keep**, and it was chosen
+because item 8 says a disclosed blind spot is an instruction: the row
+disclosed that its structural needle keys on `find_half_edge(seed.face`,
+so a second needle went at the surface key instead —
+`FaceSurface::Shared(cyl)` — and that is what surfaced the interval
+member. Its own blind spot (a key bound to another name) is
+demonstrated rather than asserted: it misses both `boxes.rs` torus
+patches, which say `Shared(torus)`.
+
+**The mutation that stayed green is the residue worth having.**
+Deleting the source write from the shared builder — so no sheet's
+cylinder key carries a `GeomSource` at all — left **all 617
+integration rows and 744 lib rows green at both lanes**, although
+three suites name the distinct-`GeomSource` fingerprint as their
+subject in prose. Filed on S-TINT. The mutation that DID work (the
+descending rim's axis left unnegated) reds 23 rows across all four
+folded suites, the interval member included.
+
+**A live probe the fold did not have to plant.** Moving a fixture
+builder into `topo/src` makes it a `pub fn … &mut …` under that tree,
+which is the population `review_m1_pr5_internal`'s two door tables
+walk — so the fold redded on a table with no entry for the new door
+until it declared how tier 1 survives it. Worth knowing before the
+next `tests/` → `src` fold: the home is not free, and what it costs is
+an entry, not a feature.
+
+**X4, caught in the diff by re-reading it**: the door's own
+`lift_point` / `lift_vec` are the 23rd and 24th componentwise
+`T::from_f64` lifts in the tree with no shared home. Filed. So is the
+second X4 the fold left standing: `try_wall_sheet`, token-identical in
+two probe suites, whose reason to exist was the local builder and
+which now wraps the shared one.

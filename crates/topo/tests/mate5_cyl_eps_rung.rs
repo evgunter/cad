@@ -22,11 +22,11 @@
 
 use crate::common;
 
-use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{
-    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface, MefSite, MevSite,
+    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface,
     declared_pair_overlap,
 };
 
@@ -35,41 +35,10 @@ fn band() -> Band {
     Band::linear(tol).unwrap()
 }
 
-/// One cylinder description: the frame a sheet is authored in.
-#[derive(Clone, Copy)]
-struct CylFrame {
-    origin: Point3<f64>,
-    axis: Vec3<f64>,
-    radius: f64,
-    u_ref: Vec3<f64>,
-}
-
-impl CylFrame {
-    fn surface(&self) -> Surface<f64> {
-        Surface::Cylinder {
-            origin: self.origin,
-            axis: self.axis,
-            radius: self.radius,
-            u_ref: self.u_ref,
-        }
-    }
-
-    /// The chart map `S(u, v) = o + radial(u)·r + axis·v`.
-    fn at(&self, u: f64, v: f64) -> Point3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.origin + (self.u_ref * u.cos() + w * u.sin()) * self.radius + self.axis * v
-    }
-}
-
 /// The canonical frame: axis +z through the origin, seam at +x,
 /// radius 1 — the world frame the fixtures reason in.
 fn frame_a() -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    }
+    CylFrame::canonical(1.0)
 }
 
 /// The divergent frame of the SAME locus: origin shifted a quarter up
@@ -86,151 +55,18 @@ fn frame_b() -> CylFrame {
     }
 }
 
-/// An open cylinder-wall sheet over `frame`'s chart window
-/// `u ∈ [u0, u1] × v ∈ [v0, v1]`, in its OWN body (its own arena, so
-/// no structural chart identity can exist between two sheets): two
-/// rim circle edges (exact `Curve3::Circle` carriers with
-/// `Intersection` descriptions) and two meridian struts, pcurves
-/// minted, and the wall's surface carrying a DISTINCT `GeomSource` per
-/// sheet — the cross-instance fingerprint (`same_chart`'s
-/// "distinct GeomSources" arm, the census's `:466`-arm class).
-/// Returns the wall face.
-fn wall_sheet(
-    body: &mut Body<f64>,
-    frame: CylFrame,
-    src_id: u64,
-    u0: f64,
-    u1: f64,
-    v0: f64,
-    v1: f64,
-) -> FaceKey {
-    let (p00, p10, p11, p01) = (
-        frame.at(u0, v0),
-        frame.at(u1, v0),
-        frame.at(u1, v1),
-        frame.at(u0, v1),
-    );
-    let seed = body.mvfs(p00).unwrap();
-    // The seed face is the wall's complement after the mef below; its
-    // surface slot doubles as the cylinder key's home (the public
-    // spelling of the census fixture's `add_surface`).
-    let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
-        .unwrap();
-    body.set_surface_source(cyl, topo::GeomSource::minted(src_id, 0))
-        .unwrap();
-    let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
-        let center = frame.origin + frame.axis * v;
-        // A scaffold seed carries each rim plane's description (the
-        // stray lone-vertex solid is inert at the predicate door).
-        let scaffold = body.mvfs(center).unwrap();
-        let plane = body
-            .set_face_surface(
-                scaffold.face,
-                FaceSurface::New(Surface::Plane {
-                    origin: center,
-                    normal: frame.axis,
-                    u_ref: frame.u_ref,
-                }),
-            )
-            .unwrap();
-        let (carrier, t0, t1) = if ccw {
-            (
-                Curve3::Circle {
-                    center,
-                    axis: frame.axis,
-                    radius: frame.radius,
-                    u_ref: frame.u_ref,
-                },
-                u0,
-                u1,
-            )
-        } else {
-            // The radial direction at u1, from the frame fields
-            // directly — a projection-based read cancels
-            // catastrophically at small radii and mints a
-            // non-structural (alive-trig) chart image.
-            let w = frame.axis.cross(frame.u_ref);
-            let s = frame.u_ref * u1.cos() + w * u1.sin();
-            (
-                Curve3::Circle {
-                    center,
-                    axis: -frame.axis,
-                    radius: frame.radius,
-                    u_ref: s,
-                },
-                0.0,
-                u1 - u0,
-            )
-        };
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: frame.at((u0 + u1) * 0.5, v),
-            },
-            carrier,
-            param_start: t0,
-            param_end: t1,
-        }
-    };
-    let bottom = rim(body, v0, true);
-    let e_b = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            p10,
-            bottom,
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_r = body
-        .mev_line(
-            MevSite::Fan {
-                he1: e_b.he_minus,
-                he2: e_b.he_minus,
-            },
-            p11,
-            Tol::witness(),
-        )
-        .unwrap();
-    let top = rim(body, v1, false);
-    let e_t = body
-        .mev(
-            MevSite::Fan {
-                he1: e_r.he_minus,
-                he2: e_r.he_minus,
-            },
-            p01,
-            top,
-            Tol::witness(),
-        )
-        .unwrap();
-    let he = body
-        .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-        .unwrap();
-    let face = body
-        .mef(
-            MefSite::Chords {
-                he1: he,
-                he2: e_b.he_plus,
-            },
-            EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
-            Tol::witness(),
-        )
-        .unwrap()
-        .face;
-    topo::pcurves::mint_pcurves(body, Tol::witness()).unwrap();
-    face
-}
-
 /// The A-side sheet of the seat: an arc wall in the canonical frame,
 /// world azimuth `[t0, t1]`, world height `[z0, z1]`.
 fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = wall_sheet(&mut body, frame_a(), 7001, t0, t1, z0, z1);
+    let f = cyl_wall_sheet(
+        &mut body,
+        frame_a(),
+        Some(7001),
+        (t0, t1),
+        (z0, z1),
+        Tol::witness(),
+    );
     (body, f)
 }
 
@@ -240,14 +76,13 @@ fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// is the B-chart window `[0.7 − t1, 0.7 − t0] × [0.25 − z1, 0.25 − z0]`.
 fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = wall_sheet(
+    let f = cyl_wall_sheet(
         &mut body,
         frame_b(),
-        7002,
-        0.7 - t1,
-        0.7 - t0,
-        0.25 - z1,
-        0.25 - z0,
+        Some(7002),
+        (0.7 - t1, 0.7 - t0),
+        (0.25 - z1, 0.25 - z0),
+        Tol::witness(),
     );
     (body, f)
 }
@@ -424,7 +259,14 @@ fn one_axis_tilt_two_levers_two_answers() {
             radius: r,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         };
-        let f = wall_sheet(&mut body, frame, 7003, u0, u1, z0, z1);
+        let f = cyl_wall_sheet(
+            &mut body,
+            frame,
+            Some(7003),
+            (u0, u1),
+            (z0, z1),
+            Tol::witness(),
+        );
         (body, f)
     };
     let small = |u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
@@ -433,7 +275,14 @@ fn one_axis_tilt_two_levers_two_answers() {
             radius: 1e-3,
             ..frame_a()
         };
-        let f = wall_sheet(&mut body, frame, 7005, u0, u1, z0, z1);
+        let f = cyl_wall_sheet(
+            &mut body,
+            frame,
+            Some(7005),
+            (u0, u1),
+            (z0, z1),
+            Tol::witness(),
+        );
         (body, f)
     };
     // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
@@ -481,14 +330,13 @@ fn radius_disagreement_is_three_outcome_honest() {
             radius: r,
             ..frame_b()
         };
-        let f = wall_sheet(
+        let f = cyl_wall_sheet(
             &mut body,
             frame,
-            7004,
-            0.7 - 1.3,
-            0.7 - 0.5,
-            0.25 - 0.7,
-            0.25 - 0.3,
+            Some(7004),
+            (0.7 - 1.3, 0.7 - 0.5),
+            (0.25 - 0.7, 0.25 - 0.3),
+            Tol::witness(),
         );
         (body, f)
     };
@@ -579,14 +427,13 @@ fn a_bridged_verdict_tightens_the_premise_budget() {
             radius: r,
             ..frame_b()
         };
-        let f = wall_sheet(
+        let f = cyl_wall_sheet(
             &mut body,
             frame,
-            7006,
-            0.7 - 1.3,
-            0.7 - 0.5,
-            0.25 - 0.7,
-            0.25 - 0.3,
+            Some(7006),
+            (0.7 - 1.3, 0.7 - 0.5),
+            (0.25 - 0.7, 0.25 - 0.3),
+            Tol::witness(),
         );
         (body, f)
     };
@@ -717,147 +564,10 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
 /// integers, and the arm declines typed instead of picking a branch.
 #[cfg(feature = "interval")]
 mod interval_lane {
-    use super::{ChartRegionError, ContactVerdict, FaceKey, MefSite, MevSite, band};
-    use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use super::{ChartRegionError, ContactVerdict, CylFrame, band, cyl_wall_sheet};
+    use geom_core::Tol;
     use geom_core::interval::Interval;
-    use geom_core::{Point3, Real, Tol, Vec3};
-    use topo::{Body, FaceSurface, declared_pair_overlap};
-
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn zed() -> Vec3<Interval> {
-        Vec3::new(iv(0.0), iv(0.0), iv(1.0))
-    }
-
-    fn ex() -> Vec3<Interval> {
-        Vec3::new(iv(1.0), iv(0.0), iv(0.0))
-    }
-
-    /// A world point of the canonical unit cylinder, authored at f64
-    /// precision and lifted exactly (the f64 lane's own roundings).
-    fn at(u: f64, v: f64) -> Point3<Interval> {
-        Point3::new(iv(u.cos()), iv(u.sin()), iv(v))
-    }
-
-    /// The canonical-frame wall sheet at `Interval` — the f64
-    /// builder's shape, unit cylinder only (axis +z, seam +x, r = 1).
-    fn wall(body: &mut Body<Interval>, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> FaceKey {
-        let (p00, p10, p11, p01) = (at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1));
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = body
-            .set_face_surface(
-                seed.face,
-                FaceSurface::New(Surface::Cylinder {
-                    origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    axis: zed(),
-                    radius: iv(1.0),
-                    u_ref: ex(),
-                }),
-            )
-            .unwrap();
-        body.set_surface_source(cyl, topo::GeomSource::minted(src, 0))
-            .unwrap();
-        let rim = |body: &mut Body<Interval>, v: f64, ccw: bool| {
-            let center = Point3::new(iv(0.0), iv(0.0), iv(v));
-            let scaffold = body.mvfs(center).unwrap();
-            let plane = body
-                .set_face_surface(
-                    scaffold.face,
-                    FaceSurface::New(Surface::Plane {
-                        origin: center,
-                        normal: zed(),
-                        u_ref: ex(),
-                    }),
-                )
-                .unwrap();
-            let (carrier, t0, t1) = if ccw {
-                (
-                    Curve3::Circle {
-                        center,
-                        axis: zed(),
-                        radius: iv(1.0),
-                        u_ref: ex(),
-                    },
-                    iv(u0),
-                    iv(u1),
-                )
-            } else {
-                (
-                    Curve3::Circle {
-                        center,
-                        axis: -zed(),
-                        radius: iv(1.0),
-                        u_ref: Vec3::new(iv(u1.cos()), iv(u1.sin()), iv(0.0)),
-                    },
-                    iv(0.0),
-                    iv(u1 - u0),
-                )
-            };
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
-                    witness: at((u0 + u1) * 0.5, v),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
-        };
-        let bottom = rim(body, v0, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim(body, v1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
-        topo::pcurves::mint_pcurves(body, Tol::witness()).unwrap();
-        face
-    }
+    use topo::{Body, declared_pair_overlap};
 
     /// INVARIANT (the fold's remainder, constructed): two identical
     /// descriptions of one cylinder whose trims sit an exact
@@ -871,9 +581,23 @@ mod interval_lane {
     fn a_half_period_tie_declines_period_fold() {
         let pi = core::f64::consts::PI;
         let mut a = Body::<Interval>::new();
-        let fa = wall(&mut a, 7201, 0.0, 0.4, 0.0, 1.0);
+        let fa = cyl_wall_sheet(
+            &mut a,
+            CylFrame::canonical(1.0),
+            Some(7201),
+            (0.0, 0.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
         let mut b = Body::<Interval>::new();
-        let fb = wall(&mut b, 7202, pi, pi + 0.4, 0.2, 0.8);
+        let fb = cyl_wall_sheet(
+            &mut b,
+            CylFrame::canonical(1.0),
+            Some(7202),
+            (pi, pi + 0.4),
+            (0.2, 0.8),
+            Tol::witness(),
+        );
         match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
             Err(ChartRegionError::PeriodFold) => {}
             other => panic!("the half-period tie declines PeriodFold: {other:?}"),
