@@ -44,10 +44,28 @@
 /// click: `rfd`'s blocking dialogs return the same bare `None` for a
 /// user cancel and for a backend that could not put a dialog up, so
 /// the time to know is before the click.
+///
+/// **The two zenity arms are one fact about whether a dialog appears
+/// and two about WHICH backend puts it up**, and the second question
+/// is asked: `rfd` tries the portal first and spawns `zenity` only
+/// when the portal call fails, and the two backends read a dialog's
+/// starting directory through different doors — the portal from
+/// `set_directory`, zenity only from `--filename`, to which `rfd`
+/// forwards `set_file_name` and nothing else. So the dialog layer
+/// has to know which one will answer, and the probe can say so with
+/// certainty in exactly one case: zenity present and no session bus,
+/// where the portal cannot be reached at all ([`Self::zenity_answers`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChooserBackend {
-    /// `zenity` is on `PATH`: dialogs work with no portal at all.
-    ZenityPresent,
+    /// `zenity` is on `PATH` and no session bus is advertised: a
+    /// dialog is certain, and so is WHO shows it — `rfd`'s portal
+    /// attempt cannot connect, so zenity answers.
+    Zenity,
+    /// `zenity` is on `PATH` and a session bus is advertised: a
+    /// dialog is certain (zenity is the fallback), but the portal is
+    /// tried first, and whether it answers is the same hint
+    /// [`Self::PortalPossible`] carries.
+    ZenityOrPortal,
     /// No `zenity`, but a D-Bus session-bus address exists, so an
     /// `xdg-desktop-portal` file chooser is possible. **A HINT, not a
     /// verdict**: a session bus without a working portal frontend
@@ -64,6 +82,20 @@ impl ChooserBackend {
     /// Whether attempting a dialog can possibly show one.
     pub fn usable(self) -> bool {
         !matches!(self, Self::Absent)
+    }
+
+    /// Whether `zenity` is the backend that will answer, for certain.
+    ///
+    /// True on [`Self::Zenity`] alone. [`Self::ZenityOrPortal`] is
+    /// deliberately NOT included: a bus that is advertised may or may
+    /// not have a frontend behind it, and a starting directory handed
+    /// through zenity's door there would land in the portal's file
+    /// NAME field whenever the portal does answer. The residue —
+    /// zenity answering behind a dead portal and opening at its own
+    /// default — is the same hint-not-verdict residue the README's
+    /// troubleshooting entry already carries.
+    pub fn zenity_answers(self) -> bool {
+        matches!(self, Self::Zenity)
     }
 }
 
@@ -100,7 +132,8 @@ pub enum SessionBus {
 /// so the rows exercising it do not depend on the CI box's `PATH`.
 pub fn chooser_backend_of(zenity: Zenity, bus: SessionBus) -> ChooserBackend {
     match (zenity, bus) {
-        (Zenity::OnPath, _) => ChooserBackend::ZenityPresent,
+        (Zenity::OnPath, SessionBus::NotAdvertised) => ChooserBackend::Zenity,
+        (Zenity::OnPath, SessionBus::Advertised) => ChooserBackend::ZenityOrPortal,
         (Zenity::NotOnPath, SessionBus::Advertised) => ChooserBackend::PortalPossible,
         (Zenity::NotOnPath, SessionBus::NotAdvertised) => ChooserBackend::Absent,
     }
@@ -241,6 +274,40 @@ pub fn prefs_path_in(
 #[cfg(target_os = "linux")]
 pub fn running_under_wsl() -> bool {
     std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
+}
+
+/// The directory the viewer was launched from: the process's working
+/// directory, read ONCE at startup and held by the application.
+///
+/// It is the last candidate a file dialog opens at
+/// (`crate::frame::dialog_dir`), behind the current document's
+/// directory and the directory the last dialog returned — so a viewer
+/// launched from a project directory with nothing open and nothing
+/// remembered starts its first Save As… there rather than wherever
+/// the dialog backend's own default happens to be.
+///
+/// Here because this file is the viewer's one ambient door, and the
+/// four rows of `scripts/gates/no-ambient-env.sh` are argued the way
+/// [`prefs_path`] argues them. CONTRACT-RATIFIED holds vacuously: a
+/// starting directory changes nothing about what any document
+/// evaluates to. COMMIT-ONCE: read here and never re-read — a process
+/// that `chdir`s mid-run is not one this crate is. REPORTED: the
+/// directory is what the dialog visibly opens at, and the one failure
+/// is a startup notice on the status line. RECONCILED: it is the last
+/// candidate of three and never outranks the document's own place.
+///
+/// # Errors
+///
+/// The `io::Error` the read answers with — a launch directory that no
+/// longer exists or cannot be read. The caller reports it and the
+/// dialogs fall through to the backend's default; nothing is invented.
+///
+/// **Native only.** The browser build has no dialogs to position and
+/// no working directory to read, so there is no arm to `cfg` the
+/// other way.
+#[cfg(not(target_family = "wasm"))]
+pub fn launch_dir() -> Result<std::path::PathBuf, std::io::Error> {
+    std::env::current_dir()
 }
 
 /// **What the disabled dialog controls say**, and the only thing that

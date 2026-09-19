@@ -508,6 +508,19 @@ pub struct ViewerApp {
     /// and reading the file there would race the very write it is
     /// about to do.
     keys_pref: Option<String>,
+    /// The directory the last file dialog opened from or saved to —
+    /// the second of the three places a dialog can open
+    /// ([`frame::dialog_dir`]). Loaded from the preferences at startup
+    /// and written back by [`Self::remember_prefs`] on every dialog
+    /// that returns a path, so it outlives the session where the store
+    /// keeps anything and lasts the session where it does not.
+    last_dir: Option<std::path::PathBuf>,
+    /// The directory the viewer was launched from — the last of the
+    /// three places, read once ([`platform::launch_dir`]) because a
+    /// working directory is an environment reading. `None` when it
+    /// could not be read, which the startup notices said.
+    #[cfg(not(target_family = "wasm"))]
+    launch_dir: Option<std::path::PathBuf>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -727,6 +740,22 @@ impl ViewerApp {
                 .flatten()
                 .map(|n| n.to_string()),
         );
+        // The launch directory, read once for the same reason the
+        // preferences path is: an environment reading belongs to the
+        // process's start, not to the frame that happens to need it.
+        // A directory that cannot be read is said here, once, and the
+        // dialogs fall through it — nothing is invented in its place.
+        #[cfg(not(target_family = "wasm"))]
+        let launch_dir = match platform::launch_dir() {
+            Ok(dir) => Some(dir),
+            Err(error) => {
+                notices.push(format!(
+                    "launch directory unreadable ({error}); a file dialog opens where its \
+                     backend chooses until one is used"
+                ));
+                None
+            }
+        };
 
         // The startup palette reaches the chrome here, not on the
         // first frame: a window that opened dark and turned light one
@@ -782,6 +811,9 @@ impl ViewerApp {
             chooser: platform::chooser_backend(),
             store,
             keys_pref: saved.keys,
+            last_dir: saved.last_dir,
+            #[cfg(not(target_family = "wasm"))]
+            launch_dir,
         })
     }
 
@@ -1153,7 +1185,7 @@ impl ViewerApp {
     /// understand is lost, and that is stated rather than hidden: it
     /// is the price of a hand-written renderer that keeps its
     /// comments, and such a key was already reported on load.
-    fn remember_theme(&mut self) {
+    fn remember_prefs(&mut self) {
         // **A store that keeps nothing is not asked**, and what it
         // would have said is already said: `frame::prefs_badge` reads
         // the same value on the toolbar beside the picker, for as long
@@ -1169,10 +1201,50 @@ impl ViewerApp {
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
             keys: self.keys_pref.clone(),
+            last_dir: self.last_dir.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.notices.push(frame::store_refusal(&error));
         }
+    }
+
+    /// Remember the directory a dialog just returned a path in: the
+    /// next dialog opens there when no document says otherwise
+    /// ([`frame::dialog_dir`]), and so does the next run's, where the
+    /// store keeps anything.
+    ///
+    /// A path with no parent worth naming — a bare file name, whose
+    /// parent is `""` — remembers nothing, for the reason
+    /// [`frame::dialog_dir`] drops the same candidate. An unchanged
+    /// directory writes nothing: the file already says it.
+    #[cfg(not(target_family = "wasm"))]
+    fn remember_dir(&mut self, path: &std::path::Path) {
+        let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) else {
+            return;
+        };
+        if self.last_dir.as_deref() == Some(dir) {
+            return;
+        }
+        self.last_dir = Some(dir.to_owned());
+        self.remember_prefs();
+    }
+
+    /// A file dialog positioned where [`frame::dialog_dir`] says, with
+    /// `Path::is_dir` as its witness that a candidate still exists.
+    /// `name` is a Save As… dialog's suggested file name; Open… hands
+    /// `None`.
+    ///
+    /// **The one door both dialogs go through**, so Open… and Save As…
+    /// cannot disagree about where they start.
+    #[cfg(not(target_family = "wasm"))]
+    fn file_dialog(&self, name: Option<&str>) -> rfd::FileDialog {
+        let start = frame::dialog_dir(
+            self.session.path(),
+            self.last_dir.as_deref(),
+            self.launch_dir.as_deref(),
+            std::path::Path::is_dir,
+        );
+        file_dialog(self.chooser, start, name)
     }
 
     /// This application's door onto [`frame::apply`], for the verdict
@@ -1338,7 +1410,8 @@ impl ViewerApp {
                 // the #1125 posture: a door that cannot open says
                 // so, it does not vanish.
                 #[cfg(not(target_family = "wasm"))]
-                if let Some(path) = pick_open() {
+                if let Some(path) = self.file_dialog(None).pick_file() {
+                    self.remember_dir(&path);
                     ops.push(SessionOp::Open(path));
                 }
             }
@@ -1350,8 +1423,20 @@ impl ViewerApp {
                 // Unreachable on wasm, for the reason the Open…
                 // arm above states.
                 #[cfg(not(target_family = "wasm"))]
-                if let Some(path) = pick_save(self.session.path()) {
-                    ops.push(SessionOp::Save(path));
+                {
+                    // The current file's name is offered back, so a
+                    // Save As… of a saved document starts from the
+                    // name it has rather than from nothing.
+                    let name = self
+                        .session
+                        .path()
+                        .and_then(std::path::Path::file_name)
+                        .and_then(std::ffi::OsStr::to_str)
+                        .map(str::to_owned);
+                    if let Some(path) = self.file_dialog(name.as_deref()).save_file() {
+                        self.remember_dir(&path);
+                        ops.push(SessionOp::Save(path));
+                    }
                 }
             }
             ui.separator();
@@ -1592,7 +1677,7 @@ impl eframe::App for ViewerApp {
         if chosen != self.theme {
             self.theme = chosen;
             apply_polarity(ui.ctx(), chosen.polarity);
-            self.remember_theme();
+            self.remember_prefs();
         }
 
         let display = self.session.display_view();
@@ -1931,13 +2016,29 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
-/// The open dialog: a THIN veneer over `SessionOp::Open`.
+/// The file dialog both Open… and Save As… are: a THIN veneer over
+/// `SessionOp::Open` and `SessionOp::Save`, positioned at `start`
+/// with `name` as a save dialog's suggested file name.
 ///
-/// Everything it does is choose a `Path`. The blocking call is
-/// deliberate — a modal file chooser is the platform's own idea of a
-/// modal file chooser, and the alternative (an async handle polled
-/// across frames) would buy responsiveness during an interaction that
-/// is already modal, at the cost of a second state machine.
+/// Everything the dialog does is choose a `Path`. The blocking calls
+/// the two callers make on it are deliberate — a modal file chooser is
+/// the platform's own idea of a modal file chooser, and the
+/// alternative (an async handle polled across frames) would buy
+/// responsiveness during an interaction that is already modal, at the
+/// cost of a second state machine.
+///
+/// **The starting directory goes through the door the answering
+/// backend reads**, and the two Linux backends read different ones.
+/// The portal takes `set_directory`; `rfd`'s zenity backend drops it
+/// and forwards only `set_file_name`, as `--filename` — where a
+/// directory spelled with a trailing separator opens the dialog there
+/// with an empty name, and `<dir>/<name>` opens it there with the name
+/// filled in. So `set_directory` is always set, and where the probe
+/// knows zenity answers ([`platform::ChooserBackend::zenity_answers`])
+/// the directory is spelled into the file name as well. A directory
+/// that is not UTF-8 cannot be spelled into a `String` at all, and
+/// then zenity gets the bare name and opens at its own default — the
+/// same fall-through as no candidate.
 ///
 /// **Absent on wasm**, with the two callers `cfg`-ed to match. That
 /// second state machine is exactly what the browser would force —
@@ -1946,24 +2047,23 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
 /// half-open door here; it has no door, and
 /// [`platform::chooser_backend`] is what says so to the chrome.
 #[cfg(not(target_family = "wasm"))]
-fn pick_open() -> Option<std::path::PathBuf> {
-    rfd::FileDialog::new()
-        .add_filter("document", &[DOC_EXTENSION])
-        .pick_file()
-}
-
-/// The save dialog, starting where the current document lives.
-///
-/// Absent on wasm for the reason [`pick_open`] states.
-#[cfg(not(target_family = "wasm"))]
-fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+fn file_dialog(
+    chooser: platform::ChooserBackend,
+    start: Option<&std::path::Path>,
+    name: Option<&str>,
+) -> rfd::FileDialog {
     let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
-    if let Some(path) = current
-        && let Some(dir) = path.parent()
-    {
+    if let Some(dir) = start {
         dialog = dialog.set_directory(dir);
     }
-    dialog.save_file()
+    let spelled_into_name = start
+        .filter(|_| chooser.zenity_answers())
+        .and_then(|dir| dir.to_str())
+        .map(|dir| format!("{dir}{}{}", std::path::MAIN_SEPARATOR, name.unwrap_or("")));
+    if let Some(file_name) = spelled_into_name.or_else(|| name.map(str::to_owned)) {
+        dialog = dialog.set_file_name(file_name);
+    }
+    dialog
 }
 
 /// **The Features tile's share of the stack it sits in**, capped at

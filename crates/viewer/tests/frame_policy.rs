@@ -1233,12 +1233,13 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     use platform::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
         platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
-        ChooserBackend::ZenityPresent
+        ChooserBackend::Zenity,
+        "zenity needs no portal, and with no bus the portal cannot answer first"
     );
     assert_eq!(
         platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
-        ChooserBackend::ZenityPresent,
-        "zenity needs no portal"
+        ChooserBackend::ZenityOrPortal,
+        "zenity needs no portal, but `rfd` tries the portal first"
     );
     assert_eq!(
         platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
@@ -1249,11 +1250,91 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
-    assert!(ChooserBackend::ZenityPresent.usable());
+    assert!(ChooserBackend::Zenity.usable());
+    assert!(ChooserBackend::ZenityOrPortal.usable());
     assert!(ChooserBackend::PortalPossible.usable());
     assert!(
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
+    );
+    // Which backend ANSWERS is known in exactly one arm. The zenity
+    // backend reads a starting directory only through `--filename`,
+    // so this is the read that decides whether a dialog's directory
+    // is spelled into its file name — and it must not say yes where
+    // the portal might answer, or the portal would show the directory
+    // in its name field.
+    assert!(ChooserBackend::Zenity.zenity_answers());
+    for other in [
+        ChooserBackend::ZenityOrPortal,
+        ChooserBackend::PortalPossible,
+        ChooserBackend::Absent,
+    ] {
+        assert!(
+            !other.zenity_answers(),
+            "{other:?} cannot be sure zenity is the one that answers"
+        );
+    }
+}
+
+#[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it: `rfd`
+    // would read it as no directory and zenity as the process cwd.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
     );
 }
 

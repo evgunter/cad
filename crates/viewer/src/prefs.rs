@@ -60,6 +60,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use std::path::PathBuf;
+
 use crate::input::{self, InputMap};
 use crate::theme::Theme;
 
@@ -67,24 +69,38 @@ use crate::theme::Theme;
 const APPEARANCE: &str = "appearance";
 /// The TOML table input settings live under.
 const KEYS: &str = "keys";
+/// The TOML table file-dialog settings live under.
+const FILES: &str = "files";
 /// The key naming a [`Theme`].
 const THEME: &str = "theme";
 /// The key naming an [`InputMap`] preset.
 const PRESET: &str = "preset";
+/// The key naming the directory the last file dialog returned a path
+/// in.
+const LAST_DIR: &str = "last_dir";
 
 /// What a viewer remembers between runs.
 ///
-/// Names, not values: the file records *which* theme, and the registry
-/// says what that theme is. A palette copied into the preferences file
-/// would be a second definition able to drift from the real one, and
-/// would freeze a theme's colours at whatever they were the day it was
-/// written.
+/// Names, not values, wherever a registry exists to resolve one: the
+/// file records *which* theme, and the registry says what that theme
+/// is. A palette copied into the preferences file would be a second
+/// definition able to drift from the real one, and would freeze a
+/// theme's colours at whatever they were the day it was written. The
+/// one value here is [`Self::last_dir`], a directory — there is no
+/// registry a directory could be named against, and it is a memory
+/// of where a person went rather than a choice among alternatives.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Prefs {
     /// The chosen theme's name, or `None` to take the default.
     pub theme: Option<String>,
     /// The chosen input preset's name, or `None` for the default.
     pub keys: Option<String>,
+    /// The directory the last file dialog opened from or saved to, or
+    /// `None` while no dialog has returned a path. A memory, never a
+    /// promise: the directory may be gone by the next run, and the
+    /// dialog policy (`crate::frame::dialog_dir`) falls through it
+    /// rather than refusing over it.
+    pub last_dir: Option<PathBuf>,
 }
 
 /// Something worth telling a person about a file that still loaded.
@@ -172,6 +188,10 @@ impl Prefs {
                 KEYS => {
                     prefs.keys = section(value, KEYS, PRESET, &mut notices);
                 }
+                FILES => {
+                    prefs.last_dir =
+                        section(value, FILES, LAST_DIR, &mut notices).map(PathBuf::from);
+                }
                 other => notices.push(Notice::UnknownKey(other.to_owned())),
             }
         }
@@ -211,6 +231,29 @@ impl Prefs {
         match &self.keys {
             Some(name) => out.push_str(&format!("{PRESET} = \"{name}\"\n")),
             None => out.push_str(&format!("# {PRESET} = \"{}\"\n", input::PRESETS[0].0)),
+        }
+        out.push_str(&format!("\n[{FILES}]\n"));
+        out.push_str(
+            "# Where the last file dialog opened from or saved to. The next\n\
+             # one opens there when no document says otherwise, or falls\n\
+             # through to the launch directory if this one has gone.\n",
+        );
+        match self.last_dir.as_deref().map(std::path::Path::to_str) {
+            // Rendered by the TOML library, not by hand: a directory
+            // name may hold a quote or a backslash, and a bare
+            // `"{dir}"` would write a document the parser refuses.
+            Some(Some(dir)) => out.push_str(&format!(
+                "{LAST_DIR} = {}\n",
+                toml::Value::String(dir.to_owned())
+            )),
+            // The directory exists and cannot be spelled in a TOML
+            // string. Said in the file rather than silently dropped,
+            // and never rendered lossily: a path with a character
+            // replaced is a different directory.
+            Some(None) => out.push_str(&format!(
+                "# {LAST_DIR} not kept: the directory's name is not UTF-8\n"
+            )),
+            None => out.push_str(&format!("# {LAST_DIR} = \"\"\n")),
         }
         out
     }
@@ -388,7 +431,7 @@ impl Unusable {
     ///
     /// **The one place the words become an error.** A store that keeps
     /// nothing is asked nothing by this crate —
-    /// [`crate::app::ViewerApp::remember_theme`] reads
+    /// [`crate::app::ViewerApp::remember_prefs`] reads
     /// [`PrefsStore::unusable`] and does not call `save` — but the
     /// trait's `save` is total and public, so it still owes an honest
     /// answer to a caller that did not ask first. Composing that answer
