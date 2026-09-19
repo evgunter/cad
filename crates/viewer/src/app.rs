@@ -359,6 +359,12 @@ pub struct ViewerApp {
     /// this says what the LAST FRAME found and never what some
     /// earlier one did.
     datums_vanished: usize,
+    /// **How many committed profiles the viewport could not draw on
+    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
+    /// undrawn`), read by [`crate::frame::profiles_badge`]. Zeroed and
+    /// assigned back every frame exactly as [`Self::datums_vanished`]
+    /// is.
+    profiles_undrawn: usize,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -786,6 +792,7 @@ impl ViewerApp {
             scene_fault: None,
             projection_fault: None,
             datums_vanished: 0,
+            profiles_undrawn: 0,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -1099,6 +1106,7 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
+            let accepted_op = op.clone();
             let outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
@@ -1135,8 +1143,13 @@ impl ViewerApp {
                 // other half of this rule). One open tool at a time is
                 // what lets this close "the" tool without asking which
                 // op came from which panel.
-                None if tool_edit => self.tools.close(),
-                None => {}
+                None if tool_edit => {
+                    self.tools.close();
+                    self.drafts.accepted(&accepted_op);
+                }
+                // A form whose op committed comes to rest, for the
+                // tool's reason: a refusal leaves it holding its draft.
+                None => self.drafts.accepted(&accepted_op),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());
@@ -1662,6 +1675,12 @@ impl ViewerApp {
             if let Some(badge) = frame::datums_badge(self.datums_vanished) {
                 draw_badge(ui, &self.theme, &badge);
             }
+            // The same kind of count for the committed profiles: a
+            // profile left out of the picture is otherwise a document
+            // without it.
+            if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
+                draw_badge(ui, &self.theme, &badge);
+            }
             ui.separator();
             // The palette picker. Every registered theme, by the
             // name `crate::theme` gives it — the registry IS the
@@ -1749,6 +1768,7 @@ impl eframe::App for ViewerApp {
         // and this is where that is said rather than left to whatever
         // the field last held.
         let mut datums_vanished = 0_usize;
+        let mut profiles_undrawn = 0_usize;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1791,6 +1811,7 @@ impl eframe::App for ViewerApp {
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     datums_vanished: &mut datums_vanished,
+                    profiles_undrawn: &mut profiles_undrawn,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -1806,6 +1827,7 @@ impl eframe::App for ViewerApp {
         self.checks_window(ui.ctx(), &mut ops);
         self.profile_form_drawn = profile_form_drawn;
         self.datums_vanished = datums_vanished;
+        self.profiles_undrawn = profiles_undrawn;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -1932,6 +1954,10 @@ pub(crate) struct ViewerBehavior<'a> {
     /// `work/view/projection-fault-has-no-sweeper.md` says the fault
     /// still lacks.
     pub(crate) datums_vanished: &'a mut usize,
+    /// How many committed profiles the viewport drew nothing of
+    /// ([`ViewerApp::profiles_undrawn`]); zeroed by the frame entry
+    /// point and written by the viewport, as `datums_vanished` is.
+    pub(crate) profiles_undrawn: &'a mut usize,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to

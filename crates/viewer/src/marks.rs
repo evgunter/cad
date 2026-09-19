@@ -60,6 +60,7 @@ use pncad::prelude::{NameOrigin, attribute};
 use crate::display::DisplayView;
 use crate::pickindex::{EdgeId, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
+use crate::vocab::vocabulary;
 
 /// Which drawn patches the viewport should mark, and how.
 ///
@@ -79,8 +80,8 @@ use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 /// precedence lives there because the fragment sees both lanes at
 /// once, so every producer of this value gets the same ruling — and
 /// these fields are public, so this module is not the only producer.
-/// [`EdgeOverlay`] carries the OPPOSITE convention, for a reason that
-/// is forced rather than chosen; [`edge_overlay`] states it.
+/// [`EdgeOverlay`] carries the OPPOSITE convention; [`edge_overlay`]
+/// states why.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Highlight {
     /// The selected patch's id, or [`IdMap::NOTHING`].
@@ -137,9 +138,8 @@ pub struct EdgeOverlay {
     pub selected: Vec<[f32; 3]>,
     /// The hovered edge's segments, two positions per segment —
     /// **empty when the hovered edge is the selected one**, which is
-    /// the opposite of [`Highlight`]'s convention and is what makes
-    /// selection win here. [`edge_overlay`] states why it has to be
-    /// decided at this end.
+    /// the opposite of [`Highlight`]'s convention. [`edge_overlay`]
+    /// states why it is decided at this end.
     pub hovered: Vec<[f32; 3]>,
     /// Whether the selected edge belongs to a free-moved instance.
     ///
@@ -182,20 +182,99 @@ pub struct EdgeOverlay {
     /// colour that means "not material", so it can never be mistaken
     /// for a marked face of something that is.
     pub datums: Vec<[f32; 3]>,
+    /// **Profiles the document holds**: the loops of every profile
+    /// node the landed evaluation validated, drawn where they lie.
+    ///
+    /// A lane of its own rather than the preview's, because the two
+    /// say different things — this one is in the document and the
+    /// preview is not. **No loop is meant to be in both**, and two
+    /// things keep it so. The create form's preview is of a profile
+    /// that is not a node yet, and the form comes to rest when its add
+    /// is accepted (`crate::drafts::Drafts::accepted`), so the node
+    /// it became is drawn here and nowhere else. A form that previews
+    /// an edit of a COMMITTED profile has to name that node to
+    /// `crate::sketch::committed`'s `except`, which leaves it out of
+    /// this lane; nothing checks that it does.
+    pub profiles: Vec<[f32; 3]>,
+}
+
+vocabulary! {
+    /// **One lane of an [`EdgeOverlay`]**, named so that where it is
+    /// drawn relative to the others is a property of the lane and not of
+    /// the order some caller happened to fill the fields in.
+    ///
+    /// The edge pass writes no depth, so where two lanes cover one pixel
+    /// the one drawn LATER is what the pixel shows. The variants are
+    /// therefore declared in draw order, lowest priority first, and
+    /// [`EdgeLane::DRAW_ORDER`] — projected from this declaration — is
+    /// the list the renderer walks and nothing else:
+    ///
+    /// - The datum grid is first: it is the backdrop the rest is placed
+    ///   against, and a plane rules its whole seen region, so anything
+    ///   it could cover it would cover everywhere.
+    /// - A committed profile is over the grid, which is the plane it
+    ///   usually lies in.
+    /// - A preview is over the committed profiles: it is what the person
+    ///   is composing now, possibly on top of one.
+    /// - The marks are last, selected above hovered: a mark is the
+    ///   answer to "which one is that", and it is worthless where
+    ///   something else covers it. Selection is the state the user
+    ///   committed to, so it outranks the hover.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum EdgeLane {
+        /// [`EdgeOverlay::datums`].
+        Datum,
+        /// [`EdgeOverlay::profiles`].
+        Profile,
+        /// [`EdgeOverlay::preview`].
+        Preview,
+        /// [`EdgeOverlay::hovered`].
+        Hovered,
+        /// [`EdgeOverlay::selected`].
+        Selected,
+    }
+
+    /// **Every lane, lowest priority first** — the order the edge pass
+    /// draws them in, so each is drawn over every lane before it.
+    pub const DRAW_ORDER;
 }
 
 impl EdgeOverlay {
     /// Whether there is nothing to draw.
     pub fn is_empty(&self) -> bool {
-        self.selected.is_empty()
-            && self.hovered.is_empty()
-            && self.preview.is_empty()
-            && self.datums.is_empty()
+        EdgeLane::DRAW_ORDER
+            .iter()
+            .all(|lane| self.lane(*lane).is_empty())
     }
 
     /// How many line segments this overlay draws.
     pub fn segments(&self) -> usize {
-        (self.selected.len() + self.hovered.len() + self.preview.len() + self.datums.len()) / 2
+        EdgeLane::DRAW_ORDER
+            .iter()
+            .map(|lane| self.lane(*lane).len() / 2)
+            .sum()
+    }
+
+    /// One lane's segments, two positions per segment.
+    pub fn lane(&self, lane: EdgeLane) -> &[[f32; 3]] {
+        match lane {
+            EdgeLane::Datum => &self.datums,
+            EdgeLane::Profile => &self.profiles,
+            EdgeLane::Preview => &self.preview,
+            EdgeLane::Hovered => &self.hovered,
+            EdgeLane::Selected => &self.selected,
+        }
+    }
+
+    /// Whether `lane`'s edges belong to a free-moved instance — the
+    /// two marks carry the flag, and nothing else in the overlay
+    /// belongs to an instance at all.
+    pub fn probed(&self, lane: EdgeLane) -> bool {
+        match lane {
+            EdgeLane::Hovered => self.hovered_probed,
+            EdgeLane::Selected => self.selected_probed,
+            EdgeLane::Datum | EdgeLane::Profile | EdgeLane::Preview => false,
+        }
     }
 }
 
@@ -215,18 +294,17 @@ impl EdgeOverlay {
 ///
 /// A hover on the edge that is already selected draws only the
 /// selected mark: selection is the state the user committed to. The
-/// OUTCOME is the one the shader's face path states, and the mechanism
-/// cannot be — this narrowing is not an echo of that precedence but the
-/// only place the edge path has to state one, which is also where the
-/// twin relation stops. An edge vertex carries exactly one mark word
-/// (`crate::gpu`'s `EDGE_MARK_SELECTED` is the ABSENCE of
-/// `EDGE_MARK_HOVERED`, so no vertex can mean both), and the two lanes
-/// are drawn from one buffer, selected first, by a pass that does not
-/// blend and does not write depth and compares `GreaterEqual` — so a
-/// hovered lane holding the selected edge's own geometry would OVERDRAW
-/// the selected mark and resolve the opposite way from `fs_main`'s
-/// `else if`. [`Highlight`] can leave its pair to the shader because a
-/// fragment sees both of its lanes; this value cannot.
+/// OUTCOME is the one the shader's face path states, and the value
+/// states it too: the edge pass draws its lanes in
+/// [`EdgeLane::DRAW_ORDER`], selected last, so a hovered lane holding
+/// the selected edge's own geometry would lose to the selected mark on
+/// screen anyway — but it would still be a value naming one edge in two
+/// lanes, and what a test reads of this overlay is the value. So the
+/// selection is settled here, and the draw order is what keeps it
+/// settled for a producer that did not narrow (the blend tool appends
+/// its held set to the selected lane without asking the hover).
+/// [`Highlight`] can leave its pair to the shader because a fragment
+/// sees both of its lanes.
 pub fn edge_overlay(
     index: &PickIndex,
     display: &DisplayView,
@@ -252,6 +330,7 @@ pub fn edge_overlay(
         // document holds — so the same line covers both.
         preview: Vec::new(),
         datums: Vec::new(),
+        profiles: Vec::new(),
     }
 }
 

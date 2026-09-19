@@ -88,7 +88,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use eframe::wgpu;
 
 use crate::camera::cursor_projection;
-use crate::marks::{EdgeOverlay, Highlight};
+use crate::marks::{EdgeLane, EdgeOverlay, Highlight};
 use crate::pickindex::IdMap;
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};
@@ -114,8 +114,8 @@ const COPY_ROW_ALIGNMENT: u64 = 256;
 /// The uniform block both pipelines read.
 ///
 /// `repr(C)` and a `Pod` derive rather than a hand-packed array: the
-/// WGSL side declares the same four rows, and a struct that mirrors it
-/// field for field cannot lose a lane the way indexed writes into a
+/// WGSL side declares the same fields in the same order, and a struct
+/// that mirrors it field for field cannot lose a lane the way indexed writes into a
 /// flat block could.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -164,9 +164,12 @@ struct Uniforms {
     /// [`Mark`], so there is no strength to put in `w`: a datum is
     /// drawn in this colour, not tinted toward it.
     datum: [f32; 4],
+    /// **A committed profile's colour**, linear in `xyz`; `w` is
+    /// padding. [`Uniforms::datum`]'s shape for its reason:
+    /// `Theme::profile` is a line colour, drawn as stated.
+    profile: [f32; 4],
     /// **What the edge pass needs to measure the screen**: the
-    /// viewport's size in physical pixels (`xy`) and half an edge
-    /// mark's width in the same units (`z`); `w` is padding.
+    /// viewport's size in physical pixels (`xy`); `zw` are padding.
     ///
     /// A uniform lane rather than a shader constant for the reason
     /// the marks are lanes: the pane is resized by dragging a
@@ -174,6 +177,15 @@ struct Uniforms {
     /// at a different window size would be an odd way to spend a
     /// frame. The shaded and id passes read none of it.
     edge: [f32; 4],
+    /// **Each edge lane's style**, indexed by the lane's code
+    /// ([`lane_code`]): half the line's width in physical pixels in
+    /// `x`, its opacity in `y`; `zw` are padding.
+    ///
+    /// Per lane because the lanes are not equally loud on purpose
+    /// ([`lane_style`]), and in physical pixels because the width is
+    /// stated in points and the device pixel ratio is a per-frame
+    /// fact, exactly as the viewport size is.
+    edge_lanes: [[f32; 4]; EdgeLane::DRAW_ORDER.len()],
 }
 
 /// One [`Mark`] as the uniform lane the shader reads: linear tint in
@@ -251,15 +263,24 @@ struct IdPass {
 /// pixels. So each segment is expanded into a screen-space quad here
 /// — the CPU emits six vertices carrying BOTH endpoints, and
 /// `vs_edge` offsets each corner along the segment's screen normal by
-/// [`EDGE_MARK_HALF_WIDTH_POINTS`]. The width is in POINTS, so a mark
-/// is the same thickness to the eye at any device pixel ratio.
+/// its lane's half width ([`lane_style`]). The width is in POINTS, so
+/// a mark is the same thickness to the eye at any device pixel ratio.
 ///
 /// The expansion is per segment and deliberately does not join them:
 /// a polyline's corners are left as two overlapping quads rather than
-/// mitred. At these widths the overlap is invisible, and a mitre
+/// mitred. On an opaque lane the overlap is invisible, and a mitre
 /// needs the neighbouring segment's direction — which is a different
 /// vertex format and a real amount of arithmetic for a join nobody
-/// can see.
+/// can see. On the one translucent lane, the datum grid, the overlap
+/// is blended twice and shows as a pixel or two of fuller colour
+/// where two of its lines meet — which on a grid is where the eye
+/// expects a crossing to be anyway.
+///
+/// **Lanes are drawn in [`EdgeLane::DRAW_ORDER`]**, one buffer in that
+/// order ([`edge_vertices`]), and the pass writes no depth, so where
+/// two lanes cover a pixel the later lane is on top. Within one draw
+/// the output is merged in primitive order, which is what makes buffer
+/// order a draw order at all.
 struct EdgePass {
     pipeline: wgpu::RenderPipeline,
     /// The uploaded overlay, and the value it was built from — the
@@ -276,55 +297,148 @@ struct EdgeGeometry {
     overlay: EdgeOverlay,
 }
 
-/// The edge vertex's word, as BITS: which mark it is drawn in and what
-/// its base is. Spelled once here and substituted into the WGSL, so
-/// the two cannot drift.
+/// **An edge vertex's lane, as the code the shader reads**: the lane's
+/// discriminant, which is its position in [`EdgeLane::DRAW_ORDER`]
+/// because `vocabulary!` projects that list from the declaration in
+/// declaration order (`every_lane_code_is_its_draw_position` holds it).
 ///
-/// The selected mark is the absence of [`EDGE_MARK_HOVERED`] rather
-/// than a bit of its own — a vertex is drawn in exactly one mark, and
-/// two bits would admit a state meaning both.
-const EDGE_MARK_SELECTED: u32 = 0;
-/// Set when this vertex is drawn in the HOVERED mark.
-const EDGE_MARK_HOVERED: u32 = 1;
+/// One numbering, so the code a vertex carries, the row of
+/// [`Uniforms::edge_lanes`] it reads its style from, the arm of the
+/// shader's colour switch it takes ([`lane_colour_switch`]) and the
+/// order the lanes are drawn in are one list.
+fn lane_code(lane: EdgeLane) -> u32 {
+    lane as u32
+}
+
+/// The mask over an edge vertex's word that holds its [`lane_code`]:
+/// the smallest all-ones mask every lane's code fits, so a lane added
+/// to `EdgeLane` widens it rather than overflowing into the flag above.
+const EDGE_LANE_MASK: u32 = (EdgeLane::DRAW_ORDER.len() as u32).next_power_of_two() - 1;
 /// Set when this vertex's edge belongs to a free-moved instance, so
 /// its mark composites over the probe-tinted body exactly as the
 /// shaded pass's marks do (`EdgePass`'s note on the shared base).
-const EDGE_FLAG_PROBE: u32 = 2;
-/// Set when this vertex belongs to a PREVIEW — a wireframe of
-/// something a form is composing, which is not in the document.
-///
-/// Drawn in the theme's probe mark, the mark that means "this
-/// placement is not committed" (`Theme::probe`, G3's honesty
-/// requirement), so a preview can never read as a selection of
-/// something that exists. A bit rather than a third value in the
-/// selected/hovered pair, because it says something orthogonal: a
-/// preview segment is neither picked nor hovered.
-const EDGE_MARK_PREVIEW: u32 = 4;
-/// Set when this vertex belongs to a DATUM — construction geometry
-/// that IS in the document but is not material (`crate::datums`).
-///
-/// Drawn in `Theme::datum`, stated rather than mixed: every other
-/// mark here composites over the body colour because it says what
-/// state a piece of material is in, and a datum is not a piece of
-/// material. A bit of its own for [`EDGE_MARK_PREVIEW`]'s reason, and
-/// it outranks that one in the shader for the same reason preview
-/// outranks the picked marks — the more specific statement about what
-/// a segment IS wins over which mark it would otherwise wear.
-const EDGE_MARK_DATUM: u32 = 8;
+/// The first bit above [`EDGE_LANE_MASK`], because it says something
+/// orthogonal to which lane the vertex is in.
+const EDGE_FLAG_PROBE: u32 = EDGE_LANE_MASK + 1;
 
-/// **Half the width of an edge mark, in POINTS** — so a mark is
-/// three points thick wherever it is drawn, and the same thickness to
-/// the eye on a hidpi screen as on a 1× one (`vs_edge` is handed the
-/// physical half-width, scaled by the frame's device pixel ratio).
+/// **The WGSL expression one lane's colour is**, over `base` — the body
+/// colour, probe-tinted where the instance is free-moved.
 ///
-/// A judgement, and the range it sits in is narrow at both ends: a
-/// mark under about two points starts to show the dotting this
-/// expansion exists to remove, and much above four its own width
-/// hides the short edges it is marking. Three points is also roughly
-/// the weight of the chrome's own text, which is what makes a mark
-/// findable at a glance without becoming the loudest thing in the
-/// picture.
+/// An exhaustive match, so a lane added to `EdgeLane` does not compile
+/// until it is given a colour; [`lane_colour_switch`] writes one arm
+/// per lane from it.
+fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
+    match lane {
+        // The picked marks: the theme's own mark, composited over the
+        // base — `tint`, the same mix the shaded pass runs.
+        EdgeLane::Selected => "tint(base, uniforms.selected)",
+        EdgeLane::Hovered => "tint(base, uniforms.hovered)",
+        // A preview is not in the document, and says so in the probe
+        // mark — G3's "not committed" — over the same base.
+        EdgeLane::Preview => "tint(base, uniforms.probe)",
+        // NOT tints: a datum and a profile are not material, so there
+        // is no body colour for either to be a state of. Each is drawn
+        // in the theme's own colour for it, as stated.
+        EdgeLane::Datum => "uniforms.datum.xyz",
+        EdgeLane::Profile => "uniforms.profile.xyz",
+    }
+}
+
+/// **`fs_edge`'s lane → colour switch, generated from the lanes**: one
+/// `case` per lane in [`EdgeLane::DRAW_ORDER`], its code the lane's
+/// [`lane_code`], its colour [`lane_colour_wgsl`].
+///
+/// WGSL requires a `default`, and no code reaches it — every code is
+/// written by [`edge_vertices`] from a lane. It is drawn in
+/// [`UNHANDLED_LANE_WGSL`], pure magenta, so a word that did reach it
+/// would be the loudest thing on screen rather than a line quietly
+/// wearing some other lane's colour.
+fn lane_colour_switch() -> String {
+    let mut out = String::from("switch lane {\n");
+    for lane in EdgeLane::DRAW_ORDER {
+        out.push_str(&format!(
+            "        case {}u: {{ color = {}; }}\n",
+            lane_code(lane),
+            lane_colour_wgsl(lane)
+        ));
+    }
+    out.push_str(&format!(
+        "        default: {{ color = {UNHANDLED_LANE_WGSL}; }}\n    }}"
+    ));
+    out
+}
+
+/// The colour a lane code with no lane is drawn in; see
+/// [`lane_colour_switch`].
+const UNHANDLED_LANE_WGSL: &str = "vec3<f32>(1.0, 0.0, 1.0)";
+
+/// **How loud one edge lane is drawn**: its width and its opacity.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LaneStyle {
+    /// Half the line's width, in POINTS — so a line is the same
+    /// thickness to the eye on a hidpi screen as on a 1× one
+    /// (`vs_edge` is handed the physical half-width, scaled by the
+    /// frame's device pixel ratio).
+    half_width_points: f32,
+    /// How much of the line's colour covers what is under it, in
+    /// `(0, 1]`: the pass blends `color · opacity + under · (1 −
+    /// opacity)`.
+    opacity: f32,
+}
+
+/// **Half the width of a mark, a profile or a preview, in POINTS** —
+/// three points thick wherever it is drawn.
+///
+/// A judgement, and the range it sits in is narrow at both ends: much
+/// above four points a mark's own width hides the short edges it is
+/// marking, and a line has to be clearly heavier than the datum grid
+/// ([`DATUM_HALF_WIDTH_POINTS`]) to read as the thing in front of it.
+/// Three points is also roughly the weight of the chrome's own text,
+/// which is what makes a mark findable at a glance without becoming the
+/// loudest thing in the picture.
 const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
+
+/// **Half the width of a datum's lines, in POINTS**: one point thick,
+/// a third of a mark.
+///
+/// A plane is ruled out to its horizon, so its grid is the one lane
+/// that covers the whole picture, and at a mark's weight it read as
+/// the loudest thing on screen. At one point it is the hairline a
+/// grid is. On a display of at least one pixel per point that is at
+/// least one physical pixel, and a quad at least a pixel wide covers a
+/// pixel centre in every column (or row) it crosses, so the line stays
+/// continuous rather than dotting the way a one-pixel `LineList` did.
+/// Under a scale factor below one the quad is narrower than a pixel
+/// and the grid CAN drop pixels along a shallow line; the marks, three
+/// times as wide, stay continuous down to a third of that scale.
+const DATUM_HALF_WIDTH_POINTS: f32 = 0.5;
+
+/// **Each lane's style.** One match, so a lane cannot be added
+/// without being given one.
+///
+/// Profiles and previews are drawn at a mark's width and fully opaque,
+/// and the datum grid thin and half-transparent: a profile is what a
+/// person is looking at on a plane, and the plane is what it is drawn
+/// against. **Thickness is the channel that separates them**, with the
+/// grid's opacity on top: a translucent profile would take on the
+/// colour of whatever it crossed — the grid, a shaded face — and a
+/// profile's colour is what says which of the two lanes it is in.
+/// Drawn over the grid in any case ([`EdgeLane::DRAW_ORDER`]), so the
+/// grid never covers one.
+fn lane_style(lane: EdgeLane) -> LaneStyle {
+    match lane {
+        EdgeLane::Datum => LaneStyle {
+            half_width_points: DATUM_HALF_WIDTH_POINTS,
+            opacity: crate::theme::DATUM_OPACITY,
+        },
+        EdgeLane::Profile | EdgeLane::Preview | EdgeLane::Hovered | EdgeLane::Selected => {
+            LaneStyle {
+                half_width_points: EDGE_MARK_HALF_WIDTH_POINTS,
+                opacity: 1.0,
+            }
+        }
+    }
+}
 
 /// One vertex of an expanded edge mark: the segment it belongs to,
 /// twice over, plus which corner of the quad this is.
@@ -671,7 +785,9 @@ impl ViewportRenderer {
                 probe: [0.0; 4],
                 focus: [0.0; 4],
                 datum: [0.0; 4],
+                profile: [0.0; 4],
                 edge: [0.0; 4],
+                edge_lanes: [[0.0; 4]; EdgeLane::DRAW_ORDER.len()],
             }),
         );
         let color_view = self
@@ -949,9 +1065,14 @@ impl EdgePass {
                 module,
                 entry_point: Some("fs_edge"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
+                // Blended, for the lanes that are drawn translucent
+                // (`lane_style`): straight alpha, the fragment's alpha
+                // being its lane's opacity. An opaque lane writes
+                // alpha 1 and so replaces what is under it exactly as
+                // an unblended pass would.
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
-                    blend: None,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::COLOR,
                 })],
             }),
@@ -982,45 +1103,7 @@ impl EdgePass {
             self.held = None;
             return;
         }
-        // Six vertices per SEGMENT, not one per endpoint: the quad
-        // is `QUAD_CORNERS` — two triangles over the four corners the
-        // shader derives from the segment's own screen direction.
-        let segments = overlay.segments();
-        let mut positions: Vec<SegmentVertex> = Vec::with_capacity(segments * QUAD_CORNERS.len());
-        let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
-        for (mark, probed, corners) in [
-            (
-                EDGE_MARK_SELECTED,
-                overlay.selected_probed,
-                &overlay.selected,
-            ),
-            (EDGE_MARK_HOVERED, overlay.hovered_probed, &overlay.hovered),
-            // A preview belongs to nothing in the document, so there
-            // is no instance for it to be free-moved WITH: the probe
-            // FLAG stays clear and the preview mark supplies the
-            // probe tint on its own.
-            (EDGE_MARK_PREVIEW, false, &overlay.preview),
-            // A datum belongs to no instance either: it is document
-            // content that nothing places, so the probe flag stays
-            // clear and the datum mark supplies its colour outright.
-            (EDGE_MARK_DATUM, false, &overlay.datums),
-        ] {
-            let word = if probed { mark | EDGE_FLAG_PROBE } else { mark };
-            // `chunks_exact(2)`: the overlay is a LINE LIST, so a
-            // trailing odd position is not half a segment to draw —
-            // it is a producer bug, and drawing nothing for it is the
-            // quiet half of failing loud at the producer.
-            for pair in corners.chunks_exact(2) {
-                for corner in QUAD_CORNERS {
-                    positions.push(SegmentVertex {
-                        a: pair[0],
-                        b: pair[1],
-                        corner,
-                    });
-                    marks.push(word);
-                }
-            }
-        }
+        let (positions, marks) = edge_vertices(overlay);
         let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
         self.held = Some(EdgeGeometry {
             positions: create_init_buffer(
@@ -1039,6 +1122,45 @@ impl EdgePass {
             overlay: overlay.clone(),
         });
     }
+}
+
+/// **One overlay as the edge pass's vertices**: the quads' corners, and
+/// each corner's word (its [`lane_code`] and probe flag), lane by lane
+/// in [`EdgeLane::DRAW_ORDER`] — so the buffer order IS the draw order,
+/// and the lane drawn last is the one on top.
+///
+/// Six vertices per SEGMENT, not one per endpoint: the quad is
+/// `QUAD_CORNERS` — two triangles over the four corners the shader
+/// derives from the segment's own screen direction.
+fn edge_vertices(overlay: &EdgeOverlay) -> (Vec<SegmentVertex>, Vec<u32>) {
+    let segments = overlay.segments();
+    let mut positions: Vec<SegmentVertex> = Vec::with_capacity(segments * QUAD_CORNERS.len());
+    let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
+    for lane in EdgeLane::DRAW_ORDER {
+        // Only the two marks can belong to a free-moved instance: a
+        // preview, a profile and a datum are placed by nothing, so the
+        // flag stays clear and the lane supplies its colour outright.
+        let word = if overlay.probed(lane) {
+            lane_code(lane) | EDGE_FLAG_PROBE
+        } else {
+            lane_code(lane)
+        };
+        // `chunks_exact(2)`: the overlay is a LINE LIST, so a trailing
+        // odd position is not half a segment to draw — it is a
+        // producer bug, and drawing nothing for it is the quiet half
+        // of failing loud at the producer.
+        for pair in overlay.lane(lane).chunks_exact(2) {
+            for corner in QUAD_CORNERS {
+                positions.push(SegmentVertex {
+                    a: pair[0],
+                    b: pair[1],
+                    corner,
+                });
+                marks.push(word);
+            }
+        }
+    }
+    (positions, marks)
 }
 
 /// Create a buffer and fill it, without `wgpu::util` (which would be
@@ -1090,8 +1212,8 @@ pub(crate) struct ViewportCallback {
     /// halves of two different themes.
     pub(crate) theme: Theme,
     /// The pane's size in physical pixels, and how many of those go
-    /// to a point — what the edge pass measures its marks' width
-    /// against ([`EDGE_MARK_HALF_WIDTH_POINTS`]).
+    /// to a point — what the edge pass measures its lines' widths
+    /// against ([`lane_style`]).
     pub(crate) viewport_px: [f32; 2],
     /// The frame's device pixel ratio; see
     /// [`ViewportCallback::viewport_px`].
@@ -1161,12 +1283,20 @@ impl ViewportCallback {
                 let [r, g, b] = crate::theme::linear(self.theme.datum);
                 [r, g, b, 0.0]
             },
-            edge: [
-                self.viewport_px[0],
-                self.viewport_px[1],
-                EDGE_MARK_HALF_WIDTH_POINTS * self.pixels_per_point,
-                0.0,
-            ],
+            profile: {
+                let [r, g, b] = crate::theme::linear(self.theme.profile);
+                [r, g, b, 0.0]
+            },
+            edge: [self.viewport_px[0], self.viewport_px[1], 0.0, 0.0],
+            edge_lanes: EdgeLane::DRAW_ORDER.map(|lane| {
+                let style = lane_style(lane);
+                [
+                    style.half_width_points * self.pixels_per_point,
+                    style.opacity,
+                    0.0,
+                    0.0,
+                ]
+            }),
         }
     }
 }
@@ -1295,10 +1425,10 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
-        .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
+        .replace("{{EDGE_LANE_MASK}}", &EDGE_LANE_MASK.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
-        .replace("{{EDGE_MARK_PREVIEW}}", &EDGE_MARK_PREVIEW.to_string())
-        .replace("{{EDGE_MARK_DATUM}}", &EDGE_MARK_DATUM.to_string())
+        .replace("{{EDGE_LANES}}", &EdgeLane::DRAW_ORDER.len().to_string())
+        .replace("{{EDGE_LANE_COLOURS}}", &lane_colour_switch())
         .replace("{{EDGE_CLIP_Z_LIFT}}", &format!("{EDGE_CLIP_Z_LIFT:e}"))
 }
 
@@ -1316,9 +1446,13 @@ struct Uniforms {
     focus: vec4<f32>,
     // The construction colour, in xyz; w is padding.
     datum: vec4<f32>,
-    // Viewport size in physical pixels (xy) and an edge mark's half
-    // width in the same units (z). See the Rust `Uniforms`.
+    // A committed profile's colour, in xyz; w is padding.
+    profile: vec4<f32>,
+    // Viewport size in physical pixels (xy). See the Rust `Uniforms`.
     edge: vec4<f32>,
+    // Per edge lane, by lane code: half width in physical pixels (x)
+    // and opacity (y).
+    edge_lanes: array<vec4<f32>, {{EDGE_LANES}}>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -1470,7 +1604,8 @@ fn vs_edge(
     // the half viewport, and multiplying by w undoes the perspective
     // divide the rasterizer is about to apply — which is what makes
     // the width constant on screen rather than in world units.
-    let offset = normal * side * uniforms.edge.z / half_viewport;
+    let lane = mark & {{EDGE_LANE_MASK}}u;
+    let offset = normal * side * uniforms.edge_lanes[lane].x / half_viewport;
     var out: EdgeOut;
     out.clip_position = vec4<f32>(clip.xy + offset * clip.w, clip.z, clip.w);
     out.mark = mark;
@@ -1490,22 +1625,12 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     if ((in.mark & {{EDGE_FLAG_PROBE}}u) != 0u) {
         base = tint(base, uniforms.probe);
     }
-    var color = tint(base, uniforms.selected);
-    if ((in.mark & {{EDGE_MARK_HOVERED}}u) != 0u) {
-        color = tint(base, uniforms.hovered);
-    }
-    // Last, so it wins: a preview is not in the document, and saying
-    // so outranks saying which of the picked marks it would have been.
-    if ((in.mark & {{EDGE_MARK_PREVIEW}}u) != 0u) {
-        color = tint(base, uniforms.probe);
-    }
-    // Later still, and NOT a tint: a datum is not material, so there
-    // is no body colour for it to be a state of. It is drawn in the
-    // theme's construction colour as stated.
-    if ((in.mark & {{EDGE_MARK_DATUM}}u) != 0u) {
-        color = uniforms.datum.xyz;
-    }
-    return vec4<f32>(to_display(color), 1.0);
+    let lane = in.mark & {{EDGE_LANE_MASK}}u;
+    // One arm per lane, generated from `EdgeLane` (the Rust
+    // `lane_colour_switch`).
+    var color: vec3<f32>;
+    {{EDGE_LANE_COLOURS}}
+    return vec4<f32>(to_display(color), uniforms.edge_lanes[lane].y);
 }
 
 struct IdOut {
@@ -1577,10 +1702,10 @@ mod tests {
         for token in [
             "{{FLAG_PROBE}}",
             "{{FLAG_FOCUS}}",
-            "{{EDGE_MARK_HOVERED}}",
+            "{{EDGE_LANE_MASK}}",
             "{{EDGE_FLAG_PROBE}}",
-            "{{EDGE_MARK_PREVIEW}}",
-            "{{EDGE_MARK_DATUM}}",
+            "{{EDGE_LANES}}",
+            "{{EDGE_LANE_COLOURS}}",
             "{{EDGE_CLIP_Z_LIFT}}",
             "{{ENCODE_SRGB}}",
         ] {
@@ -1588,6 +1713,139 @@ mod tests {
                 SHADER.contains(token),
                 "the template no longer spells {token}; keep this list \
                  and shader_source's replacements in step"
+            );
+        }
+    }
+
+    /// **Every lane's code is its draw position, fits the lane mask, and
+    /// is not the probe flag.** The code is the discriminant; the style
+    /// rows are indexed by draw position, so the two have to be one
+    /// number — which holds only while the enum is declared in draw
+    /// order, and this row is what says so if it stops.
+    #[test]
+    fn every_lane_code_is_its_draw_position() {
+        for (position, lane) in EdgeLane::DRAW_ORDER.into_iter().enumerate() {
+            let code = lane_code(lane);
+            assert_eq!(
+                code as usize, position,
+                "{lane:?}'s code is not its position"
+            );
+            assert_eq!(
+                code & EDGE_LANE_MASK,
+                code,
+                "{lane:?}'s code overflows its bits"
+            );
+            assert_eq!(
+                code & EDGE_FLAG_PROBE,
+                0,
+                "{lane:?}'s code reads as the probe flag"
+            );
+        }
+    }
+
+    /// **The shader's colour switch has exactly one arm per lane**, at
+    /// that lane's code — so no lane falls through to the unhandled
+    /// colour, and the substituted shader carries the switch.
+    #[test]
+    fn the_colour_switch_has_one_arm_per_lane() {
+        let switch = lane_colour_switch();
+        for lane in EdgeLane::DRAW_ORDER {
+            let arm = format!(
+                "case {}u: {{ color = {}; }}",
+                lane_code(lane),
+                lane_colour_wgsl(lane)
+            );
+            assert_eq!(switch.matches(&arm).count(), 1, "{lane:?}: {switch}");
+        }
+        assert_eq!(
+            switch.matches("case ").count(),
+            EdgeLane::DRAW_ORDER.len(),
+            "{switch}"
+        );
+        assert!(
+            shader_source(wgpu::TextureFormat::Bgra8Unorm).contains(&switch),
+            "the switch is not what the shader draws with"
+        );
+    }
+
+    /// **The buffer order is the draw order**, and so the priority:
+    /// the pass writes no depth, so the lane whose vertices come later
+    /// is the one on top where two cover a pixel.
+    ///
+    /// One segment per lane, each at its own x so a vertex says which
+    /// lane's segment it carries; the lanes are FILLED in an order
+    /// that is not the draw order, so a builder that walked the fields
+    /// rather than `DRAW_ORDER` reds this. The selected mark is on a
+    /// free-moved instance, and only its vertices may carry the probe
+    /// flag.
+    #[test]
+    fn the_lanes_are_emitted_in_draw_order_with_the_selection_last() {
+        let segment = |x: f32| vec![[x, 0.0, 0.0], [x, 1.0, 0.0]];
+        let overlay = EdgeOverlay {
+            selected: segment(4.0),
+            hovered: segment(3.0),
+            selected_probed: true,
+            hovered_probed: false,
+            preview: segment(2.0),
+            datums: segment(0.0),
+            profiles: segment(1.0),
+        };
+        let (positions, marks) = edge_vertices(&overlay);
+        assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
+        assert_eq!(marks.len(), positions.len());
+        let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
+        assert!(
+            codes.windows(2).all(|pair| pair[0] <= pair[1]),
+            "lanes interleave or run backwards: {codes:?}",
+        );
+        for (vertex, (word, code)) in positions.iter().zip(marks.iter().zip(&codes)) {
+            let lane = EdgeLane::DRAW_ORDER[*code as usize];
+            assert_eq!(
+                overlay.lane(lane)[0][0],
+                vertex.a[0],
+                "a {lane:?} vertex carries another lane's segment",
+            );
+            assert_eq!(
+                word & EDGE_FLAG_PROBE != 0,
+                lane == EdgeLane::Selected,
+                "the probe flag on a {lane:?} vertex",
+            );
+        }
+        assert_eq!(codes.first(), Some(&lane_code(EdgeLane::Datum)));
+        assert_eq!(codes.last(), Some(&lane_code(EdgeLane::Selected)));
+    }
+
+    /// **Nothing is drawn fainter or thinner than the datum grid.** The
+    /// grid is the backdrop, so every lane drawn over it is at least as
+    /// wide and as opaque; and the lanes that say what something IS —
+    /// a profile, a preview, a mark — are strictly wider, so a profile
+    /// on its own plane reads as the heavier line even where colour
+    /// cannot tell them apart.
+    #[test]
+    fn the_datum_grid_is_the_faintest_and_thinnest_lane() {
+        let grid = lane_style(EdgeLane::Datum);
+        assert!(grid.opacity > 0.0 && grid.opacity <= 1.0, "{grid:?}");
+        // An absolute bound as well as the relative ones below: the
+        // grid is a hairline, at most one point across, and a grid
+        // drawn at a mark's weight — Ev's complaint — fails here even
+        // if every other lane were widened to stay ahead of it.
+        assert!(
+            grid.half_width_points > 0.0 && 2.0 * grid.half_width_points <= 1.0,
+            "the grid is {} pt wide; a hairline is at most 1 pt",
+            2.0 * grid.half_width_points
+        );
+        for lane in EdgeLane::DRAW_ORDER {
+            if lane == EdgeLane::Datum {
+                continue;
+            }
+            let style = lane_style(lane);
+            assert!(
+                style.half_width_points > grid.half_width_points,
+                "{lane:?} is no wider than the grid"
+            );
+            assert!(
+                style.opacity >= grid.opacity,
+                "{lane:?} is fainter than the grid"
             );
         }
     }

@@ -1,8 +1,10 @@
 //! Adversarial e2e review artifact for M1 PR 5 (2026-07-16), promoted
-//! into the shipped suite per the standing convention
-//! (`memories/review-and-dependency-policy.md`): reviewers write and run
-//! real consumer programs against the API under review, and the
-//! programs are kept.
+//! into the shipped suite. A review exercises the API by writing and
+//! running real consumer programs, and the useful ones enter the
+//! permanent suite as ORDINARY rows
+//! (`memories/review-and-dependency-policy.md`): nothing here is a
+//! protected class, and these rows are trimmed, gated, shared or
+//! retired under the same rules as any other.
 //!
 //! Everything here goes through the **public API only** — which is
 //! itself part of what PR 5 put under test (the raw-builder demotion:

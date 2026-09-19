@@ -196,6 +196,7 @@
 use std::path::Path;
 
 use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
+use pncad::select::HitTestError;
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
@@ -1566,8 +1567,41 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// cursor, and moving the pointer does not answer it. The cursor
 /// subject is for a message ABOUT what lies under the pointer, which
 /// is [`crate::idpass::Disagreement`]'s.
+///
+/// # The certified tie is re-rendered here, and only here
+///
+/// The kernel's own [`HitTestError::Ambiguous`] numbers its faces by
+/// name — `StableName`'s `Display`, which omits the role path on
+/// purpose, so two faces minted by one node render as the SAME phrase
+/// and the ordinal is all that tells them apart. That is right for
+/// the kernel, whose prose contract forbids a `Debug` derivation in a
+/// message and whose typed payload carries the path anyway.
+///
+/// It is not enough on a status line. The reader has no payload to
+/// open, and a sentence whose whole subject is that two answers
+/// cannot be told apart cannot render them identically. So this door
+/// writes the tie itself, rendering each face the way
+/// [`crate::idpass::Disagreement`] renders a name — kind and minting
+/// node, then the role path — for the same reason and with the same
+/// shape. Every other arm is the typed refusal's own words,
+/// unaltered.
 pub fn pick_refusal(error: &PickError) -> Message {
-    Message::new(Subject::Document, error.to_string())
+    let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
+        return Message::new(Subject::Document, error.to_string());
+    };
+    let tied: Vec<String> = hits
+        .iter()
+        .map(|hit| format!("{} ({:?})", hit.name, hit.name.path))
+        .collect();
+    Message::new(
+        Subject::Document,
+        format!(
+            "the ray is tied between {} faces the arithmetic cannot order — {} — so the pick \
+             names none of them; aim away from the shared edge, or choose one of the tied faces",
+            tied.len(),
+            tied.join(", ")
+        ),
+    )
 }
 
 /// **What a tool has to say** — an authoring panel's refusal, a
@@ -1882,6 +1916,27 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
             Subject::Camera,
             format!("datums: {vanished} {noun} this view draws nothing of"),
             Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
+///
+/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
+/// The cause is narrower than a datum's: a profile is drawn from its
+/// validated value at the display tolerance, and what empties it is an
+/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// — a fact about the document at this tolerance, so the subject is
+/// the document and the tone [`Tone::Advisory`]: there is no camera
+/// move that brings it back.
+pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
+    (undrawn > 0).then(|| {
+        let noun = if undrawn == 1 { "profile" } else { "profiles" };
+        Badge::read(
+            Subject::Document,
+            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
         )
     })
 }

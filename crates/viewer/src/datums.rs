@@ -663,9 +663,11 @@ fn plane_segments(origin: Point3<f64>, normal: UnitVec3<f64>, view: View) -> Vec
 /// **The barbs are the half that is visible, and the reason is the
 /// grid.** The ruling passes through the origin along both axes (that
 /// is what anchoring it there means), so a bare arm drawn along an
-/// axis lies exactly on top of a grid line and shows nothing. A barb
-/// points AWAY from both axes, so it is the one part of the mark that
-/// cannot coincide with the ruling. The arms stay
+/// axis lies exactly on top of a grid line: in the grid's colour and
+/// at the grid's width, it reads as nothing more than the two blended
+/// strokes' slightly fuller line. A barb points AWAY from both axes, so
+/// it is the one part of the mark that cannot coincide with the ruling.
+/// The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let mut out = grid(origin, u, v, u.cross(v), view);

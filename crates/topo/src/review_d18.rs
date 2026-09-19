@@ -4,8 +4,7 @@
 //! to the D2 addendum's row 4.
 //!
 //! Written by the correctness-lane reviewer to BREAK the unit, not to
-//! describe it, and kept per the standing convention (a reviewer's
-//! suite is promoted as-is at the fix pass). The claim under attack is
+//! describe it. The claim under attack is
 //! the headline the D2 addendum's taxonomy rests on — *the kernel never
 //! panics on any input* — which after this unit survives only because
 //! `link_half_edges`' two `unreachable!` arms are not input-reachable.

@@ -16,8 +16,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, clusters,
-    load, product, relative_freedom_components, save, solve_document,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
+    clusters, load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -1260,7 +1260,10 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (in_part(ids[1], PART_BODY), in_part(ids[0], PART_BODY)),
+                    (
+                        SitedRef::new(ids[1], in_part(ids[1], PART_BODY)),
+                        SitedRef::new(ids[0], in_part(ids[0], PART_BODY)),
+                    ),
                     ContactClass::Rest,
                 )],
             },
@@ -1280,9 +1283,13 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         panic!("the declare is still there");
     };
     assert_eq!(
-        pairs[0].0.0,
+        pairs[0].0.0.name,
         in_part(ids[2], PART_BODY),
-        "the declaration was rewritten"
+        "the declaration's NAME was rewritten"
+    );
+    assert_eq!(
+        pairs[0].0.0.at, ids[1],
+        "and its site was not — a site is an authored fact, not a repair target"
     );
     assert_eq!(
         editor_core::reading_edges(&applied.doc),

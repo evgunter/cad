@@ -85,3 +85,51 @@ should stop being a guess either way.
 left the file untouched and says so in its PR body; the interval is the
 ray's own parameter, and converting a moved instance's hit is the
 viewer's job, which is what makes this a row rather than a patch.
+
+
+## §2 closed by announcement (2026-09-17, EDIT `edit/pick-tie-refuses`)
+
+Ev's ruling on `[ev]` PR #2795 gave the kernel door a set-valued
+answer: the survivors of `TSpan::precedes` are the answer when they
+name one face and `HitTestError::Ambiguous { hits }` when they name
+several, with no width and no position key. The ruling names the
+viewer's cross-group merge as taking the same rule, so the unit built
+it: `PickIndex::pick_for` collects one candidate per group, runs
+`TSpan::survivors` over their spans, answers the single survivor and
+refuses with the rest. `<` on a rounded `t`, and the comment about
+group order, are gone.
+
+**§1 and §3 stand.** §1 — a moved instance's `t_lo`/`t_hi` carried
+across `map` unconverted by `..hit`, while `point` is converted — is
+untouched: the unit changed the merge, not the crossing, and the
+`..hit` struct update is still there. The merge now runs over the
+UNION of every group's answer rather than propagating the first
+group's refusal, so the number of spans crossing a probe frame
+unconverted went up and the argument holding them comparable is the
+same one — the display layer admits rigid probe frames only. §3 —
+`OCCLUSION_SLACK_REL`'s tuned `1e-6` — is untouched too, and its site
+moved: the occlusion probe now reads `PickIndex::front_of`, which
+answers the nearest parameter across a certified tie rather than
+refusing it, and still compares it with the same relative slack.
+Whether the viewer wants `front.span.precedes(&span)` instead remains
+VIEW's call and this row's §3.
+
+**`front_of` has TWO readers now** (2026-09-17, the same unit's fix
+pass): the occlusion probe above, and `PickIndex::seed` — the
+un-projection plus the ray path's answer that `edge_at_for`,
+`hovered_for` and `faces_under_cursor` all open with. The seed reads a
+DEPTH rather than a pick, for the reason §3's site does: a depth
+across a certified tie is not a pick of a face. It is the nearest of
+the faces the door names, which is a point of the surface under the
+cursor whichever tied face owns it, and every tied answer overlaps
+every other, so the smallest of their parameters is a function of the
+set and not of the list's order. The face is what the arithmetic
+refuses to name, so only the caller whose own answer IS a face raises
+the refusal — `hovered_for`, after the edge-priority rule has had the
+cursor. Seeding on the FACE answer instead refused the edge pick at
+every cursor on a shared edge, which is the pixel a user aims an edge
+with: 18 of the 66 segment-midpoint cursors on the shipped plate
+(`crates/viewer/tests/edge_pick.rs`,
+`a_cursor_the_face_pick_ties_on_still_picks_the_edge`). This does not
+touch §3's number, and reading the occlusion question with
+`precedes` instead would now be a decision about both readers.
