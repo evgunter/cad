@@ -22,9 +22,10 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EvalOptions, Frame, FrameFault, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
     MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault, PartReach, PersistError,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, content_pin, mate_reach,
+    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError, content_pin, mate_reach,
+    product, split,
 };
-use fixture::resolver::{PartStore, in_part};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
 use geom_core::predicate::{Band, Sign};
 use geom_core::{Decide, Point3, Tol};
@@ -822,6 +823,39 @@ fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
         .expect("a placement asks nothing");
     assert!(applied.maintenance.is_empty());
     let doc = applied.doc;
+    // An appearance, a Declare, and a fourth instance: none touches
+    // the mate graph, so none asks.
+    let doc = doc
+        .apply(
+            &DocEdit::SetAppearance {
+                name: in_part(a, CapEnd::End),
+                attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
+            },
+            tol,
+            &counting,
+        )
+        .expect("an appearance asks nothing")
+        .doc;
+    let doc = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::declare_rest(Vec::new()),
+            },
+            tol,
+            &counting,
+        )
+        .expect("a declare asks nothing")
+        .doc;
+    let doc = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::instantiate_part(part_ref),
+            },
+            tol,
+            &counting,
+        )
+        .expect("a fourth instance asks nothing")
+        .doc;
     assert_eq!(
         counting.0.get(),
         0,
@@ -1219,4 +1253,424 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         ev.result(mate)
     );
     assert_eq!(ev.part_evaluations, 1);
+}
+
+// ---- The correctness arm's probes, adopted ----
+
+/// The unit cube `[0,1]³`.
+fn block(label: &str) -> ProfileDoc {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    doc
+}
+
+/// A part's evaluated body, through the ordinary doors.
+fn body_of(part: &ProfileDoc) -> topo::Body<f64> {
+    let ev = run(part, &EvalOptions::default());
+    product(part, &ev, Tol::witness()).expect("the part's product")
+}
+
+/// The TRUE maximum distance from the origin over the body's rims:
+/// line ends exactly, circles sampled densely. For a body of plane and
+/// cylinder patches the interior maximum is on a rim (convexity), so
+/// this is the body's true reach up to the sampling.
+fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let (mut best, mut circles) = (0.0_f64, 0usize);
+    for (_, face) in body.faces() {
+        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            let (edges, _) = topo::props::loop_edges(body, lk).expect("the loop walks");
+            for e in &edges {
+                match &e.carrier {
+                    geom::Curve3::Line { .. } => {
+                        for t in [e.t0, e.t1] {
+                            best = best.max((e.carrier.eval(t) - origin).norm());
+                        }
+                    }
+                    geom::Curve3::Circle { .. } => {
+                        circles += 1;
+                        let n = 4096;
+                        for i in 0..=n {
+                            let t = e.t0 + (e.t1 - e.t0) * f64::from(i) / f64::from(n);
+                            best = best.max((e.carrier.eval(t) - origin).norm());
+                        }
+                    }
+                    other => panic!("unexpected carrier {other:?}"),
+                }
+            }
+        }
+    }
+    (best, circles)
+}
+
+fn coaxial(fa: MateFrame, fb: MateFrame) -> Alignment {
+    Alignment {
+        a: fa,
+        b: fb,
+        primitive: MatePrimitive::Coaxial,
+        sense: AxisSense::Aligned,
+        clocking: Some(0.0),
+    }
+}
+
+/// **The reach bounds the TRUE maximum over every fixture part** —
+/// boxes at three scales, the unit block, two cylinders — measured
+/// against the rims themselves (line ends exactly, circles sampled),
+/// against the analytic far corner or rim, and through the public
+/// door bit for bit; and for an all-line body the bound IS the truth.
+#[test]
+fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
+    let cases: Vec<(&str, ProfileDoc, f64)> = vec![
+        (
+            "box 0.5x1",
+            box_part("msolve6-p1-box", 0.5, 1.0),
+            (2.0_f64 * 0.25 + 1.0).sqrt(),
+        ),
+        ("block [0,1]^3", block("msolve6-p1-block"), 3.0_f64.sqrt()),
+        (
+            "box 10mm",
+            box_part("msolve6-p1-10mm", 0.005, 0.01),
+            (2.0_f64 * 0.005 * 0.005 + 0.01 * 0.01).sqrt(),
+        ),
+        (
+            "box 10m",
+            box_part("msolve6-p1-10m", 5.0, 10.0),
+            (2.0_f64 * 25.0 + 100.0).sqrt(),
+        ),
+        (
+            "cyl r0.3 h0.7",
+            cylinder_part("msolve6-p1-cyl-a", 0.3, 0.7),
+            (0.09_f64 + 0.49).sqrt(),
+        ),
+        (
+            "cyl r0.7 h0.3",
+            cylinder_part("msolve6-p1-cyl-b", 0.7, 0.3),
+            (0.49_f64 + 0.09).sqrt(),
+        ),
+    ];
+    for (name, part, analytic) in cases {
+        let body = body_of(&part);
+        let (truth, circles) = true_reach(&body);
+        let bound = editor_core::mate::part_reach(&body).expect("bounded");
+        let (doc, ids, opts) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
+        let via_door = reaches(&doc, &opts, &ids)[0];
+        assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
+        assert!(
+            bound >= analytic - 1e-15,
+            "{name}: bound {bound} < analytic {analytic}"
+        );
+        assert_eq!(
+            via_door.to_bits(),
+            bound.to_bits(),
+            "{name}: the door is the bound"
+        );
+        if circles == 0 {
+            assert_eq!(bound, truth, "{name}: all-line rims are exact");
+        }
+    }
+}
+
+/// **The reach fold propagates a poisoned face rather than dropping
+/// it**: `body_reach` folds with `Real::max`, which is NaN-propagating
+/// — where the inherent `f64::max` would drop a poisoned face's bound
+/// and under-estimate silently. Pinned on the two functions, since
+/// no document door builds a poisoned face.
+#[test]
+fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
+    use geom_core::Real;
+    assert!(Real::max(f64::NAN, 1.0).is_nan());
+    assert!(Real::max(1.0, f64::NAN).is_nan());
+    assert!(
+        !f64::max(1.0, f64::NAN).is_nan(),
+        "std's max drops NaN; the fold must not use it"
+    );
+}
+
+/// Three instances of one box, `a` placed at a translation so the
+/// orphan's inherited frame is recognisable.
+fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
+    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
+    let f_a = Frame::translation([1.0, 2.0, 3.0]);
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetPlacement {
+            node: ids[0],
+            frame: f_a,
+        },
+    );
+    (doc, [ids[0], ids[1], ids[2]], opts, f_a)
+}
+
+/// **A contradictory prior records the split with the cluster's
+/// frame**: the prior solve DECIDED the cluster has no pose, so
+/// deleting the mate — the recourse the refusal names — splits the
+/// orphan off carrying the cluster's recorded frame, not a re-solved
+/// pose and not a refusal.
+#[test]
+fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
+    let (doc, [a, b, c], opts, f_a) = trio("msolve6-p3a");
+    let (doc, _m1) = insert(
+        doc,
+        clocked(
+            a,
+            b,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let (doc, _m2) = insert(
+        doc,
+        clocked(
+            a,
+            b,
+            coincidence(frame([0.0, 0.0, 2.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let (doc, m3) = insert(
+        doc,
+        clocked(
+            b,
+            c,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let poses = solve(&doc, &opts, Tol::witness());
+    assert!(matches!(
+        poses.fault(c),
+        Some(MateFault::Contradictory { .. })
+    ));
+    assert_eq!(poses.relative(c), None);
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: m3 }, Tol::witness(), &reach)
+        .expect("deleting a mate of a contradictory cluster is its recourse");
+    assert_eq!(
+        applied.cluster_rows(),
+        vec![ClusterMaintenance::Split {
+            from: a,
+            to: c,
+            frame: Some(f_a)
+        }]
+    );
+    assert!(applied.doc.placements()[&c].bit_eq(&f_a));
+}
+
+/// **An under-determined prior records the split with the cluster's
+/// frame** — the same recourse, the same row.
+#[test]
+fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
+    let (doc, [a, b, _c], opts, f_a) = trio("msolve6-p3b");
+    let (doc, m) = insert(
+        doc,
+        clocked(a, b, coaxial(frame([0.0; 3]), frame([0.0; 3]))),
+    );
+    let poses = solve(&doc, &opts, Tol::witness());
+    assert!(matches!(poses.fault(b), Some(MateFault::Under { .. })));
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: m }, Tol::witness(), &reach)
+        .expect("deleting an under-determined mate is its recourse");
+    assert_eq!(
+        applied.cluster_rows(),
+        vec![ClusterMaintenance::Split {
+            from: a,
+            to: b,
+            frame: Some(f_a)
+        }]
+    );
+}
+
+/// **An indeterminate prior refuses the edit typed**: a tilt priced
+/// inside the band leaves the solve with NO verdict, so an edit that
+/// moves that cluster's gauge refuses carrying the fault — and the
+/// same edit through the refusing reach refuses `Unleverable` in the
+/// resolver's voice.
+#[test]
+fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
+    let (doc, [a, b, c], opts, _) = trio("msolve6-p3c");
+    let band = Band::linear(Tol::witness()).expect("band");
+    let r = reaches(&doc, &opts, &[a])[0];
+    let datum = coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0).lever_arm();
+    let lever = (r + r) + datum;
+    let theta = ((band.zero() + band.escalate()) / 2.0) / lever;
+    let (doc, _m1) = insert(
+        doc,
+        clocked(
+            a,
+            b,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), theta),
+        ),
+    );
+    let (doc, m2) = insert(
+        doc,
+        clocked(
+            b,
+            c,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let poses = solve(&doc, &opts, Tol::witness());
+    assert!(matches!(
+        poses.fault(c),
+        Some(MateFault::Indeterminate { .. })
+    ));
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let err = doc
+        .apply(&DocEdit::DeleteNode { id: m2 }, Tol::witness(), &reach)
+        .expect_err("no verdict, no frame");
+    assert!(matches!(
+        &err,
+        EditError::MaintenanceRefused { gauge, fault: Some(f) }
+            if *gauge == c && matches!(**f, MateFault::Indeterminate { .. })
+    ));
+    let err = doc
+        .apply(
+            &DocEdit::DeleteNode { id: m2 },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("no parts, no frame");
+    assert!(matches!(
+        &err,
+        EditError::MaintenanceRefused { gauge, fault: Some(f) }
+            if *gauge == c && matches!(**f, MateFault::Unleverable {
+                refusal: LeverRefusal::PartUnresolved { fault: PartFault::NoResolver, .. },
+                ..
+            })
+    ));
+}
+
+/// **A logged edit is the edit on the wire, and its rows round-trip**:
+/// an entry with no rows serializes byte for byte as the bare edit
+/// and reads back as the bare entry; an entry with rows carries
+/// `edit` and `maintenance` and reads back equal.
+#[test]
+fn a6_a_logged_edit_is_the_edit_on_the_wire_and_its_rows_round_trip() {
+    let edit = DocEdit::<editor_core::ProfileProgram>::SetPlacement {
+        node: RecipeNodeId(0),
+        frame: Frame::translation([1.0, 2.0, 3.0]),
+    };
+    let bare = serde_json::to_string(&LoggedEdit::bare(edit.clone())).unwrap();
+    assert_eq!(bare, serde_json::to_string(&edit).unwrap());
+    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&bare).unwrap();
+    assert_eq!(back, LoggedEdit::bare(edit.clone()));
+    let with = LoggedEdit {
+        edit,
+        maintenance: vec![ClusterMaintenance::Split {
+            from: RecipeNodeId(0),
+            to: RecipeNodeId(1),
+            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
+        }],
+    };
+    let text = serde_json::to_string(&with).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let keys: Vec<&String> = value.as_object().unwrap().keys().collect();
+    assert_eq!(keys, ["edit", "maintenance"]);
+    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, with);
+}
+
+/// **A whole-cluster split levers through the part it is minting**
+/// (the `WithPart` resolver composed with the caller's), and with no
+/// resolver at all refuses typed — `Unresolved` on the new instance,
+/// in the resolver's own voice, never a frame nothing decided.
+#[test]
+fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolver() {
+    let (doc, ids, opts) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
+    let [a, b] = [ids[0], ids[1]];
+    let (doc, _m) = insert(
+        doc,
+        clocked(
+            a,
+            b,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let cut = [a, b].into_iter().collect();
+    split(
+        &doc,
+        &cut,
+        DocumentId::derive("msolve6-p6-new-part"),
+        Tol::witness(),
+        opts.resolver.as_ref(),
+    )
+    .expect("a whole-cluster cut splits through the part in hand");
+    let none = split(
+        &doc,
+        &cut,
+        DocumentId::derive("msolve6-p6-new-part-none"),
+        Tol::witness(),
+        None,
+    );
+    match none {
+        Err(SplitError::RemainderEdit { error }) => assert!(
+            matches!(
+                *error,
+                EditError::MaintenanceRefused { fault: Some(ref f), .. }
+                    if matches!(**f, MateFault::Unleverable {
+                        refusal: LeverRefusal::PartUnresolved {
+                            fault: PartFault::Unresolved { fault: ResolveFault::Unresolved, .. },
+                            ..
+                        },
+                        ..
+                    })
+            ),
+            "typed Unresolved expected, got {error:?}"
+        ),
+        other => panic!("a no-resolver split refuses its remainder edit, got {other:?}"),
+    }
+}
+
+/// **Two mated parts evaluate once each**: a chain over two distinct
+/// parts (three instances, two mates) evaluates each part exactly
+/// once — the lever's asks share the run's cache with the
+/// instantiate nodes — and every node evaluates `Ok`.
+#[test]
+fn a5_two_mated_parts_evaluate_once_each() {
+    let mut store = PartStore::new();
+    let ra = store.insert(box_part("msolve6-p8-a", 0.5, 1.0), Tol::witness());
+    let rb = store.insert(block("msolve6-p8-b"), Tol::witness());
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());
+    let (doc, a) = insert(doc, Node::instantiate_part(ra));
+    let (doc, b) = insert(doc, Node::instantiate_part(rb));
+    let (doc, c) = insert(doc, Node::instantiate_part(ra));
+    assert_eq!(run(&doc, &opts).part_evaluations, 2);
+    let (doc, _) = insert(
+        doc,
+        clocked(
+            a,
+            b,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let (doc, _) = insert(
+        doc,
+        clocked(
+            b,
+            c,
+            coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let ev = run(&doc, &opts);
+    assert_eq!(ev.part_evaluations, 2);
+    for id in [a, b, c] {
+        assert!(
+            matches!(ev.result(id), Some(NodeResult::Ok(_))),
+            "{:?}",
+            ev.result(id)
+        );
+    }
 }

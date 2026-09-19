@@ -15,11 +15,7 @@ use geom_core::Tol;
 use topo::ShellError;
 
 fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node: shell,
-        path: vec![seg],
-    }
+    fixture::minted(kind, shell, seg)
 }
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {

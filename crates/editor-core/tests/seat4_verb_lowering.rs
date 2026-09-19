@@ -50,12 +50,7 @@ use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges};
-use geom_core::Tol;
-
-fn tol() -> Tol {
-    Tol::witness()
-}
+use fixture::{len, prism_edges, tol};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;

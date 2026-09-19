@@ -61,14 +61,10 @@ use editor_core::{
     ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, insert, len, scl, square, step};
+use fixture::{ang, axis_in_plane, insert, len, scl, square, step, tol};
 use geom_brep::RadiusEvidence;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey, SurfaceField};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
 
 /// The declared radius every document below draws its circles at,
 /// meters (dyadic).

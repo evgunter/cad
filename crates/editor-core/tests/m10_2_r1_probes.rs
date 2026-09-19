@@ -1091,7 +1091,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::UnknownPayloadParam { .. }),
+        matches!(err, EditError::PayloadUnknownDocParam { .. }),
         "got {err:?}"
     );
 }

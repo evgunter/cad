@@ -1496,7 +1496,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         )
         with self.assertRaises(EditError) as unknown:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
-        self.assertEqual(unknown.exception.variant, "unknown_doc_param")
+        self.assertEqual(unknown.exception.variant, "slot_unknown_doc_param")
         self.assertEqual(unknown.exception.node, pattern)
         self.assertEqual(unknown.exception.slot, "count")
         self.assertEqual(unknown.exception.param, "n")
@@ -1529,7 +1529,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "doc_param_dimension_mismatch")
+        self.assertEqual(refusal.variant, "slot_doc_param_dimension")
         self.assertEqual(refusal.expected, "length")
         self.assertEqual(refusal.found, "count")
         self.assertEqual(

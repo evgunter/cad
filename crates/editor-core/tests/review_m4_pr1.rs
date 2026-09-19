@@ -283,7 +283,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(res, Err(EditError::DocParamDimensionMismatch { .. })),
+        matches!(res, Err(EditError::SlotDocParamDimension { .. })),
         "got {res:?}"
     );
 }
@@ -617,7 +617,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         &editor_core::RefusingReach,
     );
     assert!(
-        matches!(flip, Err(EditError::DocParamDimensionMismatch { .. })),
+        matches!(flip, Err(EditError::SlotDocParamDimension { .. })),
         "got {flip:?}"
     );
     // Kind flip Continuous→Count under a reference: also refused.
@@ -631,7 +631,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     );
     assert!(matches!(
         kind_flip,
-        Err(EditError::DocParamDimensionMismatch { .. })
+        Err(EditError::SlotDocParamDimension { .. })
     ));
     // Same-dimension value change: accepted, non-structural.
     let ok = doc

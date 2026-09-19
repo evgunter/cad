@@ -48,11 +48,7 @@ use topo::readback::euler_counts;
 
 /// A name under the shell node wrapping one source name in a role.
 fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node: shell,
-        path: vec![seg],
-    }
+    fixture::minted(kind, shell, seg)
 }
 
 /// The three names the cup's rows read: the rim of the top, the cavity

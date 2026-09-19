@@ -225,7 +225,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::UnknownDocParam {
+        Err(EditError::SlotUnknownDocParam {
             name: n,
             node,
             slot,
@@ -275,7 +275,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::DocParamDimensionMismatch {
+        Err(EditError::SlotDocParamDimension {
             name: n,
             node,
             slot,

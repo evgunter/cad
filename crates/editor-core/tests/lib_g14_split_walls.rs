@@ -29,7 +29,10 @@ use editor_core::{
     StableName, evaluate, select, select_where,
 };
 
-use fixture::{insert, len, on_frame, scl};
+// `table` panics on a node with no value rather than answering `None`,
+// which is what this suite wants: a G14 regression IS a node failure,
+// and the panic's message is the diagnosis.
+use fixture::{insert, len, on_frame, scl, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -40,14 +43,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-/// The node's table, or the node's failure — spelled out, because a
-/// G14 regression IS a node failure and the message is the diagnosis.
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 fn ties(t: &NameTable) -> Vec<(&StableName, usize)> {
