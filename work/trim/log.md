@@ -608,3 +608,23 @@ deviation 2, the widened chart's face bound over its whole domain),
 TESS's domination row hand-spelled (`Domination` not on main), M1
 seen by that row and not by E2 (said plainly). Nothing moved in
 goldens or renders. Dual: ordinal 2504, byte 185 ⇒ R1 Fable, R2 Opus.
+
+## TRIM-2 PR-2 dual adjudicated (2026-09-19)
+
+Both arms MERGEABLE-AFTER-FIXES (R1 Fable 1 MAJOR/3 MINOR/4 NOTE,
+rubric 3/4/4/4/5; R2 Opus 2 MAJOR/6 MINOR/2 NOTE, rubric 3/4/3/4/5).
+The certified sup is sound for the stated reason (both re-derived the
+derivative net's scaling; convexity's slack shown on interior-maximum
+fixtures; the rational refusal load-bearing at 5×). Headline,
+bilateral by per-patch attribution: E2's committed rationale is false
+— the widened wall's patch is bit-identical to the oracle's and the
+whole 34 944-position deficit is the P-2 route's plane-restated wall;
+the factor-of-two band (deviation 2) was bought for an effect that
+does not exist and is vacuous under every sup mutant. Also bilateral:
+the domination row's cubic leg is attained at an end coefficient
+(R2's `endsonly` mutant leaves it byte-identical), two typed refusals
+are dead by construction, the `trimmed.rs` header is stale, a third
+copy of the hull fold. Adjudication on the PR (comment 5743420032);
+eleven items; fix pass dispatched. Tally: no candidate (every
+substantive finding bilateral); neither arm killed or paused — the
+first clean pair this orchestrator has run since the weekly hold.

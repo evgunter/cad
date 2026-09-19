@@ -31,10 +31,20 @@ from them:
   through a name table under the N5 ladder — `NodeGone`, then
   `Ambiguous`, then `Vanished` — never silently shrunk
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
-  `Fillet`/`Chamfer` selections, `Declare` pairs, `Mate` heads,
-  `Measure` refs (`Node::payload_names`). A name is not a DAG edge:
-  the only door that REFUSES on it is `InsertNode`'s liveness check; a
-  later delete strands it (N5) and says so (DM7).
+  `Fillet`/`Chamfer` selections, `Shell` open lists, a
+  `Datum::FaceFrame`'s face, `Declare` pairs, `Mate` heads,
+  `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
+  (`Node::payload_names`; a crossing's `inner` is not a name of THIS
+  document, and that list's arm is the one home for why). This clause
+  and `Node::payload_names`' own doc are the list's TWO homes, and
+  every other site in the tree points at the latter rather than
+  restating it. A name is
+  not a DAG edge, and TWO doors refuse on one: `InsertNode`'s liveness
+  check, and `split`'s `PartNameReachesRemainder` precondition, which
+  refuses a cut whose taken node carries a name reaching the kept
+  remainder — a `Declare` pair's, a `Mate` head's, an instance's
+  crossing `outer`. A later delete strands a name (N5) and says so
+  (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }`

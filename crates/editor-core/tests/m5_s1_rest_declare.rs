@@ -19,19 +19,11 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, EntityKind, EvalOptions, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload, evaluate, load, save,
+    BooleanOp, BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, ValuePayload, evaluate, load, save,
 };
-use fixture::{insert, len, on_frame, wall};
+use fixture::{fname, insert, len, on_frame, wall};
 use geom_core::Tol;
-
-fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![seg],
-    }
-}
 
 /// An axis-aligned (0..2)² block at height z0, extruded dz.
 fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {

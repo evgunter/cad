@@ -13,14 +13,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
-    Diagnosis, Dimension, DimensionError, DocParamValue, EditError, EntityKind, EvalError,
-    HitTestError, InputFault, InterrogateError, Maintenance, MateFault, MateSide, MeasureNodeFault,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParamName, ParseError, PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepSegmentsError,
+    Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
+    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, LeverRefusal, Maintenance,
+    MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal,
+    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PersistError,
+    PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate,
+    RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg,
+    StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -628,7 +630,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::PayloadParamDimensionMismatch {
+        &EditError::PayloadDocParamDimension {
             name: name.clone(),
             node: RecipeNodeId(3),
             declared: Dimension::Length,
@@ -648,7 +650,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &EditError::DocParamDimensionMismatch {
+        &EditError::SlotDocParamDimension {
             name: name.clone(),
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
@@ -1029,6 +1031,143 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
+}
+
+/// **The param-ref convention, measured in both halves** — the four
+/// names at each door, and the MAPPING of name to address.
+///
+/// The rule the two doors follow is stated once, on `EditError`'s own
+/// enum doc; this row is its guard and states none of it again.
+///
+/// **Half one, the set.** The eight names are read back off `Debug`,
+/// the one runtime value that carries them, and each door's four are
+/// compared with the `{address} x {fact}` product written as a product
+/// rather than as a third list of four names. A door that re-mints a
+/// name of its own reds here, and so does a rename applied at one door
+/// only.
+///
+/// **Half two, the mapping.** A set has no opinion about WHICH arm
+/// carries which member, so half one alone survives swapping the edit
+/// door's slot pair with its payload pair — measured: that swap leaves
+/// every row in this file green. Half two ties each name to its
+/// address through the one place the address is externally visible,
+/// the rendered sentence, which names a slot at a slot arm and says
+/// "payload expression" at a payload arm, at both doors. That is what
+/// makes `{Slot,Payload}` a convention rather than four interchangeable
+/// tokens spelled the same at both doors.
+#[test]
+fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address() {
+    /// The variant identifier a `Debug` dump opens with, up to the
+    /// first byte that cannot be part of one, paired with what the arm
+    /// renders. `Debug` carries the name and `Display` carries the
+    /// address, and both halves below read this one pair.
+    fn arm<T: core::fmt::Debug + core::fmt::Display>(value: &T) -> (String, String) {
+        let variant = format!("{value:?}")
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        (variant, value.to_string())
+    }
+
+    let node = RecipeNodeId(5);
+    let name = ParamName::new("width");
+
+    let edit_door: Vec<(String, String)> = vec![
+        arm(&EditError::SlotUnknownDocParam {
+            name: name.clone(),
+            node,
+            slot: SlotId::Radius,
+        }),
+        arm(&EditError::SlotDocParamDimension {
+            name: name.clone(),
+            node,
+            slot: SlotId::Radius,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        arm(&EditError::PayloadUnknownDocParam {
+            name: name.clone(),
+            node,
+        }),
+        arm(&EditError::PayloadDocParamDimension {
+            name: name.clone(),
+            node,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+    let load_door: Vec<(String, String)> = vec![
+        arm(&SnapshotError::SlotUnknownDocParam {
+            node,
+            slot: SlotId::Radius,
+            name: name.clone(),
+        }),
+        arm(&SnapshotError::SlotDocParamDimension {
+            node,
+            slot: SlotId::Radius,
+            name: name.clone(),
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+        arm(&SnapshotError::PayloadUnknownDocParam {
+            node,
+            name: name.clone(),
+        }),
+        arm(&SnapshotError::PayloadDocParamDimension {
+            node,
+            name,
+            declared: Dimension::Length,
+            referenced: Dimension::Angle,
+        }),
+    ];
+
+    let mut convention: Vec<String> = ["Slot", "Payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["UnknownDocParam", "DocParamDimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}{fact}"))
+        })
+        .collect();
+    convention.sort();
+
+    let names_of = |arms: &[(String, String)]| {
+        let mut names: Vec<String> = arms.iter().map(|(variant, _)| variant.clone()).collect();
+        names.sort();
+        names
+    };
+    assert_eq!(
+        names_of(&edit_door),
+        convention,
+        "the edit door's four param-ref refusals have left the address-then-fact convention"
+    );
+    assert_eq!(
+        names_of(&load_door),
+        convention,
+        "the load door's four param-ref refusals have left the address-then-fact convention"
+    );
+
+    for (door, arms) in [("edit", &edit_door), ("load", &load_door)] {
+        for (variant, rendered) in arms {
+            let says_slot = rendered.contains("slot ");
+            let says_payload = rendered.contains("payload expression");
+            if let Some(fact) = variant.strip_prefix("Slot") {
+                assert!(
+                    says_slot && !says_payload,
+                    "the {door} door's {variant} claims a SLOT address (fact {fact}) but renders \
+                     {rendered:?}"
+                );
+            } else if let Some(fact) = variant.strip_prefix("Payload") {
+                assert!(
+                    says_payload && !says_slot,
+                    "the {door} door's {variant} claims a PAYLOAD address (fact {fact}) but \
+                     renders {rendered:?}"
+                );
+            } else {
+                panic!("{door} door: {variant} does not open with an address word");
+            }
+        }
+    }
 }
 
 /// A predicate flip names the two signs as words: `Sign` has a
@@ -1552,6 +1691,133 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     );
 }
 
+/// **A lever refusal names the instance and says why its part's reach
+/// is not in hand**, one sentence per arm — the resolver's own voice
+/// for a part that does not resolve, the face and its kind for one
+/// that cannot be bounded, the face for a malformed body, and the
+/// plain fact for a faceless body, a non-finite reach, and a member
+/// that stands on no instance.
+#[test]
+fn a_lever_refusal_names_the_instance_and_why() {
+    let instance = RecipeNodeId(7);
+    let part = DocRef {
+        id: DocumentId::derive("display-contract-lever"),
+        pin: editor_core::content_pin(
+            &editor_core::ProfileDoc::empty(
+                DocumentId::derive("display-contract-lever"),
+                geom_core::Tol::witness(),
+            ),
+            geom_core::Tol::witness(),
+        )
+        .unwrap(),
+    };
+    let mut body = topo::Body::<f64>::new();
+    let face = body
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .unwrap()
+        .face;
+    assert_f6(
+        &LeverRefusal::PartUnresolved {
+            instance,
+            fault: PartFault::NoResolver,
+        },
+        &["instance 7", "no part resolver"],
+        &["PartUnresolved", "NoResolver"],
+    );
+    assert_f6(
+        &LeverRefusal::FaceUnbounded {
+            instance,
+            part,
+            face,
+            kind: SurfaceKind::Nurbs,
+        },
+        &["instance 7", "nurbs face", "cannot be bounded"],
+        &["FaceUnbounded", "Nurbs"],
+    );
+    assert_f6(
+        &LeverRefusal::MalformedBody {
+            instance,
+            part,
+            face,
+        },
+        &["instance 7", "not well formed"],
+        &["MalformedBody"],
+    );
+    assert_f6(
+        &LeverRefusal::NoExtent { instance, part },
+        &["instance 7", "no faces"],
+        &["NoExtent"],
+    );
+    assert_f6(
+        &LeverRefusal::NoFiniteBound { instance, part },
+        &["instance 7", "non-finite"],
+        &["NoFiniteBound"],
+    );
+    assert_f6(
+        &LeverRefusal::NotAnInstance { node: instance },
+        &["node 7", "not a live instantiate node"],
+        &["NotAnInstance"],
+    );
+}
+
+/// **The maintenance refusals name the gauge and end on what to do**:
+/// a refused maintenance solve carries the prior solve's own sentence
+/// (or says the solve recorded nothing for the gauge — the typed
+/// report of a state its invariants exclude), and an unrecorded row
+/// names the migration.
+#[test]
+fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
+    let gauge = RecipeNodeId(3);
+    assert_f6(
+        &EditError::MaintenanceRefused {
+            gauge,
+            fault: Some(Box::new(MateFault::Unleverable {
+                mate: RecipeNodeId(5),
+                refusal: LeverRefusal::PartUnresolved {
+                    instance: gauge,
+                    fault: PartFault::NoResolver,
+                },
+            })),
+        },
+        &["could not place gauge 3", "refused: mate 5", "instance 3"],
+        &["MaintenanceRefused", "Unleverable"],
+    );
+    assert_f6(
+        &EditError::MaintenanceRefused { gauge, fault: None },
+        &["could not place gauge 3", "no pose", "no fault"],
+        &["MaintenanceRefused"],
+    );
+    assert_f6(
+        &EditError::MaintenanceUnrecorded { gauge },
+        &["gauge 3", "no maintenance rows", "migrate", "re-save"],
+        &["MaintenanceUnrecorded"],
+    );
+    assert_f6(
+        &PersistError::MaintenanceFrame {
+            index: 2,
+            row: 0,
+            fault: FrameFault::Improper { determinant: -1.0 },
+        },
+        &[
+            "edit 2",
+            "row 0",
+            "not a placement",
+            "determinant -1",
+            "mirroring",
+        ],
+        &["MaintenanceFrame", "Improper"],
+    );
+    assert_f6(
+        &PersistError::MaintenanceFrame {
+            index: 2,
+            row: 1,
+            fault: FrameFault::NonFinite,
+        },
+        &["edit 2", "row 1", "non-finite coordinate"],
+        &["MaintenanceFrame", "NonFinite"],
+    );
+}
+
 test_utils::f6_variants! {
     /// `NamingError`'s census: one ident per variant, feeding both the
     /// wildcard-free `match` rustc checks and the identifier roster the
@@ -1824,7 +2090,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -1881,6 +2147,10 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
 /// carriers, and it offers both repairs: `Rebind` moves the key,
 /// `ClearAppearance` retires it, and only the second works without a
 /// live node to move to.
+/// The orphan arm's subject is the SURVIVOR — the node named is the
+/// declaration that is still there — where both strand sentences name
+/// a carrier and close on the casualty, so it says what the
+/// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let gauge = RecipeNodeId(3);
@@ -1911,6 +2181,18 @@ fn maintenance_display_says_what_the_edit_did() {
                 "the appearance store holds an attachment under a face name minted by node 7",
                 "this edit deleted node 7",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::OrphanedDeclare { declare: other },
+            vec![
+                "node 5 declares contacts",
+                "deleted the last node that consumed it",
+                // What it lost is a CONSUMER. "nothing reads it"
+                // would be false — the same delete re-roots the
+                // declaration into the document's product roots.
+                "so no node consumes the declaration",
+                "until a boolean or union names it again",
             ],
         ),
     ];
@@ -1994,8 +2276,8 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     let node = RecipeNodeId(5);
     let framed: Vec<(&str, String)> = vec![
         (
-            "EditError::UnknownDocParam",
-            EditError::UnknownDocParam {
+            "EditError::SlotUnknownDocParam",
+            EditError::SlotUnknownDocParam {
                 name: name.clone(),
                 node,
                 slot: SlotId::Radius,

@@ -216,6 +216,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*id),
             ..none
         },
+        // The gauge the cluster-record maintenance was solving for is
+        // the subject: the instance whose frame the edit could not
+        // mint (refused) or the log does not carry (unrecorded).
+        EditError::MaintenanceRefused { gauge, .. }
+        | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
+            node: Some(*gauge),
+            ..none
+        },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
             node: Some(*at),
             ..none
@@ -317,7 +325,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::UnknownPayloadParam { name, node } => EditPayload {
+        EditError::PayloadUnknownDocParam { name, node } => EditPayload {
             node: Some(*node),
             param: Some(name),
             ..none
@@ -325,7 +333,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // `declared`/`referenced` are the same two concepts
         // `SlotDimensionMismatch` calls `expected`/`found` — what the
         // door required, and what it was offered.
-        EditError::PayloadParamDimensionMismatch {
+        EditError::PayloadDocParamDimension {
             name,
             node,
             declared,
@@ -337,13 +345,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(*referenced)),
             ..none
         },
-        EditError::UnknownDocParam { name, node, slot } => EditPayload {
+        EditError::SlotUnknownDocParam { name, node, slot } => EditPayload {
             node: Some(*node),
             param: Some(name),
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::DocParamDimensionMismatch {
+        EditError::SlotDocParamDimension {
             name,
             node,
             slot,
@@ -381,7 +389,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // The notation door's dimension fault: `expected` is the
         // declaration's dimension and `found` what the offered unit
-        // measures — the pair `doc_param_dimension_mismatch` already
+        // measures — the pair `slot_doc_param_dimension` already
         // spells, over a unit rather than over a reference.
         EditError::DocParamUnitMismatch {
             name,

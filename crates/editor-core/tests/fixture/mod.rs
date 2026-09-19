@@ -13,6 +13,22 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
+//!
+//! **This file is the ONE home for what a name-reading suite works an
+//! evaluation with**: the die document above, the [`Recorder`] and the
+//! `insert`/`step` authoring shorthands a suite builds a document
+//! with, the name-authoring shorthands ([`minted`], [`fname`],
+//! [`ename`], [`vname`], [`rim_edge`], [`cap_vertex`], [`pole`],
+//! [`in_copy`]) and, below the banner, the reader doors over a
+//! published table and body ([`table`], [`key_of`], [`face_of`],
+//! [`edge_of`], [`vertex_of`], [`count`], [`point`], [`ends`],
+//! [`face_vertices`], [`face_edges`]). A suite **imports a door; it
+//! never copies one** — a copy diverges silently, and the divergence
+//! is discovered by the row it breaks rather than by the reader of
+//! either file. Where the door does not fit, the suite either widens
+//! the door here or writes an adapter that DELEGATES to it; an
+//! adapter never reuses a door's name, because a door's name in a
+//! suite means the door.
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
@@ -42,9 +58,10 @@ pub mod value_channel;
 
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoopProgram, NameTable, Node, ParamName, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    assemble, evaluate,
+    Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
+    ParamName, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -56,6 +73,17 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// for itself.
 pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The mate solve, through the ordinary door** — levered by the
+/// parts `o`'s resolver reaches, built through the evaluation's own
+/// public door (`mate_reach`) at `f64` and the witness tolerance. A
+/// row that solves with a store it does not hand here levers nothing:
+/// every mate on a part faults in the resolver's voice, which is the
+/// kernel's answer and not a fixture default.
+pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
+    let reach = mate_reach::<f64>(o, tol);
+    solve_document(doc, &reach, tol)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -145,8 +173,23 @@ pub fn scl(v: f64) -> Expr {
 }
 
 /// Applies an edit, returning the new doc and any minted id.
+///
+/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// on a mated document mints a frame from the parts' extent and
+/// refuses here — a row that deletes a mate or an instance of a mated
+/// document steps through [`step_with`] and the store's own reach.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit, Tol::witness()).unwrap();
+    step_with(doc, edit, &RefusingReach)
+}
+
+/// [`step`] through `reach` — the store's, for an edit whose
+/// maintenance mints a frame from a solve.
+pub fn step_with(
+    doc: ProfileDoc,
+    edit: DocEdit<ProfileProgram>,
+    reach: &dyn MateReach,
+) -> (ProfileDoc, Option<RecipeNodeId>) {
+    let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
     (applied.doc, applied.record.minted)
 }
 
@@ -301,7 +344,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -322,10 +365,13 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied =
-            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
+        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
+            .expect("recorded edit must apply");
+        self.edits.push(LoggedEdit {
+            edit,
+            maintenance: applied.cluster_rows(),
+        });
         self.doc = applied.doc;
-        self.edits.push(edit);
         applied.record.minted
     }
 
@@ -368,7 +414,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its
@@ -590,6 +636,12 @@ pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> Stable
 /// carries at profile vertex `vertex`.
 pub fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: ProfileVertexRef) -> StableName {
     vname(node, RoleSeg::CapVertex(end, vertex))
+}
+
+/// **A POLE vertex of a revolve**, by name — the vertex the axis pins,
+/// minted for profile vertex `vertex`.
+pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    vname(node, RoleSeg::Pole(vertex))
 }
 
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —

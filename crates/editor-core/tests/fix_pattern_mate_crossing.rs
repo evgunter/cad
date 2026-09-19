@@ -36,12 +36,12 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Expr,
     MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     content_pin, split,
 };
 use fixture::resolver::{PART_BODY, in_part};
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document.
@@ -70,17 +70,14 @@ fn block_ref(label: &str) -> DocRef {
     DocRef { id: doc.id(), pin }
 }
 
-/// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
-/// node as head and the master's own name under the qualifier.
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
+/// The reach a cut of the four-legs document levers through: a store
+/// holding both blocks, since cutting the shelf off the legs moves the
+/// remainder's gauge and mints its frame from the solved pose.
+fn legs_reach() -> EvalOptions {
+    let mut store = fixture::resolver::PartStore::new();
+    store.insert(block("fix-xs-leg"), Tol::witness());
+    store.insert(block("fix-xs-top"), Tol::witness());
+    fixture::resolver::with_resolver(store)
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
@@ -198,6 +195,7 @@ fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
 #[test]
 fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, leg, pattern, top, mate) = four_legs("fix-xs-torn");
+    let o = legs_reach();
 
     // The gauge is the cluster's document-order-first instance and the
     // named instance is the first member on the far side of the tear,
@@ -220,6 +218,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
             &ids,
             DocumentId::derive("fix-xs-torn-part"),
             Tol::witness(),
+            o.resolver.as_ref(),
         )
         .expect_err("a torn cluster refuses");
         let editor_core::SplitError::TornCluster {
@@ -247,6 +246,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &cut([pattern]),
         DocumentId::derive("fix-xs-severed-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect_err("a severed recipe edge refuses");
     let editor_core::SplitError::SeveredEdge {
@@ -269,6 +269,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &cut([leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-whole-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
     assert!(
@@ -286,11 +287,13 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 #[test]
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let (doc, leg, pattern, top, mate) = four_legs("fix-xs-remap");
+    let o = legs_reach();
     let out = split(
         &doc,
         &cut([leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-remap-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
 
@@ -381,6 +384,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         &cut([leg, inner, outer]),
         DocumentId::derive("fix-xs-nested-part"),
         Tol::witness(),
+        None,
     )
     .expect("nothing tears: the cut is a union of whole clusters");
     assert!(
@@ -454,6 +458,7 @@ fn a_stranded_operand_over_an_instance_head_contributes_no_crossing() {
         &cut([leg]),
         DocumentId::derive("fix-xs-stranded-part"),
         Tol::witness(),
+        None,
     )
     .expect("nothing tears: the cut is a union of whole clusters");
     assert!(

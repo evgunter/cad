@@ -13,7 +13,7 @@ use editor_core::{
     evaluate, resolve, resolve_with_prior,
 };
 
-use super::{ang, insert, len, on_frame, scl, step};
+use super::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -63,14 +63,6 @@ fn block(
             distance: len(dz),
         },
     )
-}
-
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
 }
 
 /// Runs the whole diagnosis corpus at scalar `T`, producing labeled
@@ -140,7 +132,7 @@ where
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
         .expect("ranked rim fragment exists");
-    let inst = name1(
+    let inst = minted(
         EntityKind::Edge,
         pat,
         RoleSeg::Instance {
@@ -201,11 +193,11 @@ where
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
+    let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            SitedRef::new(da, name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
             SitedRef::new(db, cap_b.clone()),
         )]),
     );

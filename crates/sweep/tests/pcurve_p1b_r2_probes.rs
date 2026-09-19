@@ -596,7 +596,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
 /// cannot be what escalated there.
 #[test]
 fn r2_the_die_fixtures_supports_are_all_planes() {
-    let c = cube(1.0, Tol::witness());
+    let c = cube::<f64>(1.0, Tol::witness());
     let kinds: Vec<bool> = c
         .faces()
         .map(|(_, f)| matches!(c.get_surface(f.surface), Some(Surface::Plane { .. })))

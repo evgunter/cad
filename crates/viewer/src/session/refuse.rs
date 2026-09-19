@@ -21,6 +21,7 @@ use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
+use crate::sketch::Restructure;
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -260,6 +261,54 @@ pub enum Refusal {
         /// asked for.
         id: DocumentId,
     },
+    /// The path editor's program does not have the committed
+    /// profile's shape ([`crate::sketch::program_edits`]'s refusal):
+    /// the document's edit vocabulary writes a program's numbers and
+    /// has no door that changes its verbs, arc forms, targets or loop
+    /// count. The editor locks those controls on a committed node;
+    /// this is the door behind them.
+    ProfileRestructure {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Where the shapes differ.
+        why: Restructure,
+    },
+    /// The editor's numbers are a valid profile TOGETHER — the whole
+    /// program was checked before any slot was written — and no order
+    /// of the one-slot writes that reach them keeps every intermediate
+    /// program valid: each write re-validates the whole program, and
+    /// every order was searched (`session::accepted_order`, exact up
+    /// to [`super::ORDER_SEARCH_CAP`] writes). The refusal carried is
+    /// the last intermediate state the search met; what the variant
+    /// names is the cost of the whole-program edit the vocabulary
+    /// lacks.
+    ProfileEditOrder {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The edit door's refusal of the intermediate state.
+        error: Box<EditError>,
+    },
+    /// [`Self::ProfileEditOrder`]'s question left unanswered: the
+    /// edit moves more arguments than the order search covers
+    /// ([`super::ORDER_SEARCH_CAP`]), and writing them in slot order
+    /// passes through a state the door refuses. Another order may
+    /// land; the search for one was not run.
+    ProfileEditOrderCapped {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// How many arguments the edit moves.
+        writes: usize,
+        /// The most the order search covers.
+        cap: usize,
+    },
+    /// The path editor's numbers were loaded from a program the
+    /// document no longer holds (an undo, or an edit from elsewhere,
+    /// landed in between): they are an edit of something that is not
+    /// there any more, and are not written over what is.
+    ProfileEditStale {
+        /// The profile node.
+        node: RecipeNodeId,
+    },
 }
 
 impl Refusal {
@@ -293,6 +342,10 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
+            | Self::ProfileEditOrderCapped { .. }
+            | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision, so it
             // is matched exhaustively rather than defaulted: the
@@ -469,6 +522,30 @@ impl core::fmt::Display for Refusal {
                 f,
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
+            ),
+            Self::ProfileRestructure { node, why } => {
+                write!(f, "feature {} was not edited: {why}", node.0)
+            }
+            Self::ProfileEditOrder { node, error } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but every order of \
+                 one-argument writes passes through a state the door refuses ({error}); the \
+                 document has no edit that writes a whole program at once",
+                node.0
+            ),
+            Self::ProfileEditOrderCapped { node, writes, cap } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but writing their {writes} \
+                 arguments one at a time in order passes through a state the door refuses, and \
+                 the search for another order was not run: it is capped at {cap} arguments — \
+                 apply the edit in smaller steps",
+                node.0
+            ),
+            Self::ProfileEditStale { node } => write!(
+                f,
+                "feature {}'s profile changed since the editor loaded it; its numbers were not \
+                 written — the editor now shows the profile as it is",
+                node.0
             ),
         }
     }

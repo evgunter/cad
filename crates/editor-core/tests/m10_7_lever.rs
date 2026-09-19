@@ -68,8 +68,13 @@ fn arm_of(half: f64) -> f64 {
 }
 
 fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
 }

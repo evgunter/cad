@@ -2,9 +2,10 @@
 id: mate-lever-needs-the-parts-extent
 kind: issue
 title: A mate's lever arm cannot reach the mated parts' extent
-status: parked
+status: closed
 opened: 2026-09-03
 blocked_on: [MSOLVE-6]
+closed: 2026-09-19
 ---
 
 ERROR-DESIGN E3's amendment (ratified at revision E12) replaces the
@@ -64,3 +65,11 @@ site; A11 gains one sentence saying the solve reads no geometry
 except each mated part's own extent. The alternatives (an extent
 authored beside the datum; E3 revised to keep the session box) are
 rejected on the PR. Parked on MSOLVE-6, which lands it.
+
+## Closed (2026-09-19, PR 2116)
+
+Fixed by MSOLVE-6 under Ev's option B: the extent is each mated
+part's own evaluated body's reach, read through `MateReach` and
+entering only as the lever; `SESSION_SCALE`, `MIN_LEVER_ARM` and
+`DatumTooSmall` retired; A11 rule 5 carries the one sentence. The
+unit's `## Closed` section has the formula and the doors.

@@ -22,7 +22,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
 };
-use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
+use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
@@ -65,14 +65,6 @@ fn block(
             distance: len(dz),
         },
     )
-}
-
-fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {
@@ -598,7 +590,11 @@ fn declare_doors_node_gone_and_ambiguous() {
         },
     );
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: c }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: c },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .unwrap()
         .doc;
     let ev = run(&doc);
@@ -958,7 +954,11 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         (SitedRef::new(us, tied.clone()), SitedRef::new(us, absent)),
     );
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: ghost }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: ghost },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the ghost block is deletable")
         .doc;
     let ev = run(&doc);

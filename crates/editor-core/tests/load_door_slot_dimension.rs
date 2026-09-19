@@ -93,6 +93,7 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
             expr: ang(1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             slot,
@@ -142,6 +143,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
             expr: ang(0.25),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             slot: refused,
@@ -187,6 +189,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
             value: editor_core::DocParam::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a well-formed length parameter declares")
     .doc;
@@ -198,6 +201,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
             expr: editor_core::Expr::param(name.clone(), Dimension::Length),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a length parameter drives a length slot")
     .doc;
@@ -219,8 +223,9 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             expr: editor_core::Expr::param(missing.clone(), Dimension::Length),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
-        Err(EditError::UnknownDocParam {
+        Err(EditError::SlotUnknownDocParam {
             name: n,
             node,
             slot,
@@ -268,8 +273,9 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             value: editor_core::DocParam::continuous(Dimension::Angle, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
-        Err(EditError::DocParamDimensionMismatch {
+        Err(EditError::SlotDocParamDimension {
             name: n,
             node,
             slot,

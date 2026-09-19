@@ -93,6 +93,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
                 to: cap(t.c),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.record.structural, "Declare payloads changed");
@@ -116,7 +117,8 @@ fn rebind_rewrites_declare_sites_one_shot() {
                     from: cap(t.b),
                     to: cap(t.a),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindNoReferences { name: cap(t.b) }
@@ -183,7 +185,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.b),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindIdentity { name: cap(t.b) }
@@ -201,7 +204,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: body_c,
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindKindMismatch {
@@ -218,7 +222,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.c),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindTargetMissingNode { name: cap(t.c) }
@@ -232,7 +237,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindUnknownName { name: foreign }
@@ -245,7 +251,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
                     to: cap(t.c),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .map(|_| ())
             .err(),
@@ -259,7 +266,8 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },
-                Tol::witness()
+                Tol::witness(),
+                &editor_core::RefusingReach
             )
             .unwrap_err(),
         EditError::RebindNoReferences { name: cap(t.c) }
@@ -287,6 +295,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -299,7 +308,8 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: extrude,
                 witness: w.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch { node: extrude }
@@ -310,7 +320,8 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: RecipeNodeId(9999),
                 witness: w.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::UnknownNode {
@@ -326,6 +337,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.doc.bit_eq(&redo.doc));
@@ -337,6 +349,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: datum(1, b"assignment-v2"),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.doc.bit_eq(&other.doc));
@@ -368,6 +381,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 certification: cert.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -380,7 +394,8 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![],
                 certification: cert.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::EmptyWitnessBulk
@@ -391,7 +406,8 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(p1, datum(1, b"w1")), (p1, datum(1, b"w1b"))],
                 certification: cert.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::DuplicateWitnessEntry { node: p1 }
@@ -402,7 +418,8 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(e1, datum(1, b"w"))],
                 certification: cert,
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch { node: e1 }

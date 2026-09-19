@@ -486,3 +486,21 @@ consumers and the `Band`/`PosesOfAnotherDocument` asymmetry); the
 clocking row splits — the static `FrameCoincidence`+clocking refusal
 at `AddMate` is MSOLVE-10, the roll convention rides MSOLVE-9's spec.
 `plan.md` items 13–16.
+## MSOLVE-6 MERGED (2026-09-19, PR 2116)
+
+The lever is the mated parts' own extent, and the edit door takes the
+reach with the log recording the maintenance. Reviews on `21f5a65ec`
+(correctness PASS with MINORs, style no MAJOR); the twenty-seven-item
+fix pass landed after the lane's session limit reset, over two merges
+with main (3506 commits, then 32: EDIT's typed mate head, DM7's mated
+deletes, the drafts row) and one CI round for four callers main added
+and the `deny_unknown_fields` census tally (two new sites in `edit.rs`,
+one in `mate/solve.rs` — a re-baseline, the sibling row passing).
+Orchestrator spot-check on the diff: the row-frame walk and the
+`SetPlacement` door share `Frame::admission_fault`; `unsolved_because`
+reads the gauge's own fault and `None` refuses; `PosesOfAnotherDocument`
+refuses; one `PartReach::with_resolver` at every resolver-only door;
+`mate_coset` takes the arm; one `replay_entry` behind five replays.
+Spec into the ledger at the unit head. Closes the lever item and the
+reconcile fork. Next: MSOLVE-7 (member.rs residue + the `MatePrimitive`
+wire hole), then MSOLVE-8, -9, -10 per `plan.md`.

@@ -64,6 +64,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
             value: DocParam::Count { value: 3 },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a count parameter declares")
     .doc;
@@ -186,6 +187,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             value: DocParam::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a length parameter declares")
     .doc;
@@ -199,8 +201,9 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
-        Err(EditError::PayloadParamDimensionMismatch {
+        Err(EditError::PayloadDocParamDimension {
             declared,
             referenced,
             ..
@@ -223,8 +226,8 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 /// was the measure's noun applied to both.
 ///
 /// The repaired sentence says "payload expression", at the load door
-/// here and at the edit door's twins (`EditError::UnknownPayloadParam`
-/// / `PayloadParamDimensionMismatch`). This row pins it over an
+/// here and at the edit door's twins (`EditError::PayloadUnknownDocParam`
+/// / `PayloadDocParamDimension`). This row pins it over an
 /// ASSERTION's refusal, which is the half nothing else renders: the F6
 /// cases in `display_contract.rs` build the arms directly and never
 /// reach an assertion fixture, so a regression to the measure's noun
@@ -251,7 +254,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     // The edit door's twin, the same noun.
     let edit = format!(
         "{}",
-        EditError::UnknownPayloadParam {
+        EditError::PayloadUnknownDocParam {
             name: ParamName::new("depth"),
             node: RecipeNodeId(7),
         }
