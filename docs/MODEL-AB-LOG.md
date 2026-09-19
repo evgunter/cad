@@ -346,11 +346,11 @@ amended:
      believed, the style review is enough; where believing it would
      take more than reading it, the review carries the correctness
      claims too.
-     **One narrow class merges on the ORCHESTRATOR'S OWN READ** — a
-     ruled rename, a prose fix, a one-predicate move whose shape is
-     already written in the row: green CI and the orchestrator's read,
-     no review lane, no row. Everything between that class and the
-     protocol gets the opus implementer and opus reviewer above.
+     **The mechanical change merges on the ORCHESTRATOR'S OWN READ**,
+     where neither correctness nor style is meaningfully at risk:
+     green CI and the orchestrator's read, no review lane, no row.
+     Everything between that and the protocol gets the opus
+     implementer and opus reviewer above.
   3. **Blocks and slots are spent by protocol units only.** A block's
      three slots are drawn as before and consumed as the program's
      triaged-in units dispatch; a unit outside the protocol is opus by
