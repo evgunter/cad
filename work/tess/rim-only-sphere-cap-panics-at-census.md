@@ -151,3 +151,14 @@ door's statement valid-but-unmeshable — is the one I would not take: it
 keeps two forms legal and makes one of them a permanent refusal.
 
 Evidence and numbers: §Measured above; `work/tess/log.md`.
+
+## Ruled: (N) (Ev, in-chat, 2026-09-18)
+
+The seamed form is the only one; the text is DESIGN.md's "A chart
+singularity inside a face is a vertex of it". (E) is tabled with a
+pointer at the code (N) retires:
+`consider-emitting-the-rim-only-cap-instead-of-normalizing-it`. The
+work is filed where it lands — import's normalization on EXCH, the
+validity rule (and the props arm's retirement) on TOPO — and `mesh`'s
+part is TESS-1, whose refusal stands for good. This row closes with
+TESS-1.
