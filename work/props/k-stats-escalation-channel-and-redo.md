@@ -95,7 +95,7 @@ sweep is `indeterminate-error-arms-sweep`; the part's dropped per-node
 logs are `part-per-node-logs-dropped-with-nested-evaluation`; the
 bracket's scope (`work/issues/bracket-scope-is-run-op-not-the-node`)
 and the coincidence zone priced `Budget`
-(`work/m10/coincidence-zone-priced-budget-at-the-floor`) are the two
+(`work/props/coincidence-zone-priced-budget-at-the-floor`) are the two
 findings outside PROPS. Deviations argued in the PR: `NodeError`
 carries the channel; one shielding bracket on the part cache's miss
 path; `Ok` nodes with escalations bisect (zero in the corpus); the

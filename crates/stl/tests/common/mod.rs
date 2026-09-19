@@ -8,7 +8,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_core::Tol;
-use geom_core::{Point2, Point3, Vec2, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -24,39 +24,13 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         .unwrap()
 }
 
-/// An axis-aligned raw-extrude brick spanning `x × y × z`.
-///
-/// Its sketch plane is the world xy frame lifted to `z.0`, so the
-/// extrusion runs +z and the body is exactly the closed box.
-pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    extrude(
-        &validated_on(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            lp,
-        ),
-        Extrusion::Distance(z.1 - z.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
-}
-
-/// [`validated`] on an explicit sketch plane rather than `xy`.
-fn validated_on(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
-    Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap()
-}
+/// An axis-aligned brick spanning `x` × `y` × `z`, as the kernel's own
+/// test-support crate spells it. Re-exported rather than re-declared:
+/// this module's copy was the same six lines as
+/// [`sweep::test_support::brick`], and so was `step-export`'s.
+// loaded once per consumer; the acceptance example uses none of it
+#[allow(unused_imports)]
+pub use sweep::test_support::brick;
 
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
@@ -173,13 +147,7 @@ pub fn boss_plate() -> Body<f64> {
 /// A (counter-hole variant) × Z, the issue-#93 acceptance body: four
 /// boundary vertices on one carrier line with one of them 1 ulp off it.
 pub fn az_intersect() -> Body<f64> {
-    let xy = |z: f64| {
-        SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, z),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-        )
-    };
+    let xy = |z: f64| SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, z)));
     let a_outline = ProfileLoop::polygon([
         p2(0.0, 0.0),
         p2(0.625, 0.0),
@@ -215,11 +183,7 @@ pub fn az_intersect() -> Body<f64> {
     ]);
     let z = extrude(
         &Profile::new(
-            SketchPlane::from_frame(
-                Point3::new(-0.0625, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
+            SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0))),
             vec![z_poly],
         )
         .validate(Tol::witness())

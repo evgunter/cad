@@ -1032,7 +1032,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let corrupt = text.replace(&target, &replacement);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
-            measured: Some(Dimension::Length),
+            measured: Dimension::Length,
             bound: Dimension::Angle,
             ..
         })) => {}
@@ -1046,8 +1046,8 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
     let corrupt = text.replace(target, "\"measure\": 0");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionBound { measured: None, .. })) => {}
-        other => panic!("a non-measure target must refuse AssertionBound, got {other:?}"),
+        Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
+        other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are

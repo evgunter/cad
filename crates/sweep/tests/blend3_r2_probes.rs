@@ -30,6 +30,7 @@
 
 use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, vented_cavity};
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
@@ -102,7 +103,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
         let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
             panic!("a cavity support face is a plane");
         };
-        *normal * f.sense_sign::<f64>()
+        OutwardNormal::from_chart(*normal, f.sense).vec()
     };
 
     let mut corner_edges: std::collections::BTreeMap<(i64, i64, i64), usize> =

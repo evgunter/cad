@@ -104,22 +104,20 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
-    let spike: common::Prism<f64> = common::prism_z(
-        &[(0.45, 0.30), (0.55, 0.30), (0.55, 0.38), (0.45, 0.38)],
-        0.40,
-        0.60,
-    );
+    let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60), Tol::witness());
     let post_top = post.top_face;
     let mut body = post.body;
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike.body, Tol::witness()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike, Tol::witness()).unwrap();
 
     // The witness is a coordinate triple, and a crossing witness may
     // carry a trailing side-verdict clause after it — so both probes
@@ -189,16 +187,22 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     // A triangular wedge whose segment 0 runs (0.40,0.40)→(0.20,0.20):
     // carrier x = y, outward normal (-1, 1, 0)/√2.
-    let wedge: common::Prism<f64> =
-        common::prism_z(&[(0.40, 0.40), (0.20, 0.20), (0.40, 0.10)], 0.40, 0.60);
+    let wedge: common::Prism<f64> = common::prism_z(
+        &[(0.40, 0.40), (0.20, 0.20), (0.40, 0.10)],
+        0.40,
+        0.60,
+        Tol::witness(),
+    );
     // post.side_faces[3] spans (0.30, 0.42) → (0.30, 0.20): the plane
     // x = 0.30, outward normal (-1, 0, 0).
     let post_side_x030 = post.side_faces[3];

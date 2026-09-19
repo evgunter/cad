@@ -795,6 +795,21 @@ pub enum ChecksError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ChecksError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 impl ChecksError {
     /// [`ChecksError::Product`] built from ONE subject: the class a
     /// consumer matches and the sentence a reader reads travel
@@ -868,9 +883,9 @@ impl core::error::Error for CheckRefusal {}
 /// - [`Subject::Product`] — the gather succeeded and this is it. It
 ///   must be a product OF THE PAIR the door is handed
 ///   ([`run_checks_on`] refuses otherwise).
-/// - [`Subject::NoBodyRoots`] — no root denotes a body at all: an
-///   empty document, or one holding only sketches and datums. Not a
-///   failure to run the registry. A resident that needs a body has no
+/// - [`Subject::NoBodyRoots`] — no root denotes a body at all, the
+///   reading [`product::ProductErrorKind::means_no_body`] states and
+///   this arm carries. A resident that needs a body has no
 ///   subject here and contributes no finding; a resident that does not
 ///   (connectedness reads the evaluation) runs exactly as it would
 ///   otherwise.
@@ -977,7 +992,7 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
     }
     let subject = match product::product_recorded(doc, ev, tol) {
         Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
-        Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots,
+        Err(ref source) if source.kind().means_no_body() => Subject::NoBodyRoots,
         Err(ref source) => Subject::refused(source),
     };
     run_checks_on(doc, ev, subject, cfg, tol)
@@ -1014,12 +1029,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
-    let pairing = |found| {
-        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        })
-    };
+    let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
     }

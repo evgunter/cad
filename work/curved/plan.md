@@ -32,19 +32,71 @@ fourteen re-homed items were adopted from `work/issues/` at the
 opening (see the log); `sphere-flux-arm-refuses-partial-bands` went to
 PROPS as a props unit.
 
-## Fence against S-BOOL
+## Fence against S-BOOL — RETIRED (2026-09-16, S-BOOL's exit)
 
-S-BOOL keeps: the PATHS lattice (`crates/profile`, BOOL-9/10/12), the
-containment examination (BOOL-4), the wedge props arm (BOOL-5), the
-loft fold (BOOL-6), the vdiff rung (BOOL-7) and Track Q's rows (BOOL-Q).
-CURVED takes: the declared-contact rungs (`rest.rs`, `carrier_eq.rs`,
-`census.rs`), the germ and pierce lanes (`chord_join.rs`,
-`boolean/join`, `splitting/*` as the pierce reads them), the operand
-reach arms (`sectors.rs`, `ops.rs`'s curved arm, `boxes.rs`),
-`geom-brep/{intersect,implicit}.rs`. The operand-reach items, the two
-containment doors and the graft/boolean-declarations singles are on
-S-BOOL's slate today and move here by an announced handover on the
-away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
+S-BOOL's exit walk (proposed 2026-09-16, `docs/DOC-LEDGER.md`) re-homed
+its residue by file: PATHS took the lattice (`crates/profile`), BLEND
+took `loft.rs`, and everything on the boolean's curved and declared
+side came here — 32 items, six of them units (`D280`, `D284`, `D95`,
+`G9`, `S173`, `S234`). The handover the fence waited on happened by
+exit rather than by reply. `chord_join.rs`, `boolean/join`, `rest.rs`,
+`carrier_eq.rs`, `census.rs`, `sectors.rs`, `boxes.rs`, `ops.rs`'s
+curved arm, `contain.rs`'s curved doors and
+`geom-brep/{intersect,implicit}.rs` are this program's ground with no
+seam owed; PATHS owns `crates/profile` and BLEND owns `loft.rs` (seams
+announced there when a unit touches them).
+
+## S-BOOL's residue, sorted into the lanes (2026-09-19)
+
+- **Operand reach** (the lane below, now fully here):
+  `slab-cut-cylinder-refuses-sector-side` →
+  `cosurface-disjoint-curved-walls-refuse` (D; the merge door's shape
+  (2) consumer) → `full-period-wall-has-no-containment-verdict` (the
+  lily's declared Rest on a full-period wall) →
+  `curved-face-containment-lacks-cone-torus` →
+  `union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`
+  (E: the volume backstop on a definite tilt — measure first).
+- **Merge-door and join reach**:
+  `area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`
+  (with `coplanar-cap-pair-f7-repair-half-b`),
+  `flush-pair-relation-has-no-caller` (E: delete or wire),
+  `join-desync-on-the-star-fixture` (with
+  `rest-zip-seam-chord-on-cylinder-wall` — the same `JoinDesync`
+  class), `subtract-of-a-hollow-operand-files-the-island-under-one-solid`.
+- **At-rest census strengths** (joins the D3 cut-schedule lane):
+  `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`
+  and `touch-kinds-without-a-local-side-analysis-block-the-material-test`
+  (one unit: the local side analysis for touch kinds — spec first),
+  `declared-faces-has-no-cross-solid-check` (E),
+  `descendant-chase-spends-its-budget-into-a-dropped-contact-record`,
+  `rows-do-not-cross-a-boolean-remap` (unreachable today; row it),
+  `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted` (DOCM's
+  DM5 reading — check the owner before scheduling).
+- **Structure units (the D-class residue)**: `D280` (one box rule —
+  with `torus-operand-gate-admission`, which reads the same rule),
+  `D284`, `D95`, `G9` (the two operand-kind gates unified; touches the
+  C5 gate item here), `S173` (`face_carrier` out of `boolean/`), `S234`
+  (per-door rows for the box roster's direction column) — each E–M,
+  single review unless a spec says otherwise.
+- **Singles (drive-bys, E)**: `boolean-declarations-has-no-geometric-producer`
+  (already listed), `chart-window-walk-written-twice` (with the torus
+  lane's `torus_chart_window`), `description-staleness-ladder-three-spellings`,
+  `join-probe-charts-hand-roll-the-across-axis-reference`,
+  `boolean-smooth-arm-rebuilds-line-carrier`,
+  `boolean-predicates-read-a-direction-as-unit-by-prose`,
+  `boolean-rebuild-folds-an-in-band-second-order-into-conventional`,
+  `boolean-mod-doc-links-a-feature-gated-variant`,
+  `edge-chord-len-defaults-to-one-metre`,
+  `point-in-solid-refusal-names-faces-zero`,
+  `ray-torus-root-search-finds-a-counterexample-at-eps-1e-12` (NUMERIC;
+  a real disagreement with the oracle — measure before the torus lane's
+  next unit).
+
+**Dispatch order from here**: CURVED-B2 slot 2 = spiric PR-1b
+(`Pcurve::Spiric` + STEP, spec §12 ruling 1; the unit item stays open
+for it) → `equator-seam-reauthor-refuses-the-hollowed-elbow` → the
+operand-reach lane's head → the touch-kinds census unit (spec). The
+singles ride as drive-bys on whichever unit opens their file.
 
 ## Lanes
 
@@ -69,8 +121,11 @@ away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
   `torus-declared-rest-lane-banked` (the 0/2π kissing arm) → item 5's
   consumer sweep.
 - **Torus lane completion** (VERBS' today):
-  `torus-operand-boxes-span-whole-ring` →
-  `circle-residual-harmonics-needs-torus-arm`.
+  `torus-operand-boxes-span-whole-ring` (DELIVERED #1907, 2026-09-07) →
+  `circle-residual-harmonics-needs-torus-arm` (DELIVERED #2535,
+  2026-09-15; the spec is ledgered). Left on the lane:
+  `torus-operand-gate-admission` (the lily's remaining pin) and
+  `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
 - **Germ and pierce** (VERBS' today): `arc-aware-point-in-loop` (with
   #1077) → `pierce-ring-has-no-join-arm` →
   `boolean-refuses-on-arc-carrier-not-arc` (door 2) →
@@ -82,7 +137,8 @@ away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
   `cosurface-disjoint-curved-walls-refuse` (D: is same-sense cosurface
   a `ContactClass` member).
 - **Merge-door reach**: `cylindrical-rest-pair-hits-planar-merge`
-  (here; the honest typed skip first) →
+  (DELIVERED #2105, 2026-09-14 — the door records; the STOP-2 re-scope
+  filed `rest-zip-seam-chord-on-cylinder-wall`) →
   `coplanar-cap-pair-f7-repair-half-b` (VERBS' today).
 - **At-rest census strengths**: `overlap-lane-boundary-crossing-cuts`
   (the D3 cut schedule) → `census-at-rest-two-boolean-lane-premises`

@@ -39,6 +39,7 @@ use geom_brep::props::quad::{FaceCutBounds, RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
+use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
 
@@ -283,15 +284,29 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(
-        body,
-        band,
-        &|body, surface, outer, hes, band, tol, _| {
-            T::quad_cut_face(body, surface, outer, hes, band, tol)
-                .map(|b| b.map(RoundOutcome::Converged))
-        },
-        tol,
-    )
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_impl(body, &faces, band, &reporting_hook::<T>, tol)
+}
+
+/// **The lane-dispatched hook at the REPORTING level, one home**: the
+/// scalar's own `quad_cut_face` over the whole schedule, its answer
+/// always `Converged` because a reporting read has no window to stop
+/// in. One `fn` rather than a closure at each site: the whole-body walk
+/// ([`mass_properties_with`]) and the per-shell walk
+/// ([`classify_shells_of`]) read at the same level through the same
+/// lane, and two copies of that are two things to keep equal. `Sync`
+/// for free, as a `fn` item, which is what [`QuadHook`] needs of it.
+#[allow(clippy::type_complexity)]
+fn reporting_hook<T: PropsQuadLane>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    hes: &[HalfEdgeKey],
+    band: Band,
+    tol: Tol,
+    _window: RoundWindow,
+) -> Result<Option<RoundOutcome>, PropsError> {
+    T::quad_cut_face(body, surface, outer, hes, band, tol).map(|b| b.map(RoundOutcome::Converged))
 }
 
 /// The certified lane's hook, one home: the windowed
@@ -371,17 +386,20 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
     settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
-    let mut runs = Vec::with_capacity(body.faces.len());
-    for (face_key, _) in body.faces.iter() {
-        runs.push(face_flux(
+    // Round 0 over every face, then the rounds after it over the faces
+    // still open — both idiom 1 into arena-order slots, both composed
+    // sequentially in that order ([`mass_properties_impl`]'s note).
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let mut runs = decide_faces(&faces, |&face_key| {
+        face_flux(
             body,
             face_key,
             band,
             &certified_hook::<T>,
             tol,
             RoundWindow::at(0),
-        )?);
-    }
+        )
+    })?;
     let mut round = 0usize;
     loop {
         let (props, refused) = fold_runs(&runs);
@@ -413,17 +431,28 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
             ));
         }
         round += 1;
-        for run in &mut runs {
-            if run.open_at == Some(round - 1) {
-                *run = face_flux(
-                    body,
-                    run.face,
-                    band,
-                    &certified_hook::<T>,
-                    tol,
-                    RoundWindow::at(round),
-                )?;
-            }
+        // The open faces, in arena order — the same subsequence the
+        // serial walk re-entered, so the recordings splice back in the
+        // order it made them. A face that is not open contributes no
+        // decision this round, exactly as before.
+        let open: Vec<(usize, FaceKey)> = runs
+            .iter()
+            .enumerate()
+            .filter(|(_, run)| run.open_at == Some(round - 1))
+            .map(|(slot, run)| (slot, run.face))
+            .collect();
+        let decided = decide_faces(&open, |&(_, face_key)| {
+            face_flux(
+                body,
+                face_key,
+                band,
+                &certified_hook::<T>,
+                tol,
+                RoundWindow::at(round),
+            )
+        })?;
+        for ((slot, _), run) in open.iter().zip(decided) {
+            runs[*slot] = run;
         }
     }
 }
@@ -437,6 +466,21 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
 /// certification was complete has not computed one. A caller that
 /// wants the number asks for it — [`Self::refine_to_target`] — and
 /// pays only the rounds that were not already run.
+///
+/// # The refusal rule, stated once
+///
+/// **A reading of this certificate names the FIRST refusing face in
+/// arena order, resumed or already outstanding**, because that is the
+/// reporting walk's own rule and the two doors must agree. The
+/// reporting walk visits faces in arena order and stops at the first
+/// one whose lane refuses; the sign-level walk cannot, because it
+/// needs every face's enclosure to have a sum at all, so it carries
+/// budget refusals as data and keeps going. A continuation that folded
+/// those at the end would let a later face's HARD refusal (a
+/// degenerate lever, an unsupported chart, a poisoned bracket)
+/// pre-empt an earlier face's budget one, which is a different answer
+/// and not merely a different order. Every site below points here
+/// rather than restating it.
 pub struct SignCertificate<'b, T: Decide> {
     body: &'b Body<T>,
     band: Band,
@@ -448,21 +492,76 @@ pub struct SignCertificate<'b, T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
+    ///
+    /// # Why this does not render in braced struct shape
+    ///
+    /// **Not one of the four things below is a field of this type, and
+    /// not one of this type's five fields is rendered under its own
+    /// name.** The bracket and the surface area are folded out of
+    /// `runs`, the open round is a maximum over a field of `FaceRun`,
+    /// and the refusal comes through [`Self::target_refusal`]. So the
+    /// question a braced shape raises — what happens to this render
+    /// when a field is added — has no useful answer: `Type { a: …, b:
+    /// … }` is what `derive(Debug)` and `debug_struct(…).finish()`
+    /// emit, and `finish_non_exhaustive` exists to say when such a
+    /// dump is partial, so the braces tell a reader these ARE the
+    /// fields. That is already false of every element here, and a
+    /// sixth field could not make it any falser. The braces are what
+    /// goes, and a reading of the certificate is what this says it is.
+    ///
+    /// # The correspondence that IS here, and is tied
+    ///
+    /// An earlier draft of this comment said there was "no
+    /// correspondence to be short of". **That was false and a style
+    /// review executed it.** [`Self::enclosure`] returns a
+    /// [`VolumeEnclosure`], which declares exactly three fields, and
+    /// all three are rendered below under their own names and nothing
+    /// else of it is. So the render is a field list — that type's —
+    /// and a fourth field on it compiled clean while this comment
+    /// argued no such list existed.
+    ///
+    /// Both patterns below are the tie. [`VolumeEnclosure`] is
+    /// destructured for the same reason `Self` is: a field added to
+    /// either is an E0027 here and has to be given a rendering or a
+    /// reason. What stays untied is `FaceRun::open_at`, read through
+    /// `runs.iter().filter_map(…)` — a field reached through an
+    /// iterator adaptor, which no pattern here can bind and which
+    /// `componentwise-equality-of-the-linear-types-is-hand-listed`'s
+    /// sibling question covers.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = self.enclosure();
+        let Self {
+            // The body is what the certificate READS; rendering it
+            // here would be a dump of the model, not of this.
+            body: _,
+            // The bracket below is the answer these two settled; the
+            // settings themselves are the caller's, not the
+            // certificate's.
+            band: _,
+            tol: _,
+            runs,
+            // Rendered through `Self::target_refusal`, which is where
+            // the rule for reading it — first refusing face in arena
+            // order — is stated.
+            refused: _,
+        } = self;
+        let VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area,
+        } = self.enclosure();
         write!(
             f,
-            "SignCertificate {{ volume in [{:?}, {:?}], surface_area {:?}, \
-             open_at {:?}, target_refusal {:?} }}",
-            e.volume_lo,
-            e.volume_hi,
-            e.surface_area,
+            "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
+             rounds still open {:?}, target refusal {:?}",
+            volume_lo,
+            volume_hi,
+            surface_area,
             // The rounds that REMAIN, not the rounds run: `None` here
             // is a finished walk (every face converged, exhausted its
             // schedule, or is closed-form), which is what a certificate
             // stopped at round 0 looks like and must not read as "no
             // rounds".
-            self.runs.iter().filter_map(|r| r.open_at).max(),
+            runs.iter().filter_map(|r| r.open_at).max(),
             self.target_refusal(),
         )
     }
@@ -485,69 +584,125 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// at `k + 1`, a face that already met the target is not touched,
     /// and the sum is over the same terms in the same arena order.
     ///
-    /// **The `Err` is the same refusal too, and that is a property of
-    /// THIS loop rather than of the arithmetic.** The reporting walk
-    /// visits faces in arena order and stops at the first one whose
-    /// lane refuses, so the face it names is the first refusing face
-    /// and not merely a refusing one. The sign-level walk cannot work
-    /// that way — it needs every face's enclosure to have a sum at all,
-    /// so it carries budget refusals as data and keeps going — and a
-    /// continuation that folded those at the end would let a later
-    /// face's HARD refusal (a degenerate lever, an unsupported chart, a
-    /// poisoned bracket) preempt an earlier face's budget one. So the
-    /// continuation walks faces in arena order and returns at the
-    /// first refusal it reaches, resumed or already outstanding, which
-    /// is the reporting walk's own rule.
+    /// **The `Err` is the same refusal too** — [`SignCertificate`]'s
+    /// refusal rule, which this walk keeps whatever width it runs at:
+    /// the open faces are resumed by an indexed parallel map into one
+    /// slot per face in arena order (D9's addendum idiom 1, through
+    /// [`map_faces_detached`], each resumption under a K-funnel frame
+    /// of its own) and the walk over those slots is sequential in that
+    /// order (idiom 2). So the verdict log, the escalation log and the
+    /// `probe` sample population are the serial continuation's at any
+    /// thread count: every recording up to and including the refusing
+    /// face spliced in order, every one after it dropped with the
+    /// resumption it came with. Under a symbolic session the
+    /// continuation is the SERIAL walk instead, for
+    /// [`decide_faces_serially`]'s reason.
     ///
-    /// **What it COSTS to keep that rule**: a face after the first
-    /// refusing one is not resumed, exactly as the reporting walk
-    /// never runs it. The rounds this certificate already paid for it
-    /// are not re-run either — they are simply not continued.
+    /// **What the failure path costs**: the rounds of the open faces
+    /// between the first one and the refusing one, run and thrown
+    /// away. It is bounded by the faces a certificate leaves open
+    /// BEFORE its first outstanding refusal — the map never reaches
+    /// past that face, because the walk does not — so it is the
+    /// latency of a REFUSAL and never of an answer.
     ///
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
     /// lane re-derives that face's round-independent SETUP — the
     /// derivative grids, the block hulls, the last round's cut lists
-    /// and the bound read off them — because a `RoundWindow` enters
-    /// the lane at its front door. **What that costs depends on
-    /// whether the sign settled early**, which is a property of the
-    /// body rather than of this call: a certificate whose `settle`
-    /// ran the schedule to its end leaves no face open, so the
-    /// continuation re-enters no lane and gate-then-continue is 1.0×
-    /// one measurement; a certificate that stopped part-way pays the
-    /// setup again for every face it left open, and
-    /// gate-then-continue is 1.3–1.8× one measurement in wall time on
-    /// the bodies measured. Both are against the two full quadratures
-    /// it replaces. Reusing a face's setup across windows would remove
-    /// the second case and is `work/perf/`'s
-    /// `quadrature-setup-is-re-derived-per-round-window`.
+    /// and the bound read off them — because a `RoundWindow` enters the
+    /// lane at its front door. **What that costs depends on whether the
+    /// sign settled early**, which is a property of the body rather
+    /// than of this call: a certificate whose `settle` ran the schedule
+    /// to its end leaves no face open, so the continuation re-enters no
+    /// lane at all and pays neither the setup nor a pool round trip; a
+    /// certificate that stopped part-way pays the setup again for every
+    /// face it left open. The map above divides that term by the pool
+    /// width; removing it is `work/perf/`'s
+    /// `quadrature-setup-is-re-derived-per-round-window`, which carries
+    /// the measurements.
     ///
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
-    pub fn refine_to_target(mut self) -> Result<MassProperties<T>, MassPropsError> {
-        for i in 0..self.runs.len() {
-            if let Some(round) = self.runs[i].open_at {
-                self.runs[i] = face_flux(
-                    self.body,
-                    self.runs[i].face,
-                    self.band,
-                    &certified_hook::<T>,
-                    self.tol,
-                    RoundWindow {
-                        first: round + 1,
-                        last: usize::MAX,
-                    },
-                )?;
+    pub fn refine_to_target(self) -> Result<MassProperties<T>, MassPropsError> {
+        let Self {
+            body,
+            band,
+            tol,
+            mut runs,
+            refused,
+        } = self;
+        let resume = |face, round: usize| {
+            face_flux(
+                body,
+                face,
+                band,
+                &certified_hook::<T>,
+                tol,
+                RoundWindow {
+                    first: round + 1,
+                    last: usize::MAX,
+                },
+            )
+        };
+        // **How far the walk below can get**: it returns at the first
+        // face carrying an outstanding refusal, which is the face
+        // `refused` names, so no slot after that one is ever reached
+        // and resuming one would be pure waste. Nothing before it is
+        // skipped by this bound, because a face with an outstanding
+        // refusal is never OPEN — `face_flux` gives a run a round to
+        // resume at only when its window ended WITHOUT one.
+        let reached = refused.map_or(runs.len(), |(face, _)| {
+            runs.iter().take_while(|run| run.face != face).count()
+        });
+        // **Idiom 1**, through the map's one home: one slot per face in
+        // ARENA order, holding that face's resumption and everything
+        // its lane recorded while it was taken — or nothing, for a face
+        // with no round left. Empty when no reachable face is open,
+        // which is the common case (most certificates settle with the
+        // schedule run out) and skips the pool round trip entirely;
+        // empty too under a symbolic session, where every resumption
+        // below is taken on the caller's thread instead, for
+        // [`decide_faces_serially`]'s reason.
+        let decided: Vec<ResumedFace<T>> = if decisions_are_thread_portable()
+            && runs[..reached].iter().any(|run| run.open_at.is_some())
+        {
+            map_faces_detached(&runs[..reached], |run| {
+                run.open_at.map(|round| resume(run.face, round))
+            })
+        } else {
+            Vec::new()
+        };
+        // **Idiom 2**, and the site that carries [`SignCertificate`]'s
+        // refusal rule. It is NOT [`splice_in_arena_order`], and one
+        // thing differs: this walk stops on a refusal a face it did not
+        // resume was already CARRYING, which a fold over decided slots
+        // cannot see. So the splice and that check interleave, slot by
+        // slot, in arena order. A slot the map did not cover is decided
+        // here instead — that is both the session arm and the tail past
+        // `reached`, which the return below never gets to.
+        let mut decided = decided.into_iter();
+        for run in &mut runs {
+            match decided.next() {
+                Some((Some(resumed), recording)) => {
+                    geom_core::k_stats::splice(recording);
+                    *run = resumed?;
+                }
+                Some((None, _nothing_recorded)) => {}
+                None => {
+                    if let Some(round) = run.open_at {
+                        *run = resume(run.face, round)?;
+                    }
+                }
             }
-            if let Some(source) = self.runs[i].refusal.clone() {
+            if let Some(source) = run.refusal.clone() {
                 return Err(MassPropsError::Face {
-                    face: self.runs[i].face,
+                    face: run.face,
                     source,
                 });
             }
         }
-        Ok(fold_runs(&self.runs).0)
+        Ok(fold_runs(&runs).0)
     }
 
     /// The refusal a target-level reading of this body earns, if any —
@@ -574,7 +729,24 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_closed_form_of(body, &faces, band, tol)
+}
+
+/// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
+/// those faces bound, summed in the order given. The whole-body door
+/// is this one handed the face arena in arena order, so its answer is
+/// bit-for-bit the same (`face_list_door_tests` pins it); the
+/// point-in-solid door's per-solid entry hands it one solid's faces so
+/// a no-hit ray reads THAT solid's at-infinity side and not the
+/// body's total.
+pub(crate) fn mass_properties_closed_form_of<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -590,28 +762,509 @@ type QuadHook<'h, T> = dyn Fn(
         Tol,
         RoundWindow,
     ) -> Result<Option<RoundOutcome>, PropsError>
+    // `Sync` because the walks below hand this hook to an indexed
+    // parallel map over faces: every face calls the same hook, so the
+    // hook is shared across workers. Both shipped hooks are
+    // non-capturing (a `fn` item and a closure over nothing), so the
+    // bound costs their call sites nothing.
+    + Sync
     + 'h;
 
+/// **One face's decision, taken on a worker** — what `face_flux`
+/// answered, and everything the K-funnel recorded while it answered.
+///
+/// The recording rides WITH the answer because the funnel is
+/// thread-local: a face decided on a rayon worker records into that
+/// worker's frame and sink, and only a value handed back to the fold
+/// can reach the caller's (`geom_core::k_stats::detached`). The serial
+/// arm of [`decide_faces`] never builds one — its decisions land in the
+/// caller's own frame and sink, because they are taken there.
+type FaceDecision<T> = (Result<FaceRun<T>, MassPropsError>, Detached);
+
+/// **One slot of a continuation's map** — [`FaceDecision`] for a walk
+/// whose items may decide NOTHING: a face with no round left to resume
+/// at answers `None` and records nothing, and its slot is skipped by
+/// [`SignCertificate::refine_to_target`]'s sequential half.
+type ResumedFace<T> = (Option<Result<FaceRun<T>, MassPropsError>>, Detached);
+
+/// **Whether a face may be decided on a worker thread at all.**
+///
+/// The K-funnel is not the only thread-local a decision writes, and the
+/// others cannot be composed back. A symbolic session
+/// (`geom_core::sym`) is per-CALL and thread-local, and three things
+/// follow from that, only the first of which is about recording:
+///
+/// - **The decision itself changes.** `Sym`'s `sign_within` consults
+///   the session; with none installed `discharge` answers `None`, the
+///   identity tier discharges nothing and the answer is the plain
+///   numeric one. A face on a worker would decide differently from its
+///   siblings on the caller's thread — the one thing D9 forbids
+///   outright.
+/// - **The receipt is written in place.** `count_decision` and
+///   `count_registration_contradicted` mutate the installed session's
+///   `SymCounts`, and `Sym::opaque` advances the per-replay `OPAQUE_SEQ`
+///   counter — a sequence whose determinism rests on the minting ORDER
+///   being a fixed single-threaded walk. Neither is a value handed
+///   back, so neither can be spliced. (Node ids are NOT in this list:
+///   `intern` is a content hash of the node, so the DAG a replay builds
+///   is the same whatever order it is built in.)
+/// - **The shape report goes with it.** `geom_core::sym::report`'s
+///   `ACTIVE`/`SHAPES`/`NAMES` are thread-locals of the same family,
+///   written from `Sym::sign_within` and installed by the evidence rows
+///   that wrap a session.
+///
+/// The walk therefore stays on the caller's thread for exactly as long
+/// as a session is installed, which is the driver's leaf replay
+/// (`editor_core::drive` opens one per leaf and runs the whole leaf on
+/// one worker, so the nesting is real and common). It is a property of
+/// the CALL and not of the scalar: `Sym` with no session installed is
+/// as portable as `f64`, and the check reads the session rather than
+/// the type. The shape report has no query door of its own and needs
+/// none — nothing installs one outside a session.
+fn decisions_are_thread_portable() -> bool {
+    geom_core::sym::session_counts().is_none()
+}
+
+/// **The face walk, in one spelling and two dispatches.** `run` decides
+/// one face; the answer is the faces in arena order, or the first
+/// refusal in arena order.
+///
+/// *Thread-portable* (the shipped case): **D9 addendum idiom 1** — one
+/// slot per item in the caller's order, results written positionally
+/// and never combined arithmetically, so the schedule cannot reach the
+/// bits — then [`splice_in_arena_order`], which is idiom 2's
+/// sequential half for the recordings as [`fold_runs`] is for the
+/// fluxes.
+///
+/// *Not portable* ([`decisions_are_thread_portable`]): this IS the
+/// serial walk. Faces are decided on the caller's thread in arena
+/// order and the walk stops at the first refusal, exactly as it did
+/// before any of this — no detached frame (the decisions are already
+/// landing in the caller's frame and sink) and no face after the
+/// refusing one decided. That matters beyond cost: a decision under a
+/// session also writes the session's receipt and the shape report in
+/// place, and a face decided past the point the serial walk stopped
+/// would inflate both with no way to take it back.
+fn decide_faces<I: Sync, T: Decide>(
+    items: &[I],
+    run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError> + Send + Sync,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    if decisions_are_thread_portable() {
+        splice_in_arena_order(map_faces_detached(items, run))
+    } else {
+        decide_faces_serially(items, run)
+    }
+}
+
+/// **Idiom 1, one home**: one slot per item in the caller's order,
+/// each item decided on a worker under a K-funnel frame of ITS OWN, so
+/// the sequential half can splice what it recorded back into the
+/// caller's (`geom_core::k_stats::detached`). Results are written
+/// positionally and never combined arithmetically, so the schedule
+/// cannot reach the bits.
+///
+/// The map is shared; the sequential halves are not, because they
+/// answer different questions — [`splice_in_arena_order`] for the face
+/// walks, and [`SignCertificate::refine_to_target`]'s own, which has a
+/// refusal to check on the slots it left empty.
+fn map_faces_detached<I: Sync, R: Send>(
+    items: &[I],
+    run: impl Fn(&I) -> R + Send + Sync,
+) -> Vec<(R, Detached)> {
+    use rayon::prelude::*;
+    items
+        .par_iter()
+        .map(|item| geom_core::k_stats::detached(|| run(item)))
+        .collect()
+}
+
+/// **The serial face walk, one home**: items decided on the CALLER's
+/// thread in the caller's order, stopping at the first refusal — no
+/// detached frame, because the decisions are already landing in the
+/// caller's frame and sink, and no item after the refusing one
+/// decided.
+///
+/// Two callers, for two unrelated reasons, and both need this exact
+/// behaviour rather than merely "a loop":
+///
+/// - [`decide_faces`]'s non-portable arm, where a decision also writes
+///   the installed symbolic session's receipt and the shape report IN
+///   PLACE ([`decisions_are_thread_portable`]), so an item decided
+///   past the point this walk stops inflates both with no way to take
+///   it back;
+/// - [`classify_shells_of`], where mapping is simply the wrong trade:
+///   every shell the census meets is below the per-face map's
+///   break-even (`work/perf/`'s
+///   `parallel-map-costs-a-fixed-price-on-a-cheap-body` carries the
+///   numbers — a shell of the corpus heat sink has six planar faces,
+///   and the map made that document's census about three times slower
+///   at four threads while gaining on no body in the corpus, because
+///   no corpus shell is many-faced on the quadrature lane). The grain
+///   that could repay the price there is the loop over SHELLS, not the
+///   loop over a shell's faces, and it measures at about break-even on
+///   the same document — so the face grain is settled, and that one is
+///   the census's own question.
+fn decide_faces_serially<I, T: Decide>(
+    items: &[I],
+    run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError>,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    items.iter().map(run).collect()
+}
+
+/// **The parallel arm's sequential half, and where the escalation path
+/// lives.** Splices each face's recording into the caller's frame and
+/// sink in ARENA ORDER and answers the runs, stopping at the first face
+/// whose lane refused outright.
+///
+/// The serial walk stops AT that face: faces before it have recorded,
+/// the refusing face has recorded whatever it decided before refusing,
+/// and faces after it are never visited. The map has already decided
+/// every face, so this makes the logs say the same thing: every
+/// recording up to and including the refusing face is spliced, in
+/// order, and every recording after it is dropped on the floor with the
+/// run it came with.
+///
+/// **What the failure path costs**: the fluxes of the faces after the
+/// refusing one, computed and thrown away. That is a real wall-clock
+/// cost and it is paid at every width, this arm's one and four alike —
+/// it is the latency of a REFUSAL, never of an answer, and a body that
+/// answers never reaches it.
+fn splice_in_arena_order<T: Decide>(
+    decided: Vec<FaceDecision<T>>,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    let mut runs = Vec::with_capacity(decided.len());
+    for (run, recording) in decided {
+        geom_core::k_stats::splice(recording);
+        runs.push(run?);
+    }
+    Ok(runs)
+}
+
+/// **The escalation path, read directly**: the fold splices every
+/// recording up to and including the refusing face and drops every one
+/// after it, in arena order.
+///
+/// The end-to-end rows live in `sweep`'s
+/// `mass_props_are_thread_count_invariant` — a real body, the public
+/// doors, 1 thread against 4. This one pins the rule those rows depend
+/// on at the site that carries it, with the refusal placed where no
+/// fixture body puts it: at a chosen slot, with a recording on every
+/// slot before and after, so a fold that spliced one face too few or
+/// one too many reds here.
+#[cfg(test)]
+mod face_walk_composition_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::k_stats::{Bracket, detached};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band builds")
+    }
+
+    /// A detached run that records exactly one verdict, under `name`.
+    fn one_verdict(name: &'static str) -> Detached {
+        detached(|| {
+            let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
+        })
+        .1
+    }
+
+    /// A face run that contributes nothing and refuses nothing — the
+    /// fold's business here is the recording and the stop, not the sum.
+    fn silent_run() -> FaceRun<f64> {
+        FaceRun {
+            face: FaceKey::null(),
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 0.0,
+                flux_pad: 0.0,
+                area_pad: 0.0,
+            },
+            open_at: None,
+            refusal: None,
+        }
+    }
+
+    /// The slots, with a hard refusal at `refuse_at` when one is asked
+    /// for; every slot carries a recording naming itself.
+    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(i, &name)| {
+                let recording = one_verdict(name);
+                let run = if refuse_at == Some(i) {
+                    Err(MassPropsError::Corrupt {
+                        what: "the injected refusal",
+                    })
+                } else {
+                    Ok(silent_run())
+                };
+                (run, recording)
+            })
+            .collect()
+    }
+
+    const NAMES: [&str; 4] = ["walk_slot_a", "walk_slot_b", "walk_slot_c", "walk_slot_d"];
+
+    #[test]
+    fn every_recording_splices_in_arena_order_when_no_face_refuses() {
+        let decided = slots(&NAMES, None);
+        let bracket = Bracket::open();
+        let runs = splice_in_arena_order(decided).expect("no face refused");
+        let log = bracket.finish();
+        assert_eq!(runs.len(), NAMES.len());
+        assert_eq!(
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
+            NAMES,
+            "the fold did not splice the slots in arena order"
+        );
+    }
+
+    /// **The serial arm stops where the serial walk stopped.** Under an
+    /// installed symbolic session `decide_faces` decides on the caller's
+    /// thread, and it must not decide a face past the first refusal: a
+    /// decision writes the session's receipt and the shape report IN
+    /// PLACE, where no splice can take it back, so a face the serial
+    /// walk never reached would inflate both.
+    #[test]
+    fn the_serial_arm_decides_no_face_past_the_first_refusal() {
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        let seen = AtomicUsize::new(0);
+        let items: Vec<usize> = (0..5).collect();
+        let (out, _counts) = geom_core::sym::with_session(
+            geom_core::sym::SymBudget {
+                max_terms: 8,
+                max_degree: 2,
+            },
+            || {
+                decide_faces(&items, |&i| {
+                    seen.fetch_add(1, Ordering::Relaxed);
+                    if i == 2 {
+                        Err(MassPropsError::Corrupt {
+                            what: "the injected refusal",
+                        })
+                    } else {
+                        Ok::<FaceRun<f64>, MassPropsError>(silent_run())
+                    }
+                })
+            },
+        );
+        assert!(out.is_err(), "slot 2 refused and the walk answered Ok");
+        assert_eq!(
+            seen.load(Ordering::Relaxed),
+            3,
+            "the serial arm decided a face past the first refusal — the \
+             session's receipt and the shape report cannot be un-written"
+        );
+    }
+
+    /// The other arm's price, stated as a row rather than only in prose:
+    /// with no session installed the map decides EVERY face and the fold
+    /// then drops what it cannot use. That is the disclosed failure-path
+    /// cost, and it is a property of a refusing body at every width.
+    #[test]
+    fn the_parallel_arm_decides_every_face_and_then_drops_the_rest() {
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        let seen = AtomicUsize::new(0);
+        let items: Vec<usize> = (0..5).collect();
+        let out = decide_faces(&items, |&i| {
+            seen.fetch_add(1, Ordering::Relaxed);
+            if i == 2 {
+                Err(MassPropsError::Corrupt {
+                    what: "the injected refusal",
+                })
+            } else {
+                Ok::<FaceRun<f64>, MassPropsError>(silent_run())
+            }
+        });
+        assert!(out.is_err(), "slot 2 refused and the walk answered Ok");
+        assert_eq!(seen.load(Ordering::Relaxed), 5);
+    }
+
+    #[test]
+    fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
+        let decided = slots(&NAMES, Some(2));
+        let bracket = Bracket::open();
+        let err = match splice_in_arena_order(decided) {
+            Err(err) => err,
+            Ok(_) => panic!("slot 2 refused and the fold answered Ok"),
+        };
+        let log = bracket.finish();
+        assert!(
+            matches!(err, MassPropsError::Corrupt { what } if what == "the injected refusal"),
+            "the fold reported another face's refusal: {err}"
+        );
+        assert_eq!(
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
+            &NAMES[..3],
+            "the log is not the serial walk's: it stops at the first refusing face, \
+             which had already decided what it decided before it refused"
+        );
+    }
+}
+
+/// **The refusal rule, at the site that carries it.** [`SignCertificate`]
+/// says a reading names the FIRST refusing face in arena order,
+/// resumed or already outstanding, and
+/// [`SignCertificate::refine_to_target`]'s sequential half is where
+/// that survives a parallel resumption. The rows below put the two
+/// kinds of refusal in the order no fixture body puts them — an
+/// EARLIER face carrying an outstanding budget refusal it was never
+/// resumed for, and a LATER face whose resumption refuses OUTRIGHT —
+/// so a walk that folded refusals at the end, or that read the map's
+/// slots before the runs it did not map, answers the later one and
+/// reds here.
+///
+/// The certificate is built by hand because no body produces that
+/// order: `sign_certified` leaves a face open only when its window
+/// ended WITHOUT a refusal, so a real certificate's outstanding
+/// refusals and its open faces never collide in one walk this way.
+#[cfg(test)]
+mod continuation_refusal_order_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::Point3;
+
+    /// The outstanding refusal an earlier face carries: a target-level
+    /// budget refusal, the kind a sign-level walk keeps as DATA.
+    fn outstanding() -> PropsError {
+        PropsError::QuadratureBudget {
+            width_len: 1.0,
+            target_len: 0.5,
+            rounds: 1,
+        }
+    }
+
+    fn run_of(face: FaceKey, open_at: Option<usize>, refusal: Option<PropsError>) -> FaceRun<f64> {
+        FaceRun {
+            face,
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 0.0,
+                flux_pad: 0.0,
+                area_pad: 0.0,
+            },
+            open_at,
+            refusal,
+        }
+    }
+
+    /// The continuation's refusal at an explicit pool width, over a
+    /// certificate whose slot 0 carries [`outstanding`] un-resumed and
+    /// whose slot 1 is OPEN at a face whose resumption cannot answer at
+    /// all (a skeletal `mvfs` face: no loop to flatten, so `face_flux`
+    /// refuses outright rather than on budget).
+    fn refusal_at(threads: usize) -> MassPropsError {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .expect("the skeletal body builds")
+            .face;
+        let early = FaceKey::null();
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("the pool builds")
+            .install(|| {
+                SignCertificate {
+                    body: &body,
+                    band,
+                    tol: Tol::witness(),
+                    runs: vec![
+                        run_of(early, None, Some(outstanding())),
+                        run_of(skeletal, Some(0), None),
+                    ],
+                    refused: Some((early, outstanding())),
+                }
+                .refine_to_target()
+            })
+            .expect_err("slot 0 carries a refusal, so the continuation cannot answer")
+    }
+
+    #[test]
+    fn the_earlier_outstanding_refusal_is_the_one_reported_at_one_thread() {
+        let err = refusal_at(1);
+        assert!(
+            matches!(
+                err,
+                MassPropsError::Face {
+                    face,
+                    source: PropsError::QuadratureBudget { .. }
+                } if face == FaceKey::null()
+            ),
+            "the continuation reported the LATER face's outright refusal over the earlier \
+             face's outstanding budget one: {err}"
+        );
+    }
+
+    /// Non-vacuity: the LATER slot must really refuse, and refuse with
+    /// something other than a budget — otherwise the rows above compare
+    /// one refusal with itself and would pass over any ordering at all.
+    #[test]
+    fn the_later_slots_resumption_refuses_outright() {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .expect("the skeletal body builds")
+            .face;
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        let err = SignCertificate {
+            body: &body,
+            band,
+            tol: Tol::witness(),
+            runs: vec![run_of(skeletal, Some(0), None)],
+            refused: None,
+        }
+        .refine_to_target()
+        .expect_err("a skeletal face has no loop to flatten");
+        assert!(
+            !matches!(
+                err,
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            ),
+            "the later slot refuses on BUDGET, so the rows above cannot tell the two \
+             refusals apart: {err}"
+        );
+    }
+
+    #[test]
+    fn the_earlier_outstanding_refusal_is_the_one_reported_at_four_threads() {
+        assert_eq!(
+            format!("{}", refusal_at(4)),
+            format!("{}", refusal_at(1)),
+            "the refusal the continuation names moved with the pool width"
+        );
+    }
+}
+
 /// The shared face walk at the REPORTING level: every face's lane run
-/// to its convergence or its typed refusal, faces in arena order, the
-/// accumulation order fixed (D9).
+/// to its convergence or its typed refusal, one slot per face in arena
+/// order, the accumulation order fixed (D9).
+///
+/// **Idiom 1 then idiom 2** (D9's parallelism addendum): the per-face
+/// lanes are an indexed parallel map into arena-order slots
+/// ([`decide_faces`]) and every combination after it is sequential in
+/// that order — the recordings spliced by [`splice_in_arena_order`],
+/// the fluxes summed by [`fold_runs`]. Nothing is combined
+/// arithmetically across slots in parallel, so the schedule reaches
+/// neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
+    faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let mut runs = Vec::with_capacity(body.faces.len());
-    for (face_key, _) in body.faces.iter() {
-        runs.push(face_flux(
-            body,
-            face_key,
-            band,
-            quad,
-            tol,
-            RoundWindow::SCHEDULE,
-        )?);
-    }
+    let runs = decide_faces(faces, |&face_key| {
+        face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
+    })?;
     // The refusal arm is not dead, and it is not reachable from
     // either hook this door is called with: both answer `Converged`
     // or `Ok(None)`, so no face carries one. It is what makes this
@@ -628,13 +1281,16 @@ fn mass_properties_impl<T: Decide>(
 
 /// The face walk's sum, and the refusal the REPORTING level owes.
 ///
-/// The sum is over faces in arena order, accumulated in that order
-/// (D9) — the enclosure exists whenever every face produced bounds at
-/// all, which a face carrying an outstanding budget refusal still
-/// does. The second half names the first face (arena order) whose
-/// lane has such a refusal outstanding: the face a caller wanting a
-/// NUMBER is refused on, and the one a caller deciding a SIGN may
-/// still finish without.
+/// **The order is the RUNS' order**, and the sum accumulates in it
+/// (D9's idiom 2): this fold never re-orders, so whichever walk built
+/// the slice decides the vocabulary — face-arena order for the
+/// whole-body walks and the continuation, the shell's own face list
+/// for [`classify_shells_of`]. The enclosure exists whenever every
+/// face produced bounds at all, which a face carrying an outstanding
+/// budget refusal still does. The second half names the FIRST face in
+/// that same order whose lane has such a refusal outstanding: the face
+/// a caller wanting a NUMBER is refused on, and the one a caller
+/// deciding a SIGN may still finish without.
 fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(FaceKey, PropsError)>) {
     let mut flux = T::zero();
     let mut area = T::zero();
@@ -675,7 +1331,8 @@ struct FaceFlux<T> {
 }
 
 /// One face's contribution and where its refinement stopped — the unit
-/// a walk that may be RESUMED carries, one per face in arena order.
+/// a walk that may be RESUMED carries, one per face in the walk's own
+/// order ([`fold_runs`] says which walk uses which).
 struct FaceRun<T> {
     /// The face this run is of.
     face: FaceKey,
@@ -747,7 +1404,9 @@ fn face_flux<T: Decide>(
             let is_trimmed = outer.iter().any(|e| {
                 matches!(
                     e.carrier,
-                    geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
+                    geom::Curve3::Ellipse { .. }
+                        | geom::Curve3::Spiric { .. }
+                        | geom::Curve3::Nurbs(_)
                 )
             });
             // A described NURBS face ALWAYS takes the quadrature
@@ -796,7 +1455,7 @@ fn face_flux<T: Decide>(
                 // scalar with NO certified lane (the dual arm of
                 // [`PropsQuadLane`]) — whose honest outcome on a
                 // trimmed face is the closed form's typed refusal.
-                None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
+                None => curved_face(surface, &outer, face.sense, band).map_err(wrap)?,
             }
         }
     };
@@ -1060,46 +1719,48 @@ pub fn classify_shells_of<T: PropsQuadLane>(
         if !shells.contains(&shell_key) {
             continue;
         }
-        let mut flux = T::zero();
-        let mut area = T::zero();
-        let mut flux_pad = 0.0f64;
-        let mut area_pad = 0.0f64;
-        for &face_key in &shell.faces {
-            let props = |source| ShellClassifyError::Props {
-                shell: shell_key,
-                source,
-            };
-            // The per-shell walk reads at the REPORTING level: a shell
-            // role is a claim about a volume, and its faces run their
-            // whole schedules.
-            let run = face_flux(
+        let props = |source| ShellClassifyError::Props {
+            shell: shell_key,
+            source,
+        };
+        // The per-shell walk reads at the REPORTING level: a shell role
+        // is a claim about a volume, and its faces run their whole
+        // schedules. Same flux and the same hook as
+        // [`mass_properties_impl`], restricted to this shell's faces,
+        // then the sequential fold of [`fold_runs`] in the shell's own
+        // face list order, which is this walk's order throughout — the
+        // whole-body walks' is the face arena's.
+        //
+        // **Serial, and not [`decide_faces`]**: every shell the census
+        // meets is below the per-face map's break-even, so mapping
+        // here buys a regression and no body a gain — the numbers are
+        // on `work/perf/`'s
+        // `parallel-map-costs-a-fixed-price-on-a-cheap-body`, with the
+        // reason ([`decide_faces_serially`] restates it at the door).
+        // The grain that could repay the price is the loop over SHELLS
+        // above, which measures at about break-even on the same
+        // document; that is the census's own question and not this
+        // loop's, so the face grain does not want re-trying.
+        let runs = decide_faces_serially(&shell.faces, |&face_key| {
+            face_flux(
                 body,
                 face_key,
                 band,
-                &|body, surface, outer, hes, band, tol, _| {
-                    T::quad_cut_face(body, surface, outer, hes, band, tol)
-                        .map(|b| b.map(RoundOutcome::Converged))
-                },
+                &reporting_hook::<T>,
                 tol,
                 RoundWindow::SCHEDULE,
             )
-            .map_err(props)?;
-            // As at [`mass_properties_impl`]: unreachable from the
-            // hook above, and what keeps this walk correct for the
-            // hook signature rather than for one hook.
-            if let Some(source) = run.refusal {
-                return Err(props(MassPropsError::Face {
-                    face: face_key,
-                    source,
-                }));
-            }
-            flux = flux + run.contribution.flux;
-            area = area + run.contribution.area;
-            flux_pad += run.contribution.flux_pad;
-            area_pad += run.contribution.area_pad;
+        })
+        .map_err(props)?;
+        // As at [`mass_properties_impl`]: unreachable from the hook
+        // above, and what keeps this walk correct for the hook
+        // signature rather than for one hook.
+        let (sums, refused) = fold_runs(&runs);
+        if let Some((face, source)) = refused {
+            return Err(props(MassPropsError::Face { face, source }));
         }
-        let volume = flux / T::from_f64(3.0);
-        let volume_pad = flux_pad / 3.0;
+        let (area, area_pad) = (sums.surface_area, sums.area_pad);
+        let (volume, volume_pad) = (sums.volume, sums.volume_pad);
         // The named sign read — ONE funnel site, evaluated at a
         // bracket end. `V/A` is a length (check 7's margin
         // convention): the mean displacement of this shell's boundary
@@ -1802,7 +2463,7 @@ mod at_rest_policy_tests {
 mod quad_lane {
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{
-        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimEdgeQ,
+        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
     };
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
@@ -1879,6 +2540,20 @@ mod quad_lane {
                 let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
+            // The spiric's chart images are not harmonic (its `m`
+            // channel is `√((R + r cos v)² − d²)`), so the trig
+            // brackets this lane reads do not exist for it. Unreachable
+            // by construction: this lane is entered only for a CYLINDER
+            // chart (`cut_face_rounds`'s chart gate), and a spiric lies
+            // on no cylinder — the arm names the kind so the gate's
+            // removal would meet a typed refusal here rather than a
+            // wildcard. The props quadrature lane for a spiric-bounded
+            // face is the spiric unit's props PR.
+            Curve3::Spiric { .. } => Err(PropsError::QuadratureUnsupported {
+                what: "spiric trim carrier on an ANALYTIC chart's quadrature lane — the \
+                       hollowed partial revolve's torus wall and plane cap; the spiric \
+                       quadrature lane is not yet written",
+            }),
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
                 what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
                        the cut-loft class (a loft wall cut by a plane/cylinder), which \
@@ -2036,6 +2711,20 @@ mod quad_lane {
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
             });
         }
+        // **The dispatch is by pcurve KIND** (TRIM-2 §8.1): a loop
+        // whose every image is an iso class pins the trim region to an
+        // axis-aligned rectangle and keeps the rectangle certificate
+        // below, bit for bit; a loop carrying a `General` image bounds
+        // a region that is not a rectangle of its chart at all, and
+        // takes the trimmed lane. `Fitted` keeps its own refusal in
+        // both — no shipped construction mints one here.
+        if hes
+            .iter()
+            .filter_map(|he| body.pcurve(*he))
+            .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
+        {
+            return trimmed_face(body, payload, outer, hes, band, tol, window);
+        }
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
@@ -2100,30 +2789,7 @@ mod quad_lane {
                 polygon.push((bx, by));
             }
             // Metric boundary length bound + the map-residual defect.
-            let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                geom::Curve3::Nurbs(c) => {
-                    let mut l = RingInterval::zero();
-                    for w in c.control().windows(2) {
-                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
-                    }
-                    l.mag()
-                }
-                // An ARC cap rim on a rational wall (M8-3): the metric
-                // length is exactly `r·Δθ` — the carrier's own
-                // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                _ => {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a NURBS-face boundary carrier outside the loft inventory \
-                               (line, spline and circle rims are the minted classes)",
-                    });
-                }
-            };
+            let len = carrier_metric_length(&le.carrier, t0, t1)?;
             perimeter += len;
             boundary_defect +=
                 len * RingInterval::from_certified(cache.certificate().envelope).mag();
@@ -2196,6 +2862,184 @@ mod quad_lane {
             flux: if winding < 0.0 { -b.flux } else { b.flux },
             area: b.area,
         }))
+    }
+
+    /// A certified UPPER bound on a trim carrier's METRIC length, in
+    /// metres — the lever of both honesty pads (`Σ L·envelope` widens
+    /// the area, and `× p_bound` the flux) and of the extent gate's
+    /// perimeter. ONE home: the rectangle certificate and the trimmed
+    /// lane bound the same quantity the same way, and two spellings of
+    /// it would be two things to keep equal.
+    fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
+        carrier: &Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Result<f64, PropsError> {
+        Ok(match carrier {
+            Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            // The control polygon bounds the spline's arc length
+            // (the convex-hull/variation-diminishing fact).
+            Curve3::Nurbs(c) => {
+                let mut l = RingInterval::zero();
+                for w in c.control().windows(2) {
+                    l = l + RingInterval::from_certified(w[0].distance(w[1]));
+                }
+                l.mag()
+            }
+            // An ARC cap rim on a rational wall (M8-3): the metric
+            // length is exactly `r·Δθ` — the carrier's own parameter
+            // IS the angle, so no bound is needed.
+            Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            _ => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face boundary carrier outside the loft inventory \
+                           (line, spline and circle rims are the minted classes)",
+                });
+            }
+        })
+    }
+
+    /// **The TRIMMED-region flux lane** (TRIM-2): a described NURBS
+    /// face whose loop carries a `General` chart image, so its trim
+    /// region is what the image bounds rather than a rectangle of the
+    /// chart.
+    ///
+    /// This function assembles; the certification is
+    /// [`quad::trimmed_patch_face_rounds`]'s. The traversal's own
+    /// direction is carried per chord and the S10 winding is the chord
+    /// polygon's shoelace sign, read inside the engine — winding-derived
+    /// end to end, exactly as the rectangle certificate and the cylinder
+    /// lane are.
+    #[allow(clippy::too_many_arguments)]
+    fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
+        body: &Body<T>,
+        payload: &geom::NurbsSurface<T>,
+        outer: &[LoopEdge<T>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+    ) -> Result<RoundOutcome, PropsError> {
+        let ring = |x: T| RingInterval::from_certified(x);
+        let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
+        for (le, he) in outer.iter().zip(hes) {
+            let Some(cache) = body.pcurve(*he) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "NURBS face half-edge carries no stored pcurve cache — the \
+                           loft assembly mints them; a body that lost its caches must \
+                           re-mint before mass properties",
+                });
+            };
+            let (t0, t1) = cache.params();
+            let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+            let (a, b) = if le.forward {
+                ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
+            } else {
+                ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
+            };
+            let piece = match cache.pcurve() {
+                // An iso image is one exact chord: its endpoints are
+                // structure, so there is no arc to bound.
+                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
+                Pcurve::General(image) => {
+                    // The engine subdivides the WHOLE stored image, so
+                    // a cache whose carrier interval is a sub-range of
+                    // its image's domain would have the lane integrate
+                    // along chart the face does not bound. Exact
+                    // structure, like every other read on this path.
+                    let (d0, d1) = image.domain();
+                    let (r0, r1) = (ring(t0), ring(t1));
+                    // NO ROW AND NO KNOWN PRODUCER, stated so a reader
+                    // does not take the guard for evidence of the case:
+                    // `derive_general_image` mints an image over the
+                    // carrier's whole interval, so nothing at rest
+                    // stores a sub-range, and nothing in the suites
+                    // hand-builds one. It is here because the trimmed
+                    // lane subdivides the STORED image whole, and a
+                    // future producer that stored a sub-range would get
+                    // a certified number for chart the face does not
+                    // bound rather than a refusal.
+                    if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
+                    {
+                        return Err(PropsError::QuadratureUnsupported {
+                            what: "a General trim image whose carrier interval is not its \
+                                   own knot domain — the trimmed lane subdivides the \
+                                   stored image whole, and a sub-range would integrate \
+                                   along chart the face does not bound",
+                        });
+                    }
+                    Some(TrimPiece {
+                        knots: image.knots().clone(),
+                        control: image
+                            .control()
+                            .iter()
+                            .map(|p| (ring(p.x), ring(p.y)))
+                            .collect(),
+                        weights: image.weights().to_vec(),
+                    })
+                }
+                Pcurve::Fitted(_) => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                               the trimmed lane certifies the General class, whose \
+                               agreement with its carrier is a measurement; nothing \
+                               ships that mints a Fitted image on a spline chart",
+                    });
+                }
+                Pcurve::Harmonic { .. } => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a HARMONIC pcurve — that is \
+                               an analytic chart's closed form, and this chart is a \
+                               spline patch",
+                    });
+                }
+            };
+            chords.push(TrimChord {
+                a,
+                b,
+                piece,
+                forward: le.forward,
+                env: ring(cache.certificate().envelope),
+            });
+        }
+        // **One bracket per shared vertex.** Two consecutive half-edges
+        // meet at a vertex, and each reads it through its OWN pcurve —
+        // an `IsoLine`'s `eval(t)` against a `General`'s clamped end —
+        // so at `f64` the two reads can differ by the certification's
+        // own size (2.2e-16 on the P-2 fixture, where the image's
+        // control box is `u ∈ [2 − 2.2e-16, 2]` against the rim's exact
+        // `u = 2`). Hulling them makes the walk close by construction
+        // and hands the door the honest bracket for the vertex; the
+        // door's own closure check then guards a CALLER, not this
+        // assembler's rounding.
+        for i in 0..chords.len() {
+            let j = (i + 1) % chords.len();
+            let merged = (
+                RingInterval::hull(chords[i].b.0, chords[j].a.0),
+                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+            );
+            chords[i].b = merged;
+            chords[j].a = merged;
+        }
+        let control: Vec<quad::RVec3> = payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect();
+        quad::trimmed_patch_face_rounds::<T>(
+            payload.knots_u(),
+            payload.knots_v(),
+            &control,
+            payload.weights(),
+            &chords,
+            tol.eps(),
+            band,
+            window,
+        )
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
@@ -2367,6 +3211,91 @@ mod recourse_tests {
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod face_list_door_tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// The closed-form corpus this module's pins are taken over: the
+    /// in-crate geometric prisms, alone and grafted into two-solid
+    /// arenas (the census's subject), all planar so the closed form
+    /// answers at every scalar.
+    fn corpus() -> Vec<(&'static str, Body<f64>)> {
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let unit = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
+        let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
+        let mut pair = unit.clone();
+        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        let mut trio = skew.clone();
+        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        vec![
+            ("unit", unit),
+            ("skew", skew),
+            ("tall", tall),
+            ("pair", pair),
+            ("trio", trio),
+        ]
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, recorded
+    /// before the face-list door existed (base `3f2336b21`): the door
+    /// became the face-list door handed the arena, and these are what
+    /// say it changed no number.
+    const PINNED: [(&str, u64, u64); 5] = [
+        ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
+        ("skew", 0x4001_0d4f_df3b_645a, 0x4026_2907_4669_5750),
+        ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
+        ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
+    ];
+
+    #[test]
+    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for ((name, body), (pin_name, volume, area)) in corpus().into_iter().zip(PINNED) {
+            assert_eq!(name, pin_name);
+            let whole = mass_properties_closed_form(&body, band, tol).unwrap();
+            assert_eq!(whole.volume.to_bits(), volume, "{name}: volume moved");
+            assert_eq!(whole.surface_area.to_bits(), area, "{name}: area moved");
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
+            assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
+            assert_eq!(
+                listed.surface_area.to_bits(),
+                whole.surface_area.to_bits(),
+                "{name}"
+            );
+        }
+    }
+
+    /// One solid's faces enclose that solid's volume, whichever other
+    /// solids share the arena: the per-solid read the point-in-solid
+    /// door's at-infinity fold depends on.
+    #[test]
+    fn a_solid_s_faces_enclose_that_solid_s_volume_in_a_shared_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        let (_, pair) = &bodies[3];
+        for (solid, _) in pair.solids() {
+            let faces: Vec<FaceKey> = pair
+                .faces()
+                .filter(|&(k, _)| pair.solid_of_face(k) == Some(solid))
+                .map(|(k, _)| k)
+                .collect();
+            assert_eq!(faces.len(), 6);
+            let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
+            // Both prisms of the pair are unit cubes.
+            assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
         }
     }
 }

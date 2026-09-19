@@ -22,7 +22,7 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EvalOptions, Frame, FrameFault, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
     MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault, PartReach, PersistError,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SitedRef, content_pin, mate_reach,
+    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, content_pin, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
@@ -123,8 +123,8 @@ fn clocked(
     alignment: Alignment,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
-        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, CapEnd::End)),
+        b: fixture::head(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
@@ -671,7 +671,7 @@ fn seated(
             .expect("the edit applies");
         log.push(editor_core::LoggedEdit {
             edit,
-            maintenance: applied.maintenance,
+            maintenance: applied.cluster_rows(),
         });
         *doc = applied.doc;
         applied.record.minted
@@ -805,7 +805,7 @@ fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
         )
         .expect("a join asks nothing");
     assert!(
-        matches!(applied.maintenance[..], [editor_core::ClusterMaintenance::Join { survived, absorbed, .. }] if survived == a && absorbed == c),
+        matches!(applied.cluster_rows()[..], [editor_core::ClusterMaintenance::Join { survived, absorbed, .. }] if survived == a && absorbed == c),
         "{:?}",
         applied.maintenance
     );
@@ -835,7 +835,7 @@ fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
         .apply(&DocEdit::DeleteNode { id: mate }, tol, &counting)
         .expect("a split solves through the store");
     assert!(
-        matches!(split.maintenance[..], [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
+        matches!(split.cluster_rows()[..], [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
         "{:?}",
         split.maintenance
     );
@@ -847,7 +847,7 @@ fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
         .expect("a gauge rewrite solves through the store");
     assert!(
         rewrite
-            .maintenance
+            .cluster_rows()
             .iter()
             .any(|act| matches!(act, ClusterMaintenance::GaugeRewrite { from, to, .. } if *from == a && *to == b)),
         "{:?}",
@@ -870,7 +870,7 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
         .expect("the store's reach places the orphan");
-    let split = applied.maintenance.clone();
+    let split = applied.cluster_rows();
     assert!(
         matches!(split[..], [editor_core::ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
         "the orphan's frame is minted from the solved pose: {split:?}"
@@ -963,7 +963,7 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
     let index = log.len();
     log.push(LoggedEdit {
         edit: DocEdit::DeleteNode { id: mate },
-        maintenance: applied.maintenance,
+        maintenance: applied.cluster_rows(),
     });
     let live = applied.doc;
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
@@ -1027,11 +1027,11 @@ fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
         .expect("the delete applies");
-    let live = applied.doc;
     log.push(editor_core::LoggedEdit {
         edit: DocEdit::DeleteNode { id: mate },
-        maintenance: applied.maintenance,
+        maintenance: applied.cluster_rows(),
     });
+    let live = applied.doc;
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
     // The old format: every entry a bare edit. Built from the saved

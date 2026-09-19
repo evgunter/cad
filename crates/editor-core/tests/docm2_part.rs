@@ -1,4 +1,5 @@
-//! **DOCM-2 — `Node::Part` at f64** (DOCM-REFERENCES-DESIGN DM3):
+//! **DOCM-2 — `Node::Part` at f64**
+//! (`crates/editor-core/REFERENCES.md` DM3):
 //! acceptance rows A1–A6, the split-stamping row the stop clause's
 //! amendment asks for, and the `Dual64` pin of the relaxed
 //! same-source assertions on the exact corpus document. The

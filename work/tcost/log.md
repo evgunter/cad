@@ -1803,7 +1803,7 @@ And `CHAMBER_LEAVES` should NOT be re-cut: the budget was measured
 correctly, the rows assert what they assert, and the seconds belong to a
 kernel tier the real program pays too.
 
-Filed as `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
+Filed as `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
 M10's slate, because M10 designed the tier (M10-7), owns `drive.rs` where
 both budget constants live, and owns the rows that pay. Named in it:
 `geom-core/src/sym*` is PROPS's by glob, so a fix inside the normal form
@@ -1963,7 +1963,7 @@ by doing the latter.
 open. Its diagnosis is complete, its fix is a kernel change inside a tier
 M10 designed and owns, and it has had **no dispatchable work on this side
 since it was filed**. It was reporting as available work it is not.
-Parked on `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
+Parked on `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
 which is the thing that can actually fire.
 
 That is the same class this program has been auditing in other people's
@@ -2330,3 +2330,32 @@ re-measured for, minted by the fix for it. The shard count is still
 prose at each of those sites, which is
 `work/ciw/eps-klint-and-shard-counts-are-prose`'s class, and the new
 prose says so.
+
+**(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
+`docs/SYM-1-SPEC.md`): the profile inside `geom_core::sym` that
+`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive` asks for
+first. One new row file under `crates/editor-core/tests/m10_*`
+(subject-named, `m10_sym_profile_interval.rs`), registered in
+`tests/all.rs`, every row `#[ignore]` with a reason or gated behind a
+test-only feature — the hosted gate's wall does not move, and the PR
+states both runs' editor-core interval shard timings. S-TCOST's
+measurement stays the result of record; nothing here re-takes it.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-5** (`sym/5-unit-vector`,
+`docs/SYM-5-SPEC.md`): one new row file under `crates/editor-core/tests/m10_*`
+(`m10_derived_frame_interval.rs`, DOCM's two red derived-frame rows
+ported and, once answered, un-ignored as the unit's pins at the
+nominal and one width), registered in `tests/all.rs`; the evidence
+rows stay `#[ignore]`; the pins' cost is stated in the PR body.
+
+**Seam announced by BLEND (2026-09-17, at unit 15's fix pass):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, PR #2514) adds ONE source reader to
+`crates/test-utils/src/source.rs` — the `decide*` call-site roster
+reader its two `recourse_roster.rs` suites and `profile`'s
+`fillet_recourse_followability.rs` census currently carry as three
+hand-rolled copies — beside `plain_string_literal` and `balanced_end`,
+which it uses. No test mechanism changes; the `reader_census.rs`
+ledger gains the lines the gate demands. Announced here and in
+`work/tint/log.md` because `crates/test-utils/*` is both programs'
+ground by declaration (S-TCOST's `program.md:12`: the fence is the
+question, not the path).

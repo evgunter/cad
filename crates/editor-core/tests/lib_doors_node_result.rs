@@ -438,7 +438,10 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
             spline.to_string(),
         ),
         (
-            K::Loft(sweep::LoftError::StackingEscalated { source: escalation }),
+            K::Loft(sweep::LoftError::StackingEscalated {
+                slab: 1,
+                source: escalation,
+            }),
             escalation.to_string(),
         ),
         (
@@ -465,6 +468,20 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
             "the wrappers must still name what failed: {rendered:?}"
         );
     }
+
+    // The escalation arm carries a SLAB beside its source, and the
+    // pair it names is the other half of what the node message has to
+    // survive: a forwarding that kept the source and dropped the pair
+    // would leave the reader with an escalation and no site.
+    let with_slab = K::Loft(sweep::LoftError::StackingEscalated {
+        slab: 1,
+        source: escalation,
+    })
+    .to_string();
+    assert!(
+        with_slab.contains("sections 1 and 2"),
+        "the slab's pair did not reach the node message: {with_slab:?}"
+    );
 }
 
 /// **The document layer's own payload types render their own story**
@@ -490,7 +507,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
         (
             EvalError::UnknownParam(ParamName::new("width")).to_string(),
             &[
-                "\"width\"",
+                "parameter width",
                 "has no binding",
                 "declare the document parameter",
             ],
@@ -506,6 +523,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
                     predicate: "coincidence",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
+                    source: editor_core::FlipSource::VerdictLog,
                 },
                 last_good: None,
             }

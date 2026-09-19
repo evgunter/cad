@@ -540,9 +540,11 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     let (_doc, eval) = session.landed_pair().expect("landed");
     let top = face_frame(eval, moved, &post_top.name).expect("the moved post's top cap");
     let under = face_frame(eval, bench.shelf_i, &shelf_bottom.name).expect("the shelf underside");
-    // The OUTWARD normal: the pose's axis times the face's own
-    // orientation sense — the direction material is not.
-    let outward = |f: &pncad::select::Pose<f64>| if f.sense { f.axis } else { -f.axis };
+    // The OUTWARD normal — the direction material is not — from the
+    // pose's chart axis and the face's own orientation sense.
+    let outward = |f: &pncad::select::Pose<f64>| {
+        pncad::geom_brep::OutwardNormal::from_chart(f.axis, f.sense).vec()
+    };
     let (n_top, n_under) = (outward(&top), outward(&under));
     let gap = (under.origin - top.origin).dot(n_top).abs();
     let slide = (under.origin - top.origin - n_top * (under.origin - top.origin).dot(n_top)).norm();

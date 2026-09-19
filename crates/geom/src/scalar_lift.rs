@@ -17,11 +17,33 @@
 //! in `curves/nurbs.rs`, [`NurbsSurface::map_scalar`] in
 //! `surfaces/nurbs.rs`, [`SurfaceDescription::map_scalar`] and
 //! [`ApproxSurface::map_scalar`] in `surfaces/approx.rs` — each through
-//! a door that states why the payload's count invariants survive a
-//! pointwise map. The leaf maps are `geom_core`'s `Point2/3::map`,
+//! a `from_validated_parts` door that takes the count argument below
+//! rather than re-validating. The leaf maps are `geom_core`'s `Point2/3::map`,
 //! `Vec2/3::map`, `Mat3::map` and `Affine3::map`. One name, `map_scalar`
 //! on every geometry type and `map` on every leaf; a reader looking for
 //! "where does this crate lift X" finds it on X.
+//!
+//! # The fallible direction, and where it exists
+//!
+//! A lift can REFUSE where whether a component has an image is decided
+//! by the target scalar's TYPE rather than by any component's value —
+//! the lane → `f64` crossing is the one such caller in the tree. That
+//! direction is named `try_map`: the same structural walk with
+//! `f: Fn(T) -> Result<U, E>`, the first refusal returned and no
+//! component after it consulted.
+//!
+//! **It is deliberately partial, and the convention above does not
+//! promise it everywhere.** `try_map` exists on `Vec3`, `Mat3` and
+//! `Affine3` — whose `map`s are written AS it, so each walk's
+//! component placement is stated once for both directions — and on
+//! `profile`'s `SketchPlane`. The other three leaves (`Point2`,
+//! `Point3`, `Vec2`), `profile`'s `ProfileVertex`, and every
+//! `map_scalar` rung have no fallible twin, because nothing has asked
+//! for one. The rule is one name per direction, on the types that have
+//! that direction — not both names on every type; minting the rest
+//! ahead of a consumer is what
+//! `work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+//! is measuring.
 //!
 //! # What a lift is, and is not
 //!
@@ -34,6 +56,53 @@
 //! value channel, as a bracket of the source's `f64` evaluation at the
 //! interval scalar. The rows named `described_nurbs_lifts_as_its_payload`
 //! in the enum modules' tests pin exactly that.
+//!
+//! # Why a structural map's counts survive it (the one home of this argument)
+//!
+//! Every `from_validated_parts` door in this crate — the curves', the
+//! surface's — skips `new`'s validation, and this is the argument it
+//! skips it on. It is stated here, once, because it is the same
+//! argument in every direction and at every arity; each door's doc
+//! points at this section rather than carrying a copy.
+//!
+//! A door takes parts that are an ALREADY-VALIDATED curve's or
+//! surface's own: the knot vectors carried verbatim or re-domained, and the net and
+//! weight vector under **one structural map**. These shapes qualify,
+//! and the argument covers each of them:
+//!
+//! - **Pointwise** — every control point through a function, the
+//!   weights untouched. A map over a `Vec` cannot change its length.
+//! - **A grid permutation** — the same points and the same weights,
+//!   re-indexed (a transpose, a reversal in one direction). A
+//!   permutation is a bijection of the index set onto itself, so it
+//!   changes neither the length nor the multiset of values.
+//! - **Knots re-expressed on another domain** — the same net and the
+//!   same weights under a knot vector from [`KnotVector::on_domain`],
+//!   which changes neither the degree nor the knot count, so
+//!   [`KnotVector::control_count`] is unchanged.
+//! - **Any composition of those** — a pointwise map after a
+//!   permutation, a re-domained knot vector over a mapped net, and so
+//!   on, since none of them changes either of the two things the checks
+//!   read.
+//!
+//! So `control.len()` still equals the knots' `control_count()` (the
+//! product of the two per-direction counts, for a surface),
+//! `weights.len()` still equals `control.len()`, and no weight VALUE
+//! moved — every weight is still the positive finite number `new`
+//! admitted, and every knot vector is still the one `KnotVector`'s own
+//! constructor accepted. The `debug_assert` in each door re-derives
+//! the count agreement (D2 addendum row 5: a bug detectable only by
+//! re-derivation).
+//!
+//! **What the door cannot check, and therefore requires of its
+//! caller.** The `debug_assert` reads two LENGTHS. It cannot see
+//! whether the weights rode the SAME permutation as the points, and a
+//! caller that permutes the net one way and the weights another hands
+//! back a net whose every count is right and whose every control point
+//! has the wrong weight. That pairing is the caller's obligation, owed
+//! at the call site; the door states it and trusts it, and the doors'
+//! own rows (the reversal's "the weight rides the same permutation")
+//! are where it is pinned.
 //!
 //! # The NURBS and approximating variants lift their PAYLOAD
 //!
@@ -68,6 +137,8 @@ use crate::surfaces::Surface;
 use crate::curves::NurbsCurve3;
 #[cfg(doc)]
 use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
+#[cfg(doc)]
+use geom_core::KnotVector;
 
 impl<T: Real> Curve3<T> {
     /// The same curve read at another scalar (module docs): analytic
@@ -105,6 +176,21 @@ impl<T: Real> Curve3<T> {
                 major: f(*major),
                 minor: f(*minor),
                 u_ref: u_ref.map(&f),
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                u_ref: u_ref.map(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                offset: f(*offset),
             },
             Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
         }

@@ -18,13 +18,13 @@ use topo::{
 
 use crate::common;
 use common::{
-    GeoCube, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
+    CubeOps, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
 };
 use geom_core::Tol;
 
 #[test]
 fn geometric_cube_passes_all_three_tiers() {
-    let t = geometric_cube::<f64>();
+    let t = geometric_cube::<f64>(Tol::witness());
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
     // 8 vertices, 12 edges, 6 faces; 6 planes + no leftover Nurbs.
@@ -56,14 +56,14 @@ fn geometric_cube_passes_all_three_tiers() {
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
 /// **M5 S10 acceptance row: tier 3 is the sense gate (check 6).**
 ///
-/// A face's outward normal is `Face::sense_sign()` times its surface's
-/// chart normal, and by the interior-left rule its outer loop winds
+/// A face's outward normal is its surface's chart normal with
+/// `Face::sense` folded in, and by the interior-left rule its outer loop winds
 /// CCW about that outward normal. So `sense` and the stored winding
 /// are two encodings of ONE fact, and check 6 — the loop's Newell
 /// functional against the outward normal — is precisely the gate that
@@ -82,9 +82,9 @@ fn geometric_cube_passes_all_three_tiers() {
 /// the threading multiplies by exactly `+1`.
 #[test]
 fn tier_three_refuses_a_hand_flipped_face_sense() {
-    let t = geometric_cube::<f64>();
+    let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Ok(()),
@@ -120,7 +120,7 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     // The seed face carrying the honest "no description yet" Nurbs
     // state at rest: tier 1/2 fine, tier 3 rejects it by name (put the
     // state back through the public setter).
-    let t = geometric_cube::<f64>();
+    let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
     body.set_face_surface(seed_face, FaceSurface::New(Surface::nurbs_placeholder()))
@@ -183,9 +183,9 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     // Intersection of its two adjacent faces' planes (witness at the
     // edge midpoint), via the certified upgrade path. Tier 3 then
     // re-certifies all twelve against BOTH planes.
-    let t = geometric_cube::<f64>();
+    let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
@@ -225,9 +225,9 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
 fn certification_records_are_byte_identical_across_runs() {
     // D9: two replays of the same construction produce byte-identical
     // certification records (and parameter caches).
-    let a = geometric_cube::<f64>();
-    let b = geometric_cube::<f64>();
-    let dump = |t: &GeoCube<f64>| {
+    let a = geometric_cube::<f64>(Tol::witness());
+    let b = geometric_cube::<f64>(Tol::witness());
+    let dump = |t: &CubeOps<f64>| {
         t.body
             .curves()
             .map(|(k, c)| {
@@ -256,10 +256,10 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // certificate this row compares. The f64 lane's own composed-door
     // rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
-    let mut f = geometric_cube::<f64>();
-    let mut d = geometric_cube::<Dual64>();
-    describe_as_intersections(&mut f.body);
-    describe_as_intersections(&mut d.body);
+    let mut f = geometric_cube::<f64>(Tol::witness());
+    let mut d = geometric_cube::<Dual64>(Tol::witness());
+    describe_as_intersections(&mut f.body, Tol::witness());
+    describe_as_intersections(&mut d.body, Tol::witness());
     assert_eq!(
         topo::validate_geometric_structural(&d.body, Tol::witness()),
         Ok(())
@@ -414,8 +414,8 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
     let tol = Tol::witness();
 
     // f64, the composed door: the sign is decided and the body refused.
-    let mut f = geometric_cube::<f64>();
-    describe_as_intersections(&mut f.body);
+    let mut f = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut f.body, Tol::witness());
     let f_inverted = f.body.revert().expect("the cube reverts");
     assert_eq!(
         validate_geometric(&f_inverted, tol),
@@ -426,8 +426,8 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
     // Dual64, the structural half: SILENT about orientation, and the
     // same body is otherwise sound, so `Ok` here is the whole finding
     // rather than a refusal arriving from somewhere else.
-    let mut d = geometric_cube::<Dual64>();
-    describe_as_intersections(&mut d.body);
+    let mut d = geometric_cube::<Dual64>(Tol::witness());
+    describe_as_intersections(&mut d.body, Tol::witness());
     let d_inverted = d.body.revert().expect("the cube reverts at a dual");
     assert_eq!(
         topo::validate_geometric_structural(&d_inverted, tol),

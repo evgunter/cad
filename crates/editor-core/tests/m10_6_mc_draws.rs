@@ -1,7 +1,7 @@
 //! **The MC lane's draws, handed out** — `mc::sample_offsets`, and the
 //! two things a consumer needs it to be true of.
 //!
-//! Filed as `work/m10`'s
+//! Filed as `work/props`'s
 //! `mc-lanes-draws-are-not-reproducible-from-outside-the-crate`: the
 //! report says what the mean and the spread are, and before this door
 //! there was no way to ask what was DRAWN. A consumer that wants to

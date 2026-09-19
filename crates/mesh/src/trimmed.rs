@@ -100,7 +100,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
@@ -149,7 +149,10 @@ pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, Te
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(true);
         }
     }
@@ -166,7 +169,7 @@ pub(crate) fn tessellate_trimmed(
     chords: &ChordPass,
     shared: &[Point3<f64>],
     tol: &SizingTols,
-    bounds: &mut FaceBounds,
+    bounds: &FaceBounds,
 ) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
@@ -185,26 +188,25 @@ pub(crate) fn tessellate_trimmed(
             axis,
             radius,
         },
-        // An approximating surface takes the spline lane on its fit
-        // (there is no placeholder state to screen: it is certified by
-        // construction).
-        // Both readings off ONE assembly: the memo holds the cell
-        // table (`nurbs_cert::face_grid`), and the whole-patch bound is
-        // a reading of it. The chord pass has normally already filled
-        // this entry, so the usual cost here is a clone of the table,
-        // not an assembly.
-        Surface::Approx(ref a) => {
-            let grid = face_grid(bounds, a.fit(), fk)?.clone();
-            let patch = grid.patch();
-            Lane::Nurbs { grid, patch }
+        // The mvfs "no description yet" state — the historical
+        // refusal, kept for exactly this class (types docs). An
+        // approximating surface has no such state to screen: its fit is
+        // certified by construction.
+        Surface::Nurbs(ref payload) if payload.is_placeholder() => {
+            return Err(TessellateError::UnsupportedSurface { face: fk });
         }
-        Surface::Nurbs(ref payload) => {
-            if payload.is_placeholder() {
-                // The mvfs "no description yet" state — the historical
-                // refusal, kept for exactly this class (types docs).
-                return Err(TessellateError::UnsupportedSurface { face: fk });
-            }
-            let grid = face_grid(bounds, payload, fk)?.clone();
+        // ONE spline arm past that screen, for the described NURBS face
+        // and for the approximating surface meshed on its fit: the lane
+        // reads the cell table under this FACE's key, not off the
+        // surface, and `chords::nurbs_tighten` assembled it from the
+        // same `Surface::spline_chart()` this dispatch is testing.
+        //
+        // Both readings off ONE assembly: the memo holds the cell table
+        // (`nurbs_cert::face_cells`), and the whole-patch bound is a
+        // reading of it. The chord pass filled the entry, so the cost
+        // here is a clone of the table, never an assembly.
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            let grid = face_cells(bounds, fk)?.clone();
             let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }
@@ -920,13 +922,18 @@ fn trim_frontier(
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
-                       mint stored pcurves, but the only trimmed-face tessellation \
-                       lanes written are the cylinder chart's and the NURBS chart's; \
-                       the remaining analytic charts have no trimmed lane",
+                note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
+                       the only trimmed-face tessellation lanes written are the \
+                       cylinder chart's and the NURBS chart's; the remaining analytic \
+                       charts have no trimmed lane (the spiric-bounded torus wall and \
+                       plane cap of a hollowed partial revolve land here: \
+                       `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }

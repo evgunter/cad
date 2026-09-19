@@ -792,3 +792,82 @@ doc lines, `mint_pcurves_of` and its registry rows), LIB
 draw and slot lines; a successor starts from it, reads this entry,
 and cuts SHELL-3 into slot 2 when sign-hull lands (ask M10's
 orchestrator for the co-review at dispatch, per plan item 5).
+
+## The tier-versus-engine row arrives from M10 (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13) and
+`symbolic-tier-and-clearance-engine` came here by header edit and
+`git mv` (id unchanged): `editor_core::measure::MinClearanceLane` is
+the one lane trait the E12 symbolic tier cannot replay, because
+`min_separation` is written at `geom_core::Interval` CONCRETELY in
+`crates/editor-core/src/clearance.rs` — this program's file — and
+`topo::Body`'s `SlotMap` arenas admit no scalar remap. **SHELL-3 is
+the same question from the other end**, so the row belongs on that
+unit's slate.
+
+**The co-review pointer above has moved.** The entry that cut SHELL-3
+says to "ask M10's orchestrator for the co-review at dispatch"; M10
+has no orchestrator now. The tier side is SYM's (`work/sym/`) and the
+`clearance.rs`/`measure.rs` seam is PROPS' — ask those two.
+
+## Announced seam from TOPO (2026-09-13): one comment in `shell.rs` with the ring-nesting unit
+
+TOPO's `tier3-accepts-a-ring-outside-its-outer-loop` (branch
+`topo/tier3-ring-nesting`) adds the ring-inside-outer decide to tier 3.
+In SHELL's `crates/topo/src/shell.rs` it corrects ONE comment — the
+role assignment's "the disjointness check below and tier 3's windings
+are what verify it", which the placed row shows overclaims — and
+nothing else: whether `shell_open`'s glue adopts the validator's
+decide as a second precondition is SHELL's call, and the lane reports
+rather than does it. `encloses` stays where it is. Signed (TOPO
+orchestrator).
+
+## Announced seam widened (2026-09-14): a second comment in `shell.rs`
+
+The ring-nesting unit's fix pass adds ONE more prose site in
+`crates/topo/src/shell.rs` and still no code. The module header's
+sentence *"the invariant is stated once more at rest by tier 3's check
+9 (`ValidationError::RingMeetsOuter`)"* named one variant where there
+are now two, so a paragraph beside it states check 9's other half
+(`RingOutsideOuter`, with `RingNestingUndecided` for the pair it cannot
+certify) and what shapes that half reaches.
+
+The `(host, guest)` comment itself was also corrected, because the
+sentence this lane first wrote there was FALSE on its shape: both
+blinded reviews installed the SHELL-5 R1 mutant and found that
+`shell_open` refuses an inverted pick with `ShellError::Corrupt` from
+the naming record's `ring_rows` walk, before the verb's closing
+`validate_geometric` is reached at all. The comment now says that —
+the record builder is what refuses an inverted pick through this verb
+today, check 9's nesting half is what makes the class loud at rest and
+elsewhere, and nothing in the verb relies on the arm.
+
+Whether the glue should adopt the nesting decide as a second
+precondition is still SHELL's call and still untouched; `encloses`
+stays where it is. Signed (TOPO, the ring-nesting lane).
+
+## Announced seam from TOPO (2026-09-14): one clause in `shell.rs` with the revert-wrap unit
+
+`crates/topo/src/shell.rs`'s "The closing mint" paragraph said the
+verb's final `mint_pcurves` is "also what re-parks a periodic chart's
+loop wrap where the reversed walk needs it". `Body::revert` re-parks
+the wrap itself now (each curved loop's anchor moves to its source
+predecessor, so the wrap sits at the reversed closure — the anchor
+bullet in `revert`'s module docs), so the clause was deleted; the
+paragraph's claim that the closing mint discharges the graft's
+`Transfers` row over the whole merged body stands as written, and
+nothing else in the file moved. Signed (TOPO, the revert-wrap lane,
+`topo/revert-reparks-the-wrap`).
+
+## Announced seam from TOPO (2026-09-14, the revert-wrap fix pass): one doc clause in `transform.rs`
+
+`crates/topo/src/transform.rs`'s sense-invariant note on `map_surface`
+names the obligation an orientation-REVERSING map would have — flip
+`sense` on every face. `Body::revert` now also moves every loop's
+`Cycle::first` to its source predecessor (the anchor is where a
+periodic chart's loop wrap is reported, so a reversed cycle keeps it
+at the closure only if the anchor moves), and a mirror would reverse
+every cycle the same way. The tripwire's sentence gained that clause
+and a pointer to `LoopBoundary::Cycle` and `Body::revert`; no code in
+the file moved (`det = +1` is still enforced upstream). Signed (TOPO,
+the revert-wrap fix pass, `topo/revert-reparks-the-wrap`).

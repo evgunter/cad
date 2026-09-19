@@ -127,14 +127,16 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
-pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
+pub use exhaust::{
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
+};
 pub use march::{
     BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
-use exhaust::UvRect;
+use exhaust::{RateClause, UvRect};
 use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
@@ -209,7 +211,8 @@ pub enum SsiOperand<'a, T: geom_core::Real> {
 /// curvature arm narrower than the feature it sits on.
 #[derive(Clone, Copy, Debug)]
 pub struct TubeScale<T> {
-    /// The lever arm the transversality margin is stated over.
+    /// The lever arm the transversality margin is stated over, in
+    /// meters.
     pub(crate) arm: T,
     /// The feature extent, in meters — the ladder's widest rung.
     pub(crate) extent: f64,
@@ -236,7 +239,14 @@ impl<T: geom_core::Bounds> TubeScale<T> {
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// No `PartialEq`: [`ExhaustLane`] carries a [`SupSpeed`](geom_core::SupSpeed),
+/// which has none by the `Real` surface's rule that a tagged rate is
+/// never compared without `get()`. Deriving one here would have to
+/// compare rates, and the payloads it would compare include a
+/// deliberate `f64::NAN` ([`Self::CertificateLimb`]'s `value`), which
+/// no derived equality can call equal to itself.
+#[derive(Clone, Debug)]
 pub enum SsiError {
     /// The transversality margin `sin θ · arm` landed in the sliver
     /// band along the candidate locus. This is the C7 regime
@@ -256,14 +266,7 @@ pub enum SsiError {
     /// neither exclude nor account for. **This is the never-silence
     /// obligation firing**: there may be a branch in that cell and we
     /// decline to pretend otherwise.
-    ExhaustivenessInconclusive {
-        /// The offending cell's width, in meters (or chart units).
-        cell_width: f64,
-        /// The floor it hit.
-        floor: f64,
-        /// Cells examined before the refusal.
-        examined: u32,
-    },
+    ExhaustivenessInconclusive(ExhaustivenessRefusal),
     /// The cell enumeration exceeded its budget — a refusal, never a
     /// silently truncated search.
     CellBudget {
@@ -299,7 +302,8 @@ pub enum SsiError {
         /// The cosine of the angle between the returning and seed
         /// tangents (≈ +1 for a genuine closure).
         cos_phi: f64,
-        /// The branch's arc length, the lever arm it was measured over.
+        /// The branch's arc length in meters, the lever arm it was
+        /// measured over.
         arc_length: f64,
     },
     /// A C2 limb refused. The limb is named so a consumer — and the
@@ -342,7 +346,9 @@ pub enum SsiError {
     /// box: two branches pass within the band of each other. A genuine
     /// sliver (F6), not a resolution failure to retry.
     TubeStraddles {
-        /// The certified margin (zero when the enclosure straddles).
+        /// The certified transversality margin in meters: a
+        /// dimensionless sine-like quantity already levered by the
+        /// tube scale's arm (zero when the enclosure straddles).
         margin: f64,
         /// Boxes in the chain.
         boxes: u32,
@@ -352,7 +358,7 @@ pub enum SsiError {
     FootPointInconclusive {
         /// The schedule parameter it failed at.
         t: f64,
-        /// The last distance the projection saw.
+        /// The last distance the projection saw, in meters.
         last_distance: f64,
     },
     /// The fitting stack refused the marched polyline.
@@ -430,18 +436,36 @@ impl core::fmt::Display for SsiError {
                  march through; separate the operands, declare the tangency, or lower \
                  the tolerance"
             ),
-            Self::ExhaustivenessInconclusive {
-                cell_width,
-                floor,
-                examined,
-            } => write!(
-                f,
-                "ssi: exhaustiveness inconclusive — after {examined} cells a cell of \
-                 width {cell_width:e} at the refinement floor {floor:e} could be \
-                 neither excluded nor accounted for, so a branch may be hiding in it; \
-                 the operation refuses rather than report a possibly incomplete \
-                 intersection"
-            ),
+            Self::ExhaustivenessInconclusive(r) => {
+                let (cell_width, floor, examined) = (r.cell_width, r.floor, r.examined);
+                match r.lane {
+                    ExhaustLane::R3 => write!(
+                        f,
+                        "ssi: exhaustiveness inconclusive on the ℝ³ lane — after \
+                         {examined} cells a cell of width {cell_width:e} m at the \
+                         refinement floor {floor:e} m could be neither excluded nor \
+                         accounted for, so a branch may be hiding in it; the \
+                         operation refuses rather than report a possibly incomplete \
+                         intersection"
+                    ),
+                    ExhaustLane::Chart { speed } => {
+                        write!(
+                            f,
+                            "ssi: exhaustiveness inconclusive on the chart lane — \
+                             after {examined} cells a cell of width "
+                        )?;
+                        exhaust::write_chart_length(f, cell_width, speed, RateClause::Omit)?;
+                        write!(f, " at the refinement floor ")?;
+                        exhaust::write_chart_length(f, floor, speed, RateClause::Name)?;
+                        write!(
+                            f,
+                            " could be neither excluded nor accounted for, so a branch \
+                             may be hiding in it; the operation refuses rather than \
+                             report a possibly incomplete intersection"
+                        )
+                    }
+                }
+            }
             Self::CellBudget { budget } => write!(
                 f,
                 "ssi: the exhaustiveness subdivision exceeded its {budget}-cell budget \
@@ -973,9 +997,7 @@ pub fn plane_nurbs_ssi(
     let nb = NurbsBoxes::new(wall);
     let du = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
-    let mag =
-        |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    let speed = nan_propagating_max(mag(du), mag(dv));
+    let speed = nan_propagating_max(du.speed_sup(), dv.speed_sup());
     // A speed OUTSIDE the positive-finite class can never translate a
     // floor: `floor / ∞` is exactly zero — a floor no cell can ever
     // reach — so a non-finite speed would let the sweep run to its
@@ -997,9 +1019,17 @@ pub fn plane_nurbs_ssi(
                    meters can be translated into its parameter domain",
         });
     }
+    // Tagged only now, past the two guards: the rate pair is a
+    // dimension-and-direction tag, not a positivity witness, and this
+    // lane's reading of a zero or non-finite rate is its own (above).
+    // The direction is SUP — `mag` is an upper bound on each
+    // derivative box — and dividing a metre floor by it UNDER-states
+    // the parameter reach, which is the safe side of a floor and of a
+    // tube pad alike.
+    let speed = geom_core::SupSpeed::new(speed);
 
     // ---- seeds ----
-    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, domain.seed_floor() / speed)?;
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, speed, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);
@@ -1034,14 +1064,14 @@ pub fn plane_nurbs_ssi(
         if let Some(ref pc) = branch.pcurve_b {
             // The tube the CERTIFICATE earned, in chart units — the
             // same region limb 3 proved one-arc-ness over.
-            let pad = branch.certificate.tube_radius / speed;
+            let pad = speed.to_param(branch.certificate.tube_radius);
             tubes.extend(pcurve_windows(pc, pad, pad));
         }
         branches.push(branch);
     }
 
     let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor(band) / speed)?;
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, speed, domain.floor(band))?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,

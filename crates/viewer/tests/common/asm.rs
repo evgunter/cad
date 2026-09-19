@@ -286,6 +286,11 @@ pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    viewer::pickindex::PickIndex::build(doc, eval, generation, delta(), session.tol())
-        .expect("the assembly indexes")
+    viewer::pickindex::PickIndex::build(
+        doc,
+        eval,
+        viewer::pickindex::PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the assembly indexes")
 }

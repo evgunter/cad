@@ -61,6 +61,7 @@
 //! interference, for all three carrier pairs.
 
 use geom::{Curve3, Surface};
+use geom_brep::OutwardNormal;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use topo::Body;
@@ -216,10 +217,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T
                     Carrier::Plane {
                         origin: *origin,
                         normal: *normal,
-                        // S10's sense bit, folded once, here: `true`
-                        // means the material side agrees with the chart
-                        // normal.
-                        outward: if face.sense { *normal } else { -*normal },
+                        outward: OutwardNormal::from_chart(*normal, face.sense).vec(),
                         reach,
                     }
                 }
@@ -518,6 +516,14 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
         Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
+        // Every point of the spiric lies on its torus, within `R + r` of
+        // the torus centre.
+        Curve3::Spiric {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(from(*center) + *major_radius + *minor_radius),
         Curve3::Nurbs(n) => n.control().iter().map(|p| from(*p)).reduce(|a, b| a.max(b)),
     }
 }

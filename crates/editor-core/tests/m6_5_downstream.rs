@@ -152,7 +152,7 @@ fn an_every_edge_fillet_emits_a_full_name_table() {
             | RoleSeg::CornerFace(_)
             | RoleSeg::TrimEdge { .. }
             | RoleSeg::FootVertex { .. }
-            | RoleSeg::CornerArc { .. } => {}
+            | RoleSeg::EndArc { .. } => {}
             RoleSeg::FromTarget(_) => supports += 1,
             other => panic!("a non-fillet role in a fillet table: {other:?}"),
         }
@@ -229,7 +229,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
 
 /// **The resolve ladder resolves fillet-minted names.** The hit-test /
 /// reference door (M4 PR 4) answers `Resolved` for every role an
-/// every-edge fillet mints — blend, octant, trimline, corner arc,
+/// every-edge fillet mints — blend, octant, trimline, band-end arc,
 /// foot, and the shrunk support — so a reference INTO a filleted body
 /// is an ordinary reference.
 #[test]
@@ -246,7 +246,7 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
             RoleSeg::BlendFace(_) => "blend",
             RoleSeg::CornerFace(_) => "octant",
             RoleSeg::TrimEdge { .. } => "trim",
-            RoleSeg::CornerArc { .. } => "arc",
+            RoleSeg::EndArc { .. } => "arc",
             RoleSeg::FootVertex { .. } => "foot",
             other => panic!("a non-fillet role in a fillet table: {other:?}"),
         };

@@ -139,7 +139,7 @@ pub mod surfaces;
 pub use curves::{
     ComposeError, Curve3, CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError,
     FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3, ProjectionInconclusive,
-    RefitSkip, SeamSide, compose_chain,
+    RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
 };
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
@@ -148,7 +148,7 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate, Surface,
-    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive,
-    SurfaceSpec, SurfaceWindow,
+    ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface, OffsetCertificate,
+    Surface, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
 };

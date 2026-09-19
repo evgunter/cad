@@ -43,7 +43,7 @@ use common::asm;
 use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
-use viewer::display::DisplayFault;
+use viewer::display::AdmissionFault;
 use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
@@ -226,7 +226,7 @@ fn the_exit_demo_walk() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

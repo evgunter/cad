@@ -53,6 +53,18 @@
 //! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
 //! schedule) and each half-edge's stored pcurve.
 //!
+//! # The entry identity a consumer can cache against
+//!
+//! A hit compares the entry's full key bytes, so the fact a hit
+//! establishes is stronger than "the digests agree": the face's inputs
+//! ARE the stored face's inputs, byte for byte. [`StoredPatchId`]
+//! carries that fact out of the memo — one identity per entry, minted
+//! at the insert that created it and reported for every face answered
+//! from it — so a consumer that caches something derived from a face's
+//! PLACED corners (the pick index's per-patch triangle table and BVH)
+//! can key that cache by the id and reuse it with no comparison of its
+//! own. Its type docs carry the argument from key bytes to corners.
+//!
 //! # Eviction and D9
 //!
 //! Eviction is generational: [`PatchMemo::end_picture`] drops every
@@ -110,13 +122,75 @@ impl PatchDigest {
     }
 }
 
-/// The digests of one tessellation's faces, in face-arena order — what
-/// [`PatchMemo::keep`] takes to keep a reused body's faces alive.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PatchKeys(Vec<PatchDigest>);
+/// The identity of one memo entry, minted at the insert that created
+/// it and never reused.
+///
+/// **The invariant.** Two faces reported under one id have the same
+/// key bytes — a hit compares the entry's FULL key, so this is decided
+/// on the far side of that comparison, which a digest is not — and
+/// therefore the same PLACED corners, bit for bit: a face's corners
+/// are its interior points, copied verbatim out of the entry, plus its
+/// boundary points, which [`StoredPatch::place`] reads at
+/// [`FaceInputs::boundary_ids`]'s slots, and both sequences come off
+/// [`FaceInputs::walk`] — the face's one boundary walk, which the key
+/// folds a position for at every slot the id sequence holds an id at.
+/// So a consumer caching anything derived from a face's placed corners
+/// (the pick index's per-patch table and BVH, `editor_core`'s
+/// `PickMemo`) keys it by this and owes no comparison of its own.
+///
+/// **Scope, and the thing the type cannot check.** An id names an
+/// entry of ONE [`PatchMemo`]; the value carries no memo identity, so
+/// ids minted by two memos collide silently and a consumer that mixed
+/// them would serve one memo's geometry for the other's face. What
+/// holds it in this tree is structural: a `PickMemo` owns its
+/// `PatchMemo`, its table level is private, and the door that takes
+/// both a `PatchKeys` and the memo (`MeshPick::build_with`) is
+/// `pub(crate)` and is only ever handed that memo's own keys. A new
+/// consumer owes the same pairing by construction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct StoredPatchId(u64);
+
+/// One face's row in [`PatchKeys`].
+///
+/// `PartialEq` is deliberately NOT derived here: see [`PatchKeys`]'s.
+#[derive(Clone, Copy, Debug)]
+struct FaceRow {
+    digest: PatchDigest,
+    stored: Option<StoredPatchId>,
+}
+
+/// One tessellation's faces, in face-arena order: each face's digest —
+/// what [`PatchMemo::keep`] takes to keep a reused body's faces alive
+/// — and the id of the memo entry its patch came from or became, where
+/// there is one ([`StoredPatchId`]).
+///
+/// The id is absent exactly where the memo holds no entry for the
+/// face: its lane refused, or it named a shared id outside its own
+/// boundary walk (the key-completeness defect [`PatchMemo::record`]
+/// names).
+///
+/// **Equality is over the digests alone, and the ids are excluded on
+/// purpose.** A digest is a function of the face's inputs, so two
+/// tessellations of the same faces carry equal keys however they were
+/// produced; a [`StoredPatchId`] is a fact about ONE memo's history —
+/// which entry answered, and when it was minted — so folding it into
+/// `==` would make keys from two memos unequal for faces that are
+/// byte-identical, and would quietly turn every `assert_eq!` on
+/// `PatchKeys` into an assertion about memo history. A caller that
+/// wants the ids compared compares [`PatchKeys::stored_ids`].
+#[derive(Clone, Debug, Default)]
+pub struct PatchKeys(Vec<FaceRow>);
+
+impl PartialEq for PatchKeys {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+
+impl Eq for PatchKeys {}
 
 impl PatchKeys {
-    /// One digest per face.
+    /// One row per face.
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -128,25 +202,41 @@ impl PatchKeys {
 
     /// The digests, in face-arena order.
     pub fn iter(&self) -> impl Iterator<Item = PatchDigest> + '_ {
-        self.0.iter().copied()
+        self.0.iter().map(|row| row.digest)
     }
 
     /// The digest of the face at position `i`, if the tessellation
     /// had one.
     pub fn get(&self, i: usize) -> Option<PatchDigest> {
-        self.0.get(i).copied()
+        self.0.get(i).map(|row| row.digest)
     }
 
-    pub(crate) fn push(&mut self, digest: PatchDigest) {
-        self.0.push(digest);
+    /// The memo entry the face at position `i` was answered from or
+    /// stored as — the identity its placed corners are bit-identical
+    /// under ([`StoredPatchId`]).
+    pub fn stored(&self, i: usize) -> Option<StoredPatchId> {
+        self.0.get(i).and_then(|row| row.stored)
+    }
+
+    /// Every entry id the tessellation used, in face-arena order,
+    /// skipping the faces the memo holds nothing for.
+    pub fn stored_ids(&self) -> impl Iterator<Item = StoredPatchId> + '_ {
+        self.0.iter().filter_map(|row| row.stored)
+    }
+
+    pub(crate) fn push(&mut self, digest: PatchDigest, stored: Option<StoredPatchId>) {
+        self.0.push(FaceRow { digest, stored });
     }
 }
 
-/// One memoised face: its key bytes (compared on every hit), its patch
-/// and the picture it was last used in.
+/// One memoised face: its key bytes (compared on every hit), its
+/// patch, the identity it is reported under and the picture it was
+/// last used in.
 struct Entry {
     key: Vec<u8>,
     patch: StoredPatch,
+    /// Minted at this insert, never reused ([`StoredPatchId`]).
+    id: StoredPatchId,
     picture: u64,
 }
 
@@ -155,6 +245,10 @@ struct Entry {
 #[derive(Default)]
 pub struct PatchMemo {
     entries: HashMap<PatchDigest, Entry>,
+    /// The next entry identity to mint. Monotone for the memo's whole
+    /// life, so an id names one insert and a replaced entry's id is
+    /// never handed out again ([`StoredPatchId`]).
+    next_id: u64,
     /// The picture being built: entries used carry this stamp.
     picture: u64,
     /// Whether the last picture was closed and nothing has started the
@@ -165,14 +259,34 @@ pub struct PatchMemo {
     misses: usize,
 }
 
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`PatchMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `entries` is carried as its COUNT — the fact a dump is asked
+/// for, where the map itself is every patch's triangles.
+///
+/// Two fields are not carried at all, so this ends in
+/// `finish_non_exhaustive`: `finish` claims every field is shown and
+/// these are not. `next_id` is the mint counter, an implementation
+/// detail of identity rather than a fact about the memo's contents;
+/// `closed` qualifies the counters beside it and is the one a reader of
+/// `hits`/`misses` would want — `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
 impl core::fmt::Debug for PatchMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            entries,
+            next_id: _,
+            picture,
+            closed: _,
+            hits,
+            misses,
+        } = self;
         f.debug_struct("PatchMemo")
-            .field("entries", &self.entries.len())
-            .field("picture", &self.picture)
-            .field("hits", &self.hits)
-            .field("misses", &self.misses)
-            .finish()
+            .field("entries", &entries.len())
+            .field("picture", picture)
+            .field("hits", hits)
+            .field("misses", misses)
+            .finish_non_exhaustive()
     }
 }
 
@@ -193,13 +307,14 @@ impl PatchMemo {
     }
 
     /// The memo's heap footprint, approximately: every entry's key
-    /// bytes, interior points and triangles. A measurement door, not a
-    /// budget.
+    /// bytes, its identity, its interior points and its triangles. A
+    /// measurement door, not a budget.
     pub fn bytes(&self) -> usize {
         self.entries
             .values()
             .map(|e| {
                 e.key.len()
+                    + core::mem::size_of::<StoredPatchId>()
                     + e.patch.interior.len() * core::mem::size_of::<Point3<f64>>()
                     + e.patch.triangles.len() * core::mem::size_of::<[StoredVertex; 3]>()
             })
@@ -250,70 +365,250 @@ impl PatchMemo {
         self.closed = true;
     }
 
-    /// The patch under `key`, if the memo holds one — compared by its
-    /// full bytes, so a digest collision is a miss and not a wrong
-    /// patch.
-    fn get(&mut self, digest: PatchDigest, key: &[u8]) -> Option<&StoredPatch> {
+    /// Stores `patch` under `digest`, replacing whatever that digest
+    /// held, and answers the identity the new entry is reported under.
+    fn insert(&mut self, digest: PatchDigest, key: Vec<u8>, patch: StoredPatch) -> StoredPatchId {
         self.open();
         let picture = self.picture;
-        match self.entries.get_mut(&digest) {
-            Some(entry) if entry.key == key => {
-                entry.picture = picture;
-                self.hits += 1;
-                Some(&entry.patch)
-            }
-            _ => {
-                self.misses += 1;
-                None
-            }
-        }
-    }
-
-    fn insert(&mut self, digest: PatchDigest, key: Vec<u8>, patch: StoredPatch) {
-        self.open();
-        let picture = self.picture;
+        let id = StoredPatchId(self.next_id);
+        self.next_id += 1;
         self.entries.insert(
             digest,
             Entry {
                 key,
                 patch,
+                id,
                 picture,
             },
         );
+        id
     }
 
-    /// The memo's half of one face: answer the patch from the memo, or
-    /// run `lane` and remember its answer. `inputs` is the face's key;
-    /// its boundary id sequence is what the stored patch's shared
-    /// corners are named against.
-    pub(crate) fn face(
-        &mut self,
-        inputs: &FaceInputs,
-        keys: &mut PatchKeys,
-        lane: impl FnOnce() -> Result<Patch, TessellateError>,
-    ) -> Result<Patch, TessellateError> {
+    /// The patch under `digest`, if the memo holds one whose FULL key
+    /// bytes match — so a digest collision is a miss and not a wrong
+    /// patch.
+    fn stored(&self, digest: PatchDigest, key: &[u8]) -> Option<(&StoredPatch, StoredPatchId)> {
+        match self.entries.get(&digest) {
+            Some(entry) if entry.key == key => Some((&entry.patch, entry.id)),
+            _ => None,
+        }
+    }
+
+    /// The memo's PURE half of one face: its key, its boundary walk,
+    /// and the stored entry itself when the memo holds one.
+    ///
+    /// `&self` only — no counter, no picture stamp, no insert — which
+    /// is what lets it run inside `tessellate`'s per-face parallel map
+    /// (D9 idiom 1). Everything it decides travels to the arena-order
+    /// fold: the [`Placement`] the fold performs, and the [`FaceMemo`]
+    /// [`PatchMemo::record`] applies.
+    ///
+    /// **A hit borrows rather than builds.** The entry is handed to the
+    /// fold as `&StoredPatch` and placed straight into the mesh arena
+    /// there, so the map allocates no patch for it — the two `Vec`s a
+    /// restored patch used to cost were allocated on a worker and freed
+    /// on the caller, which is the per-face price
+    /// `work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+    /// measures. What the hit still allocates is its key and its
+    /// boundary walk, and neither is avoidable: the key IS the lookup
+    /// and the boundary is what the stored corners are renamed against.
+    ///
+    /// `inputs` is the face's key; its boundary id sequence is what the
+    /// stored patch's shared corners are named against.
+    pub(crate) fn lookup(&self, inputs: &FaceInputs) -> FaceLookup<'_> {
         let key = inputs.key();
         let digest = PatchDigest::of(&key);
-        keys.push(digest);
         let boundary = inputs.boundary_ids();
-        if let Some(stored) = self.get(digest, &key) {
-            return Ok(stored.restore(&boundary));
+        let stored = self.stored(digest, &key);
+        FaceLookup {
+            digest,
+            key,
+            boundary,
+            stored,
         }
-        let patch = lane()?;
-        match StoredPatch::store(&patch, &boundary) {
-            Some(stored) => self.insert(digest, key, stored),
-            // A lane named a shared id outside its own boundary. The
-            // patch it produced is right — it was just computed — but
-            // the key cannot name that id, so nothing is stored and
-            // the face is meshed afresh every picture. Debug builds
-            // say so: it is a key-completeness defect, not a state.
-            None => debug_assert!(
-                false,
-                "a lane emitted a shared mesh id outside its face's boundary walk"
-            ),
-        }
-        Ok(patch)
     }
+
+    /// The memo's MUTATING half of one face, applied in face-arena
+    /// order: the digest and the entry identity into `keys`, the hit
+    /// or miss counted, the entry's picture stamped, and a missed
+    /// face's patch stored under a freshly minted id.
+    ///
+    /// Arena order is the contract, not a convenience —
+    /// [`PatchMemo::hits`] and [`PatchMemo::misses`] are counts over an
+    /// ordered walk and `PatchKeys` is a per-face sequence, so both are
+    /// the numbers the serial loop produced only because this runs
+    /// where that loop's body did.
+    pub(crate) fn record(&mut self, face: FaceMemo, keys: &mut PatchKeys) {
+        self.open();
+        let picture = self.picture;
+        let stored = match face.outcome {
+            Outcome::Hit { key, id } => {
+                self.hits += 1;
+                // Stamped on the FULL key, as the serial `get` had it.
+                // A same-picture insert can have replaced this digest's
+                // entry with one whose bytes are another face's; that
+                // entry is not this face's and keeping it alive on this
+                // face's behalf would serve a collision.
+                if let Some(entry) = self.entries.get_mut(&face.digest)
+                    && entry.key == key
+                {
+                    entry.picture = picture;
+                }
+                // The id the MAP read, not whatever this digest holds
+                // now: that entry is the one this face's corners were
+                // placed from, which is what the id names.
+                Some(id)
+            }
+            Outcome::Refused => {
+                self.misses += 1;
+                None
+            }
+            Outcome::Miss { key, stored } => {
+                self.misses += 1;
+                match stored {
+                    Some(stored) => Some(self.insert(face.digest, key, stored)),
+                    // A lane named a shared id outside its own
+                    // boundary. The patch it produced is right — it was
+                    // just computed — but the key cannot name that id,
+                    // so nothing is stored and the face is meshed
+                    // afresh every picture. Debug builds say so: it is
+                    // a key-completeness defect, not a state.
+                    None => {
+                        debug_assert!(
+                            false,
+                            "a lane emitted a shared mesh id outside its face's boundary walk"
+                        );
+                        None
+                    }
+                }
+            }
+        };
+        keys.push(face.digest, stored);
+    }
+}
+
+/// One face's read of the memo, taken from `&PatchMemo` alone
+/// ([`PatchMemo::lookup`]).
+pub(crate) struct FaceLookup<'m> {
+    digest: PatchDigest,
+    key: Vec<u8>,
+    boundary: Vec<u32>,
+    stored: Option<(&'m StoredPatch, StoredPatchId)>,
+}
+
+impl<'m> FaceLookup<'m> {
+    /// Closes a face the memo answered: what the fold places, and what
+    /// it owes the memo. `Err` gives the lookup back — the memo did not
+    /// hold this face, so its lane runs and [`FaceLookup::ran`] or
+    /// [`FaceLookup::refused`] closes it.
+    ///
+    /// A `Result` rather than an `Option` plus a second accessor so the
+    /// caller cannot close a hit as a miss: the value that answers "was
+    /// it there" is the value that carries the answer.
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn answered(self) -> Result<(Placement<'m>, FaceMemo), Self> {
+        let Some((stored, id)) = self.stored else {
+            return Err(self);
+        };
+        Ok((
+            Placement::Memo {
+                stored,
+                boundary: self.boundary,
+            },
+            FaceMemo {
+                digest: self.digest,
+                outcome: Outcome::Hit { key: self.key, id },
+            },
+        ))
+    }
+
+    /// Closes a face whose lane refused. There is no patch to store,
+    /// and the miss is still a miss: the serial loop counted it before
+    /// it ran the lane, so the counters over a picture that failed are
+    /// what they were.
+    pub(crate) fn refused(self) -> FaceMemo {
+        FaceMemo {
+            digest: self.digest,
+            outcome: Outcome::Refused,
+        }
+    }
+
+    /// Closes a face whose lane ran, naming `patch`'s shared corners
+    /// against the boundary walk so the entry is placeable in a mesh
+    /// with different ids.
+    ///
+    /// The renaming happens HERE, in the map, rather than in the fold:
+    /// it is per-face work over the face's own patch, and the fold's
+    /// only business is the order.
+    pub(crate) fn ran(self, patch: Patch) -> (Placement<'m>, FaceMemo) {
+        let stored = StoredPatch::store(&patch, &self.boundary);
+        (
+            Placement::Lane(patch),
+            FaceMemo {
+                digest: self.digest,
+                outcome: Outcome::Miss {
+                    stored,
+                    key: self.key,
+                },
+            },
+        )
+    }
+}
+
+/// What the arena-order fold puts into the mesh arena for one face.
+///
+/// The two arms are the two places a face's triangles can come from,
+/// and neither builds a patch the fold then throws away: a lane's patch
+/// moves into the arena, and a memo hit is renamed straight out of the
+/// entry the map read.
+pub(crate) enum Placement<'m> {
+    /// The lane ran: its own patch, placed as it stands.
+    Lane(Patch),
+    /// The memo answered: this entry, renamed against `boundary`.
+    ///
+    /// It BORROWS the memo, which is why the fold places every face
+    /// before it records any of them — an insert during the fold could
+    /// otherwise replace the entry a later hit is still pointing at.
+    Memo {
+        stored: &'m StoredPatch,
+        boundary: Vec<u32>,
+    },
+}
+
+impl Placement<'_> {
+    /// This face's triangles, as mesh ids, with its interior points
+    /// appended to `positions` — the one allocation either arm makes.
+    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        match self {
+            Self::Lane(patch) => patch.place(positions),
+            Self::Memo { stored, boundary } => stored.place(&boundary, positions),
+        }
+    }
+}
+
+/// What the arena-order fold still owes the memo for one face
+/// ([`PatchMemo::record`]).
+pub(crate) struct FaceMemo {
+    digest: PatchDigest,
+    outcome: Outcome,
+}
+
+/// Where the face landed in the memo, decided in the map.
+enum Outcome {
+    /// The memo held it; the fold counts a hit, re-stamps the entry
+    /// whose key these bytes are, and reports `id` — the entry the map
+    /// read, whose key bytes these are.
+    Hit { key: Vec<u8>, id: StoredPatchId },
+    /// It missed; the fold counts a miss and inserts `stored`, which is
+    /// `None` for the key-completeness defect [`PatchMemo::record`]
+    /// names.
+    Miss {
+        key: Vec<u8>,
+        stored: Option<StoredPatch>,
+    },
+    /// It missed and its lane then refused: the miss is counted and
+    /// nothing is stored.
+    Refused,
 }
 
 /// One corner of a stored patch: a boundary point by its index in the
@@ -328,7 +623,7 @@ enum StoredVertex {
 /// A patch with its shared corners renamed to boundary positions, so
 /// it can be placed in a mesh whose ids differ from the one it was
 /// computed in.
-struct StoredPatch {
+pub(crate) struct StoredPatch {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[StoredVertex; 3]>,
 }
@@ -358,20 +653,31 @@ impl StoredPatch {
         })
     }
 
-    fn restore(&self, boundary: &[u32]) -> Patch {
-        Patch {
-            interior: self.interior.clone(),
-            triangles: self
-                .triangles
-                .iter()
-                .map(|t| {
-                    t.map(|v| match v {
-                        StoredVertex::Boundary(i) => PatchVertex::Shared(boundary[i as usize]),
-                        StoredVertex::Local(i) => PatchVertex::Local(i),
-                    })
+    /// Places the stored patch in the mesh: its interior appended to
+    /// `positions`, its triangles returned as mesh ids, with `boundary`
+    /// naming the shared corners in this tessellation's ids.
+    ///
+    /// **`&self`, and one allocation.** This is [`Patch::place`]'s
+    /// counterpart for a memo hit, and the reason there is no
+    /// `restore`: rebuilding a `Patch` first cost an interior clone and
+    /// a triangle vector that the very next step renumbered and
+    /// dropped — and under the per-face parallel map those two `Vec`s
+    /// were allocated on a worker and freed on the caller. Renaming
+    /// straight into mesh ids does the same work once
+    /// (`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`).
+    fn place(&self, boundary: &[u32], positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        positions.extend_from_slice(&self.interior);
+        self.triangles
+            .iter()
+            .map(|t| {
+                t.map(|v| match v {
+                    StoredVertex::Boundary(i) => boundary[i as usize],
+                    StoredVertex::Local(i) => base + i,
                 })
-                .collect(),
-        }
+            })
+            .collect()
     }
 }
 
@@ -500,15 +806,34 @@ impl FaceInputs {
         })
     }
 
-    /// The face's boundary id sequence: every loop's every edge's chord
-    /// ids, `he_plus`-forward, in walk order. The stored patch's shared
-    /// corners are indices into this.
-    pub(crate) fn boundary_ids(&self) -> Vec<u32> {
+    /// **THE face's boundary walk**, and the single definition of "in
+    /// walk order": the outer loop then the rings, each announced with
+    /// its edge count and followed by its edges, each edge carrying its
+    /// chord slots `he_plus`-forward.
+    ///
+    /// [`FaceInputs::key`] folds it and [`FaceInputs::boundary_ids`]
+    /// collects it, and that is the point: the n-th chord slot of the
+    /// id sequence is the n-th chord slot the key folds a position for,
+    /// by construction rather than by two walks agreeing. The proof
+    /// [`StoredPatchId`] carries — byte-equal keys mean bit-identical
+    /// placed corners — rests on exactly that, so it is one iterator
+    /// and not two.
+    pub(crate) fn walk(&self) -> impl Iterator<Item = Step<'_>> {
         self.loops
             .iter()
-            .flatten()
-            .flat_map(|e| e.ids.iter().copied())
-            .collect()
+            .flat_map(|lp| core::iter::once(Step::Loop(lp.len())).chain(lp.iter().map(Step::Edge)))
+    }
+
+    /// The face's boundary id sequence, off [`FaceInputs::walk`]. The
+    /// stored patch's shared corners are indices into this.
+    pub(crate) fn boundary_ids(&self) -> Vec<u32> {
+        let mut ids = Vec::new();
+        for step in self.walk() {
+            if let Step::Edge(e) = step {
+                ids.extend(e.ids.iter().copied());
+            }
+        }
+        ids
     }
 
     /// The key bytes: the module docs' list, per lane.
@@ -540,43 +865,47 @@ impl FaceInputs {
         // The identity relabeling over the whole face's sequence.
         let mut label: HashMap<u32, u32> = HashMap::new();
         w.len(self.loops.len());
-        for lp in &self.loops {
-            w.len(lp.len());
-            for e in lp {
-                w.bool(e.forward);
-                w.curve3(&e.carrier);
-                w.f64(e.params.0);
-                w.f64(e.params.1);
-                w.len(e.ids.len());
-                for &id in &e.ids {
-                    #[allow(clippy::cast_possible_truncation)]
-                    let next = label.len() as u32;
-                    w.u32(*label.entry(id).or_insert(next));
-                }
-                w.len(e.positions.len());
-                for p in &e.positions {
-                    w.p3(*p);
-                }
-                if curved {
-                    w.bool(e.seam);
-                    match e.lineage {
-                        None => w.u8(0),
-                        Some(c) => {
-                            w.u8(1);
-                            w.u32(c);
+        // The SAME walk `boundary_ids` collects, so the positions
+        // folded here sit at the slots those ids sit at.
+        for step in self.walk() {
+            match step {
+                Step::Loop(edges) => w.len(edges),
+                Step::Edge(e) => {
+                    w.bool(e.forward);
+                    w.curve3(&e.carrier);
+                    w.f64(e.params.0);
+                    w.f64(e.params.1);
+                    w.len(e.ids.len());
+                    for &id in &e.ids {
+                        #[allow(clippy::cast_possible_truncation)]
+                        let next = label.len() as u32;
+                        w.u32(*label.entry(id).or_insert(next));
+                    }
+                    w.len(e.positions.len());
+                    for p in &e.positions {
+                        w.p3(*p);
+                    }
+                    if curved {
+                        w.bool(e.seam);
+                        match e.lineage {
+                            None => w.u8(0),
+                            Some(c) => {
+                                w.u8(1);
+                                w.u32(c);
+                            }
                         }
                     }
-                }
-                if trimmed {
-                    w.len(e.chord_params.len());
-                    for &t in &e.chord_params {
-                        w.f64(t);
-                    }
-                    match &e.pcurve {
-                        None => w.u8(0),
-                        Some(p) => {
-                            w.u8(1);
-                            w.pcurve(p);
+                    if trimmed {
+                        w.len(e.chord_params.len());
+                        for &t in &e.chord_params {
+                            w.f64(t);
+                        }
+                        match &e.pcurve {
+                            None => w.u8(0),
+                            Some(p) => {
+                                w.u8(1);
+                                w.pcurve(p);
+                            }
                         }
                     }
                 }
@@ -584,6 +913,14 @@ impl FaceInputs {
         }
         w.0
     }
+}
+
+/// One step of a face's boundary walk ([`FaceInputs::walk`]).
+pub(crate) enum Step<'a> {
+    /// A loop begins, with this many edges.
+    Loop(usize),
+    /// The next edge of the loop in progress.
+    Edge(&'a EdgeInputs),
 }
 
 /// Bytes of a key: every scalar by bit pattern, every sequence
@@ -798,6 +1135,22 @@ impl KeyWriter {
                 self.f64(*minor);
                 self.v3(*u_ref);
             }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                self.u8(4);
+                self.p3(*center);
+                self.v3(*axis);
+                self.v3(*u_ref);
+                self.f64(*major_radius);
+                self.f64(*minor_radius);
+                self.f64(*offset);
+            }
             Curve3::Nurbs(n) => {
                 self.u8(3);
                 self.nurbs3(n);
@@ -894,6 +1247,69 @@ mod tests {
             },
             sense: true,
             loops: vec![vec![edge(1.0, [10, 11, 12]), edge(2.0, [12, 13, 10])]],
+        }
+    }
+
+    /// **Every carrier kind writes its own tag byte.** Two kinds sharing
+    /// a tag would let a spiric-bounded face and a spline-bounded one
+    /// of the same field bytes fold to one key; the tag is the first
+    /// byte `curve3` writes, so the five kinds' tags are read off the
+    /// writer directly and asserted pairwise distinct.
+    #[test]
+    fn every_carrier_kind_writes_a_distinct_tag() {
+        let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let kinds: [(&str, Curve3<f64>); 5] = [
+            (
+                "line",
+                Curve3::Line {
+                    origin: frame.0,
+                    dir: frame.1,
+                },
+            ),
+            (
+                "circle",
+                Curve3::Circle {
+                    center: frame.0,
+                    axis: frame.1,
+                    radius: 1.0,
+                    u_ref: frame.2,
+                },
+            ),
+            (
+                "ellipse",
+                Curve3::Ellipse {
+                    center: frame.0,
+                    axis: frame.1,
+                    major: 2.0,
+                    minor: 1.0,
+                    u_ref: frame.2,
+                },
+            ),
+            (
+                "spiric",
+                Curve3::Spiric {
+                    center: frame.0,
+                    axis: frame.1,
+                    u_ref: frame.2,
+                    major_radius: 1.2,
+                    minor_radius: 0.225,
+                    offset: 0.05,
+                },
+            ),
+            ("nurbs", Curve3::nurbs_placeholder()),
+        ];
+        let tags: Vec<(&str, u8)> = kinds
+            .iter()
+            .map(|(name, c)| {
+                let mut w = KeyWriter::default();
+                w.curve3(c);
+                (*name, w.0[0])
+            })
+            .collect();
+        for (i, a) in tags.iter().enumerate() {
+            for b in &tags[i + 1..] {
+                assert_ne!(a.1, b.1, "{} and {} share the tag byte {}", a.0, b.0, a.1);
+            }
         }
     }
 
@@ -1063,26 +1479,22 @@ mod tests {
         };
         let stored = StoredPatch::store(&patch, &[10, 11, 12, 12, 13, 10])
             .expect("every id is on the boundary");
-        let placed = stored.restore(&[20, 21, 22, 22, 23, 20]);
-        assert_eq!(placed.interior.len(), 1);
+        // Placed into an arena that already holds 30 points, so the
+        // interior's base is a number the renaming has to add and not
+        // one the row could pass by accident.
+        let mut positions: Vec<Point3<f64>> = (0..30).map(|i| p(f64::from(i))).collect();
+        let placed = stored.place(&[20, 21, 22, 22, 23, 20], &mut positions);
+        assert_eq!(positions.len(), 31, "the interior point was appended");
         assert_eq!(
-            placed.interior[0].x.to_bits(),
-            patch.interior[0].x.to_bits()
+            positions[30].x.to_bits(),
+            patch.interior[0].x.to_bits(),
+            "and it is the patch's own point"
         );
         assert_eq!(
-            placed.triangles,
-            vec![
-                [
-                    PatchVertex::Shared(20),
-                    PatchVertex::Shared(21),
-                    PatchVertex::Local(0)
-                ],
-                [
-                    PatchVertex::Shared(22),
-                    PatchVertex::Shared(20),
-                    PatchVertex::Local(0)
-                ],
-            ]
+            placed,
+            vec![[20, 21, 30], [22, 20, 30]],
+            "boundary corners renamed through the new ids, the interior one \
+             rebased on the arena it was appended to"
         );
         assert!(
             StoredPatch::store(&patch, &[10, 11]).is_none(),
@@ -1102,15 +1514,76 @@ mod tests {
                 triangles: Vec::new(),
             },
         );
-        assert!(memo.get(digest, b"a").is_some());
+        let mut keys = PatchKeys::default();
+        let (_, first) = memo.stored(digest, b"a").expect("the entry just stored");
+        memo.record(
+            FaceMemo {
+                digest,
+                outcome: Outcome::Hit {
+                    key: b"a".to_vec(),
+                    id: first,
+                },
+            },
+            &mut keys,
+        );
         assert!(
-            memo.get(digest, b"b").is_none(),
+            memo.stored(digest, b"b").is_none(),
             "same digest, other bytes: a miss"
         );
+        memo.record(
+            FaceMemo {
+                digest,
+                outcome: Outcome::Miss {
+                    key: b"b".to_vec(),
+                    stored: Some(StoredPatch {
+                        interior: Vec::new(),
+                        triangles: Vec::new(),
+                    }),
+                },
+            },
+            &mut keys,
+        );
         assert_eq!((memo.hits(), memo.misses()), (1, 1));
+        assert_eq!(keys.len(), 2, "one row per face, in the fold's order");
+        // The identity is the ENTRY's, not the digest's: the face that
+        // hit is reported under the entry it was placed from, and the
+        // face that replaced that entry under this digest is reported
+        // under a new one. A consumer keyed by the id therefore cannot
+        // be handed the first face's geometry for the second.
+        assert_eq!(keys.stored(0), Some(first));
+        let second = keys.stored(1).expect("the replacement was stored");
+        assert_ne!(
+            second, first,
+            "a replacement under the same digest mints a new identity"
+        );
+        assert_eq!(
+            keys.stored_ids().collect::<Vec<_>>(),
+            vec![first, second],
+            "every face the memo holds an entry for, in the fold's order"
+        );
         memo.end_picture();
         assert_eq!(memo.len(), 1);
         memo.end_picture();
         assert_eq!(memo.len(), 0, "unused across a picture: evicted");
+    }
+
+    /// A face whose lane refused, and one whose lane named a shared id
+    /// off its own boundary, leave no entry — so they are reported
+    /// with no identity, and a consumer keyed by one builds its own.
+    #[test]
+    fn a_face_the_memo_holds_nothing_for_is_reported_without_an_identity() {
+        let mut memo = PatchMemo::new();
+        let mut keys = PatchKeys::default();
+        memo.record(
+            FaceMemo {
+                digest: PatchDigest::of(b"refused"),
+                outcome: Outcome::Refused,
+            },
+            &mut keys,
+        );
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys.stored(0), None);
+        assert_eq!(keys.stored_ids().count(), 0);
+        assert_eq!(memo.len(), 0, "a refusal stores nothing");
     }
 }

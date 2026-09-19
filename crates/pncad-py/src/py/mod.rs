@@ -412,19 +412,27 @@ pyo3::create_exception!(
     HitTestError,
     PncadError,
     "A hit test could not answer. Carries `variant`, the stable tag of \
-     the refusing arm, plus `node`, `through`, `kind` and `body`, each \
-     present on every arm and `None` where that arm does not carry \
-     it.\n\n\
+     the refusing arm, plus `node`, `through`, `kind`, `body` and \
+     `hits`, each present on every arm and `None` where that arm does \
+     not carry it.\n\n\
      A MISS is not this. The ray hitting no offered triangle is \
      `None`, typed, and an error is never flattened into it — so \
      catching this class never means \"nothing was there\".\n\n\
      Three arms are the standing ladder, spelled exactly as \
      `ReadbackError` spells it (`node_not_evaluated`, `node_failed`, \
      `node_poisoned`): a mesh displayed for a node this evaluation did \
-     not produce cannot belong to it. The fourth, `unnamed`, is a \
-     KERNEL BUG report — the node evaluated and the entity has no name \
-     in its table — and it carries the entity's `kind` and `body`, \
-     never its arena key.\n\n\
+     not produce cannot belong to it. `unnamed` is a KERNEL BUG \
+     report — the node evaluated and the entity has no name in its \
+     table — and it carries the entity's `kind` and `body`, never its \
+     arena key.\n\n\
+     `ambiguous` is the certified tie BETWEEN FACES, and it is the \
+     one to read twice: the ray met several faces the arithmetic \
+     cannot order — a cube's shared edge, a corner, a face met \
+     edge-on in front of a transversal one — and the door names them \
+     all rather than choosing on a rule you did not ask for. `hits` \
+     is the list of `PickHit`, one per tied face, each of them TRUE \
+     and complete. Several triangles of ONE face are not this: they \
+     are one answer, with the hull of their intervals.\n\n\
      `NodePick.patch_names` answers with instances of this class IN A \
      SLOT rather than raising: one naming-emission bug must not cost a \
      consumer the names of every other patch it is drawing."
@@ -435,8 +443,9 @@ pyo3::create_exception!(
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
      tag of the refusing arm, plus `node`, `through`, `kind`, `body`, \
-     `index_variant`, `patch`, `triangle` and `index`, each present on \
-     every arm and `None` where that arm does not carry it.\n\n\
+     `hits`, `index_variant`, `patch`, `triangle` and `index`, each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \
@@ -621,6 +630,23 @@ pyo3::create_exception!(
 /// built wheel. A Debug dump reaching a user is a binding bug, and
 /// D9's converse says a detectable bug state panics; what the check
 /// cannot see is a door no test reaches.
+///
+/// **The second thing enforced in one place: a class that carries a
+/// discriminant mints it here.** [`ErrorClass::Evaluation`] holds a
+/// [`crate::errors::EvalReason`] and [`ErrorClass::Validation`] a
+/// [`crate::errors::ValidationRefusal`]; [`class_discriminant`] says
+/// which attribute each writes and what word, and [`raise_typed`]
+/// writes it — not the raise site, which cannot name either class
+/// without naming a variant and therefore cannot spell a word of its
+/// own. A site that passes one of those attributes anyway is
+/// overwritten by the minted word, for the attribute the refusal in
+/// hand writes, and named by the assertion below for EITHER attribute
+/// the class mints onto; that is the one gap the type cannot close,
+/// since the payload is a list of `(&str, Py<PyAny>)` pairs and any
+/// name is spellable in it. The assertion reads
+/// [`ClassDiscriminant::attributes`], which is why a `reason` passed
+/// beside a `ValidationError` whose refusal writes `door` is caught
+/// rather than reaching Python untouched.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -633,6 +659,18 @@ pub(crate) fn typed_err(
         "{} was raised with a `Debug` rendering where its human \
          message belongs: {message}",
         class.class_name()
+    );
+    // Over the class's WHOLE attribute set, not the one word this
+    // value writes: `ValidationError` mints onto two attributes and a
+    // site spelling the other one would otherwise survive the raise.
+    let minted = class_discriminant(class);
+    debug_assert!(
+        minted.is_none_or(|d| !fields.iter().any(|(name, _)| d.attributes.contains(name))),
+        "{}'s `{}` is minted from the discriminant its class carries; a \
+         raise site that passes one too is spelling a Python-visible \
+         word where no inventory reads it",
+        class.class_name(),
+        minted.map_or("", |d| spelled_discriminant(&d, fields).unwrap_or(""))
     );
     raise_typed(py, class, message, fields)
 }
@@ -653,8 +691,8 @@ fn raise_typed(
 ) -> PyErr {
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
-        ErrorClass::Evaluation => EvaluationError::new_err(message),
-        ErrorClass::Validation => ValidationError::new_err(message),
+        ErrorClass::Evaluation(_) => EvaluationError::new_err(message),
+        ErrorClass::Validation(_) => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
@@ -697,7 +735,117 @@ fn raise_typed(
             return set_failed;
         }
     }
+    // The class's OWN discriminant, after the raise site's fields so
+    // that the word the class carries is the word Python reads even
+    // where a site spelled one beside it (`typed_err` asserts that it
+    // did not).
+    if let Some(minted) = class_discriminant(class)
+        && let Err(set_failed) = value.setattr(
+            minted.attribute,
+            pyo3::types::PyString::new(py, minted.word),
+        )
+    {
+        return set_failed;
+    }
     PyErr::from_value(value.clone().into_any())
+}
+
+/// What a class mints for itself: the attributes its own discriminant
+/// can write, and the one this value writes with the word it writes
+/// there.
+#[derive(Clone, Copy)]
+struct ClassDiscriminant {
+    /// **Every** attribute this class's discriminant writes, over all
+    /// of that discriminant's variants — one word for
+    /// [`crate::errors::EvalReason`], two for
+    /// [`crate::errors::ValidationRefusal`], whose four door refusals
+    /// and one measurement refusal do not write the same one. It is
+    /// the set a raise site of this class may not spell, and it is
+    /// wider than `attribute` on purpose.
+    attributes: &'static [&'static str],
+    /// The attribute THIS value writes, which is one of `attributes`.
+    attribute: &'static str,
+    /// The word written there, from the discriminant's exhaustive map.
+    word: &'static str,
+}
+
+/// The attribute a class's own carried discriminant is written to, and
+/// the word written there — `None` for a class that carries none.
+///
+/// The two classes that carry one are the two whose discriminant is
+/// this crate's decision rather than a kernel refusal's tag, and
+/// carrying it is what takes the choice of word away from the raise
+/// site: a site cannot name the class without naming a variant, and the
+/// word is minted here from the exhaustive map rather than read off the
+/// field list. Every other class's `variant` or `reason` is a kernel
+/// enum's word, taken from that enum's own map at the raise.
+///
+/// **Exhaustive, with no wildcard arm.** A class that carries a
+/// discriminant and is not named here would fall into a `None` the
+/// assertion in [`typed_err`] reads as "nothing to check", so the
+/// generalised assertion above is only as general as this table: the
+/// next carrying class has to be written in, and the compiler is what
+/// says so. Every class-keyed match in this crate is exhaustive for the
+/// same reason.
+fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
+    match class {
+        ErrorClass::Evaluation(reason) => Some(ClassDiscriminant {
+            attributes: crate::errors::EvalReason::ATTRIBUTES,
+            attribute: crate::errors::EvalReason::ATTRIBUTE,
+            word: crate::tags::eval_reason_tag(reason),
+        }),
+        ErrorClass::Validation(refusal) => Some(ClassDiscriminant {
+            attributes: crate::errors::ValidationRefusal::ATTRIBUTES,
+            attribute: refusal.attribute(),
+            word: crate::tags::validation_refusal_tag(refusal),
+        }),
+        ErrorClass::Edit
+        | ErrorClass::Dimension
+        | ErrorClass::FmtQuantity
+        | ErrorClass::Literal
+        | ErrorClass::Parse
+        | ErrorClass::Eval
+        | ErrorClass::Persist
+        | ErrorClass::Export
+        | ErrorClass::Tessellate
+        | ErrorClass::StlExport
+        | ErrorClass::StepImport
+        | ErrorClass::Path
+        | ErrorClass::Select
+        | ErrorClass::Frame
+        | ErrorClass::Identity
+        | ErrorClass::Workspace
+        | ErrorClass::Mate
+        | ErrorClass::Assembly
+        | ErrorClass::Product
+        | ErrorClass::Split
+        | ErrorClass::Inline
+        | ErrorClass::Update
+        | ErrorClass::Readback
+        | ErrorClass::HitTest
+        | ErrorClass::NodePick
+        | ErrorClass::Checks
+        | ErrorClass::Enforce
+        | ErrorClass::Distribution
+        | ErrorClass::Measure
+        | ErrorClass::MeasureNode
+        | ErrorClass::MeasureUnavailableAt
+        | ErrorClass::AnalysisPolicy
+        | ErrorClass::Mc => None,
+    }
+}
+
+/// Which of a class's own attributes a raise site spelled, if any —
+/// the name the assertion in [`typed_err`] reports.
+fn spelled_discriminant(
+    minted: &ClassDiscriminant,
+    fields: &[(&str, Py<PyAny>)],
+) -> Option<&'static str> {
+    minted
+        .attributes
+        .iter()
+        .copied()
+        .find(|attribute| fields.iter().any(|(name, _)| name == attribute))
 }
 
 /// Python bindings for the pncad B-rep CAD kernel.

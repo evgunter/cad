@@ -25,19 +25,22 @@
 //! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
 //! non-circular ring and off the clearance screen's sample lattice
 //! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
-//! (`work/fillet/geometry-recourse-dead-at-line-ring.md`,
-//! `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+//! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
 //!
-//! Three constants are held composed elsewhere and are not duplicated
+//! Four constants are held composed elsewhere and are not duplicated
 //! here — duplicating them would buy a second copy of the same
 //! evidence at full fixture cost:
 //! `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`
 //! (`FILLET3_SEAM_VERTEX_RECOURSE`),
 //! `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`
-//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`) and
+//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`),
 //! `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
-//! (`FILLET3_RING_RECOURSE`).
+//! (`FILLET3_RING_RECOURSE`) and
+//! `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`
+//! (`FILLET3_CONTACT_RECOURSE`, whose fixtures are derived from the
+//! resolved band; the difference-branch site's own row is
+//! `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`).
 //!
 //! **A recourse constant is not the only place a recourse lives.** Two
 //! refusals map to `Recourse::None` in the recourse table — which
@@ -64,11 +67,11 @@ use sweep::blend::{
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
-    ROD_FILLET, cube, dome, one_edge_rim_at, prism, rim_arcs_at, rod_creases, rod_with_flat, spool,
-    waisted,
+    ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
+    rod_with_flat, spool, waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, query, validate_geometric};
 
 fn tol() -> Tol {
@@ -85,19 +88,7 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
 
 /// `a ∖ b`, the one boolean these rows use.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// A radius-0.3 ball centred at `c`. Same body the review probe dimples
@@ -393,7 +384,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
 /// every door it names is executed.** Four of them, since the closed
-/// clause gained its "one ring-free face carries every arc" half.
+/// clause gained its "one face carries every arc" half.
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
@@ -617,7 +608,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 /// routes as `Recourse::None` — and still says something.
 ///
 /// Reads [`ALL_RECOURSES`], the crate's one home for that list, rather
-/// than a copy: these rows' whole content is that NONE of the fifteen
+/// than a copy: these rows' whole content is that NONE of the list
 /// appears, so a copy that fell behind would weaken them silently, and
 /// the copy this suite used to keep is exactly the failure the home's
 /// own doc records.
@@ -890,8 +881,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 ///
 /// That premise — axis alignment — is the whole content of the row, and
 /// stating it as a property of the door is what made this suite file
-/// the ring recourse unreachable
-/// (`work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+/// the ring recourse unreachable (PR 1753).
 #[test]
 fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
     let dimpled = subtract(&cube(1.0, tol()), &ball_at(Vec3::new(0.5, 0.5, 1.1)));

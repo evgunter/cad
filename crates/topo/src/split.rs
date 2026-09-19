@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Margin, Sign, Tol};
+use geom_core::{Band, Decide, InfSpeed, Margin, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -127,6 +127,35 @@ impl<T: Decide> Body<T> {
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child).
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
+    /// stored chart row is CARRIED to both children — a
+    /// [`geom_brep::Pcurve`] is a function of the carrier parameter
+    /// and holds no interval of its own, so each child's image is the
+    /// parent's restricted to its sub-interval, exactly as each
+    /// child's carrier is. A restriction DERIVES nothing, which is why
+    /// it re-certifies through `PcurveCache::certify` — `geom-brep`
+    /// declares that door `impl<T: Decide>` — and why this op keeps
+    /// the `Decide` bound and no caller of it moves. Both restrictions
+    /// are certified in the plan phase
+    /// ([`crate::pcurves::split_cache`]), so a face this op touches is
+    /// never left half-minted and a refusal
+    /// ([`EulerOpError::PcurveSplit`]) arrives with the body
+    /// untouched. A half-edge with no row keeps none: absence is never
+    /// a claim, and the op does not start caching a body whose
+    /// producer chose not to.
+    ///
+    /// Two frontiers, both stated at `split_cache`. A
+    /// `Fitted`/`General` row is left exactly as found, because its
+    /// certification doors are the `PcurveFittedLane` ones. And on a
+    /// SPLINE chart the carry is exact — a described-NURBS wall's
+    /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
+    /// reads `Ok` — but the recovery step the caveat below names,
+    /// `mint_pcurves`, refuses on the body the split produces: the iso
+    /// derivation's rim arms map an edge's WHOLE interval onto the
+    /// chart's whole `u` domain, which a sub-edge no longer spans.
+    /// Pre-existing, filed on TRIM's slate; what changed here is that
+    /// a split of such a wall no longer NEEDS that pass.
+    ///
     /// # Tier-3 caveat (review F2)
     ///
     /// Splitting a circle rim of an iso-rectangle patch (e.g. a
@@ -181,13 +210,13 @@ impl<T: Decide> Body<T> {
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();
         let scale = match *curve.carrier() {
-            geom::Curve3::Line { .. } => T::one(),
-            geom::Curve3::Circle { radius, .. } => radius,
+            geom::Curve3::Line { .. } => InfSpeed::new(T::one()),
+            geom::Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // The conic lane (M5 PR 5, C12.3): metered at the MINOR
             // semi-axis — the conservative meter (|dP/dθ| ≥ minor), so
             // a sub-span this gate accepts as definitely interior is
             // truly clear of the endpoints in meters.
-            geom::Curve3::Ellipse { minor, .. } => minor,
+            geom::Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor
@@ -201,6 +230,10 @@ impl<T: Decide> Body<T> {
             // of accepting a split that is not clear of the endpoints
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
+            // The spiric's speed floor is its minor radius (`|dP/dv|
+            // ≥ r`, the variant docs), the same meter certification
+            // spans it at.
+            geom::Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
         };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
@@ -228,6 +261,25 @@ impl<T: Decide> Body<T> {
         let (spec1, spec2) = curve.split_specs(t);
         let cert1 = self.certify_edge_spec(spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(spec2, p_new, p_v, tol)?;
+        // ---- Pcurve gate (still no mutation): each parent half-edge's
+        // stored chart row, restricted to the two children's
+        // sub-intervals and re-certified. Read-only, so a refusal
+        // leaves the body untouched like every gate above it.
+        let [rows_plus, rows_minus] =
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
+                |e| match e {
+                    crate::pcurves::SplitRowError::Stale { half_edge } => EulerOpError::StaleKey {
+                        key: EntityId::HalfEdge(half_edge),
+                    },
+                    crate::pcurves::SplitRowError::Certify { half_edge, error } => {
+                        EulerOpError::PcurveSplit {
+                            edge,
+                            half_edge,
+                            error,
+                        }
+                    }
+                },
+            )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
@@ -269,6 +321,19 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(n_minus, hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
+        // The chart rows certified above: the parent halves keep the
+        // first child's (they ARE the first child's halves), the new
+        // halves take the second child's. Both children lie in their
+        // parent's own loop, so the loop's one-branch unwrap is the
+        // parent's and needs no re-pinning.
+        if let Some(rows) = rows_plus {
+            self.pcurves.insert(hp.key(), rows.parent_half);
+            self.pcurves.insert(n_plus, rows.new_half);
+        }
+        if let Some(rows) = rows_minus {
+            self.pcurves.insert(hm.key(), rows.parent_half);
+            self.pcurves.insert(n_minus, rows.new_half);
+        }
         // The parent's minus half now starts at w (the parent derives
         // its new end w through n⁺/n⁻'s starts).
         let Some(he) = self.get_half_edge_mut(hm.key()) else {
@@ -342,7 +407,8 @@ mod tests {
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{deep_snapshot, ops_cube};
+    use crate::fixtures::deep_snapshot;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::{validate, validate_closed};
 
     /// Splitting a cube edge (line carrier) at mid-parameter: intervals
@@ -350,7 +416,7 @@ mod tests {
     /// the cube stays a tier-2 closed solid.
     #[test]
     fn split_line_edge_mid() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge; // A → B, chord length 1, params [0,1]
         let created = body.split_edge(edge, 0.5, Tol::witness()).unwrap();
@@ -502,7 +568,7 @@ mod tests {
     /// reads prev(hm) after the first).
     #[test]
     fn split_strut_edge() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let anchor = cube.mevs[0].he_plus;
         let strut = body
@@ -532,7 +598,7 @@ mod tests {
     /// Band so the test holds at every ε row.
     #[test]
     fn split_param_refusals_are_typed_and_atomic() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge;
         let band = Band::linear(Tol::witness()).unwrap();
@@ -561,7 +627,7 @@ mod tests {
     /// Splitting a null-scaffold edge is refused by type.
     #[test]
     fn split_null_edge_is_refused() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -583,7 +649,7 @@ mod tests {
     #[test]
     fn split_replay_is_byte_identical() {
         let build = || {
-            let cube = ops_cube(Tol::witness());
+            let cube = declined_cube::<f64>(Tol::witness());
             let mut body = cube.body;
             body.split_edge(cube.mevs[0].edge, 0.25, Tol::witness())
                 .unwrap();

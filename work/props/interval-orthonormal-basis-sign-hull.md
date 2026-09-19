@@ -247,3 +247,45 @@ gain.
 
 Found by PROPS-1's reading sweep over `crates/geom-core/src/linalg/`;
 not fixed there because this item owns the site.
+
+## RULED: the tier learns to fold, the construction stands (Ev, in chat, 2026-09-15)
+
+The unit built option 1 and its dual review measured what it costs.
+Three rows of SYM/M10's go red at the merge with `main`, one of them
+SYM-5's rule-E acceptance row: a boss on a TILTED DERIVED frame no
+longer certifies where its authored twin does. The mechanism, filed as
+`work/sym/the-decision-door-is-opaque-to-the-tier.md`: the symbolic
+tier cancels a rational form, and `normalize(e_k × n)` is not one — a
+cross product over a `sqrt`-carrying normal, where Duff's
+`1/(1 + |n.z|)` was rational and rules A/C/E did cancel.
+
+Two measurements bound it. The plain numeric lane is UNCHANGED under
+both constructions on the failing document — refusal set and
+first-refusal enclosure identical character for character — so this is
+lost symbolic REACH, not a correctness regression. And removing the
+decision atom entirely (the "choose the axis at the mint site and carry
+the index" option) leaves all three rows red and moves the refusal one
+face earlier and ~45% wider, so the atom is not the cause and that
+option buys tidiness rather than reach.
+
+The fork put to Ev was: teach the tier to cancel the candidate's form
+(SYM's work), or keep Duff and accept the equator hull this unit exists
+to remove. **Ev ruled the first.** So:
+
+- the construction stands as built (`|n.z| ≤ max(|n.x|, |n.y|)/2`, no
+  sign transfer, the seam at elevation atan(1/2) where no wall, cap,
+  chamfer or corner direction sits — 0 of 817 corpus faces, against 20
+  at the ratio the lane first shipped);
+- **PR #2468 HOLDS rather than landing red.** A third path — land now
+  and re-aim SYM-5's acceptance row — was put to Ev as the thing to
+  reject explicitly, and is rejected: PROPS does not spend another
+  program's acceptance pin, and does not put a user-visible regression
+  on `main`;
+- SYM is asked, on its log and on the filed row, how far off a fold
+  that reaches the candidate's form is. The row sketches the shape:
+  compare SQUARES so rule A's square substitution applies, which also
+  needs `max(0, X) → X` where one side is the zero form — a fold the
+  tier does not have. If it turns out to be far, the fork comes back to
+  Ev rather than the branch sitting indefinitely: `main` moved 1300 and
+  then 433 commits under this unit already, and each wait costs a
+  merge.

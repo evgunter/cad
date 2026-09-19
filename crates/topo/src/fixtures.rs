@@ -13,7 +13,7 @@
 //!   closed manifold body and the successor of M0's single-face `tiny()`;
 //!   `n = 1` is the legal self-loop digon (one vertex, one edge, both
 //!   halves in different faces' one-half-edge loops).
-//! - [`prism`] — 2 n-gon caps + n quads (v = 2n, e = 3n, f = n + 2);
+//! - [`raw_prism`] — 2 n-gon caps + n quads (v = 2n, e = 3n, f = n + 2);
 //!   every vertex has valence 3, exercising nontrivial vertex orbits.
 //! - [`mvfs_state`] — the skeletal body `mvfs` creates: solid + shell +
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
@@ -23,9 +23,14 @@
 //! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
 //! (key-for-key, field-for-field, provenance-for-provenance).
 //!
-//! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
-//! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
-//! the kill-direction, oracle, and teardown tests.
+//! Plus the **operator-built** family — [`ops_holed_box`] and
+//! [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
+//! the kill-direction, oracle, and teardown tests over
+//! [`crate::test_support_fixtures::declined_cube`], and
+//! [`ops_ring_bridge`] and [`ops_strut_cube`], the two shapes here
+//! whose edge has both halves in one loop — the holed box with its hole
+//! rim bridged back into the top face's outer loop, and the cube with a
+//! pendant strut planted on that loop.
 //!
 //! All geometry is placeholder (structural validation never reads scalar
 //! values). Coordinates are index-derived placeholders, **not** faithful
@@ -47,9 +52,11 @@ use crate::entity::{
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-use crate::euler_ring::{KemrResult, KfmrhResult};
+use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+use crate::readback::euler_counts;
+use crate::test_support_fixtures::{CubeOps, declined_cube};
 use crate::test_support_impl::ArenaCounts;
 use geom_core::Tol;
 
@@ -430,7 +437,7 @@ pub(crate) fn pillow(tol: Tol) -> NgonPillow {
 /// `i−1`). Side quad `i`'s cycle is `s0[i] → s1[i] → s2[i] → s3[i]`
 /// with starts `u[i], u[i+1], t[i+1], t[i]`.
 #[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
-pub(crate) struct Prism {
+pub(crate) struct RawPrism {
     pub body: Body<f64>,
     pub t: Vec<VertexKey>,
     pub u: Vec<VertexKey>,
@@ -456,12 +463,12 @@ pub(crate) struct Prism {
 /// Builds the n-prism (n ≥ 2): two n-gon caps plus n side quads.
 ///
 /// Counts: v = 2n, e = 3n, f = n + 2, so v − e + f = 2 (genus 0); every
-/// vertex has valence 3. See [`Prism`] for the orientation picture.
+/// vertex has valence 3. See [`RawPrism`] for the orientation picture.
 ///
 /// # Panics
 ///
 /// If `n < 2` (fixture misuse, not kernel behavior).
-pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
+pub(crate) fn raw_prism(n: usize, tol: Tol) -> RawPrism {
     assert!(n >= 2, "a prism needs at least a digon cap");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -639,7 +646,7 @@ pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
         body.get_vertex_mut(u[i]).unwrap().emanating = Some(s0[i]);
     }
 
-    Prism {
+    RawPrism {
         body,
         t,
         u,
@@ -736,67 +743,11 @@ pub(crate) fn mvfs_state() -> MvfsState {
 // Operator-built fixtures (M1 PR 4): the acceptance-test bodies rebuilt
 // through the public Euler operators, in-crate, for the kill-direction
 // unit tests, the isomorphism-oracle tests, and the teardown property
-// test (which needs crate access to the provenance maps). The
-// construction sequences mirror `tests/cube_by_hand.rs` and
-// `tests/box_with_hole.rs`.
+// test (which needs crate access to the provenance maps). The cube each
+// one grows from is `test_support_fixtures::declined_cube`, not a
+// sequence written here; what is written here is the §9.3 surgery on
+// top of it.
 // ---------------------------------------------------------------------
-
-/// Key bundle for [`ops_cube`]: every operator result in call order.
-#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
-pub(crate) struct OpsCube {
-    pub body: Body<f64>,
-    pub seed: MvfsCreated,
-    /// `[e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd]` — the bottom chain
-    /// then the four verticals.
-    pub mevs: [MevCreated; 7],
-    /// `[f_bottom, f_front, f_right, f_back, f_left]`; the seed face
-    /// remains as the top.
-    pub mefs: [MefCreated; 5],
-}
-
-/// Builds the unit cube through the operators (1 mvfs + 7 mev + 5 mef,
-/// the §9.4.2-minimal sequence; same construction as the PR 2
-/// acceptance test).
-pub(crate) fn ops_cube(tol: Tol) -> OpsCube {
-    let pt = Point3::new;
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            tol,
-        )
-        .unwrap();
-    let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
-            .unwrap()
-    };
-    let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
-    let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
-    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
-    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
-    let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
-    let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
-    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
-    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
-    let f_right = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
-    let f_back = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
-    let f_left = mef(&mut body, e_dd.he_minus, f_front.he_plus);
-    OpsCube {
-        body,
-        seed,
-        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
-        mefs: [f_bottom, f_front, f_right, f_back, f_left],
-    }
-}
 
 /// Key bundle for [`ops_holed_box`].
 #[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
@@ -821,12 +772,12 @@ pub(crate) struct OpsHoledBox {
 /// identical).
 pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     let pt = Point3::new;
-    let OpsCube {
+    let CubeOps {
         mut body,
         seed,
         mevs,
         mefs,
-    } = ops_cube(tol);
+    } = declined_cube::<f64>(tol);
     let strut = |body: &mut Body<f64>, at, x, y, z| {
         body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
@@ -974,12 +925,152 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
     .unwrap();
     body.kfmrh(f_back, membrane.face).unwrap();
     // Genus-2 checkpoint.
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    assert_eq!((v, e, f, r), (22, 33, 13, 4));
-    assert_eq!(v - e + f - r, -2, "genus 2");
+    let counts = euler_counts(&body);
+    assert_eq!(
+        (counts.v, counts.e, counts.f, counts.r, counts.s),
+        (22, 33, 13, 4, 1)
+    );
+    assert_eq!(counts.genus(), Ok(2), "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
+}
+
+/// Key bundle for [`ops_ring_bridge`].
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsRingBridge {
+    pub body: Body<f64>,
+    /// The face whose outer loop carries the bridge — the holed box's
+    /// top face, the one [`ops_holed_box`] leaves holding the hole rim
+    /// as a ring.
+    pub face: FaceKey,
+    /// That face's outer loop: after the bridge, the merged cycle
+    /// holding the former rim, the two bridge halves and the former
+    /// outer.
+    pub outer: LoopKey,
+    /// The bridge edge. Both of its halves lie in
+    /// [`OpsRingBridge::outer`], which is the shape [`Body::kemr`]
+    /// requires of its two arguments.
+    pub bridge: MekrResult,
+}
+
+/// Builds the holed box with its top face's hole rim **joined back into
+/// that face's outer loop** by one `mekr` — [`ops_holed_box`] plus one
+/// operator, so genus and shell count are unchanged and the body still
+/// validates.
+///
+/// **The shape [`Body::kemr`] needs, which no other fixture here
+/// presents.** `kemr` takes two halves of ONE edge lying in ONE loop;
+/// every edge of [`crate::test_support_fixtures::declined_cube`], [`ops_holed_box`] and [`ops_genus2`]
+/// borders two distinct faces, so its halves sit in two loops and
+/// `kemr`'s plan phase refuses at `NotSameLoop` on every pair those
+/// bodies present. A bridge edge is the M1 shape whose two halves share
+/// a loop, and `mekr` is the door that makes one.
+///
+/// Both components of the split are **non-empty** — the rim halves on
+/// one side of the bridge, the former outer's on the other — so `kemr`
+/// here runs both of its `link_half_edges` splices rather than the one
+/// a strut kill (whose ring side is empty) reaches.
+pub(crate) fn ops_ring_bridge(tol: Tol) -> OpsRingBridge {
+    let t = ops_holed_box(tol);
+    let mut body = t.body;
+    let face = t.seed.face;
+    let (outer, rings) = {
+        let data = body.get_face(face).unwrap();
+        (data.outer, data.rings.clone())
+    };
+    assert_eq!(
+        rings.len(),
+        1,
+        "the holed box's top face carries exactly the hole rim as a ring"
+    );
+    let LoopBoundary::Cycle { first: target } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the top face's outer loop is a cycle");
+    };
+    let LoopBoundary::Cycle { first: rim } = body.get_loop(rings[0]).unwrap().boundary else {
+        panic!("the hole rim is a cycle");
+    };
+    let bridge = body
+        .mekr_chord(MekrSite::Cycles { target, ring: rim }, tol)
+        .unwrap();
+    // The property the fixture exists for, asserted here so a change to
+    // `mekr`'s splice cannot leave a consumer silently back at
+    // `NotSameLoop`: the bridge's two halves share one loop, and it is
+    // the face's outer.
+    for half in [bridge.he_plus, bridge.he_minus] {
+        assert_eq!(
+            body.get_half_edge(half).unwrap().parent_loop,
+            outer,
+            "the bridge's halves must both lie in the merged outer loop"
+        );
+    }
+    assert!(
+        body.get_face(face).unwrap().rings.is_empty(),
+        "the bridge consumed the top face's only ring"
+    );
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsRingBridge {
+        body,
+        face,
+        outer,
+        bridge,
+    }
+}
+
+/// Key bundle for [`ops_strut_cube`].
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsStrutCube {
+    pub body: Body<f64>,
+    /// The loop the strut hangs in — the seed (top) face's outer loop,
+    /// the same loop [`ops_holed_box`] plants its hole anchor in.
+    pub outer: LoopKey,
+    /// The pendant edge. Its two halves lie in
+    /// [`OpsStrutCube::outer`] and are **adjacent** there, which is the
+    /// shape whose [`Body::kemr`] leaves an EMPTY ring side and
+    /// therefore runs one splice rather than two.
+    pub strut: MevCreated,
+}
+
+/// Builds the cube with one pendant strut planted on the top face's
+/// outer loop — [`crate::test_support_fixtures::declined_cube`] plus one `mev_line` at a `Fan` site, which
+/// is the state [`ops_holed_box`] passes through at its hole anchor and
+/// kills with `kemr` in the next line.
+///
+/// **The shape whose `kemr` empties the ring side.** `kemr` splits its
+/// loop's cycle at the two halves it is handed; when they are ADJACENT
+/// the side strictly between them is empty, the ring loop is minted
+/// `Empty` and only the old loop's splice runs. [`ops_ring_bridge`]'s
+/// bridge edge is the other arm — both sides non-empty, both splices —
+/// so the two fixtures together present both shapes of `kemr`'s
+/// mutation phase.
+pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
+    let t = declined_cube::<f64>(tol);
+    let mut body = t.body;
+    // The same site `ops_holed_box` plants its hole anchor at: a `Fan`
+    // on the front face's plus half, which lies in the top face's loop.
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: t.mefs[1].he_plus,
+                he2: t.mefs[1].he_plus,
+            },
+            Point3::new(0.25, 0.25, 1.0),
+            tol,
+        )
+        .unwrap();
+    let outer = body.get_half_edge(strut.he_plus).unwrap().parent_loop;
+    // The property the fixture exists for, asserted here rather than
+    // described: the halves share a loop AND follow one another in it,
+    // so `kemr`'s ring side is the empty one.
+    assert_eq!(
+        body.get_half_edge(strut.he_minus).unwrap().parent_loop,
+        outer,
+        "the strut's halves must both lie in the loop it was planted in"
+    );
+    assert_eq!(
+        body.get_half_edge(strut.he_plus).unwrap().next,
+        strut.he_minus,
+        "the strut's halves must be adjacent, or `kemr` splits off a cycle here"
+    );
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsStrutCube { body, outer, strut }
 }

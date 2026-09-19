@@ -18,7 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov};
+use crate::fixtures::{pillow, prov};
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::{ValidationError, validate, validate_closed};
 use geom_core::Tol;
 
@@ -28,7 +29,7 @@ use geom_core::Tol;
 #[test]
 fn missing_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
 
     // Solids.
     let mut b = t.body.clone();
@@ -109,7 +110,7 @@ fn missing_provenance_all_seven_arenas() {
 #[test]
 fn leaked_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     macro_rules! leak_probe {
         ($arena:ident, $variant:ident) => {{
             let mut b = t.body.clone();
@@ -142,7 +143,7 @@ fn leaked_provenance_all_seven_arenas() {
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut b = t.body;
     let faces: Vec<_> = b.faces.keys().collect();
     let solid = b.solids.keys().next().unwrap();
@@ -274,6 +275,23 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
+    // ---- Test-support fixture builders. Why they are in this
+    // population at all is stated once, on
+    // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
+    // them: each writes only through the asserting operators above. ----
+    (
+        "prism_ops",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
+         arena itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "describe_as_intersections",
+        "rewrites each transverse edge's description through `set_edge_curve` (asserting)",
+    ),
+    (
+        "cube_into",
+        "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
         "begin_surgery",
@@ -285,6 +303,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("set_curve_source", "GeomSource metadata, no arena key"),
     ("set_point_source", "GeomSource metadata, no arena key"),
     ("clear_geom_sources", "GeomSource metadata, no arena key"),
+    (
+        "mark_imported",
+        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
+    ),
     (
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",

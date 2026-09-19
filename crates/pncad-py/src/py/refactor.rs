@@ -49,7 +49,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{inline_error_tag, split_error_tag, update_error_tag};
+use crate::tags::{inline_error_tag, interface_crossing_tag, split_error_tag, update_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -78,19 +78,24 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// to. The wrapped form is what the remainder's mate now reads, and
 /// re-wrapping is the split's own rebind, so storing it twice would be
 /// storing a derivable fact.
+///
+/// Both are FACE names — a crossing is written out of the two heads of
+/// a mate, and each head names a face — so the kind is fixed by the
+/// record's type and neither getter can answer anything else.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);
 
 #[pymethods]
 impl InterfaceCrossing {
-    /// The stable tag. One arm today, `mate`: a crossing is whatever
-    /// KIND of edge crossed, and mates are the only kind that can.
+    /// The stable tag: `mate`, the one word today — a crossing is
+    /// whatever KIND of edge crossed the cut, and a mate is the only
+    /// kind that can.
+    // The map is `crate::tags::interface_crossing_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::InterfaceCrossing::Mate { .. } => "mate",
-        }
+        interface_crossing_tag(&self.0)
     }
 
     /// The crossing mate, in the remainder.
@@ -313,9 +318,9 @@ pub(crate) struct SplitOutcome {
     remainder: d::ProfileDoc,
     part: d::ProfileDoc,
     remainder_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    remainder_maintenance: Vec<d::ClusterMaintenance>,
+    remainder_maintenance: Vec<d::Maintenance>,
     part_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    part_maintenance: Vec<d::ClusterMaintenance>,
+    part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
 }
@@ -590,7 +595,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
 pub(crate) struct InlineOutcome {
     doc: d::ProfileDoc,
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    maintenance: Vec<d::ClusterMaintenance>,
+    maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
 }
 

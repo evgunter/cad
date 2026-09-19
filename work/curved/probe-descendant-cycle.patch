@@ -1,0 +1,55 @@
+diff --git a/crates/topo/src/boolean/ops.rs b/crates/topo/src/boolean/ops.rs
+index 26f5a0119..7f82fe0be 100644
+--- a/crates/topo/src/boolean/ops.rs
++++ b/crates/topo/src/boolean/ops.rs
+@@ -2614,6 +2614,50 @@ mod tests {
+     /// the map exists to prevent (PR 5 review R5). The v-v lane's
+     /// consumed-pair rule is pinned too: a pair fused into ONE vertex
+     /// drops.
++    /// REVIEWER PROBE (not for merge): the BOOL row's claim, as a
++    /// repro rather than a reading. A CYCLE in the descendant rows
++    /// spends `live_face`'s budget and answers `None` — the same
++    /// answer a chain that simply ends gives — so `remap_contacts`
++    /// drops a declared contact as "genuinely consumed".
++    #[test]
++    fn reviewer_probe_b_a_cycle_reads_as_genuinely_consumed() {
++        use super::{Descendants, KeyView, remap_contacts};
++        use crate::boolean::{ContactRecords, VfContact};
++
++        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
++        let mut body = quad_prism(&square, 1.0, Tol::witness());
++        let live_vertex = body.vertices().next().map(|(k, _)| k).unwrap();
++        let keys: Vec<_> = body.faces().map(|(k, _)| k).collect();
++        let (d0, d1) = (keys[4], keys[5]);
++        body.faces.remove(d0);
++        body.faces.remove(d1);
++        assert!(body.get_face(d0).is_none() && body.get_face(d1).is_none());
++
++        let contacts = ContactRecords {
++            a_on_b: vec![VfContact {
++                vertex: live_vertex,
++                face: d0,
++            }],
++            ..ContactRecords::default()
++        };
++        // The corrupt rows: d0 descends to d1 and d1 back to d0.
++        let mut desc = Descendants::default();
++        desc.faces.insert(d0, d1);
++        desc.faces.insert(d1, d0);
++        let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
++        println!("PROBE_B a_on_b after a CYCLE: {} record(s)", out.a_on_b.len());
++        // And the benign case, for comparison: a chain that ends.
++        let mut desc2 = Descendants::default();
++        desc2.faces.insert(d0, d1);
++        let out2 = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc2);
++        println!("PROBE_B a_on_b after a DEAD END: {} record(s)", out2.a_on_b.len());
++        assert_eq!(
++            out.a_on_b.len(),
++            out2.a_on_b.len(),
++            "a cycle and a dead end are distinguishable after all"
++        );
++    }
++
+     #[test]
+     fn descendant_chase_wiring() {
+         use super::{Descendants, KeyView, remap_contacts};

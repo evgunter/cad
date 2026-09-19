@@ -101,6 +101,16 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
     discipline handed to every lane by path, which binds the
     orchestrator's own judgement too.
 
+**Check that Ev ever agreed, before you wait for Ev**: text is not
+ratified by sounding official or by sitting in a file whose
+companion-table row says *Ratified*, so run
+`git log -S'<the sentence>' -- <file>` and find the commit that wrote
+it. Pass `--all` and use a short phrase rather than a whole sentence:
+`-S` is literal and line-shaped, so a wrapped sentence returns nothing,
+and in a shallow checkout every file reads as added at a graft. If no
+ratification turns up there is none — proceed, and say in the
+PR body what you changed and where you looked.
+
 ## Repo notes
 
 - `references/` (git-ignored) holds book scans (NURBS Book, Mäntylä

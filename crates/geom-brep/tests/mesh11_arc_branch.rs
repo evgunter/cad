@@ -72,7 +72,7 @@ fn a_pole_crossing_meridian_arc_is_not_one_chart_branch() {
         "the shape door certifies the carrier and the rim structure"
     );
     let exact = RS * RS * core::f64::consts::PI * (1.0 - b.sin());
-    let fc = curved_face(&sphere::<f64>(), &face, 1.0, band()).expect("the flux lane measures it");
+    let fc = curved_face(&sphere::<f64>(), &face, true, band()).expect("the flux lane measures it");
     assert!(
         (fc.area - exact).abs() / exact < 1e-12,
         "the closed form is exact on this face: {} vs {exact}",

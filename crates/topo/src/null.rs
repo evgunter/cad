@@ -183,9 +183,19 @@ impl<T: geom_core::Decide> Body<T> {
     /// null-edge pairs (M3 PRs 2 and 4). Site semantics — fan split,
     /// strut (`he1 == he2`, ch. 15's dangling null edge), lone — and
     /// the surgery are exactly [`Body::mev`]'s; only the geometry lane
-    /// differs (no certification gate: there is no carrier to certify,
-    /// by type — the ratified F9 shape, module docs). Tier 1 accepts
-    /// the result; tier 2 refuses it at rest
+    /// differs, and BOTH of `mev`'s geometry gates are skipped rather
+    /// than passed:
+    ///
+    /// - the new edge's own certification, because there is no carrier
+    ///   to certify, by type (the ratified F9 shape, module docs);
+    /// - the re-basing gate over a fan site's moved run
+    ///   ([`Body::certify_rebased_run`]), because the new vertex's
+    ///   point is the old one's bitwise, so no re-based edge's
+    ///   endpoint moves and every certificate is the one it had. A
+    ///   structural coincidence, not a comparison — which is why this
+    ///   door needs no `Tol`.
+    ///
+    /// Tier 1 accepts the result; tier 2 refuses it at rest
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
@@ -305,7 +315,8 @@ impl<T: Real> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::{deep_snapshot, ops_cube};
+    use crate::fixtures::deep_snapshot;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
     use geom_core::Tol;
 
@@ -314,7 +325,7 @@ mod tests {
     /// refuses by name, and the scaffolding is killable by `kev`.
     #[test]
     fn mev_null_strut_lifecycle() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -369,7 +380,7 @@ mod tests {
     /// `Below` puts the new vertex on the below side.
     #[test]
     fn mev_null_below_side_attribute() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -395,7 +406,7 @@ mod tests {
     /// error paths, exercised through the null lane).
     #[test]
     fn mev_null_atomic_on_error() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let err = body
@@ -415,7 +426,7 @@ mod tests {
     /// structural preconditions, and kill-op hygiene through `kfmrh`.
     #[test]
     fn null_face_record_lifecycle() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
         let outer1 = body.get_face(f1).unwrap().outer;
@@ -478,7 +489,7 @@ mod tests {
     /// named loop after the record was minted.
     #[test]
     fn stale_null_face_loop_record_reported() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
         let outer1 = body.get_face(f1).unwrap().outer;

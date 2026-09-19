@@ -26,6 +26,7 @@ import pncad
 from pncad import (
     CapEnd,
     Doc,
+    DocEdit,
     EntityKind,
     Expr,
     HitTestError,
@@ -135,6 +136,21 @@ class TestTheRayAnswersAName(unittest.TestCase):
         self.assertAlmostEqual(py.meters, 0.5, places=12)
         self.assertAlmostEqual(pz.meters, 1.0, places=12)
 
+    def test_the_interval_brackets_t_and_scales_with_the_direction(self):
+        # `t_lo <= t <= t_hi` off a real pick, read the way a consumer
+        # reads it. The interval is the ray's own parameter too, so
+        # doubling the direction halves all three ends together --
+        # a hit's three numbers are one claim, not three.
+        hit = self.ev.pick_face([self.pick], straight_down())
+        self.assertLessEqual(hit.t_lo, hit.t)
+        self.assertLessEqual(hit.t, hit.t_hi)
+        # A transversal pick on a well-conditioned cap is certified to
+        # far better than a part in a thousand of its own parameter.
+        self.assertLess(hit.t_hi - hit.t_lo, 1e-3 * hit.t)
+        doubled = self.ev.pick_face([self.pick], straight_down(scale=2.0))
+        self.assertAlmostEqual(doubled.t_lo, hit.t_lo / 2.0, places=12)
+        self.assertAlmostEqual(doubled.t_hi, hit.t_hi / 2.0, places=12)
+
     def test_t_is_in_units_of_the_rays_own_direction(self):
         # Twice the direction, half the parameter, same point — the
         # documented meaning of `t`, and the reason it is a bare float
@@ -148,7 +164,7 @@ class TestTheRayAnswersAName(unittest.TestCase):
         again = self.ev.pick_face([self.pick], straight_down())
         self.assertEqual(first.name, again.name)
         # Bit-identical, not merely close: the whole chain is fixed
-        # iteration order with a total tie-break and no hashing.
+        # iteration order over a set-valued rule, with no hashing.
         self.assertEqual(first.t, again.t)
 
     def test_a_side_face_answers_a_different_name(self):
@@ -217,8 +233,9 @@ class TestTheRayValue(unittest.TestCase):
         self.assertIn(") m", repr(ray))
 
 
-class TestNearestAndTheTieBreak(unittest.TestCase):
-    """Several targets, one answer, and the documented order."""
+class TestNearestAndTheCertifiedTie(unittest.TestCase):
+    """Several targets, and what the door does when nothing orders
+    them."""
 
     def test_the_nearest_body_wins(self):
         doc = Doc()
@@ -247,19 +264,57 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         self.assertAlmostEqual(hit.point[2].meters, 3.0, places=12)
         self.assertEqual(ev.pick_face(list(reversed(picks)), straight_down(z=10.0)).node, upper)
 
-    def test_an_exact_tie_resolves_to_the_earlier_target(self):
+    def test_an_exact_tie_refuses_and_names_every_tied_face(self):
         # Two nodes drawing the SAME cube in the same place: the ray
-        # hits both at the same `t`, and the documented tie-break is
-        # position in `targets`. Not chance — the same call answers the
-        # other way when the list is reversed.
+        # hits both at the same `t` and nothing orders the two faces,
+        # so the door names both rather than choosing on the order they
+        # were offered in. Reversing the list reverses the LIST and
+        # changes nothing else.
         doc = Doc()
         first = unit_cube(doc)
         second = doc.insert(Node.extrude(square(doc), Expr.length_in(1, m)))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
-        self.assertEqual(ev.pick_face([a, b], straight_down()).node, first)
-        self.assertEqual(ev.pick_face([b, a], straight_down()).node, second)
+        with self.assertRaises(HitTestError) as caught:
+            ev.pick_face([a, b], straight_down())
+        err = caught.exception
+        self.assertEqual(err.variant, "ambiguous")
+        self.assertEqual([hit.node for hit in err.hits], [first, second])
+        # Every tied hit is TRUE: the same cap, at the same parameter
+        # and the same point.
+        for hit in err.hits:
+            self.assertIsInstance(hit, PickHit)
+            self.assertAlmostEqual(hit.t, 2.0, places=12)
+            self.assertAlmostEqual(hit.point[2].meters, 1.0, places=12)
+        with self.assertRaises(HitTestError) as caught:
+            ev.pick_face([b, a], straight_down())
+        self.assertEqual([hit.node for hit in caught.exception.hits], [second, first])
+        # And the message names the faces rather than dumping a struct.
+        self.assertIn("tied between", str(err))
+        self.assertNotIn(" { ", str(err))
+
+    def test_a_ray_through_a_shared_edge_refuses_with_both_faces(self):
+        # One cube, one ray aimed at the edge its top cap and its
+        # `x = 0` side share, crossing BOTH transversally: the point
+        # (0, 0.5, 1) is on both faces and neither is in front, so the
+        # door names both. Each hit is true — same parameter, same
+        # point — and the two are different faces of one body.
+        doc = Doc()
+        cube = unit_cube(doc)
+        ev = evaluate(doc)
+        pick = NodePick.build(ev, cube, 0, DELTA)
+        edge_ray = Ray((-2.0 * m, 0.5 * m, 3.0 * m), (1.0, 0.0, -1.0))
+        with self.assertRaises(HitTestError) as caught:
+            ev.pick_face([pick], edge_ray)
+        err = caught.exception
+        self.assertEqual(err.variant, "ambiguous")
+        self.assertEqual(len(err.hits), 2)
+        self.assertEqual(len({hit.name for hit in err.hits}), 2)
+        for hit in err.hits:
+            self.assertAlmostEqual(hit.t, 2.0, places=12)
+            self.assertAlmostEqual(hit.point[0].meters, 0.0, places=12)
+            self.assertAlmostEqual(hit.point[2].meters, 1.0, places=12)
 
 
 class TestThePairingIsTrueByConstruction(unittest.TestCase):
@@ -479,6 +534,7 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
                     "through",
                     "kind",
                     "body",
+                    "hits",
                     "index_variant",
                     "patch",
                     "triangle",
@@ -531,8 +587,12 @@ class TestThePickRefusesTyped(unittest.TestCase):
         err = caught.exception
         self.assertEqual(err.variant, "node_not_evaluated")
         self.assertEqual(err.node, later_node)
-        for field in ("variant", "node", "through", "kind", "body"):
+        for field in ("variant", "node", "through", "kind", "body", "hits"):
             self.assertTrue(hasattr(err, field), field)
+        # An arm that carries no tied hits reads `None` rather than
+        # being absent, so a caller reads the payload without first
+        # branching on `variant`.
+        self.assertIsNone(err.hits)
 
     def test_a_standing_refusal_is_never_flattened_into_a_miss(self):
         # The same call with a ray that hits nothing still REFUSES:
@@ -563,6 +623,98 @@ class TestThePickRefusesTyped(unittest.TestCase):
         self.assertIsNot(HitTestError, NodePickError)
         self.assertTrue(issubclass(HitTestError, PncadError))
         self.assertTrue(issubclass(NodePickError, PncadError))
+
+
+class TestThePickIndexPairsWithItsDocument(unittest.TestCase):
+    """An index is built from ONE evaluation and then handed a SECOND
+    at every name door. Node ids are minted per document, so a twin
+    recipe's evaluation answers every lookup out of its own tables —
+    other geometry's names, in patch order, with nothing marked. The
+    doors refuse it instead, under the word the gather, the checks and
+    the name-level edit door already answer with.
+
+    A LATER evaluation of the SAME document is admitted: a pairing is
+    about identity, never about a version."""
+
+    def setUp(self):
+        self.doc = Doc()
+        self.cube = unit_cube(self.doc)
+        self.ev = evaluate(self.doc)
+        self.pick = NodePick.build(self.ev, self.cube, 0, DELTA)
+        # The twin: the same recipe under a second identity, so it
+        # mints the same node ids and answers the same lookups.
+        self.twin = Doc()
+        twin_cube = unit_cube(self.twin)
+        self.assertEqual(twin_cube, self.cube, "the twins mint one id")
+        self.assertNotEqual(self.twin.id, self.doc.id, "two documents")
+        self.twin_ev = evaluate(self.twin)
+
+    def test_the_twins_tables_would_have_answered(self):
+        # The premise, so the refusals below are the only thing between
+        # a consumer and another document's names.
+        own = self.pick.patch_names(self.ev)
+        self.assertTrue(all(isinstance(n, str) for n in own))
+        self.assertEqual(
+            set(own), set(self.twin_ev.all_faces(self.cube)),
+            "the twin's tables carry names for the very same lookups",
+        )
+
+    def test_patch_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.patch_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_boundary_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.boundary_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_pick_face_refuses_a_target_of_another_document(self):
+        # The standing ladder would NOT have caught this: the twin has
+        # an Ok value for the same node id, so the ray would have
+        # resolved to a name out of the twin's table.
+        self.assertIsNotNone(self.twin_ev.value(self.cube))
+        self.assertIsNotNone(self.ev.pick_face([self.pick], straight_down()))
+        with self.assertRaises(HitTestError) as caught:
+            self.twin_ev.pick_face([self.pick], straight_down())
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_a_later_evaluation_of_the_same_document_is_admitted(self):
+        # The INDEXED node is edited — its own extrusion distance — so
+        # the later run recomputes and re-tessellates the very body the
+        # index was built from and the index is a picture behind. That
+        # is the stale case the pairing admits, and the Rust row
+        # `a_later_evaluation_of_the_same_document_is_admitted` draws it
+        # the same way; a second, unrelated solid would leave this
+        # node's value untouched and prove nothing about staleness.
+        self.doc.apply(
+            DocEdit.set_param(self.cube, "distance", Expr.length_in(2, m))
+        )
+        later = evaluate(self.doc)
+        # The premise, through the doors: the node's own body moved, so
+        # an index built on the later run hits the cap at t = 1 where
+        # the stale one still hits it at t = 2.
+        rebuilt = NodePick.build(later, self.cube, 0, DELTA)
+        self.assertAlmostEqual(
+            later.pick_face([rebuilt], straight_down()).t, 1.0, places=12
+        )
+        self.assertAlmostEqual(
+            later.pick_face([self.pick], straight_down()).t, 2.0, places=12,
+            msg="the admitted index is a picture behind, and says so",
+        )
+        self.assertEqual(
+            self.pick.patch_names(later), self.pick.patch_names(self.ev)
+        )
+        self.assertEqual(
+            self.pick.boundary_names(later), self.pick.boundary_names(self.ev)
+        )
+        self.assertIsNotNone(later.pick_face([self.pick], straight_down()))
 
 
 class TestThePickedNameIsUsable(unittest.TestCase):

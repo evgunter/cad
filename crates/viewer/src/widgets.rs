@@ -19,14 +19,21 @@
 
 use eframe::egui;
 use pncad::document::{Dimension, RecipeNodeId};
-use pncad::profile::{ArcSide, ArcSweep};
+use pncad::geom_core::Point2;
+use pncad::profile::{
+    ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    arc_specs_at,
+};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
-use crate::forms::{ANGLE_DRAG_SPEED, ArcMode, FIELD_DRAG_SPEED, PathVerb, UNIT_DRAG_SPEED};
+use crate::forms::{
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
+    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+};
 use crate::props;
 use crate::readout;
 use crate::session::{DocSession, SessionOp};
-use crate::sketch::{ArcSpec, PathStep, PathTarget};
+use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
 /// this chrome obeys: *the text reads back as the value the field
@@ -96,6 +103,37 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
     egui::DragValue::new(value)
         .speed(speed)
         .custom_formatter(number_text)
+}
+
+/// **The floor under [`number_field`]: the same rule, as the
+/// context's own default.**
+///
+/// [`number_field`] states the rule where a reader can see it, and
+/// that is why it exists — but a constructor can only bind the sites
+/// that call it. A twelfth field written as a bare
+/// `egui::DragValue::new`, a helper that wraps the widget instead of
+/// this door, or an `egui::Slider` (which renders its value through a
+/// `DragValue` of its own) each gets `egui`'s precision rule back, and
+/// nothing at the call site says so.
+///
+/// Setting [`egui::Style::number_formatter`] answers that as a
+/// DEFAULT rather than as a detection: a site that does not
+/// deliberately spell its own `custom_formatter` is already right, so
+/// there is no arrival to notice. A site that DOES spell one is
+/// making a statement — a hex or a clock field — and is left alone.
+///
+/// **`all_styles_mut` rather than `style_mut`, and that is
+/// load-bearing.** `egui` keeps one `Style` per theme and
+/// `crate::app`'s `apply_polarity` states a theme PREFERENCE rather
+/// than freezing visuals, so the user can move between them at any
+/// time; a formatter written onto only the theme in force at startup
+/// would be dropped by the first switch, in the direction nobody
+/// looks. `field_tests::a_bare_field_survives_a_theme_switch` is the
+/// assertion that would break.
+pub(crate) fn install_number_formatter(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| {
+        style.number_formatter = egui::style::NumberFormatter::new(number_text);
+    });
 }
 
 /// **One gesture vocabulary**: the four operations a drag on one field
@@ -384,32 +422,85 @@ pub(crate) fn unit_vec3_row(
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
-pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
-    for (axis, component) in ["x", "y"].into_iter().zip(point) {
-        named_field(ui, axis, unit, FIELD_DRAG_SPEED, component);
+pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) {
+    named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
+    named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
+}
+
+/// **A path verb's target**: an authored point, the entry vertex
+/// (which CLOSES the loop), or the entry vertex with the seam's
+/// tangent joint declared.
+///
+/// One control because they are one decision — where this leg ends —
+/// and `Start` is not a point somebody could type: it is the bound
+/// entry, and aiming at it is what closing IS in this algebra
+/// (`pncad::profile::path`, which has no `close()` alias). The forms
+/// are the kernel's [`TargetKind::ALL`], so a form the vocabulary
+/// gains is offered here without an edit.
+///
+/// Switching form REPLACES the target with a fresh one, for the
+/// reason [`arc_fields`] replaces a spec: only one form has fields.
+pub(crate) fn target_fields(
+    ui: &mut egui::Ui,
+    salt: &str,
+    unit: UnitDef,
+    admitted: Option<&Admitted<'_, TargetKind>>,
+    target: &mut Target<f64>,
+) {
+    let mut kind = target.kind();
+    let before = kind;
+    egui::ComboBox::from_id_salt(("path_target", salt))
+        .selected_text(target_kind_label(kind))
+        .width(152.0)
+        .show_ui(ui, |ui| {
+            for &option in TargetKind::ALL {
+                offer(ui, admitted, &mut kind, option, target_kind_label(option));
+            }
+        });
+    if kind != before {
+        *target = sketch::fresh_target(kind);
+    }
+    // Exhaustive, so a form that grows a payload has to be given its
+    // fields here before this compiles.
+    match target {
+        Target::Point(point) => point_fields(ui, unit, point),
+        Target::Start | Target::StartArriving => {}
     }
 }
 
-/// A path verb's target: the entry vertex (which CLOSES the loop), or
-/// an authored point.
-///
-/// The two are one control because they are one decision — where this
-/// leg ends — and `Start` is not a point somebody could type: it is
-/// the bound entry, and aiming at it is what closing IS in this
-/// algebra (`pncad::profile::path`, which has no `close()` alias).
-pub(crate) fn target_fields(ui: &mut egui::Ui, unit: UnitDef, target: &mut PathTarget) {
-    let closing = matches!(target, PathTarget::Start);
-    let mut to_start = closing;
-    ui.checkbox(&mut to_start, "to start");
-    if to_start != closing {
-        *target = if to_start {
-            PathTarget::Start
-        } else {
-            PathTarget::Point([0.01, 0.0])
-        };
-    }
-    if let PathTarget::Point(point) = target {
-        point_fields(ui, unit, point);
+/// **What the lattice takes at a tip**, for one picker: the state (the
+/// words a greyed-out choice is explained with) and the test a choice
+/// has to pass.
+pub(crate) struct Admitted<'a, V> {
+    state: TipState,
+    admits: Box<dyn Fn(V) -> bool + 'a>,
+}
+
+/// One picker choice: offered when the lattice takes it here (or when
+/// nothing is known about the tip), greyed with the tip's state as its
+/// hover text otherwise. The choice ALREADY made stays selectable, so
+/// a spec the tip refuses still shows what it is.
+fn offer<V: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    admitted: Option<&Admitted<'_, V>>,
+    chosen: &mut V,
+    option: V,
+    label: &str,
+) {
+    let refused = admitted.filter(|a| option != *chosen && !(a.admits)(option));
+    let row = ui.add_enabled(
+        refused.is_none(),
+        egui::Button::selectable(*chosen == option, label),
+    );
+    match refused {
+        Some(a) => {
+            row.on_disabled_hover_text(format!(
+                "{label} is not well-typed here — the tip is {}",
+                sketch::tip_state_words(a.state),
+            ));
+        }
+        None if row.clicked() => *chosen = option,
+        None => {}
     }
 }
 
@@ -441,8 +532,8 @@ pub(crate) fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSwe
         });
 }
 
-/// **One arc leg's spec**: which of the six modes, then that mode's
-/// own fields.
+/// **One arc leg's spec**: which of the kernel's modes, then that
+/// mode's own fields.
 ///
 /// Switching the mode REPLACES the spec with a fresh one of the new
 /// mode rather than carrying numbers across. The modes do not share a
@@ -457,7 +548,8 @@ pub(crate) fn arc_fields(
     role: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
-    spec: &mut ArcSpec,
+    at: Option<(TipState, &SpecForms)>,
+    spec: &mut ArcData<f64>,
 ) {
     // What to call this arc's own radius. A step can hold TWO arcs and
     // a fillet between them (`arc_fillet_arc`), and every one of the
@@ -469,45 +561,68 @@ pub(crate) fn arc_fields(
     } else {
         format!("{role} r")
     };
-    let mut mode = ArcMode::of(spec);
+    // What the lattice takes here, when the tip is known: the modes
+    // this spec's dispatcher admits, and the target forms each admits.
+    let modes = at.map(|(state, forms)| Admitted {
+        state,
+        admits: Box::new(move |mode: ArcMode| forms.admits_mode(mode)),
+    });
+    let targets = at.map(|(state, forms)| {
+        let mode = spec.mode();
+        Admitted {
+            state,
+            admits: Box::new(move |kind: TargetKind| forms.admits(mode, Some(kind))),
+        }
+    });
+    let mut mode = spec.mode();
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
-        .selected_text(mode.label())
+        .selected_text(arc_mode_label(mode))
         .width(88.0)
         .show_ui(ui, |ui| {
-            for (option, label) in ArcMode::ALL {
-                ui.selectable_value(&mut mode, option, label);
+            for &option in ArcMode::ALL {
+                offer(
+                    ui,
+                    modes.as_ref(),
+                    &mut mode,
+                    option,
+                    arc_mode_label(option),
+                );
             }
         });
     if mode != before {
-        *spec = mode.fresh();
+        *spec = match at {
+            Some((_, forms)) => sketch::fresh_arc_in(mode, forms),
+            None => sketch::fresh_arc(mode),
+        };
     }
+    let targets = targets.as_ref();
     match spec {
-        ArcSpec::Radius { r, side } => {
+        ArcData::Radius { r, side } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
         }
-        ArcSpec::Bulge { target, b } => {
-            target_fields(ui, length_unit, target);
+        ArcData::Bulge { target, b } => {
+            target_fields(ui, salt, length_unit, targets, target);
             named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
-        ArcSpec::Via { q, target } => {
+        ArcData::Via { q, target } => {
             ui.label("via");
             point_fields(ui, length_unit, q);
-            target_fields(ui, length_unit, target);
+            target_fields(ui, salt, length_unit, targets, target);
         }
-        ArcSpec::Center { c, winding, target } => {
+        ArcData::Center { c, winding, target } => {
             ui.label("centre");
             point_fields(ui, length_unit, c);
             winding_picker(ui, salt, winding);
-            target_fields(ui, length_unit, target);
+            target_fields(ui, salt, length_unit, targets, target);
         }
-        ArcSpec::Sweep { r, side, angle } => {
+        ArcData::Sweep { r, side, angle } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
             named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        ArcSpec::ArcLen { r, side, len } => {
+        ArcData::ArcLen { r, side, len } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
             named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
@@ -515,82 +630,77 @@ pub(crate) fn arc_fields(
     }
 }
 
-/// **The step a fresh row starts as**, by where it is going.
+/// **The step a new row starts as**, by where it is going.
 ///
-/// `at` at position 0 — nothing else is well-typed at the entry, so
-/// offering anything there would be offering a refusal — and `line_to`
+/// `at` at position 0 — it is what a chain opens with — and `line_to`
 /// anywhere after it, which is the verb a chain is mostly made of. It
 /// is a starting point and not a judgement: the row's own combo,
 /// narrowed to what the lattice admits at that tip, is where it
 /// becomes something else.
-pub(crate) fn fresh_step(at: usize) -> PathStep {
-    if at == 0 {
-        PathVerb::At.fresh()
-    } else {
-        PathVerb::LineTo.fresh()
-    }
+pub(crate) fn new_row_step(at: usize) -> Step<f64> {
+    sketch::fresh_step(if at == 0 { Verb::At } else { Verb::LineTo })
 }
 
 /// **One authoring verb's own fields.**
 ///
-/// Exhaustive on [`PathStep`], like the lowering it feeds: a verb the
-/// vocabulary gains has to be given a row here before it compiles,
-/// which is the same protection `crate::sketch`'s lowering has and
-/// for the same reason — a verb reachable in one and not the other is
-/// a verb nobody can use.
+/// Exhaustive on the kernel's [`Step`]: a verb the transition table
+/// gains has to be given a row here before this compiles, as it has
+/// to be given a starting step in [`sketch::fresh_step`] — a verb in
+/// the menu with no fields would be a verb nobody can use.
 pub(crate) fn path_step_fields(
     ui: &mut egui::Ui,
     salt: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
-    step: &mut PathStep,
+    state: Option<TipState>,
+    step: &mut Step<f64>,
 ) {
+    // The forms each of this step's arc specs takes at the tip, in the
+    // step's field order; empty when the tip is not known.
+    let forms = state.map_or(&[][..], |state| arc_specs_at(step.verb(), state));
+    let at = |i: usize| Some((state?, *forms.get(i)?));
     // **Every field says which quantity it is.** The arms below are
-    // split further than the lowering's are — `line` and `fillet` both
-    // carry one Length and shared an arm — because what a number MEANS
-    // is the thing a row has to say, and a shared arm can only give
-    // two different quantities one name.
+    // split further than the step's shapes would need — `line` and
+    // `fillet` both carry one Length — because what a number MEANS is
+    // the thing a row has to say, and a shared arm can only give two
+    // different quantities one name.
     match step {
-        PathStep::At(point) => point_fields(ui, length_unit, point),
-        PathStep::ArcContinue(point) => {
-            ui.label("through");
-            point_fields(ui, length_unit, point);
-        }
-        PathStep::FarEndTo(point) => {
+        Step::At(point) => point_fields(ui, length_unit, point),
+        Step::FarEndTo(point) => {
             ui.label("far end");
             point_fields(ui, length_unit, point);
         }
-        PathStep::Angle(angle) => {
+        Step::Angle(angle) => {
             named_field(ui, "angle", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        PathStep::Turn(angle) => {
+        Step::Turn(angle) => {
             named_field(ui, "turn", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
-        PathStep::Toward { dx, dy } => {
+        Step::Toward { dx, dy } => {
             named_scalar(ui, "dx", UNIT_DRAG_SPEED, dx);
             named_scalar(ui, "dy", UNIT_DRAG_SPEED, dy);
         }
-        PathStep::Line(length) => {
+        Step::Line(length) => {
             named_field(ui, "length", length_unit, FIELD_DRAG_SPEED, length);
         }
-        PathStep::Fillet(radius) => {
+        Step::Fillet { radius } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
-        PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
-            target_fields(ui, length_unit, target);
+        Step::LineTo(target) | Step::ContinueTo(target) | Step::TangentArcTo(target) => {
+            target_fields(ui, salt, length_unit, None, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), spec),
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
-        PathStep::FilletArc { radius, spec } => {
+        Step::FilletArc { radius, spec } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
         }
-        PathStep::ArcFillet { spec, radius } => {
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+        Step::ArcFillet { spec, radius } => {
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
-        PathStep::ArcFilletArc {
+        Step::ArcFilletArc {
             spec,
             radius,
             spec2,
@@ -601,6 +711,7 @@ pub(crate) fn path_step_fields(
                 "in arc",
                 length_unit,
                 angle_unit,
+                at(0),
                 spec,
             );
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
@@ -610,11 +721,38 @@ pub(crate) fn path_step_fields(
                 "out arc",
                 length_unit,
                 angle_unit,
+                at(1),
                 spec2,
             );
         }
+        // The complete-loop verbs: the whole loop in one step.
+        Step::Circle { centre, radius } => {
+            ui.label("centre");
+            point_fields(ui, length_unit, centre);
+            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+        }
+        Step::CircleSplit {
+            centre,
+            radius,
+            n,
+            phase,
+        } => {
+            ui.label("centre");
+            point_fields(ui, length_unit, centre);
+            named_field(ui, "radius", length_unit, FIELD_DRAG_SPEED, radius);
+            // Bounded both ways. Below two the lattice refuses, and
+            // the form does not offer that; above the cap the preview
+            // would build the whole subdivision every frame, and a
+            // typed count is enough to exhaust memory doing it.
+            ui.add(
+                number_field(n, COUNT_DRAG_SPEED)
+                    .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
+                    .prefix("n "),
+            );
+            named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);
+        }
         // Structural verbs: the verb IS the whole step.
-        PathStep::Tangent | PathStep::Cusp | PathStep::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
     }
 }
 
@@ -1103,7 +1241,7 @@ mod field_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{number_field, number_text};
+    use super::{install_number_formatter, number_field, number_text};
     use eframe::egui;
 
     /// The decimal range a length field shown in millimetres is handed:
@@ -1208,20 +1346,53 @@ mod field_tests {
         }
     }
 
+    /// Which constructor the harness builds its field with.
+    ///
+    /// [`Built::Bare`] is the twelfth site: an `egui::DragValue` that
+    /// has never seen [`number_field`], written the way a lane that
+    /// does not know the door exists would write it — and therefore
+    /// the only widget in this file that reads the rule off the
+    /// CONTEXT rather than off its own builder.
+    #[derive(Clone, Copy)]
+    enum Built {
+        Door,
+        Bare,
+    }
+
     /// One field, laid out and driven by events, so the rule below is
     /// read off the widget rather than off the function under it.
     struct Field {
         ctx: egui::Context,
         value: f64,
         rect: egui::Rect,
+        built: Built,
     }
 
     impl Field {
         fn new(value: f64) -> Self {
+            Self::with(value, Built::Door)
+        }
+
+        /// A bare field on a context the rule has been installed on —
+        /// production's arrangement, minus the door.
+        fn bare(value: f64) -> Self {
+            let field = Self::with(value, Built::Bare);
+            install_number_formatter(&field.ctx);
+            field
+        }
+
+        /// The same bare field on a context nothing has been installed
+        /// on, which is what the twelfth site gets today.
+        fn bare_without_the_rule(value: f64) -> Self {
+            Self::with(value, Built::Bare)
+        }
+
+        fn with(value: f64, built: Built) -> Self {
             Self {
                 ctx: egui::Context::default(),
                 value,
                 rect: egui::Rect::NOTHING,
+                built,
             }
         }
 
@@ -1237,10 +1408,29 @@ mod field_tests {
             };
             let value = &mut self.value;
             let rect = &mut self.rect;
+            let built = self.built;
             let mut output = ctx.run_ui(input, |ui| {
-                *rect = ui.add(number_field(value, 0.5)).rect;
+                *rect = match built {
+                    Built::Door => ui.add(number_field(value, 0.5)).rect,
+                    Built::Bare => ui.add(egui::DragValue::new(value).speed(0.5)).rect,
+                };
             });
             output.textures_delta.clear();
+        }
+
+        /// Lay the field out, click into it, click somewhere else, and
+        /// settle — the gesture that makes a field's render its commit
+        /// path. Two frames before the first click because egui
+        /// interacts against the PREVIOUS frame's widget rects.
+        fn click_in_and_away(&mut self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            let target = self.rect.center();
+            self.click(target);
+            self.frame(Vec::new());
+            self.click(egui::pos2(700.0, 500.0));
+            self.frame(Vec::new());
+            self.frame(Vec::new());
         }
 
         fn click(&mut self, at: egui::Pos2) {
@@ -1270,25 +1460,84 @@ mod field_tests {
     /// ones it used to commit as something else — 40 nm as zero.
     #[test]
     fn clicking_into_a_field_and_away_again_leaves_the_value_alone() {
-        for start in [4.0e-5_f64, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5] {
+        for start in ROUND_TRIP {
             let mut field = Field::new(start);
-            // Two frames: egui interacts against the PREVIOUS frame's
-            // widget rects, so nothing is hittable until one has been
-            // laid out.
-            field.frame(Vec::new());
-            field.frame(Vec::new());
-            let target = field.rect.center();
-            field.click(target);
-            field.frame(Vec::new());
-            field.click(egui::pos2(700.0, 500.0));
-            field.frame(Vec::new());
-            field.frame(Vec::new());
+            field.click_in_and_away();
             assert_eq!(
                 field.value, start,
                 "clicking into a field holding {start} and away again committed \
                  {} — the text it showed was not the value it held",
                 field.value
             );
+        }
+    }
+
+    /// The values the gesture rows are held over: three the widget's
+    /// own spelling cannot name, and three it can.
+    const ROUND_TRIP: [f64; 6] = [4.0e-5, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5];
+
+    /// **The twelfth site is held by the CONTEXT, not by the door.**
+    ///
+    /// A bare `egui::DragValue` — what a lane that has not met
+    /// [`number_field`] writes, and what a new helper wrapping the
+    /// widget produces — round-trips once
+    /// [`install_number_formatter`] has run, because the rule is that
+    /// context's default rather than a property of one constructor.
+    #[test]
+    fn a_bare_field_keeps_its_value_once_the_rule_is_installed() {
+        for start in ROUND_TRIP {
+            let mut field = Field::bare(start);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, start,
+                "a field built without the door, on a context the rule is \
+                 installed on, committed {} over {start}",
+                field.value
+            );
+        }
+    }
+
+    /// **And installing it is what does that**, held over the same
+    /// widget on a context nothing has been installed on. Without this
+    /// row the one above passes on every value `egui` already spells
+    /// correctly and says nothing about the rule: these three are
+    /// exactly the ones it does not.
+    #[test]
+    fn a_bare_field_without_the_rule_destroys_the_value() {
+        for start in [4.0e-5_f64, -4.0e-5, 1.6e-3] {
+            let mut field = Field::bare_without_the_rule(start);
+            field.click_in_and_away();
+            assert_ne!(
+                field.value, start,
+                "a bare field over {start} kept it with no rule installed — \
+                 then the row above is proving nothing"
+            );
+        }
+    }
+
+    /// **`all_styles_mut` rather than `style_mut`.**
+    ///
+    /// `egui` keeps one `Style` per theme and `crate::app`'s
+    /// `apply_polarity` states a PREFERENCE, so the user moves between
+    /// them while the chrome runs. A formatter written onto only the
+    /// theme in force at install time is dropped by the first switch —
+    /// silently, and in the direction nobody watches. Both directions,
+    /// because a bare context's theme is whichever one it defaults to
+    /// and this row must not depend on which.
+    #[test]
+    fn a_bare_field_survives_a_theme_switch() {
+        for theme in [egui::ThemePreference::Light, egui::ThemePreference::Dark] {
+            for start in [4.0e-5_f64, 1.6e-3] {
+                let mut field = Field::bare(start);
+                field.ctx.set_theme(theme);
+                field.click_in_and_away();
+                assert_eq!(
+                    field.value, start,
+                    "after switching to {theme:?} a bare field committed {} \
+                     over {start} — the rule reached only one style",
+                    field.value
+                );
+            }
         }
     }
 }

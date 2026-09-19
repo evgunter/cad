@@ -57,7 +57,9 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Nurbs(_) => {
+                // The split lanes are fenced against the spiric as
+                // against the spline: no crossing-root arm reads it.
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                 }
             },
@@ -172,7 +174,9 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
             minor,
             u_ref,
         } => (center, axis, u_ref, major, minor),
-        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => return Err(()),
+        geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            return Err(());
+        }
     };
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);
@@ -234,7 +238,10 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     let delta = arg.acos();
     let tau = T::tau();
     // The conservative meter (radians → meters): the minor semi-axis.
-    let meter = s_v;
+    // An INF bound on the speed by being the smaller principal rate,
+    // which is what the interiority claim below needs — a root this
+    // meter proves clear of an endpoint is clear of it in metres.
+    let meter = geom_core::InfSpeed::new(s_v);
     let mut roots: Vec<T> = Vec::with_capacity(2);
     let candidates: [Option<T>; 2] = if both_roots {
         [Some(phi + delta), Some(phi - delta)]

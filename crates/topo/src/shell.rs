@@ -145,9 +145,11 @@
 //!
 //! The void door's posture is `Transfers`
 //! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
-//! row): the reverted cavity's rows go stale in content and the graft
-//! copies them verbatim, and that row's contract is that the producer's
-//! final mint re-derives every row of the merged body. This verb is a
+//! row): `Body::revert` carries the cavity's rows key for key (the
+//! plane faces' rows re-stated with their frames, the curved faces'
+//! untouched), the graft copies them verbatim onto fresh keys, and
+//! that row's contract is that the producer's final mint re-derives
+//! every row of the merged body. This verb is a
 //! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
 //! assembled body, before `validate_geometric` — the verb's own
 //! whole-body pass, and it stays whole-body: it is what discharges
@@ -287,6 +289,16 @@
 //! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
 //! outer loop is loud wherever it is minted and not only here.
 //!
+//! **Check 9 has a second half now, and it states the other half of
+//! the same sentence**: a ring must lie strictly INSIDE its face's
+//! outer loop, not merely stand clear of it
+//! ([`ValidationError::RingOutsideOuter`], with
+//! [`ValidationError::RingNestingUndecided`] for the pair it cannot
+//! certify). That is the statement an inverted host/guest pick at the
+//! rim glue below falsifies, and it reaches a planar face whose outer
+//! loop bears no arc; check 9's own banner enumerates what it leaves
+//! out.
+//!
 //! **An UNDECIDABLE separation refuses too** and never proceeds to
 //! build ([`ShellError::Escalated`]) — the glue is a write, and
 //! building on a gap the predicate layer could not certify is the
@@ -308,6 +320,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
@@ -1484,15 +1497,30 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // back, so it is the counterpart's boundary that encloses — the
         // counterpart survives as the rim, facing the gap, and the
         // mouth dies. The role is read off the sealed arm's decided
-        // shell list and nothing re-derives it: `ring_outer_contact`
+        // shell list and nothing re-derives it HERE: `ring_outer_contact`
         // below decides CONTACT between the two loops, not which
-        // encloses which, and tier 3 states no ring-inside-outer check
-        // — an inverted assignment glues the larger loop in as a ring
-        // of the smaller face and validates with the right volume
-        // (`work/topo/tier3-accepts-a-ring-outside-its-outer-loop.md`).
-        // What pins the assignment is structural: the void-ceiling row
-        // asserts the designated void face DIES, and the pairing row
-        // reads each thin solid's twin through the record.
+        // encloses which.
+        //
+        // What an inverted assignment meets first is not a validator
+        // but the NAMING RECORD: `ring_rows` walks the glued ring's
+        // entities for the source each one came from, and on an
+        // inverted pick the ring is the wrong boundary, so no entity
+        // has one and the verb refuses `ShellError::Corrupt` before
+        // its closing `validate_geometric` is reached at all. The
+        // statement that an inverted glue is WRONG, rather than merely
+        // unexplainable, is tier 3's check 9: its nesting half says a
+        // ring lies strictly inside its face's outer loop and refuses
+        // the inverted body by name, on the shapes that half reaches
+        // — a planar face whose outer loop bears no arc (check 9's
+        // banner enumerates the rest). Nothing in this verb
+        // relies on that arm; what it buys is the class being loud
+        // wherever else it is minted. On a rim outside its reach — an
+        // annular rim between two CIRCLES, every shelled vessel of
+        // revolution — the assignment here is pinned only
+        // structurally: the void-ceiling row asserts the designated
+        // void face DIES, and the pairing row reads each thin solid's
+        // twin through the record
+        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),
@@ -2234,8 +2262,7 @@ fn offset_door<T: Decide>(
 /// The face a simultaneous-door refusal is about, where it names one
 /// or names an entity that touches one.
 fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
-    let face_of_he =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    let face_of_he = |he| body.face_of_half_edge(he);
     match error {
         ReplaceFaceError::StaleFace { face }
         | ReplaceFaceError::TogetherNonPlanar { face, .. }
@@ -2446,8 +2473,7 @@ fn planar_faces<T: Real>(
         else {
             continue;
         };
-        // Outward is the chart normal on a positively-sensed face.
-        let normal = if data.sense { *normal } else { -*normal };
+        let normal = plane_outward_normal(data, *normal).vec();
         let v_ref = normal.cross(*u_ref);
         let mut box_u: Option<(T, T)> = None;
         let mut box_v: Option<(T, T)> = None;

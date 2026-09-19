@@ -20,6 +20,7 @@
 use crate::common::cavity::{cavity_edges, vented_cavity};
 use crate::common::oracles::rounded_box_volume;
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
@@ -27,6 +28,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The fillet radius, meters.
@@ -231,19 +233,16 @@ fn the_filleted_cavity() {
         );
     }
 
-    let (nv, ne, nf) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
+    let counts = euler_counts(&out_body);
     assert_eq!(
-        (nv, ne, nf),
+        (counts.v, counts.e, counts.f),
         (36, 66, 34),
         "census — the same carve topology as the chamfered cavity"
     );
+    assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        nv as i64 - ne as i64 + nf as i64 - 2,
-        2,
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
 
@@ -267,7 +266,6 @@ fn the_filleted_cavity() {
 /// mesh.
 fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64>, Vec3<f64>)> {
     let f = body.get_face(face).expect("a minted face");
-    let s = f.sense_sign::<f64>();
     let radial = |q: Point3<f64>| match body.get_surface(f.surface).expect("its surface") {
         Surface::Cylinder { origin, axis, .. } => {
             let d = q - *origin;
@@ -289,7 +287,7 @@ fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64
                 .get_vertex(vk)
                 .and_then(|x| body.get_point(x.point))
                 .expect("a boundary vertex's point");
-            (q, radial(q) * s)
+            (q, OutwardNormal::from_chart(radial(q), f.sense).vec())
         })
         .collect()
 }

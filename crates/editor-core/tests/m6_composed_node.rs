@@ -231,7 +231,7 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         RoleSeg::CornerFace(_) => "octant",
         RoleSeg::TrimEdge { .. } => "trim",
         RoleSeg::FootVertex { .. } => "foot",
-        RoleSeg::CornerArc { .. } => "arc",
+        RoleSeg::EndArc { .. } => "arc",
         RoleSeg::BandFace(_) => "band",
         RoleSeg::BandTrim { .. } => "band trim",
         RoleSeg::BandFoot(_) => "band foot",

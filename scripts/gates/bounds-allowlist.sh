@@ -473,7 +473,32 @@ BOUNDS_ALLOWLIST=(
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/editor-core/src/eval/wire.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
-  'crates/topo/src/props.rs 19 M5 PR 11, the certified-quadrature plumbing'
+  #
+  # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
+  # `quad_lane`, and its own module doc states the invariant the count
+  # stands in for: the module is the certified lanes' plumbing, every
+  # signature in it is `Decide + Bounds + CertifiedEnclosure`, and no
+  # `Dual` implements the third — so the module stays uninstantiable at
+  # a dual whether or not the lane is compiled. The two sites added are
+  # inside that invariant, not beside it:
+  #
+  #   - `trimmed_face` is the trimmed lane's ASSEMBLER, the exact
+  #     sibling of `nurbs_face` which this entry already ratifies. It
+  #     reads stored pcurve caches and certificates channel by channel
+  #     into ring brackets and hands them to
+  #     `geom_brep::props::quad::trimmed_patch_face_rounds`; that is the
+  #     same read of the same scalars for the same reason `nurbs_face`
+  #     was argued for, on a face whose trim region is not a rectangle.
+  #   - `carrier_metric_length` is an EXTRACTION, not a new bound: the
+  #     metric-length bound it computes was written inline inside
+  #     `nurbs_face` under this entry's own count, and it moved into a
+  #     function because the trimmed lane needs the identical bound and
+  #     two spellings of it would be two things to keep equal.
+  #
+  # Neither reaches past the seam: no new public door, no new
+  # instantiation site, and the `Bounds` reads are `from_certified` on
+  # scalars the quadrature already consumed.
+  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -495,7 +520,17 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 3 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  'crates/topo/src/validate.rs 9 2026-09-02, the certified at-rest validator'
+  # `validate.rs` carries the at-rest validator's nine and, since the
+  # census took the C10 tree as its pre-filter, the three doors that
+  # reach `census::census_and_certify` — the driver amendment's seam,
+  # argued in the ledger under 2026-07-29 beside `separation`.
+  'crates/topo/src/validate.rs 12 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
+  # the three census entries above them (`census_and_certify`,
+  # `census_traces`, `census_with`) and the backstop's own tree over its
+  # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
+  # code over the C10 tree, under the driver amendment like `separation`.
+  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides

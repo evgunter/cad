@@ -1,8 +1,10 @@
 //! Adversarial e2e review artifact for M1 PR 4 (2026-07-16), promoted
-//! into the shipped suite per the standing convention
-//! (`memories/review-and-dependency-policy.md`): reviewers write and run
-//! real consumer programs against the API under review, and the
-//! programs are kept.
+//! into the shipped suite. A review exercises the API by writing and
+//! running real consumer programs, and the useful ones enter the
+//! permanent suite as ORDINARY rows
+//! (`memories/review-and-dependency-policy.md`): nothing here is a
+//! protected class, and these rows are trimmed, gated, shared or
+//! retired under the same rules as any other.
 //!
 //! Unlike PR 3's artifact this one lives in `src/` (cfg(test)) rather
 //! than `tests/`: several probes attack the pub(crate) test-support
@@ -49,9 +51,11 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::{deep_snapshot, ops_cube};
+use crate::fixtures::deep_snapshot;
 use crate::iso::{canonical_form, isomorphic};
+use crate::readback::euler_counts;
 use crate::seqgen;
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
 use geom_core::Tol;
 
@@ -161,16 +165,20 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // Fan asymmetric valence-5, non-wrapping run [b .. d) = {b, c}.
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    let split = body
-        .mev_line(
-            MevSite::Fan {
-                he1: b.he_plus,
-                he2: d.he_plus,
-            },
-            p(9.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: b.he_plus,
+        he2: d.he_plus,
+    };
+    // The certified door first, as the `mev` pins do: p(9.0) is a
+    // vertex the run's chords do not run to and the re-basing gate
+    // refuses it, so each split below runs through the coincident door
+    // and the killed-on body carries a null edge — tier-1 valid, and
+    // tier 2 refuses it at rest.
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 fan mev∘kev");
@@ -179,16 +187,15 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // anchor).
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    let split = body
-        .mev_line(
-            MevSite::Fan {
-                he1: d.he_plus,
-                he2: b.he_plus,
-            },
-            p(9.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: d.he_plus,
+        he2: b.he_plus,
+    };
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 wrapping fan mev∘kev");
@@ -206,16 +213,15 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         )
         .unwrap();
     let before = canonical_form(&body);
-    let fan = body
-        .mev_line(
-            MevSite::Fan {
-                he1: seg.he_plus,
-                he2: split_faces.he_plus,
-            },
-            p(9.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: seg.he_plus,
+        he2: split_faces.he_plus,
+    };
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(fan.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "cross-loop fan mev∘kev");
@@ -226,7 +232,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let tol = Tol::witness();
     // Chords general (valence > minimal: cut a cube face corner to
     // corner).
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let before = canonical_form(&body);
     // two half-edges of the top face's loop, two apart
@@ -347,16 +353,21 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
     // REMAINING fan {d, e, a} to w in unchanged clockwise cyclic order.
     let (mut body, seed, [a, b, c, d, e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    let split = body
-        .mev_line(
-            MevSite::Fan {
-                he1: b.he_plus,
-                he2: d.he_plus,
-            },
-            p(9.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: b.he_plus,
+        he2: d.he_plus,
+    };
+    // The certified door first, as the `mev` pins do: it will not put
+    // a spoke on p(9.0), a vertex its chord does not run to. Both
+    // kills below are about the fan MERGE, which needs the split to
+    // have happened at all, so it runs through the coincident door —
+    // and the body they kill on carries a null edge, tier-1 valid and
+    // refused by tier 2 at rest.
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     // End 1: kill the new vertex.
     {
         let mut probe = body.clone();
@@ -546,7 +557,8 @@ fn some_single_op_reaches(
 #[test]
 fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
     let tol = Tol::witness();
-    // THE FALSIFICATION ATTEMPT for skip case (b). Circular-edge config:
+    // THE FALSIFICATION ATTEMPT for the `kef` skip subcase.
+    // Circular-edge config:
     // face A = big loop [seg+, circ+, seg−], face B outer = [circ−]
     // alone. kef(circ.he_plus) kills the BIG side (mate's loop [m]
     // alone). Claim under test: no single op re-makes the pre-kill
@@ -625,10 +637,14 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
 #[test]
 fn kev_mirror_has_no_single_op_remake() {
     let tol = Tol::witness();
-    // Skip case (a): kev from the valence-1 side of an edge whose far
-    // vertex carries a fan. Exhaustive single-op search over the
-    // post-kill body, trying every site and every plausibly-relevant
-    // coordinate (including the killed vertex's).
+    // The mirror kill: kev from the valence-1 side of an edge whose
+    // far vertex carries a fan. It is no longer a case of its own in
+    // the skip taxonomy — every fan-merging kev is skipped, the
+    // general merge included (`euler_kill`'s re-make taxonomy) — and
+    // this row is the exhaustive evidence for the mirror shape
+    // specifically: a single-op search over the post-kill body, trying
+    // every site and every plausibly-relevant coordinate (including
+    // the killed vertex's).
     let (mut body, seed, seg) = segment(tol);
     let strut = body
         .mev_line(
@@ -787,13 +803,8 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     // 2h = 2s − (v − e + f − r) goes NEGATIVE...
     body.mfkrh_plug(kill.ring).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    let s = body.solids().count() as i64;
-    let twice_h = 2 * s - (v - e + f - r);
-    assert_eq!(twice_h, -2, "naive derived h = -1 (the finding)");
+    let counts = euler_counts(&body);
+    assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
 
     // ...because the SHELL's surface disconnected: two components, each
     // a genus-0 closed piece (the pillow, and the lone-vertex+disk
@@ -808,7 +819,11 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
         2 * (components.len() as i64 - genus_sum),
         "per-shell component-aware Euler–Poincaré"
     );
-    assert_eq!(v - e + f - r, chi_sum, "shell totals = component sums");
+    assert_eq!(
+        counts.v - counts.e + counts.f - counts.r,
+        chi_sum,
+        "shell totals = component sums"
+    );
     assert_eq!(genus_sum, 0);
 }
 
@@ -816,7 +831,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 fn component_formula_holds_on_reference_bodies() {
     let tol = Tol::witness();
     // Cube: c = 1, g = 0.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let shell = t.body.shells().next().unwrap().0;
     let comps = shell_components(&t.body, shell);
     assert_eq!(comps.len(), 1);
@@ -1028,8 +1043,7 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
         let r1 = plant(&mut body, seg.he_plus);
         let _r2 = plant(&mut body, seg.he_plus);
         if split {
-            let other = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-            let other = body.get_loop(other).unwrap().face;
+            let other = body.face_of_half_edge(seg.he_minus).unwrap();
             assert_ne!(other, faces.face);
             body.ring_move(r1.ring, other).unwrap();
         }
@@ -1164,11 +1178,7 @@ fn genus_two_double_hole_body_tears_down_to_nothing() {
         tol,
     );
     // Genus 2 checkpoint: v − e + f − r = 2(1 − 2) = −2.
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    assert_eq!(v - e + f - r, -2, "genus 2");
+    assert_eq!(euler_counts(&body).genus(), Ok(2), "genus 2");
     seqgen::teardown(&mut body, tol);
 }
 
@@ -1424,7 +1434,11 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let expected: BTreeSet<&'static str> = [
         "mvfs",
         "mev_lone",
-        "mev_fan",
+        // No `mev_fan` with a run: the generator mints every vertex at
+        // its own coordinates, so a moved run's chords would never
+        // reach the new vertex and `mev`'s re-basing gate refuses the
+        // site. `mev_fan_candidates` enumerates only the strut, and
+        // that is the site shape this row can expect.
         "mev_fan_strut",
         "mef_chords",
         "mef_chords_self",
@@ -1499,11 +1513,8 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mvfs => "mvfs",
                 OpChoice::MevLone(_) => "mev_lone",
                 OpChoice::MevFan(h1, h2) => {
-                    if h1 == h2 {
-                        "mev_fan_strut"
-                    } else {
-                        "mev_fan"
-                    }
+                    assert_eq!(h1, h2, "the generator offers only strut fan sites");
+                    "mev_fan_strut"
                 }
                 OpChoice::MefChords(h1, h2) => {
                     if h1 == h2 {
@@ -1659,7 +1670,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     // Cube; kfmrh(top, front): front's outer becomes a ring of top;
     // the shared top/front edge now has one half in top's outer, the
     // other in top's ring.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let top = t.seed.face;
     let front = t.mefs[1].face;

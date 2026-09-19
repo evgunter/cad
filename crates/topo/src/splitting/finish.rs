@@ -457,7 +457,9 @@ fn describe_section_boundary<T: Decide>(
                     let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
                     Some((c.clone(), mid, arm))
                 }
-                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => None,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_) => None,
             });
             let (witness, arm) = match &conic {
                 Some((_, mid, arm)) => (*mid, *arm),
@@ -804,6 +806,7 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_points {
         body.points.remove(k);
+        body.point_origins.remove(k);
     }
     let mut live_curves: SecondaryMap<crate::geometry::CurveKey, ()> = SecondaryMap::new();
     for (_, e) in body.edges() {
@@ -816,6 +819,7 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_curves {
         body.curves.remove(k);
+        body.curve_origins.remove(k);
     }
     let mut live_surfaces: SecondaryMap<crate::geometry::SurfaceKey, ()> = SecondaryMap::new();
     for (_, face) in body.faces() {
@@ -838,13 +842,11 @@ pub(crate) fn carve<T: Decide>(
     for k in orphan_surfaces {
         body.surfaces.remove(k);
         // The side tables are parallel to the arena, so a raw removal
-        // has to reach them (`Body::remove_surface_if_orphaned`'s
-        // rule, which this sweep is the batch spelling of). Hygiene,
-        // not a defect: generational keys mean a re-minted key can
-        // never read a stranded row, but the OLD key would go on
-        // answering for a surface the body no longer holds. Pinned
-        // from the split door in `sweep`'s `seat6_germ_channel`.
-        body.surface_sources.remove(k);
+        // has to reach them (`Body::remove_surface_if_orphaned`'s rule,
+        // which these three sweeps are the batch spelling of; the
+        // hygiene argument is at `crate::GeomOrigin`). Pinned from the
+        // split door in `sweep`'s `seat6_germ_channel`.
+        body.surface_origins.remove(k);
         body.surface_field_sources.remove(k);
     }
     Ok(body)

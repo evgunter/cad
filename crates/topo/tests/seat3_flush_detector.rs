@@ -16,23 +16,19 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::Tol;
 use topo::flush::{FlushRefusal, FlushRung, declare, declare_all, find_flush_candidates};
 use topo::{
     Body, BooleanResult, ContactClass, FaceKey, PlaneRelation, mass_properties, query, union_with,
 };
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
-
 /// A flush stack: two bricks meeting on z = 1, independently authored
 /// (so no shared source — the geometric rung decides).
 fn stacked() -> (Body<f64>, Body<f64>) {
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0)),
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
     )
 }
 
@@ -117,7 +113,7 @@ fn the_stacks_shared_cap_is_one_same_opposite_finding() {
 #[test]
 fn a_separated_stack_has_no_findings() {
     let (a, _) = stacked();
-    let far = brick((0.5, 1.5), (0.25, 1.25), (2.0, 3.0));
+    let far = brick((0.5, 1.5), (0.25, 1.25), (2.0, 3.0), Tol::witness());
     let found = find_flush_candidates(&a, &far, Tol::witness()).expect("a clear gap decides");
     assert!(
         found.is_empty(),
@@ -138,8 +134,8 @@ fn an_in_band_gap_refuses_naming_the_pair() {
     let tol = Tol::witness();
     let raw = tol.get();
     let gap = 0.5 * (raw.eps + raw.k * raw.eps);
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick((0.5, 1.5), (0.25, 1.25), (1.0 + gap, 2.0));
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick((0.5, 1.5), (0.25, 1.25), (1.0 + gap, 2.0), Tol::witness());
     match find_flush_candidates(&a, &b, tol) {
         Err(FlushRefusal::PairInBand { pair, source }) => {
             assert_eq!(pair, (cap_at(&a, 1.0), cap_at(&b, 1.0 + gap)));
@@ -252,8 +248,8 @@ fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
 /// are flush, so the report holds two findings of different relations.
 fn stepped() -> (Body<f64>, Body<f64>) {
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-        brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0)),
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0), Tol::witness()),
     )
 }
 

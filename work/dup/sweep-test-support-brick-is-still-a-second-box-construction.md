@@ -1,0 +1,135 @@
+---
+id: sweep-test-support-brick-is-still-a-second-box-construction
+kind: issue
+title: sweep::test_support::brick still builds the box a second way; one measured thing blocks the delegation and two scope it
+status: open
+opened: 2026-09-18
+refs: [brick-has-two-constructions-and-two-homes]
+---
+
+## Finding
+
+- **Where**: `crates/sweep/src/test_support.rs` (`brick`, `block`,
+  `cube`, over `prism_at` → `prism_on` → the extrude machinery)
+  against `crates/topo/src/test_support_fixtures.rs` (`brick`, over
+  `prism_ops`).
+- **Importance**: medium
+- **Confidence**: sure about §1, which is read off two signatures and
+  a call site. §2 was overstated when this row was opened and is
+  corrected below, by execution. §3 is a scoping argument, not a
+  blocker
+- **Raised by**: the link-3 lane (`dup/move-the-fixture-family`),
+  2026-09-18, which was dispatched to delegate or delete this door and
+  could not
+
+`work/dup/brick-has-two-constructions-and-two-homes.md`'s link 3 says
+*"`sweep::test_support::brick` delegates to it or is deleted, and `stl`
+and `step-export` follow their `pub use`. No manifest edge is added at
+any step."* The move it depended on has landed — the family is
+`crates/topo/src/test_support_fixtures.rs`, re-exported as
+`topo::test_support` — and the delegation still does not fit. Three
+things block it, and none of them is the thing the 2026-09-16
+measurement was about (that measurement stands: the two builders make
+the same solid).
+
+## 1. The two doors do not have the same domain
+
+`sweep::test_support::brick<T: Decide>(x: (T, T), …)` takes its extents
+**at the lane's scalar**; `topo::test_support::brick<T: Decide>(x: (f64,
+f64), …)` takes them as `f64` constants and lifts them through
+`T::from_f64`. There is no conversion in the `Decide` direction that
+delegation could use.
+
+Narrowing `sweep`'s side to `(f64, f64)` is not local to `brick`:
+`block` and `cube` in the same file pass `T` extents into it, `cube` is
+the door most of `sweep`'s blend suites build on, and at least one call
+site passes a genuinely `T`-typed value —
+`crates/sweep/tests/m6_surgery_interval.rs`'s `cube(iv(DIE_L), …)`,
+where `iv` is `Interval::from_f64`. Widening `topo`'s side to `(T, T)`
+is worse: `prism_ops` takes an `f64` profile and a point map, so a
+`(T, T)` extent has to be re-expressed as a unit-square profile under a
+scaling map, and `x.0 + u·(x.1 − x.0)` is not `x.1` in floating point.
+
+That module's own header states the genericity as a property of the
+whole extrusion family (*"All of them are generic in the scalar,
+because the `Interval` and `Probe` lanes build the same bodies as the
+`f64` one"*), so narrowing three of its members is a change to what
+that paragraph says, not only to three signatures.
+
+## 2. `sweep/src` needs a manifest CHANGE — settled 2026-09-19, and it is not a gate problem
+
+`sweep`'s `test_support` is a **`src/` module**, so a
+`use topo::test_support::…` in it needs `topo/test-support` on a
+*library* edge. Two spellings, and only one of them is the defect:
+
+- **Featuring the `[dependencies]` line** (`topo = { path = "../topo",
+  features = ["test-support"] }`) is exactly what
+  `scripts/gates/test-features-dev-only.sh` refuses — route R1, the
+  live leak it was written for, on that very line.
+- **A forward from `sweep`'s own `test-support`**
+  (`test-support = […, "topo/test-support"]`) is **not** refused, and
+  this row's earlier claim that its standing "needs settling" was
+  wrong. The gate skips a forward whose SOURCE feature is test-only, by
+  construction: its scan reads
+  `if is_test_feature(feature) …: continue` over the `[features]`
+  table before it looks at any entry. **The precedent is in the same
+  manifest**, in the `[features]` table rather than beside the
+  dependency it forwards to: `crates/sweep/Cargo.toml:28` already reads
+  `test-support = ["profile/test-support"]`, with a comment saying the
+  forward is not optional — `src/test_support.rs` names
+  `profile::RawLoop`, so a feature that turns this module on without
+  turning that door on does not compile from the crates that name it.
+
+**Measured, not read** (2026-09-19, on `dup/move-the-fixture-family`):
+with `"topo/test-support"` appended to that list,
+`scripts/gates/test-features-dev-only.sh` passes (26 manifests),
+`cargo check -p sweep --lib --features test-support` compiles a
+`src/test_support.rs` naming `topo::test_support::arena_counts`, and
+`cargo check --workspace --all-targets` is clean. The probe was
+reverted; nothing of it is committed.
+
+**So what actually blocks it is the brief's own sentence**, not the
+gate: link 3's plan says *"No manifest edge is added at any step."* A
+feature appended to an existing forward list is a manifest **change**,
+not a new **edge**, so whether that sentence reaches it is a reading
+of the brief and a small one — it is the cheapest of the three
+blockers by a wide margin and should not be counted alongside 1.
+
+`stl` and `step-export` are not in this bind at all — their `pub use
+sweep::test_support::brick` lives in `tests/`, so a dev-dependency
+feature would do — but they cannot move ahead of `sweep` without
+building their boxes from one family and their `cube()` from another.
+
+## 3. The swap re-authors committed bytes — a SCOPING argument, not a blocker
+
+`crates/sweep/src/test_support.rs`'s header says it, under *"Editing a
+fixture here re-authors committed bytes"*: `step-export`'s
+`examples/export_fixtures` regenerates that crate's committed `.step`
+corpus from these builders, and `committed_fixtures_are_byte_golden`
+runs on every PR. The two constructions are the same solid but assign
+the curve arena's twelve keys to edges in a different order and write
+`Intersection`'s `(s1, s2)` the other way round on the four bottom-rim
+edges (measured, `brick-has-two-constructions-and-two-homes`,
+2026-09-16). So the delegation is a re-baseline of checked-in `.step`
+files.
+
+**That is not a reason not to do it and must not be read as one.**
+`docs/prompts/implementer-discipline.md` §3, `crates/sweep/src/test_support.rs`'s
+own header and CLAUDE.md all say the same thing: a golden exists to
+report what the kernel does, and when it moves the only question is
+whether the new bytes are right. What this section buys is **scope** —
+the unit is a delegation plus a re-baseline with its own argument about
+which body the corpus should show, so it is not the one-line body
+change the brief's sentence makes it sound like. Reason 1 is what
+carries the deviation on its own.
+
+## What would settle it
+
+§2 is settled (above). The cheapest remaining measurement is whether
+the swap moves the committed STEP bytes at all: the arena permutation may or may not reach the
+exporter's entity numbering, and nobody has run it. If it does not, 1
+and 2 are the whole cost. If it does, the unit is a delegation plus a
+re-baseline with its own argument about which body the corpus should
+show.
+
+Not blocked on anything: the home it needed exists now.

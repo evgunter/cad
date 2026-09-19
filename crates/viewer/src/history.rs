@@ -170,7 +170,7 @@ impl History {
             history.commit(
                 LoggedEdit {
                     edit: entry.edit.clone(),
-                    maintenance: applied.maintenance,
+                    maintenance: applied.cluster_rows(),
                 },
                 applied.doc,
             );

@@ -8,26 +8,13 @@
 use crate::common::approx::band;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::block;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(w, 0.0), 0.0),
-        ProfileVertex::new(p2(w, d), 0.0),
-        ProfileVertex::new(p2(0.0, d), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("rectangle profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("rectangle extrudes")
-        .body
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -106,7 +93,7 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
 /// face offsets (no margin exists), the cavity is inside-out.
 #[test]
 fn probe_overthick_box_fails_loud() {
-    let r = topo::shell(&boxy(2.0, 3.0, 4.0), 1.9, Tol::witness());
+    let r = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 1.9, Tol::witness());
     match r {
         Err(e) => println!("[probe] overthick box: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -121,7 +108,7 @@ fn probe_overthick_box_fails_loud() {
 /// PR's own named gap fixture. Every per-face margin is positive.
 #[test]
 fn probe_overhalf_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.6, Tol::witness());
+    let r = topo::shell(&block(4.0, 4.0, 1.0, Tol::witness()), 0.6, Tol::witness());
     match r {
         Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -135,7 +122,7 @@ fn probe_overhalf_slab_fails_loud() {
 /// Exactly half the thickness: the cavity's top and bottom coincide.
 #[test]
 fn probe_exact_half_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.5, Tol::witness());
+    let r = topo::shell(&block(4.0, 4.0, 1.0, Tol::witness()), 0.5, Tol::witness());
     match r {
         Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -230,7 +217,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// void with the dilated twin as its OUTER shell.
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
-    let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
+    let hollow = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
         .expect("the first shell is the PR's own green row")
         .body;
     let shelled = topo::shell(&hollow, 0.05, Tol::witness())
@@ -285,36 +272,30 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
 #[test]
 fn probe_opened_box_census() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let cup = topo::shell_open(&body, t, &[top], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
-    let v = cup.vertices().count() as i64;
-    let e = cup.edges().count() as i64;
-    let f = cup.faces().count() as i64;
-    let r: i64 = cup.faces().map(|(_, fc)| fc.rings.len() as i64).sum();
-    let s = cup.shells().count() as i64;
+    let counts = euler_counts(&cup);
+    let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] cup census: V={v} E={e} F={f} R={r} S={s}");
     assert_eq!(
         (v, e, f, r, s),
         (16, 24, 11, 1, 1),
         "the rim surgery's census"
     );
-    assert_eq!(v - e + f - r, 2 * s, "Euler–Poincaré at genus 0");
+    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré at genus 0");
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
     let tube = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
-    let v = tube.vertices().count() as i64;
-    let e = tube.edges().count() as i64;
-    let f = tube.faces().count() as i64;
-    let r: i64 = tube.faces().map(|(_, fc)| fc.rings.len() as i64).sum();
-    let s = tube.shells().count() as i64;
+    let counts = euler_counts(&tube);
+    let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] tube census: V={v} E={e} F={f} R={r} S={s}");
-    assert_eq!(v - e + f - r, 2 * (s - 1), "Euler–Poincaré at genus 1");
+    assert_eq!(counts.genus(), Ok(1), "Euler–Poincaré at genus 1");
 }
 
 /// TWO ADJACENT faces designated open — the designation the acceptance
@@ -324,7 +305,7 @@ fn probe_opened_box_census() {
 #[test]
 fn probe_adjacent_two_face_opening() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let side = plane_face_x(&body, w);
     match topo::shell_open(&body, t, &[top, side], Tol::witness()) {
@@ -413,7 +394,7 @@ fn probe_opened_vessel_cup() {
             // THE RINGS: one, and on the mouth plane — the rim is the
             // annulus between the wall's two radii, not a copy of the
             // cavity cap's own boundary laid over the designated face.
-            let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+            let counts = euler_counts(&cup);
             let mouth: Vec<FaceKey> = cup
                 .faces()
                 .filter(|(_, f)| {
@@ -428,18 +409,11 @@ fn probe_opened_vessel_cup() {
                 1,
                 "the rim carries exactly one ring"
             );
-            assert_eq!(rings, 1, "and that is the body's only ring");
+            assert_eq!(counts.r, 1, "and that is the body's only ring");
             // THE GENUS: `topo::shell`'s own docs say a cup is 0.
-            let (v, e, f) = (
-                cup.vertices().count() as i64,
-                cup.edges().count() as i64,
-                cup.faces().count() as i64,
-            );
-            let chi = v - e + f - rings as i64;
-            assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
             assert_eq!(
-                cup.shells().count() as i64 - chi / 2,
-                0,
+                counts.genus(),
+                Ok(0),
                 "one opening gives a cup, which is genus 0"
             );
             // THE MESH: the consumer that discovered #1082, run here.
@@ -457,8 +431,8 @@ fn probe_opened_vessel_cup() {
                 props.volume_pad
             );
             println!(
-                "[probe] vessel cup: Ok and coherent (volume {}, rings {rings})",
-                props.volume
+                "[probe] vessel cup: Ok and coherent (volume {}, rings {})",
+                props.volume, counts.r
             );
         }
     }
@@ -468,7 +442,7 @@ fn probe_opened_vessel_cup() {
 /// fires. A key minted past the operand's face count cannot resolve.
 #[test]
 fn probe_stale_designation_refuses_typed() {
-    let body = boxy(2.0, 3.0, 4.0);
+    let body = block(2.0, 3.0, 4.0, Tol::witness());
     let big = prism(
         &[
             (0.0, 0.0),

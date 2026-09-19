@@ -2,8 +2,9 @@
 id: k-lint-last-round-is-eps-coupled-but-unrostered
 kind: issue
 title: props_quad_last_round is eps-coupled by the criterion the roster pin now applies, and is not on the roster
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-16
 ---
 
 
@@ -81,3 +82,80 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Ruled (2026-09-16): stays off, and one premise above was wrong
+
+**The second branch, with the first branch's measurement taken anyway.**
+`docs/K-REPORT.md` now carries the ruling beside "Maintenance: this
+roster is a RECORD", and `k_lint::EPS_COUPLED_UNRULED` is its
+machine-readable half — the list moved out of
+`tools/k-lint/tests/predicate_roster.rs`'s `NOT_ROSTERED` and into the
+crate, because the CLI reads it too.
+
+**What this file got wrong.** *"it emits zero rows in every committed
+baseline"* is true and VACUOUS, and the Finding's argument leans on it
+as though it were a measurement. The kernel first minted
+`props_quad_last_round` on 2026-09-03 (`33342b11f`, TCOST-K1); the
+newest committed era, `m7-eps-*`, was swept on 2026-08-07. **No
+committed row could have named it.** The grep in the Confidence line
+found an absence it could not distinguish from the predicate not
+existing.
+
+**So the sweep was run.** `scripts/k_probe_sweep.sh` at `89c8766`:
+**zero `props_quad_last_round` rows in all three legs** — the gated
+corpus+demo files (1 263 818 / 1 263 826 / 1 263 838 samples, 277
+names), the M2 dump and the E6 driver dump — at every ε row, against
+`props_quad_converged`'s 92 / 104 / 116.
+
+**Read that as structure, not as coverage.** The mint is reached only
+from the two patch lanes and only after round 0 fails to certify;
+`cylinder_cut_face_rounds` has no budget exit, and in the committed
+era the shapes failing round 0 sit in the lane WITHOUT the mint. So
+the zero is determined by which lanes this corpus exercises, and the
+sample counts are the run's scale rather than evidence of reach. The
+informative numbers — faces entering a patch lane, faces failing round
+0 — are not reported by the sweep. The Confidence line's open half
+— *"unsure whether a corpus that reaches the budget exit exists in the
+wild set at all"* — is closed in the direction it asked: none does.
+
+**A second-floor argument this unit first shipped was FALSE, and the
+correction is worth keeping** because the file's own "What a unit here
+does" raises it. The first version said the two families differ in
+that `props_quad_last_round`'s refusal side is unbounded below where
+the rostered family's headroom is bounded by the target. It is not:
+`props_quad_converged` carries 24 negative draws at the 1e-9 row of
+the committed era and 48 at 1e-12, reaching `|m| = 1.83e-4` ≈
+`1.8e8·ε`, and the P0 rule (4)'s floor is cut from is itself a
+negative row. Both families record a signed headroom with an unbounded
+refusal side. What actually differs is the SAMPLE — once per round,
+recording the round that stopped, versus once per FACE, recording a
+lower bound on a round that never ran — and whether those two lower
+tails are the same shape is precisely what no draw has been taken on.
+The ruling rests on the absence of draws, which is measured and
+sufficient.
+
+**What keeps the ruling honest** is two rows, written out in the
+K-REPORT ruling. A row of an `EPS_COUPLED_UNRULED` name is a FINDING
+in `tools/k-lint` — it fails the run in a voice that names this ruling
+and says the baseline re-derivation is not the recourse, on rules
+(2)/(3)'s demotable side — and
+`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
+reds if the era the floor is cut from ever carries one.
+
+**The gate is on the NAME, not on a margin, and that is the point.**
+The metre rules see nothing on the refusal side, and a budget refusal
+does not surface elsewhere either: `crates/topo/src/props.rs`'s
+`sign_certified` keeps the enclosure and reports the refusal only
+through `last_word`, which is asked exactly when `settle` never
+accepted — so when `settle` accepts the sign off the enclosure, these
+readings accumulate on a wholly green suite. An earlier version of
+this section claimed such a corpus would already be a red suite; it
+would not.
+
+**Consistent with `k-lint-eps-coupled-criterion-unwritten`, which stays
+parked.** That row's account of the cost — the family judged by the
+metre rules, below `BASELINE_FLOOR_MARGIN` at the tight rows, with the
+CLI's recourse pointing at a baseline re-derivation that will not move
+— is exactly right, and the note above is what stops it being the
+reader's problem for THIS name. It does not touch the general
+criterion, which is still PROPS' to supply.

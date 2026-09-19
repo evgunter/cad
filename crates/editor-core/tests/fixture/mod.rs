@@ -36,13 +36,20 @@ pub mod resolver;
 /// The whole-frame product oracle a mate suite measures a seat with.
 pub mod seat;
 
+/// The value-channel digest a cross-scalar differential reads — the one
+/// feed behind every "bit-identical to the `f64` run" claim in this tree.
+pub mod value_channel;
+
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
-    EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, Node, ParamName, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach, RoleSeg,
-    SolvedPoses, StableName, assemble, evaluate, mate_reach, solve_document,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
+    Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
+    ParamName, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    solve_document,
 };
-use geom_core::Tol;
+use geom_core::{Point3, Tol};
+use std::collections::HashSet;
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 
 /// **The evaluation, through the ordinary door** — `evaluate` at
 /// `f64` with a fresh cancel token and the witness tolerance, which
@@ -71,6 +78,28 @@ pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
 /// The gate's own refusal, unaltered.
 pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
     assemble(doc, ev, Tol::witness()).map(|_| ())
+}
+
+/// A mate head over a name this fixture built as a face, read at its
+/// own mint.
+///
+/// A head is an `editor_core::SitedFace`, so the kind is the type's
+/// and a fixture that names an edge does not compile. The `expect` in
+/// [`face`] is the fixture's own claim that the name it just made is a
+/// face — if it is not, the fixture is wrong and says so where it is
+/// built.
+pub fn head(name: StableName) -> editor_core::SitedFace {
+    editor_core::SitedFace::at_mint(face(name))
+}
+
+/// The same head read at `at` rather than at its mint.
+pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
+    editor_core::SitedFace::new(at, face(name))
+}
+
+/// A fixture's name as an `editor_core::FaceName`.
+pub fn face(name: StableName) -> editor_core::FaceName {
+    editor_core::FaceName::new(name).expect("the fixture names a face")
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
@@ -170,19 +199,16 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 ///
 /// A test that builds a `profile::Profile` by hand needs the plane the
 /// profile's `plane` id names, and the id alone is not it. Reads the
-/// frame's authored literals and hands them to the same
-/// `SketchPlane::from_frame` the evaluator's own read uses.
-///
-/// **Orthonormality is the caller's, as it is at every other
-/// `from_frame`** — this asserts rather than orthogonalizes, so a
-/// fixture whose frame is not already orthonormal fails here instead of
-/// silently getting a different plane from the one the evaluator would
-/// build. Every fixture frame in this tree is authored orthonormal.
+/// frame's authored literals and mints the SAME frame witness the
+/// evaluator mints from them — Gram–Schmidt under the datum
+/// boundary's own funnel name — so the plane here is the evaluator's
+/// bit for bit whether or not the fixture authored an orthonormal
+/// pair.
 ///
 /// # Panics
 ///
 /// If `plane` is not a `Datum::Frame`, if its components are not
-/// literals, or if `u` and `v` are not an orthonormal pair.
+/// literals, or if `u` and `v` span no plane.
 pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
@@ -195,19 +221,16 @@ pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f
         geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
     };
     let (o, u, v) = (read(origin), read(u), read(v));
-    for (name, w) in [("u", u), ("v", v)] {
-        assert!(
-            (w.norm() - 1.0).abs() < 1e-12,
-            "fixture frame {}'s {name} is not unit",
-            plane.0
-        );
-    }
-    assert!(
-        u.dot(v).abs() < 1e-12,
-        "fixture frame {}'s u and v are not perpendicular",
-        plane.0
-    );
-    profile::SketchPlane::from_frame(geom_core::Point3::new(o.x, o.y, o.z), u, v)
+    profile::SketchPlane::from_frame(
+        geom_core::OrthoFrame::gram_schmidt(
+            geom_core::Point3::new(o.x, o.y, o.z),
+            u,
+            v,
+            topo::DATUM_UNIT_NORM,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band"),
+        )
+        .expect("a fixture frame's two axes span a plane"),
+    )
 }
 
 /// The world xy frame as a node — origin at the world origin, sketch
@@ -328,11 +351,11 @@ impl Recorder {
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
         let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
             .expect("recorded edit must apply");
-        self.doc = applied.doc;
         self.edits.push(LoggedEdit {
             edit,
-            maintenance: applied.maintenance,
+            maintenance: applied.cluster_rows(),
         });
+        self.doc = applied.doc;
         applied.record.minted
     }
 
@@ -527,8 +550,8 @@ pub fn die() -> Die {
             // sketch plane, which IS the cube face's plane).
             let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
             let decl = r.insert(Node::declare_rest(vec![(
-                cube_face_names[face_idx].clone(),
-                pip_cap,
+                SitedRef::new(acc, cube_face_names[face_idx].clone()),
+                SitedRef::new(tr, pip_cap),
             )]));
             let sub = r.insert(Node::Boolean {
                 op: editor_core::BooleanOp::Subtract,
@@ -559,22 +582,215 @@ pub fn die() -> Die {
 
 pub mod pr4;
 
-/// One face name at a node (authoring shorthand).
-pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+/// **The witness tolerance a suite decides under** — `Tol::witness()`
+/// under the name the suites reach for it by.
+pub fn tol() -> Tol {
+    Tol::witness()
+}
+
+/// **A one-segment name at a node** — the whole of what "the name
+/// `node` mints for `seg`" is, for any entity kind. [`fname`],
+/// [`ename`] and [`vname`] are this with the kind spelled in the
+/// call.
+pub fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
     StableName {
-        kind: EntityKind::Face,
+        kind,
         node,
         path: vec![seg],
     }
 }
 
+/// One face name at a node (authoring shorthand).
+pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    minted(EntityKind::Face, node, seg)
+}
+
+/// One vertex name at a node (authoring shorthand).
+pub fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
+    minted(EntityKind::Vertex, node, seg)
+}
+
+/// **A cap RIM edge of an extrude**, by name — the arc cap `end`
+/// shares with the wall over outer- or hole-loop segment `edge`.
+pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> StableName {
+    ename(node, RoleSeg::RimEdge(end, edge))
+}
+
+/// **A cap VERTEX of an extrude**, by name — the corner cap `end`
+/// carries at profile vertex `vertex`.
+pub fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: ProfileVertexRef) -> StableName {
+    vname(node, RoleSeg::CapVertex(end, vertex))
+}
+
+/// **The symmetric U cutter, whose subtract table holds an N2 tie** —
+/// a 4x4x4 block with a U-shaped prism cut through it, the U's two
+/// arms congruent so nothing covariant discriminates the faces they
+/// mint and the table records one `Entry::Tied` row instead of two
+/// names. Returns the subtract node.
+///
+/// One home for a document a row needs when it needs a REAL tie
+/// rather than a hand-planted one. The same four-node shape is
+/// hand-copied across this tree; `work/wire` carries the row for
+/// re-pointing those copies here.
+pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, block_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]],
+    );
+    let (doc, target) = insert(
+        doc,
+        Node::Extrude {
+            profile: block_profile,
+            distance: len(4.0),
+        },
+    );
+    let (doc, u_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
+    );
+    let (doc, cutter) = insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile,
+            distance: len(2.0),
+        },
+    );
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Subtract,
+            a: target,
+            b: cutter,
+            declare: None,
+        },
+    )
+}
+
 /// One edge name at a node (authoring shorthand).
 pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![seg],
+    minted(EntityKind::Edge, node, seg)
+}
+
+// ---------------------------------------------------------------- //
+// Reading an evaluation, its tables and its bodies
+// ---------------------------------------------------------------- //
+//
+// ONE home for the readers every name-reading suite spells for itself.
+// Each is the loud form: a missing node, a name that resolves to
+// nothing or to the wrong KIND of thing, or a dead key, is a panic
+// naming the subject rather than a `None` a row can drop on the floor.
+
+/// The name table `id` published, or a panic naming what it did
+/// instead.
+pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
+    &ev.value(id)
+        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
+        .name_table
+}
+
+/// The one entity a name answers to — the row's loud end when a mint
+/// is missing, misspelled or aliased. `what` is the caller's word for
+/// the subject, so a failure says which row's name did not resolve.
+pub fn key_of(t: &NameTable, what: &str, n: &StableName) -> EntityKey {
+    match t.lookup(n) {
+        Some(Entry::Unique(r)) => r.key,
+        other => panic!("{what}: {n:?} is not uniquely named: {other:?}"),
     }
+}
+
+/// [`key_of`], refusing anything that is not an edge.
+pub fn edge_of(t: &NameTable, what: &str, n: &StableName) -> EdgeKey {
+    match key_of(t, what, n) {
+        EntityKey::Edge(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not an edge"),
+    }
+}
+
+/// [`key_of`], refusing anything that is not a vertex.
+pub fn vertex_of(t: &NameTable, what: &str, n: &StableName) -> VertexKey {
+    match key_of(t, what, n) {
+        EntityKey::Vertex(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not a vertex"),
+    }
+}
+
+/// [`key_of`], refusing anything that is not a face.
+pub fn face_of(t: &NameTable, what: &str, n: &StableName) -> FaceKey {
+    match key_of(t, what, n) {
+        EntityKey::Face(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not a face"),
+    }
+}
+
+/// How many names in `t` take `seg`'s role.
+pub fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
+    t.iter().filter(|(n, _)| seg(&n.path[0])).count()
+}
+
+/// Where a vertex stands.
+pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
+    topo::readback::vertex_point(body, v).expect("a live vertex")
+}
+
+/// An edge's two end vertices.
+pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
+    let edge = body.get_edge(e).expect("a live edge");
+    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
+    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
+    [h.start, far]
+}
+
+/// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
+/// the body rather than inferred from the surface it is a region of.
+/// An empty ring contributes its lone vertex: a pole is a vertex of
+/// the extent that bounds none of the face's edges.
+pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
+    let face = body.get_face(f).expect("a live face");
+    let mut out = HashSet::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        match body.get_loop(lk).expect("a live loop").boundary {
+            LoopBoundary::Empty { vertex } => {
+                out.insert(vertex);
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first).expect("a closed cycle") {
+                    out.insert(body.get_half_edge(he).expect("a live half-edge").start);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every edge on `f`'s boundary — [`face_vertices`]'s twin over the
+/// same walk. An empty ring bounds no edge, so it contributes nothing
+/// here.
+pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
+    let face = body.get_face(f).expect("a live face");
+    let mut out = HashSet::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        if let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary {
+            for he in body.loop_cycle(first).expect("a closed cycle") {
+                out.insert(body.get_half_edge(he).expect("a live half-edge").edge);
+            }
+        }
+    }
+    out
 }
 
 /// **The twelve edges of an extruded `n`-gon prism, by name** — the
@@ -592,8 +808,8 @@ pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
             loop_index: 0,
             segment: seg,
         };
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Start, e)));
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::End, e)));
+        out.push(rim_edge(node, CapEnd::Start, e));
+        out.push(rim_edge(node, CapEnd::End, e));
         out.push(ename(
             node,
             RoleSeg::LateralEdge(ProfileVertexRef {
@@ -613,6 +829,67 @@ pub fn wall(seg: u32) -> RoleSeg {
     })
 }
 
+/// **The four flush families two x-offset blocks share** — the walls
+/// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
+/// caps — in ONE place, so a suite that names them and a suite that
+/// declares them cannot disagree about which four they are.
+pub fn flush_segs() -> [RoleSeg; 4] {
+    [
+        wall(0),
+        wall(2),
+        RoleSeg::Cap(CapEnd::Start),
+        RoleSeg::Cap(CapEnd::End),
+    ]
+}
+
+/// **Those four families as a declared pair list**, each side SITED:
+/// `at` is the operand (or member) the entity is read at, and the
+/// name is the one the extrude `ext` minted, which a pass-through op
+/// carries verbatim (N1).
+pub fn flush_pairs(
+    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
+    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
+) -> Vec<(SitedRef, SitedRef)> {
+    flush_segs()
+        .into_iter()
+        .map(|seg| {
+            (
+                SitedRef::new(a_at, fname(a_ext, seg.clone())),
+                SitedRef::new(b_at, fname(b_ext, seg)),
+            )
+        })
+        .collect()
+}
+
+/// **One ENTITY of one member, in the UNION's own name space** — the
+/// row `member_view` puts into that member's operand table, and the
+/// shape a union's published table carries.
+///
+/// The test-side spelling of the crate's `names::member_name`, which
+/// is crate-private. One home, so a suite that reads a union's table
+/// and a suite that writes an expected row spell the rule once.
+pub fn member_entity(
+    union: RecipeNodeId,
+    member: RecipeNodeId,
+    of: StableName,
+    kind: EntityKind,
+) -> StableName {
+    StableName {
+        kind,
+        node: union,
+        path: vec![RoleSeg::FromMember {
+            member,
+            of: of.into(),
+        }],
+    }
+}
+
+/// The same, for the FACE case every row but a carried-contact one
+/// wants.
+pub fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
+    member_entity(union, member, of, EntityKind::Face)
+}
+
 /// A `Declare` node pairing the flush planes of two axis-aligned
 /// extruded blocks that share their y-range and z-range and differ
 /// along x only (the corpus's standard sliding-overlap shape): walls
@@ -624,19 +901,26 @@ pub fn declare_x_offset_flush(
     a_ext: RecipeNodeId,
     b_ext: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let pairs = vec![
-        (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
-        (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
-        (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Start)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Start)),
-        ),
-        (
-            fname(a_ext, RoleSeg::Cap(CapEnd::End)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::End)),
-        ),
-    ];
-    insert(doc, Node::declare_rest(pairs))
+    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
+}
+
+/// The same, when the consuming boolean's OPERAND is not the extrude
+/// that minted the names — a transform of it, which contributes no
+/// role segment (N1) and so carries the extrude's names verbatim.
+///
+/// The site is the operand, always: it is what says which side of the
+/// boolean the name is read on.
+pub fn declare_x_offset_flush_at(
+    doc: ProfileDoc,
+    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
+    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
+) -> (ProfileDoc, RecipeNodeId) {
+    // Each name is sited at the OPERAND whose table holds it, which
+    // is what says which side of the boolean it is read on.
+    insert(
+        doc,
+        Node::declare_rest(flush_pairs((a_at, a_ext), (b_at, b_ext))),
+    )
 }
 
 /// **What every at-rest finding says about a declaration, in one
@@ -768,7 +1052,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             vertex: x,
             support: y,
         }
-        | RoleSeg::CornerArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })

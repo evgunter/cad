@@ -12,22 +12,18 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
     union_with,
 };
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
-
 /// A flush stack: two bricks meeting on z = 1, independently authored.
 fn stacked() -> (Body<f64>, Body<f64>) {
     (
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
-        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0)),
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
     )
 }
 
@@ -39,7 +35,7 @@ fn stacked() -> (Body<f64>, Body<f64>) {
 #[test]
 fn declared_rest_unions_and_replays_records_bit_identically() {
     let (a, b) = stacked();
-    let decls = flush_declarations(&a, &b);
+    let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(
         !decls.coincident_faces.is_empty(),
         "the stack's shared cap must be found"
@@ -95,7 +91,7 @@ fn undeclared_kiss_still_refuses() {
 #[test]
 fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
     let (a, b) = stacked();
-    let rest = flush_declarations(&a, &b);
+    let rest = flush_declarations(&a, &b, Tol::witness());
     let mut tangent = rest.clone();
     for d in &mut tangent.coincident_faces {
         *d = FacePairDeclaration::new(d.a, d.b, ContactClass::Tangent);
@@ -138,8 +134,8 @@ fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
 fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     // Full-face stacked plates: the mate is a pure REST contact, so
     // the declared-REST lane runs and verifies every declared pair.
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
+    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
     let cap_of = |body: &Body<f64>, z: f64| -> topo::FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -156,7 +152,7 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     // A's z = 0 floor is ALSO declared flush with B's z = 2 ceiling:
     // parallel, definitely offset by 2 m. The lane verifies every
     // declared pair, so the lie meets geometry and refuses.
-    let mut decls = flush_declarations(&a, &b);
+    let mut decls = flush_declarations(&a, &b, Tol::witness());
     decls
         .coincident_faces
         .push(FacePairDeclaration::rest(cap_of(&a, 0.0), cap_of(&b, 2.0)));
@@ -191,7 +187,7 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
 #[test]
 fn a_declaration_without_a_class_is_unrepresentable() {
     let (a, b) = stacked();
-    let decls = flush_declarations(&a, &b);
+    let decls = flush_declarations(&a, &b, Tol::witness());
     // Every constructor takes the class as an argument; there is no
     // class-less mint, so "I forgot the class" is a compile error and
     // never a silent `Rest`.

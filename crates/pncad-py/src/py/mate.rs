@@ -32,7 +32,9 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::mate_fault_tag;
+use crate::tags::{
+    class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -249,10 +251,14 @@ impl MatePrimitive {
     }
 
     /// The primitive's stable tag: `frame_coincidence`, `coaxial`,
-    /// `planar_rest`, `clocking`.
+    /// `planar_rest` or `clocking` — one word per constructor on this
+    /// class, spelled the same way, so the vocabulary is the class's
+    /// own staticmethods.
+    // The map is `crate::tags::mate_primitive_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        primitive_tag(self.0)
+        mate_primitive_tag(self.0)
     }
 
     /// The planar rest's signed standoff, `None` for every other
@@ -277,19 +283,8 @@ impl MatePrimitive {
             d::MatePrimitive::PlanarRest { offset } => {
                 format!("MatePrimitive.planar_rest({offset} m)")
             }
-            other => format!("MatePrimitive.{}()", primitive_tag(other)),
+            other => format!("MatePrimitive.{}()", mate_primitive_tag(other)),
         }
-    }
-}
-
-/// The stable tag for a mate primitive. Exhaustive over the kernel
-/// enum, so a primitive added there stops this build.
-fn primitive_tag(primitive: d::MatePrimitive) -> &'static str {
-    match primitive {
-        d::MatePrimitive::FrameCoincidence => "frame_coincidence",
-        d::MatePrimitive::Coaxial => "coaxial",
-        d::MatePrimitive::PlanarRest { .. } => "planar_rest",
-        d::MatePrimitive::Clocking => "clocking",
     }
 }
 
@@ -377,7 +372,7 @@ impl Alignment {
     fn __repr__(&self) -> String {
         format!(
             "Alignment(primitive={}, sense={:?}, clocking={:?})",
-            primitive_tag(self.0.primitive),
+            mate_primitive_tag(self.0.primitive),
             self.0.sense,
             self.0.clocking
         )
@@ -401,14 +396,13 @@ pub(crate) struct ClassAdmission(d::ClassAdmission);
 
 #[pymethods]
 impl ClassAdmission {
-    /// The stable tag: `mints`, `no_at_rest_record`, `not_admitted`.
+    /// The stable tag: `mints`, `no_at_rest_record` or
+    /// `not_admitted`, the three the stub lists for this attribute.
+    // The map is `crate::tags::class_admission_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::ClassAdmission::Mints => "mints",
-            d::ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
-            d::ClassAdmission::NotAdmitted => "not_admitted",
-        }
+        class_admission_tag(&self.0)
     }
 
     /// Whether both doors admit the class: the solve folds it AND the
@@ -501,18 +495,14 @@ pub(crate) struct Subgroup(d::Subgroup);
 #[pymethods]
 impl Subgroup {
     /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
-    /// `revolute`, `trivial`, `empty`.
+    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
+    /// this attribute. `empty` is the contradictory answer and
+    /// `trivial` the fully located one.
+    // The map is `crate::tags::subgroup_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::Subgroup::Se3 => "se3",
-            d::Subgroup::Planar { .. } => "planar",
-            d::Subgroup::Cylindrical { .. } => "cylindrical",
-            d::Subgroup::Prismatic { .. } => "prismatic",
-            d::Subgroup::Revolute { .. } => "revolute",
-            d::Subgroup::Trivial => "trivial",
-            d::Subgroup::Empty => "empty",
-        }
+        subgroup_tag(&self.0)
     }
 
     /// The plane's unit normal, for `planar`.
@@ -1011,37 +1001,79 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
         .collect()
 }
 
-// ---- Cluster-record maintenance ----
+// ---- The accepted edit's maintenance ----
 
-/// One recorded act of cluster-record maintenance: what an ordinary
-/// edit's motion of the mate graph forced on the placement registry.
+/// One act of automatic maintenance an accepted edit performed: what
+/// an ordinary edit's motion of the mate graph forced on the placement
+/// registry, or a reference its delete stranded.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
 /// automatic maintenance is the invariant's own bookkeeping,
 /// deterministic from the edit, so a replay reproduces it and undo
 /// (keeping the prior document) restores it exactly. What the record
 /// adds is VISIBILITY: an absorbed cluster's frame is consumed here,
-/// where a caller can read what was consumed.
+/// where a caller can read what was consumed, and a stranded name is
+/// said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
 /// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
-/// `target`, `frame`, `gauge`. (`source`/`target` rather than
-/// `from`/`to`: `from` is a Python keyword.)
+/// `target`, `frame`, `gauge` for the four cluster acts; `node` and
+/// `name` for a strand, `name` alone for a `stranded_appearance`,
+/// whose carrier is the appearance store and not a node.
+/// (`source`/`target` rather than `from`/`to`: `from` is a Python
+/// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct ClusterMaintenance(pub(crate) d::ClusterMaintenance);
+pub(crate) struct Maintenance(pub(crate) d::Maintenance);
+
+impl Maintenance {
+    /// The cluster act this row is, or `None` for a strand — the one
+    /// place the four cluster attributes narrow, so each getter below
+    /// states only which act carries it.
+    fn cluster(&self) -> Option<&d::ClusterMaintenance> {
+        match &self.0 {
+            d::Maintenance::Cluster(act) => Some(act),
+            d::Maintenance::Strand { .. } | d::Maintenance::StrandedAppearance { .. } => None,
+        }
+    }
+}
 
 #[pymethods]
-impl ClusterMaintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`.
+impl Maintenance {
+    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
+    /// `strand` or `stranded_appearance`, the six the stub lists for
+    /// this attribute. The word decides which of the payload
+    /// attributes below carry.
+    // The map is `crate::tags::maintenance_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        use d::ClusterMaintenance as M;
-        match self.0 {
-            M::Join { .. } => "join",
-            M::Split { .. } => "split",
-            M::GaugeRewrite { .. } => "gauge_rewrite",
-            M::Drop { .. } => "drop",
+        maintenance_tag(&self.0)
+    }
+
+    /// The surviving node whose payload carries a stranded name —
+    /// `None` for a `stranded_appearance`, which has no carrying node
+    /// to name.
+    #[getter]
+    fn node(&self) -> Option<NodeId> {
+        match &self.0 {
+            d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
+            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
+        }
+    }
+
+    /// The stranded name itself, in the opaque text every name door
+    /// on this surface speaks — the payload name for a `strand`, the
+    /// appearance store's key for a `stranded_appearance`. Its
+    /// minting node is the one the edit deleted; `Doc.rebind` is the
+    /// repair this surface carries for either one.
+    #[getter]
+    fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        match &self.0 {
+            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
+                super::doc::name_text(py, name).map(Some)
+            }
+            d::Maintenance::Cluster(_) => Ok(None),
         }
     }
 
@@ -1049,7 +1081,7 @@ impl ClusterMaintenance {
     #[getter]
     fn survived(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Join { survived, .. } => Some(NodeId(survived)),
             M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
@@ -1059,7 +1091,7 @@ impl ClusterMaintenance {
     #[getter]
     fn absorbed(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Join { absorbed, .. } => Some(NodeId(absorbed)),
             M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
         }
@@ -1070,7 +1102,7 @@ impl ClusterMaintenance {
     #[getter]
     fn absorbed_frame(&self) -> Option<Frame> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Join {
                 absorbed_frame: f, ..
             } => f.map(Frame),
@@ -1082,7 +1114,7 @@ impl ClusterMaintenance {
     #[getter]
     fn source(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { from, .. } | M::GaugeRewrite { from, .. } => Some(NodeId(from)),
             M::Join { .. } | M::Drop { .. } => None,
         }
@@ -1092,7 +1124,7 @@ impl ClusterMaintenance {
     #[getter]
     fn target(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { to, .. } | M::GaugeRewrite { to, .. } => Some(NodeId(to)),
             M::Join { .. } | M::Drop { .. } => None,
         }
@@ -1103,7 +1135,7 @@ impl ClusterMaintenance {
     #[getter]
     fn frame(&self) -> Option<Frame> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Split { frame, .. } | M::GaugeRewrite { frame, .. } | M::Drop { frame, .. } => {
                 frame.map(Frame)
             }
@@ -1117,14 +1149,14 @@ impl ClusterMaintenance {
     #[getter]
     fn gauge(&self) -> Option<NodeId> {
         use d::ClusterMaintenance as M;
-        match self.0 {
+        match *self.cluster()? {
             M::Drop { gauge, .. } => Some(NodeId(gauge)),
             M::Join { .. } | M::Split { .. } | M::GaugeRewrite { .. } => None,
         }
     }
 
     fn __repr__(&self) -> String {
-        format!("ClusterMaintenance({:?})", self.variant())
+        format!("Maintenance({:?})", self.variant())
     }
 }
 
@@ -1140,7 +1172,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
-    m.add_class::<ClusterMaintenance>()?;
+    m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(clusters, m)?)?;
     m.add_function(wrap_pyfunction!(gauge_of, m)?)?;

@@ -123,38 +123,66 @@ pub fn expect_sidecar(name: &str) -> Expect {
     }
 }
 
-/// The body's census: (solids, shells, faces, edges, vertices) —
-/// plain arena counts, order-free.
-pub fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
-    (
-        body.solids().count(),
-        body.shells().count(),
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+/// The body's `(solids, shells, faces, edges, vertices)` — order-free
+/// arena lengths, the five a STEP file states.
+///
+/// **Named for the quantity, not for "the census".** `step-export`'s
+/// suites carry a three-component census of the same body and neither
+/// is the other's tuple; one name over two field sets is the drift
+/// `topo-arena-census-duplicate-spellings` is about. Both read the
+/// kernel's ONE producer of arena lengths rather than re-walking the
+/// arenas, so a transposition here is a transposition of named fields.
+pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
+    let c = topo::test_support::arena_counts(body);
+    (c.solids, c.shells, c.faces, c.edges, c.vertices)
+}
+
+/// **The options an own-corpus fixture imports under**, and the single
+/// declaration of which fixture needs what.
+///
+/// Exactly one fixture needs anything: `kiss_assembly`, the corpus's
+/// only touching assembly, whose corner kiss at (1, 1, 1) is DECLARED
+/// through the M9-2 import-side channel (D7 step 4) — the shared
+/// tier-3′ gate then certifies the touch instead of refusing it
+/// undeclared. A suite walking the corpus with options of its own
+/// calls this rather than restating the anchor: two spellings of which
+/// fixture is the exception drift apart silently, and the drift
+/// surfaces as one fixture refusing in one suite and importing in
+/// another.
+///
+/// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
+/// which every caller but the coherence-channel suite leaves `false`.
+pub fn own_import_options(name: &str, examine: bool) -> step_import::ImportOptions {
+    step_import::ImportOptions {
+        declared_contacts: if name == "kiss_assembly" {
+            vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }]
+        } else {
+            Vec::new()
+        },
+        examine_chart_coherence: examine,
+        ..step_import::ImportOptions::default()
+    }
 }
 
 /// Imports a fixture's committed `.step`, panicking on refusal (the
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    let options = if name.contains("kiss_assembly") {
-        step_import::ImportOptions {
-            // The corpus's one touching assembly: its corner kiss at
-            // (1, 1, 1) is DECLARED through the M9-2 import-side channel
-            // (D7 step 4) — the shared tier-3′ gate then certifies the
-            // touch instead of refusing it undeclared.
-            declared_contacts: vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..step_import::ImportOptions::default()
-        }
-    } else {
-        step_import::ImportOptions::default()
-    };
-    step_import::import_step(&text, &options, Tol::witness())
+    step_import::import_step(&text, &own_import_options(name, false), Tol::witness())
         .unwrap_or_else(|e| panic!("importing {name}: {e}"))
+}
+
+/// A committed half-cap fixture's text — issue 723's π-rad witness,
+/// one solid stated at four coordinate precisions under
+/// `tests/fixtures/halfcap/`. `name` carries its extension.
+pub fn halfcap_fixture(name: &str) -> String {
+    let path = format!(
+        "{}/tests/fixtures/halfcap/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
 }
 
 /// The imported solid body, panicking on a wireframe disposition.

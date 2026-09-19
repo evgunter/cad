@@ -102,6 +102,11 @@ proptest = { workspace = true }
 # rolled its own env dial would be a second channel with no such
 # argument behind it.
 test-utils = { path = "../test-utils" }
+# `rayon` for ONE suite: `mass_props_are_thread_count_invariant` builds an
+# explicit 1-thread and 4-thread pool, because `RAYON_NUM_THREADS`
+# configures the global pool once per process and cannot vary between two
+# rows of one binary. Dev-only — the crate itself takes no rayon edge.
+rayon = { workspace = true }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

@@ -66,18 +66,47 @@ pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: 
     Ok(())
 }
 
-/// The one list rendering: each finding composed on its own indented
-/// line under a header the CALLER has already written (headers are
-/// per-report prose — a count, a severity, a gate's name — not part
-/// of any finding).
+/// **The one list rendering**: one item per indented line under a
+/// header the CALLER has already written (headers are per-report prose
+/// — a count, a severity, a gate's name — not part of any item).
+///
+/// The item is whatever renders as ONE line, and the layer has two
+/// kinds. A [`Finding`] is three parts and reaches this through
+/// [`render_list`], which composes them. A payload that is ALREADY one
+/// composed sentence — a kernel `ValidationError`, an
+/// [`crate::MintRefusal`] — renders through its own `Display` and
+/// comes here directly: composing it again would invent a second
+/// vocabulary for a refusal that has one, which is what
+/// [`Finding::recourse`] returning `""` exists to avoid one rung down.
+///
+/// Both kinds route through this loop, so the list SHAPE — the
+/// newline, the indent — is written once for the layer.
+pub(crate) fn render_lines<T, I>(f: &mut fmt::Formatter<'_>, items: I) -> fmt::Result
+where
+    T: fmt::Display,
+    I: IntoIterator<Item = T>,
+{
+    for item in items {
+        write!(f, "\n  {item}")?;
+    }
+    Ok(())
+}
+
+/// [`render_lines`] over findings: each one [`compose`]d onto its line.
 pub(crate) fn render_list<'a, F, I>(f: &mut fmt::Formatter<'_>, findings: I) -> fmt::Result
 where
     F: Finding + 'a,
     I: IntoIterator<Item = &'a F>,
 {
-    for finding in findings {
-        f.write_str("\n  ")?;
-        compose(f, finding)?;
+    render_lines(f, findings.into_iter().map(Composed))
+}
+
+// A finding as ONE line: the adapter that lets [`render_list`] be
+// [`render_lines`] rather than a second copy of its loop.
+struct Composed<'a, F: ?Sized>(&'a F);
+
+impl<F: Finding + ?Sized> fmt::Display for Composed<'_, F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        compose(f, self.0)
     }
-    Ok(())
 }

@@ -1,17 +1,20 @@
 //! Adversarial e2e review artifact for M1 PR 3 (2026-07-16), promoted
-//! into the shipped suite per the standing convention
-//! (`memories/review-and-dependency-policy.md`): reviewers write and run
-//! real consumer programs against the API under review, and the
-//! programs are kept.
+//! into the shipped suite. A review exercises the API by writing and
+//! running real consumer programs, and the useful ones enter the
+//! permanent suite as ORDINARY rows
+//! (`memories/review-and-dependency-policy.md`): nothing here is a
+//! protected class, and these rows are trimmed, gated, shared or
+//! retired under the same rules as any other.
 //!
 //! Everything here goes through the public API. The derivations
 //! (ledgers, anchor rules, orbit orders, slot/generation semantics) are
 //! **independent re-derivations by the reviewer — do not "simplify"
 //! them to match the implementation's comments**; their value is
 //! exactly that they were computed from Mäntylä ch. 9/11 and the
-//! ratified conventions without reading the surgery code. Only exact
-//! duplicates of shipped unit tests were dropped at promotion;
-//! spirit-overlaps are deliberate redundancy.
+//! ratified conventions without reading the surgery code. Exact
+//! duplicates of shipped unit tests were dropped at promotion and the
+//! spirit-overlaps were not — a judgement taken about these rows then,
+//! not a standing exemption for them now.
 //!
 //! Highlights: an independently-routed triangular side-face through-hole
 //! (genus 1), the project's first genus-2 body (double hole, ledger
@@ -30,6 +33,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::EulerCounts;
+use crate::readback::euler_counts;
+use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::{
     Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
@@ -112,37 +118,6 @@ fn assert_err_unchanged(
     assert_eq!(snapshot(body), before, "body changed on Err");
 }
 
-/// The five Euler–Poincaré components genus is derived FROM, counted
-/// off the body. Genus itself is deliberately NOT a field: it is the
-/// quantity under test here, and carrying it would make [`genus`]
-/// tautological. (The crate's running six-component ledger, which does
-/// track `h`, is [`crate::seqgen::Ledger`].)
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-struct GenusInputs {
-    v: i64,
-    e: i64,
-    f: i64,
-    r: i64,
-    s: i64,
-}
-
-fn genus_inputs(body: &Body<f64>) -> GenusInputs {
-    GenusInputs {
-        v: body.vertices().count() as i64,
-        e: body.edges().count() as i64,
-        f: body.faces().count() as i64,
-        r: body.faces().map(|(_, face)| face.rings.len() as i64).sum(),
-        s: body.shells().count() as i64,
-    }
-}
-
-/// Derived genus: v − e + f − r = 2(s − h)  ⇒  h = s − (v−e+f−r)/2.
-fn genus(l: GenusInputs) -> i64 {
-    let x = l.v - l.e + l.f - l.r;
-    assert_eq!(x.rem_euclid(2), 0, "E–P parity violated: {l:?}");
-    l.s - x / 2
-}
-
 fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
     body.loop_cycle(he)
         .unwrap()
@@ -151,11 +126,11 @@ fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
         .collect()
 }
 
-fn check(body: &Body<f64>, expect: GenusInputs, h: i64) {
+fn check(body: &Body<f64>, expect: EulerCounts, h: i64) {
     assert_eq!(validate(body), Ok(()));
-    let l = genus_inputs(body);
+    let l = euler_counts(body);
     assert_eq!(l, expect);
-    assert_eq!(genus(l), h);
+    assert_eq!(l.genus(), Ok(h));
 }
 
 // ---------------------------------------------------------------------
@@ -183,51 +158,54 @@ struct BoxBuilt {
     f_left: MefCreated,
 }
 
+/// The interval every axis of [`build_box`] spans, named because the
+/// hole recipes below are written against it by literal coordinate and
+/// would have to move with it. [`carve_hole`] asserts every planted
+/// point against this, which is the check that reds if it changes.
+const BOX_EXTENT: (f64, f64) = (0.0, 2.0);
+
 /// The 2×2×2 box (cube-test sequence; PR 2 material, re-verified here
 /// via loop-walk assertions rather than trusted).
 fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
-    let pt = Point3::new;
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(2.0, 0.0, 0.0),
-            tol,
-        )
-        .unwrap(); // B
-    let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
-            .unwrap()
-    };
-    let e_bc = strut(body, e_ab.he_minus, 2.0, 2.0, 0.0); // C
-    let e_cd = strut(body, e_bc.he_minus, 0.0, 2.0, 0.0); // D
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            tol,
-        )
-        .unwrap();
-    let e_aa = strut(body, e_ab.he_plus, 0.0, 0.0, 2.0);
-    let e_bb = strut(body, e_bc.he_plus, 2.0, 0.0, 2.0);
-    let e_cc = strut(body, e_cd.he_plus, 2.0, 2.0, 2.0);
-    let e_dd = strut(body, f_bottom.he_plus, 0.0, 2.0, 2.0);
-    let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
-    let f_front = mef(body, e_aa.he_minus, e_bb.he_minus);
-    let f_right = mef(body, e_bb.he_minus, e_cc.he_minus);
-    let f_back = mef(body, e_cc.he_minus, e_dd.he_minus);
-    let f_left = mef(body, e_dd.he_minus, f_front.he_plus);
+    // `test_support_fixtures::prism_ops` over the [`BOX_EXTENT`] square,
+    // face geometry declined: the §9.4.2-minimal 1 mvfs + 7 mev + 5 mef.
+    //
+    // **The extent is load-bearing and nothing geometric guards it.**
+    // The hole recipes the three callers plant pierce this box's FACES,
+    // at the face coordinates 0.0 and 2.0 — flatly off a unit cube's
+    // faces — and cross its section at 0.5 and 1.5. `Declined` puts all
+    // six faces on the one NURBS placeholder, so no geometric tier can
+    // check a ring's vertex against the plane it is supposed to lie in:
+    // normalising this box would leave every hole mis-sited and every
+    // row still green. `carve_hole` carries the assertion that is the
+    // guard.
+    let ops = prism_ops(
+        body,
+        &[
+            (BOX_EXTENT.0, BOX_EXTENT.0),
+            (BOX_EXTENT.1, BOX_EXTENT.0),
+            (BOX_EXTENT.1, BOX_EXTENT.1),
+            (BOX_EXTENT.0, BOX_EXTENT.1),
+        ],
+        BOX_EXTENT,
+        Point3::new,
+        FaceGeometry::Declined,
+        tol,
+    );
+    let seed = ops.seed;
+    // Infallible, all three: the corner list above is a literal of
+    // length 4, so `prism_ops` returns n − 1 = 3 chain edges, n = 4
+    // struts and n = 4 sides. No runtime value reaches these, which is
+    // why they read as conversions rather than as checks — the same
+    // convention `test_support_fixtures::unit_cube` states for the same
+    // two conversions.
+    let [e_ab, e_bc, e_cd] = <[MevCreated; 3]>::try_from(ops.chain).expect("n = 4");
+    let [e_aa, e_bb, e_cc, e_dd] = <[MevCreated; 4]>::try_from(ops.struts).expect("n = 4");
+    let f_bottom = ops.bottom;
+    let [f_front, f_right, f_back, f_left] = <[MefCreated; 4]>::try_from(ops.sides).expect("n = 4");
     check(
         body,
-        GenusInputs {
+        EulerCounts {
             v: 8,
             e: 12,
             f: 6,
@@ -282,8 +260,11 @@ struct HoleBuilt {
 /// Carve an n-gon hole from face `f_from` (strut planted at the start
 /// vertex of `at`) through to face `f_to`. `rim_pts` are the n rim
 /// coordinates on the from-plane; `drop_pts` the n far-plane points.
-/// [`GenusInputs`] are asserted after EVERY operator against the
-/// caller's running expectation (`l`, mutated in place).
+/// **Both are literal coordinates written against [`BOX_EXTENT`]** and
+/// are asserted against it here, because `build_box`'s declined faces
+/// leave no geometric tier able to. [`EulerCounts`] are asserted after
+/// EVERY operator against the caller's running expectation (`l`,
+/// mutated in place).
 // Promotion adaptation (lint only, reviewer's signature kept verbatim):
 // the shipped crate denies clippy::too_many_arguments at 8/7.
 #[allow(clippy::too_many_arguments)]
@@ -294,12 +275,28 @@ fn carve_hole(
     f_to: FaceKey,
     rim_pts: &[Point3<f64>],
     drop_pts: &[Point3<f64>],
-    l: &mut GenusInputs,
+    l: &mut EulerCounts,
     h: i64,
     tol: Tol,
 ) -> HoleBuilt {
     let n = rim_pts.len() as i64;
     assert!(n >= 3);
+    // The recipes' literal coordinates are written against
+    // [`BOX_EXTENT`], and `build_box`'s declined faces mean nothing
+    // geometric can catch a mismatch — a ring planted off the face it
+    // pierces is silently incoherent, not red. So the coupling is
+    // checked here, where the points arrive.
+    for p in rim_pts.iter().chain(drop_pts) {
+        for (axis, c) in [("x", p.x), ("y", p.y), ("z", p.z)] {
+            assert!(
+                (BOX_EXTENT.0..=BOX_EXTENT.1).contains(&c),
+                "hole point {p:?} leaves the box on {axis}: {c} is not in \
+                 [{}, {}]",
+                BOX_EXTENT.0,
+                BOX_EXTENT.1
+            );
+        }
+    }
 
     // Strut, then kemr: the planted empty ring.
     let strut = body
@@ -499,7 +496,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let b = build_box(&mut body, tol);
-    let mut l = GenusInputs {
+    let mut l = EulerCounts {
         v: 8,
         e: 12,
         f: 6,
@@ -525,7 +522,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     );
     assert_eq!(
         l,
-        GenusInputs {
+        EulerCounts {
             v: 14,
             e: 21,
             f: 9,
@@ -533,7 +530,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
             s: 1
         }
     );
-    assert_eq!(genus(l), 1);
+    assert_eq!(l.genus(), Ok(1));
 
     // Orientation, derived by hand (see review notes): the rim ring on
     // the front face walks H1→H3→H2 — CW viewed from OUTSIDE (−y),
@@ -591,7 +588,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     // Hand ledger, genus 2: v−e+f−r = 22−33+13−4 = −2 = 2(1−2).
     assert_eq!(
         l,
-        GenusInputs {
+        EulerCounts {
             v: 22,
             e: 33,
             f: 13,
@@ -600,7 +597,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         }
     );
     assert_eq!(l.v - l.e + l.f - l.r, -2);
-    assert_eq!(genus(l), 2);
+    assert_eq!(l.genus(), Ok(2));
     assert_eq!(body.loops().count(), 17); // 13 outer + 4 rings
     assert_eq!(body.half_edges().count(), 66);
     assert_eq!(body.surfaces().count(), 1);
@@ -641,7 +638,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let birth = body.provenance(EntityId::Loop(hole2.plug.ring)).cloned();
     body.ring_move(hole2.plug.ring, b.f_right.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
-    assert_eq!(genus_inputs(&body), l);
+    assert_eq!(euler_counts(&body), l);
     assert_eq!(
         body.get_face(b.f_right.face).unwrap().rings,
         vec![hole2.plug.ring]
@@ -696,7 +693,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     // Replay determinism of the whole genus-2 history, kills included.
     let mut body2 = Body::<f64>::new();
     let b2 = build_box(&mut body2, tol);
-    let mut l2 = GenusInputs {
+    let mut l2 = EulerCounts {
         v: 8,
         e: 12,
         f: 6,
@@ -1282,10 +1279,10 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
         body.get_face(seed.face).unwrap().rings,
         vec![ring_a.ring, ring_b.ring]
     );
-    let l = genus_inputs(&body);
+    let l = euler_counts(&body);
     assert_eq!(
         l,
-        GenusInputs {
+        EulerCounts {
             v: 4,
             e: 1,
             f: 1,
@@ -1293,7 +1290,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(genus(l), 0);
+    assert_eq!(l.genus(), Ok(0));
 
     // Join ring B into ring A: BothEmpty with a RING as the target —
     // the merged segment loop stays a ring of the face.
@@ -1323,8 +1320,8 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
     );
     assert_eq!(body.half_edge_end(join.he_plus), Some(strut_b.vertex));
     assert_eq!(
-        genus_inputs(&body),
-        GenusInputs {
+        euler_counts(&body),
+        EulerCounts {
             v: 4,
             e: 2,
             f: 1,
@@ -1358,10 +1355,10 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             seg.vertex,     // seg.he_minus: v1 → v0
         ]
     );
-    let l = genus_inputs(&body);
+    let l = euler_counts(&body);
     assert_eq!(
         l,
-        GenusInputs {
+        EulerCounts {
             v: 4,
             e: 3,
             f: 1,
@@ -1369,7 +1366,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(genus(l), 0);
+    assert_eq!(l.genus(), Ok(0));
 }
 
 // ---------------------------------------------------------------------
@@ -2020,7 +2017,7 @@ fn failing_ring_ops_leave_lineage_pure() {
     let build = |inject: bool| -> (Body<f64>, Vec<String>) {
         let mut body = Body::<f64>::new();
         let b = build_box(&mut body, tol);
-        let mut l = GenusInputs {
+        let mut l = EulerCounts {
             v: 8,
             e: 12,
             f: 6,

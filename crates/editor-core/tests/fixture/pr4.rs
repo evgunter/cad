@@ -9,8 +9,8 @@
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
-    resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, SlotId, StableName,
+    evaluate, resolve, resolve_with_prior,
 };
 
 use super::{ang, insert, len, on_frame, scl, step};
@@ -24,7 +24,8 @@ use geom_core::Tol;
 /// semantics: the disjoint run's pair space is pruned, the flip
 /// evidence is never computed, and the row diagnoses to the
 /// documented evidence-free minting-node fallback (NAMING-DESIGN N5
-/// as amended; recovery rung banked as #134). Engine-behavior tests
+/// as amended). The shadow-execution rung leaves this row where it is
+/// — `resolve::shadow_exec_flip`'s docs say why. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
@@ -97,8 +98,10 @@ where
         },
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
-    // recipe intent; the retired bit rung no longer infers them).
-    let (doc, decl) = super::declare_x_offset_flush(doc, a, b0);
+    // recipe intent; the retired bit rung no longer infers them). The
+    // B side is read at the TRANSFORM, which is the boolean's operand
+    // and carries `b0`'s names verbatim (N1).
+    let (doc, decl) = super::declare_x_offset_flush_at(doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
@@ -162,8 +165,14 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push(("flip-vanish", resolve_with_prior(new, prior, &ranked)));
-    out.push(("cascade", resolve_with_prior(new, prior, &inst)));
+    out.push((
+        "flip-vanish",
+        resolve_with_prior(new, prior, &ranked, Tol::witness()),
+    ));
+    out.push((
+        "cascade",
+        resolve_with_prior(new, prior, &inst, Tol::witness()),
+    ));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
     let (doc3, _) = step(
@@ -184,6 +193,7 @@ where
             },
             prior,
             &inst,
+            Tol::witness(),
         ),
     ));
 
@@ -195,8 +205,8 @@ where
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End)),
-            cap_b.clone(),
+            SitedRef::new(da, name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(db, cap_b.clone()),
         )]),
     );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });

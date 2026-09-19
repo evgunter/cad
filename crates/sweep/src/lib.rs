@@ -73,13 +73,16 @@
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
-//!   Smooth ⇒ one order down, through the must-carry rule
-//!   ([`geom_brep::tangent_second_order`], M5 PR 9) — jet-determinate
+//!   Smooth ⇒ one order down, through the must-carry rule over the
+//!   edge ([`geom_brep::must_carry_over_edge`]) — jet-determinate
 //!   ⇒ `TangentIntersection`, under-determined ⇒ an image at rest in
 //!   the previous wall's chart (the ratified no-face-merging split,
 //!   D2, which is a CONVENTIONAL description and no longer the
 //!   scaffolding `MappedCurve` the mint left); Indeterminate ⇒
-//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
+//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess). The revolve's
+//!   latitude joins and the blend's CONTACT edges — a band's tangent
+//!   contact with its support, the corner ball's with its band — are
+//!   the rule's other two callers, each refusing typed at its own door.
 //! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as

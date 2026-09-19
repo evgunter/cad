@@ -12,16 +12,19 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId, SlotId,
+    BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId,
+    RecordedProgramError, SlotId,
 };
+use pncad::geom_core::Point2;
+use pncad::profile::{Step, Target};
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKind, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::ProfileShape;
-use crate::sketch::{self, PathStep, PathTarget};
+use crate::session::{DatumSpec, ProfileShape, SessionOp};
+use crate::sketch;
 
 /// Transient text a panel is mid-edit on.
 ///
@@ -84,7 +87,7 @@ pub(crate) struct Drafts {
     /// as a side effect of adding a profile. One submit, one node.
     pub(crate) profile_plane: Option<RecipeNodeId>,
     /// The add-datum form's kind choice.
-    pub(crate) datum_kind: DatumKind,
+    pub(crate) datum_kind: DatumKindChoice,
     /// The add-datum form's origin/position, metres.
     pub(crate) datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
@@ -99,6 +102,21 @@ pub(crate) struct Drafts {
     pub(crate) datum_u: [f64; 3],
     /// The frame form's sketch +y axis.
     pub(crate) datum_v: [f64; 3],
+    /// **The frame an axis-in-sketch is written in** — `None` until
+    /// one is picked, for [`Self::profile_plane`]'s reason: the frame
+    /// is a document node, so the form names one that exists.
+    ///
+    /// Its own pick rather than the profile form's, because the two
+    /// forms are filled in separately. A revolve does need both nodes
+    /// written against the SAME frame, which the form says beside the
+    /// picker.
+    pub(crate) datum_frame: Option<RecipeNodeId>,
+    /// The axis-in-sketch form's point on the axis, metres, in the
+    /// picked frame's 2-D coordinates.
+    pub(crate) datum_in_frame_origin: Point2<f64>,
+    /// Its direction in the same coordinates (unitless). Opens as the
+    /// frame's +y, the axis a profile drawn beside it turns about.
+    pub(crate) datum_in_frame_direction: [f64; 2],
     /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
@@ -137,7 +155,7 @@ pub(crate) struct Drafts {
     /// chain is supposed to look like, and this one is four verbs a
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
-    pub(crate) profile_path: Vec<PathStep>,
+    pub(crate) profile_path: Vec<Step<f64>>,
     /// The circle form's centre, metres.
     pub(crate) profile_centre: [f64; 2],
     /// The circle form's radius, metres.
@@ -212,20 +230,23 @@ impl Default for Drafts {
             mate_opposed: false,
             new_doc_name: None,
             profile_plane: None,
-            datum_kind: DatumKind::Plane,
+            datum_kind: DatumKindChoice::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
             datum_u: [1.0, 0.0, 0.0],
             datum_v: [0.0, 1.0, 0.0],
+            datum_frame: None,
+            datum_in_frame_origin: Point2::origin(),
+            datum_in_frame_direction: [0.0, 1.0],
             length_unit: quantity::M,
             angle_unit: quantity::PI,
             profile_shape: None,
             profile_path: vec![
-                PathStep::At([0.0, 0.0]),
-                PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
-                PathStep::LineTo(PathTarget::Point([0.01, 0.01])),
-                PathStep::LineTo(PathTarget::Point([0.0, 0.01])),
-                PathStep::LineTo(PathTarget::Start),
+                Step::At(Point2::origin()),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
+                Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+                Step::LineTo(Target::Start),
             ],
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
@@ -292,6 +313,26 @@ impl Drafts {
         }
     }
 
+    /// **A form whose op the document ACCEPTED comes to rest** — called
+    /// once per op a batch performed without a refusal.
+    ///
+    /// Only the add-profile form has anything to settle: its drafts ARE
+    /// the viewport's preview (`sketch::preview` is replayed from them
+    /// every frame), so a form left holding the shape it just committed
+    /// would keep drawing that shape in the probe tint over the
+    /// committed drawing of the node it became. Resting the shape
+    /// (`None`) is what the form means by "nothing being composed"; the
+    /// frame picked and the field values stay, so a second profile on
+    /// the same frame starts from where the first one left off.
+    ///
+    /// A REFUSED add leaves the drafts alone, so correcting what was
+    /// refused does not cost what was typed.
+    pub(crate) fn accepted(&mut self, op: &SessionOp) {
+        if matches!(op, SessionOp::AddProfile { .. }) {
+            self.profile_shape = None;
+        }
+    }
+
     /// **The notation these forms are authoring in** — the two pickers,
     /// as the lowering wants them.
     pub(crate) fn notation(&self) -> sketch::Notation {
@@ -307,8 +348,9 @@ impl Drafts {
     ///
     /// # Errors
     ///
-    /// A non-finite field (the literal door's refusal).
-    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, DimensionError> {
+    /// A non-finite field, or a path that is not a program's shape
+    /// ([`sketch::loop_program`]'s refusals).
+    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
         self.profile_loops()
             .iter()
             .map(|shape| sketch::loop_program(shape, self.notation()))
@@ -345,6 +387,54 @@ impl Drafts {
     pub(crate) fn lengths(&self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
         Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
     }
+
+    /// Two `Length` literals — a point in a sketch frame.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub(crate) fn lengths2(&self, p: Point2<f64>) -> Result<[Expr; 2], DimensionError> {
+        Ok([self.length(p.x)?, self.length(p.y)?])
+    }
+
+    /// **The add-datum form's drafts as a spec**, for the kind chosen:
+    /// lengths in the form's notation, a normal or a direction
+    /// dimensionless. `None` for an axis in a sketch whose frame is not
+    /// picked yet — the form holds its button until it is.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub(crate) fn datum_spec(&self) -> Result<Option<DatumSpec>, DimensionError> {
+        Ok(Some(match self.datum_kind {
+            DatumKindChoice::Plane => DatumSpec::Plane {
+                origin: self.lengths(self.datum_origin)?,
+                normal: scalars(self.datum_direction)?,
+            },
+            DatumKindChoice::Frame => DatumSpec::Frame {
+                origin: self.lengths(self.datum_origin)?,
+                u: scalars(self.datum_u)?,
+                v: scalars(self.datum_v)?,
+            },
+            DatumKindChoice::Axis => DatumSpec::Axis {
+                origin: self.lengths(self.datum_origin)?,
+                direction: scalars(self.datum_direction)?,
+            },
+            DatumKindChoice::AxisInPlane => {
+                let Some(plane) = self.datum_frame else {
+                    return Ok(None);
+                };
+                DatumSpec::AxisInPlane {
+                    plane,
+                    origin: self.lengths2(self.datum_in_frame_origin)?,
+                    direction: scalars2(self.datum_in_frame_direction)?,
+                }
+            }
+            DatumKindChoice::Point => DatumSpec::Point {
+                position: self.lengths(self.datum_origin)?,
+            },
+        }))
+    }
 }
 
 /// Three dimensionless literals — a normal, a direction, a rotation
@@ -360,6 +450,19 @@ pub(crate) fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
         Expr::literal(v[0], Dimension::Scalar)?,
         Expr::literal(v[1], Dimension::Scalar)?,
         Expr::literal(v[2], Dimension::Scalar)?,
+    ])
+}
+
+/// Two dimensionless literals — a direction in a sketch frame;
+/// [`scalars`]' twin.
+///
+/// # Errors
+///
+/// A non-finite component.
+pub(crate) fn scalars2(v: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+    Ok([
+        Expr::literal(v[0], Dimension::Scalar)?,
+        Expr::literal(v[1], Dimension::Scalar)?,
     ])
 }
 
@@ -396,5 +499,153 @@ impl std::fmt::Display for CommitFault {
             Self::Seat(error) => error.fmt(f),
             Self::Dimension(error) => error.fmt(f),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{
+        CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram,
+        RecipeNodeId, apply, evaluate,
+    };
+    use pncad::geom_core::Tol;
+
+    use super::Drafts;
+    use crate::forms::{DatumKindChoice, ShapeKind};
+    use crate::seats::Seat;
+    use crate::session::SessionOp;
+    use crate::session::author::datum_node;
+    use crate::session::{NodeKindWanted, admits};
+    use crate::sketch;
+
+    /// **Every seat a datum fills can be filled from the add-datum
+    /// form.** Each choice the form offers is lowered from its default
+    /// drafts, with a frame picked, and every datum seat must admit at
+    /// least one of the nodes that produces — the question the seat's
+    /// own gate asks of a pick.
+    ///
+    /// The frame id is arbitrary: `admits` reads the node's kind, and
+    /// whether the id names a frame is the add-datum door's question.
+    #[test]
+    fn every_datum_seat_is_fillable_from_the_add_datum_form() {
+        let authorable: Vec<_> = DatumKindChoice::ALL
+            .into_iter()
+            .map(|(datum_kind, _)| {
+                let drafts = Drafts {
+                    datum_kind,
+                    datum_frame: Some(RecipeNodeId(0)),
+                    ..Drafts::default()
+                };
+                let spec = drafts.datum_spec().expect("the default drafts are finite");
+                datum_node(spec.expect("a frame is picked"))
+            })
+            .collect();
+        for seat in Seat::ALL {
+            let wanted = seat.wants();
+            match wanted {
+                // Made by the add-profile form and by the ops that
+                // produce bodies, not by this one.
+                NodeKindWanted::Profile | NodeKindWanted::Body => continue,
+                NodeKindWanted::Axis
+                | NodeKindWanted::SketchAxis
+                | NodeKindWanted::Plane
+                | NodeKindWanted::Frame => {}
+            }
+            assert!(
+                authorable.iter().any(|node| admits(Some(node), wanted)),
+                "the {} seat wants {} and no add-datum choice authors one",
+                seat.name(),
+                wanted.name(),
+            );
+        }
+    }
+
+    /// **A profile the add form just committed is drawn once**, as the
+    /// document's, and not a second time as the form's preview.
+    ///
+    /// The form's drafts are what the preview replays every frame, so
+    /// a form still holding the shape it committed drew that shape in
+    /// the probe tint over the committed drawing of its own node. This
+    /// commits the form's own programs as the node `AddProfile` inserts,
+    /// hands the op to `Drafts::accepted` as the app's batch does on an
+    /// accepted op, and then asks both drawings the viewport makes: the
+    /// committed pass holds the circle, and the preview replayed from
+    /// the settled drafts holds nothing. The control is an op that adds
+    /// no profile, which must leave the draft being composed.
+    #[test]
+    fn a_committed_profile_is_not_drawn_again_as_its_preview() {
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let length = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+        let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+        let frame = Node::Datum(Datum::Frame {
+            origin: [length(0.0), length(0.0), length(0.0)],
+            u: [scalar(1.0), scalar(0.0), scalar(0.0)],
+            v: [scalar(0.0), scalar(1.0), scalar(0.0)],
+        });
+        let insert = |doc: &Doc<ProfileProgram>, node| {
+            let applied =
+                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            let id = applied.record.minted.expect("an insert mints an id");
+            (applied.doc, id)
+        };
+        let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
+        let mut drafts = Drafts {
+            profile_plane: Some(plane),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+
+        // The control: an accepted op that adds no profile leaves the
+        // form composing.
+        drafts.accepted(&SessionOp::Hover(None));
+        assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
+
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        let (doc, _) = insert(
+            &doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: loops.clone(),
+            }),
+        );
+        drafts.accepted(&SessionOp::AddProfile { plane, loops });
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let placement =
+            sketch::frame_placement(&doc, &evaluation, plane).expect("the frame has a placement");
+        let committed = sketch::committed(&doc, &evaluation, chord, None);
+        assert_eq!(
+            committed.drawn.len(),
+            1,
+            "the circle is drawn as the document's"
+        );
+        let preview = sketch::preview(placement, &drafts.profile_loops(), tol, chord)
+            .expect("an empty form previews");
+        assert!(
+            preview.loops.is_empty(),
+            "the committed circle is drawn again as the form's preview"
+        );
+    }
+
+    /// An axis in a sketch with no frame picked lowers to nothing,
+    /// rather than to a spec naming some frame the person did not pick.
+    #[test]
+    fn an_axis_in_a_sketch_waits_for_its_frame() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::AxisInPlane,
+            ..Drafts::default()
+        };
+        assert!(matches!(drafts.datum_spec(), Ok(None)));
     }
 }

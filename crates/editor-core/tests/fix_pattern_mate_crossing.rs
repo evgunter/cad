@@ -38,13 +38,11 @@ use std::collections::BTreeSet;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind,
     EvalOptions, Expr, MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, StableName, content_pin, split,
+    RoleSeg, StableName, content_pin, split,
 };
+use fixture::resolver::{PART_BODY, in_part};
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// The unit cube `[0,1]³`, as a whole part document.
 fn block(label: &str) -> ProfileDoc {
@@ -79,26 +77,7 @@ fn legs_reach() -> EvalOptions {
     let mut store = fixture::resolver::PartStore::new();
     store.insert(block("fix-xs-leg"), Tol::witness());
     store.insert(block("fix-xs-top"), Tol::witness());
-    EvalOptions {
-        resolver: Some(std::sync::Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
+    fixture::resolver::with_resolver(store)
 }
 
 /// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
@@ -125,8 +104,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -343,7 +322,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        SitedRef::at_mint(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
+        crate::fixture::head(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
         "ids remap through the recorded map; the copy index does not"
     );
     let RoleSeg::Instance { i, .. } = a.name.path[0] else {
@@ -465,7 +444,7 @@ fn a_stranded_operand_over_an_instance_head_contributes_no_crossing() {
     let Node::Mate { a, .. } = &mut node else {
         panic!("a seat is a mate");
     };
-    *a = SitedRef::new(stranger, a.name.clone());
+    *a = crate::fixture::head_at(stranger, (*a.name).clone());
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     let mate = mate.unwrap();
 

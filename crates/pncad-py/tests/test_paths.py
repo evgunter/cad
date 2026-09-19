@@ -154,13 +154,17 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_arc_continue_mints_a_structural_subdivision_vertex(self):
-        # The same carrier, subdivided at the +y pole: a same-carrier
-        # identity, not a junction claim.
+    def test_two_arcs_on_one_carrier_meet_at_a_declared_tangent_joint(self):
+        # The half-disc equator's shape at the +y pole: the second arc
+        # leaves along the first's tangent (a DECLARED tangent joint —
+        # the sixth round's spelling for adjacent same-carrier arcs)
+        # and is derived from that tangent and its target. The verb
+        # `arc_continue` this shape used to need is removed (BOOL-10).
         loop = (
             Open.at((1 * m, 0 * m))
             .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
-            .arc_continue((-1 * m, 0 * m))
+            .tangent()
+            .tangent_arc_to((-1 * m, 0 * m))
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
@@ -384,20 +388,104 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .fillet(0 * m),
         )
 
-    def test_arc_continue_needs_an_arc_carrier(self):
-        self.refuses(
-            "arc_continue_needs_arc_carrier",
-            lambda: Open.at(ORIGIN)
-            .line_to((1 * m, 0 * m))
-            .arc_continue((2 * m, 0 * m)),
-        )
-
     def test_coordinates_are_typed_quantities(self):
         # A bare number is a boundary refusal, not an ambiguous unit.
         with self.assertRaises(TypeError):
             Open.at((0.0, 0.0))
         with self.assertRaises(TypeError):
             Open.at(ORIGIN).line_to((1 * m, 0 * m)).turn(1.0)
+
+
+class TestTheSeamArrival(unittest.TestCase):
+    """`Start.arrives_tangent()`: the seam's joint DECLARED tangent.
+
+    The seam is the one joint whose arriving leg is authored last, so
+    its declaration rides the target. Each closer below is shown in a
+    pair: the undeclared close of the same figure refuses
+    `seam_tangent` at the call, and the declared one closes and
+    evaluates — the declaration, not the geometry, is what differs.
+    """
+
+    def closes_only_declared(self, close):
+        with self.assertRaises(pncad.PathError) as caught:
+            close(Start)
+        self.assertEqual(caught.exception.variant, "seam_tangent")
+        loop = close(Start.arrives_tangent())
+        doc = Doc()
+        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        self.assertTrue(evaluate(doc).succeeded(node))
+        return loop
+
+    def test_a_straight_closer_declares_the_seam(self):
+        # A D: the straight closing leg runs up the entry's own line.
+        d = (
+            Open.at(ORIGIN)
+            .angle(90 * deg)
+            .line(2 * m)
+            .arc_to(Bulge((0 * m, -2 * m), 1.0))
+        )
+        loop = self.closes_only_declared(d.line_to)
+        self.assertEqual(loop.vertex_count, 3)
+
+    def test_a_tangent_arc_closer_declares_the_seam(self):
+        stadium = (
+            Open.at(ORIGIN)
+            .angle(0 * deg)
+            .line(2 * m)
+            .tangent()
+            .tangent_arc_to((2 * m, 2 * m))
+            .tangent()
+            .line(2 * m)
+            .tangent()
+        )
+        loop = self.closes_only_declared(stadium.tangent_arc_to)
+        self.assertEqual(loop.vertex_count, 4)
+
+    def test_a_bulge_closer_declares_the_seam(self):
+        # Three sides of a square, then a quarter-bulge arc whose end
+        # tangent lands on the entry's outgoing direction.
+        tip = (
+            Open.at(ORIGIN)
+            .angle(0 * deg)
+            .line(2 * m)
+            .turn(90 * deg)
+            .line(2 * m)
+            .turn(90 * deg)
+            .line(2 * m)
+            .turn(90 * deg)
+            .line(1 * m)
+        )
+        loop = self.closes_only_declared(lambda target: tip.arc_to(Bulge(target, 1.0)))
+        self.assertEqual(loop.vertex_count, 5)
+
+    def test_the_declaration_is_checked(self):
+        # A square's seam is a right angle; declaring it tangent is
+        # contradicted by the geometry, and the kernel says so.
+        tip = (
+            Open.at(ORIGIN)
+            .line_to((1 * m, 0 * m))
+            .line_to((1 * m, 1 * m))
+            .line_to((0 * m, 1 * m))
+        )
+        with self.assertRaises(pncad.PathError) as caught:
+            tip.line_to(Start.arrives_tangent())
+        self.assertEqual(caught.exception.variant, "seam_arrival_off_direction")
+
+    def test_via_and_center_do_not_take_the_declaration(self):
+        # The kernel's `Via` and `Center` closers take bare `Start`
+        # only, so the declared token is refused at construction — the
+        # Python face of Rust's missing trait impl. Bare `Start` builds,
+        # so the token is the only difference.
+        Via((1 * m, 1 * m), Start)
+        Center(ORIGIN, ArcSweep.Ccw, Start)
+        arriving = Start.arrives_tangent()
+        with self.assertRaises(TypeError):
+            Via((1 * m, 1 * m), arriving)
+        with self.assertRaises(TypeError):
+            Center(ORIGIN, ArcSweep.Ccw, arriving)
+
+    def test_the_token_spells_itself(self):
+        self.assertEqual(repr(Start.arrives_tangent()), "Start.arrives_tangent()")
 
 
 class TestTheProfileNode(unittest.TestCase):

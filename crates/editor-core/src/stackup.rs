@@ -850,11 +850,11 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(12);
             d.point3(*position);
         }
-        ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+        ValuePayload::Datum(DatumValue::Frame(f)) => {
             d.u64(13);
-            d.point3(*origin);
-            d.vec3(u.get());
-            d.vec3(v.get());
+            d.point3(f.origin());
+            d.vec3(f.u().get());
+            d.vec3(f.v().get());
         }
         ValuePayload::Datum(DatumValue::AxisInPlane {
             plane_origin,
@@ -1094,25 +1094,20 @@ impl core::fmt::Display for Unavailable {
         match self {
             Self::TangentDegraded { param } => write!(
                 f,
-                "parameter {:?}'s tangent degraded at the nominal (E9: forfeits its \
-                 advisory uses, refuses nothing)",
-                param.0
+                "parameter {param}'s tangent degraded at the nominal (E9: forfeits its \
+                 advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { param } => write!(
-                f,
-                "parameter {:?}'s pass could not read the measure",
-                param.0
-            ),
+            Self::MeasureRefused { param } => {
+                write!(f, "parameter {param}'s pass could not read the measure")
+            }
             Self::Unliftable { param } => write!(
                 f,
-                "parameter {:?}'s seed could not reach the measure: the lift refused typed",
-                param.0
+                "parameter {param}'s seed could not reach the measure: the lift refused typed"
             ),
             Self::BandHasNoMeasure { param } => write!(
                 f,
-                "parameter {:?} carries a band: worst-case limits with no shape have \
-                 no σ, and a partial RSS is still a lie",
-                param.0
+                "parameter {param} carries a band: worst-case limits with no shape have \
+                 no σ, and a partial RSS is still a lie"
             ),
         }
     }

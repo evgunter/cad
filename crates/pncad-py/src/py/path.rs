@@ -113,6 +113,32 @@ impl StartToken {
     fn __repr__(&self) -> &'static str {
         "Start"
     }
+
+    /// `Start` with the seam's tangent joint DECLARED — the seam's
+    /// arrival declaration. The kernel checks the arriving direction
+    /// against `Start`'s own and refuses a seam that contradicts it;
+    /// undeclared, a zero-turn seam refuses instead.
+    fn arrives_tangent(&self) -> ArrivesTangentToken {
+        ArrivesTangentToken
+    }
+}
+
+/// The type of `Start.arrives_tangent()`: `Start` with the seam's
+/// joint declared tangent.
+///
+/// A target of `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))` —
+/// exactly the closers the kernel's `ArrivesTangent` serves, so `Via`
+/// and `Center` refuse it at extraction as Rust refuses it at compile
+/// time.
+#[pyclass(frozen, module = "pncad", from_py_object, name = "ArrivesTangentToken")]
+#[derive(Clone, Copy)]
+pub(crate) struct ArrivesTangentToken;
+
+#[pymethods]
+impl ArrivesTangentToken {
+    fn __repr__(&self) -> &'static str {
+        "Start.arrives_tangent()"
+    }
 }
 
 /// Travel sense about a centre — structural, never a value.
@@ -216,13 +242,24 @@ impl ClosedLoop {
     }
 }
 
-/// A leg's target: an authored absolute point, or `Start`.
+/// A leg's target: an authored absolute point, `Start`, or `Start`
+/// with the seam's tangent joint declared.
 ///
 /// The Rust surface dispatches these through target TRAITS, so one
-/// verb name serves both and the return type follows the target. The
-/// extraction here is that dispatch, at the boundary, once.
+/// verb name serves all three and the return type follows the target.
+/// The extraction here is that dispatch, at the boundary, once.
 #[derive(FromPyObject)]
 enum PyTarget {
+    Point((Length, Length)),
+    Start(StartToken),
+    StartArriving(ArrivesTangentToken),
+}
+
+/// The target `Via` and `Center` take: [`PyTarget`] without the
+/// declared arrival, which the kernel's `Via` and `Center` closers do
+/// not take.
+#[derive(FromPyObject)]
+enum ThroughTarget {
     Point((Length, Length)),
     Start(StartToken),
 }
@@ -250,7 +287,8 @@ fn out_closed(py: Python<'_>, r: Result<pf::ClosedLoop<f64>, KPathError>) -> PyR
 // `ArcData`: the §2c arc-spec modes as standalone value types
 // ------------------------------------------------------------------
 
-/// An arc mode's authored endpoint, extracted once at the boundary.
+/// `Via`'s and `Center`'s authored endpoint, extracted once at the
+/// boundary.
 #[derive(Clone, Copy)]
 enum Tgt {
     Point(Point2<f64>),
@@ -258,10 +296,29 @@ enum Tgt {
 }
 
 impl Tgt {
+    fn of(t: ThroughTarget) -> Self {
+        match t {
+            ThroughTarget::Point(p) => Self::Point(pt(p)),
+            ThroughTarget::Start(_) => Self::Start,
+        }
+    }
+}
+
+/// `Bulge`'s authored endpoint: [`Tgt`]'s forms and the declared
+/// arrival.
+#[derive(Clone, Copy)]
+enum BulgeTgt {
+    Point(Point2<f64>),
+    Start,
+    StartArriving,
+}
+
+impl BulgeTgt {
     fn of(t: PyTarget) -> Self {
         match t {
             PyTarget::Point(p) => Self::Point(pt(p)),
             PyTarget::Start(_) => Self::Start,
+            PyTarget::StartArriving(_) => Self::StartArriving,
         }
     }
 }
@@ -272,7 +329,7 @@ impl Tgt {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Bulge {
-    p: Tgt,
+    p: BulgeTgt,
     b: f64,
 }
 
@@ -280,7 +337,10 @@ pub(crate) struct Bulge {
 impl Bulge {
     #[new]
     fn new(p: PyTarget, b: f64) -> Self {
-        Self { p: Tgt::of(p), b }
+        Self {
+            p: BulgeTgt::of(p),
+            b,
+        }
     }
 }
 
@@ -295,7 +355,7 @@ pub(crate) struct Via {
 #[pymethods]
 impl Via {
     #[new]
-    fn new(q: (Length, Length), p: PyTarget) -> Self {
+    fn new(q: (Length, Length), p: ThroughTarget) -> Self {
         Self {
             q: pt(q),
             p: Tgt::of(p),
@@ -318,7 +378,7 @@ pub(crate) struct Center {
 #[pymethods]
 impl Center {
     #[new]
-    fn new(c: (Length, Length), winding: ArcSweep, p: PyTarget) -> Self {
+    fn new(c: (Length, Length), winding: ArcSweep, p: ThroughTarget) -> Self {
         Self {
             c: pt(c),
             winding,
@@ -629,7 +689,7 @@ macro_rules! point_incoming {
     ($py:expr, $spec:expr, |$s:ident| $call:expr) => {
         match $spec {
             PointSpec::Bulge(Bulge {
-                p: Tgt::Point(t),
+                p: BulgeTgt::Point(t),
                 b,
             }) => {
                 let $s = pf::Bulge { p: t, b };
@@ -665,7 +725,7 @@ macro_rules! leg_end_incoming {
     ($py:expr, $spec:expr, |$s:ident| $call:expr) => {
         match $spec {
             LegEndSpec::Bulge(Bulge {
-                p: Tgt::Point(t),
+                p: BulgeTgt::Point(t),
                 b,
             }) => {
                 let $s = pf::Bulge { p: t, b };
@@ -767,22 +827,31 @@ macro_rules! point_state {
             match target {
                 PyTarget::Point(p) => out_point(py, self.0.clone().line_to(pt(p), tol)),
                 PyTarget::Start(_) => out_closed(py, self.0.clone().line_to(pf::Start, tol)),
+                PyTarget::StartArriving(_) => out_closed(
+                    py,
+                    self.0.clone().line_to(pf::Start.arrives_tangent(), tol),
+                ),
             }
         }
 
         /// The SHARP arc leg, one verb over the endpoint-full modes:
         /// `Bulge(p, b)` chord-relative, `Via(q, p)` through a point,
-        /// `Center(c, winding, p)` about a centre. `p=Start` closes.
+        /// `Center(c, winding, p)` about a centre. `p=Start` closes;
+        /// `Bulge(Start.arrives_tangent(), b)` closes declaring the seam.
         fn arc_to(&self, py: Python<'_>, spec: PointSpec) -> PyResult<Py<PyAny>> {
             let tol = Tol::witness();
             let path = self.0.clone();
             match spec {
-                PointSpec::Bulge(Bulge { p: Tgt::Point(t), b }) => {
+                PointSpec::Bulge(Bulge { p: BulgeTgt::Point(t), b }) => {
                     out_point(py, path.arc_to(pf::Bulge { p: t, b }, tol))
                 }
-                PointSpec::Bulge(Bulge { p: Tgt::Start, b }) => {
+                PointSpec::Bulge(Bulge { p: BulgeTgt::Start, b }) => {
                     out_closed(py, path.arc_to(pf::Bulge { p: pf::Start, b }, tol))
                 }
+                PointSpec::Bulge(Bulge { p: BulgeTgt::StartArriving, b }) => out_closed(
+                    py,
+                    path.arc_to(pf::Bulge { p: pf::Start.arrives_tangent(), b }, tol),
+                ),
                 PointSpec::Via(Via { q, p: Tgt::Point(t) }) => {
                     out_point(py, path.arc_to(pf::Via { q, p: t }, tol))
                 }
@@ -948,23 +1017,6 @@ point_state!(
             leg_end_incoming!(py, spec, |si| arrival!(py, spec2, |s2| path
                 .clone()
                 .arc_fillet_arc(si, r, s2, tol)))
-        }
-
-        /// Continue the incoming ARC carrier to an authored on-carrier
-        /// point, minting a STRUCTURAL subdivision vertex. The junction
-        /// is a same-carrier identity, so no junction check runs and
-        /// nothing is declared tangent.
-        fn arc_continue(
-            &self,
-            py: Python<'_>,
-            target: (Length, Length),
-        ) -> PyResult<PathDirectedPoint> {
-            let tol = Tol::witness();
-            self.0
-                .clone()
-                .arc_continue(pt(target), tol)
-                .map(PathDirectedPoint)
-                .map_err(|err| path_err(py, &err))
         }
     }
 );
@@ -1284,12 +1336,20 @@ impl PathDirected {
             (Directed::Plain(p), PyTarget::Start(_)) => {
                 out_closed(py, p.clone().tangent_arc_to(pf::Start, tol))
             }
+            (Directed::Plain(p), PyTarget::StartArriving(_)) => out_closed(
+                py,
+                p.clone().tangent_arc_to(pf::Start.arrives_tangent(), tol),
+            ),
             (Directed::WithIncoming(p), PyTarget::Point(t)) => {
                 out_point(py, p.clone().tangent_arc_to(pt(t), tol))
             }
             (Directed::WithIncoming(p), PyTarget::Start(_)) => {
                 out_closed(py, p.clone().tangent_arc_to(pf::Start, tol))
             }
+            (Directed::WithIncoming(p), PyTarget::StartArriving(_)) => out_closed(
+                py,
+                p.clone().tangent_arc_to(pf::Start.arrives_tangent(), tol),
+            ),
         }
     }
 }
@@ -1364,6 +1424,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PathDirectedPoint>()?;
     m.add_class::<PathDirected>()?;
     m.add_class::<StartToken>()?;
+    m.add_class::<ArrivesTangentToken>()?;
     m.add_class::<ClosedLoop>()?;
     m.add_class::<ArcSweep>()?;
     m.add_class::<ArcSide>()?;
