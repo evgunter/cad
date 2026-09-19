@@ -4,8 +4,7 @@
 //! **independent derivations** — the hand-derived mean-value criterion
 //! for the floor jump enclosure with a 20k-box empirical attack,
 //! containment sweeps, decoration-chain probes, the tier-3 certified
-//! residual dry run — do not "simplify" them to match shipped
-//! fixtures; the independence is the regression value.
+//! residual dry run.
 //!
 //! Runs in CI's interval lane (`--features interval`; the workspace's
 //! x86-64-v3 floor applies). Promotion adaptations (mechanical only):

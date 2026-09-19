@@ -70,8 +70,7 @@ Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
 order below**: Ev asked for these directly, so they are taken before
 anything else on this slate. Each row carries Ev's note verbatim.
 
-- `datum-grid-lines-are-too-prominent-and-cover-profile-lines`
-- `committed-profiles-are-not-drawn-in-the-viewport`
+None open: the two rows filed here landed in PR 2859 on 2026-09-19.
 
 ## Order
 

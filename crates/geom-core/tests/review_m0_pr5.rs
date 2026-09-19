@@ -2,8 +2,7 @@
 //! salvaged from the M0 orchestrator session scratchpad and promoted into
 //! CI 2026-07-16 (archived at
 //! `references/review-artifacts-m0/pr5-review-demos/`). These are
-//! **independent derivations** — do not "simplify" them to match shipped
-//! fixtures; the independence is the regression value.
+//! **independent derivations**.
 //!
 //! Sections mirror the review charter parts 1.1–1.5, plus the review
 //! extras (6: interval chain-rule width, 7: the `powi(2)` fix the review
@@ -38,9 +37,8 @@ fn ulp_dist(a: f64, b: f64) -> u64 {
 // as perpendicular distance to a fixed datum line. Real linalg
 // (Point2/Vec2, perp_dot), ends in abs() — a kink op in the pipeline on
 // purpose. The rotate-then-translate pose is spelled out rather than
-// assembled from a shipped affine type: the independence is the
-// regression value, and this association order is the one the analytic
-// derivative below differentiates.
+// assembled from a shipped affine type: this association order is the
+// one the analytic derivative below differentiates.
 // ---------------------------------------------------------------------
 fn stackup<T: Real>(theta: T) -> T {
     let p0 = Point2::new(T::from_f64(2.0), T::from_f64(0.5));
