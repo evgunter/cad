@@ -650,10 +650,7 @@ fn adjacent_surfaces(
     edge: crate::entity::EdgeKey,
 ) -> (geom_brep::SurfaceKey, geom_brep::SurfaceKey) {
     let e = body.get_edge(edge).unwrap();
-    let face_of = |he| {
-        let l = body.get_half_edge(he).unwrap().parent_loop;
-        body.get_loop(l).unwrap().face
-    };
+    let face_of = |he| body.face_of_half_edge(he).unwrap();
     (
         body.get_face(face_of(e.he_plus)).unwrap().surface,
         body.get_face(face_of(e.he_minus)).unwrap().surface,

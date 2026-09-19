@@ -870,10 +870,38 @@ impl<T: Real> Body<T> {
     /// `None` where the face or its shell does not resolve. The one
     /// spelling of face → shell → solid the census, the point-in-solid
     /// door and their suites read.
+    #[must_use]
     pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
         self.get_face(face)
             .and_then(|d| self.get_shell(d.shell))
             .map(|s| s.solid)
+    }
+
+    /// The face owning `he`'s loop — through the half-edge's
+    /// [`HalfEdge::parent_loop`] back-pointer and that loop's
+    /// [`Loop::face`] — or `None` where either key is stale. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign half-edge key does not stop
+    /// at the first hop: it walks on and answers about whatever face
+    /// the arena's second slot holds.
+    ///
+    /// Every spelling in this crate that STOPS at the face and refuses
+    /// uniformly across the two hops reads through here. Six more
+    /// compose a further hop past the face (`.surface`, `Face::shell`)
+    /// and are deferred with that decision, not kept for a reason.
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose own refusal distinguishes the hops — naming which key
+    /// went stale — keeps its own walk: collapsing it here would
+    /// replace a refusal that identifies an entity with one that does
+    /// not. That is a population, not an exception. It is sixteen
+    /// sites in this crate alone, and they are enumerated with their
+    /// postures in
+    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`;
+    /// a lane adding a seventeenth reads that list, not this sentence.
+    #[must_use]
+    pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
+        self.get_loop(self.get_half_edge(he)?.parent_loop)
+            .map(|l| l.face)
     }
 
     /// The face at `key`, or `None` if the key is stale (a foreign key is
@@ -923,22 +951,6 @@ impl<T: Real> Body<T> {
     /// key is not caught — see the [module docs](self)).
     pub fn get_half_edge(&self, key: HalfEdgeKey) -> Option<&HalfEdge> {
         self.half_edges.get(key)
-    }
-
-    /// The face owning `he`'s loop — through the half-edge's
-    /// [`HalfEdge::parent_loop`] back-pointer and that loop's
-    /// [`Loop::face`] — or `None` where either key is stale. The one
-    /// spelling of half-edge → loop → face in this crate, beside
-    /// [`Body::solid_of_face`] for the walk above it.
-    ///
-    /// **`None` is the only refusal this door can make**, so a caller
-    /// whose own refusal names *which* of the two keys was stale keeps
-    /// its own walk: collapsing it here would replace a refusal that
-    /// identifies an entity with one that does not.
-    #[must_use]
-    pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
-        self.get_loop(self.get_half_edge(he)?.parent_loop)
-            .map(|l| l.face)
     }
 
     /// The edge at `key`, or `None` if the key is stale (a foreign key is
@@ -1266,6 +1278,7 @@ impl<T: Real> Default for Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::EntityId;
     use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, pillow, prov};
     use geom_core::Tol;
@@ -1460,22 +1473,41 @@ mod tests {
         assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
     }
 
-    /// Both refusal postures over the one door, because a fold that
-    /// flattened either into the other leaves every other row green.
+    /// All three refusal postures over the one door, because a fold
+    /// that flattened any of them into another leaves every other row
+    /// green.
     #[test]
     fn the_walk_consumers_keep_their_own_refusal() {
         let mut t = pillow(Tol::witness());
-        // `Option`: an honest `None` on a stale key, on the edge door
-        // the shell verb reads.
-        assert!(crate::replace_face::edge_faces(&t.body, t.edges[0]).is_some());
+        // `Option`: the edge door names WHICH faces, in
+        // `he_plus`-then-`he_minus` order. `is_some()` would pass on an
+        // `(f_plus, f_plus)` — the typo a re-spelling of two
+        // near-identical lines makes — so the pair is asserted.
+        let e = t.body.get_edge(t.edges[0]).unwrap().clone();
+        assert_eq!(e.he_plus, t.hes_a[0]);
+        assert_eq!(e.he_minus, t.hes_b[0]);
+        assert_eq!(
+            crate::replace_face::edge_faces(&t.body, t.edges[0]),
+            Some((t.face_a, t.face_b))
+        );
+        assert_ne!(t.face_a, t.face_b);
+        let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
         assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
-        // Typed `Result`: the same staleness is a REFUSAL, not a `None`
-        // a caller may drop.
-        let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
+        // REFUSAL, not a `None` a caller may drop.
         assert!(matches!(
             crate::offset_together::faces_at_vertex(&t.body, v),
             Err(ReplaceFaceError::Corrupt)
+        ));
+        // Typed `Result` that NAMES the entity. This is the arm the
+        // door cannot express, so it is the arm a fold would flatten
+        // silently; the agnostic arm above is never at risk.
+        assert!(matches!(
+            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
+            Err(crate::sector_face::SectorFaceError::Corrupt(
+                EntityId::Loop(_)
+            ))
         ));
     }
 

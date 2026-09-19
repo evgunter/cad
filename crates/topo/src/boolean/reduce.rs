@@ -544,11 +544,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
-        let face_of = |he| {
-            let parent = body.get_half_edge(he)?.parent_loop;
-            Some(body.get_loop(parent)?.face)
-        };
-        let (Some(f1), Some(f2)) = (face_of(edge.he_plus), face_of(edge.he_minus)) else {
+        let (Some(f1), Some(f2)) = (
+            body.face_of_half_edge(edge.he_plus),
+            body.face_of_half_edge(edge.he_minus),
+        ) else {
             continue;
         };
         if f1 == f2 {

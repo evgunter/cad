@@ -2175,12 +2175,13 @@ fn move_mapped_endpoint<T: Real>(
 
 /// The two faces an edge separates (they coincide on a seam).
 ///
-/// **One of two spellings in this crate, and the disclosure is the
-/// resolution**: `Body::edge_faces` in `merge_faces` takes the two
-/// HALF-EDGES (it already has them from the edge walk) where this one
-/// takes the edge key and looks them up. Same three link hops, two
-/// call shapes; the shell verb uses THIS one. Collapsing them would
-/// mean giving one caller an argument it does not have.
+/// **One of two spellings, and the twin is in another crate**:
+/// `sweep::blend::surgery::edge_faces` takes the same edge key and
+/// composes the same two half-edge walks, over `surgery`'s own
+/// `face_of_half` rather than [`Body::face_of_half_edge`]. Both hops
+/// now read through the door on this side; folding the two functions
+/// together is a crate-boundary question and is filed on `carve`'s
+/// slate.
 pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
     let e = body.get_edge(edge)?;
     Some((
