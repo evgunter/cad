@@ -820,8 +820,7 @@ mod tests {
     ///
     /// Adopted from the review lane's interior-maximum probe.
     fn interior_max_cubic() -> geom::NurbsCurve2<f64> {
-        let kv =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         let pts = vec![
             Point2::new(0.0, 0.0),
             Point2::new(0.2, 0.0),
@@ -1035,15 +1034,10 @@ mod tests {
     fn the_knot_vector_type_refuses_what_the_speed_arm_does_not_guard() {
         assert!(KnotVector::clamped(vec![0.0, 1.0], 0).is_err(), "degree 0");
         assert!(
-            KnotVector::clamped(
-                vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0],
-                2
-            )
-            .is_err(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0], 2).is_err(),
             "interior multiplicity p + 1"
         );
-        let kv =
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let pts = vec![
             Point2::new(0.0, 0.0),
             Point2::new(0.3, 0.1),
@@ -1055,9 +1049,7 @@ mod tests {
         let (su, sv) = general_uv_speeds(&image, (0.0, 1.0), EdgeKey::default())
             .expect("multiplicity = p is a C0 kink, which a Lipschitz bound survives");
         let (wu, wv) = sampled_uv_speeds(&image, 4096);
-        println!(
-            "C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})"
-        );
+        println!("C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})");
         assert!(wu > 0.0 && wv > 0.0 && wu <= su && wv <= sv);
     }
 
