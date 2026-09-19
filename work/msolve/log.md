@@ -545,3 +545,15 @@ tracking the placer; seven both-roads seat rows; the A1 pin naming
 its functions. Spec into the ledger at the unit head. Closes the four
 items; four rows filed (three here, one on WIRE). Next: MSOLVE-8
 (`docs/MSOLVE-8-SPEC.md`, on the orchestrator branch), then -9, -10.
+
+## MSOLVE-8 dispatched; MSOLVE-9 spec and A11 sentence to Ev (2026-09-19)
+
+MSOLVE-8's lane launched from main after PR 2894 landed its spec.
+MSOLVE-9 — Ev's (F) on PR 2256 — drafted as a design unit: the arm
+resolves on MSOLVE-6's reach road (a cached part is its own product
+and name table in part coordinates, so `MateReach` grows `face_pose`
+and no placement pull-back is needed), the part-local name and the
+`reference` rule stated, the memo key carries the part's pin. A11
+rule 5's inputs sentence is the one ratified text that moves; DESIGN.md
+carries no A11 sentence (measured). Both on an `[ev]` PR, waiting for
+Ev's word; the unit dispatches after that merge and after MSOLVE-8.
