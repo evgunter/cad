@@ -55,8 +55,6 @@ mod common;
 
 #[path = "budget_meter.rs"]
 mod budget_meter;
-#[path = "tess_cap_diag.rs"]
-mod tess_cap_diag;
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
 #[path = "d9_mesh_goldens.rs"]
@@ -165,6 +163,8 @@ mod review_m2_pr6_walk_shapes;
 mod review_m3_pr1_mesh;
 #[path = "revolves.rs"]
 mod revolves;
+#[path = "tess_cap_diag.rs"]
+mod tess_cap_diag;
 #[path = "wedge.rs"]
 mod wedge;
 
