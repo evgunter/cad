@@ -1,7 +1,7 @@
 ---
 id: solid-of-face-has-eleven-hand-written-walks-outside-it
 kind: issue
-title: Body::solid_of_face has eleven hand-written face to shell to solid walks outside it
+title: Body::solid_of_face: the hand-written face to shell to solid walks outside it are fourteen, not eleven
 status: open
 opened: 2026-09-19
 refs: [the-face-to-solid-walk-is-spelled-per-test-file, shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim, listing-a-solids-faces-is-spelled-four-times-in-topo-src]
