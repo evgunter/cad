@@ -436,10 +436,9 @@ pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
 
 /// A fresh directory under the OS temp root, named for the caller.
 ///
-/// One home: the same six lines had been copied verbatim into four
-/// suites. A temp-directory name carries no oracle — no row can assert
-/// anything about it — so there is nothing here for a copy to derive
-/// independently, whoever wrote the suite.
+/// One home, and it stays one: a temp-directory name carries no oracle
+/// — no row can assert anything about it — so there is nothing here
+/// for a copy to derive independently, whoever wrote the suite.
 pub fn tempdir(label: &str) -> std::path::PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
