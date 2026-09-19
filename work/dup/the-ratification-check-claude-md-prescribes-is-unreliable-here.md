@@ -2,8 +2,9 @@
 id: the-ratification-check-claude-md-prescribes-is-unreliable-here
 kind: issue
 title: The provenance check CLAUDE.md prescribes is unreliable in this checkout, in two measured ways
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-19
 ---
 
 
@@ -70,3 +71,36 @@ short phrase rather than a whole sentence as the needle — plus, if Ev
 wants it mechanical, a `scripts/` helper that does the three steps and
 prints the author, so the check is one command rather than a
 convention. **The wording is Ev's to choose.**
+
+## Closed (2026-09-19) — Ev approved the note, and it landed
+
+Ev's instruction: *"maybe add a single-sentence (or less) note at the
+right spot saying to watch out for a shallow checkout? (don't say that
+it **is** shallow since this will sometimes be false)"*.
+
+`CLAUDE.md`'s ratification paragraph now reads, after the `git log -S`
+command:
+
+> Pass `--all` and use a short phrase rather than a whole sentence:
+> `-S` is literal and line-shaped, so a wrapped sentence returns
+> nothing, and in a shallow checkout every file reads as added at a
+> graft.
+
+Conditional, as Ev asked — it warns without asserting that this
+checkout is one. Both failures are named in the clause that prescribes
+the remedy, so a reader meets them where the command is.
+
+**The defect demonstrated itself while this row was being closed.** To
+answer Ev's *"which line"* about the sibling row's attribution, I ran
+`grep -rn "PR #17 thread"` and got **one** hit. The row said seven. A
+multiline scan returns **seven**: six carriers wrap the phrase across
+two `//!` lines and are invisible to the line-shaped search — the exact
+failure written into `CLAUDE.md` minutes earlier, committed by the
+person who had just written the warning.
+
+That is the fourth time this sitting a line-shaped instrument
+undercounted a `//!` class, and the first time it happened to someone
+who had the warning open in front of them. **Knowing an instrument's
+blind spot does not make you run the other instrument.** What does is
+the habit the program now has: when a count from a grep disagrees with
+a count from a row, the grep is the suspect.
