@@ -728,7 +728,7 @@ impl ViewerBehavior<'_> {
             .map(|index| sketch::tip_state_at(&self.drafts.profile_path, index, tol))
             .collect();
         let last = self.drafts.profile_path.len().saturating_sub(1);
-        for index in 0..self.drafts.profile_path.len() {
+        for (index, &state) in states.iter().enumerate() {
             let salt = format!("path_step_{index}");
             ui.horizontal(|ui| {
                 // Zero-based, because "loop 0 step 2" is.
@@ -776,7 +776,6 @@ impl ViewerBehavior<'_> {
                     insert = Some(index + 1);
                 }
                 let verb = self.drafts.profile_path[index].verb();
-                let state = states[index];
                 egui::ComboBox::from_id_salt(("path_verb", index))
                     .selected_text(verb.to_string())
                     .width(120.0)
