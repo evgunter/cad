@@ -5,6 +5,7 @@ title: Seven private builders still extrude a rectangle into a box, one per suit
 status: review
 branch: dup/private-box-builders
 opened: 2026-09-19
+pr: 2891
 ---
 
 
