@@ -1183,3 +1183,49 @@ fn an_arc_no_radius_drew_records_no_emission() {
         "nor does a Center arrival's closing carrier run"
     );
 }
+
+/// **Review probe (lane radius-r1).** The EXACT-FIT close: the entry
+/// sits exactly at the tangent point of the r=0.5 fillet between the
+/// ray y=0 from the origin and the circle of radius 2 about the origin,
+/// so `resolve_arc_close` takes its `else` arm — the fillet arc IS the
+/// closing segment (three vertices, no carrier run) and the emission is
+/// recorded at that site by hand. Pins the address that branch writes.
+#[test]
+fn r1_an_exact_fit_close_records_its_fillet_at_the_closing_segment() {
+    use profile::Center;
+    let tp = p2(2.0_f64.sqrt() * 4.0 / 3.0, 2.0 / 3.0);
+    let closed = Open
+        .at(tp)
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    assert_eq!(
+        closed.loop_.vertices().len(),
+        3,
+        "exact fit: the fillet arc closes and no carrier run is emitted"
+    );
+    assert!(
+        closed.loop_.vertices()[2].bulge().abs() > 0.1,
+        "the closing segment is the fillet ARC"
+    );
+    assert_eq!(radii(&closed), vec![(3, RadiusRole::Fillet, 2)]);
+    assert_eq!(
+        (
+            closed.structure.steps[3].start(),
+            closed.structure.steps[3].end()
+        ),
+        (1, 3),
+        "the arrival step emitted the trimmed run and the closing arc"
+    );
+}
