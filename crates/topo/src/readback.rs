@@ -74,7 +74,11 @@ use crate::query::CurveKind;
 ///   names is the same plane either way).
 /// - `axis` is the carrier's principal direction: a plane's normal,
 ///   every other analytic surface's axis, a circle's or ellipse's
-///   plane normal, a line's direction. It is the CHART's direction,
+///   plane normal, a line's direction — and a spiric's TORUS axis,
+///   which lies IN the curve's plane: the spiric's stored frame is
+///   its torus's, and the curve's plane normal is its `u_ref` (the
+///   cutting plane's normal), so for that one kind the two roles are
+///   the other way round from a circle's. It is the CHART's direction,
 ///   NOT corrected by a face's orientation sense — the sense is a
 ///   separate fact about the face, and folding it in silently would
 ///   make two different questions share one answer. That second fact
@@ -84,7 +88,9 @@ use crate::query::CurveKind;
 ///   receiving it pre-folded.
 /// - `u_ref` is the in-frame reference direction where the carrier's
 ///   convention fixes one (the seam of every closed chart, θ = 0 of a
-///   circle, an ellipse's semi-major direction). It is `None` where
+///   circle, an ellipse's semi-major direction) — and a spiric's
+///   cutting-plane normal, which is NOT in the curve's plane (above).
+///   It is `None` where
 ///   the convention fixes none: a line has a direction and no
 ///   distinguished perpendicular, and inventing one would be a
 ///   fabricated convention (rule 3).
@@ -555,7 +561,12 @@ pub fn edge_carrier_kind<T: Real>(
 /// description (D4 ¶2), so what comes back is the concrete curve the
 /// model actually holds, and its `u_ref` is the seam convention that
 /// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
-/// fixes a direction and no perpendicular (rule 3).
+/// fixes a direction and no perpendicular (rule 3). A
+/// [`Curve3::Spiric`] answers its stored TORUS frame — `origin` the
+/// torus centre (off the curve, by `≥ R − r − |offset|`), `axis` the
+/// torus axis (in the curve's plane), `u_ref` the cutting plane's
+/// normal — the six fields ARE its canonical frame, and a reader that
+/// wants a point ON the curve evaluates the carrier.
 ///
 /// The frame is the answer, never a verdict about what KIND of frame
 /// it is — that kind is its own read, [`edge_carrier_kind`], which
@@ -582,6 +593,15 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             ..
         }
         | Curve3::Ellipse {
+            center,
+            axis,
+            u_ref,
+            ..
+        }
+        // The spiric's six fields ARE a canonical frame: the torus
+        // centre, its axis and the cutting plane's normal — the frame
+        // the model holds, answered as the pose.
+        | Curve3::Spiric {
             center,
             axis,
             u_ref,
@@ -767,13 +787,14 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{GeomRef, Vertex};
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{ops_cube, ops_genus2, ops_holed_box, prov};
+    use crate::fixtures::{ops_genus2, ops_holed_box, prov};
     use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::validate;
 
     #[test]
     fn cube_counts_and_genus_zero() {
-        let body = ops_cube(Tol::witness()).body;
+        let body = declined_cube::<f64>(Tol::witness()).body;
         let counts = euler_counts(&body);
         assert_eq!(
             counts,
@@ -938,7 +959,7 @@ mod tests {
     /// failed rather than halving an odd number into a plausible one.
     #[test]
     fn torn_store_refuses_typed() {
-        let mut body = ops_cube(Tol::witness()).body;
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
         let point = body.add_point(Point3::new(0.5, 0.5, 0.5));
         body.add_vertex(
             Vertex {
@@ -968,7 +989,7 @@ mod tests {
     /// `None`.
     #[test]
     fn a_live_edge_with_a_torn_curve_key_refuses_dangling_geometry_on_both_doors() {
-        let mut body = ops_cube(Tol::witness()).body;
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
         let edge = body.edges().next().expect("a cube has edges").0;
         let torn = CurveKey::default();
         body.get_edge_mut(edge).expect("a live edge").curve = torn;

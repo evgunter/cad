@@ -138,10 +138,10 @@ fn assert_camera_invariants(c: &Camera, context: &str) {
         fuzz::replay()
     );
     assert!(
-        c.near() > 0.0 && c.near() < c.far(),
-        "depth range disordered after {context}: near {} far {} ({})",
+        c.near() > 0.0 && c.near() < c.distance(),
+        "near plane not between eye and target after {context}: near {} distance {} ({})",
         c.near(),
-        c.far(),
+        c.distance(),
         fuzz::replay()
     );
 }

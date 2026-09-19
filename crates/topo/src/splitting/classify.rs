@@ -57,7 +57,9 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Nurbs(_) => {
+                // The split lanes are fenced against the spiric as
+                // against the spline: no crossing-root arm reads it.
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                 }
             },
@@ -172,7 +174,9 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
             minor,
             u_ref,
         } => (center, axis, u_ref, major, minor),
-        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => return Err(()),
+        geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            return Err(());
+        }
     };
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);

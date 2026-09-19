@@ -149,7 +149,10 @@ pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, Te
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(true);
         }
     }
@@ -919,13 +922,18 @@ fn trim_frontier(
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
-                       mint stored pcurves, but the only trimmed-face tessellation \
-                       lanes written are the cylinder chart's and the NURBS chart's; \
-                       the remaining analytic charts have no trimmed lane",
+                note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
+                       the only trimmed-face tessellation lanes written are the \
+                       cylinder chart's and the NURBS chart's; the remaining analytic \
+                       charts have no trimmed lane (the spiric-bounded torus wall and \
+                       plane cap of a hollowed partial revolve land here: \
+                       `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }

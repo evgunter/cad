@@ -38,7 +38,7 @@ fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
 
 fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
+        .filter(|&(k, _)| body.solid_of_face(k).expect("a live face names its solid") == solid)
         .map(|(k, _)| k)
         .collect()
 }

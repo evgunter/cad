@@ -349,26 +349,75 @@ fn dolly_clamps_to_the_scene_derived_band() {
     assert_eq!(far.target().x, camera.target().x);
 }
 
-/// The depth range stays ordered and positive everywhere in the band,
-/// which is what keeps the projection matrix finite.
+/// **Depth is reversed and nothing is clipped for being far.**
+///
+/// A datum plane recedes to its horizon, so the projection is asked
+/// to hold points from just past the near plane out to a million orbit
+/// distances: every one lands inside `(0, 1]`, and a nearer point
+/// lands at a GREATER depth — the order every depth pipeline in
+/// `gpu` compares by. The old projection's far plane sat one scene
+/// diameter behind the target; the hundredfold point was outside it.
+///
+/// **The value that makes this false** is a finite far plane (a depth
+/// above 1 for the distant points) or an unreversed mapping (depth
+/// growing with distance).
 #[test]
-fn the_depth_range_is_ordered_across_the_whole_zoom_band() {
+fn depth_is_reversed_and_has_no_far_plane() {
+    let aspect = 16.0 / 9.0;
+    let camera = framed();
+    let (eye, forward) = (camera.eye(), camera.forward());
+    let mut nearer: Option<f64> = None;
+    for depth in [
+        2.0 * camera.near(),
+        camera.distance(),
+        100.0 * camera.distance(),
+        1.0e6 * camera.distance(),
+    ] {
+        let point = pncad::geom_core::Point3::new(
+            eye.x + forward.x * depth,
+            eye.y + forward.y * depth,
+            eye.z + forward.z * depth,
+        );
+        let ndc = camera
+            .project(point, aspect)
+            .expect("a finite aspect projects")
+            .expect("a point ahead of the eye has a pixel");
+        assert!(
+            ndc[2] > 0.0 && ndc[2] <= 1.0,
+            "a point {depth:e} m ahead has depth {}",
+            ndc[2],
+        );
+        if let Some(nearer) = nearer {
+            assert!(
+                ndc[2] < nearer,
+                "a point {depth:e} m ahead is no further than the one before it: {} against {nearer}",
+                ndc[2],
+            );
+        }
+        nearer = Some(ndc[2]);
+    }
+}
+
+/// The near plane stays positive and in front of the target
+/// everywhere in the band: positive is what keeps the projection
+/// matrix finite, and in front is what keeps the looked-at point drawn.
+#[test]
+fn the_near_plane_sits_between_eye_and_target_across_the_whole_zoom_band() {
     let camera = framed();
     let mut current = camera;
     for _ in 0..40 {
         assert!(
-            current.near() > 0.0 && current.near() < current.far(),
-            "depth range at distance {}: near {} far {}",
+            current.near() > 0.0 && current.near() < current.distance(),
+            "near plane at distance {}: {}",
             current.distance(),
             current.near(),
-            current.far()
         );
         current =
             camera::apply(&current, &CameraOp::Dolly { factor: 0.5 }).expect("a positive dolly");
     }
     let mut current = camera;
     for _ in 0..40 {
-        assert!(current.near() > 0.0 && current.near() < current.far());
+        assert!(current.near() > 0.0 && current.near() < current.distance());
         current =
             camera::apply(&current, &CameraOp::Dolly { factor: 2.0 }).expect("a positive dolly");
     }

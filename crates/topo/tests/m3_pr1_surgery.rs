@@ -10,7 +10,7 @@ use geom_core::Point3;
 use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
 use crate::common;
-use common::{describe_as_intersections, geometric_cube, line};
+use common::{declined_cube, describe_as_intersections, geometric_cube, line};
 use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
@@ -21,65 +21,12 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// ring on the top face, closed by mfkrh (the cross-shell lmfkrh
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
 fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::FaceKey) {
-    let cube = {
-        // The ops cube from the crate example (structural geometry:
-        // chord lines + placeholder surfaces; tiers 1–2 only).
-        let p = pt;
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0, 0.0, 0.0)).unwrap();
-        let e_ab = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0, 0.0, 0.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        let strut = |he| MevSite::Fan { he1: he, he2: he };
-        let e_bc = body
-            .mev_line(strut(e_ab.he_minus), p(1.0, 1.0, 0.0), Tol::witness())
-            .unwrap();
-        let e_cd = body
-            .mev_line(strut(e_bc.he_minus), p(0.0, 1.0, 0.0), Tol::witness())
-            .unwrap();
-        let he_dc = body
-            .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-            .unwrap();
-        let f_bot = body
-            .mef_chord(
-                MefSite::Chords {
-                    he1: he_dc,
-                    he2: e_ab.he_plus,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_aa = body
-            .mev_line(strut(e_ab.he_plus), p(0.0, 0.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_bb = body
-            .mev_line(strut(e_bc.he_plus), p(1.0, 0.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_cc = body
-            .mev_line(strut(e_cd.he_plus), p(1.0, 1.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_dd = body
-            .mev_line(strut(f_bot.he_plus), p(0.0, 1.0, 1.0), Tol::witness())
-            .unwrap();
-        let chord = |he1, he2| MefSite::Chords { he1, he2 };
-        let f_front = body
-            .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
-            .unwrap();
-        (body, seed)
-    };
-    let (mut body, seed) = cube;
+    // Declined is what the surgery below wants: every face on the one
+    // `mvfs` placeholder, so the ring planting and the shell motions are
+    // read at tiers 1-2 and no geometry enters.
+    let cube = declined_cube::<f64>(Tol::witness());
+    let mut body = cube.body;
+    let seed = cube.seed;
     let top = seed.face; // the seed face survives as the top
     // Plant a detached empty ring on the top face: strut + kemr, at a
     // half-edge of the TOP loop (the strut lands in its site's loop).
@@ -219,8 +166,8 @@ fn multi_shell_lifecycle_replay_is_byte_identical() {
 /// certification still green).
 #[test]
 fn revert_involution_and_tiers() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let original = format!("{:?}", cube.body);
     let reverted = cube.body.revert().unwrap();
@@ -250,8 +197,8 @@ fn revert_involution_and_tiers() {
 /// exactly, area is unchanged.
 #[test]
 fn revert_negates_volume() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let props = topo::mass_properties(&cube.body, Tol::witness()).unwrap();
     let rev_props = topo::mass_properties(&cube.body.revert().unwrap(), Tol::witness()).unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
@@ -267,8 +214,8 @@ fn revert_negates_volume() {
 /// transfer — the split body passes tier 3.
 #[test]
 fn split_edge_preserves_tier3_at_rest() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
     let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
@@ -283,7 +230,7 @@ fn split_edge_preserves_tier3_at_rest() {
 /// again, tier-3 valid; replay is byte-identical.
 #[test]
 fn merge_coplanar_same_key_pair() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     // Split the top face along the diagonal A′C′ (same surface key).
     let a1 = cube.mevs[3].vertex; // A′
     let c1 = cube.mevs[5].vertex; // C′
@@ -355,7 +302,7 @@ fn merge_coplanar_same_key_pair() {
 fn merge_coplanar_declared_vs_numeric() {
     use common::plane;
     let build = |surface_for_split: fn(&topo::Body<f64>) -> FaceSurface<f64>| {
-        let mut cube = geometric_cube::<f64>();
+        let mut cube = geometric_cube::<f64>(Tol::witness());
         let a1 = cube.mevs[3].vertex;
         let c1 = cube.mevs[5].vertex;
         let top = cube.seed.face;
@@ -402,12 +349,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // rung (b) — value equality never glues; the M3-era bit rung is
     // gone).
     let mut bit_equal = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let outcome = bit_equal.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
@@ -416,12 +366,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // GeomSource — the provenance lookup merges with zero numerics
     // and zero per-call declarations.
     let mut same_source = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let src = topo::GeomSource::minted(42, 0);
     let coplanar_keys: Vec<_> = same_source
@@ -447,12 +400,15 @@ fn merge_coplanar_declared_vs_numeric() {
     // Declared, per-call surface pair (F5): same geometry, fresh
     // build, intent supplied by the call — merges after verification.
     let mut declared = build(|_| {
-        FaceSurface::New(plane(&[
-            pt(0.0, 0.0, 1.0),
-            pt(1.0, 0.0, 1.0),
-            pt(1.0, 1.0, 1.0),
-            pt(0.0, 1.0, 1.0),
-        ]))
+        FaceSurface::New(plane(
+            &[
+                pt(0.0, 0.0, 1.0),
+                pt(1.0, 0.0, 1.0),
+                pt(1.0, 1.0, 1.0),
+                pt(0.0, 1.0, 1.0),
+            ],
+            Tol::witness(),
+        ))
     });
     let pair: Vec<_> = declared
         .faces()

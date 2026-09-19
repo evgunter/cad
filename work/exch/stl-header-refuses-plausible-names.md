@@ -2,10 +2,11 @@
 id: stl-header-refuses-plausible-names
 kind: issue
 title: A plausible part name is a hard panic in both demos — StlOptions::header refuses solid-block and anything over 80 bytes
-status: open
+status: closed
 opened: 2026-08-20
 github: 743
 refs: [732]
+closed: 2026-09-17
 ---
 
 ## From GitHub issue 743
@@ -46,3 +47,19 @@ Do not narrow the sniff check to make `solid-block` pass. It was widened on purp
 ## Home
 
 LIB: the LIB register fold placed this issue in its **category A** (the F1 curation-gap class) alongside #742 and #741 as the export option surface — a demo-surfaced library-API finding, which is the program's charter under `memories/demo-purpose.md`.
+
+## Closed (2026-09-17) — ruled: won't-fix, recorded
+
+Ev, in-chat, 2026-09-17. The library door is correct and stays as it
+is: `BinaryHeader::new` returns the refusal typed, and the wide
+ASCII-sniff check (deliberately widened in #732 to match real
+readers) is not narrowed. The demos deliberately keep the
+unwrap-panic: per `memories/demo-purpose.md` the awkwardness is the
+finding, the panic is loud evidence of the door's shape, and no
+current demo part name trips it — the failure is latent, not live.
+If a demo part or real consumer ever needs an embeddable name, the
+recorded answer is the caller-side pattern (catch the typed refusal,
+substitute a visible safe header such as a prefixed/truncated
+variant — the 80-byte field is a pure comment no reader interprets),
+implemented at that point, in the caller, never as a silent library
+sanitizer.

@@ -376,3 +376,301 @@ remote orchestrator has no away-channel monitor and no
 `hourly-checkin.sh`; the substitutes are `subscribe_pr_activity` per
 open PR and a `create_trigger` Routine bound to this session.** Arm
 both at the first dispatch, not after the first stall.
+
+### Link 1b's full review (2026-09-17) — mergeable, and it measured what the brief only suspected
+
+**Verdict: mergeable, no MAJOR**, all seven falsification claims confirmed —
+and confirmed by re-measurement rather than by reading the PR: 105 661
+lines of derived-`Debug` dump compared byte-for-byte at both SHAs,
+mutation (c) re-run independently, the interval 5-rows-vs-3 split
+reproduced locally. The claim CI could not make, the review made.
+
+**The finding worth keeping: a shared home costs you an oracle, and
+this unit paid it without noticing.** Link 1's guard compared doors
+*against each other*, which silently catches a surface regression in
+any one of them. Once the doors share a core, a change that moves every
+door alike is invisible to that shape — the lane saw this and added an
+independent row that re-derives the body from `profile`/`z`/`map`. The
+review confirms the row really is independent, and then measured what
+it does **not** cover: it never reads a surface. Changing `plane(&rev)`
+to `plane(&bot)` reds `every_box_door_builds_one_body` at the merge
+base and **nothing at head**. So the unification traded away an axis,
+the compensation restored most of it, and only a reader who went
+looking for the gap found the rest. **Generalisation for this program:
+when a unit gives n spellings one home, ask what the n-way comparison
+was silently buying, because the shared home cannot buy it back.**
+
+**Three false statements this unit wrote**, all caught by the review and
+none by CI: a fresh causal claim in `review_m3_pr3_consumer` naming the
+describe step where the `&mut Body` seat is what matters; a dead first
+arm promoted from `prism_z` into the one core behind eight doors; and
+`cube_doors_agree.rs`'s header still asserting the two-route property
+**twenty lines above a new paragraph that says the opposite**. A file
+that contradicts itself within thirty lines is what accumulation looks
+like when two units write the same header.
+
+**Two durable records were wrong where the PR body was right.** The row
+claimed mutation (c) "reds only that row" (it reds four); and it retired
+`triangle_prism` on three reasons, one of which is not a difference —
+`[c,b,a]` and `[a,c,b]` are cyclic rotations and `newell_plane` anchors
+at the centroid over a cyclic cross-product sum, so both name the same
+plane. **The PR body is not the record; the row is.** Worth stating as a
+rule: when a lane writes the same fact into both, the row is the one to
+check, because it is the one that survives.
+
+**Two brief corrections, both mine.** `pub` on `prism_ops` serves two
+sibling suites, not one, and every top-level item in `common/mod.rs` was
+already `pub` — `cube_ops` was the file's only private item, so the
+shape is the file's convention rather than an exception. And the
+arena-order question I raised is settled by `DESIGN.md:202`'s ratified
+*"deterministic minting order (documented per op — D9 lineage replay)"*:
+the composite order is a **derived consequence of a stated contract**,
+not an invented one, so pinning it is right and the maintenance cost on
+links 2 and 3 is near zero.
+
+**X4, fourth instance, and the first one no instrument could have
+caught.** `REFLEX_L` is digit-for-digit `stl`'s `l_prism`, and the same
+profile literal appears seven times across four crates — including a
+byte-identical pair inside one test binary. Every instrument this
+program has used keys on a builder (`mvfs(`, `find_half_edge(seed`, a
+name); **none can see a duplicated profile *literal***. The class needs
+an instrument that greps the constant, not the construction.
+
+### Link 2 landed (2026-09-18, PR #2839) — and the row's own count was a file read twice
+
+`tol: Tol` threaded through the prism fixture family, **727 call sites
+across 75 files**, every one passing `Tol::witness()`.
+
+**The gate premise was re-confirmed rather than inherited.** Planting a
+`Tol::witness()` in `test_support_impl.rs` fired
+`witness-not-ambient.sh` at the named line; reverting returned it green
+over **436** source files, against 434 two days earlier — the
+production set grew by two while nobody was looking, which is the
+reason to re-check a premise rather than cite it.
+
+**The count was wrong in a new way.** This row said "24 across the
+family with 17 in this file", which reads as a total against a
+subtotal. It was neither: both are the **same file at different
+commits** — 24 before S-DUP, 17 after link 1, 10 after link 1b, which
+is where link 2 found it. Link 1b had already done the larger half of
+link 2's work before link 2 was written. A lane taking the row at its
+word would have hunted seven witnesses outside the file and found none.
+**Five units in, every count has been wrong; this is the first one
+wrong about its own SHAPE rather than its magnitude.**
+
+**Why this was safely style tier, stated better by the lane than by the
+brief.** `Tol::witness()` returns `Self(())` — `Tol` is a ZST with
+exactly one inhabitant, so `tol == Tol::witness()` at every threaded
+site **by construction**, not by convention. The unit is provably
+verdict-neutral rather than merely tested-green. Verified at
+`crates/geom-core/src/tolerance.rs`. Three independent checks anyway:
+that argument, the `cube_doors_agree` guard link 1b built for exactly
+this, and a whitespace-normalised differ finding 71 of 75 changed files
+byte-identical once witness calls and commas are stripped (the other
+four being the threaded signatures and three rustfmt reflows).
+
+**Two operational findings worth carrying forward.**
+
+- **The compiler is an enumerator, and one configuration is not the
+  set.** Default went green with 727 sites rewritten; `--features
+  interval` then produced **42 more** and `probe` **7 more**. A lane
+  that stopped at `cargo test -p topo` would have pushed a red branch.
+- **rustc's missing-argument placeholder has two spellings** —
+  `/* Tol */` where the type is imported, `/* geom_core::Tol */` where
+  it is not. A rewrite keyed on the first leaves literal placeholders
+  that are a **parse error**, so the compiler stops before reporting
+  the remaining sites and repeated passes converge on a fixed point
+  that is not green. Caught by reading error TEXT, not error counts.
+
+**Two corrections to things this orchestrator wrote.** The
+`cert_m3r1_probes` copy does not unblock with link 2 on a gate
+argument: `lib.rs:169` mounts it `#[cfg(test)] mod`, so the gate never
+reads it and its twelve witnesses are legal and stay legal — what
+forces that copy is **namability**, not the gate. And link 3's
+destination is not settled: `crates/topo/src/fixtures.rs` already
+exists, already holds fixture vocabulary, already carries the
+`#![allow]` with its argument, and already has the post-link-2
+signature; it is `pub(crate)`, which is precisely why
+`tests/common/mod.rs` exists separately. Recorded on link 3's row as
+one of three options, with the measurement that decides between them.
+
+**Link 3 is now open** — its last blocker closed, so the row is
+dispatchable rather than parked. That is the third face of
+`work/README.md`'s fired-trigger rule this program has hit: re-park,
+re-park, and now simply open.
+
+## 2026-09-18 — the link-3 home measurement, dispatched twice
+
+The first home-measurement lane was **killed by an account session
+rate limit** partway through, before it ran a single probe. Its last
+words were *"Now the two probes."* and the only thing in its worktree
+was a `work/dup/` row file holding frontmatter and no body — a title
+asserting "at least eight times inside topo, and two of the copies are
+byte-identical" with **no citations and no measurement behind it**.
+That stub was discarded rather than carried: a claim with no evidence
+under it is worth nothing regardless of how plausible its title reads,
+and this program exists to catch exactly that kind of inherited
+number. The lane was re-dispatched from scratch on the same brief.
+
+**The operational rule this confirms**, which is the second outage of
+the sitting (the first killed link 1b's fix pass mid-verification):
+treat every pre-outage local result as stale. The difference between
+the two cases is what the worktree held. Link 1b's held real,
+uncommitted work including a planted mutation, so it was *resumed*;
+this one held a stub, so it was *restarted*. The discriminator is
+whether there is evidence on disk, not whether the lane sounded
+confident when it died.
+
+## 2026-09-18 — link 3's home, and an error of the orchestrator's own
+
+The re-dispatched measurement came back and **settled the home**:
+option 3, a sibling module re-exported through `test_support`. Options
+1 and 3 are invisible to consumers and differ only in whether the
+three-lint `#![allow]` also covers `ArenaCounts`, which earns none of
+the 31 lints it allows (25 `unwrap_used`, 6 `expect_used`, 0 `panic` —
+that arm is unearned and should not travel).
+
+**Option 2 died on the number the row itself named.** The row said the
+deciding figure was how much of `crates/topo/src/fixtures.rs`
+duplicates `tests/common/mod.rs`. It is **zero** — the two files share
+no item. What they share is the name `prism`/`Prism`, with disjoint
+meanings: `fixtures::prism` has no mass properties at all, its eight
+points are collinear in `y = 0`, its surfaces are `NaN`-control-point
+`Nurbs` and its carriers are `Circle`/`Scaffold`/`Declared`. A
+skeleton, not a box. The file says so at `:492` — *"indexed
+placeholders … structural validation never reads them."*
+
+**I wrote option 2 into that row, and the reasoning was bad in a way
+this program exists to name.** I had two observations — the file holds
+fixture vocabulary, and it exports a `prism(n, tol)` matching the
+signature link 2 had just converged the `tests/` family onto — and I
+treated them as evidence of sameness. They were three readings of one
+surface: a name, a signature, a neighbourhood. The convergence I read
+as "these are one door" was a convergence onto `(count, tol)`, which
+after link 2 is what nearly every fixture builder in this tree takes.
+
+S-DUP normally catches *different names for one thing*. Here the
+orchestrator nearly landed a unit on *one name for two things*, and
+what caught it was not judgement but the row's standing demand that
+the measurement precede the choice. The companion to the
+five-instruments result, recorded on the row: **a name, a signature
+and a neighbourhood are three readings of the same surface, and three
+surface readings do not make a measurement.**
+
+**One correction back to the lane.** It characterised `fixtures.rs` as
+"the raw-insertion home" against `tests/common`'s "Euler-op home".
+True of `fixtures::prism`, false of the file: `ops_cube`,
+`ops_holed_box`, `ops_genus2`, `ops_ring_bridge` and `ops_strut_cube`
+are all operator-built with real coordinates. The verdict stands — the
+item overlap is still zero — but the boundary between the two files is
+**reachability**, not construction style. `fixtures.rs` is
+`#[cfg(test)] pub(crate)`, so `tests/` cannot name it; `tests/common`
+is a separate binary, so `src/` cannot name it. Each exists because
+the other is unreachable. That is the wall link 3 takes down, and the
+same wall holds `cert_m3r1_probes.rs`'s copy in place.
+
+**A sixth spelling, filed rather than disclosed.** The lane measured,
+while settling `review_m1_pr3::build_box`, that `fixtures::ops_cube`
+is `geometric_cube` with the face geometry declined — byte-identical
+dumps in `points`, all 1199 lines of `curves`, `half_edges`, `loops`,
+`edges`, `vertices`, all seven provenance maps, `curve_origins` and
+`surgery` — and that `build_box` is `ops_cube` at a uniform 2× scale.
+It correctly left that in prose and flagged that prose is not
+scheduling (`work/README.md`). It is now
+`work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`,
+parked behind link 3, because nothing in `src/` can name the shared
+builder until link 3 lands.
+
+Three things the lane retired for link 3, each measured rather than
+argued: the blocked-from-`src/` set is **empty** (`cargo check -p topo
+--lib --features test-support` with the family mounted: 0 errors, 0
+warnings, and `--lib` excludes dev-deps); `tests/fixture/mod.rs` moves
+**nowhere** (one SSI acceptance fixture, 2 consumers, zero overlap,
+slated for deletion by its own header); and the witness gate is
+**already discharged** — link 2 took `tests/common` to 0
+`Tol::witness()` calls, so only the `#![allow]` remained of this row's
+"two gates at the door".
+
+## 2026-09-18 — the program's own subject, found in the program's own tracker
+
+Noticed while checking whether link 3 was clear to dispatch:
+`work/dup/topo-tests-brick-copies.md` still carried **24** in its
+title, and twice as a live fact inside the very section that corrects
+24 to 23. The row is closed; its closing table is right (23 named, 17
+renamed/inline, 26 let-bound, **66** total); the wrong number was
+sitting in the one field `work/STATUS.md` renders.
+
+That is this program's subject, in this program's own file, written by
+this orchestrator. A number gets corrected where the correction is
+argued and not where it is *used*, because the two are different
+sentences and only the first is what the author is thinking about.
+
+Fixed: title now states the 66/23 split; the two live uses in the
+correction section now say 23. **Deliberately not fixed**: the 24s in
+the original finding and the original option list. Those are the claim
+that was corrected, and the correction quotes them — rewriting them
+would erase what the row is evidence of. The intermediate **34**
+(23 named + 11 renamed, the figure before the reviewer's sweep found
+26 more) is likewise left standing, with a supersession note pointing
+at the closing table, because the progression 23 → 34 → 66 is the
+row's evidence for method item 1.
+
+The rule this hardens, for every row this program closes: **correct the
+number everywhere it is asserted, and leave it everywhere it is
+quoted.** A closed row's title is an assertion.
+
+## 2026-09-19 — the cube-sequence fold
+
+`dup/fold-the-cube-sequence`. `prism_ops` gains the declined axis as a
+`FaceGeometry` parameter; `splitting::reassembly::quad_prism`,
+`fixtures::ops_cube`, `review_m1_pr3::build_box`, `mesh`'s MESH-6
+scaffold probe, `review_m3_pr1::ops_cube_public` and
+`interval_body`'s interval cube all fold onto it. Every body
+byte-identical (`deep_snapshot`, all ten arenas + provenance).
+`cube_independent.rs` untouched, as its header requires.
+
+Two of the row's three unmeasured questions are now measured and
+written into it: the placeholder surfaces ARE depended on as
+placeholders (10 rows red when handed planes), `build_box`'s 2x scale
+is read by NO assertion but is kept because the hole recipes planted on
+it live outside a unit cube and nothing would go red. The X4 re-census
+turned up the §9.3 holed-box class, filed as
+`work/dup/the-9-3-holed-box-sequence-is-written-out-four-times.md`.
+
+The `mesh` dev-edge question the brief flagged is NOT the `sweep` one:
+`sweep` needs the feature at LIBRARY build time (its `test_support` is
+a `src/` module), `mesh` needs it on a dev edge only, and
+`crates/step-export/Cargo.toml` and `crates/step-import/Cargo.toml`
+already carry exactly the shape `mesh` takes — a featureless `topo`
+in `[dependencies]` beside a `topo = { features = ["test-support"] }`
+in `[dev-dependencies]`. `scripts/gates/test-features-dev-only.sh`
+passes.
+
+## 2026-09-19 — the fold's fix pass
+
+Same branch. The fold's own disclosed residue — `fixtures::ops_cube`
+and `OpsCube` reduced to names for `declined_cube::<f64>` and
+`CubeOps` — is deleted rather than carried: 74 call sites across 20
+files re-pointed, both destructuring sites with them. The argument is
+the two module headers, which after the fold said incompatible things
+about one function.
+
+A fifth instrument, structural rather than arity/name/import/prose —
+`git grep -n 'find_half_edge(seed.face'`, 26 hits — found two more
+members (`tests/m3_pr1_surgery.rs`'s outer cube, `boolean/ops.rs`'s
+`far_cube`), both folded and both proved body-identical by
+`deep_snapshot` BEFORE the edit. It also turned up two classes that are
+not cubes, filed as their own rows: the quad-sheet helper (3 copies)
+and the two-rim cylindrical patch (**9 copies, seven files, eight of
+them closures**). That count is the largest this program has opened a
+row with, and every one of the nine is invisible to all four of the
+censuses links 1–3 ran.
+
+**The correction that matters for method.** The row said
+`review_m3_pr1.rs` was missed because it was loop-written and under the
+arity threshold. Re-run at the merge base it scores 20 `mev` / 14 `mef`
+— three times the threshold. It was matched and then lost inside an
+unnamed four-file bucket, and a second file from that same bucket
+(`m3_pr1_surgery.rs`) was still in it. **A bucket disposition is where
+a census loses things**; one line per hit is what this program already
+asks for, and this is the receipt for why.

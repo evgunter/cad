@@ -57,13 +57,20 @@ deleted);
 `memo-dumps-hide-the-closed-bit-the-counters-depend-on`;
 `mesh-materialized-form-is-writable`.
 
-Track R rows as track lanes, in the track's own order: S28, S236 (its
-`tools/` half is Track K's), S237, D300, D303, D304; C23 with its
-premise check first. Rows land per §D's conventions.
+The seven rows inherited from the 2026-08 findings register's Track R,
+each closed in this directory like any other item: S28, S236 (its
+`tools/` half is INSTR's), S237, D300, D303, D304; C23 with its
+premise check first.
 
 ## Process
 
-v6 duals as S-MESH ran them (`docs/MODEL-AB-LOG.md` normative): one
+Review tiers (Ev, in-chat, 2026-09-18 — EDIT's tiers of 2026-09-16):
+the full v6 dual on a kernel unit; a style review with a correctness
+arm, and no A/B row, for a unit that is easy but not trivially so
+(test-only rows included); no review and no row for a rename or prose
+row, which merges on green CI and the orchestrator's read.
+
+A kernel unit runs the v6 dual (`docs/MODEL-AB-LOG.md` normative): one
 implementer plus the cross-model dual review and the union fix pass;
 implementer blocks `TESS-B<n>` drawn branch-side; ordinals claimed on
 main at review dispatch from 5100–5199; record-at-merge with per-phase
@@ -78,6 +85,6 @@ refusal the slate names arrives at its door with its name, the mesh's
 materialized form is read-only outside the crate, the chart frame is a
 decided triple with one home, the memo dumps say what their counters
 depend on, MESH-9 is either landed on its trigger or still parked with
-the trigger intact, and Track R's mesh rows are empty in §D. Every unit
+the trigger intact, and the seven register rows are closed. Every unit
 merged on its own green hosted head; the walk convention applies at
 exit.

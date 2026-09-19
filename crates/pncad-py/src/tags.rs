@@ -1872,14 +1872,15 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
 /// The stable tag for the analytic kind a CURVE carrier was promoted
 /// to — `CurvePromotion::kind`.
 ///
-/// One word today, and the exhaustive match is why it is a map rather
-/// than a literal: the named exclusions the recognizer carries
-/// (line-as-degree-1, ellipse, helix, open arcs) each land here when
-/// their follow-up does, and each stops this crate compiling until it
-/// has a word of its own.
+/// The exhaustive match is why it is a map rather than a literal:
+/// the recognizer's kinds (the line's #388 follow-up landed; the
+/// named exclusions — ellipse, helix, open arcs — are still to come)
+/// each land here when their follow-up does, and each stops this
+/// crate compiling until it has a word of its own.
 pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
     match kind {
         PromotedCurveKind::Circle => "circle",
+        PromotedCurveKind::Line => "line",
     }
 }
 
