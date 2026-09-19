@@ -3330,6 +3330,27 @@ pub struct PartialPath<T: Real, P, A> {
     _state: PhantomData<(P, A)>,
 }
 
+impl<T: Real, P, A> PartialPath<T, P, A> {
+    /// **The steps recorded so far, in program order** — the prefix of
+    /// the program this chain publishes when it closes
+    /// ([`ClosedLoop::program`]).
+    ///
+    /// Every verb records exactly one step, before the emission it
+    /// brackets (`Core::record`), so the last element is the verb
+    /// that was just called and its index is that verb's step number
+    /// in the published program. That is what lets a caller writing a
+    /// notation beside the recording address the leg it just authored
+    /// without counting the ones before it.
+    ///
+    /// The steps only, and no structure record: a chain's structure is
+    /// taken at the close, and the recording is the part of a path
+    /// that is already final at every point along it.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
+}
+
 /// Re-wraps runtime state under new lattice markers (private: binders
 /// are the only constructors).
 fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {

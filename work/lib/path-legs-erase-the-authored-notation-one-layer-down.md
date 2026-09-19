@@ -62,3 +62,40 @@ census charter `B-PATH-NOTATION` names the Python half. This header was
 edited from outside LIB's fence only to keep the tracker true (a row
 parked on a closed trigger is a lint error); nothing else here is
 LIB's decision made for it.
+
+## Widened (2026-09-19, PR #2876)
+
+EDIT's `recorded-notation-makes-a-rust-author-count-step-indices`
+landed two doors this row's Python builder threads through, so the
+work it names is now "call these", not "design these". Recorded here
+because LIB reads this file, not EDIT's tracker; LIB's row, by
+announcement, and nothing about what LIB decides is changed.
+
+- `profile::PartialPath::recorded(&self) -> &[Step<T>]` — the steps
+  recorded so far, in program order, the prefix of the program the
+  chain publishes. Answered by every builder state that holds the
+  core (the partial path and the arrival builders a verb hands back),
+  so it is reachable at the moment a step exists rather than one
+  state later; after the closer the same slice is
+  `ClosedLoop::program`.
+- `editor_core::RecordedNotation::set_after(&mut self, recorded,
+  arg, unit)` — writes the notation of the LAST recorded step, the
+  index being `recorded.len() - 1` and never a count. A binding that
+  records an entry per typed quantity it lowers writes it at the leg
+  it just lowered, and never spells a step number.
+
+What that means for the charter, which is LIB's own text and is cited
+rather than edited: `B-PATH-NOTATION`
+(`crates/pncad-py/tests/test_binding_census.py`) asks for "the path
+builder to record a `(step, StepArg)` entry for every typed quantity
+it lowers" and for "`loop_program` to hand the notation to the
+lifting door instead of dropping it". The first half is `set_after`
+called at each lowering site in `py/path.rs`; the second is
+`py::path::loop_program` calling `LoopProgram::from_recorded_with_notation`
+where it calls `from_recorded` today.
+
+Until that happens, both notation words in
+`crates/pncad-py/src/tags.rs`'s `RecordedProgramError` map —
+`notation_off_program` and `notation_before_any_step` — are
+vocabulary no Python caller can reach; that map's doc says so and
+points back here.
