@@ -12,6 +12,7 @@
 
 pub mod create;
 pub mod features;
+pub mod profile;
 pub mod properties;
 pub mod view;
 pub mod viewport;
