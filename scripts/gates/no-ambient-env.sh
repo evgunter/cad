@@ -69,7 +69,9 @@
 #    first-light hardening): PATH + DBUS_SESSION_BUS_ADDRESS for
 #    the file-chooser-backend verdict, WSL_DISTRO_NAME/WSL_INTEROP
 #    for the WSLg X11 preference, the working directory as the file
-#    dialogs' last-resort starting place. The data flow is the REVERSE of
+#    dialogs' last-resort starting place (`std::env::current_dir`,
+#    which this gate's pattern does NOT match: that read stays in
+#    platform.rs by convention, not by this gate). The data flow is the REVERSE of
 #    NURBS_PROBE's: the environment is the SUBJECT being observed,
 #    not a knob into the model — no read can change what any
 #    document evaluates to; they adapt chrome affordances (disable

@@ -60,8 +60,8 @@ the last dialog returned a path in (kept in the preferences file as
 `[files] last_dir`), and the directory the viewer was launched from
 (`frame::dialog_dir`). The portal is handed that directory; `rfd`'s
 zenity fallback is not, and opens at the launch directory, its own
-default. An old portal (1.6, as on Ubuntu's WSL image) honours the
-directory for Save As… but shows its "Recent" view for Open….
+default. `xdg-desktop-portal` 1.6 honours the directory for Save As…
+but shows its "Recent" view for Open….
 
 **Dialog opens but every character is a box with tiny hex digits.**
 Pango cannot shape the font fontconfig matched. Diagnose with

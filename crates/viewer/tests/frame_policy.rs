@@ -1317,6 +1317,12 @@ fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
         Some(last),
         "an empty parent is no candidate"
     );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
 }
 
 #[test]

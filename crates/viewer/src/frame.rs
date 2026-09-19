@@ -1526,8 +1526,7 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
 /// the preferences (`crate::prefs::Prefs::last_dir`); the launch
 /// directory is where they were when they started. `None` — reached
 /// only when all three are absent or gone — leaves the dialog to its
-/// backend's own default, which on the box this was reported from was
-/// the filesystem root.
+/// backend's own default, whatever that is.
 ///
 /// **A candidate that is not a directory falls through** rather than
 /// refusing. A remembered directory deleted since is the ordinary way
@@ -1537,21 +1536,27 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
 /// `Path::is_dir` at the one live caller, a table in the rows that
 /// exercise it.
 ///
-/// **A document's directory is its `parent`, and an EMPTY parent is
-/// no candidate** whatever `is_dir` says of it: the parent of a bare
-/// relative file name is `""`, which names no directory, and taking
-/// it would stop the search before the candidates behind it.
+/// A document's directory is its [`containing_dir`].
 pub fn dialog_dir<'a>(
     document: Option<&'a Path>,
     last: Option<&'a Path>,
     launch: Option<&'a Path>,
     is_dir: impl Fn(&Path) -> bool,
 ) -> Option<&'a Path> {
-    [document.and_then(Path::parent), last, launch]
+    [document.and_then(containing_dir), last, launch]
         .into_iter()
         .flatten()
-        .filter(|dir| !dir.as_os_str().is_empty())
         .find(|dir| is_dir(dir))
+}
+
+/// **The directory a file lives in, as a place a dialog can open**:
+/// its `parent`, or `None` when that parent is EMPTY. The parent of a
+/// bare relative file name is `""`, which names no directory — as a
+/// dialog candidate it would stop the search before the candidates
+/// behind it, and as a remembered directory it would overwrite a real
+/// one with nothing.
+pub fn containing_dir(path: &Path) -> Option<&Path> {
+    path.parent().filter(|dir| !dir.as_os_str().is_empty())
 }
 
 /// **What a cursor action the pick index refused says.**

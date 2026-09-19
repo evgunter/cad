@@ -82,8 +82,8 @@ const LAST_DIR: &str = "last_dir";
 /// What a viewer remembers between runs.
 ///
 /// Names, not values, wherever a registry exists to resolve one: the
-/// file records *which* theme, and the registry says what that theme
-/// is. A palette copied into the preferences file would be a second
+/// file records *which* theme and which key preset, and the registry
+/// says what each is. A palette copied into the preferences file would be a second
 /// definition able to drift from the real one, and would freeze a
 /// theme's colours at whatever they were the day it was written. The
 /// one value here is [`Self::last_dir`], a directory — there is no
@@ -209,9 +209,11 @@ impl Prefs {
         let mut out = String::from(
             "# pncad viewer preferences.\n\
              #\n\
-             # Settings are NAMES, resolved against the viewer's own\n\
-             # registries — an unknown name is reported and the default\n\
-             # stands, so an old file never stops a new viewer opening.\n",
+             # The theme and the key preset are NAMES, resolved against\n\
+             # the viewer's own registries — an unknown name is reported\n\
+             # and the default stands. The last directory is a path, and\n\
+             # one that has gone is passed over. Either way an old file\n\
+             # never stops a new viewer opening.\n",
         );
         out.push_str(&format!("\n[{APPEARANCE}]\n"));
         out.push_str("# One of: ");
@@ -219,7 +221,7 @@ impl Prefs {
         out.push_str(&names.join(", "));
         out.push('\n');
         match &self.theme {
-            Some(name) => out.push_str(&format!("{THEME} = \"{name}\"\n")),
+            Some(name) => out.push_str(&format!("{THEME} = {}\n", toml_string(name))),
             None => out.push_str(&format!("# {THEME} = \"{}\"\n", Theme::DEFAULT.name)),
         }
         out.push_str(&format!("\n[{KEYS}]\n"));
@@ -229,7 +231,7 @@ impl Prefs {
              # reserves the door rather than offering a choice.\n",
         );
         match &self.keys {
-            Some(name) => out.push_str(&format!("{PRESET} = \"{name}\"\n")),
+            Some(name) => out.push_str(&format!("{PRESET} = {}\n", toml_string(name))),
             None => out.push_str(&format!("# {PRESET} = \"{}\"\n", input::PRESETS[0].0)),
         }
         out.push_str(&format!("\n[{FILES}]\n"));
@@ -239,13 +241,7 @@ impl Prefs {
              # through to the launch directory if this one has gone.\n",
         );
         match self.last_dir.as_deref().map(std::path::Path::to_str) {
-            // Rendered by the TOML library, not by hand: a directory
-            // name may hold a quote or a backslash, and a bare
-            // `"{dir}"` would write a document the parser refuses.
-            Some(Some(dir)) => out.push_str(&format!(
-                "{LAST_DIR} = {}\n",
-                toml::Value::String(dir.to_owned())
-            )),
+            Some(Some(dir)) => out.push_str(&format!("{LAST_DIR} = {}\n", toml_string(dir))),
             // The directory exists and cannot be spelled in a TOML
             // string. Said in the file rather than silently dropped,
             // and never rendered lossily: a path with a character
@@ -281,6 +277,14 @@ impl Prefs {
             },
         }
     }
+}
+
+/// A value spelled as a TOML string by the TOML library, never by
+/// hand: every value written here — a name read back from a file, a
+/// directory a person chose — may hold a quote or a backslash, and a
+/// bare `"{value}"` would write a document the parser refuses.
+fn toml_string(value: &str) -> toml::Value {
+    toml::Value::String(value.to_owned())
 }
 
 /// One `[section]` with one string key in it, reporting anything else

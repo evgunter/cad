@@ -514,6 +514,9 @@ pub struct ViewerApp {
     /// and written back by [`Self::remember_prefs`] on every dialog
     /// that returns a path, so it outlives the session where the store
     /// keeps anything and lasts the session where it does not.
+    ///
+    /// Loaded and carried on every target, wasm included, so a write of
+    /// the preferences never drops it; only the native dialogs read it.
     last_dir: Option<std::path::PathBuf>,
     /// The directory the viewer was launched from — the last of the
     /// three places, read once ([`platform::launch_dir`]) because a
@@ -1167,17 +1170,20 @@ impl ViewerApp {
         self.apply_status(update);
     }
 
-    /// Write the current theme choice to the preferences store.
+    /// Write everything the viewer remembers — the theme, the key
+    /// preset, the last dialog directory — to the preferences store.
+    /// Called when the theme changes and when a dialog returns a path
+    /// in a new directory.
     ///
     /// **Best-effort, and it reports.** A write that FAILED — a store
     /// with somewhere to write that could not — is worth one line in
     /// the status area and nothing more: the theme is already applied
-    /// on screen, so a failure here costs the next session's memory of
-    /// it, never this session's work. A store that can never be
+    /// on screen and the path already chosen, so a failure here costs
+    /// the next session's memory of them, never this session's work. A store that can never be
     /// written is not that case and is not reported here at all; it is
     /// a standing fact the toolbar badges, per the guard below.
-    /// Refusing the switch because it could not be recorded
-    /// would be the worse trade.
+    /// Refusing the switch or the path because it could not be
+    /// recorded would be the worse trade.
     ///
     /// The whole document is rewritten rather than patched, so every
     /// setting this viewer understands has to be carried across —
@@ -1211,15 +1217,11 @@ impl ViewerApp {
     /// Remember the directory a dialog just returned a path in: the
     /// next dialog opens there when no document says otherwise
     /// ([`frame::dialog_dir`]), and so does the next run's, where the
-    /// store keeps anything.
-    ///
-    /// A path with no parent worth naming — a bare file name, whose
-    /// parent is `""` — remembers nothing, for the reason
-    /// [`frame::dialog_dir`] drops the same candidate. An unchanged
-    /// directory writes nothing: the file already says it.
+    /// store keeps anything. An unchanged directory writes nothing: the
+    /// file already says it.
     #[cfg(not(target_family = "wasm"))]
     fn remember_dir(&mut self, path: &std::path::Path) {
-        let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) else {
+        let Some(dir) = frame::containing_dir(path) else {
             return;
         };
         if self.last_dir.as_deref() == Some(dir) {
@@ -1229,22 +1231,68 @@ impl ViewerApp {
         self.remember_prefs();
     }
 
-    /// A file dialog positioned where [`frame::dialog_dir`] says, with
-    /// `Path::is_dir` as its witness that a candidate still exists.
-    /// `name` is a Save As… dialog's suggested file name; Open… hands
-    /// `None`.
+    /// **The one door both file dialogs go through**, so Open… and
+    /// Save As… cannot disagree about where they start and neither can
+    /// forget to remember where it ended. It opens where
+    /// [`frame::dialog_dir`] says, with `Path::is_dir` as the witness
+    /// that a candidate still exists; offers a saved document's own
+    /// file name to Save As…; and remembers the directory of the path
+    /// it returns ([`Self::remember_dir`]). A THIN veneer over
+    /// `SessionOp::Open` and `SessionOp::Save`: everything it does is
+    /// choose a `Path`.
     ///
-    /// **The one door both dialogs go through**, so Open… and Save As…
-    /// cannot disagree about where they start.
+    /// **It blocks, deliberately.** A modal file chooser is the
+    /// platform's own idea of a modal file chooser, and the alternative
+    /// (an async handle polled across frames) would buy responsiveness
+    /// during an interaction that is already modal, at the cost of a
+    /// second state machine.
+    ///
+    /// **The starting directory reaches the portal and nothing else.**
+    /// `rfd` hands `set_directory` to the portal as `current_folder`;
+    /// its zenity fallback drops it and forwards only the file name, so
+    /// a zenity dialog opens at zenity's own default (the process's
+    /// working directory, which is the launch directory). The directory
+    /// is not spelled into the file name for zenity's sake: which
+    /// backend answers cannot be known from here — with no session-bus
+    /// address in the environment `rfd` still reaches a portal through
+    /// D-Bus autolaunch where one runs — and a portal handed that name
+    /// shows the whole directory path in its name field. A portal that
+    /// lacks `current_folder` on its open dialog shows its own default
+    /// there; its save dialog honours it.
+    ///
+    /// **Absent on wasm**, and so are the bodies of the two button arms
+    /// that call it. That second state machine is exactly what the
+    /// browser would force — `rfd`'s wasm backend offers only the async
+    /// dialog, and there are no paths behind it either — so the browser
+    /// build has no door here, and [`platform::chooser_backend`] says so
+    /// to the chrome by disabling both buttons.
     #[cfg(not(target_family = "wasm"))]
-    fn file_dialog(&self, name: Option<&str>) -> rfd::FileDialog {
-        let start = frame::dialog_dir(
+    fn file_dialog(&mut self, kind: FileDialog) -> Option<std::path::PathBuf> {
+        let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
+        if let Some(dir) = frame::dialog_dir(
             self.session.path(),
             self.last_dir.as_deref(),
             self.launch_dir.as_deref(),
             std::path::Path::is_dir,
-        );
-        file_dialog(start, name)
+        ) {
+            dialog = dialog.set_directory(dir);
+        }
+        let path = match kind {
+            FileDialog::Open => dialog.pick_file(),
+            FileDialog::SaveAs => {
+                if let Some(name) = self
+                    .session
+                    .path()
+                    .and_then(std::path::Path::file_name)
+                    .and_then(std::ffi::OsStr::to_str)
+                {
+                    dialog = dialog.set_file_name(name);
+                }
+                dialog.save_file()
+            }
+        }?;
+        self.remember_dir(&path);
+        Some(path)
     }
 
     /// This application's door onto [`frame::apply`], for the verdict
@@ -1403,15 +1451,14 @@ impl ViewerApp {
                 // Unreachable on wasm — `chooser` is `Absent`
                 // there, so the button is disabled and never
                 // reports a click — but unreachable code still has
-                // to compile, and `pick_open` does not exist on
-                // that target. The `cfg` is on the BODY rather
+                // to compile, and `Self::file_dialog` does not exist
+                // on that target. The `cfg` is on the BODY rather
                 // than the button so the browser build still shows
                 // the control and its disabled reason, which is
                 // the #1125 posture: a door that cannot open says
                 // so, it does not vanish.
                 #[cfg(not(target_family = "wasm"))]
-                if let Some(path) = self.file_dialog(None).pick_file() {
-                    self.remember_dir(&path);
+                if let Some(path) = self.file_dialog(FileDialog::Open) {
                     ops.push(SessionOp::Open(path));
                 }
             }
@@ -1423,20 +1470,8 @@ impl ViewerApp {
                 // Unreachable on wasm, for the reason the Open…
                 // arm above states.
                 #[cfg(not(target_family = "wasm"))]
-                {
-                    // The current file's name is offered back, so a
-                    // Save As… of a saved document starts from the
-                    // name it has rather than from nothing.
-                    let name = self
-                        .session
-                        .path()
-                        .and_then(std::path::Path::file_name)
-                        .and_then(std::ffi::OsStr::to_str)
-                        .map(str::to_owned);
-                    if let Some(path) = self.file_dialog(name.as_deref()).save_file() {
-                        self.remember_dir(&path);
-                        ops.push(SessionOp::Save(path));
-                    }
+                if let Some(path) = self.file_dialog(FileDialog::SaveAs) {
+                    ops.push(SessionOp::Save(path));
                 }
             }
             ui.separator();
@@ -2016,46 +2051,15 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
-/// The file dialog both Open… and Save As… are: a THIN veneer over
-/// `SessionOp::Open` and `SessionOp::Save`, positioned at `start`
-/// with `name` as a save dialog's suggested file name.
-///
-/// Everything the dialog does is choose a `Path`. The blocking calls
-/// the two callers make on it are deliberate — a modal file chooser is
-/// the platform's own idea of a modal file chooser, and the
-/// alternative (an async handle polled across frames) would buy
-/// responsiveness during an interaction that is already modal, at the
-/// cost of a second state machine.
-///
-/// **The starting directory reaches the portal and nothing else.**
-/// `rfd` hands `set_directory` to the portal as `current_folder`; its
-/// zenity fallback drops it and forwards only the file name, so a
-/// zenity dialog opens at zenity's own default (the process's working
-/// directory, which is the launch directory). The directory is not
-/// spelled into the file name for zenity's sake: which backend answers
-/// cannot be known from here — with no session-bus address in the
-/// environment `rfd` still reaches a portal through D-Bus autolaunch
-/// where one runs — and a portal handed that name shows the whole
-/// directory path in its name field. A portal old enough to lack
-/// `current_folder` on its open dialog shows its own default there;
-/// its save dialog honours it.
-///
-/// **Absent on wasm**, with the two callers `cfg`-ed to match. That
-/// second state machine is exactly what the browser would force —
-/// `rfd`'s wasm backend offers only the async dialog, and there are
-/// no paths behind it either — so the browser build does not have a
-/// half-open door here; it has no door, and
-/// [`platform::chooser_backend`] is what says so to the chrome.
+/// Which of the two file dialogs [`ViewerApp::file_dialog`] puts up.
 #[cfg(not(target_family = "wasm"))]
-fn file_dialog(start: Option<&std::path::Path>, name: Option<&str>) -> rfd::FileDialog {
-    let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
-    if let Some(dir) = start {
-        dialog = dialog.set_directory(dir);
-    }
-    if let Some(name) = name {
-        dialog = dialog.set_file_name(name);
-    }
-    dialog
+#[derive(Clone, Copy, Debug)]
+enum FileDialog {
+    /// Open…: pick an existing document.
+    Open,
+    /// Save As…: choose where the document goes, offered its current
+    /// file name when it has one.
+    SaveAs,
 }
 
 /// **The Features tile's share of the stack it sits in**, capped at

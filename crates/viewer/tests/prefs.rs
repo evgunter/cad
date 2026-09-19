@@ -50,6 +50,22 @@ fn what_is_written_is_what_is_read() {
     assert!(notices.is_empty(), "{notices:?}");
 }
 
+/// The names are carried back from the file unvalidated — an unknown
+/// preset is kept so the next write does not drop it — so a name read
+/// back can hold a quote or a backslash too. Every value is rendered by
+/// the TOML library; a hand-written `"{name}"` goes red here.
+#[test]
+fn a_name_with_a_quote_and_a_backslash_round_trips() {
+    let written = Prefs {
+        theme: Some(r#"dark "neutral"\x"#.to_owned()),
+        keys: Some(r#"say "hi"\now"#.to_owned()),
+        last_dir: None,
+    };
+    let (read, _unknown_names) =
+        Prefs::from_toml(&written.to_toml()).expect("its own output parses");
+    assert_eq!(read, written, "the names read back are the ones written");
+}
+
 /// The remembered directory is a path a person chose, not a name from
 /// a registry, so it can hold the two characters a TOML basic string
 /// has to escape. A renderer that wrote `"{dir}"` by hand would write
