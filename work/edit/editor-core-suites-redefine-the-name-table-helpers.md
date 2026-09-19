@@ -2,7 +2,8 @@
 id: editor-core-suites-redefine-the-name-table-helpers
 kind: issue
 title: Twenty-four editor-core suites still redefine the name-table and body readers fixture now has one home for
-status: review
+status: closed
+closed: 2026-09-19
 opened: 2026-09-17
 pr: 2867
 branch: edit/suite-helpers-one-home
@@ -195,3 +196,34 @@ inline `.name_table` reads in 50 suites, and 11 inline spellings of
 single-segment `StableName` literals in 50 files that spell an
 authoring door by hand (74 Face, 25 Body, 22 Edge), 22 of them inside a
 named helper whose whole body is the literal.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2867 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). Every NAMED redefinition
+of a `fixture` reader is gone from `crates/editor-core/tests/`, each
+under the row's own discipline (diff, then delete; a byte-identical
+body for the import, a diverged body retired with its reason, a
+document-specific spelling kept as an adapter that DELEGATES and
+never wears a door's name). Audit on the final head: 26 byte-identical
+deletions, 14 diverged and retired, 8 adapters, 2 inlined, one door
+widened (`fixture::pole`, the two `m9_d1` suites' near-parallel pair
+taken through arm (b)). The row's own counts were a name grep and
+over-counted some helpers while missing others; the review found the
+class that a hand-written list cannot see — `fn name1` (eight
+byte-identical copies of `minted`, one inside the fixture's own tree),
+`fn in_copy` (five copies, every one freezing `Face` where the door
+carries the master's kind) and `shelled` — and the fix pass took them
+all and replaced the list with a shape census (every `-> StableName`
+helper outside `fixture/`, grouped by normalised body: none equal to a
+door's). `fixture/mod.rs`'s header now states the rule; every
+per-suite row count is unchanged against main; one suite sentence of
+local knowledge was kept at its import. The main merge predicted as
+"one line" was six files with one semantic overlap against the
+sited-declarations unit, resolved by the reviewer. Residue re-scoped
+onto TCOST's slate: `work/tcost/named-copies-of-fixture-doors-under-other-names`
+(121 single-segment `StableName` literals spelling an authoring door
+by hand) and `work/tcost/inline-name-table-reads-bypass-the-fixture-door`
+(127 inline `.name_table` reads). Territory crossed by announcement:
+`crates/editor-core/tests/*` (TCOST/TINT) throughout, the fixture
+file included.
