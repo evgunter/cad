@@ -32,7 +32,10 @@ from them:
   `Ambiguous`, then `Vanished` — never silently shrunk
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
   `Fillet`/`Chamfer` selections, `Declare` pairs, `Mate` heads,
-  `Measure` refs (`Node::payload_names`). A name is not a DAG edge:
+  `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
+  (`Node::payload_names`; a crossing's `inner` is spelled in the part's
+  id space, so it is no name of THIS document and the list's scope
+  excludes it). A name is not a DAG edge:
   the only door that REFUSES on it is `InsertNode`'s liveness check; a
   later delete strands it (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).

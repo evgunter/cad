@@ -789,9 +789,9 @@ pub struct Doc<P> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Carrier {
     /// The nodes' name-carrying payloads — a fillet or chamfer
-    /// selection, a `Declare` pair, a `Mate` head, a `Measure` ref —
-    /// by [`Node::payload_names`], which stays the one list of NODE
-    /// carriers (DM7).
+    /// selection, a `Declare` pair, a `Mate` head, a `Measure` ref, an
+    /// instance's crossing `outer` — by [`Node::payload_names`], which
+    /// stays the one list of NODE carriers (DM7).
     Payloads,
     /// The appearance store's keys: a `StableName` under Declare's N5
     /// semantics (`DocEdit::SetAppearance`), held by the document
@@ -1317,9 +1317,10 @@ mod tests {
 
     use super::{Carrier, Doc, NameCarrier};
     use crate::appearance::AppearanceRecord;
+    use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::mate::ContactClass;
-    use crate::names::{EntityKind, StableName};
-    use crate::node::{Node, RecipeNodeId, SitedRef};
+    use crate::names::{EntityKind, FaceName, StableName};
+    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -1451,7 +1452,32 @@ mod tests {
                 )],
             },
         );
-        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        // The third payload shape this walk reaches: an instance's
+        // interface record. Its crossing's `outer` is a name in THIS
+        // document and is carried by the INSTANCE — which is what a
+        // DM7 strand over it names — while its `inner` is spelled in
+        // the part's id space and is no carrier's name at all, so its
+        // absence below is asserted by the same equality.
+        let crossed = name(11, EntityKind::Face);
+        doc.nodes.insert(
+            RecipeNodeId(2),
+            Node::InstantiatePart {
+                doc_ref: DocRef {
+                    id: DocumentId::derive("carriers-part"),
+                    pin: ContentPin([7u8; 32]),
+                },
+                interface: InterfaceRecord {
+                    crossings: vec![InterfaceCrossing::Mate {
+                        mate: RecipeNodeId(1),
+                        class: ContactClass::Rest,
+                        outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
+                        inner: FaceName::new(name(12, EntityKind::Face))
+                            .expect("the fixture spells a face"),
+                    }],
+                },
+            },
+        );
+        doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];
         for key in [&painted_b, &painted_a] {
             doc.appearance
                 .insert(key.clone(), AppearanceRecord::default());
@@ -1460,6 +1486,10 @@ mod tests {
         assert_eq!(
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
+                NameCarrier::Payload {
+                    node: RecipeNodeId(2),
+                    name: &crossed,
+                },
                 NameCarrier::Payload {
                     node: RecipeNodeId(1),
                     name: &third,

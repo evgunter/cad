@@ -711,6 +711,26 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let _ = store;
 }
 
+/// **A remainder document holding one plain instance, and the
+/// remainder-side face name a crossing keeps** — the fixture every
+/// hand-built record below starts from.
+///
+/// A crossing's `outer` is a name in THIS document
+/// (`Node::payload_names` lists it, and the insert door checks its
+/// node is live), so a record cannot go into an empty document: the
+/// face the mate kept has to be on something that is there. A split
+/// mints exactly this shape — the crossing mate's remainder end is a
+/// node the cut left behind.
+fn remainder_with_a_neighbour(label: &str, doc_ref: editor_core::DocRef) -> (ProfileDoc, FaceName) {
+    let (doc, neighbour) = insert(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        Node::instantiate_part(doc_ref),
+    );
+    let outer = FaceName::new(in_part(neighbour, CapEnd::End))
+        .expect("a crossing's references are face names");
+    (doc, outer)
+}
+
 /// INVARIANT (A4's "does it actually fit" + A13 clause 4): an
 /// instance carrying a crossing declaration RE-VERIFIES it against
 /// the pinned part at every evaluation. Pre-move it resolves and the
@@ -741,18 +761,16 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(7),
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner: inner.clone(),
         }],
     };
-    let (doc, instance) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5b"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
+    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(
@@ -821,18 +839,16 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(9),
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner,
         }],
     };
-    let (doc, instance) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row5c"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
+    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let back = inline(&doc, instance, &store, Tol::witness()).expect("inline succeeds");
     assert!(
         back.doc.node(instance).is_none(),
@@ -1043,22 +1059,17 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
+    let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(4),
             class: ContactClass::Rest,
-            outer: inner.clone(),
+            outer,
             inner,
         }],
     };
-    let (with, id_with) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6"), Tol::witness()),
-        Node::instantiate_part_with(doc_ref, record),
-    );
-    let (without, id_without) = insert(
-        ProfileDoc::empty(DocumentId::derive("asm-r2b-row6"), Tol::witness()),
-        Node::instantiate_part(doc_ref),
-    );
+    let (with, id_with) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
+    let (without, id_without) = insert(host, Node::instantiate_part(doc_ref));
     assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {

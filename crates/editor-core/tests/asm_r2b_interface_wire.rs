@@ -34,6 +34,20 @@ fn doc_with_a_crossing() -> ProfileDoc {
         })
         .expect("a crossing's references are face names")
     };
+    // The crossing's `outer` is a name in THIS document — a payload
+    // name the insert door checks is live — so the record rides a
+    // SECOND instance, whose remainder-side face the first one mints.
+    // (Its `inner` is spelled in the part's id space and is checked
+    // by nothing here: that is the point of the split.)
+    let host = apply(
+        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness()),
+        &DocEdit::InsertNode {
+            node: Node::instantiate_part(doc_ref),
+        },
+        Tol::witness(),
+    )
+    .expect("the remainder-side instance inserts")
+    .doc;
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(0),
@@ -43,7 +57,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
         }],
     };
     apply(
-        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness()),
+        &host,
         &DocEdit::InsertNode {
             node: Node::instantiate_part_with(doc_ref, record),
         },

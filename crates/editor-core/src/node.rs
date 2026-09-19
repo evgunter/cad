@@ -42,7 +42,6 @@ macro_rules! name_free_node {
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
-            | $crate::node::Node::InstantiatePart { .. }
             | $crate::node::Node::Assertion { .. }
     };
 }
@@ -3249,7 +3248,8 @@ impl<P> Node<P> {
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
     /// blend's selection, a shell's open list, a derived frame's face, a
-    /// measure's references, a mate's two heads. Document data, never DAG
+    /// measure's references, a mate's two heads, an instance's interface
+    /// crossings' `outer`s. Document data, never DAG
     /// edges ([`Node::inputs`] excludes them): the edit door checks at
     /// insertion that each one names a live node, and a later delete may
     /// strand it, which is NAMING-DESIGN N5's dangling-reference
@@ -3258,6 +3258,14 @@ impl<P> Node<P> {
     /// The single answer to "which payloads carry a name": every reader
     /// reads this rather than its own copy of the list. The negative
     /// half is [`name_free_node`], shared with the rewriting twin.
+    ///
+    /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
+    /// the space every reader of the answer reasons in — the insert
+    /// door's liveness check, `Rebind`, DM7's strand walk, the insert
+    /// census in `crate::resolve`. A reference a payload holds in
+    /// ANOTHER document's id space is therefore not a name here: an
+    /// instance's crossing `inner` is the one such reference, and the
+    /// arm below says why it is out of scope rather than absent.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             // A declared pair's two NAMES. The sites beside them
@@ -3285,6 +3293,34 @@ impl<P> Node<P> {
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
+            // An instance's interface record: each crossing's `outer`,
+            // in record order.
+            //
+            // An `outer` is a REMAINDER name — it denotes a face in
+            // THIS document, on a node this document can delete and
+            // under a name this document can rebind — so it is a
+            // payload name like a mate's head, and the same three
+            // doors reach it.
+            //
+            // An `inner` is NOT listed, and the reason is the id space
+            // it is spelled in: the PART's. Its `node` is a part-side
+            // id, which this document may not hold or may hold as an
+            // unrelated node, so the insert door's liveness check over
+            // it would be a wrong check and `Rebind` a wrong repair.
+            // Its life is the pinned product's, re-verified at every
+            // evaluation ([`crate::eval::NodeErrorKind::CrossingUnverified`],
+            // ASSEMBLY A4). That is what makes this list's "single
+            // answer" claim TRUE BY SCOPE: it lists the names in THIS
+            // document's name space, which is the space every reader
+            // of it reasons in.
+            Node::InstantiatePart { interface, .. } => interface
+                .crossings
+                .iter()
+                .map(|crossing| {
+                    let InterfaceCrossing::Mate { outer, .. } = crossing;
+                    outer.as_ref()
+                })
+                .collect(),
             name_free_node!() => Vec::new(),
         }
     }
@@ -3388,6 +3424,34 @@ impl<P> Node<P> {
             Node::Measure { refs, .. } => {
                 for r in refs.iter_mut() {
                     hits += rewrite(&mut r.name, from, to);
+                }
+            }
+            // An instance's crossing `outer`s — the reading twin's
+            // list, rewritten. No re-canonicalization: a record is
+            // ordered by the split's collection order and each
+            // crossing is keyed by its own mate, so a rebind can make
+            // two `outer`s equal but never two CROSSINGS equal, and
+            // there is no set to collapse. An `inner` is not a name in
+            // this document (the reading twin says why) and is not
+            // rewritten.
+            Node::InstantiatePart { interface, .. } => {
+                for crossing in interface.crossings.iter_mut() {
+                    let InterfaceCrossing::Mate { outer, .. } = crossing;
+                    if outer.as_ref() != from {
+                        continue;
+                    }
+                    // The derivation door, for the same reason a mate
+                    // head goes through it: a face name's kind is the
+                    // TYPE's, `DocEdit::Rebind` refuses a cross-kind
+                    // pair at its own door, and this signature cannot
+                    // produce a non-face — so there is no arm to
+                    // refuse and `Infallible` is the whole of what can
+                    // go wrong.
+                    let Ok(next) = outer.map_derivation(|_, _| {
+                        Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
+                    });
+                    *outer = next;
+                    hits += 1;
                 }
             }
             name_free_node!() => {}
