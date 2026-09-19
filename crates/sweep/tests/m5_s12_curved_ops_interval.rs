@@ -52,19 +52,7 @@ mod certified {
     const R: f64 = 0.35;
 
     fn plate() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 3.0),
-            p2(0.0, 3.0),
-        ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(0.8)),
-            Tol::witness(),
-        )
-        .unwrap()
-        .body
+        sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.

@@ -27,7 +27,7 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Tol, Vec2, Vec3};
+    use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -62,26 +62,10 @@ mod certified {
             .body
     }
 
-    /// A block covering the ball laterally, sketched at `z0`, extruded
-    /// `len` upward — the cap cutter.
+    /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
+    /// — the cap cutter.
     fn block(z0: f64, len: f64) -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(-1.0, -1.0),
-            p2(1.0, -1.0),
-            p2(1.0, 1.0),
-            p2(-1.0, 1.0),
-        ]);
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
-            iv(0.0),
-            iv(0.0),
-            iv(z0),
-        )));
-        let vp = Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
-        extrude(&vp, Extrusion::Distance(iv(len)), Tol::witness())
-            .unwrap()
-            .body
+        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (z0, z0 + len), Tol::witness())
     }
 
     /// E1: the ball as LEFT operand, its cap chopped by a block — the
