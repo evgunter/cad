@@ -17,11 +17,11 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
     Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
-    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, LeverRefusal, Maintenance,
-    MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal,
-    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PersistError,
-    PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
+    Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
+    MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
+    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
@@ -1559,7 +1559,10 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
         clash: core::f64::consts::FRAC_PI_2,
-        lever: Some((core::f64::consts::FRAC_PI_2, 1.0)),
+        lever: Some(Lever::Roll {
+            radians: core::f64::consts::FRAC_PI_2,
+            arm: 1.0,
+        }),
     };
     assert_f6(
         &itself,
@@ -1588,7 +1591,10 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
         clash: core::f64::consts::FRAC_PI_2 * 2.0,
-        lever: Some((core::f64::consts::FRAC_PI_2, 2.0)),
+        lever: Some(Lever::Roll {
+            radians: core::f64::consts::FRAC_PI_2,
+            arm: 2.0,
+        }),
     };
     let shown = honest.to_string();
     for want in [
@@ -1605,13 +1611,68 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
         clash: 99.0,
-        lever: Some((0.25, 2.0)),
+        lever: Some(Lever::Roll {
+            radians: 0.25,
+            arm: 2.0,
+        }),
     };
     let shown = inconsistent.to_string();
     assert!(
         shown.contains("a deviation of 0.5 m") && !shown.contains("99"),
         "the printed metre figure is the product of the halves shown, never a stored \
          number that disagrees with them: {shown:?}"
+    );
+}
+
+/// **A residual clash names its pure number, says it is one, and
+/// prints the product** — the second levered sentence, for the three
+/// membership margins that lever a sine, a Frobenius departure or a
+/// reach rather than an authored roll. It never borrows the roll's
+/// words: a Frobenius norm is not radians, and a reader who multiplies
+/// the halves back gets the metre figure.
+#[test]
+fn a_residual_clash_prints_its_pure_number_and_the_product() {
+    let fault = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_rotation_identity",
+        clash: 0.25 * 4.0,
+        lever: Some(Lever::Residual {
+            value: 0.25,
+            arm: 4.0,
+        }),
+    };
+    let shown = fault.to_string();
+    for want in [
+        "mates 3 and 5 cannot both hold",
+        "predicate `mate_member_rotation_identity`",
+        "a dimensionless residual of 0.25",
+        "on a 4 m arm",
+        "a deviation of 1 m",
+        editor_core::CONTRADICTORY_RECOURSE,
+    ] {
+        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    }
+    assert!(
+        !shown.contains("rad") && !shown.contains("roll"),
+        "a residual is a pure number, never a roll in radians: {shown:?}"
+    );
+    // The same lever beside a stored figure that is not its product:
+    // the product printed is the halves', as for the roll.
+    let inconsistent = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_axis_fixed",
+        clash: 99.0,
+        lever: Some(Lever::Residual {
+            value: 0.5,
+            arm: 3.0,
+        }),
+    };
+    let shown = inconsistent.to_string();
+    assert!(
+        shown.contains("a deviation of 1.5 m") && !shown.contains("99"),
+        "{shown:?}"
     );
 }
 
@@ -1678,7 +1739,10 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
         clash: f64::INFINITY,
-        lever: Some((core::f64::consts::FRAC_PI_2, 1.0)),
+        lever: Some(Lever::Roll {
+            radians: core::f64::consts::FRAC_PI_2,
+            arm: 1.0,
+        }),
     };
     let shown = levered.to_string();
     assert!(

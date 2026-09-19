@@ -652,7 +652,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// The arm table, executable and TOTAL: all thirteen arms are built
 /// here and every field each carries is read.
 /// `crate::mate_payload::mate_payload` is the projection
-/// `MateFault`'s thirty-one Python attributes are read off, and this
+/// `MateFault`'s thirty-two Python attributes are read off, and this
 /// pin says what each arm puts on the wire: the exact set it CARRIES,
 /// in publication order, with the rest `None`.
 ///
@@ -668,11 +668,12 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        DocumentId, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
+        DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
         RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
         Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
+        UnitVec3,
     };
 
     let id = RecipeNodeId;
@@ -869,15 +870,19 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["mate", "instance", "inner_variant"],
     );
-    // A levered clash carries both halves of the lever beside it;
-    // one measured without a lever carries neither.
+    // A levered clash carries both halves of the lever beside it —
+    // the tilt for an authored roll, the residual for a pure number
+    // — and one measured without a lever carries none of the three.
     carries(
         &F::Contradictory {
             held: id(1),
             added: id(1),
             predicate: "mate_clocking_redundant",
             clash: 0.5,
-            lever: Some((0.25, 2.0)),
+            lever: Some(Lever::Roll {
+                radians: 0.25,
+                arm: 2.0,
+            }),
         },
         &[
             "held",
@@ -885,6 +890,26 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             "predicate",
             "clash",
             "lever_tilt",
+            "lever_arm",
+        ],
+    );
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_axis_fixed",
+            clash: 0.5,
+            lever: Some(Lever::Residual {
+                value: 0.25,
+                arm: 2.0,
+            }),
+        },
+        &[
+            "held",
+            "added",
+            "predicate",
+            "clash",
+            "lever_residual",
             "lever_arm",
         ],
     );
@@ -911,7 +936,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             parent: id(2),
             child: id(3),
             residual: Subgroup::Planar {
-                normal: pncad::authoring::v3(0.0, 0.0, 1.0),
+                normal: UnitVec3::new(
+                    pncad::authoring::v3(0.0, 0.0, 1.0),
+                    "pncad_py_test_normal",
+                    Band::new(1e-9, 1e-8).expect("a band"),
+                )
+                .expect("a unit normal"),
             },
         },
         &["mate", "parent", "child", "residual"],
@@ -1036,13 +1066,18 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // **`clash` IS the product of the lever's two halves.** The
     // kernel computes the deviation at the raising site and stores
     // it; the two halves ride beside it, and a caller multiplying
-    // them gets the number it was handed.
+    // them gets the number it was handed. A roll sets the tilt and a
+    // residual the residual; the other half is `None`, and which is
+    // set is how the kind crosses.
     let levered = F::Contradictory {
         held: id(1),
         added: id(1),
         predicate: "mate_clocking_redundant",
         clash: 0.25 * 2.0,
-        lever: Some((0.25, 2.0)),
+        lever: Some(Lever::Roll {
+            radians: 0.25,
+            arm: 2.0,
+        }),
     };
     let payload = mate_payload(&levered);
     let (tilt, arm) = (
@@ -1052,9 +1087,28 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         payload.lever_arm.expect("and its arm"),
     );
     assert_eq!(payload.clash, Some(tilt * arm));
-    // A margin measured without a lever carries neither half — the
-    // pair is `None` rather than a pair of zeroes claiming a lever
-    // nothing measured.
+    assert_eq!(payload.lever_residual, None);
+    let levered = F::Contradictory {
+        held: id(1),
+        added: id(2),
+        predicate: "mate_rotation_two_axis_reachable",
+        clash: 0.75 * 3.0,
+        lever: Some(Lever::Residual {
+            value: 0.75,
+            arm: 3.0,
+        }),
+    };
+    let payload = mate_payload(&levered);
+    let (residual, arm) = (
+        payload
+            .lever_residual
+            .expect("a residual clash carries its pure number"),
+        payload.lever_arm.expect("and its arm"),
+    );
+    assert_eq!(payload.clash, Some(residual * arm));
+    assert_eq!(payload.lever_tilt, None);
+    // A margin measured without a lever carries none of the three —
+    // `None` rather than zeroes claiming a lever nothing measured.
     let unlevered = F::Contradictory {
         held: id(1),
         added: id(2),
@@ -1063,7 +1117,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         lever: None,
     };
     let payload = mate_payload(&unlevered);
-    assert_eq!((payload.lever_tilt, payload.lever_arm), (None, None));
+    assert_eq!(
+        (
+            payload.lever_tilt,
+            payload.lever_residual,
+            payload.lever_arm
+        ),
+        (None, None, None)
+    );
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and

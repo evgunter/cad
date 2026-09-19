@@ -30,13 +30,13 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use geom_core::Tol;
-use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
-use geom_core::predicate::Band;
+use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
+use geom_core::predicate::{Band, Indeterminate};
 
-use super::coset::{Coset, FoldStop, Subgroup};
+use super::coset::{Coset, FoldStop, Subgroup, derived_direction};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
-use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
+use super::{Alignment, AxisSense, Lever, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
 use crate::edit::EditError;
 use crate::expr::ParamEnv;
@@ -401,6 +401,14 @@ fn opposed() -> Affine3<f64> {
 /// The clocking RIDER is applied here too, because it never stands
 /// alone: it modifies its carrier's target frame and cuts its residual.
 ///
+/// The subgroup's direction is the `a` frame's axis as the frame
+/// ladder decided it ([`super::MateFrame::axis`], the witness whose
+/// value is the placement's third column), negated exactly for an
+/// opposed sense. Every primitive's target keeps that axis — a
+/// standoff translates along it and the rider spins about it — so no
+/// direction here is read back off a product of matrices, which would
+/// be unit only to rounding and a witness to nothing.
+///
 /// `arm` is this mate's lever — the two mated parts' reach summed
 /// ([`pair_reach`]) plus the datum's own terms
 /// ([`Alignment::lever_arm`]), formed once by the caller — over which
@@ -418,9 +426,16 @@ fn mate_coset(
     };
     let fa = frame(MateSide::A, &alignment.a)?;
     let fb = frame(MateSide::B, &alignment.b)?;
-    let fa = match alignment.sense {
-        AxisSense::Aligned => fa,
-        AxisSense::Opposed => fa * opposed(),
+    let axis = alignment.a.axis(tol).map_err(|error| {
+        Box::new(MateFault::Frame {
+            mate,
+            side: MateSide::A,
+            error,
+        })
+    })?;
+    let (fa, axis) = match alignment.sense {
+        AxisSense::Aligned => (fa, axis),
+        AxisSense::Opposed => (fa * opposed(), -axis),
     };
     let local_z = Vec3::new(0.0, 0.0, 1.0);
     let spin = |theta: f64| {
@@ -451,7 +466,10 @@ fn mate_coset(
                         added: mate,
                         predicate: "mate_clocking_redundant",
                         clash: deviation,
-                        lever: Some((theta, arm)),
+                        lever: Some(Lever::Roll {
+                            radians: theta,
+                            arm,
+                        }),
                     }));
                 }
             }
@@ -462,13 +480,17 @@ fn mate_coset(
             // along the axis — the table's coaxial+clocking row.
             Some(theta) => {
                 let target = fa * spin(theta);
-                let direction = target.linear.c2;
-                (target, Subgroup::Prismatic { direction })
+                (target, Subgroup::Prismatic { direction: axis })
             }
             None => {
                 let point = Point3::origin() + fa.translation;
-                let direction = fa.linear.c2;
-                (fa, Subgroup::Cylindrical { point, direction })
+                (
+                    fa,
+                    Subgroup::Cylindrical {
+                        point,
+                        direction: axis,
+                    },
+                )
             }
         },
         MatePrimitive::PlanarRest { offset } => {
@@ -479,8 +501,7 @@ fn mate_coset(
                 }));
             }
             let target = fa * Affine3::translation(local_z * offset);
-            let normal = target.linear.c2;
-            (target, Subgroup::Planar { normal })
+            (target, Subgroup::Planar { normal: axis })
         }
         MatePrimitive::Clocking => {
             return Err(Box::new(MateFault::TableLacks {
@@ -501,33 +522,45 @@ fn mate_coset(
 /// A mate is authored on an ordered pair; the spanning tree may want it
 /// the other way round. Inverting the relation rather than re-reading
 /// the alignment keeps ONE construction of a mate's meaning.
-fn invert(c: Coset) -> Coset {
+///
+/// The subgroup's directions are transported by the representative's
+/// rotation and re-minted under the band ([`derived_direction`]): a
+/// proper rotation keeps a witness's length one within rounding, so
+/// the mint decides a length within rounding of one and refuses on no
+/// document the doors build.
+///
+/// # Errors
+///
+/// [`Indeterminate`] when a transported direction's length could not
+/// be decided — the witness refusing, escalated like every other
+/// decision in the fold.
+fn invert(c: Coset, band: Band) -> Result<Coset, Indeterminate> {
     let r = c.representative.inverse();
-    let dir = |v: Vec3<f64>| r.linear * v;
+    let dir = |u: UnitVec3<f64>| derived_direction(r.linear * u.get(), "mate_coset_inverse", band);
     let pt = |p: Point3<f64>| r.transform_point(p);
     let subgroup = match c.subgroup {
         Subgroup::Se3 => Subgroup::Se3,
         Subgroup::Trivial => Subgroup::Trivial,
         Subgroup::Empty => Subgroup::Empty,
         Subgroup::Planar { normal } => Subgroup::Planar {
-            normal: dir(normal),
+            normal: dir(normal)?,
         },
         Subgroup::Prismatic { direction } => Subgroup::Prismatic {
-            direction: dir(direction),
+            direction: dir(direction)?,
         },
         Subgroup::Cylindrical { point, direction } => Subgroup::Cylindrical {
             point: pt(point),
-            direction: dir(direction),
+            direction: dir(direction)?,
         },
         Subgroup::Revolute { point, direction } => Subgroup::Revolute {
             point: pt(point),
-            direction: dir(direction),
+            direction: dir(direction)?,
         },
     };
-    Coset {
+    Ok(Coset {
         subgroup,
         representative: r,
-    }
+    })
 }
 
 /// **The per-pair fold** (A11 rule 1): every mate on the ordered
@@ -609,20 +642,29 @@ fn fold_pair<P: crate::ProfilePayload>(
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         if (ha, hb) != (parent, child) {
-            coset = invert(coset);
+            coset = invert(coset, band).map_err(|diag| {
+                Box::new(MateFault::Indeterminate {
+                    mate,
+                    diag: Box::new(diag),
+                })
+            })?;
         }
         held = match super::coset::intersect(held, coset, band, arm) {
             Ok(next) => next,
             Err(FoldStop::Indeterminate(diag)) => {
                 return Err(Box::new(MateFault::Indeterminate { mate, diag }));
             }
-            Err(FoldStop::Clash { predicate, margin }) => {
+            Err(FoldStop::Clash {
+                predicate,
+                margin,
+                lever,
+            }) => {
                 return Err(Box::new(MateFault::Contradictory {
                     held: held_mate.unwrap_or(mate),
                     added: mate,
                     predicate,
                     clash: margin,
-                    lever: None,
+                    lever,
                 }));
             }
         };

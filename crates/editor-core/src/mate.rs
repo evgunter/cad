@@ -63,9 +63,9 @@
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
-use geom_core::linalg::frame::FrameError;
-use geom_core::linalg::{Affine3, Point3, Vec3};
-use geom_core::predicate::{BandError, Indeterminate};
+use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
+use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::predicate::{Band, BandError, Indeterminate};
 
 pub mod coset;
 pub mod member;
@@ -143,10 +143,68 @@ impl MateFrame {
     /// respectively). This is `point_at`'s own list; the three cases
     /// arrive here unchanged because `placement` calls it directly.
     pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
-        let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
-        let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);
+        let eye = self.eye();
         let reference = Vec3::new(self.reference[0], self.reference[1], self.reference[2]);
-        geom_core::linalg::frame::point_at(eye, eye + axis, reference, tol)
+        geom_core::linalg::frame::point_at(eye, eye + self.axis_raw(), reference, tol)
+    }
+
+    /// **The axis the placement aims along, as the witness the ladder
+    /// decided**: the direction [`Self::placement`] stores in its
+    /// third column, carried as a [`UnitVec3`] so a reader that levers
+    /// a sine or a cosine off it holds the fact by type rather than by
+    /// this doc.
+    ///
+    /// The one decision `point_at` makes for its aim, made through the
+    /// same door under the same funnel name on the same vector
+    /// (`(eye + axis) − eye`, the ladder's own spelling, so the aim
+    /// carries the ladder's rounding and not the raw field's) — so
+    /// `axis(tol)?.get()` is `placement(tol)?.linear.c2` bit for bit,
+    /// and the two doors refuse together, with the aim's refusal
+    /// projected onto [`FrameError`] exactly as `point_at` projects
+    /// it. `point_at` returns the affine and drops the witness it had,
+    /// which is why this door re-asks the question instead of reading
+    /// the column: a column read back off an affine is a placement,
+    /// not a witness (`geom_core::OrthoFrame`'s docs), and the door
+    /// that would hand the frame witness out of the ladder is
+    /// `work/scalar/point-at-drops-the-frame-witness.md`.
+    ///
+    /// # Errors
+    ///
+    /// The aim's refusals from [`Self::placement`]'s list, and only
+    /// those: [`FrameError::NonFiniteLength`] and
+    /// [`FrameError::UnderflowedLength`] at [`FrameVector::Aim`],
+    /// [`FrameError::Degenerate`] at [`FrameInput::Aim`] (carrying the
+    /// escalation when the length landed in the band), and
+    /// [`FrameError::Band`].
+    pub fn axis(&self, tol: Tol) -> Result<UnitVec3<f64>, FrameError> {
+        let band = Band::linear(tol).map_err(FrameError::Band)?;
+        let eye = self.eye();
+        UnitVec3::new((eye + self.axis_raw()) - eye, "frame_point_at_aim", band).map_err(|error| {
+            match error {
+                UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength {
+                    input: FrameVector::Aim,
+                },
+                UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength {
+                    input: FrameVector::Aim,
+                },
+                UnitVec3Error::Degenerate => FrameError::Degenerate {
+                    input: FrameInput::Aim,
+                    indeterminate: None,
+                },
+                UnitVec3Error::Escalated(indeterminate) => FrameError::Degenerate {
+                    input: FrameInput::Aim,
+                    indeterminate: Some(indeterminate),
+                },
+            }
+        })
+    }
+
+    fn eye(&self) -> Point3<f64> {
+        Point3::new(self.origin[0], self.origin[1], self.origin[2])
+    }
+
+    fn axis_raw(&self) -> Vec3<f64> {
+        Vec3::new(self.axis[0], self.axis[1], self.axis[2])
     }
 }
 
@@ -581,9 +639,70 @@ impl core::fmt::Display for LeverRefusal {
     }
 }
 
+/// **What a levered clash measured, and the arm that carried it to a
+/// length.** The product is the deviation; the halves are what the
+/// sentence prints, because a stored product beside them would assert
+/// an identity nothing enforces ([`Lever::deviation`] computes it).
+///
+/// A closed enum, and deliberately not a value beside a unit string:
+/// the two arms are the two kinds of number the solve levers, and a
+/// third kind is a new arm with its own sentence, never a free string
+/// a site could set to a length.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Lever {
+    /// An authored roll, in radians (the clocking rider's
+    /// `mate_clocking_redundant`).
+    Roll {
+        /// The roll, in radians.
+        radians: f64,
+        /// The arm, in metres.
+        arm: f64,
+    },
+    /// A dimensionless residual — a sine, a cosine, a Frobenius
+    /// departure from the identity, a reachability defect — named by
+    /// the predicate that measured it.
+    Residual {
+        /// The residual, a pure number.
+        value: f64,
+        /// The arm, in metres.
+        arm: f64,
+    },
+}
+
+impl Lever {
+    /// The arm, in metres, whichever kind of number it levered.
+    pub fn arm(self) -> f64 {
+        match self {
+            Self::Roll { arm, .. } | Self::Residual { arm, .. } => arm,
+        }
+    }
+
+    /// The deviation the lever measured, in metres: the product of the
+    /// two halves, computed here and nowhere stored — one
+    /// multiplication, so it is `Margin::levered`'s value bit for bit.
+    pub fn deviation(self) -> f64 {
+        match self {
+            Self::Roll { radians, arm } => radians * arm,
+            Self::Residual { value, arm } => value * arm,
+        }
+    }
+}
+
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
 /// its subject — the mate, the pair, the predicate, the residual, or
 /// the two documents a mispaired read named.
+///
+/// **Which mate an arm is about is read per arm by its two consumers,
+/// `viewer::tree::blamed_mates` and `pncad_py::MateFaultPayload`, and
+/// the two arms that name no mate are not the same case**: [`Self::Band`]
+/// names no mate and reaches EVERY row of the document —
+/// [`solve_document`] records the one fault against every `Node::Mate`
+/// and every `Node::InstantiatePart` before it reads a mate — while
+/// [`Self::PosesOfAnotherDocument`] names no mate and reaches NO row,
+/// being raised by [`SolvedPoses::placement`] and never inserted in a
+/// fault map. There is deliberately no `subject()` here: an
+/// `Option<RecipeNodeId>` answers `None` for both and erases that
+/// asymmetry, which is the one fact both consumers exist to carry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
     /// The solve is a solve of ANOTHER document (DI3): one of the two
@@ -655,17 +774,21 @@ pub enum MateFault {
         /// Which of those it is, is settled by `predicate`, never by
         /// reading this number.
         clash: f64,
-        /// The lever, when the predicate measured a ROLL and an arm
-        /// carried it to `clash`: `(radians, arm in metres)`, in that
-        /// order, whose product is the deviation. `None` when the
-        /// predicate measured its margin without a lever.
+        /// The lever, when the predicate measured a pure number — an
+        /// authored roll, or a dimensionless residual — and an arm
+        /// carried it to `clash`: the two halves whose product is the
+        /// deviation, typed by what was measured ([`Lever`]). `None`
+        /// only when the predicate measured a length outright or
+        /// decided structurally, which `predicate` settles.
         ///
-        /// The arm is the solve's own scale surrogate
-        /// ([`Alignment::lever_arm`]) — the larger of the two frame
-        /// origins' distances and the authored lengths, floored at one
-        /// metre — and NOT a contact feature, so a message that names
-        /// it is naming that scale and nothing in the model.
-        lever: Option<(f64, f64)>,
+        /// The arm is the mate's lever as the solve forms it — the two
+        /// mated parts' own extent from the datum plus the datum's own
+        /// terms, `ASSEMBLY.md` A11 rule 5's qualifier
+        /// ([`Alignment::lever_arm`] states the sum; [`MateReach`] is
+        /// the parts' half) — and NOT a contact feature, so a message
+        /// that names it is naming the parts' scale and nothing in the
+        /// model.
+        lever: Option<Lever>,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -885,17 +1008,25 @@ impl core::fmt::Display for MateFault {
                         "found the cosets meet in the empty set — a structural refusal, with no \
                          margin to measure"
                     )?;
-                } else if let Some((radians, arm)) = lever {
+                } else if let Some(lever) = lever {
                     // A levered clash IS the product of its two halves,
                     // so the sentence prints the product it computes
                     // here. Stating a stored figure beside the halves
                     // would assert an identity nothing enforces.
-                    write!(
-                        f,
-                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
-                         where the cosets would have had to meet",
-                        radians * arm
-                    )?;
+                    match lever {
+                        Lever::Roll { radians, arm } => write!(
+                            f,
+                            "measured a roll of {radians} rad on a {arm} m arm, a deviation of \
+                             {} m where the cosets would have had to meet",
+                            lever.deviation()
+                        )?,
+                        Lever::Residual { value, arm } => write!(
+                            f,
+                            "measured a dimensionless residual of {value} on a {arm} m arm, a \
+                             deviation of {} m where the cosets would have had to meet",
+                            lever.deviation()
+                        )?,
+                    }
                 } else if clash.is_finite() {
                     // Every other margin is a length measured outright
                     // — and a length that is not finite is not one.

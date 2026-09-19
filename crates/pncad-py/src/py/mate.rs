@@ -510,7 +510,7 @@ impl Subgroup {
     fn normal(&self) -> Option<(f64, f64, f64)> {
         use d::Subgroup as S;
         match self.0 {
-            S::Planar { normal } => Some(direction(normal)),
+            S::Planar { normal } => Some(direction(normal.get())),
             S::Se3
             | S::Cylindrical { .. }
             | S::Prismatic { .. }
@@ -540,7 +540,7 @@ impl Subgroup {
         match self.0 {
             S::Cylindrical { direction: v, .. }
             | S::Prismatic { direction: v }
-            | S::Revolute { direction: v, .. } => Some(direction(v)),
+            | S::Revolute { direction: v, .. } => Some(direction(v.get())),
             S::Se3 | S::Planar { .. } | S::Trivial | S::Empty => None,
         }
     }
@@ -560,7 +560,7 @@ impl Subgroup {
 /// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `margin`,
 /// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
-/// `lever_tilt`, `lever_arm`. The human message is
+/// `lever_tilt`, `lever_residual`, `lever_arm`. The human message is
 /// the kernel's own prose, available as `str(fault)`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
@@ -571,7 +571,7 @@ impl Subgroup {
 /// value; the fork itself is `crate::escalation`, which both doors
 /// call.
 ///
-/// The thirty-one read off ONE record, [`crate::mate_payload`], whose
+/// The thirty-two read off ONE record, [`crate::mate_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: a fault
 /// arm added there is a compile error rather than a mate that every
 /// accessor here silently answers `None` about.
@@ -780,13 +780,26 @@ impl MateFault {
         self.payload().value
     }
 
-    /// The lever's TILT, when a contradictory clash was levered
-    /// rather than measured outright.
+    /// The lever's TILT, when a contradictory clash levered an
+    /// authored roll (the clocking rider's `mate_clocking_redundant`).
+    /// One of this and `lever_residual` is set on a levered clash,
+    /// never both: which one says what kind of number the predicate
+    /// measured.
     #[getter]
     fn lever_tilt(&self) -> Option<Angle> {
         self.payload()
             .lever_tilt
             .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
+    }
+
+    /// The lever's RESIDUAL — a pure number, named by `predicate`: a
+    /// sine, a cosine, a Frobenius departure from the identity, a
+    /// reachability defect — when a contradictory clash levered one
+    /// rather than an authored roll. Dimensionless, so a bare float
+    /// and not a quantity.
+    #[getter]
+    fn lever_residual(&self) -> Option<f64> {
+        self.payload().lever_residual
     }
 
     /// The lever's ARM — an upper bound on the two mated parts'
@@ -796,8 +809,9 @@ impl MateFault {
     /// nothing else in the model.
     ///
     /// `clash` is the PRODUCT of the two halves: a levered refusal
-    /// reports `lever_tilt * lever_arm` as its deviation. An arm that
-    /// measured its margin without a lever carries neither half.
+    /// reports `lever_tilt * lever_arm` or `lever_residual *
+    /// lever_arm` as its deviation. An arm that measured its margin
+    /// without a lever carries none of the three.
     #[getter]
     fn lever_arm(&self) -> Option<Length> {
         self.payload().lever_arm.map(length)

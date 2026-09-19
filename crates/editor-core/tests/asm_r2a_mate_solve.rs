@@ -733,12 +733,13 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
 #[test]
 fn row5_the_closure_set_is_closed_under_intersection() {
     use editor_core::Subgroup;
-    use geom_core::linalg::{Point3, Vec3};
+    use geom_core::linalg::{Point3, UnitVec3, Vec3};
     use geom_core::predicate::Band;
     let band = Band::linear(Tol::witness()).expect("a band");
-    let x = Vec3::new(1.0, 0.0, 0.0);
-    let y = Vec3::new(0.0, 1.0, 0.0);
-    let z = Vec3::new(0.0, 0.0, 1.0);
+    let unit = |v| UnitVec3::new(v, "asm_r2a_row5_axis", band).expect("a basis vector");
+    let x = unit(Vec3::new(1.0, 0.0, 0.0));
+    let y = unit(Vec3::new(0.0, 1.0, 0.0));
+    let z = unit(Vec3::new(0.0, 0.0, 1.0));
     let o = Point3::origin();
     let off = Point3::new(0.0, 1.0, 0.0);
     let planar = |n| Subgroup::Planar { normal: n };
@@ -782,7 +783,7 @@ fn row5_the_closure_set_is_closed_under_intersection() {
     assert_eq!(meet(planar(z), cyl(o, z)), rev(o, z), "the pin in the hole");
     assert_eq!(meet(planar(z), cyl(o, x)), prism(x), "the slot");
     assert_eq!(
-        meet(planar(z), cyl(o, Vec3::new(1.0, 0.0, 1.0).normalize())),
+        meet(planar(z), cyl(o, unit(Vec3::new(1.0, 0.0, 1.0)))),
         Subgroup::Trivial,
         "a generic angle kills both freedoms"
     );
@@ -897,10 +898,10 @@ fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
 #[test]
 fn row5b_the_folded_representative_is_the_solved_clocking() {
     use editor_core::mate::coset::{Coset, Subgroup, intersect};
-    use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
+    use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
     use geom_core::predicate::Band;
     let band = Band::linear(Tol::witness()).expect("a band");
-    let z = Vec3::new(0.0, 0.0, 1.0);
+    let z = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), "asm_r2a_row5b_axis", band).expect("unit z");
     // Pin 1 pins the shared axis through the origin; pin 2's A-side
     // axis is at +x while its representative carries B's at +y.
     let held = Coset {
@@ -1821,7 +1822,11 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
         "the mate contradicts ITSELF, so it stands on both sides"
     );
     assert_eq!(*predicate, "mate_clocking_redundant");
-    let (radians, arm) = lever.expect("the clocking clash is levered, not measured as a length");
+    let Some(editor_core::Lever::Roll { radians, arm }) = *lever else {
+        panic!(
+            "the clocking clash is levered by an authored ROLL, not measured as a length: {lever:?}"
+        );
+    };
     assert!((radians - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
     assert!(
         (radians * arm - clash).abs() < 1e-15,

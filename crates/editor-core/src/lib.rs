@@ -147,7 +147,7 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use lane::{BracketEnd, Lane};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, ClassAdmission,
-    ClusterMaintenance, Coset, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
+    ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
     MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
     SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
     reading_edges, relative_freedom_components, solve_document,
