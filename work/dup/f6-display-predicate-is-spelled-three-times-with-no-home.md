@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-06
 refs: [2053]
 closed: 2026-09-19
+pr: 2880
+branch: dup/f6-one-display-predicate
 ---
 
 
