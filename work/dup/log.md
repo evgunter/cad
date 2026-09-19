@@ -645,3 +645,32 @@ already carry exactly the shape `mesh` takes — a featureless `topo`
 in `[dependencies]` beside a `topo = { features = ["test-support"] }`
 in `[dev-dependencies]`. `scripts/gates/test-features-dev-only.sh`
 passes.
+
+## 2026-09-19 — the fold's fix pass
+
+Same branch. The fold's own disclosed residue — `fixtures::ops_cube`
+and `OpsCube` reduced to names for `declined_cube::<f64>` and
+`CubeOps` — is deleted rather than carried: 74 call sites across 20
+files re-pointed, both destructuring sites with them. The argument is
+the two module headers, which after the fold said incompatible things
+about one function.
+
+A fifth instrument, structural rather than arity/name/import/prose —
+`git grep -n 'find_half_edge(seed.face'`, 26 hits — found two more
+members (`tests/m3_pr1_surgery.rs`'s outer cube, `boolean/ops.rs`'s
+`far_cube`), both folded and both proved body-identical by
+`deep_snapshot` BEFORE the edit. It also turned up two classes that are
+not cubes, filed as their own rows: the quad-sheet helper (3 copies)
+and the two-rim cylindrical patch (**9 copies, seven files, eight of
+them closures**). That count is the largest this program has opened a
+row with, and every one of the nine is invisible to all four of the
+censuses links 1–3 ran.
+
+**The correction that matters for method.** The row said
+`review_m3_pr1.rs` was missed because it was loop-written and under the
+arity threshold. Re-run at the merge base it scores 20 `mev` / 14 `mef`
+— three times the threshold. It was matched and then lost inside an
+unnamed four-file bucket, and a second file from that same bucket
+(`m3_pr1_surgery.rs`) was still in it. **A bucket disposition is where
+a census loses things**; one line per hit is what this program already
+asks for, and this is the receipt for why.

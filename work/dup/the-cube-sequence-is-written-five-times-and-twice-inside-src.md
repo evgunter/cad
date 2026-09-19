@@ -265,8 +265,7 @@ just become geometrically incoherent silently. The scale is therefore
 `quad_prism`, before and after: byte-identical, all five. The `mesh`
 probe's printed output is identical down to `FaceKey(3v1)`.
 
-**Two more members the row's censuses missed**, both loop- or
-closure-written and so under the arity census's threshold:
+**Two more members the row's censuses missed**:
 `crates/topo/tests/review_m3_pr1.rs`'s `ops_cube_public` (the declined
 cube, twenty-eight operator calls) and
 `crates/topo/tests/interval_body.rs`'s
@@ -278,3 +277,79 @@ re-measurement shows `crates/topo/tests/cube_by_hand.rs` and
 — **neither is matched by the arity census at all**, so this row's
 "`review_m1_pr2/*` already dispositioned" line was matching that
 directory's other two files, not the exempt one.
+
+### How `review_m3_pr1.rs` was actually lost — a bucket, not a threshold
+### (corrected 2026-09-19 by the PR 2843 fix pass)
+
+The paragraph above first said both were *"loop- or closure-written and
+so under the arity census's threshold"*. **That is false of
+`review_m3_pr1.rs`, and the instrument says so.** Re-run at this row's
+merge base (`63d6c9ea8`), it scores **20 `mev` / 14 `mef`** — nearly
+three times the ≥7 / ≥5 threshold. It was **matched**, and then
+bucketed away under this row's unnamed *"four `topo/tests/` suites
+already dispositioned"* line.
+
+**A bucket disposition is where a census loses things.** The four files
+that line covered, re-derived at the same merge base, are
+`m3_pr1_surgery.rs` (15/12), `review_m1_pr5.rs` (25/12),
+`review_m2_pr3.rs` (10/14) and `review_m3_pr1.rs` (20/14). **Two of the
+four were mis-dispositioned**, and PR 2843 found one of them and
+re-buried the other: `m3_pr1_surgery.rs`'s `cube_with_inner_box` grows
+its outer cube from a token-for-token copy of the same sequence, and its
+own comment at the site called it *"the ops cube from the crate
+example"*. Folded in the fix pass. The other two are correct
+dispositions and are named here so the bucket does not have to be
+re-opened a third time: `review_m1_pr5.rs` builds digon pillows and
+pillow tori, and `review_m2_pr3.rs`'s `triangle_prism` carries
+`PlacedSegment` rims and `ExtrudedPoint` struts rather than chord lines
+— a different body, and the carriers are its subject.
+
+The lesson this row now carries is not about thresholds. An arity
+census under-counts loops, which this row already said; what it did NOT
+say is that **a hit dismissed in a group of four is dismissed without
+evidence**, and the group is where the count that survives to the next
+lane is written. One line per hit, named, is the cost of not paying
+this twice.
+
+## The fix pass (2026-09-19, PR 2843)
+
+**`fixtures::ops_cube` and `OpsCube` are deleted, not disclosed.** The
+fold had left them as a name for `declined_cube::<f64>` and a name for
+`GeoCube<f64>`, disclosed in the PR body as a minted instance of this
+very class and filed nowhere. They are gone: 74 call sites across 20
+files now name `test_support_fixtures::declined_cube` directly, and the
+two `OpsCube` destructuring sites name `CubeOps`. The argument that
+settles it is that `fixtures.rs`'s header says its bodies are built
+through the raw builder with index-derived placeholders while
+`test_support_fixtures.rs` says a body from one is not a substitute for
+a body from the other — and `fixtures::ops_cube` had become a body from
+the other. Both module headers are reconciled to what is now true.
+
+**Two more members, both found by an instrument none of the four the PR
+ran could see**: `git grep -n 'find_half_edge(seed.face'`, a STRUCTURAL
+needle rather than an arity, a name, a geometry import or a
+self-disclosure. 26 hits, dispositioned one line each in PR 2843's body.
+
+- `crates/topo/tests/m3_pr1_surgery.rs`'s `cube_with_inner_box` — folded
+  (above).
+- `crates/topo/src/boolean/ops.rs`'s `far_cube` — the deleted
+  `ops_cube` body character for character under an x-shift, inside the
+  same test function that called `ops_cube`. Folded to one `prism_ops`
+  call with a translating map; it is the member the new `FaceGeometry`
+  parameter made foldable for the first time.
+
+Both proved body-identical by `fixtures::deep_snapshot` — 79 lines
+each, every arena in slot order with D5 provenance, hand-written against
+folded — before either edit was made.
+
+**`build_box`'s 2× extent now has a guard at the claim site.** The PR
+measured that no assertion reads it (1291/1291 with the box normalised)
+and kept it on a written argument; nothing enforced that argument, and
+`FaceGeometry::Declined` means no geometric tier could. The extent is a
+named constant (`review_m1_pr3::BOX_EXTENT`) that `build_box`'s profile
+and z are spelled from, and `carve_hole` asserts every planted rim and
+drop point against it — so normalising the box reds at the recipes
+rather than mis-siting them silently. The comment's evidence is
+corrected too: the recipes' **face coordinates 0.0 and 2.0** are the
+sharp half (flatly off a unit cube's faces), not the section coordinates
+0.5/1.5 the PR's comment led with.
