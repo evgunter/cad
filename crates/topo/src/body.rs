@@ -883,11 +883,12 @@ impl<T: Real> Body<T> {
     /// `offset_together::scope_walks::the_two_hops_refuse_differently`
     /// reds on either way of collapsing the two.
     ///
-    /// **The claim is this crate's `src`, and nothing wider.** Four
+    /// **The claim is this crate's `src`, and nothing wider.** Five
     /// hand-written spellings sit in `topo/tests` and `sweep/tests`,
+    /// three of them byte-identical under one name; they are
     /// enumerated in
-    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`;
-    /// a lane adding a fifth reads that list, not this sentence.
+    /// `work/tint/the-face-to-solid-walk-is-spelled-per-test-file.md`,
+    /// which is where a lane adding a sixth reads, not this sentence.
     #[must_use]
     pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
         self.get_face(face)
