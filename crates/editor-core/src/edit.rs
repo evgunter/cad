@@ -1643,9 +1643,9 @@ pub enum Maintenance {
     /// at the MEMBERS and its consumer points at IT (the `declare`
     /// edge is a DAG input, DM4), so a delete through the consumer
     /// dangles no name and the document stays legal. What is gone is
-    /// the node that would ever have read the declaration, and this
-    /// row is what says so at the door instead of leaving the author
-    /// a node nothing will mention again.
+    /// the node that would ever have consumed the declaration, and
+    /// this row is what says so at the door instead of leaving the
+    /// author a node nothing will mention again.
     ///
     /// **The rule is a TRANSITION, not a state.** A `Declare` is
     /// legally consumerless in the one-pass authoring window DM4
@@ -1683,8 +1683,9 @@ pub enum Maintenance {
         /// product ROOT of that document, since the same delete
         /// re-rooted it: whether a `Declare` may be one is
         /// `work/edit/an-orphaned-declare-joins-the-product-root-set.md`,
-        /// and it is why the sentence above says no node CONSUMES
-        /// the declaration rather than that nothing reads it.
+        /// and it is why this arm's `Display` sentence says no node
+        /// CONSUMES the declaration rather than that nothing reads
+        /// it.
         declare: RecipeNodeId,
     },
 }
