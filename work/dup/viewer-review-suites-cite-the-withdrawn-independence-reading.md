@@ -135,9 +135,36 @@ Mutations re-planted after the folds, same binary, merge base
 | `common::len(m)` → `m + 1.0` | 534 / 92 | 3 | 11 | 0 | 3 |
 | `History::undo` does not move the cursor | — | 3 | 3 | **4** | 5 |
 
-The last row is the one the style review asked for, and it settles the
-question the zeros raise: `review_gui3_r1` reds **4 of its 18 rows** on
-a mutation to `History`, which is its actual subject. So its zero on
-the frame datum is *this suite asserts nothing about that helper*, not
-*this suite asserts nothing useful* — the second would have been
-S-TINT's finding and not this row's to close.
+**The suite sizes, since a numerator without its denominator says
+nothing**: `gui2_r1` 8 rows, `gui2_r2` 28, `gui3_r1` **9**, `gui3_r2`
+16 — counted as `#[test]` attributes and confirmed against the built
+binary (`--test all review_gui3_r1` selects 9 and filters 618).
+
+**A denominator of 18 stood here and was wrong**, by an instrument
+defect worth naming because it is invisible on most inputs: the count
+was taken with `grep -c '^fn r1_\|^#\[test\]'`, an alternation that
+counts a row TWICE wherever a file's test functions are both
+`#[test]`-attributed and named `r1_*` at column 0. `review_gui3_r1` is
+the only such file in the crate, so it is the only figure the
+instrument doubled — the other three were right, which is exactly what
+made the wrong one look sound.
+
+The last table row is the one the style review asked for, and the
+question the zeros raise is settled by two mutations with different
+figures, each stated with the mutation that produced it:
+
+- **`History::undo` does not move the cursor** — **4 of 9**:
+  `r1_an_abandoned_branch_keeps_its_whole_subtree`,
+  `r1_redo_walks_the_new_branch_across_two_levels`,
+  `r1_open_then_save_reproduces_the_file_bytes_exactly`,
+  `r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable`.
+- **`History::commit_group` replaces the sibling list**
+  (`parent_entry.children = vec![id]` for `.push(id)`) — **1 of 9**,
+  and it is `r1_an_abandoned_branch_keeps_its_whole_subtree`, the row
+  whose name is the claim.
+
+Either way the conclusion is the same and now rests on named rows
+rather than a bare count: this suite's zero on the frame datum is
+*it asserts nothing about that helper*, not *it asserts nothing
+useful* — the second would have been S-TINT's finding and not this
+row's to close.

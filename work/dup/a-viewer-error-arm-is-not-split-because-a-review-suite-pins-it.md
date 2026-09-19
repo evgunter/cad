@@ -81,3 +81,41 @@ reading it.
 `view` (`work.py territory`), so there is no single ground-owner, and
 the finding's subject — one withdrawn instruction still deciding
 things — is S-DUP's charter. Any of the three may claim it by `git mv`.
+
+## The sentence is factually true, and that makes it weaker, not stronger
+
+Both halves measured at `5b4979ef2`, by naming the sites rather than
+totalling them:
+
+- **A promoted review suite does pin the arm by name.**
+  `crates/viewer/tests/review_gui0_r1.rs:629` and `:643` both assert
+  `Err(CameraError::UnusableBounds)`, and `:629` is the **aspect** case
+  (`Camera::framing(&plate_bounds(), 0.0)`) — precisely the assertion a
+  `UnusableAspect` split would have to re-spell. So the quoted sentence
+  is accurate about the world; what is wrong with it is only its
+  ground.
+- **It is not the cost, though.** Other test-side sites naming the arm:
+  `crates/viewer/tests/error_display.rs:71`, `:87`, `:268`, `:340`
+  (four constructions) and `:271` (a string assertion over the same
+  name), and `crates/viewer/tests/datum_draw.rs:1291`. Prose mentions
+  in `src/` carry it too —
+  `crates/viewer/src/datums.rs:1066`, `:1073`, and
+  `crates/viewer/src/pane/viewport.rs:577`, which discusses exactly
+  this conflation.
+
+So a split's real cost is spread over every one of those, of which the
+review suite is two lines. Naming the review suite as *the* cost
+singles out the one site the withdrawn reading made special and is
+silent about the rest — which is the reading's characteristic effect,
+not an incidental phrasing.
+
+## The decline survives without the sentence
+
+`crates/viewer/src/camera.rs:184-195` — the paragraph immediately above
+— argues the arm entirely from the caller's position: *"both are 'the
+framing request names no view', and the doors that return it … take
+exactly those two arguments, so the caller's next question — which of
+my two arguments was wrong — is answered by which door refused."* It
+mentions no suite. **Deleting the review-suite sentence therefore
+leaves the decision standing**, which is why the choice this row hands
+over is a real one and not a forced split.
