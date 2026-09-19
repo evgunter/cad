@@ -542,8 +542,7 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
     let surface = cavity.get_surface(face.surface).expect("surface");
     let (edges, _) = topo::props::loop_edges(&cavity, face.outer).expect("the loop reads");
     let band = Band::linear(tol()).expect("band");
-    let sense = if face.sense { 1.0 } else { -1.0 };
-    let e = geom_brep::curved_face(surface, &edges, sense, band)
+    let e = geom_brep::curved_face(surface, &edges, face.sense, band)
         .expect_err("the rim-or-meridian parse has no arm for a spiric");
     assert_eq!(
         e,
