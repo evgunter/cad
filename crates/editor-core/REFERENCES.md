@@ -256,6 +256,19 @@ So the chain goes, not the link:
   consumed by a split, by containment, or by a merge a later step
   fragmented is not looked through and stays order-shaped
   (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+  **The refusal against a fold-minted row.** "The same recourse"
+  above holds for a member's own face verbatim, and for a face the
+  fold MERGED through a constituent: the refusal sites that side at
+  one constituent (the first in member order — any constituent
+  declares the same contact through the look-through, so the pick is
+  immaterial and the finding carries the flat set beside it), and the
+  caller declares what the refusal names. A row the fold minted that
+  no member's entity stands for (a `Fragment` — a `Seam` mints edges
+  and vertices, never a face) has no site to name and so no declare
+  arm: it refuses typed, `UndeclarableContact`, rather than degrading
+  into an emission bug that blames the crate for a document the user
+  wrote. The refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its
+  two arms for every sited row; this one row has only the second.
 
 *Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at

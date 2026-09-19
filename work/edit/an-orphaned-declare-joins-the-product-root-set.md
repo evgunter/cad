@@ -2,7 +2,8 @@
 id: an-orphaned-declare-joins-the-product-root-set
 kind: issue
 title: The delete that orphans a Declare also re-roots it: a Declare joins the document's product root set
-status: open
+status: closed
+closed: 2026-09-19
 opened: 2026-09-19
 ---
 
@@ -57,3 +58,19 @@ in that list is a root that is not one.
 - or it is ruled a non-issue and `is_sink`'s doc says why.
 
 Ground: `crates/editor-core/src/roots.rs` — EDIT's.
+
+## Closed (2026-09-19, EDIT orchestrator) — ruled a non-issue, E-class
+
+**Ruling: the third shape.** A10's own text already admits the
+state: "together the root set is exactly the DAG's sink set", and
+"non-body roots contribute nothing" to the gather, which reads only
+body-denoting roots. A mate is the standing precedent (ASSEMBLY.md
+A12: "an ordinary non-body root: an isolated sink, listed, ignored by
+the gather"), and an orphaned `Declare` is the same thing from the
+delete on. The kind question belongs to the gather, not to
+`is_sink`; filtering sinks by kind would break the sink-set identity
+that makes the root invariants burden-free. `is_sink`'s doc now says
+so in one paragraph, citing this row; the two sentences PR #2874
+re-worded ("no node consumes the declaration") stay true by it. No
+row changes, no design-page text moves. Merged as an orchestrator
+E-class commit on green CI.
