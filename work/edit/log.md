@@ -599,3 +599,59 @@ each was resumed in place. Filed this sitting by the lanes:
 `work/issues/test-support-convention-has-no-prose-home`,
 `work/issues/loft-walls-carry-no-per-edge-radius-address`,
 `work/lib/python-flush-findings-do-not-carry-their-sites`.
+
+## 2026-09-19 — ninth sitting: wave 10 merged, waves 11–13 cut and merged, two batches put to Ev
+
+Merged since the eighth sitting, each after one opus style review and
+the union fix pass unless noted: one param-ref convention at both
+doors (#2819 — the load door's `{Slot,Payload}` × `{UnknownDocParam,
+DocParamDimension}`, the edit door's four arms and tag words following;
+the review found the guard measuring a SET, so the pairwise swap of
+the two pairs survived every row, and the fix pass folded the
+reviewer's probe in as the mapping half; the class the review named,
+`EditError`'s declaration siblings, ruled at wave 13 below); the suite
+helpers' one home (#2867 — 26 byte-identical deletions, 14 diverged
+copies retired, 8 adapters, one door widened; the review found the
+class a name grep cannot see, seven `name1` copies of `minted` and
+five diverged `in_copy`s, and the fix pass replaced the hand-written
+list with a shape census; two residue rows re-scoped onto TCOST's
+slate); an instance's crossing `outer`s as payload names (#2872 —
+the insert door, `Rebind` and DM7's strand walk reach the record with
+no code of their own; the review found the FOURTH door the same list
+opens, `split`'s `PartNameReachesRemainder` now refusing a cut that
+takes an instance naming a kept node, and that no accepted cut mints
+a record at all; the fix pass ruled and built the crossing's `mate`
+id as a provenance reference checked live at insertion, closing the
+row the unit had filed; `REFERENCES.md` §0's false "only door that
+refuses" sentence re-worded, no ratification found); the delete that
+orphans a `Declare` (#2874 — `Maintenance::OrphanedDeclare`, a
+transition rule beside DM7's strands; one spec row unbuildable as
+ruled — `apply` is a function of `(document, edit)`, so deleting the
+`Declare` itself reports the orphan at the consumer's step and removes
+it at the next — ruled to stand, with the net over a cascade filed on
+CHROME's affordance row; the review found the consumer scan copying
+`roots::is_sink`, and the fix pass gave "who consumes this node" one
+home across the crate; a semantic merge with #2872 went red on the
+close-out head and was fixed by the orchestrator); and the two prose
+rows of wave 13 as one E-class unit (#2879 — the payload-carrier list
+has two homes and every other site points; the param-ref convention's
+scope is a reference and the enum doc states the two families; the
+lane found a ninth prose home and completed the load-bearing
+`REFERENCES.md` list, which had itself been missing two carriers).
+Wave 12's recorded-notation door (#2876 — `PartialPath::recorded` and
+`RecordedNotation::set_after`, the index derived and never counted;
+review MERGEABLE, four MINORs all prose) is in its fix pass.
+
+Put to Ev on `[ev]` #2869, in two batches: the EDIT-DECL refusal
+against a fold-minted row (with the proposed DM4 paragraph on the
+branch), the tie refusal's pick seed becoming a depth; then the orphan
+report and its transient, the crossing `mate` ruling, the fourth door
+on `split` (AQ8's wording offered), and the §0 sentence. No reply as
+of this sitting. Filed this sitting: `crossing-mate-back-pointer-…`
+(closed in the same wave), `payload-carrier-lists-have-seven-prose-homes`
+(closed at wave 13), `doc-param-refusals-keep-two-conventions-inside-one-enum`
+(closed at wave 13), `an-orphaned-declare-joins-the-product-root-set`
+(open — a `Declare` as a product root wants a ruling),
+`work/tcost/named-copies-of-fixture-doors-under-other-names`,
+`work/tcost/inline-name-table-reads-bypass-the-fixture-door`; CHROME's
+and LIB's rows appended where a unit widened them.
