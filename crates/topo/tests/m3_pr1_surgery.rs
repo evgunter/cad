@@ -10,7 +10,7 @@ use geom_core::Point3;
 use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
 use crate::common;
-use common::{describe_as_intersections, geometric_cube, line};
+use common::{declined_cube, describe_as_intersections, geometric_cube, line};
 use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
@@ -21,65 +21,12 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// ring on the top face, closed by mfkrh (the cross-shell lmfkrh
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
 fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::FaceKey) {
-    let cube = {
-        // The ops cube from the crate example (structural geometry:
-        // chord lines + placeholder surfaces; tiers 1–2 only).
-        let p = pt;
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0, 0.0, 0.0)).unwrap();
-        let e_ab = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0, 0.0, 0.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        let strut = |he| MevSite::Fan { he1: he, he2: he };
-        let e_bc = body
-            .mev_line(strut(e_ab.he_minus), p(1.0, 1.0, 0.0), Tol::witness())
-            .unwrap();
-        let e_cd = body
-            .mev_line(strut(e_bc.he_minus), p(0.0, 1.0, 0.0), Tol::witness())
-            .unwrap();
-        let he_dc = body
-            .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-            .unwrap();
-        let f_bot = body
-            .mef_chord(
-                MefSite::Chords {
-                    he1: he_dc,
-                    he2: e_ab.he_plus,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_aa = body
-            .mev_line(strut(e_ab.he_plus), p(0.0, 0.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_bb = body
-            .mev_line(strut(e_bc.he_plus), p(1.0, 0.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_cc = body
-            .mev_line(strut(e_cd.he_plus), p(1.0, 1.0, 1.0), Tol::witness())
-            .unwrap();
-        let e_dd = body
-            .mev_line(strut(f_bot.he_plus), p(0.0, 1.0, 1.0), Tol::witness())
-            .unwrap();
-        let chord = |he1, he2| MefSite::Chords { he1, he2 };
-        let f_front = body
-            .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
-            .unwrap();
-        body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
-            .unwrap();
-        (body, seed)
-    };
-    let (mut body, seed) = cube;
+    // Declined is what the surgery below wants: every face on the one
+    // `mvfs` placeholder, so the ring planting and the shell motions are
+    // read at tiers 1-2 and no geometry enters.
+    let cube = declined_cube::<f64>(Tol::witness());
+    let mut body = cube.body;
+    let seed = cube.seed;
     let top = seed.face; // the seed face survives as the top
     // Plant a detached empty ring on the top face: strut + kemr, at a
     // half-edge of the TOP loop (the strut lands in its site's loop).

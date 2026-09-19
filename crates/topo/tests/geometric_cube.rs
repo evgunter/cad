@@ -18,7 +18,7 @@ use topo::{
 
 use crate::common;
 use common::{
-    GeoCube, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
+    CubeOps, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
 };
 use geom_core::Tol;
 
@@ -227,7 +227,7 @@ fn certification_records_are_byte_identical_across_runs() {
     // certification records (and parameter caches).
     let a = geometric_cube::<f64>(Tol::witness());
     let b = geometric_cube::<f64>(Tol::witness());
-    let dump = |t: &GeoCube<f64>| {
+    let dump = |t: &CubeOps<f64>| {
         t.body
             .curves()
             .map(|(k, c)| {
