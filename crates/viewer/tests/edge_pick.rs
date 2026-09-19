@@ -639,10 +639,10 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
 /// leaves `Highlight::hovered` carrying the selected patch's id —
 /// `gpu`'s `fs_main` tests the selected lane first, so the face path
 /// rules downstream where the fragment can see both — while
-/// `EdgeOverlay::hovered` comes back EMPTY, because an edge vertex
-/// carries exactly one mark word and the pass that draws it neither
-/// blends nor writes depth, so a hovered lane holding the same
-/// geometry would overdraw the selected mark rather than lose to it.
+/// `EdgeOverlay::hovered` comes back EMPTY, because the overlay is a
+/// value a test reads and an edge vertex carries exactly one lane, so
+/// the selection is settled in the value rather than left to the pass's
+/// draw order (`marks::edge_overlay` says why).
 ///
 /// Each half is already pinned on its own, a file apart:
 /// `select_pick.rs`'s

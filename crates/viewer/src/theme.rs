@@ -223,6 +223,23 @@ pub struct Theme {
     /// redundancy argument [`Theme::unresolved`] makes, and the reason
     /// it is not in [`Theme::marks`] either.
     pub datum: Rgba8,
+    /// **A profile the document holds**: the loops of a committed
+    /// profile node, drawn on its plane (`crate::sketch::committed`).
+    ///
+    /// A line colour like [`Theme::datum`], and not a [`Mark`], for
+    /// that field's reason: a profile is not material, so there is no
+    /// body colour for it to tint. A hue of its own and not the
+    /// datum's, because a profile usually lies ON a datum's grid and
+    /// has to be told from it at a glance; the edge pass also draws it
+    /// three times the grid's width and over it (`crate::gpu`'s
+    /// `lane_style`), so the colour is not the only thing separating
+    /// them. Not the probe mark either: that mark is what a PREVIEW is
+    /// drawn in, and it says "not committed", which a committed
+    /// profile is not.
+    ///
+    /// Held to the ground check for the datum's reason — it is drawn
+    /// in the viewport.
+    pub profile: Rgba8,
     /// This palette's legibility claim.
     pub safety: Safety,
 }
@@ -293,6 +310,9 @@ const DARK_NEUTRAL: Theme = Theme {
     unresolved: Rgba8::opaque(210, 90, 70),
     // Construction blue, well above the near-black ground.
     datum: Rgba8::opaque(122, 162, 214),
+    // A light green, away from the datum blue, the selection amber,
+    // the hover blue and the probe violet the preview is drawn in.
+    profile: Rgba8::opaque(126, 212, 150),
     safety: Safety::Unchecked,
 };
 
@@ -341,6 +361,9 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // Deeper than the dark theme's by as much as the ground moved,
     // for `unresolved`'s reason one field up.
     datum: Rgba8::opaque(46, 96, 166),
+    // A deep green: the dark palette's hue, dark enough to stand on
+    // the pale ground.
+    profile: Rgba8::opaque(22, 124, 64),
     safety: Safety::Unchecked,
 };
 
@@ -492,8 +515,33 @@ const COLORBLIND_SAFE: Theme = Theme {
     // A dark teal: separated from this palette's pale ground by
     // lightness, which is the channel every dichromacy keeps.
     datum: Rgba8::opaque(0, 92, 92),
+    // Okabe–Ito's reddish purple, darkened for the pale ground: a
+    // green would sit on the teal datum under every dichromacy, and
+    // this stays clear of it under all three.
+    profile: Rgba8::opaque(150, 60, 120),
     safety: Safety::ColorblindSafe,
 };
+
+/// **How much of [`Theme::datum`] covers what a datum line is drawn
+/// over**, in `(0, 1]`: the edge pass blends a datum line as
+/// `datum · DATUM_OPACITY + under · (1 − DATUM_OPACITY)`, in the
+/// display encoding the framebuffer holds.
+///
+/// A plane is ruled out toward its horizon, so its grid is the one
+/// line lane that covers the whole picture, and width alone makes the
+/// grid thinner while leaving it exactly as saturated — where the
+/// ruling is dense the lines still merge into a sheet of datum colour.
+/// Half coverage keeps the ruling legible and lets the body and ground
+/// through. Blended rather than pre-mixed toward [`Theme::ground`],
+/// because a grid is drawn over bodies as often as over the ground,
+/// and a colour pre-mixed toward the ground is wrong over a body.
+///
+/// Here rather than in the renderer because the ground check
+/// (`tests/theme.rs`) measures a datum the way it is SEEN, and a datum
+/// is seen at this coverage. One value for every palette: it is how
+/// loud the grid is relative to the lines drawn over it, which is not
+/// a colour decision.
+pub const DATUM_OPACITY: f32 = 0.5;
 
 /// `color`'s three channels as linear RGB — the space the shader
 /// shades in, and the one boundary a theme crosses to reach it.

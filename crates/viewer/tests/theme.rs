@@ -292,9 +292,10 @@ fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
 /// property that holds is checkable here, where a number copied out
 /// of a paper is only a second thing to get wrong.
 mod cvd {
+    use editor_core::appearance::Rgba8;
     use perceive_color::Color;
     use perceive_cvd::{CvdType, Severity, simulate};
-    use viewer::theme::{Safety, Theme, linear};
+    use viewer::theme::{DATUM_OPACITY, Safety, Theme, linear};
 
     /// How far apart two swatches must stay, in OKLab.
     ///
@@ -372,22 +373,47 @@ mod cvd {
     /// whole palette scaled toward black — where separations are
     /// smallest and a claim fails first.
     /// **What the GROUND is measured against**: every swatch, plus
-    /// the construction colour.
+    /// the two line colours.
     ///
-    /// `Theme::datum` is not a mark — it shades with nothing and
-    /// tints nothing — so it is absent from [`swatches`] and from the
-    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which
-    /// is the whole of what the ground check is about: a datum the
-    /// colour of the surround is a datum nobody can see. It is
-    /// measured unshaded, once, because a line is not lit.
+    /// `Theme::datum` and `Theme::profile` are not marks — they shade
+    /// with nothing and tint nothing — so they are absent from
+    /// [`swatches`] and from the marks check. They are still DRAWN IN
+    /// THE VIEWPORT, though, which is the whole of what the ground
+    /// check is about: a line the colour of the surround is a line
+    /// nobody can see. Each is measured unshaded, once, because a line
+    /// is not lit.
+    ///
+    /// **The datum is measured as it is SEEN**: blended onto the ground
+    /// at `DATUM_OPACITY`, which is how the edge pass draws it. Its
+    /// full colour would certify a separation half of which the
+    /// picture never shows.
     pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let mut out = swatches(theme, shade);
-        let [r, g, b] = linear(theme.datum);
-        out.push((
-            "datum",
-            Color::new(f64::from(r), f64::from(g), f64::from(b)),
-        ));
+        for (label, line) in [
+            ("datum", seen_over(theme.datum, DATUM_OPACITY, theme.ground)),
+            ("profile", theme.profile),
+        ] {
+            let [r, g, b] = linear(line);
+            out.push((label, Color::new(f64::from(r), f64::from(g), f64::from(b))));
+        }
         out
+    }
+
+    /// `line` drawn at `opacity` over `under`, blended per channel in
+    /// the display encoding — where the edge pass blends, because the
+    /// framebuffer holds encoded values.
+    fn seen_over(line: Rgba8, opacity: f32, under: Rgba8) -> Rgba8 {
+        let mix = |l: u8, u: u8| {
+            let blended = f32::from(l) * opacity + f32::from(u) * (1.0 - opacity);
+            // In [0, 255] for an opacity in [0, 1]; the clamp is the
+            // cast's range, not a correction.
+            blended.round().clamp(0.0, 255.0) as u8
+        };
+        Rgba8::opaque(
+            mix(line.r, under.r),
+            mix(line.g, under.g),
+            mix(line.b, under.b),
+        )
     }
 
     fn swatches(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {

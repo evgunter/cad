@@ -53,8 +53,8 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
-    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError,
-    ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ProfileVertex,
+    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
     arc_specs_at, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
@@ -739,7 +739,7 @@ pub fn preview(
         .zip(&closed_flags)
         .enumerate()
         .map(|(loop_, (lp, closed))| {
-            let (points, vertices) = flatten(lp, chord)
+            let (points, vertices) = flatten(lp.vertices(), chord)
                 .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
             Ok(PreviewLoop {
                 points,
@@ -761,6 +761,98 @@ pub fn preview(
         loops: polylines,
         invalid,
     })
+}
+
+/// **One committed profile, flattened for drawing**: the node it is,
+/// the plane its evaluation placed it on, and its loops.
+#[derive(Clone, Debug)]
+pub struct CommittedProfile {
+    /// The profile node this draws.
+    pub node: RecipeNodeId,
+    /// The plane the landed value is on — the VALUE's, not a second
+    /// lookup of the frame the node names, for
+    /// [`ProfilePreview::plane`]'s reason.
+    pub plane: SketchPlane<f64>,
+    /// One closed polyline per loop, in the value's canonical order
+    /// (outer first). Every one is `closed: true`: a validated profile
+    /// has no open chain.
+    pub loops: Vec<PreviewLoop>,
+}
+
+/// **What the landed evaluation's profiles came to as drawings**: the
+/// ones that flattened, and the ones that did not.
+///
+/// A value rather than a bare list for `crate::datums::DatumDraws`'
+/// reason: a profile left out of the picture looks exactly like a
+/// document without it, so a caller holding the drawings is handed
+/// the refusals too.
+#[derive(Clone, Debug, Default)]
+pub struct CommittedProfiles {
+    /// One per profile node drawn, in document order.
+    pub drawn: Vec<CommittedProfile>,
+    /// The profile nodes whose validated value has an arc the
+    /// flattener cannot draw ([`PreviewError::Unflattenable`]'s case),
+    /// in document order. Drawn not at all rather than with that leg
+    /// missing, for [`flatten`]'s reason.
+    pub undrawn: Vec<RecipeNodeId>,
+}
+
+/// **Every profile the landed evaluation validated**, flattened at
+/// `chord` — the picture of a committed profile, drawn from the same
+/// value the features built on it consume.
+///
+/// Walks the document's live nodes in order. The NODE says it is a
+/// profile and the EVALUATION says what it came to, as in
+/// `crate::datums::draws`: a profile node whose evaluation refused, or
+/// one this evaluation never reached, has no value and draws nothing —
+/// the tree's badge is what says why, and drawing the program's replay
+/// in its place would put a shape on screen the document does not
+/// have.
+///
+/// `except` is the profile a form is EDITING, if any: that form draws
+/// its own replay of the node in the preview lane, and a loop drawn
+/// both as it was committed and as it is being changed would show two
+/// shapes where there is one. The create form edits no committed node,
+/// so it passes `None`.
+pub fn committed(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    except: Option<RecipeNodeId>,
+) -> CommittedProfiles {
+    let mut out = CommittedProfiles::default();
+    for &node in doc.order() {
+        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+            continue;
+        }
+        let Some(value) = evaluation.value(node) else {
+            continue;
+        };
+        let ValuePayload::Profile(profile) = &value.payload else {
+            continue;
+        };
+        let loops = profile
+            .validated
+            .loops()
+            .iter()
+            .map(|lp| {
+                flatten(lp.vertices(), chord).map(|(points, vertices)| PreviewLoop {
+                    points,
+                    vertices,
+                    closed: true,
+                })
+            })
+            .collect::<Result<Vec<_>, usize>>();
+        match loops {
+            Ok(loops) => out.drawn.push(CommittedProfile {
+                node,
+                plane: *profile.validated.plane(),
+                loops,
+            }),
+            Err(_) => out.undrawn.push(node),
+        }
+    }
+    out
 }
 
 /// **A lattice tip state in words.**
@@ -939,8 +1031,10 @@ const MAX_ARC_POINTS: usize = 256;
 /// not numbers a point can be computed from. **Refused rather than
 /// skipped**: a segment dropped here would leave the loop drawn with a
 /// leg it does not have, which is the same defect one door along.
-fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
-    let vertices = loop_.vertices();
+fn flatten(
+    vertices: &[ProfileVertex<f64>],
+    chord: f64,
+) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
     // Where each real vertex landed among the subdivisions. A caller
     // that wants to mark the loop's own points cannot recover this
