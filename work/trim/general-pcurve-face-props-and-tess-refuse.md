@@ -2,7 +2,7 @@
 id: general-pcurve-face-props-and-tess-refuse
 kind: unit
 title: Volume, area and tessellation still refuse typed on a face carrying a General pcurve (P-2 residue)
-status: dispatched
+status: open
 opened: 2026-08-29
 github: 1179
 refs: [498]
@@ -105,3 +105,14 @@ not called by the row.
 ## Home
 
 Named PCURVE exit-walk residue that is explicitly not that (closed) program's; the sites straddle S-CERT's props ground and S-MESH's crate, so it lands unowned under `work/issues/`. TRIM adopted it as its unit 2; the spec is `docs/TRIM-2-SPEC.md` and the two PRs are `trim/2-quadrature` (props) and `trim/2-tessellation` (mesh).
+
+## PR-1 merged (2026-09-19)
+
+PR #2564 merged (ordinal 2503, sample #222; block TRIM-B2 slot 0
+concluded): volume and area ANSWER on a face carrying a `General`
+pcurve through the trimmed-region quadrature. The unit stays OPEN for
+PR-2 (tessellation, `mesh/chords.rs` + `trimmed.rs`, S / NUMERIC,
+spec §2) — its seam is TESS's ground now (S-MESH exited 2026-09-16),
+announced at dispatch. Record: MODEL-AB-LOG row T2Q; adjudication
+comment 5734849876. Seam gate: Ev ruled PROPS paused (in-chat,
+2026-09-19); merged on that ruling.
