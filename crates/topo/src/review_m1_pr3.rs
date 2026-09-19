@@ -37,6 +37,7 @@ use crate::{
     LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
     Solid, Vertex, VertexKey, validate,
 };
+use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use geom_core::Point3;
 use geom_core::Tol;
 
@@ -157,45 +158,26 @@ struct BoxBuilt {
 /// The 2×2×2 box (cube-test sequence; PR 2 material, re-verified here
 /// via loop-walk assertions rather than trusted).
 fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
-    let pt = Point3::new;
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(2.0, 0.0, 0.0),
-            tol,
-        )
-        .unwrap(); // B
-    let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
-            .unwrap()
-    };
-    let e_bc = strut(body, e_ab.he_minus, 2.0, 2.0, 0.0); // C
-    let e_cd = strut(body, e_bc.he_minus, 0.0, 2.0, 0.0); // D
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            tol,
-        )
-        .unwrap();
-    let e_aa = strut(body, e_ab.he_plus, 0.0, 0.0, 2.0);
-    let e_bb = strut(body, e_bc.he_plus, 2.0, 0.0, 2.0);
-    let e_cc = strut(body, e_cd.he_plus, 2.0, 2.0, 2.0);
-    let e_dd = strut(body, f_bottom.he_plus, 0.0, 2.0, 2.0);
-    let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
-    let f_front = mef(body, e_aa.he_minus, e_bb.he_minus);
-    let f_right = mef(body, e_bb.he_minus, e_cc.he_minus);
-    let f_back = mef(body, e_cc.he_minus, e_dd.he_minus);
-    let f_left = mef(body, e_dd.he_minus, f_front.he_plus);
+    // `common::prism_ops` at the 2x2 profile, z 0 to 2, face geometry
+    // declined — the same 1 mvfs + 7 mev + 5 mef this file used to
+    // write out. The extent is load-bearing: the hole recipes the three
+    // callers plant on this box sit at x, y, z in (0.5, 1.5), which is
+    // outside a unit cube.
+    let ops = prism_ops(
+        body,
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        (0.0, 2.0),
+        Point3::new,
+        FaceGeometry::Declined,
+        tol,
+    );
+    let seed = ops.seed;
+    let [e_ab, e_bc, e_cd] = <[MevCreated; 3]>::try_from(ops.chain).expect("3 rim edges at n = 4");
+    let [e_aa, e_bb, e_cc, e_dd] =
+        <[MevCreated; 4]>::try_from(ops.struts).expect("4 struts at n = 4");
+    let f_bottom = ops.bottom;
+    let [f_front, f_right, f_back, f_left] =
+        <[MefCreated; 4]>::try_from(ops.sides).expect("4 sides at n = 4");
     check(
         body,
         EulerCounts {
@@ -2067,3 +2049,4 @@ fn failing_ring_ops_leave_lineage_pure() {
     let (_dirty_body, dirty) = build(true);
     assert_eq!(clean, dirty, "failed ring ops perturbed the lineage");
 }
+

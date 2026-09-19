@@ -746,61 +746,28 @@ pub(crate) fn mvfs_state() -> MvfsState {
 // `tests/box_with_hole.rs`.
 // ---------------------------------------------------------------------
 
-/// Key bundle for [`ops_cube`]: every operator result in call order.
-#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
-pub(crate) struct OpsCube {
-    pub body: Body<f64>,
-    pub seed: MvfsCreated,
-    /// `[e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd]` — the bottom chain
-    /// then the four verticals.
-    pub mevs: [MevCreated; 7],
-    /// `[f_bottom, f_front, f_right, f_back, f_left]`; the seed face
-    /// remains as the top.
-    pub mefs: [MefCreated; 5],
-}
+/// Key bundle for [`ops_cube`] — [`crate::test_support_fixtures::GeoCube`]
+/// at `f64`, which is the same four fields in the same order:
+/// `mevs` is the bottom chain `[e_ab, e_bc, e_cd]` then the four
+/// verticals `[e_aa, e_bb, e_cc, e_dd]`, and `mefs` is
+/// `[f_bottom, f_front, f_right, f_back, f_left]` with the seed face
+/// surviving as the top.
+pub(crate) type OpsCube = crate::test_support_fixtures::GeoCube<f64>;
 
-/// Builds the unit cube through the operators (1 mvfs + 7 mev + 5 mef,
-/// the §9.4.2-minimal sequence; same construction as the PR 2
-/// acceptance test).
+/// The unit cube through the operators (1 mvfs + 7 mev + 5 mef, the
+/// §9.4.2-minimal sequence), **with its face geometry declined**:
+/// [`crate::test_support_fixtures::declined_cube`] at `f64`.
+///
+/// The declined half is the point, not an omission. This body's
+/// consumers are the operator-count, atomicity, revert and
+/// coplanar-merge suites, and all six faces sitting on the one `mvfs`
+/// placeholder key is a thing several of them read
+/// (`merge_faces`' coincidence rows, `revert`'s posture rows). The
+/// certified sibling is
+/// [`crate::test_support_fixtures::geometric_cube`], which is the same
+/// operators with real Newell planes.
 pub(crate) fn ops_cube(tol: Tol) -> OpsCube {
-    let pt = Point3::new;
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            tol,
-        )
-        .unwrap();
-    let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
-            .unwrap()
-    };
-    let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
-    let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
-    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
-    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
-    let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
-    let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
-    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
-    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
-    let f_right = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
-    let f_back = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
-    let f_left = mef(&mut body, e_dd.he_minus, f_front.he_plus);
-    OpsCube {
-        body,
-        seed,
-        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
-        mefs: [f_bottom, f_front, f_right, f_back, f_left],
-    }
+    crate::test_support_fixtures::declined_cube::<f64>(tol)
 }
 
 /// Key bundle for [`ops_holed_box`].
@@ -1128,3 +1095,4 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsStrutCube { body, outer, strut }
 }
+

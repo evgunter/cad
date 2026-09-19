@@ -187,60 +187,12 @@ fn plant_detached_box(
 }
 
 /// Structural ops cube (chord lines, placeholder surfaces): tiers 1-2.
+/// [`common::declined_cube`] — the shared cube sequence with its face
+/// geometry declined, which is exactly what this suite's rows want and
+/// what the twenty-eight operator calls written here spelled by hand.
 fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-    let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let e_bc = body
-        .mev_line(fan(e_ab.he_minus), pt(1.0, 1.0, 0.0), Tol::witness())
-        .unwrap();
-    let e_cd = body
-        .mev_line(fan(e_bc.he_minus), pt(0.0, 1.0, 0.0), Tol::witness())
-        .unwrap();
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bot = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_aa = body
-        .mev_line(fan(e_ab.he_plus), pt(0.0, 0.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_bb = body
-        .mev_line(fan(e_bc.he_plus), pt(1.0, 0.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_cc = body
-        .mev_line(fan(e_cd.he_plus), pt(1.0, 1.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_dd = body
-        .mev_line(fan(f_bot.he_plus), pt(0.0, 1.0, 1.0), Tol::witness())
-        .unwrap();
-    let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body
-        .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
-        .unwrap();
-    (body, seed)
+    let c = common::declined_cube::<f64>(Tol::witness());
+    (c.body, c.seed)
 }
 
 /// TARGET 5: a three-component shell. movefac's partition cardinality

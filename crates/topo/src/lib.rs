@@ -267,9 +267,10 @@ pub mod test_support {
 
     use crate::body::Body;
     pub use crate::test_support_fixtures::{
-        GeoCube, Prism, PrismOps, StraddleSeat, assert_every_chord_named_by_both_rules, brick,
-        cube_into, describe_as_intersections, face_surface_of_he, flush_declarations,
-        geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+        FaceGeometry, GeoCube, Prism, PrismOps, StraddleSeat, UNIT_SQUARE,
+        assert_every_chord_named_by_both_rules, brick, cube_into, declined_cube,
+        describe_as_intersections, face_surface_of_he, flush_declarations, geometric_cube, line,
+        mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
