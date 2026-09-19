@@ -525,6 +525,81 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     )
 }
 
+/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
+/// radian squared — the one spelling of the bound, read by the mesh
+/// chord sizing and by STEP export's node-count schedule.
+///
+/// From `C″ = m·f″ − axis·(r·sin v)` with
+/// `|f″| = r·|(ρ·cos v − r·sin²v)/f + r·ρ²·sin²v/f³|
+///        ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`,
+/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`, plus the axis
+/// channel's `r`. Plain `f64`: a sizing quantity, conservative by the
+/// bound's own slack rather than by rounding. Off-regime data
+/// (`f_min` poison or zero) yields a non-finite answer, which every
+/// caller reads as a refusal rather than a step.
+#[must_use]
+pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
+    let rho_max = major + minor;
+    let (f_min, _) = spiric_f_range(major, minor, offset);
+    minor
+        + (minor.powi(2) + minor * rho_max) / f_min
+        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3)
+}
+
+/// A certified `sup‖C″‖` over the whole domain of a **non-rational**
+/// 3-D B-spline given by its knot vector and control net — the
+/// iterated coefficient-difference hull
+/// ([`geom_core::spline::SplineCoeffs::derivative_coeffs`] twice,
+/// per component, in the C9 ring so every knot difference rounds
+/// outward), combined as the Euclidean norm of the three per-component
+/// hull magnitudes.
+///
+/// `NaN` when the structure cannot license a bound (degree below 2, a
+/// derivative knot vector that does not materialise, a poisoned hull),
+/// which is the answer a caller reads as a refusal. Rational nets are
+/// NOT this door's: their quotient-rule assembly divides by a weight
+/// range and lives with the consumer that owns the homogeneous form.
+#[must_use]
+pub fn nonrational_second_derivative_sup(
+    knots: &geom_core::spline::KnotVector,
+    control: &[Point3<f64>],
+) -> f64 {
+    use geom_core::ring_interval::RingInterval;
+    let p = knots.degree();
+    if p < 2 {
+        return f64::NAN;
+    }
+    let Ok(kv1) =
+        geom_core::spline::KnotVector::clamped(knots.derivative_knot_slice().to_vec(), p - 1)
+    else {
+        return f64::NAN;
+    };
+    let mut sum_sq = RingInterval::zero();
+    for comp in 0..3 {
+        let coeffs: Vec<RingInterval> = control
+            .iter()
+            .map(|pt| {
+                RingInterval::point(match comp {
+                    0 => pt.x,
+                    1 => pt.y,
+                    _ => pt.z,
+                })
+            })
+            .collect();
+        let q2 = kv1.difference_coeffs(&knots.difference_coeffs(&coeffs));
+        let mut hull = RingInterval::poison();
+        for (k, q) in q2.iter().enumerate() {
+            hull = if k == 0 {
+                *q
+            } else {
+                RingInterval::hull(hull, *q)
+            };
+        }
+        sum_sq = sum_sq + hull.sqr();
+    }
+    sum_sq.hi().sqrt().next_up()
+}
+
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and
 /// `f = √(ρ² − offset²)` — one `sqrt`, fixed order (D9). Shared by the
 /// three evaluators so the radicand is spelled once; each evaluator

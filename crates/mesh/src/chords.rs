@@ -246,40 +246,12 @@ fn nurbs_chord_count(
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?
     } else {
-        let mut sum_sq = RingInterval::zero();
-        for comp in 0..3 {
-            let coeffs: Vec<RingInterval> = n
-                .control()
-                .iter()
-                .map(|pt| {
-                    RingInterval::point(match comp {
-                        0 => pt.x,
-                        1 => pt.y,
-                        _ => pt.z,
-                    })
-                })
-                .collect();
-            let q1 = kv.difference_coeffs(&coeffs);
-            let inner = kv.derivative_knot_slice().to_vec();
-            let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "B-spline carrier whose derivative knot vector fails to \
-                           materialise — outside the certified chord inventory",
-                });
-            };
-            let q2 = kv1.difference_coeffs(&q1);
-            let mut hull = RingInterval::poison();
-            for (k, q) in q2.iter().enumerate() {
-                hull = if k == 0 {
-                    *q
-                } else {
-                    RingInterval::hull(hull, *q)
-                };
-            }
-            sum_sq = sum_sq + hull.sqr();
-        }
-        sum_sq.hi().sqrt().next_up()
+        // The non-rational hull is `geom`'s, so the export lane's
+        // node-count schedule and this chord schedule read one
+        // spelling of the iterated difference-coefficient bound. A
+        // structure it cannot license comes back non-finite and the
+        // finiteness gate below is the refusal.
+        geom::nonrational_second_derivative_sup(kv, n.control())
     };
     if !m_bound.is_finite() {
         return Err(TessellateError::UnsupportedCurve {

@@ -145,7 +145,11 @@ statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement at the shared
 schedule, plus a between-samples envelope whose own statement the
 certificate names (`EnvelopeStatement`): closed-form over the whole span
 for `Pcurve::Harmonic` (both sides in `span{1, cos t, sin t, t}`, so a
-corruption hiding between samples is unrepresentable), hull-bounded for
+corruption hiding between samples is unrepresentable) and for a spiric
+cap image (both sides in `span{1, f, sin t}`), an algebraic IDENTITY
+for a spiric wall image (`SpiricIdentity`: the stored fields are the
+carrier's, so the only derived numbers are the two chart constants and
+both displace every sample), hull-bounded for
 fitted images on NURBS charts, and only the carrier's incidence with the
 chart surface (`OnLocusHull`) for a fitted image on a periodic analytic
 chart, where `S ∘ P` is transcendental. No UV-space tolerance appears in
@@ -155,7 +159,9 @@ validity is part of the certificate: one branch pinned at the start (a
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
 (`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Fitted`, `General`
+demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+closed from the carrier's own parameter), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
