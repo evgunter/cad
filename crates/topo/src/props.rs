@@ -2977,9 +2977,27 @@ mod quad_lane {
                 b,
                 piece,
                 forward: le.forward,
-                len: carrier_metric_length(&le.carrier, t0, t1)?,
                 env: ring(cache.certificate().envelope),
             });
+        }
+        // **One bracket per shared vertex.** Two consecutive half-edges
+        // meet at a vertex, and each reads it through its OWN pcurve —
+        // an `IsoLine`'s `eval(t)` against a `General`'s clamped end —
+        // so at `f64` the two reads can differ by the certification's
+        // own size (2.2e-16 on the P-2 fixture, where the image's
+        // control box is `u ∈ [2 − 2.2e-16, 2]` against the rim's exact
+        // `u = 2`). Hulling them makes the walk close by construction
+        // and hands the door the honest bracket for the vertex; the
+        // door's own closure check then guards a CALLER, not this
+        // assembler's rounding.
+        for i in 0..chords.len() {
+            let j = (i + 1) % chords.len();
+            let merged = (
+                RingInterval::hull(chords[i].b.0, chords[j].a.0),
+                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+            );
+            chords[i].b = merged;
+            chords[j].a = merged;
         }
         let control: Vec<quad::RVec3> = payload
             .control()

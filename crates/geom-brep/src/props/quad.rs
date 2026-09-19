@@ -110,7 +110,31 @@
 //! and a number-wanting one gets the refusal — and because that
 //! outcome leaves no round to resume at, no window ever re-enters it.
 //!
+//! # The lanes in this file
+//!
+//! The formulation above is the CYLINDER chart's, and it is one of
+//! several engines here. The others, so the header does not have to be
+//! reverse-engineered from the table of contents:
+//! [`nurbs_patch_face_rounds`] (the polynomial patch over a whole UV
+//! rectangle: [`patch_flux_exact`]'s per-span Newton–Cotes, with
+//! composite rounds behind it), `rational_patch_face` (the same
+//! rectangle through the quotient rule), [`area_midpoint_taylor`] (the
+//! area rule both patch lanes share), and — since TRIM-2 —
+//! [`trimmed_patch_face_rounds`], whose region is what a face's chart
+//! IMAGE bounds rather than a rectangle of its chart. That last one is
+//! a **second Green-form boundary integral** in this file, so the
+//! sentence above about [`bspline_green_integral`] having no at-rest
+//! consumer is a statement about THAT function, not about the form:
+//! the trimmed lane integrates `−∮ G_f du` on the image's chord
+//! polygon with its own exact rule and its own pads.
+//!
 //! # Honesty pads (both directions accounted)
+//!
+//! The list below is the cylinder lane's two. The trimmed lane adds
+//! three of its own, each documented at its site: the LUNE between an
+//! arc and its chord, the VERTEX connectors from a bracket's midpoint
+//! to the point it stands for, and the `v`-knot crossing SLIVER — plus
+//! the closure gap and the refinement's `λ` rounding.
 //!
 //! - **Map residual**: each pcurve tracks its carrier within its
 //!   certificate envelope `e` (metres through the map). The cylinder
@@ -128,7 +152,7 @@ use geom_core::ring_interval::RingInterval;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::PropsError;
 
@@ -3925,15 +3949,18 @@ const TRIM_MAX_ROUNDS: usize = QUAD2_MAX_ROUNDS;
 /// chord anywhere becomes one within a few levels; a cusp or a fold
 /// never does, and refusing is the honest answer for it.
 const TRIM_MONOTONE_DEPTH: usize = 4;
-/// Sub-intervals per axis of the trimmed lane's AREA rule, per chord.
+/// Cells per axis of the trimmed lane's AREA rule, per chord —
+/// [`QUAD2_AREA_PIECES`], and deliberately the same number.
 ///
-/// Not [`QUAD2_AREA_PIECES`]: the rectangle lane runs its rule once
-/// over the whole patch, and this one runs a nested copy of it per
-/// CHORD of the trim polygon, so the same resolution would cost
-/// `chords·64²` integrand reads. The area is a denominator and a gauge
-/// here exactly as it is there — never the convergence meter — and the
-/// rule is first order either way.
-const TRIM_AREA_PIECES: usize = 16;
+/// The rule under each chord is the rectangle lane's own cell rule
+/// ([`chord_polygon_area`]), so its pad is `½h_u·sup|∂_u g| +
+/// `½h_v·sup|∂_v g|` per cell and the resolution is what sets the
+/// area's honest width, exactly as it does there. A lower count was
+/// tried and is what a curved chart cannot afford: at 16 the pad on an
+/// ordinary bidegree-(2,2) chart is the size of the face's own area,
+/// `area.lo()` goes negative and the extent gate answers
+/// `DegenerateFace`.
+const TRIM_AREA_PIECES: usize = QUAD2_AREA_PIECES;
 
 /// A chart-space point bracket (`(u, v)`).
 type RPt2 = (RingInterval, RingInterval);
@@ -3975,10 +4002,15 @@ pub struct TrimChord {
     /// read only when `piece` is `Some` (an iso chord states its own
     /// traversal in `a`/`b`).
     pub forward: bool,
-    /// A certified upper bound on the edge's metric (model-space)
-    /// length, in metres.
-    pub len: f64,
     /// The stored certificate's envelope: metres, through the map.
+    ///
+    /// The edge's metric LENGTH, which the envelope pad multiplies, is
+    /// NOT a caller's field: the door already holds the chord (and, for
+    /// a `General`, its whole control polygon) and the chart, so it
+    /// derives the length itself ([`polygon_variation`] crossed by the
+    /// chart's metric rate). A lane that took a caller's perimeter is
+    /// `work/props/quad-face-extent-trusts-caller-perimeter.md` (#1368,
+    /// open), and this one does not open a second instance of it.
     pub env: RingInterval,
 }
 
@@ -4071,6 +4103,11 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     }
     let plans = geom_core::spline::algebra::refine_plan(kv, &img.weights, &add).ok()?;
     let poison = (RingInterval::poison(), RingInterval::poison());
+    // [`ring_lerp`]'s association, two channels instead of three: the
+    // rounding of the ARITHMETIC lands outward in the brackets, which
+    // is what makes a refined bracket an enclosure. It is written out
+    // rather than shared because `ring_lerp` is `RVec3`'s and a chart
+    // image is 2-D; Track R's consolidation (#723) owns the pair.
     let lerp = |x: RPt2, y: RPt2, l: f64| -> RPt2 {
         let l = pt(l);
         (x.0 + (y.0 - x.0) * l, x.1 + (y.1 - x.1) * l)
@@ -4081,6 +4118,30 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     }
     if ctl.len() < p + 1 || !(ctl.len() - 1).is_multiple_of(p) {
         return None;
+    }
+    // **The λ itself is not enclosed, and this is what pays for it.**
+    // Knot insertion is exact in ℝ, and `apply_points`' arithmetic is
+    // outward-rounded — but its `λ` arrives as a ROUNDED `f64`
+    // (`spline::algebra`'s plan carries `f64` ratios), so each step's
+    // brackets enclose a combination at a perturbed λ rather than the
+    // exact refined net. A convex combination is 1-Lipschitz in the
+    // max norm, so the perturbation neither amplifies nor compounds:
+    // after `k` insertions it is at most `k·diam·ulp`, `diam` the
+    // original polygon's chart diameter. Every consumer of a block —
+    // the endpoint, the box, the variation, the monotone row — reads
+    // it through these brackets, so widening them here is the whole
+    // repair.
+    let (mut du, mut dv) = (RingInterval::zero(), RingInterval::zero());
+    for q in &img.control {
+        du = RingInterval::hull(du, q.0);
+        dv = RingInterval::hull(dv, q.1);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let lam_pad = (add.len() as f64) * (du.width() + dv.width()) * f64::EPSILON;
+    if lam_pad > 0.0 {
+        for q in &mut ctl {
+            *q = (widen(q.0, lam_pad), widen(q.1, lam_pad));
+        }
     }
     Some(
         (0..(ctl.len() - 1) / p)
@@ -4126,6 +4187,10 @@ fn norm_lo(v: RVec3) -> f64 {
 /// arc — the lune between arc and chord, as the region the integrand
 /// sups are read over and the chart AREA that region's lune occupies.
 struct TrimCell {
+    /// Which [`TrimChord`] of the loop this cell came from — the
+    /// envelope pad is stated per EDGE and this lane's chords are the
+    /// edges' pieces.
+    edge: usize,
     a: (f64, f64),
     b: (f64, f64),
     /// The axis-aligned chart hull of the piece's control polygon —
@@ -4143,9 +4208,31 @@ struct TrimCell {
     /// horizontal nor vertical, whose sum is first order and never
     /// leaves the round window.
     lune_area: f64,
+    /// The cell's own chart-space VARIATION, `(Σ|Δu|, Σ|Δv|)` over its
+    /// control polygon — an upper bound on the arc's, by the
+    /// variation-diminishing property. Crossed to metres by the
+    /// chart's own rate it gives the cell's metric length, which is
+    /// what the envelope pad and the extent gate's perimeter are built
+    /// from. The door computes it here rather than taking a caller's
+    /// number: `work/props/quad-face-extent-trusts-caller-perimeter.md`
+    /// (#1368) is the class a trusted perimeter lands in.
+    var: (f64, f64),
     /// The chart-space radius of the wider of the two endpoint
     /// brackets — the vertex pad's lever.
     slack: f64,
+}
+
+/// The total variation of a bracketed control polygon per axis, taken
+/// outward off the brackets: an upper bound on the arc's own, by the
+/// variation-diminishing property of the B-spline basis.
+fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
+    let mut du = 0.0f64;
+    let mut dv = 0.0f64;
+    for w in block.windows(2) {
+        du += (w[1].0 - w[0].0).mag();
+        dv += (w[1].1 - w[0].1).mag();
+    }
+    (du, dv)
 }
 
 /// The lune's chart area for one bracketed control block over its own
@@ -4180,17 +4267,37 @@ fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
 
 /// The typed refusal a piece that is not a graph over its chord earns,
 /// named once so the row and the site cannot drift apart.
-const TRIM_NOT_MONOTONE: &str = "a trim piece is not monotone over its chord — a cusp or a \
-                                 fold in the chart image, which the lune bound's |w| ≤ 1 \
-                                 premise does not cover; the trimmed lane refines the piece \
-                                 to a fixed depth first and refuses here rather than padding";
+const TRIM_NOT_MONOTONE: &str = "a trim piece's monotonicity over its own chord is \
+                                 UNRESOLVED at this lane's resolution — the control \
+                                 polygon still advances backwards along the chord after \
+                                 the fixed bisection depth, which a cusp or a feature \
+                                 below the round's lever both produce and which the lune \
+                                 bound's |w| ≤ 1 premise does not cover; the lane refuses \
+                                 here rather than padding";
+
+/// The typed refusal a caller's chord list that does not CLOSE earns.
+///
+/// Green's theorem is a statement about a closed curve; an open walk
+/// has no winding number and the lane's answer for one would be a
+/// certified number for no region at all. The rectangle certificate
+/// refuses the analogous shape (its shoelace must equal ±the
+/// rectangle's area), and this is that guard for a polygon whose
+/// vertices are brackets: consecutive chords must meet inside their
+/// own brackets, and the in-bracket disagreement is PADDED rather
+/// than assumed away.
+const TRIM_OPEN_WALK: &str = "the trim loop's chord walk does not close — some chord's end \
+                              lies outside the bracket of the next chord's start, and \
+                              Green's theorem has no winding number for an open curve; a \
+                              loop assembled from one face's half-edges always closes, so \
+                              this is a caller handing the door a walk it did not walk";
 
 /// The typed refusal a chart outside the exact rule's node window
 /// earns: the composite fallback is
 /// `work/trim/trimmed-quadrature-composite-rounds.md`.
 const TRIM_NC_WINDOW: &str = "trimmed exact lane's Newton–Cotes window — the chord integrand \
-                              has u-degree 3·p_u + 3·p_v − 1 and the exact closed rule's node \
-                              count tops out at 12, so this lane certifies p_u + p_v ≤ 4; a \
+                              has u-degree 3·p_u + 3·p_v − 1 and the exact closed rule's \
+                              INTERVAL count tops out at 12 (13 nodes), so this lane \
+                              certifies p_u + p_v ≤ 4; a \
                               richer chart needs the composite trapezoid fallback, which is \
                               not built (no fixture reaches it)";
 
@@ -4206,6 +4313,16 @@ const TRIM_NC_WINDOW: &str = "trimmed exact lane's Newton–Cotes window — the
 /// box. A hull that has lost the direction answers rate `0`, hence
 /// margin `0`, hence refine-then-refuse: every rounding here runs
 /// toward refusing.
+///
+/// **The margin carries the ROUND's lever as well as the image's**, and
+/// a reader has to know it: the span is the REFINED block's advance,
+/// so it halves with every uniform cut and every bisection, and it
+/// scales with the face. Measured: the same smooth parabolic arc
+/// certifies at every round on a 10 µm face, refuses at round 4 on a
+/// 1 µm face, and refuses at every round on a 0.1 µm face. That is the
+/// lane's resolution speaking, which is why the refusal names an
+/// unresolved margin rather than a cusp. Nothing on today's corpus is
+/// near the band; the audit row and the K roster entry say the same.
 fn piece_monotone<T: Decide>(
     block: &[RPt2],
     a: (f64, f64),
@@ -4232,9 +4349,14 @@ fn piece_monotone<T: Decide>(
     );
     let (gu, gv) = (grid_vec(su, over.0, over.1), grid_vec(sv, over.0, over.1));
     let rate = norm_lo(core::array::from_fn(|k| gu[k] * du + gv[k] * dv));
+    // The INF door by signature (`predicate.rs`'s rate pair): this is a
+    // "definitely apart" claim — the piece advances along its chord by
+    // at least this much — and `rate` is a certified LOWER bound, so
+    // under-stating it can only fail to certify, never certify a
+    // sliver.
     classify_len::<T>(
         "props_trim_piece_monotone",
-        Margin::metered(span, rate),
+        Margin::metered(span, InfSpeed::new(rate)),
         band,
     )
 }
@@ -4251,13 +4373,15 @@ fn trim_cells<T: Decide>(
     band: Band,
 ) -> Result<Vec<TrimCell>, PropsError> {
     let mut out: Vec<TrimCell> = Vec::new();
-    for c in chords {
+    for (edge, c) in chords.iter().enumerate() {
         let Some(img) = &c.piece else {
             out.push(TrimCell {
+                edge,
                 a: vertex(c.a),
                 b: vertex(c.b),
                 hull: None,
                 lune_area: 0.0,
+                var: polygon_variation(&[c.a, c.b]),
                 slack: vertex_slack(c.a).max(vertex_slack(c.b)),
             });
             continue;
@@ -4286,43 +4410,60 @@ fn trim_cells<T: Decide>(
                 b.reverse();
             }
         }
+        // The polygon's SHARED vertices are the caller's `a`/`b`, not
+        // the extraction's clamped ends: the two are the same point up
+        // to the refinement's rounding, and hulling them together
+        // enlarges a hull that already contains the arc (so the
+        // convex-hull fact survives) while giving the closure check one
+        // bracket per vertex instead of two readings of it.
+        let hull2 = |x: RPt2, y: RPt2| -> RPt2 {
+            (RingInterval::hull(x.0, y.0), RingInterval::hull(x.1, y.1))
+        };
+        if let Some(first) = blocks.first_mut() {
+            first[0] = hull2(first[0], c.a);
+        }
+        if let Some(last) = blocks.last_mut() {
+            let n = last.len() - 1;
+            last[n] = hull2(last[n], c.b);
+        }
         let mut stack: Vec<(Vec<RPt2>, usize)> =
             blocks.into_iter().rev().map(|b| (b, 0usize)).collect();
         while let Some((block, depth)) = stack.pop() {
             let a = vertex(block[0]);
             let b = vertex(block[block.len() - 1]);
-            let verdict = piece_monotone::<T>(&block, a, b, su, sv, band);
-            let definite = matches!(verdict, Ok(Sign::Positive));
-            if !definite {
-                // An in-band verdict is an escalation the funnel raised;
-                // here it means the same thing a `Zero` does — the piece
-                // is not yet decided a graph over its chord — and the
-                // lane's answer to both is the same refinement.
-                if let Err(e @ PropsError::Escalated { .. }) = &verdict {
-                    if depth >= TRIM_MONOTONE_DEPTH {
-                        let _ = e;
-                        return Err(PropsError::QuadratureUnsupported {
-                            what: TRIM_NOT_MONOTONE,
-                        });
-                    }
-                } else if let Err(e) = verdict {
-                    return Err(e);
-                } else if depth >= TRIM_MONOTONE_DEPTH {
+            // An ESCALATION propagates, as it does from every other
+            // lane in this file: an in-band margin is the funnel's own
+            // answer, and bisection cannot improve it — the span it
+            // meters HALVES at every level, so a margin that sits in
+            // the band arrives at the depth limit still in it. What
+            // bisection DOES resolve is a definite verdict: a control
+            // polygon can step backwards along the chord of the WHOLE
+            // piece while every half is a graph over its own chord
+            // (a curvature artefact, not a fold), and each half's
+            // differences are new numbers rather than the same ones
+            // scaled.
+            match piece_monotone::<T>(&block, a, b, su, sv, band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative if depth < TRIM_MONOTONE_DEPTH => {
+                    let (l, r) = bezier_bisect(&block);
+                    stack.push((r, depth + 1));
+                    stack.push((l, depth + 1));
+                    continue;
+                }
+                Sign::Zero | Sign::Negative => {
                     return Err(PropsError::QuadratureUnsupported {
                         what: TRIM_NOT_MONOTONE,
                     });
                 }
-                let (l, r) = bezier_bisect(&block);
-                stack.push((r, depth + 1));
-                stack.push((l, depth + 1));
-                continue;
             }
             let area = lune_area(&block, a, b);
             out.push(TrimCell {
+                edge,
                 a,
                 b,
                 hull: (area > 0.0).then(|| block_box(&block)),
                 lune_area: area,
+                var: polygon_variation(&block),
                 slack: vertex_slack(block[0]).max(vertex_slack(block[block.len() - 1])),
             });
         }
@@ -4376,6 +4517,46 @@ fn area_at(
     sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
 }
 
+/// The area integrand's CELL reading over one chart rectangle: the
+/// hull of `g = |S_u×S_v|` and upper bounds on its two partials, all
+/// three read over the SAME extent the caller is about to pad with.
+///
+/// This is [`area_midpoint_taylor`]'s `AreaCell` closure, written for
+/// a lane whose cells are not a tensor grid: the rectangle lane hands
+/// its rule an `AreaBox` and the rule calls back; the trimmed lane's
+/// outer variable is a chord parameter and its inner extent depends on
+/// the outer node, so the two cannot share the loop. They share this
+/// reading, which is the part the discipline lives in —
+/// `|∂_d |c|| ≤ |∂_d c|` is the Lipschitz constant, and a hull over a
+/// larger extent is a LOOSER one, never a wrong one.
+fn area_cell(
+    su: Option<&PatchGrid>,
+    sv: Option<&PatchGrid>,
+    suu: Option<&PatchGrid>,
+    suv: Option<&PatchGrid>,
+    svv: Option<&PatchGrid>,
+    u: Collapse<'_>,
+    v: Collapse<'_>,
+) -> (RingInterval, f64, f64) {
+    let h_su = grid_vec(su, u, v);
+    let h_sv = grid_vec(sv, u, v);
+    let c = rv_cross(h_su, h_sv);
+    // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
+    let d_u = rv_add(
+        rv_cross(grid_vec(suu, u, v), h_sv),
+        rv_cross(h_su, grid_vec(suv, u, v)),
+    );
+    let d_v = rv_add(
+        rv_cross(grid_vec(suv, u, v), h_sv),
+        rv_cross(h_su, grid_vec(svv, u, v)),
+    );
+    (
+        sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr()),
+        norm_hi(d_u),
+        norm_hi(d_v),
+    )
+}
+
 /// The sub-chord cut list of one chord in `u`: its own ends, the
 /// chart's `u`-knots, and the `u` at which it crosses a `v`-knot —
 /// with the crossings' own bracket width returned as the SLIVER the
@@ -4385,6 +4566,17 @@ fn area_at(
 /// the chart is one polynomial in `u` AND `ℓ(u)` stays in one `v`
 /// span, so `G_f(u, ℓ(u))` is the single polynomial of degree
 /// `3p_u + 3p_v − 1` the outer rule integrates exactly.
+///
+/// **The third spelling of a knot-aligned subdivision in this file**,
+/// declared: [`knot_aligned_cuts`] cuts a RECTANGLE side and owes its
+/// coarse hull blocks their containment, [`clipped_spans`] cuts a knot
+/// vector to a range for the exact patch rule, and this one cuts a
+/// CHORD, whose mandatory set includes crossings of the OTHER
+/// direction's knots — a cut neither sibling has any reason to make.
+/// Unifying them is Track R's consolidation ground (#723, the note
+/// `knot_aligned_cuts` already carries), not this lane's; what this
+/// lane owes is that it does not contradict the invariant its sibling
+/// states, which is why the guard below is gone.
 fn chord_cuts(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
@@ -4420,18 +4612,21 @@ fn chord_cuts(
             }
         }
     }
+    // EVERY cut in this list is mandatory — the chart's own knots and
+    // the `v`-knot crossings — and nothing may drop one: the
+    // Newton–Cotes exactness argument needs the sub-chord inside ONE
+    // chart cell, and a dropped cut leaves it straddling a knot by the
+    // width of whatever guard dropped it, with no term paying for it.
+    // That is the invariant [`knot_aligned_cuts`] states in capitals
+    // for its own mandatory set; an earlier version of this function
+    // applied that function's SLIVER guard to the mandatory cuts as
+    // well, which is the opposite rule. A hairline cell is the safe
+    // outcome here and not a defect: the rule integrates its own span
+    // polynomial exactly over it, and a cell of zero width is removed
+    // by the dedup.
     cuts.sort_by(f64::total_cmp);
     cuts.dedup();
-    let span = hi - lo;
-    let guard = span * SLIVER_CUT_ULPS * f64::EPSILON;
-    let mut kept = vec![lo];
-    for c in &cuts[1..cuts.len() - 1] {
-        if *c - kept[kept.len() - 1] > guard && hi - *c > guard {
-            kept.push(*c);
-        }
-    }
-    kept.push(hi);
-    (kept, sliver)
+    (cuts, sliver)
 }
 
 /// **The chord polygon's flux, exactly** — `∫∫ f·w_chord` by Green's
@@ -4526,29 +4721,54 @@ fn chord_polygon_flux(
 
 /// **The chord polygon's area**, the same Green decomposition with
 /// `G_g(u, v) = ∫_{v₀}^{v} g` — `g = |S_u×S_v|` is not polynomial, so
-/// the inner integral is [`area_midpoint_taylor`]'s own rule (midpoint
-/// plus the Lipschitz pad `|∂_d |c|| ≤ |∂_d c|`) on knot-aligned
-/// sub-intervals, and the outer one is the same rule with the
-/// Lipschitz constant of `u ↦ G_g(u, ℓ(u))`,
-/// `sup|∂_u g|·(ℓ − v₀) + |ℓ′|·sup g`.
+/// it cannot be the exact rule the flux takes.
+///
+/// **What runs instead is [`area_midpoint_taylor`]'s OWN cell rule**,
+/// per sub-chord: `ℓ` is affine, so `∫_p^q G_g(u, ℓ(u)) du` is the
+/// integral of `g` over the trapezoid under the sub-chord, and that
+/// trapezoid has exactly the area of the rectangle
+/// `[p,q] × [v₀, ℓ(u_m)]` — the midpoint is exact for an affine
+/// boundary. So the rule sums the rectangle's cells with the rectangle
+/// lane's own `½h_u·G_u + ½h_v·G_v` pad and pays a separate, second
+/// order term for the trapezoid-versus-rectangle mismatch.
+///
+/// **It is a COPY of that rule, not a call of it, and this is where
+/// the discipline was once lost.** The rule there runs over a tensor
+/// grid with a callback; here the v extent depends on the sub-chord,
+/// so the loops cannot be shared — what they DO share is
+/// [`area_cell`], every hull read over exactly the cell it pads. A
+/// first version wrote a NESTED rule instead (an outer midpoint over a
+/// column integral) and read one hull over the whole trim box for all
+/// of it. Both halves of that were wrong in the same direction: the
+/// whole-box hull does not shrink with the cell, and a column
+/// integral's Lipschitz constant carries the column's HEIGHT, so the
+/// outer pad was `O(h_u · height)` where the cell rule's is `O(h)`.
+/// On an ordinary bidegree-(2,2) chart that drove `area.lo()` below
+/// zero and the extent gate answered `DegenerateFace` for a face of
+/// area ≈ 0.6. Track R's consolidation (#723) owns unifying the two;
+/// this unit owes the reading.
 ///
 /// First order and fixed resolution, exactly as the rectangle's area
 /// is: the area is a DENOMINATOR (the convergence meter's lever) and a
-/// GAUGE (the extent gate), never the meter itself.
+/// GAUGE (the extent gate), never the meter itself. **Its width is
+/// first order in the CHORD COUNT, not in the lune pad** — measured:
+/// on a fixture with no lune at all (a degree-1 image, where every
+/// block is its own chord) the area width halves per round, which is
+/// the per-chord cell rule's own `O(h)`.
 #[allow(clippy::too_many_arguments)]
 fn chord_polygon_area(
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
+    suu: Option<&PatchGrid>,
+    suv: Option<&PatchGrid>,
+    svv: Option<&PatchGrid>,
     kv_u: &KnotVector,
     kv_v: &KnotVector,
     cells: &[TrimCell],
-    sup_g: RingInterval,
-    sup_gu: f64,
-    sup_gv: f64,
 ) -> RingInterval {
     let ku = breakpoints(kv_u);
-    let kv = breakpoints(kv_v);
-    let v0 = kv[0];
+    let kvb = breakpoints(kv_v);
+    let v0 = kvb[0];
     let mut total = RingInterval::zero();
     for c in cells {
         let ((ua, va), (ub, vb)) = (c.a, c.b);
@@ -4557,28 +4777,64 @@ fn chord_polygon_area(
         }
         let (lo, hi) = (ua.min(ub), ua.max(ub));
         let slope = (vb - va) / (ub - ua);
+        let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = RingInterval::zero();
         for w in knot_aligned_cuts(lo, hi, TRIM_AREA_PIECES, &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
+            let hu = q - p;
             let um = p.midpoint(q);
-            let top = va + (um - ua) * slope;
+            let top = ell(um);
             let (ilo, ihi) = (v0.min(top), v0.max(top));
-            let mut inner = RingInterval::zero();
-            for wv in knot_aligned_cuts(ilo, ihi, TRIM_AREA_PIECES, &kv).windows(2) {
-                let (c0, c1) = (wv[0], wv[1]);
+            // The COLUMN under this sub-chord's midpoint, cell by cell
+            // — and each cell's pad is the rectangle lane's own,
+            // `½h_u·G_u + ½h_v·G_v`, with both hulls read over the
+            // 2-D cell. There is no outer Lipschitz constant here to
+            // bound or to mis-read: the `(q − p)` factor below turns
+            // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
+            // and the cell rule pads that rectangle directly.
+            let mut col = RingInterval::zero();
+            for wc in knot_aligned_cuts(ilo, ihi, TRIM_AREA_PIECES, &kvb).windows(2) {
+                let (c0, c1) = (wc[0], wc[1]);
+                let hv = c1 - c0;
                 let vm = c0.midpoint(c1);
+                let (cell_g, cell_gu, cell_gv) = area_cell(
+                    su,
+                    sv,
+                    suu,
+                    suv,
+                    svv,
+                    Collapse::Over(p, q),
+                    Collapse::Over(c0, c1),
+                );
                 let mean = widen(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
-                    0.5 * (c1 - c0) * sup_gv,
+                    0.5 * hu * cell_gu + 0.5 * hv * cell_gv,
                 )
-                .clamped_to(sup_g.lo(), sup_g.hi());
-                inner = inner + (pt(c1) - pt(c0)) * mean;
+                .clamped_to(cell_g.lo(), cell_g.hi());
+                col = col + (pt(c1) - pt(c0)) * mean;
             }
             if top < v0 {
-                inner = -inner;
+                col = -col;
             }
-            let l_u = sup_gu * (top - v0).abs() + slope.abs() * sup_g.mag();
-            chord = chord + (pt(q) - pt(p)) * widen(inner, 0.5 * (q - p) * l_u);
+            // **The trapezoid the chord really bounds, against the
+            // rectangle just integrated.** `ℓ` is affine, so the two
+            // have EXACTLY the same area and the difference sees only
+            // `g`'s oscillation over the band `ℓ` sweeps:
+            // `|∫_p^q ∫_{ℓ(u_m)}^{ℓ(u)} g| ≤ |ℓ′|·h_u²·width(g)/8`,
+            // the constant term of `g` integrating to zero against
+            // `∫(u − u_m) du`.
+            let (elo, ehi) = (ell(p).min(ell(q)), ell(p).max(ell(q)));
+            let (band_g, _, _) = area_cell(
+                su,
+                sv,
+                suu,
+                suv,
+                svv,
+                Collapse::Over(p, q),
+                Collapse::Over(elo, ehi),
+            );
+            let mismatch = 0.125 * slope.abs() * hu * hu * band_g.width();
+            chord = chord + widen((pt(q) - pt(p)) * col, mismatch);
         }
         total = total + if ub > ua { chord } else { -chord };
     }
@@ -4639,11 +4895,22 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 /// the rectangle lane's, unchanged in kind.
 ///
 /// Direction of every rounding: boxes are outer enclosures, sups are
-/// hulls, the monotone rate is bounded BELOW, a verdict short of
-/// definite refines and then refuses rather than padding, the
-/// Newton–Cotes weights are outward-bracketed exact fractions, and the
-/// `v`-knot crossing's definite cut carries its own sliver pad. No
-/// path runs from an imprecise input to a narrower enclosure.
+/// hulls, the monotone rate is bounded BELOW, a definite verdict short
+/// of `Positive` refines and then refuses rather than padding (and an
+/// in-band one escalates), the `v`-knot crossing's definite cut
+/// carries its own sliver pad, the refinement's rounded `λ` is paid
+/// for in [`bezier_blocks`], and the walk's in-bracket closure gap is
+/// paid at `|Δu|·sup|G_f|`. No path runs from an imprecise input to a
+/// narrower enclosure.
+///
+/// **One clause of that paragraph no row can go red on**: the
+/// Newton–Cotes weights are built as exact `i128` fractions and
+/// bracketed by ONE outward ring division
+/// ([`newton_cotes_weights`]), and a mutant that pushes the rounded
+/// quotient instead moves every enclosure here by less than its own
+/// ring width — there is no fixture at which a one-ulp weight bias is
+/// visible, because the rule it belongs to is exact and its answer's
+/// width IS that rounding. Recorded rather than claimed guarded.
 ///
 /// # Errors
 ///
@@ -4711,35 +4978,77 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let h_sv = grid_vec(sv.as_ref(), over.0, over.1);
     let cross = rv_cross(h_su, h_sv);
     let sup_f = rv_dot(s_hull, cross).mag();
+    // Whole-box `sup|f|` and `sup g` are the PADS' levers only — the
+    // gap, the vertex connectors, the sliver. The area RULE reads its
+    // own per-cell hulls ([`area_cell`]): a whole-box hull inside a
+    // fixed-resolution midpoint rule is a pad that does not shrink with
+    // the cell, which is how an ordinary curved chart came out
+    // `DegenerateFace`.
     let sup_g = sqrt_enclosure(cross[0].sqr() + cross[1].sqr() + cross[2].sqr());
-    // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v — the
-    // Lipschitz constants of `g` through `|∂_d |c|| ≤ |∂_d c||`.
-    let sup_gu = norm_hi(rv_add(
-        rv_cross(grid_vec(suu.as_ref(), over.0, over.1), h_sv),
-        rv_cross(h_su, grid_vec(suv.as_ref(), over.0, over.1)),
-    ));
-    let sup_gv = norm_hi(rv_add(
-        rv_cross(grid_vec(suv.as_ref(), over.0, over.1), h_sv),
-        rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
-    ));
-    let mut boundary_defect = 0.0f64;
-    let mut perimeter = 0.0f64;
-    for c in chords {
-        perimeter += c.len;
-        boundary_defect += c.len * c.env.mag();
-    }
+    // The chart's own metric RATE, bounded above over the trim box:
+    // the door crosses each cell's chart variation to metres with it
+    // rather than taking a caller's length (`TrimChord`'s docs, and
+    // #1368 for what a trusted perimeter costs). An UPPER bound is the
+    // refusing direction in both consumers — it widens the envelope
+    // pad, and it shrinks `area/perimeter` at the extent gate.
+    let (rate_u, rate_v) = (norm_hi(h_su), norm_hi(h_sv));
+    // `|G_f| ≤ sup|f|·(v extent)` and `|G_g| ≤ sup g·(v extent)`: the
+    // lever the closure gap is paid at, `G` being what Green integrates
+    // along `du`.
+    let v_reach = (kv_v.domain().1 - kv_v.domain().0).abs();
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let first = window.first.min(TRIM_MAX_ROUNDS);
     let mut pieces = TRIM_INIT_PIECES << first;
-    // The AREA is taken once, at the entering round's chords. Its rule
-    // is FIXED resolution in both directions (module docs: it is the
-    // meter's lever, never the meter), so a later round's chords would
-    // move it only by the lune pad it already carries — and it is the
-    // expensive pass, a nested copy of the rectangle lane's rule per
-    // chord.
+    // **The AREA is taken once, at the ENTERING round's chords, and
+    // that is a cost decision rather than a fact about the width.**
+    // Measured: its width is first order in the CHORD COUNT — on a
+    // fixture with no lune at all it halves per round — so a later
+    // round's area IS tighter, and what a caller gets back is round
+    // `window.first`'s whatever round the flux converges at. Per-cell
+    // hulls ([`area_cell`]) moved the constant, not the order. Why it
+    // is not re-taken at the converging round: the rule is a nested
+    // 16×16 pass PER CHORD and the chord count doubles every round, so
+    // "one more call" at the last round is two orders of magnitude of
+    // work, not one call's worth.
     let mut area_at_first: Option<RingInterval> = None;
     for round in first..=TRIM_MAX_ROUNDS {
         let cells = trim_cells::<T>(chords, pieces, su.as_ref(), sv.as_ref(), band)?;
+        if cells.len() < 3 {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a trim loop of fewer than three chart images — a region with no \
+                       interior for Green's theorem to bound",
+            });
+        }
+        // **The walk must close.** Each chord's end has to meet the
+        // next chord's start inside their brackets; the disagreement
+        // that survives INSIDE them is real (two pcurves read one
+        // shared vertex) and is paid below at `|Δu|·sup|G_f|`, which is
+        // exactly what the closing segment would contribute.
+        let mut gap_u = 0.0f64;
+        for i in 0..cells.len() {
+            let end = cells[i].b;
+            let next = &cells[(i + 1) % cells.len()];
+            let (gu, gv) = (end.0 - next.a.0, end.1 - next.a.1);
+            let d = (gu.powi(2) + gv.powi(2)).sqrt();
+            if d.is_nan() || d > cells[i].slack + next.slack {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: TRIM_OPEN_WALK,
+                });
+            }
+            gap_u += gu.abs();
+        }
+        // The envelope pad's lever and the extent gate's perimeter,
+        // both derived here from the cells the door built.
+        let mut edge_len = vec![0.0f64; chords.len()];
+        for c in &cells {
+            edge_len[c.edge] += c.var.0 * rate_u + c.var.1 * rate_v;
+        }
+        let perimeter: f64 = edge_len.iter().sum();
+        let boundary_defect: f64 = chords
+            .iter()
+            .zip(&edge_len)
+            .map(|(c, l)| l * c.env.mag())
+            .sum();
         let mut lune_f = 0.0f64;
         let mut lune_g = 0.0f64;
         let mut vertex_pad = 0.0f64;
@@ -4769,23 +5078,35 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         let winding = polygon_winding(&cells);
         let (flux_raw, sliver) =
             chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, &wu, &wv);
-        let pad_f = lune_f + (vertex_pad + 0.5 * sliver) * sup_f + boundary_defect * p_bound;
+        // §1(iii)'s constant, written whole: the mismatch sliver is
+        // `½·w²·|ℓ′|` on EACH side of the definite cut and the
+        // integrand over it is bounded by `sup|f|`, so the pad is
+        // `w²·|ℓ′|·sup|f|` — `chord_cuts` accumulates `w²·|ℓ′|` and
+        // this multiplies it. An earlier spelling halved it; still ≥
+        // the triangle it bounds, but not the ratified letter.
+        let pad_f = lune_f
+            + (vertex_pad + sliver) * sup_f
+            + gap_u * sup_f * v_reach
+            + boundary_defect * p_bound;
         let flux = widen(flux_raw, pad_f);
         let area = *area_at_first.get_or_insert_with(|| {
             let raw = chord_polygon_area(
                 su.as_ref(),
                 sv.as_ref(),
+                suu.as_ref(),
+                suv.as_ref(),
+                svv.as_ref(),
                 kv_u,
                 kv_v,
                 &cells,
-                sup_g,
-                sup_gu,
-                sup_gv,
             );
             let signed = if winding < 0.0 { -raw } else { raw };
             widen(
                 signed,
-                lune_g + (vertex_pad + 0.5 * sliver) * sup_g.mag() + boundary_defect,
+                lune_g
+                    + (vertex_pad + sliver) * sup_g.mag()
+                    + gap_u * sup_g.mag() * v_reach
+                    + boundary_defect,
             )
         });
         let width_len = mean_boundary_displacement(flux, area)?;
@@ -4795,6 +5116,11 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             band,
         )? == Sign::Positive
         {
+            // The perimeter this gate levers by is the DOOR's, derived
+            // from the cells above — not a caller's field. A lane that
+            // takes the caller's is
+            // `work/props/quad-face-extent-trusts-caller-perimeter.md`
+            // (#1368, open), and this one deliberately does not join it.
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(area.lo(), perimeter),
@@ -5796,24 +6122,17 @@ mod tests {
             b: (pt(b.0), pt(b.1)),
             piece: None,
             forward: true,
-            len: ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt(),
             env: pt(0.0),
         }
     }
 
     /// A `General` chord: the single-span Bézier image through
-    /// `points`, walked forward, with the control polygon's length as
-    /// its metric bound (the chart map is an isometry in `(u, v)` for
-    /// every fixture here).
+    /// `points`, walked forward.
     fn general(points: &[(f64, f64)], env: f64) -> TrimChord {
         let p = points.len() - 1;
         let mut knots = vec![0.0; p + 1];
         knots.extend(std::iter::repeat_n(1.0, p + 1));
         let (a, b) = (points[0], points[points.len() - 1]);
-        let len = points
-            .windows(2)
-            .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
-            .sum();
         TrimChord {
             a: (pt(a.0), pt(a.1)),
             b: (pt(b.0), pt(b.1)),
@@ -5823,9 +6142,63 @@ mod tests {
                 weights: vec![1.0; points.len()],
             }),
             forward: true,
-            len,
             env: pt(env),
         }
+    }
+
+    /// A CURVED chart of bidegree `(pu, pv)` with one interior knot per
+    /// direction, off the round's uniform piece grid, and a net that is
+    /// linear-precision in NEITHER direction — so `g = |S_u×S_v|` is a
+    /// real function with real Lipschitz constants and the area rule is
+    /// no longer inert.
+    ///
+    /// Adopted from the t2q-r2 reviewer probe `curved_chart` that first
+    /// executed the whole-box-hull refusal; the shape and the constants
+    /// are that probe's.
+    fn curved_chart(pu: usize, pv: usize) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
+        let kv = |p: usize, k: f64| {
+            let mut v = vec![0.0; p + 1];
+            v.push(k);
+            v.extend(std::iter::repeat_n(1.0, p + 1));
+            KnotVector::clamped(v, p).unwrap()
+        };
+        let (ku, kvv) = (kv(pu, 0.4), kv(pv, 0.3));
+        let (nu, nv) = (ku.control_count(), kvv.control_count());
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (fi, fj) = (i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64);
+                let x = fi + 0.07 * (3.0 * fi + fj).sin();
+                let y = fj + 0.05 * (2.0 * fi - 5.0 * fj).cos();
+                let z = 0.4 + 0.3 * (4.0 * fi + 2.0 * fj).sin() * (fj * 3.0).cos();
+                control.push([pt(x), pt(y), pt(z)]);
+            }
+        }
+        (ku, kvv, control, vec![1.0; nu * nv])
+    }
+
+    /// The rectangle certificate on the same chart — the independent
+    /// lane every curved-chart row below is measured against.
+    fn rectangle(ku: &KnotVector, kvv: &KnotVector, control: &[RVec3], w: &[f64]) -> FaceCutBounds {
+        nurbs_patch_face_rounds::<f64>(
+            ku,
+            kvv,
+            control,
+            w,
+            (0.0, 1.0, 0.0, 1.0),
+            4.0,
+            0.0,
+            Tol::witness().get().eps,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+        )
+        .map(|o| bounds_of(&o))
+        .expect("the rectangle certificate answers its own fixture")
+    }
+
+    fn overlaps(a: RingInterval, b: RingInterval) -> bool {
+        a.lo() <= b.hi() && b.lo() <= a.hi()
     }
 
     /// The lane over the whole schedule, at the run's own ε and band.
@@ -6017,7 +6390,6 @@ mod tests {
         let c = 10.0;
         let env = 1.0e-4;
         let (ku, kvv, control, w) = flat_chart(c);
-        let diag_len = 2.0_f64.sqrt();
         let square = |e: f64| {
             vec![
                 iso((0.0, 0.0), (1.0, 0.0)),
@@ -6034,11 +6406,18 @@ mod tests {
         let bare = read(0.0);
         let padded = read(env);
         let half = read(env * 0.5);
-        // The pad enters at FULL strength, both channels.
+        // The pad enters at FULL strength, both channels. The length it
+        // multiplies is the DOOR's, not the chord's Euclidean one: the
+        // door crosses the chord's chart VARIATION to metres per axis
+        // (`|Δu|·sup|S_u| + |Δv|·sup|S_v|` = `1 + 1` here), which
+        // over-bounds the metric length `√2` — the refusing direction
+        // for the envelope pad and for the extent gate alike, and the
+        // reason the door does not take a caller's number (#1368).
+        let door_len = 2.0;
         let grew_flux = padded.flux.width() - bare.flux.width();
         let grew_area = padded.area.width() - bare.area.width();
-        let want_flux = 2.0 * diag_len * env * (2.0 + c);
-        let want_area = 2.0 * diag_len * env;
+        let want_flux = 2.0 * door_len * env * (2.0 + c);
+        let want_area = 2.0 * door_len * env;
         assert!(
             (grew_flux - want_flux).abs() <= 1e-9 * want_flux,
             "Q4: the flux pad is L·env·p_bound each side — wanted {want_flux:e}, grew {grew_flux:e}"
@@ -6048,7 +6427,7 @@ mod tests {
             "Q4: the area pad is L·env each side — wanted {want_area:e}, grew {grew_area:e}"
         );
         // And it covers the displacement it states, where half does not.
-        let displaced = c * (0.5 + diag_len * env);
+        let displaced = c * (0.5 + 2.0_f64.sqrt() * env);
         encloses(padded.flux, displaced, "Q4 displaced flux");
         assert!(
             half.flux.hi() < displaced,
@@ -6058,33 +6437,66 @@ mod tests {
         );
     }
 
-    /// **Q5 — a fold refuses typed, naming its row.**
+    /// **Q5 — a fold that survives every bisection refuses typed,
+    /// naming its row.**
     ///
-    /// A piece whose derivative reverses along its own chord is not a
-    /// graph over it, so `|w_k| ≤ 1` — the lune bound's premise — has
-    /// no argument. The lane bisects to its fixed depth first (a piece
-    /// that merely LOOKS folded at the round's lever resolves) and
-    /// then refuses rather than padding.
+    /// The image runs OUT along its chord and back: control points
+    /// `(1,1) → (2,2) → (0,0)` on the diagonal, so the arc reaches
+    /// `(1.5, 1.5)` and returns. The whole piece's control polygon
+    /// steps backwards along its chord, and so does every half's at
+    /// every depth — which is what distinguishes a real fold from the
+    /// curvature artefact the next row pins.
+    ///
+    /// **Q5's first fixture did not pin this.** It was
+    /// `(0,1) → (0,2) → (0,0)`, collinear on a VERTICAL chord: the
+    /// flux rule skips a chord with `u_a = u_b` outright, and the
+    /// monotone row answered by zero advance rather than by a fold.
+    /// The t2q-r1 and t2q-r2 reviewers found the same thing
+    /// independently; this fixture is the row its name says.
     #[test]
     fn q5_a_fold_over_its_chord_refuses_typed() {
         let (ku, kvv, control, w) = flat_chart(1.0);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
-            iso((1.0, 1.0), (0.0, 1.0)),
-            // v runs 1 → 2 → 0 along the chord 1 → 0: definitely
-            // backwards over the first half, at every bisection depth.
-            general(&[(0.0, 1.0), (0.0, 2.0), (0.0, 0.0)], 0.0),
+            general(&[(1.0, 1.0), (2.0, 2.0), (0.0, 0.0)], 0.0),
         ];
         match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
             Err(PropsError::QuadratureUnsupported { what }) => {
                 assert!(
-                    what.contains("monotone"),
-                    "Q5: the refusal names the row that decided it: {what}"
+                    what.contains("monotonicity") && what.contains("UNRESOLVED"),
+                    "Q5: the refusal names the row that decided it and what it decides: {what}"
                 );
             }
             other => panic!("Q5: a fold has no certified answer, got {other:?}"),
         }
+    }
+
+    /// **Q5b — a piece that only LOOKS folded converges.**
+    ///
+    /// The cubic through `(1,1) → (0.2,0.2) → (0.8,0.8) → (0,0)` has a
+    /// backward control step, so `piece_monotone` answers `Negative` on
+    /// the whole piece — but `v′(t) < 0` throughout, so every half IS a
+    /// graph over its own chord and the bisection resolves it. Without
+    /// that ladder the lane would refuse an ordinary curve; Q5 above
+    /// only pins the refusal, and a refusal is cheap to get right by
+    /// refusing everything.
+    ///
+    /// Adopted from the t2q-r2 reviewer probe P10.
+    #[test]
+    fn q5b_a_piece_that_only_looks_folded_resolves_by_bisection() {
+        let c = 3.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.2, 0.2), (0.8, 0.8), (0.0, 0.0)], 0.0),
+        ];
+        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            .expect("bisection resolves a monotone piece with a backward control step");
+        let b = bounds_of(&out);
+        encloses(b.flux, c * 0.5, "Q5b flux");
+        encloses(b.area, 0.5, "Q5b area");
     }
 
     /// **Q6 — a chart outside the Newton–Cotes window refuses typed.**
@@ -6180,5 +6592,271 @@ mod tests {
         let b = bounds_of(&out);
         encloses(b.flux, c * g_int, "Q7 flux");
         encloses(b.area, g_int, "Q7 area");
+    }
+
+    /// **Q8 — a CURVED chart's area agrees with the rectangle lane's.**
+    ///
+    /// The headline row of the fix pass. Q1–Q7 all live on the flat
+    /// chart, where `g = |S_u×S_v| ≡ 1` and every Lipschitz constant is
+    /// zero — the area machinery is inert there, and a version of it
+    /// that read ONE hull over the whole trim box and padded every
+    /// 16×16 cell with it passed all seven. On an ordinary curved chart
+    /// that hull was `[0.33, 5.56]` against `g(½,½) = 0.457`, the
+    /// region's area came out `[−0.549, 1.742]`, and `area.lo() < 0`
+    /// drove the extent gate to `Err(DegenerateFace)` for a face of
+    /// area ≈ 0.6.
+    ///
+    /// The oracle is the independent lane: the two complementary
+    /// regions of the diagonal must have areas summing to the whole
+    /// patch's, and each region's own enclosure must be a positive
+    /// extent the gate accepts. Adopted from the t2q-r2 reviewer probes
+    /// P5/P11, whose curved chart this is.
+    #[test]
+    fn q8_a_curved_chart_area_agrees_with_the_rectangle_lane() {
+        for (pu, pv) in [(1usize, 2usize), (2, 2)] {
+            let (ku, kvv, control, w) = curved_chart(pu, pv);
+            let rect = rectangle(&ku, &kvv, &control, &w);
+            // Both triangles of the diagonal, the General walked each
+            // way — `second` is the orientation the whole-box hull
+            // refused.
+            let first = vec![
+                iso((0.0, 0.0), (1.0, 0.0)),
+                iso((1.0, 0.0), (1.0, 1.0)),
+                general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+            ];
+            let second = vec![
+                general(&[(0.0, 0.0), (1.0, 1.0)], 0.0),
+                iso((1.0, 1.0), (0.0, 1.0)),
+                iso((0.0, 1.0), (0.0, 0.0)),
+            ];
+            let mut sum_a = RingInterval::zero();
+            let mut sum_f = RingInterval::zero();
+            for (label, chords) in [("first", &first), ("second", &second)] {
+                let out = trimmed(&ku, &kvv, &control, &w, chords, RoundWindow::SCHEDULE)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Q8 ({pu},{pv}) {label}: a curved chart's half-patch is an \
+                                ordinary face, got {e:?}"
+                        )
+                    });
+                let b = bounds_of(&out);
+                assert!(
+                    b.area.lo() > 0.0,
+                    "Q8 ({pu},{pv}) {label}: the area must certify a POSITIVE extent, got {:?}",
+                    b.area
+                );
+                sum_a = sum_a + b.area;
+                sum_f = sum_f + b.flux;
+            }
+            assert!(
+                overlaps(sum_a, rect.area),
+                "Q8 ({pu},{pv}): the two halves' areas {sum_a:?} must sum to the rectangle \
+                 lane's {:?} on the same chart",
+                rect.area
+            );
+            assert!(
+                overlaps(sum_f, rect.flux),
+                "Q8 ({pu},{pv}): the two halves' fluxes {sum_f:?} must sum to the rectangle \
+                 lane's {:?}",
+                rect.flux
+            );
+            // And the area rule is no longer inert: a curved chart's
+            // enclosure has to be narrower than the whole-box hull it
+            // used to be padded with.
+            assert!(
+                sum_a.width() < rect.area.mag(),
+                "Q8 ({pu},{pv}): the area pad is still whole-patch sized: {sum_a:?}"
+            );
+        }
+    }
+
+    /// **Q9 — the outer rule's ORDER, pinned.**
+    ///
+    /// `3p_u + 3p_v − 1` survived every earlier row because every
+    /// fixture's chord integrand had degree ≤ 2 against a rule of order
+    /// 5 or 11: Q1–Q3 are flat (`f ≡ c`, so `h` is affine), Q7's `f` is
+    /// piecewise constant, and E1's chart is a bilinear surface
+    /// restated. A bidegree-(2,2) curved chart reaches `h`-degree 11.
+    ///
+    /// The oracle is the rule's own EXACTNESS, which is a statement
+    /// about refinement: a rule of the right order integrates each
+    /// sub-chord exactly, so cutting the chord into four times as many
+    /// pieces cannot move the answer beyond ring rounding. A rule one
+    /// order short is a composite that CONVERGES instead, and its
+    /// round-0 and round-2 answers differ by orders more than their own
+    /// widths. The image is degree 1, so no lune pad rides along to
+    /// blur the comparison.
+    #[test]
+    fn q9_the_outer_rules_order_is_pinned_by_refinement() {
+        let (ku, kvv, control, w) = curved_chart(2, 2);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        let read = |round: usize| {
+            bounds_of(
+                &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
+                    .unwrap_or_else(|e| panic!("Q9 round {round}: {e:?}")),
+            )
+        };
+        let (r0, r2) = (read(0), read(2));
+        assert!(
+            overlaps(r0.flux, r2.flux),
+            "Q9: an EXACT rule answers the same integral at every chord count — round 0 \
+             {:?} and round 2 {:?} do not overlap, so the rule is converging rather than \
+             exact",
+            r0.flux,
+            r2.flux
+        );
+        // …and it is exact to ring rounding, not merely consistent: a
+        // composite one order short would agree only to its own error.
+        assert!(
+            r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
+            "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",
+            r0.flux.width()
+        );
+    }
+
+    /// **Q10 — the VERTEX pad, on the fat brackets that need it.**
+    ///
+    /// Every other row calls the door with `pt(..)` endpoints, so
+    /// `vertex_slack` is exactly zero and the pad is unexercised: the
+    /// PR body once claimed CI's interval rows were its evidence, and
+    /// they are not — `m8_4_intersection_iso` is `Body<f64>` throughout
+    /// and the interval jobs run the same f64 fixture. This row is the
+    /// engine's interval-lane shape written directly: one shared vertex
+    /// whose bracket is fat and whose MIDPOINT is off the true corner,
+    /// which is exactly what the pad pays for.
+    ///
+    /// Adopted from the t2q-r2 reviewer probe P4.
+    #[test]
+    fn q10_a_fat_shared_vertex_is_paid_by_the_vertex_pad() {
+        let c = 3.0;
+        let d = 1.0e-4;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let fat = (
+            RingInterval::from_bounds(1.0 - 2.0 * d, 1.0),
+            RingInterval::from_bounds(1.0, 1.0 + 2.0 * d),
+        );
+        let mut g = general(&[(1.0, 1.0), (0.0, 0.0)], 0.0);
+        g.a = fat;
+        g.piece.as_mut().unwrap().control[0] = fat;
+        let mut rim = iso((1.0, 0.0), (1.0, 1.0));
+        rim.b = fat;
+        let chords = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
+        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            .unwrap_or_else(|e| panic!("Q10: {e:?}"));
+        let b = bounds_of(&out);
+        // The true corner is (1,1) and the bracket's midpoint is not;
+        // the truth has to stay inside.
+        encloses(b.flux, c * 0.5, "Q10 flux");
+        encloses(b.area, 0.5, "Q10 area");
+        let want = 2.0 * 2.0_f64.sqrt() * (2.0 * d) * c;
+        assert!(
+            b.flux.width() >= want * 0.99,
+            "Q10: the connector pad (chord · slack · sup|f|, each side) is missing from the \
+             width: {:e} < {:e}",
+            b.flux.width(),
+            want
+        );
+    }
+
+    /// **Q11 — a walk that does not close refuses typed.**
+    ///
+    /// Green's theorem is a statement about a closed curve, and an open
+    /// walk has no winding number: the lane used to answer one anyway.
+    /// The rectangle certificate refuses the analogous shape (its
+    /// shoelace must equal ±the rectangle's area); this is that guard
+    /// for a polygon whose vertices are brackets. Both reviewers found
+    /// it independently — a `General` whose start disagreed with the
+    /// previous iso's end by 0.05 got `Ok(Converged)` with a flux
+    /// enclosing neither plausible closing.
+    ///
+    /// The second half of the row is the one that matters more: an
+    /// in-bracket disagreement (two pcurves reading one shared vertex)
+    /// must be PAID, not refused — that is the shipped assembler's own
+    /// case.
+    ///
+    /// Adopted from the t2q-r2 reviewer probe P1 and the t2q-r1 probe
+    /// P10.
+    #[test]
+    fn q11_an_open_walk_refuses_and_an_in_bracket_gap_is_paid() {
+        let c = 3.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let open = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(0.95, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        match trimmed(&ku, &kvv, &control, &w, &open, RoundWindow::SCHEDULE) {
+            Err(PropsError::QuadratureUnsupported { what }) => {
+                assert!(
+                    what.contains("does not close"),
+                    "Q11: the refusal names the premise it guards: {what}"
+                );
+            }
+            other => panic!("Q11: Green's theorem has no answer for an open walk: {other:?}"),
+        }
+        // In-bracket: the two sides of one shared vertex disagree by
+        // `d`, and both brackets contain both readings — the lane pays
+        // the gap and still encloses the truth.
+        let d = 1.0e-5;
+        let mut rim = iso((1.0, 0.0), (1.0, 1.0));
+        rim.b = (RingInterval::from_bounds(1.0 - d, 1.0), pt(1.0));
+        let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
+        g.a = (RingInterval::from_bounds(1.0 - d, 1.0), pt(1.0));
+        g.piece.as_mut().unwrap().control[0] = g.a;
+        let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
+        let b = bounds_of(
+            &trimmed(&ku, &kvv, &control, &w, &closed, RoundWindow::SCHEDULE)
+                .unwrap_or_else(|e| panic!("Q11: an in-bracket gap is paid, not refused: {e:?}")),
+        );
+        encloses(b.flux, c * 0.5, "Q11 in-bracket flux");
+    }
+
+    /// **Q12 — a chart knot an ulp from the chord's end is still a
+    /// cut.**
+    ///
+    /// `chord_cuts` used to apply [`knot_aligned_cuts`]' SLIVER guard
+    /// to its own MANDATORY set, which is the opposite of the rule that
+    /// function states in capitals: a dropped knot cut leaves the
+    /// sub-chord straddling a knot by the guard's own width, the
+    /// Newton–Cotes exactness argument fails on it, and no term pays.
+    /// The guard's width is the same order as the ring rounding the
+    /// lane calls its whole enclosure.
+    ///
+    /// The fixture puts the chart's `u` knot four ulps of the chord's
+    /// span above the chord's start, inside the old `8·ulp` guard, and
+    /// kinks the net across it so the two spans carry different
+    /// polynomials.
+    #[test]
+    fn q12_a_knot_inside_the_old_sliver_guard_is_still_cut() {
+        let c = 3.0;
+        let uk = 4.0 * f64::EPSILON;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, uk, 1.0, 1.0], 1).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        // x(u) jumps rate at `uk`: 0 → 0.5 over [0, uk], then 0.5 → 1.
+        let mut control = Vec::new();
+        for x in [0.0, 0.5, 1.0] {
+            for v in [0.0, 1.0] {
+                control.push([pt(x), pt(v), pt(c)]);
+            }
+        }
+        let w = vec![1.0; 6];
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        // `f = c·x′(u)` and `g = |x′|`; over the triangle
+        // `{0 < v < u < 1}`, `∫∫ = ∫₀¹ x′(u)·u du`.
+        let g_int = (0.5 / uk) * 0.5 * uk * uk + (0.5 / (1.0 - uk)) * 0.5 * (1.0 - uk * uk);
+        let b = bounds_of(
+            &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+                .unwrap_or_else(|e| panic!("Q12: {e:?}")),
+        );
+        encloses(b.flux, c * g_int, "Q12 flux");
+        encloses(b.area, g_int, "Q12 area");
     }
 }
