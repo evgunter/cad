@@ -9,8 +9,8 @@
 //! interior grid is strictly inside every boundary constraint. Every
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
-//! so it is CHECKED here rather than assumed, as THREE questions with
-//! three homes:
+//! so it is CHECKED here rather than assumed, as FOUR questions with
+//! four homes:
 //!
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
@@ -30,7 +30,16 @@
 //!    through the apex, and everything below reads ONE chart
 //!    coordinate per edge. This door is `mesh`'s and the flux lane
 //!    must not cite it — the argument is at the predicate.
-//! 3. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
+//! 3. **EXTENT** — *does the loop span the chart's v direction at
+//!    all?* Asked BY the walk, on its classified traversal list and on
+//!    nothing else (`walk::require_a_meridian`), refusing
+//!    [`TessellateError::MeridianFreeCurvedFace`]. A loop of rims only
+//!    — a sphere cap's or a cone's apex cap's, the pole in the face's
+//!    interior — walks to a rectangle of zero height, which question 4
+//!    cannot tell from a real one (every entry is on its box) and the
+//!    CDT triangulates to nothing. Props admits that face, so neither
+//!    door above refuses it.
+//! 4. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing
 //!    [`TessellateError::UnsupportedCurvedDomain`]).
@@ -705,12 +714,12 @@ fn entries_off_bbox(
 /// one coordinate on the premise that every boundary edge is an iso
 /// curve of the chart. Two tilted plane sections of a SPHERE both
 /// classify `Rim`, merge onto one `v`, and the polygon IS its own
-/// bounding rectangle — this check admitted it (executed: the
-/// collapsed lens walked to one `v`, passed here; with assertions on
-/// the S65 cross-face census panicked, with them off `tessellate`
-/// returned an `Ok` EMPTY mesh that `check_mesh` passes —
-/// `tests::the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_
-/// check_admits_it`). The shape door refuses that face on
+/// bounding rectangle, which this check cannot tell from a real one.
+/// (With no other side the loop has no meridian, and the walk refuses
+/// it before a polygon exists — `tests::the_lens_walk_refuses_for_
+/// want_of_a_meridian_behind_the_shape_door`; beside a meridian side
+/// the merged pair would reach this check and pass it.) The shape door
+/// refuses that face on
 /// `props_rim_axis_parallel` before the walk runs, on every kind
 /// (structural: per-edge CARRIER certification — a torus Villarceau
 /// lens refuses `props_rim_fit`). The SHAPE door does not certify that
@@ -1155,12 +1164,27 @@ mod tests {
     /// polygon, and the per-entry lever arms `tessellate_curved` builds.
     type Walked = (FaceKey, Vec<UvPoint>, Vec<(f64, f64)>);
 
+    /// A walk's polygon and its lever arms, without the face.
+    type WalkOf = (Vec<UvPoint>, Vec<(f64, f64)>);
+
     /// Every face this lane would take, walked to its UV polygon — the
     /// `tessellate` prologue (mesh ids, then the chord pass) run for
     /// the walk alone. The two `continue`s below are exactly the
     /// router's own screens (`tessellate.rs`), so a face that survives
     /// them is a face `tessellate_curved` receives.
     fn curved_walks(body: &Body<f64>) -> Vec<Walked> {
+        curved_walk_results(body)
+            .into_iter()
+            .map(|(fk, walk)| {
+                let (poly, levers) = walk.unwrap();
+                (fk, poly, levers)
+            })
+            .collect()
+    }
+
+    /// [`curved_walks`] with each face's walk kept as the walk's own
+    /// answer, for a row whose subject is a walk that refuses.
+    fn curved_walk_results(body: &Body<f64>) -> Vec<(FaceKey, Result<WalkOf, TessellateError>)> {
         let eps = Eps::at(Tol::witness());
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
@@ -1186,14 +1210,16 @@ mod tests {
             let Some(chart) = Chart::of(body.get_surface(face.surface).unwrap()) else {
                 continue;
             };
-            let poly =
-                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).unwrap();
-            // The same lever arms `tessellate_curved` builds.
-            let levers = poly
-                .iter()
-                .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
-                .collect();
-            out.push((fk, poly, levers));
+            let walk =
+                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).map(|poly| {
+                    // The same lever arms `tessellate_curved` builds.
+                    let levers = poly
+                        .iter()
+                        .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
+                        .collect();
+                    (poly, levers)
+                });
+            out.push((fk, walk));
         }
         out
     }
@@ -2461,40 +2487,33 @@ mod tests {
         assert_eq!(ceil_count(tau, core::f64::consts::PI).unwrap(), 2);
     }
 
-    /// **The `walk::iso_side_starts` qualification, executed and
-    /// closed.** The oblique lens is a sphere face bounded by two
-    /// tilted plane sections meeting off the axis. Both classify `Rim`
-    /// in the walk (`|n · axis| > 0.5`), so `iso_side_starts` merges
-    /// them onto ONE `v`: the polygon collapses onto a single rim level
-    /// and IS its own bounding box, and the spatial check ADMITS it —
-    /// the severity flip the qualification recorded, measured here
-    /// rather than argued. (Run through `tessellate` with the door
-    /// removed and debug assertions on, the S65 cross-face census
-    /// panicked on that walk; with them off `tessellate` returned an
-    /// `Ok` EMPTY mesh — 12 positions, two patches of 0 triangles —
-    /// which `check_mesh` PASSES.) The shape door refuses the same
-    /// face on its rims' CARRIERS before the walk runs, which closes
-    /// the qualification as worded; it does not establish the walk's
-    /// arc premise (issue 1571), and this row does not claim it does.
+    /// **The oblique lens has no walk.** It is a sphere face bounded by
+    /// two tilted plane sections meeting off the axis. Both classify
+    /// `Rim` (`|n · axis| > 0.5`), so the loop has no meridian and
+    /// `walk::loop_polygon` refuses it on that structure alone. A walk
+    /// of it would merge both arcs onto ONE `v` — a polygon that is its
+    /// own zero-height bounding box, which the spatial check
+    /// ([`require_swept_rectangle`]) cannot tell from a rectangle and
+    /// the CDT triangulates to nothing — and that polygon is what the
+    /// refusal stands in front of. The shape door refuses the same
+    /// face earlier still, on its rims' CARRIERS; it does not establish
+    /// the walk's arc premise (issue 1571), and this row does not claim
+    /// it does.
     #[test]
-    fn the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_check_admits_it() {
+    fn the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door() {
         let (body, face) = crate::witness_bodies::oblique_lens();
-        let walked = curved_walks(&body);
-        let (fk, poly, levers) = walked
+        let walked = curved_walk_results(&body);
+        let (_, lens) = walked
             .iter()
-            .find(|(fk, _, _)| *fk == face)
-            .expect("the lens face is walked");
-        let v0 = poly[0].v;
-        assert!(
-            poly.iter().all(|e| e.v.to_bits() == v0.to_bits()),
-            "two Rim-classified oblique arcs collapse onto one v; got {:?}",
-            poly.iter().map(|e| e.v).collect::<Vec<_>>()
-        );
+            .find(|(fk, _)| *fk == face)
+            .expect("the lens face reaches the walk");
         assert_eq!(
-            require_swept_rectangle(*fk, poly, levers, bbox(poly), eps()),
-            Ok(()),
-            "the collapsed polygon is its own (degenerate) bounding box, so the \
-             walk-consistency check cannot see that it is wrong"
+            lens.as_ref().map(|_| ()),
+            Err(&TessellateError::MeridianFreeCurvedFace {
+                face,
+                surface: geom_brep::SurfaceKind::Sphere,
+            }),
+            "two Rim-classified oblique arcs and nothing else"
         );
         let surface = body
             .get_surface(body.get_face(face).unwrap().surface)

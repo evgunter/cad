@@ -106,6 +106,7 @@ test_utils::f6_variants! {
         SelfTouchingTrimLoop,
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
+        MeridianFreeCurvedFace,
         Band,
     ];
 }
@@ -136,6 +137,7 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "first_uv:",
     "max_distance:",
     "source:",
+    "surface:",
     "error:",
 ];
 
@@ -229,6 +231,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["props_rim_level", "iso-parameter rectangle", "quadrature"],
+        ),
+        (
+            TessellateError::MeridianFreeCurvedFace {
+                face,
+                surface: geom_brep::SurfaceKind::Sphere,
+            },
+            vec!["sphere", "rims only", "no meridian", "seamed"],
         ),
         (
             TessellateError::Band {

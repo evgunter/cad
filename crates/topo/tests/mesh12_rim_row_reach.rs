@@ -32,15 +32,16 @@
 //! import-door reach is nil by construction rather than by absence of
 //! a file.
 //!
-//! **Through the Euler doors the shape is a rim-only cap**, which the
-//! shape door admits, the flux lane refuses (`props_face_extent` in
-//! the band), and `mesh::tessellate` does not mesh: the walk emits no
-//! triangles for a loop with no meridian and the issue-897 cross-face
-//! census panics (orchestrator-filed issue 1615, on every ε row and at
-//! `Δv = 0` too — the panic is the rim-only loop's, not the gap's). So
-//! the finding these rows pin is real and is consumed by nothing that
-//! meshes or measures; the body below is the fixture issue 1615 can
-//! lift.
+//! **Through the Euler doors the shape is a rim-only cap**: a sphere
+//! face whose one loop is two rim arcs and no meridian. The shape door
+//! admits it. The flux lane measures it at `Δv = 0` — the two caps sum
+//! to the sphere's closed forms — and escalates inside the band, where
+//! a cap and a zone of sub-band height cannot be told apart
+//! (`props_rim_only_extent`). `mesh::tessellate` refuses it typed at
+//! every `Δv`, `MeridianFreeCurvedFace`: the swept-rectangle walk takes
+//! a face's v-extent from its meridians, and this loop has none. So the
+//! finding these rows pin is real and is consumed by a measure at
+//! `Δv = 0` and by no mesh.
 //!
 //! Offsets are derived from the run's own ε: this file is on CI's
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix.
@@ -260,7 +261,7 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 ///   the same lever `props_face_extent` would have read one step
 ///   later.
 ///
-/// What the walk does with the admitted face is issue 1615's.
+/// What the walk does with the admitted face is the next row.
 #[test]
 fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
@@ -304,4 +305,26 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
         (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
         "and their fluxes to 3V = 4πR³: {flux}"
     );
+}
+
+/// **The mesh lane refuses the admitted face, typed, at every `Δv`.**
+/// Both faces of the body are rim-only sphere caps, so `tessellate`
+/// answers for the first in arena order; the gap plays no part — the
+/// refusal reads the loop's traversal kinds, and two rims at two levels
+/// are as meridian-free as two at one.
+#[test]
+fn the_mesh_lane_refuses_the_rim_only_cap_at_every_gap() {
+    let tol = Tol::witness();
+    for f in [0.0, 0.5, 1.5] {
+        let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
+        let (first, _) = body.faces().next().expect("the body has two faces");
+        assert_eq!(
+            mesh::tessellate(&body, 1e-4, tol).map(|_| ()),
+            Err(mesh::TessellateError::MeridianFreeCurvedFace {
+                face: first,
+                surface: geom_brep::SurfaceKind::Sphere,
+            }),
+            "R·Δv = {f}ε"
+        );
+    }
 }
