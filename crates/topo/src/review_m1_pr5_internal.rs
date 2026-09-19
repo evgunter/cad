@@ -274,15 +274,14 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
-    // ---- Test-support fixture builders
-    // (`crate::test_support_fixtures`), `pub` only because a `tests/`
-    // binary is a separate crate and reaches them through
-    // `topo::test_support`. No shipped build compiles them; they are
-    // here because this walk reads `topo/src`, and each is a sequence
-    // of the asserting operators above. ----
+    // ---- Test-support fixture builders. Why they are in this
+    // population at all is stated once, on
+    // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
+    // them: each writes only through the asserting operators above. ----
     (
         "prism_ops",
-        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no          arena itself — every mutation is one of those, each asserting",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
+         arena itself — every mutation is one of those, each asserting",
     ),
     (
         "describe_as_intersections",

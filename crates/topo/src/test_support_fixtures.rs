@@ -7,14 +7,23 @@
 //!
 //! # Which home this is, and the one it is not
 //!
-//! [`crate::test_support_impl`]'s docs state this crate's three homes
-//! for test vocabulary and the rule that routes an item between them.
-//! This module is a sibling of that one under the same door: its
-//! consumers are this crate's `tests/` binaries, which reach it as
-//! `crate::test_support`, and this crate's own in-crate probes, which
-//! reach it by path. It is gated on the test arms alone — nothing the
-//! library itself needs lives here, which is why it does not carry
-//! `test_support_impl`'s `debug_assertions` arm.
+//! [`crate::test_support_impl`]'s docs state this crate's homes for
+//! test vocabulary and the rule that routes an item — and a family —
+//! between them. This module is the home for what a `tests/` binary
+//! and an in-crate probe must BOTH be able to name, which is the one
+//! thing neither `src/fixtures.rs` nor a module under `tests/` can
+//! serve. Its consumers are this crate's `tests/` binaries, which
+//! reach it as `crate::test_support`, and this crate's own in-crate
+//! probes, which reach it by path. It is gated on the test arms alone
+//! — nothing the library itself needs lives here, which is why it does
+//! not carry `test_support_impl`'s `debug_assertions` arm.
+//!
+//! The family is here **whole**, which is that rule's family clause and
+//! not its narrowest-home clause: `geometric_cube`,
+//! `describe_as_intersections` and `face_surface_of_he` are what
+//! `crate::cert_m3r1_probes` names from `src/`, and the builders,
+//! bundles and assertions they share a vocabulary with travel with
+//! them rather than being split across two homes.
 //!
 //! **It is not `crate::fixtures`, and the two are not two spellings of
 //! one thing.** (Not linked: that module is `#[cfg(test)]` and does not
@@ -102,7 +111,19 @@ pub fn assert_every_chord_named_by_both_rules<T: Real>(
 pub struct GeoCube<T: Real> {
     pub body: Body<T>,
     pub seed: MvfsCreated,
+    /// [`PrismOps::chain`] then [`PrismOps::struts`], in that order:
+    /// `[0..3]` are the bottom rim edges v0→v1, v1→v2, v2→v3 and
+    /// `[3..7]` the four struts up from v0, v1, v2, v3.
     pub mevs: [MevCreated; 7],
+    /// **The order is the interface.** [`PrismOps::bottom`] then
+    /// [`PrismOps::sides`]: `[0]` is the `z = 0` bottom cap and
+    /// `[1..5]` are the walls over [`UNIT_SQUARE`]'s segments 0 to 3,
+    /// so `[1]` is `y = 0`, `[2]` is `x = 1`, `[3]` is `y = 1` and
+    /// `[4]` is `x = 0`. The top cap is the seed face and is in
+    /// neither array. Consumers index this — `cert_m3r1_probes` takes
+    /// `[1]` as the front wall, `null` takes `[0]` and `[1]` as a face
+    /// pair — so a reordering that preserved the lengths would move
+    /// them onto other faces silently.
     pub mefs: [MefCreated; 5],
 }
 
@@ -649,6 +670,10 @@ mod tests {
                 .all(|(_, s)| matches!(s, geom::Surface::Plane { .. })),
             "the Euler-op family carries a real plane on every face"
         );
+        // The count is asserted on this side too: `ArenaCounts` covers
+        // the seven TOPOLOGY arenas, so nothing above pins the surface
+        // arena, and `all` over an empty one is vacuously true.
+        assert_eq!(raw.body.surfaces().count(), 6);
         assert!(
             raw.body
                 .surfaces()

@@ -257,9 +257,12 @@ mod test_support_fixtures;
 // a rustdoc directive, not a visibility one.
 #[doc(hidden)]
 pub mod test_support {
-    //! The public door onto [`crate::test_support_impl`], open exactly
-    //! when a test needs to name its contents from another crate. That
-    //! module's docs state both gates and why they differ.
+    //! The public door onto this crate's test vocabulary, open exactly
+    //! when a test needs to name it from another crate. Two modules
+    //! come through it: [`crate::test_support_impl`], whose docs state
+    //! both gates, why they differ and which home a new item belongs
+    //! in, and [`crate::test_support_fixtures`], the Euler-op fixture
+    //! family, which carries this module's own gate exactly.
     use geom_core::Real;
 
     use crate::body::Body;

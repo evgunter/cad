@@ -17,8 +17,12 @@
 //!
 //! The cube this drives, its two construction steps and the chord-line
 //! and Newell-plane specs under them are [`crate::test_support_fixtures`]'s
-//! — the one Euler-op fixture family, named by path because this module
-//! is in-crate. Nothing box-shaped is built here.
+//! — the crate's shared Euler-op fixture family, named by path because
+//! this module is in-crate. Nothing box-shaped is built here. It is not
+//! the crate's only Euler-op box sequence:
+//! `crate::splitting::reassembly::quad_prism` is a second one under
+//! `src/`, filed on S-DUP's
+//! `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -69,6 +73,25 @@ fn m7_8_cube() -> (
     let mut body = cube.body;
     describe_as_intersections(&mut body, Tol::witness());
     let front = cube.mefs[1].face;
+    // `mefs[1]` is the y = 0 wall by the bundle's ORDER, which is a
+    // property of `GeoCube` and not of anything the lengths pin: a
+    // reordering that kept `[MefCreated; 5]` full would move this probe
+    // onto another face and still pass everything below.
+    {
+        let plane = body
+            .get_surface(body.get_face(front).unwrap().surface)
+            .unwrap();
+        let Surface::Plane { origin, normal, .. } = plane else {
+            panic!("the cube's walls are planes");
+        };
+        assert!(
+            origin.y.abs() < 1e-12
+                && normal.y < -0.5
+                && normal.x.abs() < 1e-12
+                && normal.z.abs() < 1e-12,
+            "`GeoCube::mefs[1]` is the outward-−y wall this probe corrupts"
+        );
+    }
     let wall = body
         .set_face_surface(front, FaceSurface::New(nurbs_wall(0.0)))
         .unwrap();
