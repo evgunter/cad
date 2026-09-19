@@ -177,3 +177,57 @@ fn row5_cs_splice_guard_is_satisfied_by_the_neighbour_alone() {
          alone, whatever the splice contributed"
     );
 }
+
+/// **A FOURTH door follows from the one list, and the PR body names
+/// three.** `split`'s `PartNameReachesRemainder` precondition reads
+/// `Doc::name_carriers` (`refactor.rs:1334`), which reads
+/// `payload_names` — so a cut that TAKES an instance whose record's
+/// `outer` names a kept node is now refused, where on `origin/main`
+/// it was accepted and `remap_node`'s `InstantiatePart` arm
+/// (`refactor.rs:1067`, "its interface record rides with it") cloned
+/// the host-space name into the part.
+///
+/// Reachable: an inhabited record is hand-buildable through the
+/// public `Node::instantiate_part_with` and round-trips through the
+/// wire (`asm_r2b_interface_wire`), so a loaded document can hold one
+/// and a later cut can take the instance. The refusal is the RIGHT
+/// answer; it is the disclosure and the row that are missing.
+#[test]
+fn a_split_moving_an_instance_that_carries_a_record_is_refused_by_a_fourth_door() {
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc("probe-split-part"), Tol::witness());
+    let (doc, neighbour) = insert(
+        ProfileDoc::empty(DocumentId::derive("probe-split"), Tol::witness()),
+        Node::instantiate_part(doc_ref),
+    );
+    let outer = in_part(neighbour, CapEnd::End);
+    let record = InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            mate: RecipeNodeId(9),
+            class: ContactClass::Rest,
+            outer: FaceName::new(outer.clone()).expect("a face name"),
+            inner: part_side(CapEnd::End),
+        }],
+    };
+    let (doc, carrier) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+
+    let cut: std::collections::BTreeSet<RecipeNodeId> = [carrier].into_iter().collect();
+    let refused = editor_core::split(
+        &doc,
+        &cut,
+        DocumentId::derive("probe-split-cut"),
+        Tol::witness(),
+    )
+    .expect_err(
+        "the instance's `outer` is a payload name reaching the remainder, so the \
+         split precondition refuses — this cut was ACCEPTED on `origin/main`",
+    );
+    let editor_core::SplitError::PartNameReachesRemainder { node, name } = refused else {
+        panic!("the seam name is what refuses, not another precondition: {refused:?}");
+    };
+    assert_eq!(
+        (node, *name),
+        (carrier, outer),
+        "the refusal names the instance and the crossing `outer` it carries"
+    );
+}
