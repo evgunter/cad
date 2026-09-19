@@ -867,9 +867,27 @@ impl<T: Real> Body<T> {
     }
 
     /// The solid owning `face` — through its shell's back-pointer — or
-    /// `None` where the face or its shell does not resolve. The one
-    /// spelling of face → shell → solid the census, the point-in-solid
-    /// door and their suites read.
+    /// `None` where the face or its shell does not resolve. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign face key does not stop at
+    /// the first hop: it walks on and answers about whatever shell the
+    /// arena's second slot holds.
+    ///
+    /// Every spelling in THIS CRATE that refuses uniformly across the
+    /// two hops reads through here — the census, the point-in-solid
+    /// door, and the probe and sequence-generator suites. **`None` is
+    /// the only refusal this door can make**, so a caller whose own
+    /// refusal distinguishes the hops keeps its own walk:
+    /// `offset_together::scope_of_moves` names the caller's own stale
+    /// face key on hop 1 and the body's incoherence on hop 2, and
+    /// `offset_together::scope_walks::the_two_hops_refuse_differently`
+    /// reds on either way of collapsing the two.
+    ///
+    /// **The claim is this crate's `src`, and nothing wider.** Four
+    /// hand-written spellings sit in `topo/tests` and `sweep/tests`,
+    /// enumerated in
+    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`;
+    /// a lane adding a fifth reads that list, not this sentence.
     #[must_use]
     pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
         self.get_face(face)
