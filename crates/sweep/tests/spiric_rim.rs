@@ -772,6 +772,25 @@ fn the_cavity_pcurves_certify_on_both_charts() {
         (2, 2),
         "two rims, one wall side and one cap side each"
     );
+    // The face's cache set is minted WHOLE, which is the regression
+    // the missing arm caused: `mint_faces` answers one
+    // `UnsupportedCarrier` half-edge by clearing the entire face, so
+    // before this lane the torus wall's two CIRCLE rims lost their
+    // harmonic caches along with the spirics that had none.
+    let torus_face = cavity
+        .faces()
+        .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))
+        .expect("the cavity carries a torus wall");
+    let lp = cavity.get_loop(torus_face.1.outer).expect("loop");
+    let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+        panic!("the wall's outer loop is a cycle");
+    };
+    for he in cavity.loop_cycle(first).expect("cycle") {
+        assert!(
+            cavity.pcurve(he).is_some(),
+            "{he:?} on the torus wall carries no cache — the face is half-minted"
+        );
+    }
     assert_eq!(topo::pcurves::validate_pcurves(&cavity, band), vec![]);
 }
 
@@ -1061,128 +1080,5 @@ mod interval_rows {
             }
         }
         assert_eq!(n, 2, "two spiric rims at the certified scalar");
-    }
-}
-
-/// TEMPORARY opening-measurement probe (PR-1b), removed before the
-/// branch's final head.
-#[test]
-fn pr1b_opening_measurement() {
-    let band = Band::linear(tol()).expect("band");
-    let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    for (fk, f) in cavity.faces() {
-        let surf = cavity.get_surface(f.surface).expect("surface");
-        let kind = match surf {
-            Surface::Plane { .. } => "plane",
-            Surface::Cylinder { .. } => "cylinder",
-            Surface::Cone { .. } => "cone",
-            Surface::Sphere { .. } => "sphere",
-            Surface::Torus { .. } => "torus",
-            Surface::Nurbs(_) => "nurbs",
-            Surface::Approx(_) => "approx",
-        };
-        let lp = cavity.get_loop(f.outer).expect("loop");
-        let topo::LoopBoundary::Cycle { first } = lp.boundary else {
-            continue;
-        };
-        let cycle: Vec<_> = cavity.loop_cycle(first).expect("cycle");
-        for he in cycle {
-            let hed = cavity.get_half_edge(he).expect("he");
-            let e = cavity.get_edge(hed.edge).expect("edge");
-            let carrier = cavity
-                .get_curve_geom(e.curve)
-                .and_then(|c| c.certified())
-                .map(|c| match c.carrier() {
-                    Curve3::Line { .. } => "line",
-                    Curve3::Circle { .. } => "circle",
-                    Curve3::Ellipse { .. } => "ellipse",
-                    Curve3::Spiric { .. } => "SPIRIC",
-                    Curve3::Nurbs(_) => "nurbs",
-                })
-                .unwrap_or("?");
-            let cached = cavity.pcurve(he).map(|c| {
-                format!(
-                    "{:?}/{:?}",
-                    core::mem::discriminant(c.pcurve()),
-                    c.certificate().statement
-                )
-            });
-            println!(
-                "[open] face {fk:?} {kind} he {he:?} carrier {carrier} cache {cached:?} derived {:?}",
-                topo::pcurve_of(&cavity, he, band)
-                    .map(|p| format!("{:?}", core::mem::discriminant(&p)))
-            );
-        }
-    }
-    println!(
-        "[open] validate_pcurves(cavity) = {:?}",
-        topo::pcurves::validate_pcurves(&cavity, band)
-    );
-    let quarter = vessel_quarter();
-    println!(
-        "[open] vessel hollow door: {:?}",
-        topo::shell(&quarter, 1.0 / 128.0, tol())
-    );
-    let elbow = klein_elbow(0.275);
-    println!(
-        "[open] elbow hollow door: {:?}",
-        topo::shell(&elbow, 0.05, tol()).map(|_| ())
-    );
-    let mut ecav = elbow.clone();
-    let r = topo::offset_charts_together(&mut ecav, &hollow_moves(&elbow, 0.05), band, tol());
-    println!("[open] elbow offset_charts_together: {r:?}");
-    if r.is_ok() {
-        println!(
-            "[open] elbow cavity spiric edges: {:?}",
-            spiric_edges(&ecav)
-                .iter()
-                .map(|(k, _, s)| (*k, *s))
-                .collect::<Vec<_>>()
-        );
-        println!(
-            "[open] validate_pcurves(elbow cavity) = {:?}",
-            topo::pcurves::validate_pcurves(&ecav, band)
-        );
-    }
-}
-
-/// TEMPORARY export-schedule probe (PR-1b), removed before the final head.
-#[test]
-fn pr1b_export_schedule_probe() {
-    let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    for (edge, carrier, (t0, t1)) in spiric_edges(&cavity) {
-        let Curve3::Spiric {
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } = carrier
-        else {
-            continue;
-        };
-        let m_p = geom::spiric_curvature_sup(major_radius, minor_radius, offset);
-        let dt = t1 - t0;
-        println!(
-            "[sched] {edge:?} R={major_radius} r={minor_radius} d={offset} span=[{t0},{t1}] dt={dt} sup|C''|={m_p:e} eps={:e}",
-            tol().eps()
-        );
-        for nodes in [4usize, 16, 64, 256, 1024] {
-            #[allow(clippy::cast_precision_loss)]
-            let n = nodes as f64;
-            let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / n).collect();
-            let points: Vec<Point3<f64>> =
-                params.iter().map(|f| carrier.eval(t0 + dt * f)).collect();
-            let spline = geom::NurbsCurve3::interpolate_with_params(&points, 3, &params)
-                .expect("the cubic interpolation");
-            let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control());
-            let bound = (m_s + m_p * dt * dt) / (8.0 * n * n);
-            // The TRUE sup, sampled densely, for comparison.
-            let mut worst: f64 = 0.0;
-            for k in 0..=4096 {
-                let f = f64::from(k) / 4096.0;
-                worst = worst.max(spline.eval(f).distance(carrier.eval(t0 + dt * f)));
-            }
-            println!("[sched]   n={nodes} m_s={m_s:e} bound={bound:e} sampled={worst:e}");
-        }
     }
 }
