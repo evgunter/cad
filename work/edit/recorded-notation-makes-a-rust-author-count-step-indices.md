@@ -2,7 +2,8 @@
 id: recorded-notation-makes-a-rust-author-count-step-indices
 kind: issue
 title: a RecordedNotation entry is keyed by an index the path algebra never hands its caller
-status: review
+status: closed
+closed: 2026-09-19
 pr: 2876
 branch: edit/notation-derived-index
 opened: 2026-09-16
@@ -255,3 +256,33 @@ Green on hosted CI run 35462469877 (head `03d168452`): 39 jobs, 35
 success and 4 the change filter's own skips; twelve `test (…)`, five
 `k-lint (gate, …)`, the python suite, `gate ok`. Read at the step
 level: 422 success, 102 skipped, nothing else.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2876 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). `PartialPath::recorded`
+(and the same accessor on all five arrival builders — every state an
+author has just recorded from) hands back the steps so far, and
+`RecordedNotation::set_after(recorded, arg, unit)` writes the LAST
+recorded step's argument with the index derived, never counted; an
+empty recording refuses through a new arm, `NotationBeforeAnyStep`,
+raised at the writing door (the reuse of `NotationOffProgram { step:
+0 }` would attribute an index the author never wrote — the one row
+that tells the arms apart pins it). `set` stays as the addressed door
+the viewer's `Notation::over` derives its indices for, and the
+miscount trap is pinned as acceptance through it, with the reason it
+is kept. The review (0 MAJOR, 4 MINOR, all prose or counts) found the
+door's index conversion a third spelling beside nine silent casts in
+the same file, the derived door absent from the arrival states where
+a hand count is hardest, and the new tag word unreachable from Python
+with nothing saying so; the fix pass gave the conversion one home
+(`program_index` — ten sites, four of them loop indices, so the name
+the brief proposed would have been false at half of them: the lane's
+spelling stands), put the accessor on every builder state, said the
+dead vocabulary on the tag map's doc per its convention, corrected
+the counts (51 `Core::record` sites, five census arms, three rows
+keeping `set`), and appended the hand-off to LIB's
+`path-legs-erase-the-authored-notation-one-layer-down`. Territory
+crossed by announcement: `crates/profile/src/path.rs` (PATHS — the
+accessors), `crates/pncad-py/src/{tags.rs, tests.rs}` (LIB — one tag
+word), three suites (TCOST/TINT), one LIB row appended.
