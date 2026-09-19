@@ -68,3 +68,44 @@ style-only. Its fix pass took ten findings. The main ones:
 
 Candidate order kept as document → remembered → launch; flagged to Ev.
 The profile-editor row is still in flight.
+
+## 2026-09-19 — Ev's profile-editor row landed (PR 2862)
+
+Orchestrated from the same session as PR 2858. This was not an
+A/B-protocol unit, by Ev's instruction. The Fable lane hit the account
+limit mid-work, and Opus finished the unit from its uncommitted diff.
+
+It had a full review, correctness and style. The review found:
+
+- **MAJOR:** the editor hid the slot rows, which were the only GUI door
+  to driving an argument by an expression, per-slot units, and the
+  range probe.
+- **MINOR:** the greedy write order refused edits that had a valid
+  order (7 of 52 in the reviewer's probe).
+- **MINOR:** a disabled `DragValue` clamped a document's split-circle
+  count to the authoring cap.
+
+The fix pass fixed all three:
+
+- the slot rows are kept, folded; the per-field version is filed;
+- the write order is now an exact memoized search, capped at 12 writes;
+- the clamp is off for document values.
+
+It also:
+
+- added the base-program guard in the op;
+- merged the doubled preview pipeline into one;
+- gave the lowering map one home;
+- moved the editor into its own module;
+- wired VGEOM's `except` seam.
+
+The delta review held on all six checks. It ran on reading only,
+because the build slot never freed in 1h45m. It found one new MINOR
+(an outline freezes during a slot-row drag), filed rather than cycled.
+Two NOTEs are recorded here:
+
+- `ORDER_SEARCH_CAP`'s "fraction of a second" is unmeasured (worst
+  case about 49k `apply` calls);
+- the cap path's apply loop is a second copy of `commit_action`'s.
+
+The shape lock waits on Ev (EDIT's whole-program-edit row).

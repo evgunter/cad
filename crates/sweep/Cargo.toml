@@ -25,7 +25,14 @@ workspace = true
 # with E0603 + 5×E0599, and the workspace was green only because
 # editor-core's dev-dep unified the missing feature into the same build
 # graph. A feature has to compile from the crates that name IT.
-test-support = ["profile/test-support"]
+#
+# FORWARDS `topo/test-support` for the same reason: `brick` here IS
+# `topo::test_support::brick`, the tree's one construction of the
+# axis-aligned box. A forward whose SOURCE feature is itself test-only
+# is what `scripts/gates/test-features-dev-only.sh` skips by
+# construction; what it refuses is the feature on the `[dependencies]`
+# line, which would reach every production dependent.
+test-support = ["profile/test-support", "topo/test-support"]
 # Forwards geom-core's certified interval scalar so the sweep operations
 # run at `Interval` — exercised by the feature-gated test files in CI's
 # interval lane.
