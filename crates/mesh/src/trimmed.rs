@@ -990,6 +990,15 @@ fn trim_polygon(
         // have sized (`crate::chords`' boundary-tightening contract).
         match cache.pcurve() {
             Pcurve::Harmonic { .. } => {}
+            // The spiric's two images are closed forms of the
+            // carrier's own parameter on the two charts it lives on,
+            // so the walk below — which samples the image at the
+            // chord pass's parameters — reads them exactly as it reads
+            // a harmonic one. Unreachable at this head for a different
+            // reason: `tessellate_trimmed`'s chart roster has no torus
+            // or plane arm, so a spiric-bounded face refuses before
+            // this walk (`work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+            Pcurve::Spiric { .. } => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
             // The arc rim is the NURBS chart's other minted closed
             // form (M8-3) — same boundary line, rational-quadratic

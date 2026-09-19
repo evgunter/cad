@@ -2482,6 +2482,14 @@ fn pcurve_entry<T: Decide + Bounds>(
         // fitted arm, and separate because the inventory names the
         // class it refuses.
         Pcurve::General(_) => Err("General curve-in-UV image is not a straight segment"),
+        // A spiric's chart image is a genuine curve on both of the
+        // charts it lives on — `p0 + pm·f(t) + pa·sin t` on the cap,
+        // and the `atan2(f, d)` azimuth on the wall — so it is in no
+        // clause of the straight-segment inventory. The planar trim
+        // limb owes a curved-boundary polygon before a spiric-bounded
+        // cap can enter it, which is the props/tessellation frontier,
+        // not a missing arm here.
+        Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
     }
 }
 

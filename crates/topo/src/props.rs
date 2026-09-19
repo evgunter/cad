@@ -2997,6 +2997,19 @@ mod quad_lane {
                                spline patch",
                     });
                 }
+                // Same ground as the harmonic arm, one kind over: a
+                // spiric image certifies on its own cutting plane and
+                // its own torus and on no spline chart at all, so a
+                // cache that reached this lane is a corrupt one. Named
+                // rather than folded in, because the two refusals name
+                // two different classes.
+                Pcurve::Spiric { .. } => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
+                               chart images live on its own cutting plane and its own \
+                               torus, and this chart is a spline patch",
+                    });
+                }
             };
             chords.push(TrimChord {
                 a,

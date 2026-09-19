@@ -1377,9 +1377,12 @@ fn v_meter<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
 /// [`geom_brep::Pcurve::shift_branch`], for the charts whose second
-/// parameter is an angle (sphere/torus). Only the harmonic form lives
-/// on those charts; other variants answer themselves unchanged (the
-/// walk never computes a nonzero shift for them).
+/// parameter is an angle (sphere/torus). Two forms live on those
+/// charts and both carry their meridional constant in one field: the
+/// harmonic form's `p0.y` and a spiric WALL image's `v0` (a spiric
+/// cap's chart is a plane, which has no periodic channel to shift).
+/// Other variants answer themselves unchanged — the walk never
+/// computes a nonzero shift for them.
 fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
     match pcurve {
         Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
@@ -1387,6 +1390,21 @@ fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T>
             pa: *pa,
             pb: *pb,
             pl: *pl,
+        },
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+        } => Pcurve::Spiric {
+            major: *major,
+            minor: *minor,
+            offset: *offset,
+            image: geom_brep::SpiricImage::Wall {
+                u0: *u0,
+                v0: *v0 + k * period,
+                sense: *sense,
+            },
         },
         other => other.clone(),
     }
@@ -2242,6 +2260,12 @@ fn chart_edge<T: PcurveFittedLane>(
                     geom::Curve3::Line { .. }
                 )
         }
+        // A spiric image is curved on BOTH charts it lives on — the
+        // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
+        // azimuth — so it takes the envelope door below, which the
+        // `_` arm there already answers from `eval` over the span
+        // hull.
+        Pcurve::Spiric { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {

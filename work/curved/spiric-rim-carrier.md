@@ -31,3 +31,17 @@ OPEN for PR-1b (`Pcurve::Spiric` + STEP, rows 9–10, branch
 elbow's equator seams refuse at `reauthor`) is
 `equator-seam-reauthor-refuses-the-hollowed-elbow`, after 1b. Record:
 MODEL-AB-LOG row SP1A; adjudication comment 5733631165.
+
+## PR-1b opened (2026-09-18)
+
+Branch `curved/spiric-1b`: §3's `Pcurve::Spiric` with
+`SpiricImage::{Cap, Wall}`, its mint in `chart_pcurve`'s plane and
+torus arms, its certification arm
+(`EnvelopeStatement::SpiricIdentity` for the wall, the
+`span{1, f, sin}` closed form for the cap), every consumer site the
+compile break named, §5's export-only cubic spline with the
+`FILE_DESCRIPTION` sentence, rows 9–10, and §7's deferred
+`crates/geom-brep/README.md` C4 lane-list edit. One finding filed
+from the lane: `spiric-step-spline-bound-is-second-order` — §5's
+sagitta certificate cannot state the kernel's ε under its 1024-node
+cap, measured.
