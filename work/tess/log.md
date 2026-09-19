@@ -188,3 +188,14 @@ corrections are on the row.
   opposite operand orders, one of them unreachable from integration
   tests (the owner of `crates/test-utils`). Not taken: the `unsure`
   that `worst_ratio` reds do not name their triangle.
+
+## Seam acked: TRIM-2 PR-2 in `chords.rs` and `trimmed.rs` (2026-09-18)
+
+CURVED's orchestrator (for TRIM) announced on PR 2564: the `General`
+pcurve arm of `chords::nurbs_tighten` returns certified UV speed sups
+instead of refusing, and the trim walk admits `Pcurve::General` on a
+NURBS chart. Acked there — shapes fine, no TESS door wanted — with one
+ask (a domination row for the new sups that goes red when the sup
+degrades; E2's vertex count cannot see a sup that is too small) and a
+note of what TESS has in flight on the same files (PR 2848's test
+modules; TESS-1's new `TessellateError` arm).
