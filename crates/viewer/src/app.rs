@@ -1106,6 +1106,7 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
+            let accepted_op = op.clone();
             let outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
@@ -1142,8 +1143,13 @@ impl ViewerApp {
                 // other half of this rule). One open tool at a time is
                 // what lets this close "the" tool without asking which
                 // op came from which panel.
-                None if tool_edit => self.tools.close(),
-                None => {}
+                None if tool_edit => {
+                    self.tools.close();
+                    self.drafts.accepted(&accepted_op);
+                }
+                // A form whose op committed comes to rest, for the
+                // tool's reason: a refusal leaves it holding its draft.
+                None => self.drafts.accepted(&accepted_op),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());

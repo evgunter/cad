@@ -187,10 +187,14 @@ pub struct EdgeOverlay {
     ///
     /// A lane of its own rather than the preview's, because the two
     /// say different things — this one is in the document and the
-    /// preview is not — and a form editing a committed profile draws
-    /// that profile in the preview lane INSTEAD of this one
-    /// (`crate::sketch::committed`'s `except`), so no loop is drawn in
-    /// both.
+    /// preview is not. **No loop is meant to be in both**, and two
+    /// things keep it so. The create form's preview is of a profile
+    /// that is not a node yet, and the form comes to rest when its add
+    /// is accepted (`crate::drafts::Drafts::accepted`), so the node
+    /// it became is drawn here and nowhere else. A form that previews
+    /// an edit of a COMMITTED profile has to name that node to
+    /// `crate::sketch::committed`'s `except`, which leaves it out of
+    /// this lane; nothing checks that it does.
     pub profiles: Vec<[f32; 3]>,
 }
 

@@ -612,9 +612,12 @@ impl ViewerBehavior<'_> {
         // profile is authored content, not construction geometry.
         //
         // `except: None`: the one form that previews is the create
-        // form, and the profile it previews is not a node yet. A form
-        // that edits a committed profile passes that node here, so its
-        // preview is the only drawing of it.
+        // form, whose profile is not a node while it is being
+        // composed, and which comes to rest when its add is accepted
+        // (`Drafts::accepted`) — so the node it became is drawn here
+        // once the evaluation holding it lands, and never also as the
+        // preview. A form that previews an edit of a committed profile
+        // must pass that node here, or it is drawn twice.
         if let Some((doc, evaluation)) = self.session.landed_pair() {
             let committed = sketch::committed(doc, evaluation, self.delta.get(), None);
             *self.profiles_undrawn = committed.undrawn.len();

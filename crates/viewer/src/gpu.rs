@@ -114,8 +114,8 @@ const COPY_ROW_ALIGNMENT: u64 = 256;
 /// The uniform block both pipelines read.
 ///
 /// `repr(C)` and a `Pod` derive rather than a hand-packed array: the
-/// WGSL side declares the same four rows, and a struct that mirrors it
-/// field for field cannot lose a lane the way indexed writes into a
+/// WGSL side declares the same fields in the same order, and a struct
+/// that mirrors it field for field cannot lose a lane the way indexed writes into a
 /// flat block could.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -298,29 +298,79 @@ struct EdgeGeometry {
 }
 
 /// **An edge vertex's lane, as the code the shader reads**: the lane's
-/// position in [`EdgeLane::DRAW_ORDER`].
+/// discriminant, which is its position in [`EdgeLane::DRAW_ORDER`]
+/// because `vocabulary!` projects that list from the declaration in
+/// declaration order (`every_lane_code_is_its_draw_position` holds it).
 ///
-/// The position rather than a second numbering, so the code a vertex
-/// carries, the row of [`Uniforms::edge_lanes`] it reads its style
-/// from, and the order the lanes are drawn in are one list. The WGSL
-/// is handed every lane's code by substitution ([`shader_source`]), so
-/// the two sides cannot spell a lane differently.
+/// One numbering, so the code a vertex carries, the row of
+/// [`Uniforms::edge_lanes`] it reads its style from, the arm of the
+/// shader's colour switch it takes ([`lane_colour_switch`]) and the
+/// order the lanes are drawn in are one list.
 fn lane_code(lane: EdgeLane) -> u32 {
-    let position = EdgeLane::DRAW_ORDER.iter().position(|drawn| *drawn == lane);
-    // Every variant is in the list — it is projected from the enum's
-    // declaration (`vocabulary!`) — so there is always a position; the
-    // fallback is never taken.
-    u32::try_from(position.unwrap_or(0)).unwrap_or(0)
+    lane as u32
 }
 
-/// The bits of an edge vertex's word that hold its [`lane_code`].
-const EDGE_LANE_BITS: u32 = 7;
+/// The mask over an edge vertex's word that holds its [`lane_code`]:
+/// the smallest all-ones mask every lane's code fits, so a lane added
+/// to `EdgeLane` widens it rather than overflowing into the flag above.
+const EDGE_LANE_MASK: u32 = (EdgeLane::DRAW_ORDER.len() as u32).next_power_of_two() - 1;
 /// Set when this vertex's edge belongs to a free-moved instance, so
 /// its mark composites over the probe-tinted body exactly as the
 /// shaded pass's marks do (`EdgePass`'s note on the shared base).
-/// Above [`EDGE_LANE_BITS`], because it says something orthogonal to
-/// which lane the vertex is in.
-const EDGE_FLAG_PROBE: u32 = 8;
+/// The first bit above [`EDGE_LANE_MASK`], because it says something
+/// orthogonal to which lane the vertex is in.
+const EDGE_FLAG_PROBE: u32 = EDGE_LANE_MASK + 1;
+
+/// **The WGSL expression one lane's colour is**, over `base` — the body
+/// colour, probe-tinted where the instance is free-moved.
+///
+/// An exhaustive match, so a lane added to `EdgeLane` does not compile
+/// until it is given a colour; [`lane_colour_switch`] writes one arm
+/// per lane from it.
+fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
+    match lane {
+        // The picked marks: the theme's own mark, composited over the
+        // base — `tint`, the same mix the shaded pass runs.
+        EdgeLane::Selected => "tint(base, uniforms.selected)",
+        EdgeLane::Hovered => "tint(base, uniforms.hovered)",
+        // A preview is not in the document, and says so in the probe
+        // mark — G3's "not committed" — over the same base.
+        EdgeLane::Preview => "tint(base, uniforms.probe)",
+        // NOT tints: a datum and a profile are not material, so there
+        // is no body colour for either to be a state of. Each is drawn
+        // in the theme's own colour for it, as stated.
+        EdgeLane::Datum => "uniforms.datum.xyz",
+        EdgeLane::Profile => "uniforms.profile.xyz",
+    }
+}
+
+/// **`fs_edge`'s lane → colour switch, generated from the lanes**: one
+/// `case` per lane in [`EdgeLane::DRAW_ORDER`], its code the lane's
+/// [`lane_code`], its colour [`lane_colour_wgsl`].
+///
+/// WGSL requires a `default`, and no code reaches it — every code is
+/// written by [`edge_vertices`] from a lane. It is drawn in
+/// [`UNHANDLED_LANE_WGSL`], pure magenta, so a word that did reach it
+/// would be the loudest thing on screen rather than a line quietly
+/// wearing some other lane's colour.
+fn lane_colour_switch() -> String {
+    let mut out = String::from("switch lane {\n");
+    for lane in EdgeLane::DRAW_ORDER {
+        out.push_str(&format!(
+            "        case {}u: {{ color = {}; }}\n",
+            lane_code(lane),
+            lane_colour_wgsl(lane)
+        ));
+    }
+    out.push_str(&format!(
+        "        default: {{ color = {UNHANDLED_LANE_WGSL}; }}\n    }}"
+    ));
+    out
+}
+
+/// The colour a lane code with no lane is drawn in; see
+/// [`lane_colour_switch`].
+const UNHANDLED_LANE_WGSL: &str = "vec3<f32>(1.0, 0.0, 1.0)";
 
 /// **How loud one edge lane is drawn**: its width and its opacity.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -354,10 +404,13 @@ const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
 /// A plane is ruled out to its horizon, so its grid is the one lane
 /// that covers the whole picture, and at a mark's weight it read as
 /// the loudest thing on screen. At one point it is the hairline a
-/// grid is; one point is still at least one physical pixel, and a
-/// quad at least a pixel wide covers a pixel centre in every column
-/// (or row) it crosses, so the thin line stays continuous rather than
-/// dotting the way a one-pixel `LineList` did.
+/// grid is. On a display of at least one pixel per point that is at
+/// least one physical pixel, and a quad at least a pixel wide covers a
+/// pixel centre in every column (or row) it crosses, so the line stays
+/// continuous rather than dotting the way a one-pixel `LineList` did.
+/// Under a scale factor below one the quad is narrower than a pixel
+/// and the grid CAN drop pixels along a shallow line; the marks, three
+/// times as wide, stay continuous down to a third of that scale.
 const DATUM_HALF_WIDTH_POINTS: f32 = 0.5;
 
 /// **Each lane's style.** One match, so a lane cannot be added
@@ -1372,22 +1425,10 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
-        .replace("{{EDGE_LANE_BITS}}", &EDGE_LANE_BITS.to_string())
+        .replace("{{EDGE_LANE_MASK}}", &EDGE_LANE_MASK.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_LANES}}", &EdgeLane::DRAW_ORDER.len().to_string())
-        .replace("{{LANE_DATUM}}", &lane_code(EdgeLane::Datum).to_string())
-        .replace(
-            "{{LANE_PROFILE}}",
-            &lane_code(EdgeLane::Profile).to_string(),
-        )
-        .replace(
-            "{{LANE_PREVIEW}}",
-            &lane_code(EdgeLane::Preview).to_string(),
-        )
-        .replace(
-            "{{LANE_HOVERED}}",
-            &lane_code(EdgeLane::Hovered).to_string(),
-        )
+        .replace("{{EDGE_LANE_COLOURS}}", &lane_colour_switch())
         .replace("{{EDGE_CLIP_Z_LIFT}}", &format!("{EDGE_CLIP_Z_LIFT:e}"))
 }
 
@@ -1563,7 +1604,7 @@ fn vs_edge(
     // the half viewport, and multiplying by w undoes the perspective
     // divide the rasterizer is about to apply — which is what makes
     // the width constant on screen rather than in world units.
-    let lane = min(mark & {{EDGE_LANE_BITS}}u, {{EDGE_LANES}}u - 1u);
+    let lane = mark & {{EDGE_LANE_MASK}}u;
     let offset = normal * side * uniforms.edge_lanes[lane].x / half_viewport;
     var out: EdgeOut;
     out.clip_position = vec4<f32>(clip.xy + offset * clip.w, clip.z, clip.w);
@@ -1584,27 +1625,11 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     if ((in.mark & {{EDGE_FLAG_PROBE}}u) != 0u) {
         base = tint(base, uniforms.probe);
     }
-    let lane = min(in.mark & {{EDGE_LANE_BITS}}u, {{EDGE_LANES}}u - 1u);
-    // The picked marks: the theme's own mark, composited over that
-    // base.
-    var color = tint(base, uniforms.selected);
-    if (lane == {{LANE_HOVERED}}u) {
-        color = tint(base, uniforms.hovered);
-    }
-    // A preview is not in the document, and says so in the probe
-    // mark — G3's "not committed" — over the same base.
-    if (lane == {{LANE_PREVIEW}}u) {
-        color = tint(base, uniforms.probe);
-    }
-    // NOT tints: a datum and a profile are not material, so there is
-    // no body colour for either to be a state of. Each is drawn in the
-    // theme's own colour for it, as stated.
-    if (lane == {{LANE_DATUM}}u) {
-        color = uniforms.datum.xyz;
-    }
-    if (lane == {{LANE_PROFILE}}u) {
-        color = uniforms.profile.xyz;
-    }
+    let lane = in.mark & {{EDGE_LANE_MASK}}u;
+    // One arm per lane, generated from `EdgeLane` (the Rust
+    // `lane_colour_switch`).
+    var color: vec3<f32>;
+    {{EDGE_LANE_COLOURS}}
     return vec4<f32>(to_display(color), uniforms.edge_lanes[lane].y);
 }
 
@@ -1677,13 +1702,10 @@ mod tests {
         for token in [
             "{{FLAG_PROBE}}",
             "{{FLAG_FOCUS}}",
-            "{{EDGE_LANE_BITS}}",
+            "{{EDGE_LANE_MASK}}",
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_LANES}}",
-            "{{LANE_DATUM}}",
-            "{{LANE_PROFILE}}",
-            "{{LANE_PREVIEW}}",
-            "{{LANE_HOVERED}}",
+            "{{EDGE_LANE_COLOURS}}",
             "{{EDGE_CLIP_Z_LIFT}}",
             "{{ENCODE_SRGB}}",
         ] {
@@ -1695,13 +1717,13 @@ mod tests {
         }
     }
 
-    /// **Every lane's code fits its bits and is not the probe flag** —
-    /// `DRAW_ORDER` is projected from `EdgeLane`'s declaration
-    /// (`vocabulary!`), so every lane is in it and the codes are the
-    /// positions `0..len`; what this row holds is that the positions
-    /// still fit the word the shader decodes as the lane grows.
+    /// **Every lane's code is its draw position, fits the lane mask, and
+    /// is not the probe flag.** The code is the discriminant; the style
+    /// rows are indexed by draw position, so the two have to be one
+    /// number — which holds only while the enum is declared in draw
+    /// order, and this row is what says so if it stops.
     #[test]
-    fn every_lane_code_fits_the_word() {
+    fn every_lane_code_is_its_draw_position() {
         for (position, lane) in EdgeLane::DRAW_ORDER.into_iter().enumerate() {
             let code = lane_code(lane);
             assert_eq!(
@@ -1709,7 +1731,7 @@ mod tests {
                 "{lane:?}'s code is not its position"
             );
             assert_eq!(
-                code & EDGE_LANE_BITS,
+                code & EDGE_LANE_MASK,
                 code,
                 "{lane:?}'s code overflows its bits"
             );
@@ -1719,6 +1741,31 @@ mod tests {
                 "{lane:?}'s code reads as the probe flag"
             );
         }
+    }
+
+    /// **The shader's colour switch has exactly one arm per lane**, at
+    /// that lane's code — so no lane falls through to the unhandled
+    /// colour, and the substituted shader carries the switch.
+    #[test]
+    fn the_colour_switch_has_one_arm_per_lane() {
+        let switch = lane_colour_switch();
+        for lane in EdgeLane::DRAW_ORDER {
+            let arm = format!(
+                "case {}u: {{ color = {}; }}",
+                lane_code(lane),
+                lane_colour_wgsl(lane)
+            );
+            assert_eq!(switch.matches(&arm).count(), 1, "{lane:?}: {switch}");
+        }
+        assert_eq!(
+            switch.matches("case ").count(),
+            EdgeLane::DRAW_ORDER.len(),
+            "{switch}"
+        );
+        assert!(
+            shader_source(wgpu::TextureFormat::Bgra8Unorm).contains(&switch),
+            "the switch is not what the shader draws with"
+        );
     }
 
     /// **The buffer order is the draw order**, and so the priority:
@@ -1746,7 +1793,7 @@ mod tests {
         let (positions, marks) = edge_vertices(&overlay);
         assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
         assert_eq!(marks.len(), positions.len());
-        let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_BITS).collect();
+        let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
         assert!(
             codes.windows(2).all(|pair| pair[0] <= pair[1]),
             "lanes interleave or run backwards: {codes:?}",
@@ -1778,7 +1825,15 @@ mod tests {
     fn the_datum_grid_is_the_faintest_and_thinnest_lane() {
         let grid = lane_style(EdgeLane::Datum);
         assert!(grid.opacity > 0.0 && grid.opacity <= 1.0, "{grid:?}");
-        assert!(grid.half_width_points > 0.0, "{grid:?}");
+        // An absolute bound as well as the relative ones below: the
+        // grid is a hairline, at most one point across, and a grid
+        // drawn at a mark's weight — Ev's complaint — fails here even
+        // if every other lane were widened to stay ahead of it.
+        assert!(
+            grid.half_width_points > 0.0 && 2.0 * grid.half_width_points <= 1.0,
+            "the grid is {} pt wide; a hairline is at most 1 pt",
+            2.0 * grid.half_width_points
+        );
         for lane in EdgeLane::DRAW_ORDER {
             if lane == EdgeLane::Datum {
                 continue;

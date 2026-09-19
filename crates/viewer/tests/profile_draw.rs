@@ -92,6 +92,45 @@ fn a_committed_profile_is_drawn_on_the_plane_its_value_carries() {
     }
 }
 
+/// **A plane that is neither the world's xy nor through its origin**
+/// places the loop by its own axes. The frame here stands at
+/// (0.1, 0.2, 0.3) with sketch x along world y and sketch y along world
+/// z, so a drawing that read the value's coordinates as world x and y,
+/// or dropped the origin, lands every corner elsewhere.
+#[test]
+fn a_profile_on_a_turned_offset_plane_is_drawn_on_that_plane() {
+    let tol = Tol::witness();
+    let doc = Doc::empty_derived("profile-draw-turned", tol);
+    let origin = [0.1, 0.2, 0.3];
+    let (doc, plane) = inserted(&doc, frame(origin, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), tol);
+    let (doc, profile) = inserted(&doc, square(plane, SIDE), tol);
+    let evaluation = evaluated(&doc, tol);
+
+    let drawn = sketch::committed(&doc, &evaluation, CHORD, None).drawn;
+    assert_eq!(
+        drawn.iter().map(|p| p.node).collect::<Vec<_>>(),
+        vec![profile]
+    );
+    let committed = &drawn[0];
+    let corners: Vec<[f64; 3]> = committed.loops[0]
+        .points
+        .iter()
+        .map(|[x, y]| {
+            let world = committed.plane.to_world(Point2::new(*x, *y));
+            [world.x, world.y, world.z]
+        })
+        .collect();
+    let expected: Vec<[f64; 3]> = [[0.0, 0.0], [SIDE, 0.0], [SIDE, SIDE], [0.0, SIDE]]
+        .iter()
+        .map(|[x, y]| [origin[0], origin[1] + x, origin[2] + y])
+        .collect();
+    assert_eq!(corners.len(), expected.len());
+    for (got, want) in corners.iter().zip(&expected) {
+        let off = (0..3).map(|i| (got[i] - want[i]).abs()).fold(0.0, f64::max);
+        assert!(off < 1.0e-12, "a corner is drawn at {got:?}, not {want:?}");
+    }
+}
+
 /// **The profile a form edits is left to the form.** Two profiles
 /// are committed; excepting one leaves exactly the other, and
 /// excepting nothing draws both — so the exception is what removed
@@ -141,4 +180,59 @@ fn a_profile_whose_evaluation_refused_draws_nothing() {
         vec![healthy],
     );
     assert!(drawn.undrawn.is_empty(), "{:?}", drawn.undrawn);
+}
+
+/// **A profile the evaluator validated and the flattener cannot draw.**
+///
+/// An arc whose bulge is a finite number near the bottom of the
+/// exponent range is a legal program and, if the evaluator admits it,
+/// a validated profile — and its radius `half / sin(θ/2)` overflows,
+/// so no point along it is a number. The committed pass has to say so
+/// (`CommittedProfiles::undrawn`) rather than draw the loop with that
+/// leg missing or leave it out as if the document had no profile.
+#[test]
+fn a_validated_profile_with_an_undrawable_arc_is_counted_undrawn() {
+    use pncad::profile::{ArcData, Step, Target};
+    use viewer::session::{DocSession, ProfileShape, SessionOp};
+
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(Doc::empty_derived("profile-draw-undrawable", tol), tol);
+    let plane = common::xy_frame_in(&mut session);
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(Point2::new(0.01, 0.0)),
+                b: 1.0e-320,
+            }),
+            Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let profile = common::insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane,
+            loops: vec![common::shape(&template)],
+        },
+    );
+    session.pump();
+    let (doc, evaluation) = session.landed_pair().expect("the inline seam landed");
+    assert!(
+        matches!(
+            evaluation.value(profile).map(|value| &value.payload),
+            Some(pncad::document::ValuePayload::Profile(_))
+        ),
+        "the fixture: the evaluator validates this profile, so the flattener is what refuses",
+    );
+    let drawn = sketch::committed(doc, evaluation, CHORD, None);
+    assert!(
+        drawn.drawn.is_empty(),
+        "a loop with an undrawable leg was drawn"
+    );
+    assert_eq!(
+        drawn.undrawn,
+        vec![profile],
+        "and it is counted, not dropped"
+    );
 }

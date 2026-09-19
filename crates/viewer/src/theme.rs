@@ -310,9 +310,13 @@ const DARK_NEUTRAL: Theme = Theme {
     unresolved: Rgba8::opaque(210, 90, 70),
     // Construction blue, well above the near-black ground.
     datum: Rgba8::opaque(122, 162, 214),
-    // A light green, away from the datum blue, the selection amber,
-    // the hover blue and the probe violet the preview is drawn in.
-    profile: Rgba8::opaque(126, 212, 150),
+    // A mid green, away from the datum blue, the selection amber, the
+    // hover blue and the probe violet the preview is drawn in — and
+    // held at a LIGHTNESS between the grid as seen over the ground and
+    // as seen over the body, because tritanopia folds this green onto
+    // that blue and lightness is what is left (`tests/theme.rs`,
+    // `a_profile_is_told_from_the_grid_and_the_preview`).
+    profile: Rgba8::opaque(40, 170, 80),
     safety: Safety::Unchecked,
 };
 
@@ -515,17 +519,29 @@ const COLORBLIND_SAFE: Theme = Theme {
     // A dark teal: separated from this palette's pale ground by
     // lightness, which is the channel every dichromacy keeps.
     datum: Rgba8::opaque(0, 92, 92),
-    // Okabe–Ito's reddish purple, darkened for the pale ground: a
-    // green would sit on the teal datum under every dichromacy, and
-    // this stays clear of it under all three.
-    profile: Rgba8::opaque(150, 60, 120),
+    // Okabe–Ito's reddish purple, darkened well below the preview's
+    // near-black-on-grey tint: a green would sit on the teal datum
+    // under every dichromacy, and a purple at the preview's lightness
+    // loses to it once dichromacy takes the hue.
+    profile: Rgba8::opaque(110, 20, 80),
     safety: Safety::ColorblindSafe,
 };
 
 /// **How much of [`Theme::datum`] covers what a datum line is drawn
 /// over**, in `(0, 1]`: the edge pass blends a datum line as
-/// `datum · DATUM_OPACITY + under · (1 − DATUM_OPACITY)`, in the
-/// display encoding the framebuffer holds.
+/// `datum · DATUM_OPACITY + under · (1 − DATUM_OPACITY)`.
+///
+/// **In which space depends on the surface**, and the two arms are
+/// `crate::gpu`'s `shader_source` encode switch. On a gamma-space
+/// (non-sRGB) framebuffer — what `egui-wgpu` asks for first, and so
+/// what the viewer runs on — the pass writes sRGB-encoded values and
+/// the blend mixes those, which is what the ground check measures. On
+/// an `*Srgb` framebuffer, the fallback when a surface offers no other,
+/// the hardware decodes, blends in LINEAR light and re-encodes: half
+/// coverage there lands nearer the lighter of the two colours than the
+/// encoded mix does, so a pale grid on a dark ground reads somewhat
+/// brighter than the check measured and a dark grid on a pale ground
+/// somewhat fainter.
 ///
 /// A plane is ruled out toward its horizon, so its grid is the one
 /// line lane that covers the whole picture, and width alone makes the
