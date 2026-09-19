@@ -2579,7 +2579,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
     });
     assert_eq!(
         program.profile_edges_of(&short, &pv.naming, 0, 0),
-        want.clone().map(|()| Vec::new()),
+        want.map(|()| Vec::new()),
         "the per-step door refuses a span off the loop"
     );
     assert_eq!(
