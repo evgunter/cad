@@ -4849,7 +4849,7 @@ fn chord_polygon_area(
                 Collapse::Over(p, q),
                 Collapse::Over(elo, ehi),
             );
-            let mismatch = 0.125 * slope.abs() * hu * hu * band_g.width();
+            let mismatch = 0.125 * slope.abs() * hu.powi(2) * band_g.width();
             chord = chord + widen((pt(q) - pt(p)) * col, mismatch);
         }
         total = total + if ub > ua { chord } else { -chord };
@@ -6952,7 +6952,7 @@ mod tests {
         ];
         // `f = c·x′(u)` and `g = |x′|`; over the triangle
         // `{0 < v < u < 1}`, `∫∫ = ∫₀¹ x′(u)·u du`.
-        let g_int = (0.5 / uk) * 0.5 * uk * uk + (0.5 / (1.0 - uk)) * 0.5 * (1.0 - uk * uk);
+        let g_int = (0.5 / uk) * 0.5 * uk.powi(2) + (0.5 / (1.0 - uk)) * 0.5 * (1.0 - uk.powi(2));
         let b = bounds_of(
             &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
                 .unwrap_or_else(|e| panic!("Q12: {e:?}")),
