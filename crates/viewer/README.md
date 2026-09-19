@@ -839,15 +839,16 @@ which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
 fault, the budget's δ, the store that keeps no preferences, the datums
-this view draws nothing of, and the three display seams that hold a
-refusal (scene, pick index, projection) — each a function of the typed
-value it reads, so each one's SILENCE is a row a test can write. The
-datums count is the one member that HOLDS nothing: its writer re-takes
-it every frame and the application zeroes it whether or not the
+this view draws nothing of, the committed profiles it cannot draw, and
+the three display seams that hold a refusal (scene, pick index,
+projection) — each a function of the typed value it reads, so each
+one's SILENCE is a row a test can write. The datums and profiles
+counts are the two members that HOLD nothing: each writer re-takes its
+count every frame and the application zeroes it whether or not the
 viewport drew, so it says what the last frame found. The toolbar draws
 before the panes, so it trails the view it describes by one frame and
 no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
-`frame` function returning `Option<Badge>`** — nine — and that rule
+`frame` function returning `Option<Badge>`** — ten — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
@@ -1543,7 +1544,7 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Ten** enums here are closed vocabularies: a fixed set of choices the
+**Eleven** enums here are closed vocabularies: a fixed set of choices the
 chrome offers, which something walks in order — a radio row, a combo's
 options, a suite's sweep. Each carried a hand-written `const ALL`
 beside it, and that second copy of the membership was free to fall
@@ -1553,7 +1554,9 @@ lost a button, and every sweep keyed on the list quietly narrowed.
 nine were of this kind. The tenth vocabulary is `frame::WithdrawalKind`
 and it is not one of those ten: it carried no membership list at all
 until the fan-out from a `PruneReport` needed holding to it, and the
-list it got was projected rather than written. Both censuses are stated
+list it got was projected rather than written. The eleventh is
+`marks::EdgeLane`, a renderer's draw order rather than a choice the
+chrome offers, declared through the macro from the start. Both censuses are stated
 because this program's counts have gone wrong before — one is the tree
 at the conversion, the other is the vocabularies today, and nothing
 makes them the same number.)
@@ -1580,7 +1583,7 @@ already holds. If nothing does, they are not table data at all and a
 method beside the enum is the whole of it.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the eight declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
 loop over `Theme::ALL`, `pncad`'s `Axis3::ALL` or the path form's
 `profile::Verb::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
@@ -1589,15 +1592,19 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Five of the eight are walked under `src/` for their words, and all
+**Five of the nine are walked under `src/` for their words, and all
 five ask for one.** Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row, profile row, pattern-rule row,
 pattern-output row and blend-kind row. So all five are LABELLED, and
 there is no shorter account of them than the sweep itself: their words
 are table data because a table walk reads them.
 
-**`ToolKind`, `Seat` and `WithdrawalKind` are the remaining three, and
-are BARE.** `WithdrawalKind` is walked under `src/` and is bare anyway,
+**`ToolKind`, `Seat`, `WithdrawalKind` and `marks::EdgeLane` are the
+remaining four, and are BARE.** `EdgeLane`'s list is named `DRAW_ORDER`
+rather than `ALL`, because its order is the edge pass's priority; `gpu`
+walks it to lay out the vertex buffer and the per-lane style rows, and
+reads no word off it. `WithdrawalKind` is walked under `src/` and is
+bare anyway,
 which is the discriminator doing its job rather than an exception to
 it: `frame`'s own `every_withdrawal_kind_has_a_producer` compares the
 KINDS `Withdrawal::all` produced against the list, and reads no word
@@ -1632,7 +1639,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all eight are formatted by hand. Demonstrated rather
+variant docs of all nine are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -1693,7 +1700,7 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the eight are quiet without an entry. What the gate reads is this
+the nine are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
 two-kinds list above — the list the sentence *"Two kinds of list

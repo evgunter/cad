@@ -343,9 +343,7 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
 /// The surface kind on one side of an edge, or `None` where the
 /// adjacency or its geometry is not there to read.
 fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
-    let h = body.get_half_edge(he)?;
-    let f = body.get_loop(h.parent_loop)?.face;
-    face_surface_kind(body, f)
+    face_surface_kind(body, body.face_of_half_edge(he)?)
 }
 
 /// EXACT: whether the edge's certified carrier kind is a member of

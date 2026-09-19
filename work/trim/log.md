@@ -599,3 +599,12 @@ draw; brief stored (sha256 7ac2e42863…); lane `trim-2-pr2`, branch
 `trim/2-tess`. The sign-off watchlist is empty: all three seams this
 orchestrator owed are closed (TRIM-3's by silence, TRIM-2 PR-1's by
 Ev's ruling, PR-2's by TESS's ack).
+
+## TRIM-2 PR-2 delivered; dual dispatched (2026-09-19)
+
+PR #2863 (head f46673cd6, run 35435586012 green): the two arms, E2
+(108 416 positions vs the oracle's 143 360, a factor-of-two band —
+deviation 2, the widened chart's face bound over its whole domain),
+TESS's domination row hand-spelled (`Domination` not on main), M1
+seen by that row and not by E2 (said plainly). Nothing moved in
+goldens or renders. Dual: ordinal 2504, byte 185 ⇒ R1 Fable, R2 Opus.

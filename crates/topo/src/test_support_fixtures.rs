@@ -609,15 +609,14 @@ pub fn brick<T: geom_core::Decide>(
 
 /// The surface carried by the face `he` bounds — the one step both
 /// [`describe_as_intersections`] and every caller that has to name an
-/// edge's two adjacent surfaces walks: half-edge to its loop, loop to
-/// its face, face to its surface key.
+/// edge's two adjacent surfaces walks: [`Body::face_of_half_edge`] and
+/// then that face's surface key.
 pub fn face_surface_of_he<T: Real>(
     body: &Body<T>,
     he: crate::entity::HalfEdgeKey,
 ) -> crate::geometry::SurfaceKey {
-    let he_data = body.get_half_edge(he).unwrap();
-    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-    body.get_face(loop_data.face).unwrap().surface
+    let face = body.face_of_half_edge(he).unwrap();
+    body.get_face(face).unwrap().surface
 }
 
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,

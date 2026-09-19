@@ -1725,11 +1725,7 @@ pub(crate) fn split_cache<T: Decide>(
         let stale = || SplitRowError::Stale { half_edge };
         let (carrier, t0, t1) = half_edge_carrier(body, half_edge).map_err(|_| stale())?;
         let surface = half_edge_surface(body, half_edge).map_err(|_| stale())?;
-        let face_key = body
-            .get_half_edge(half_edge)
-            .and_then(|he| body.get_loop(he.parent_loop))
-            .map(|lp| lp.face)
-            .ok_or_else(stale)?;
+        let face_key = body.face_of_half_edge(half_edge).ok_or_else(stale)?;
         let window = match windows.iter().find(|(f, _)| *f == face_key) {
             Some(&(_, w)) => w,
             None => {

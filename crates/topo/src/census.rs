@@ -1043,11 +1043,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             let v1 = body.half_edge_end(edge.he_plus)?;
             let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
             let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
-            let f_plus = body.loops.get(plus.parent_loop)?.face;
-            let f_minus = body
-                .loops
-                .get(body.half_edges.get(edge.he_minus)?.parent_loop)?
-                .face;
+            let f_plus = body.face_of_half_edge(edge.he_plus)?;
+            let f_minus = body.face_of_half_edge(edge.he_minus)?;
             let chord = p1 - p0;
             Some(EdgeGeo {
                 key,
@@ -3290,16 +3287,13 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             EntityId::Face(f) => body.solid_of_face(f),
             EntityId::Loop(l) => body.get_loop(l).and_then(|d| body.solid_of_face(d.face)),
             EntityId::HalfEdge(h) => body
-                .half_edges
-                .get(h)
-                .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| body.solid_of_face(l.face)),
+                .face_of_half_edge(h)
+                .and_then(|f| body.solid_of_face(f)),
             EntityId::Edge(e) => body
                 .edges
                 .get(e)
-                .and_then(|d| body.half_edges.get(d.he_plus))
-                .and_then(|d| body.get_loop(d.parent_loop))
-                .and_then(|l| body.solid_of_face(l.face)),
+                .and_then(|d| body.face_of_half_edge(d.he_plus))
+                .and_then(|f| body.solid_of_face(f)),
             EntityId::Vertex(v) => geo
                 .vertex_faces
                 .get(&v)
@@ -5169,10 +5163,8 @@ mod tests {
         let (f_plus, f_minus) = {
             let e = body.get_edge(edge).expect("the edge");
             let face_of = |he| {
-                body.loops
-                    .get(body.get_half_edge(he).expect("a half-edge").parent_loop)
-                    .expect("a loop")
-                    .face
+                body.face_of_half_edge(he)
+                    .expect("a half-edge and its loop")
             };
             (face_of(e.he_plus), face_of(e.he_minus))
         };

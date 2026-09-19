@@ -967,9 +967,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + frame.matches("-> Badge").count()
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 9, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — nine"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1030,6 +1030,37 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
+    assert_eq!(
+        frame::profiles_badge(0),
+        None,
+        "every committed profile drew, or there are none — the same zero"
+    );
+}
+
+/// **The profiles badge counts, in agreeing words, and says it is the
+/// document's.** One and two are the two nouns; the subject is the
+/// document because no camera move brings an undrawable arc back.
+#[test]
+fn the_profiles_badge_counts_what_it_could_not_draw() {
+    for (undrawn, label) in [
+        (
+            1,
+            "profiles: 1 profile with an arc the viewport cannot draw",
+        ),
+        (
+            2,
+            "profiles: 2 profiles with an arc the viewport cannot draw",
+        ),
+    ] {
+        let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
+        assert_eq!(badge.label(), label);
+        assert_eq!(badge.subject(), frame::Subject::Document);
+        assert_eq!(
+            badge.tone(),
+            frame::Tone::Advisory,
+            "no camera move brings the arc back"
+        );
+    }
 }
 
 /// **The datums badge says how many, and says it in agreeing

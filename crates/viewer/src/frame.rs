@@ -1886,6 +1886,27 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
     })
 }
 
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
+///
+/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
+/// The cause is narrower than a datum's: a profile is drawn from its
+/// validated value at the display tolerance, and what empties it is an
+/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// — a fact about the document at this tolerance, so the subject is
+/// the document and the tone [`Tone::Advisory`]: there is no camera
+/// move that brings it back.
+pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
+    (undrawn > 0).then(|| {
+        let noun = if undrawn == 1 { "profile" } else { "profiles" };
+        Badge::read(
+            Subject::Document,
+            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
+        )
+    })
+}
+
 /// **What the chrome badges about a store that keeps nothing**, and
 /// `None` while preferences are kept.
 ///

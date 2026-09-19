@@ -1041,8 +1041,7 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
         let r1 = plant(&mut body, seg.he_plus);
         let _r2 = plant(&mut body, seg.he_plus);
         if split {
-            let other = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-            let other = body.get_loop(other).unwrap().face;
+            let other = body.face_of_half_edge(seg.he_minus).unwrap();
             assert_ne!(other, faces.face);
             body.ring_move(r1.ring, other).unwrap();
         }
