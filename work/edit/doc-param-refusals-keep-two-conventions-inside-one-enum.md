@@ -2,7 +2,7 @@
 id: doc-param-refusals-keep-two-conventions-inside-one-enum
 kind: issue
 title: EditError's other doc-param refusals keep the old convention the four param-ref arms left
-status: spec
+status: review
 branch: edit/prose-one-home
 opened: 2026-09-19
 ---
@@ -103,3 +103,36 @@ need the reference convention, without renaming it.
 `crates/editor-core/src/expr.rs` only if `ParamDimensionMismatch`'s
 doc should point at the paragraph (EDIT). E-class: merges on green CI
 and the orchestrator's read; no review lane.
+
+## Built (2026-09-19, `edit/prose-one-home`)
+
+`EditError`'s enum doc states the convention's scope and its two
+families; nothing is renamed and no tag word moves.
+
+- The pointer at this row is gone from `edit.rs`, replaced by the
+  reason: the eight reference arms name two facts AT an address, and
+  the six declaration arms (`DocParamUnitMismatch`,
+  `DocParamValueKindMismatch`, `DocParamCountHasNoUnit`,
+  `DocParamCountHasNoDistribution`, `ContinuousParamCannotBeCount`,
+  `DocParamNotDeclared`) have no address to lead with, so they are
+  named by their fact alone.
+- The sweep-by-subject blind spot is recorded there as the rule for the
+  next arm: which family an arm joins is decided by what it refuses, and
+  a sweep by `*Mismatch` misses half the declaration family.
+- `EvalError::ParamDimensionMismatch` (`expr.rs`) gains a doc pointing
+  at that paragraph.
+
+**Correction to the ruling's premise.** The ruling says
+`EvalError::ParamDimensionMismatch`'s address is "the expression path
+the error carries". It carries no path: its fields are `name`,
+`expected`, `found`. The address at evaluation is the WRAPPER's —
+`NodeErrorKind::Expr` (node + slot) and `NodeErrorKind::PayloadExpr`
+(node + payload), which forward the refusal unaltered. The conclusion
+is unchanged and strengthened: at evaluation the same slot/payload
+address distinction exists, one level out, so the fact arm has no
+address word to lead with either. Both docs say that instead.
+
+**The declaration-family arm with an address word**: none. All six
+carry `ParamName` and facts only; `DocParamNotDeclared`'s
+`CarryForwardDoor` says which edit was refused, not where a reference
+sits.

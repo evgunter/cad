@@ -1,10 +1,8 @@
 //! **DM7 — a stranded payload name is REPORTED at the delete, never
 //! refused.**
 //!
-//! A payload name (`Node::payload_names` — a `Declare`'s pairs, a
-//! blend's selection, a shell's rim list, a derived frame's face, a
-//! measure's references, a mate's heads, an instance's crossing
-//! `outer`s) is not a DAG edge: the insert
+//! A payload name — `Node::payload_names` is the list of which
+//! payloads carry one — is not a DAG edge: the insert
 //! door checks its minting node is live and no other door does, so a
 //! later `DeleteNode` strands it. The delete stays legal — a full edge
 //! would deadlock the declared union, whose `Declare` names the very
@@ -173,12 +171,15 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
 /// **Every payload that carries a name reports its strand** — the row
 /// a walk that skips one payload kind goes red on.
 ///
-/// One document, one deleted node, and a carrier of each name-bearing
-/// kind whose own DAG input is somewhere else: a fillet and a chamfer
-/// selection, a shell's rim list, a derived frame's face, a measure's
-/// two references and a `Declare`'s pair. The expectation is written
-/// out in full — carrier by carrier, name by name — so dropping a kind
-/// from the walk cannot pass by reporting a shorter list.
+/// One document, one deleted node, and one carrier of each
+/// name-bearing kind whose own DAG input is somewhere else. Which
+/// kinds those are is not restated here: the match below carries one
+/// arm per carrier, and the two this document cannot mint — a mate's
+/// heads and an instance's crossing `outer`s, which need a part —
+/// have arms there naming the rows that cover them instead. The
+/// expectation is written out carrier by carrier, name by name, so
+/// dropping a kind from the walk cannot pass by reporting a shorter
+/// list.
 #[test]
 fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let doc = ProfileDoc::empty_derived("dm7_carriers", Tol::witness());
@@ -242,14 +243,14 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         )]),
     );
 
-    // **The expectation is DERIVED by an exhaustive match over
-    // `Node`, not written out as a list.** A list is only ever as
-    // complete as whoever last edited it; this match is
-    // non-exhaustive the moment a name-carrying variant joins the
-    // vocabulary, so the suite stops compiling and its author is sent
-    // to the arm that must say what the new carrier reports. No
-    // wildcard arm, deliberately — a `_ => {}` is the hole this
-    // replaces.
+    // **The expectation is DERIVED by a match over `Node`, not
+    // written out as a list.** A list is only ever as complete as
+    // whoever last edited it. Each name-carrying kind gets an arm
+    // saying which name this fixture's node of that kind strands;
+    // every other kind falls to the last arm, which does not CLAIM
+    // the kind is name-free but asks the crate. A `_ => {}` is the
+    // hole that replaces — a kind this suite thinks carries nothing
+    // while `Node::payload_names` reads a name out of it.
     let mut expected: Vec<(RecipeNodeId, StableName)> = Vec::new();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
@@ -270,30 +271,18 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             // split mints: their rows are
             // `edit_instance_crossing_names`.
             Node::InstantiatePart { .. } => panic!("this fixture builds no instance"),
-            // The name-free kinds. Spelled out rather than swept into
-            // a wildcard, for the reason above.
-            Node::Datum(
-                Datum::Plane { .. }
-                | Datum::Axis { .. }
-                | Datum::Point { .. }
-                | Datum::Frame { .. }
-                | Datum::AxisInPlane { .. },
-            )
-            | Node::Profile(_)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
-            | Node::Assertion { .. } => {}
+            // Every remaining kind, by the crate's own answer rather
+            // than a second list of name-free variants — that list
+            // was stale once already, and a stale one reads exactly
+            // like a true one. A kind that starts carrying a name
+            // reds here for want of an arm instead of being quietly
+            // contradicted.
+            other => assert!(
+                other.payload_names().is_empty(),
+                "node {id:?} carries payload names {:?}, so its kind needs an arm in this \
+                 fixture's expectation",
+                other.payload_names()
+            ),
         }
     }
     // The match is total over `Node`; this says it ran over the

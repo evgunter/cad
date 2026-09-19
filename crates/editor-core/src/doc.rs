@@ -788,10 +788,10 @@ pub struct Doc<P> {
 /// on that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Carrier {
-    /// The nodes' name-carrying payloads — a fillet or chamfer
-    /// selection, a `Declare` pair, a `Mate` head, a `Measure` ref, an
-    /// instance's crossing `outer` — by [`Node::payload_names`], which
-    /// stays the one list of NODE carriers (DM7).
+    /// The nodes' name-carrying payloads, read through
+    /// [`Node::payload_names`] — which stays the one list of NODE
+    /// carriers (DM7), so this variant names the field and not its
+    /// contents.
     Payloads,
     /// The appearance store's keys: a `StableName` under Declare's N5
     /// semantics (`DocEdit::SetAppearance`), held by the document

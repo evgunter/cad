@@ -2,7 +2,7 @@
 id: payload-carrier-lists-have-seven-prose-homes
 kind: issue
 title: The payload-carrier list is hand-copied into seven prose homes
-status: spec
+status: review
 branch: edit/prose-one-home
 opened: 2026-09-19
 refs: [instantiate-part-crossings-are-names-payload-names-does-not-list, 2872]
@@ -98,3 +98,41 @@ resolve/mod.rs}` (EDIT), `REFERENCES.md` §0 untouched (already
 load-bearing), `crates/editor-core/tests/dm7_delete_strands.rs`
 (TCOST/TINT, by announcement). E-class: merges on green CI and the
 orchestrator's read; no review lane.
+
+## Built (2026-09-19, `edit/prose-one-home`)
+
+The list has two homes and five pointers, as ruled.
+
+- **Kept, with the two-homes rule stated on it**: `Node::payload_names`'
+  doc (`node.rs`) and `REFERENCES.md` §0's `Carriers:` clause. Each now
+  says the other is the only other home, so a new carrier is two edits
+  and a third list is a deletion rather than a maintenance job.
+- **Pointed** (variant names gone, one sentence each saying what the
+  site does): `edit.rs`'s `InsertNode` liveness comment and its
+  `Rebind` rewrite comment; `resolve/mod.rs`' "Checked sites";
+  `doc.rs`'s `Carrier::Payloads`; `dm7_delete_strands.rs`' module doc.
+  `edit.rs`'s `structural:` comment beside the `Rebind` record named
+  two carriers to say why the edit is structural and now names none.
+- **The eighth site, the second MATCH** in
+  `dm7_delete_strands::every_payload_kind_that_carries_a_name_reports_its_strand`:
+  the hand-spelled name-free arm is replaced by
+  `other => assert!(other.payload_names().is_empty(), …)`. The suite
+  no longer holds an opinion about which variants are name-free; it
+  asks the crate. The carrying arms stay hand-written — deriving them
+  from `payload_names` would make the row tautological.
+- **Correction to the row's premise**: `REFERENCES.md` §0's list, one
+  of the two ruled load-bearing homes, was itself STALE — it omitted a
+  `Shell`'s open list and a `Datum::FaceFrame`'s face, two carriers
+  `Node::payload_names` has had throughout. Both added. The clause is
+  catching up with code already merged, not deciding anything.
+- **Ninth prose home, found by the sweep and NOT taken**: the
+  `every_payload_kind_that_carries_a_name_reports_its_strand` row's own
+  doc comment, a second carrier list in the same file the row counted
+  once. Rewritten to describe the fixture and point at the match.
+
+**Rows exercised.** The replaced arm is reached only from
+`every_payload_kind_that_carries_a_name_reports_its_strand`, whose
+fixture's blocks are name-free nodes; all 19 `dm7` rows green
+unchanged. No new row: the change adds no behaviour to pin.
+
+**Not done.** No gate script and no macro, as ruled.

@@ -3266,6 +3266,13 @@ impl<P> Node<P> {
     /// reads this rather than its own copy of the list. The negative
     /// half is [`name_free_node`], shared with the rewriting twin.
     ///
+    /// **The list has TWO prose homes and no others**: this doc, beside
+    /// the match that enforces it, and `REFERENCES.md` §0's `Carriers:`
+    /// clause, which a reader without the code reads. A new carrier is
+    /// therefore two edits. Every other site says what it DOES with the
+    /// list and points here for what is in it, so a site that spells
+    /// variant names is a third home to delete rather than maintain.
+    ///
     /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
     /// the space every reader of the answer reasons in — the insert
     /// door's liveness check, `Rebind`, DM7's strand walk through
