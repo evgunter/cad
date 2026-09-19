@@ -630,26 +630,68 @@ impl CheckedRecords<'_, '_> {
     /// The segment index passes through: the permutation the
     /// evaluation applied is the one the anchor rewrite undoes, and
     /// [`ProfileProgram::checked_records`] has already asserted the
-    /// two records describe that one permutation. What is left is the
-    /// bound: a record naming a segment this loop does not have is a
-    /// record of another program, refused rather than answered.
-    fn edge_of(
-        &self,
-        loop_: u32,
-        step: u32,
-        segment: usize,
-    ) -> Result<ProfileEdgeRef, StepSegmentsError> {
-        if segment >= self.segments {
+    /// two records describe that one permutation.
+    ///
+    /// The BOUND is the caller's, because the two callers hold
+    /// different facts and owe the reader different sentences: a span
+    /// is checked by [`CheckedRecords::span_of`] and an emission by
+    /// the arm that reads it. Both check before they get here, so a
+    /// segment past the end is a caller that forgot — the assertion
+    /// below, not a refusal this function invents a payload for.
+    fn edge_of(&self, loop_: u32, segment: usize) -> ProfileEdgeRef {
+        debug_assert!(
+            segment < self.segments,
+            "an unchecked segment reached `edge_of`: {segment} of {}",
+            self.segments
+        );
+        ProfileEdgeRef {
+            loop_index: loop_,
+            segment: program_index(segment),
+        }
+    }
+
+    /// One step's recorded span, checked against the loop's length.
+    ///
+    /// # Errors
+    ///
+    /// [`StepSegmentsError::NoSuchStep`] where the record has no such
+    /// step, [`StepSegmentsError::SpanOffTheLoop`] where the span it
+    /// does have reaches past the loop's last segment.
+    fn span_of(&self, step: u32) -> Result<profile::StepSpan, StepSegmentsError> {
+        let span = *self
+            .replay
+            .steps
+            .get(step as usize)
+            .ok_or(StepSegmentsError::NoSuchStep {
+                steps: self.replay.steps.len(),
+            })?;
+        if span.end() > self.segments {
             return Err(StepSegmentsError::SpanOffTheLoop {
                 step,
-                end: segment + 1,
+                end: span.end(),
                 segments: self.segments,
             });
         }
-        Ok(ProfileEdgeRef {
-            loop_index: loop_,
-            segment: program_index(segment),
-        })
+        Ok(span)
+    }
+
+    /// Every published ref of `step`'s recorded span — ONE walk over
+    /// one checked span, which is what both of the doors below answer
+    /// a step-addressed question through.
+    ///
+    /// # Errors
+    ///
+    /// [`CheckedRecords::span_of`]'s.
+    fn edges_of_step(
+        &self,
+        loop_: u32,
+        step: u32,
+    ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+        Ok(self
+            .span_of(step)?
+            .iter()
+            .map(|s| self.edge_of(loop_, s))
+            .collect())
     }
 }
 
@@ -715,6 +757,35 @@ pub enum StepSegmentsError {
         /// The argument role it claims that step's radius drew with.
         arg: StepArg,
     },
+    /// The record credits a radius argument with a segment the loop
+    /// does not have. Its span twin is
+    /// [`StepSegmentsError::SpanOffTheLoop`]; they are two arms
+    /// because an emission names ONE segment and a span a RANGE, and a
+    /// reader chasing either wants the number the record actually
+    /// carried rather than a range synthesised around it.
+    EmissionOffTheLoop {
+        /// The step the emission names.
+        step: u32,
+        /// The argument role it credits.
+        arg: StepArg,
+        /// The segment it claims that argument drew.
+        segment: usize,
+        /// How many segments the loop has.
+        segments: usize,
+    },
+    /// The loop is a CARRIER form — one step, one radius, the whole
+    /// boundary — and the record handed in carries per-radius
+    /// emissions. A carrier form emits none: `circle` and
+    /// `circle_split` mint their structure directly and their radius
+    /// is a per-LOOP fact. So the record is a chain's, and like
+    /// [`StepSegmentsError::RecordShape`] it says the record and the
+    /// program are not about the same thing.
+    CarrierRecordsEmissions {
+        /// The program loop asked about.
+        loop_: u32,
+        /// How many emissions the record carries for it.
+        emissions: usize,
+    },
     /// The step's recorded span reaches past the end of the loop —
     /// the replay record and the canonical record disagree about how
     /// long the chain is.
@@ -760,14 +831,43 @@ impl core::fmt::Display for StepSegmentsError {
                 ),
                 loop_
             ),
+            // `StepArg::label()` already says the word "radius" where
+            // the role has one ("radius", "carrier radius", "arrival
+            // carrier radius"), so the sentence names the argument and
+            // does not say it twice.
             Self::RadiusNotAnArgument { step, arg } => write!(
                 f,
                 concat!(
-                    "the record says step {}'s {} radius drew a segment, and that ",
-                    "step holds no such argument"
+                    "the record says step {}'s {} drew a segment, and that step ",
+                    "holds no such argument"
                 ),
                 step,
                 arg.label()
+            ),
+            Self::EmissionOffTheLoop {
+                step,
+                arg,
+                segment,
+                segments,
+            } => write!(
+                f,
+                concat!(
+                    "the record says step {}'s {} drew segment {} on a loop with ",
+                    "{} of them"
+                ),
+                step,
+                arg.label(),
+                segment,
+                segments
+            ),
+            Self::CarrierRecordsEmissions { loop_, emissions } => write!(
+                f,
+                concat!(
+                    "loop {} is a carrier form, whose one radius is the whole ",
+                    "boundary's and draws no segment of its own, and its record ",
+                    "carries {} radius emissions"
+                ),
+                loop_, emissions
             ),
             Self::SpanOffTheLoop {
                 step,
@@ -1628,25 +1728,8 @@ impl ProfileProgram {
         loop_: u32,
         step: u32,
     ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
-        let checked = self.checked_records(structure, naming, loop_)?;
-        let span =
-            *checked
-                .replay
-                .steps
-                .get(step as usize)
-                .ok_or(StepSegmentsError::NoSuchStep {
-                    steps: checked.replay.steps.len(),
-                })?;
-        if span.end() > checked.segments {
-            return Err(StepSegmentsError::SpanOffTheLoop {
-                step,
-                end: span.end(),
-                segments: checked.segments,
-            });
-        }
-        span.iter()
-            .map(|s| checked.edge_of(loop_, step, s))
-            .collect()
+        self.checked_records(structure, naming, loop_)?
+            .edges_of_step(loop_, step)
     }
 
     /// **The records one loop's answers are read from, checked against
@@ -1813,14 +1896,30 @@ impl ProfileProgram {
     ) -> Result<Vec<(ProfileEdgeRef, &Expr)>, StepSegmentsError> {
         let checked = self.checked_records(structure, naming, loop_)?;
         // The carrier forms answer per LOOP: one step, one radius,
-        // every edge of it an arc of that radius. They never reach a
-        // chain's emission record — `circle` and `circle_split` mint
-        // their structure directly — and a per-segment address for a
-        // per-loop fact is what this arm exists to not invent.
+        // every edge of it an arc of that radius. A per-segment
+        // address for a per-loop fact is what this arm exists to not
+        // invent — but the EDGES it answers are step 0's recorded
+        // span, walked through the same `edges_of_step` the per-step
+        // door walks, so a record whose step 0 does not cover the loop
+        // is refused here exactly as it is there rather than answered
+        // off the canonical segment count.
         if let Some(radius) = checked.program.carrier_radius() {
-            return (0..checked.segments)
-                .map(|s| Ok((checked.edge_of(loop_, 0, s)?, radius)))
-                .collect();
+            // And the record must be a carrier's: `circle` and
+            // `circle_split` mint their structure directly and emit
+            // nothing, so an emission here is a chain's record under a
+            // carrier program. Read before the answer, not after the
+            // arm has returned.
+            if !checked.replay.radii.is_empty() {
+                return Err(StepSegmentsError::CarrierRecordsEmissions {
+                    loop_,
+                    emissions: checked.replay.radii.len(),
+                });
+            }
+            return Ok(checked
+                .edges_of_step(loop_, 0)?
+                .into_iter()
+                .map(|e| (e, radius))
+                .collect());
         }
         let mut out = Vec::new();
         for emission in &checked.replay.radii {
@@ -1830,7 +1929,15 @@ impl ProfileProgram {
                 .program
                 .expr(step, arg)
                 .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
-            out.push((checked.edge_of(loop_, step, emission.segment)?, expr));
+            if emission.segment >= checked.segments {
+                return Err(StepSegmentsError::EmissionOffTheLoop {
+                    step,
+                    arg,
+                    segment: emission.segment,
+                    segments: checked.segments,
+                });
+            }
+            out.push((checked.edge_of(loop_, emission.segment), expr));
         }
         Ok(out)
     }

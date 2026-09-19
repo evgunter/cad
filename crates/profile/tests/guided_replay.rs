@@ -798,7 +798,10 @@ fn structure_refusal_renders_its_payloads_as_words_not_debug() {
 /// The fence row above buys the positive half over the whole coverage
 /// corpus: every recorded program is replayed guided against its own
 /// record, and a reproduced emission list that differed anywhere would
-/// refuse there.
+/// refuse there. That half reaches all three roles —
+/// `path_program::every_radius_role_is_reached_by_the_corpus` is what
+/// holds it to that — and the row below authors the sharpest of them
+/// on its own so the refusal side is pinned there too.
 #[test]
 fn a_lying_radius_emission_refuses_typed_naming_the_emission() {
     let program = vesica_lens(0.0);
@@ -855,4 +858,73 @@ fn a_record_with_an_extra_radius_emission_refuses_at_its_shape() {
             found: DecisionValue::Count(structure.radii.len()),
         }
     );
+}
+
+/// **A guided pass reproduces an ARRIVAL carrier emission, and every
+/// way of moving it is refused.**
+///
+/// `Carrier2` is the role only a radius-bearing arrival spec reaches,
+/// and `ArrivalSpec` admits a radius in second position for
+/// `Radius` alone — so `arc_fillet_arc(Sweep, r, Radius)` is the one
+/// replayable shape in the language that records all three roles at
+/// once. The three lies are the three independent ways a reproduced
+/// emission can differ from a recorded one: its ROLE, its SEGMENT,
+/// and its ORDER in the list.
+#[test]
+fn a_guided_pass_reproduces_and_checks_an_arrival_carrier_emission() {
+    use profile::{ArcSide, Radius, RadiusRole, Start, Sweep};
+    let three = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, tol())
+        .unwrap()
+        .line(4.0, tol())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            tol(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    let program = three.program.clone();
+    let (_, recorded) = replay_recording(&program, tol()).expect("the fused chain replays");
+    assert!(
+        recorded
+            .radii
+            .iter()
+            .any(|e| e.role == RadiusRole::Carrier2),
+        "the fixture records an arrival carrier: {:?}",
+        recorded.radii
+    );
+    replay_guided(&program, &recorded, tol()).expect("guided against its own record");
+    let at = recorded
+        .radii
+        .iter()
+        .position(|e| e.role == RadiusRole::Carrier2)
+        .expect("the arrival carrier is recorded");
+    let mut lie = recorded.clone();
+    lie.radii[at].role = RadiusRole::Carrier;
+    replay_guided(&program, &lie, tol()).expect_err("a swapped role is refused");
+    let mut moved = recorded.clone();
+    moved.radii[at].segment += 1;
+    replay_guided(&program, &moved, tol()).expect_err("a moved segment is refused");
+    let mut reordered = recorded.clone();
+    reordered.radii.swap(0, at);
+    replay_guided(&program, &reordered, tol())
+        .expect_err("the same emissions in a different ORDER are refused");
 }

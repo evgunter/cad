@@ -137,8 +137,8 @@ use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
-    in_state, junction_check, leg_end_tip, linear_band,
+    PAIRED, PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming,
+    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
@@ -161,18 +161,21 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     verbs::gate_positive("path_fillet_radius", radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
-    core.pending = Some(verbs::Pending::Ray(verbs::PendingRay {
-        origin: at,
-        dir,
-        radius,
-    }));
-    core.pending_meta = Some(PendingMeta {
+    let meta = PendingMeta {
         bound_at: core.current_step()?,
         incoming_radius: false,
         by_tangent,
         origin_incoming,
         extends_carrier: false,
-    });
+    };
+    core.pending = Some((
+        verbs::Pending::Ray(verbs::PendingRay {
+            origin: at,
+            dir,
+            radius,
+        }),
+        meta,
+    ));
     Ok(())
 }
 
@@ -202,14 +205,14 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
     verbs::gate_positive("path_fillet_radius", arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
-    core.pending = Some(verbs::Pending::Arc(arc));
-    core.pending_meta = Some(PendingMeta {
+    let meta = PendingMeta {
         bound_at: core.current_step()?,
         incoming_radius,
         by_tangent: false,
         origin_incoming,
         extends_carrier,
-    });
+    };
+    core.pending = Some((verbs::Pending::Arc(arc), meta));
     Ok(())
 }
 
@@ -261,7 +264,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, meta.carrier_address())?;
+    core.emit_fillet_in(&trims, merge, &meta)?;
     // The carrier run to the anchor follows the fillet arc tangentially
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
@@ -342,7 +345,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, meta.carrier_address())?;
+    core.emit_fillet_in(&trims, merge, &meta)?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
@@ -374,8 +377,13 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         // Exact fit: the FILLET ARC is the whole arrival side and
         // closes the loop; the authored anchor is absorbed into the
         // tangent point the fit gate classified as coincident with it.
-        core.record_radius(meta.bound_at, crate::structure::RadiusRole::Fillet)?;
+        // It goes through the shared door like every other fillet arc,
+        // so the close re-reads its STORED form too — the seam
+        // junction check below reads the resolver's computed carrier
+        // and says nothing about what was stored.
+        let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
         core.set_leaving(trims.bulge, FirstSeg::Arc)?;
+        debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
         junction_check(
             &Incoming {
                 ang: end_ang,

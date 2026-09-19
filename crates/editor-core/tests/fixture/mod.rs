@@ -249,6 +249,91 @@ pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f
     )
 }
 
+/// **A profile program on the xy frame, extruded a unit, evaluated**
+/// — the preamble a row that measures a profile door's answer against
+/// the solid the profile swept opens with, written once.
+///
+/// Seven statements, and the only thing that varies between the rows
+/// that write them is the loop list: mint the document, insert the
+/// frame, insert the profile on it, extrude it, evaluate, then reach
+/// back for the program node and the evaluated profile value. Holding
+/// the document and the evaluation together is what lets the last two
+/// be borrows rather than a fourth and fifth thing to unpack.
+///
+/// It wears no door's name: a row asks it for the DOCUMENT it
+/// measures, and asks the kernel for the answer it is measuring.
+pub struct Swept {
+    /// The document, with the frame, the profile and the extrude on it.
+    pub doc: ProfileDoc,
+    /// The frame datum the profile is drawn on.
+    pub plane: RecipeNodeId,
+    /// The profile node.
+    pub profile: RecipeNodeId,
+    /// The extrude over it.
+    pub ext: RecipeNodeId,
+    /// The evaluation of the whole document.
+    pub ev: Evaluation<f64>,
+}
+
+/// [`Swept`]'s constructor: `loops` on a fresh document named `id`.
+///
+/// # Panics
+///
+/// If the document does not build — a fixture that will not author is
+/// a test failure, not a value to hand back.
+pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, plane) = insert(doc, xy_frame());
+    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    Swept {
+        doc,
+        plane,
+        profile,
+        ext,
+        ev,
+    }
+}
+
+impl Swept {
+    /// The program the profile node holds.
+    ///
+    /// # Panics
+    ///
+    /// If the node this built is not a profile.
+    pub fn program(&self) -> &ProfileProgram {
+        match self.doc.node(self.profile) {
+            Some(Node::Profile(p)) => p,
+            _ => panic!("the profile node this fixture inserted is a program"),
+        }
+    }
+
+    /// The evaluated profile value — its validated loops, its naming
+    /// anchor and its per-edge radius table.
+    ///
+    /// # Panics
+    ///
+    /// If the profile did not evaluate, or evaluated to something else.
+    pub fn profile_value(&self) -> &editor_core::eval::ProfileValue<f64> {
+        match &self
+            .ev
+            .value(self.profile)
+            .expect("the fixture profile evaluates")
+            .payload
+        {
+            editor_core::ValuePayload::Profile(pv) => pv,
+            _ => panic!("the profile node's value carries a profile"),
+        }
+    }
+}
+
 /// The world xy frame as a node — origin at the world origin, sketch
 /// +x along world +x, sketch +y along world +y.
 ///

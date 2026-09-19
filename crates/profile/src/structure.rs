@@ -214,6 +214,16 @@ pub enum RadiusRole {
     Carrier2,
 }
 
+impl RadiusRole {
+    /// Every role the vocabulary declares, declaration order.
+    ///
+    /// The anchor a coverage census reads, exactly as [`crate::Verb`]'s
+    /// and [`crate::ArcMode`]'s are: a role the vocabulary gains is in
+    /// this list the moment the match below is made total again, so a
+    /// census over it cannot fall behind the record.
+    pub const ALL: [RadiusRole; 3] = [Self::Fillet, Self::Carrier, Self::Carrier2];
+}
+
 impl core::fmt::Display for RadiusRole {
     /// The role as prose — the spelling a user-facing message uses, so
     /// a rendered role never leans on `Debug`.

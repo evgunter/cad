@@ -154,8 +154,6 @@ mod edit_recorded_notation;
 mod edit_ruled_carve;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
-#[path = "review_radius_emission_r2_probes.rs"]
-mod review_radius_emission_r2_probes;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -170,6 +168,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "review_radius_emission_r2_probes.rs"]
+mod review_radius_emission_r2_probes;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
