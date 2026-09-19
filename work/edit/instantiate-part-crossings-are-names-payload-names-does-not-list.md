@@ -2,7 +2,8 @@
 id: instantiate-part-crossings-are-names-payload-names-does-not-list
 kind: issue
 title: An InstantiatePart's crossing references are names payload_names does not list
-status: open
+status: spec
+branch: edit/instance-crossing-names
 opened: 2026-09-17
 refs: [interface-crossing-heads-are-bare-stable-names, 2814]
 ---
@@ -67,3 +68,101 @@ name carrier is a behaviour change with three doors behind it — what
 refuses, and whether `inner` must be excluded by name rather than by
 the variant — and each wants a ruling before code. The record was
 inert data until ASM-R2b D-4 inhabited it; it is document data now.
+
+## Ruled and spec'd (2026-09-19, EDIT orchestrator) — middle tier, branch `edit/instance-crossing-names`
+
+**Ruling: an instance's crossing `outer`s are payload names; its
+`inner`s are not names in this document at all.** `Node::InstantiatePart`
+leaves `name_free_node!` and gains its own arm in BOTH twins
+(`payload_names` and `rebind_payload_names`, `crates/editor-core/src/node.rs`):
+`payload_names` answers each crossing's `outer` in record order, and
+the rewriting twin rewrites an `outer` exactly equal to `from`. An
+`inner` is never listed, and the reason is stated on the arm rather
+than left to the reader: it is spelled in the PART's id space (its
+`node` is a part-side id, which this document may not hold or may
+hold as an unrelated node), so the insert door's liveness check over
+it would be a wrong check and `Rebind` a wrong repair; its life is the
+pinned product's (`CrossingUnverified` at evaluation, A4). The
+`payload_names` doc's "single answer" claim is thereby made TRUE by
+scope: the list is of names in THIS document's name space, which is
+the space every reader of it (the insert door, `Rebind`, DM7's strand
+walk, `resolve`'s insert census) reasons in.
+
+**Three doors follow from the one list, with no code of their own:**
+the insert door refuses `EditError::DeclareNamesMissingNode` for a
+record whose `outer` names a node that is not live (through
+`Node::instantiate_part_with`, the public door); `DocEdit::Rebind` of
+an `outer` rewrites the record together with the mate that carries the
+same head, so the two cannot disagree after a rebind; and a delete of
+an `outer`'s minting node reports `Maintenance::Strand { node:
+instance, name: outer }` through `Doc::name_carriers` (DM7), the
+instance being the surviving carrier. `content_key` already feeds the
+record, so a rebound record re-keys the instance as any payload change
+does — say so in the PR body, and pin nothing new for it.
+
+**`refactor.rs`'s crossing walk is not a second list.** The walk in
+`split` enumerates MATES (`Node::Mate { a, b, .. }` directly, because
+it needs the sited structure to classify each side against the cut)
+and mints the record; `inline`'s loop reads the record's `inner`s to
+check the dissolve. Neither answers "which names does an instance
+hold in this document", so neither is corrected; the PR body says
+this in one paragraph so the row's third consequence is closed by
+argument, not silently.
+
+**Premises to verify before building.** (1) `name_free_node!`'s two
+exhaustive matches: moving `InstantiatePart` out of the macro into an
+explicit arm in both twins keeps both exhaustive with no overlap
+(`-D warnings` reds an unreachable pattern — measure by leaving it in
+the macro once). (2) `Doc::name_carriers` reads `payload_names`, so
+DM7 needs no arm — confirm by the strand row below going green with
+no change in `doc.rs` beyond its unit test. (3) The existing fixtures:
+`edit_one_predicate.rs`'s record rows (authored through
+`instantiate_part_with`), `asm_r2b_assembly.rs`'s three records,
+`asm_r2b_interface_wire.rs`, and `fix_pattern_mate_crossing` (a split
+that mints one) — each is the starting fixture for a row below; if any
+`outer` in them names a node that is NOT live in its document, that
+fixture was inserting an unchecked record and the row says which.
+(4) `resolve/mod.rs`'s insert census (line ~1690) extends
+`payload_names` — with the arm it now sees `outer`s; confirm that
+census's rows stay green and what they measure.
+
+**Rows** (each red on `origin/main` first, then green):
+`payload_names` of an instance carrying `n` crossings lists exactly
+the `n` `outer`s, in record order, and never an `inner` (`Vec::new()`
+today); the insert door refuses `DeclareNamesMissingNode` naming the
+dead `outer` for a record authored through `instantiate_part_with`
+(inserts today); `Rebind` of an `outer` rewrites the record and the
+carrying mate together (the record stays today) and a `Rebind` of an
+unrelated name leaves the record byte-identical; deleting the
+`outer`'s minting node reports one `Strand { node: instance, name:
+outer }` in `Applied::maintenance` at the DM7 position (silent today);
+the `doc.rs` unit test `name_carriers_reads_the_payloads_then_the_store`
+gains the instance as a payload carrier; the persisted form of a
+record is unchanged (bytes pinned against the existing wire row —
+nothing here moves the wire). Existing rows: `fix_pattern_mate_crossing`
+and `edit_one_predicate`'s record rows green unchanged.
+
+**Mutants** (each named with the row that reds it): listing `inner`
+too (the insert-door row over a record whose `inner.node` is not an
+id in this document refuses for the wrong reason; the round-trip row
+reds); the rewriting twin left in the macro (the rebind row); the
+reading twin left in the macro (the first row, and the compiler if
+the two twins disagree — say which); the strand row's instance
+reported under the mate's id instead (the strand row asserts the
+carrier is the instance).
+
+**Sweep.** `name_free_node`, `payload_names`, `InstantiatePart`,
+`name-free`, `crosses nothing` over `*.rs`/`*.md`/`*.py`/`*.pyi`,
+every hit dispositioned; the prose lists of payload carriers in
+`edit.rs`'s insert arm comment, `Node::payload_names`' doc, DM7's
+clause text in `crates/editor-core/REFERENCES.md` ("`Node::payload_names`
+stays the one list of NODE carriers" — unchanged and now true, cite it,
+do not re-word it) and `ASSEMBLY.md`'s A4 paragraph (touch only if a
+sentence is now false; say which).
+
+**Territory.** `crates/editor-core/src/{node.rs, edit.rs, doc.rs}`
+(EDIT); `crates/editor-core/tests/*` (TCOST/TINT); `refactor.rs` only
+if a comment is now false (FIX, by announcement); `crates/pncad-py`
+only if a binding enumerates payload names (LIB, by announcement).
+Middle tier: one opus style review with a correctness arm, then the
+fix pass.

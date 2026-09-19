@@ -914,8 +914,10 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// what says the fold added no refusal, only a name space.
 ///
 /// The recourse a caller whose members touch has is this node's own
-/// `declare` input, whose pairs name entities in exactly the space
-/// this refusal names them in (`docm7_union_declare`).
+/// `declare` input, whose pairs are exactly what this refusal hands
+/// back: each side a `SitedRef` naming the MEMBER it was read at and
+/// the entity's name in that member's own table, which is a
+/// declaration the caller can write verbatim (`docm7_union_declare`).
 #[test]
 fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
@@ -951,10 +953,25 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         !uf.contains("FromA(") && !uf.contains("FromB("),
         "the fold's refusal names an uncollapsed fold row: {uf}"
     );
+    // And what it hands back is a declarable pair: each side sited at
+    // the member it was read at, named in that member's own table.
+    let Some(editor_core::NodeResult::Failed(e)) = ev.nodes.get(&u) else {
+        panic!("the fold refuses")
+    };
+    let editor_core::NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+        panic!("the fold's refusal is the undeclared contact: {uf}")
+    };
+    let sites = [finding.pair.0.at, finding.pair.1.at];
     assert!(
-        uf.contains("FromMember"),
-        "the fold's refusal names member-space entities: {uf}"
+        sites.contains(&a) && sites.contains(&d),
+        "the refusal sites its two faces at the members that touch: {sites:?}"
     );
+    for r in [&finding.pair.0, &finding.pair.1] {
+        assert_eq!(
+            r.name.node, r.at,
+            "and names each in that member's own table, not in the union's"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------

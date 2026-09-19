@@ -2026,23 +2026,39 @@ pub enum Node<P> {
     ///
     /// Members that touch refuse `UndeclaredContact` exactly as a pair
     /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
-    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
-    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
-    /// node minted at an earlier fold step for an entity of the
-    /// accumulation. A declaration therefore says "this face of member
-    /// `m` meets that face of member `n`" and records no fold position:
-    /// the step each pair is fed at is DERIVED from the member ids its
-    /// two names carry, so reordering or dropping a member re-derives
-    /// the routing rather than invalidating the declaration.
+    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
+    /// with that member beside it. A declaration therefore says "this
+    /// face of member `m` meets that face of member `n`" while naming
+    /// nothing of this node's own, which is what lets it be authored
+    /// BEFORE the union: the `Declare` goes in first and the union
+    /// carrying its edge second, in two edits.
     ///
-    /// Two names in ONE member are that member's own CARRIED contact,
-    /// fed at the step that member joins at — member 0's at step 1,
-    /// where it is operand A — which is the pair chain's rule for a
-    /// carried contact, on a member instead of an operand.
+    /// It records no fold position either: the step each pair is fed
+    /// at is DERIVED from where its two sites sit in `members`, so
+    /// REORDERING the list re-derives the routing rather than
+    /// invalidating the declaration. Dropping a declared member is
+    /// the other case and is not silent: its site is no longer in the
+    /// list, and the next evaluation refuses that pair as a vanished
+    /// name (N5), since `SetMembers` leaves `declare` as it was. And
+    /// the SITE is the side —
+    /// the later member is the joining operand, the earlier is inside
+    /// the accumulation — so two members that are transforms of one
+    /// body, whose tables are identical (N1), are told apart by the
+    /// pair itself.
     ///
-    /// A member-space declaration resolves at its step through the
-    /// MERGES the fold has performed. A declared merge consumes the
+    /// Two sites in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at the first
+    /// step, where it is operand A — which is the pair chain's rule for
+    /// a carried contact, on a member instead of an operand.
+    ///
+    /// A row the FOLD mints (a `Seam`, a `Merged`, a `Fragment`, the
+    /// output body) is not a declaration subject at all: it exists
+    /// only in this node's own evaluation, after the `Declare` that
+    /// would name it, so there is no node to site it at.
+    ///
+    /// A declared pair resolves at its step through the MERGES the
+    /// fold has performed. A declared merge consumes the
     /// two faces it joins and publishes a `Merged` row in their place,
     /// and a member's face that is inside such a row by the time its
     /// pair's step runs resolves TO that row — the one whose flat
@@ -2173,6 +2189,71 @@ pub enum Node<P> {
     /// explicit `Rebind` edit (PR 4) is the repair. Blocking the
     /// delete would force cascade-or-pre-repair, worse than the
     /// typed-failure flow.
+    ///
+    /// **A declared entity is SITED** (DM4): each side is a
+    /// [`SitedRef`] — the entity's name, and the node it is READ AT,
+    /// which is one of the consumer's operands (a member, for a
+    /// union). A declaration therefore names only what exists BEFORE
+    /// the consumer, and is authored in one pass: the `Declare` is
+    /// inserted first and the boolean or union carrying its edge
+    /// second. The site is also the SIDE — a name carried by both
+    /// operands says which one it means — so nothing about a
+    /// declaration depends on the consumer's own name space.
+    ///
+    /// **A union's own fold rows are therefore UNREPRESENTABLE here,
+    /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the
+    /// output body of the union is minted by the union's evaluation
+    /// and has no node it is read at. A pair of bare [`StableName`]s,
+    /// which is the only spelling that could have named one, does not
+    /// typecheck:
+    ///
+    /// ```compile_fail,E0308
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(named(), named())]);
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// **What that row proves, and what it does not.** Stable rustdoc
+    /// checks only that the block FAILS to build; the `,E0308` beside
+    /// it is not enforced, so a typo or a missing import would pass it
+    /// just as well. The twin below is the same body with the ONE
+    /// difference this claim is about — each side wrapped in a
+    /// [`SitedRef`] — and it RUNS, so a defect anywhere but the side's
+    /// type reddens here instead of satisfying the block above for the
+    /// wrong reason. (The idiom is `quantity::units`'; the mate head
+    /// above states it too.)
+    ///
+    /// ```
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(sited(), sited())]);
+    ///
+    /// fn sited() -> editor_core::SitedRef {
+    ///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+    /// }
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// The persisted form is the other door the class could have come
+    /// in through, and it refuses there instead of loading: the
+    /// `Unreadable` detail is serde's own missing-field message, and
+    /// the crate adds no constructor sentence to it — there is no
+    /// analogue of the mate head's constructor refusal for a side
+    /// whose SHAPE is wrong rather than whose kind is
+    /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
         /// The declared contact pairs, each with the CLASS it asserts
         /// (CONTACT-DESIGN C4).
@@ -2185,7 +2266,7 @@ pub enum Node<P> {
         /// fall back to, because defaulting would let a `Tangent`
         /// intent be verified against the conformal table.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<((StableName, StableName), ContactClass)>,
+        pairs: Vec<((SitedRef, SitedRef), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -3179,7 +3260,13 @@ impl<P> Node<P> {
     /// half is [`name_free_node`], shared with the rewriting twin.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
+            // A declared pair's two NAMES. The sites beside them
+            // are node ids, not names, and are listed by
+            // [`Node::payload_read_sites`].
+            Node::Declare { pairs } => pairs
+                .iter()
+                .flat_map(|((a, b), _)| [&a.name, &b.name])
+                .collect(),
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 selection.iter().collect()
             }
@@ -3222,9 +3309,14 @@ impl<P> Node<P> {
         }
         let mut hits = 0usize;
         match self {
+            // The NAME rewrites; the SITE stays. A site is the node
+            // the author chose to read the entity at — an operand of
+            // the consumer — and moving it would re-author which
+            // member the declaration is about, which is not a repair
+            // for a name whose minting node went away.
             Node::Declare { pairs } => {
-                for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                    hits += rewrite(name, from, to);
+                for r in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
+                    hits += rewrite(&mut r.name, from, to);
                 }
             }
             // A SORTED payload re-canonicalizes through the same door
@@ -3310,7 +3402,8 @@ impl<P> Node<P> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — today, a mate's two operands.
+    /// also DAG inputs** — a mate's two operands, and a declared
+    /// pair's two sites.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -3325,6 +3418,12 @@ impl<P> Node<P> {
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
             Node::Mate { a, b, .. } => vec![a.at, b.at],
+            // A declared pair's sites are the consumer's operands, so
+            // they are reading edges exactly as a mate's are: this
+            // node has no `inputs`, and a site that is not the
+            // consumer's operand is the EVALUATION's refusal, not the
+            // insert door's.
+            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a.at, b.at]).collect(),
             _ => Vec::new(),
         }
     }
@@ -3459,7 +3558,7 @@ impl<P> Node<P> {
     /// classes is being claimed, and a pair that means something else
     /// cannot arrive here by omission. Mixed-class nodes build
     /// [`Node::Declare`] directly.
-    pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
+    pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
         Node::Declare {
             pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
         }

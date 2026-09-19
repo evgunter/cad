@@ -31,16 +31,20 @@ posture under §Process.
    middle tier); its residue
    `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` is
    **merged** (PR #2794, middle tier); its residue
-   `editor-core-suites-redefine-the-name-table-helpers` stands open.
+   `editor-core-suites-redefine-the-name-table-helpers` is spec'd and
+   **dispatched** (middle tier, wave 10).
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
    `a-declared-union-has-no-one-pass-authoring-path` was ruled by Ev
-   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended):
-   **dispatched**, kernel unit (`docs/EDIT-DECL-SPEC.md`, v6 dual, block
-   EDIT-B2 slot 0, opus).
+   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended)
+   and is **merged** (PR #2809, kernel unit, v6 dual, block EDIT-B2
+   slot 0, sample #216); its residue
+   `a-declare-orphaned-by-a-cascade-is-never-reported` is ruled and
+   **spec'd** (middle tier, wave 11: the delete that orphans a
+   `Declare` reports it as maintenance).
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -53,9 +57,13 @@ posture under §Process.
    (PR #2797, middle tier). `mate-head-entity-kind-is-decided-only-at-assembly`
    is **merged** (PR #2799, middle tier; re-scoped on Ev's question to
    a `FaceName` newtype, so a non-face head does not typecheck); its
-   residue `interface-crossing-heads-are-bare-stable-names` stands
-   open. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
-   not work.
+   residue `interface-crossing-heads-are-bare-stable-names` is
+   **merged** (PR #2814, middle tier, wave 10); its residue
+   `instantiate-part-crossings-are-names-payload-names-does-not-list`
+   is ruled and **spec'd** (middle tier, wave 11: an instance's
+   crossing `outer`s are payload names, its `inner`s are the part's).
+   `no-docedit-splices-a-deleted-node` is deferred on DM6
+   and is not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` merged (kernel unit);
    its residue `three-door-predicates-are-hand-copied-not-shared`,
@@ -72,7 +80,7 @@ posture under §Process.
    `load-door-does-not-check-payload-expression-param-refs` is
    **merged** (PR #2793, middle tier). DM8's residue
    `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
-   is **in review** (PR #2804, middle tier, wave 8; crosses WIRE's
+   is **merged** (PR #2804, middle tier, wave 8; crossed WIRE's
    `eval::content_key` and `ProfileValue` by announcement); its residue
    `fused-arc-fillet-steps-have-no-per-segment-radius-address` stands
    open.
@@ -84,10 +92,11 @@ posture under §Process.
    `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
    `pick-tie-break-width-key-depends-on-scene-magnitude` was ruled by
    Ev on the fourth `[ev]` PR (#2795): the certified tie between faces
-   is refused and the width key goes — **spec'd**, middle tier (wave 9,
-   dispatches as a lane frees); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   is refused and the width key goes — **merged** (PR #2816, middle
+   tier, wave 9; the viewer's pick seed is a depth, so only a face
+   answer refuses); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
    stands open; `pick-face-raw-target-path-survives-only-for-rows`
-   is ruled and **in review** (PR #2801, middle tier, wave 7);
+   is ruled and **merged** (PR #2801, middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
@@ -100,7 +109,9 @@ posture under §Process.
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
    **merged** (PR #2719); its residue
    `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
-   **merged** (E-class, PR #2800), and
+   **merged** (E-class, PR #2800); the load-door residue
+   `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
+   **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
@@ -114,18 +125,9 @@ posture under §Process.
 
 ## Process
 
-Three tiers, by the row's weight (Ev, in chat, 2026-09-16):
-
-- **Kernel unit** — standard v6: spec → one implementer drawn from a
-  {opus, opus, fable} block + the cross-model dual on a frozen head →
-  union fix pass; ordinals claimed on main at review dispatch from
-  the band above; recorded at merge; blinding verbatim.
-- **Easy but not trivially so** — excluded from the A/B protocol: one
-  implementer, one style review with a correctness arm (an opus
-  lane), no row recorded.
-- **E-class** (a ruled rename, a prose fix, a one-predicate move
-  whose shape is written in the row) — merges on green CI and the
-  orchestrator's read, no review lane, no row.
+Three tiers, by the row's weight — the tiers and what each one gets
+are `docs/MODEL-AB-LOG.md`'s v7 triage entry, repo-wide since
+2026-09-19. Ordinals for the protocol tier come from the band above.
 
 The tier is named in the row when it is dispatched. Issues are files;
 anything for Ev is an `[ev]` PR. This program runs from a remote

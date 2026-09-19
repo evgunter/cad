@@ -5,8 +5,8 @@
 #![allow(clippy::float_cmp)]
 
 use editor_core::{
-    Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SlotId, eval,
-    eval_count,
+    Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
+    SlotId, eval, eval_count,
 };
 use geom_core::Tol;
 
@@ -444,16 +444,16 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     let target = ids[0];
     let declare = |node| Edit::InsertNode {
         node: Node::declare_rest(vec![(
-            StableName {
+            SitedRef::at_mint(StableName {
                 kind: EntityKind::Face,
                 node,
                 path: vec![],
-            },
-            StableName {
+            }),
+            SitedRef::at_mint(StableName {
                 kind: EntityKind::Face,
                 node,
                 path: vec![],
-            },
+            }),
         )]),
     };
     let a = doc.apply(&declare(target), Tol::witness()).unwrap();
@@ -467,7 +467,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // The Declare survives, holding a stale id.
     match after.doc.node(declare_id).unwrap() {
         Node::Declare { pairs } => {
-            assert_eq!(pairs[0].0.0.node, target, "stale RecipeNodeId held");
+            assert_eq!(pairs[0].0.0.name.node, target, "stale RecipeNodeId held");
         }
         n => panic!("expected Declare, got {n:?}"),
     }
