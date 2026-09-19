@@ -365,9 +365,8 @@ impl<T: Real> Body<T> {
         }
         for (he_key, row) in out.pcurves.iter_mut() {
             let on_plane = self
-                .get_half_edge(he_key)
-                .and_then(|he| self.get_loop(he.parent_loop))
-                .and_then(|lp| self.get_face(lp.face))
+                .face_of_half_edge(he_key)
+                .and_then(|f| self.get_face(f))
                 .is_some_and(|face| plane_surfaces.contains(&face.surface));
             if on_plane {
                 *row = row.mirrored_v();

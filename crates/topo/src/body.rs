@@ -925,6 +925,22 @@ impl<T: Real> Body<T> {
         self.half_edges.get(key)
     }
 
+    /// The face owning `he`'s loop — through the half-edge's
+    /// [`HalfEdge::parent_loop`] back-pointer and that loop's
+    /// [`Loop::face`] — or `None` where either key is stale. The one
+    /// spelling of half-edge → loop → face in this crate, beside
+    /// [`Body::solid_of_face`] for the walk above it.
+    ///
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose own refusal names *which* of the two keys was stale keeps
+    /// its own walk: collapsing it here would replace a refusal that
+    /// identifies an entity with one that does not.
+    #[must_use]
+    pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
+        self.get_loop(self.get_half_edge(he)?.parent_loop)
+            .map(|l| l.face)
+    }
+
     /// The edge at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     pub fn get_edge(&self, key: EdgeKey) -> Option<&Edge> {
@@ -1250,6 +1266,7 @@ impl<T: Real> Default for Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, pillow, prov};
     use geom_core::Tol;
 
@@ -1424,6 +1441,42 @@ mod tests {
         // a0 has no mate (a corrupt bijection the validator reports).
         t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
         assert_eq!(t.body.mate(t.hes_a[0]), None);
+    }
+
+    #[test]
+    fn face_of_half_edge_walks_and_refuses_on_either_stale_key() {
+        let mut t = pillow(Tol::witness());
+        // Both halves of e0 reach their own face, and they differ.
+        let fa = t.body.face_of_half_edge(t.hes_a[0]).unwrap();
+        let fb = t.body.face_of_half_edge(t.hes_b[0]).unwrap();
+        assert_eq!(fa, t.face_a);
+        assert_eq!(fb, t.face_b);
+        assert_ne!(fa, fb);
+        // A stale half-edge key.
+        assert_eq!(t.body.face_of_half_edge(HalfEdgeKey::default()), None);
+        // A live half-edge whose loop back-pointer is stale: the second
+        // hop is the one that refuses, and it refuses the same way.
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
+    }
+
+    /// Both refusal postures over the one door, because a fold that
+    /// flattened either into the other leaves every other row green.
+    #[test]
+    fn the_walk_consumers_keep_their_own_refusal() {
+        let mut t = pillow(Tol::witness());
+        // `Option`: an honest `None` on a stale key, on the edge door
+        // the shell verb reads.
+        assert!(crate::replace_face::edge_faces(&t.body, t.edges[0]).is_some());
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
+        // Typed `Result`: the same staleness is a REFUSAL, not a `None`
+        // a caller may drop.
+        let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        assert!(matches!(
+            crate::offset_together::faces_at_vertex(&t.body, v),
+            Err(ReplaceFaceError::Corrupt)
+        ));
     }
 
     #[test]

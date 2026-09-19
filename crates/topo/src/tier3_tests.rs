@@ -406,10 +406,7 @@ fn dangling_description_is_a_tier1_error() {
     // pass 1) fires — alongside the face's own dangling reference.
     let (mut body, split) = coplanar_pillow(tol);
     let s_plus = body.get_face(split.face).unwrap().surface;
-    let seed_face = body
-        .get_loop(body.get_half_edge(split.he_plus).unwrap().parent_loop)
-        .unwrap()
-        .face;
+    let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
     let s_seed = body.get_face(seed_face).unwrap().surface;
     let mut spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
@@ -444,10 +441,7 @@ fn description_references_keep_a_surface_alive() {
     // OrphanGeometry.
     let (mut body, split) = coplanar_pillow(tol);
     let s_plus = body.get_face(split.face).unwrap().surface;
-    let seed_face = body
-        .get_loop(body.get_half_edge(split.he_plus).unwrap().parent_loop)
-        .unwrap()
-        .face;
+    let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
     let s_seed = body.get_face(seed_face).unwrap().surface;
     // Make the corner genuine, then describe the edge intrinsically.
     *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {

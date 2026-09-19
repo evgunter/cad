@@ -2183,7 +2183,8 @@ fn move_mapped_endpoint<T: Real>(
 /// mean giving one caller an argument it does not have.
 pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
     let e = body.get_edge(edge)?;
-    let face_of =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
-    Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
+    Some((
+        body.face_of_half_edge(e.he_plus)?,
+        body.face_of_half_edge(e.he_minus)?,
+    ))
 }

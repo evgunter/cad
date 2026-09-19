@@ -1096,15 +1096,13 @@ fn curved_face_arm<T: Decide>(
     // the on-carrier claim the numeric rows then certify per
     // incidence.
     let covered = {
-        let parent = |he| {
-            x.get_half_edge(he)
-                .and_then(|h| x.get_loop(h.parent_loop))
-                .map(|l| l.face)
-        };
-        [parent(edge.he_plus), parent(edge.he_minus)]
-            .into_iter()
-            .flatten()
-            .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
+        [
+            x.face_of_half_edge(edge.he_plus),
+            x.face_of_half_edge(edge.he_minus),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
     };
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
