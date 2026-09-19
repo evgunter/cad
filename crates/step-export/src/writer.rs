@@ -478,13 +478,8 @@ impl<'a> Writer<'a> {
         while nodes <= SPIRIC_MAX_NODES {
             #[allow(clippy::cast_precision_loss)]
             let n = nodes as f64;
-            let params: Vec<f64> = (0..=nodes)
-                .map(|i| {
-                    #[allow(clippy::cast_precision_loss)]
-                    let f = i as f64 / n;
-                    f
-                })
-                .collect();
+            #[allow(clippy::cast_precision_loss)]
+            let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / n).collect();
             let points: Vec<Point3<f64>> =
                 params.iter().map(|f| carrier.eval(t0 + dt * f)).collect();
             let Ok(spline) = geom::NurbsCurve3::interpolate_with_params(&points, 3, &params) else {
@@ -494,7 +489,7 @@ impl<'a> Writer<'a> {
                 });
             };
             let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control());
-            let bound = (m_s + curvature * dt * dt) / (8.0 * n * n);
+            let bound = (m_s + curvature * dt.powi(2)) / (8.0 * n.powi(2));
             if bound.is_finite() && bound <= self.eps / 4.0 {
                 return Ok((spline, bound));
             }

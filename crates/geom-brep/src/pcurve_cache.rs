@@ -3355,9 +3355,9 @@ fn run_spiric_checks<T: Decide>(
             // *Minor angle*: `v = v₀ + sense·t`, so a residue `η` in
             // `|sense|` moves `v` by at most `η·reach`, and
             // `|∂S/∂v| = r` exactly.
-            let rho_min = (f_min_i * f_min_i + offset * offset)
+            let rho_min = (f_min_i.powi(2) + offset.powi(2))
                 .sqrt()
-                .min((f_min_c * f_min_c + c_offset * c_offset).sqrt());
+                .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
             (chart_major + chart_minor) * d_theta + chart_minor * sense_drift * reach
         }
