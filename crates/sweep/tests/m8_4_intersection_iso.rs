@@ -933,3 +933,82 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         "E3 records a refusal on both; a success here would be a different unit's news"
     );
 }
+
+/// **E2 — the degree-2 body TESSELLATES** (`docs/TRIM-2-SPEC.md` §2,
+/// §3's e2e table).
+///
+/// The same body E1 measures. Its `Intersection` seam carries a
+/// `General` chart image, which until TRIM-2 PR-2 stopped the CHORD
+/// pass dead — `TessellateError::UnsupportedCurve` at
+/// `mesh::chords::nurbs_tighten`'s `General` arm, before any face lane
+/// ran, at all three ε. Two arms flip that: the chord pass now sizes
+/// the seam's UV steps from the image's own differenced control net,
+/// and the trim walk reads the image at the shared chord parameters.
+///
+/// **What this row is evidence FOR, and what it is not.** The
+/// fixture's `General` image runs `u ∈ [2 − 2.2e-16, 2]` — a chart
+/// image that is degenerate to within an ulp of the iso line beside it
+/// (`work/trim/curved-trim-e2e-fixture-waits-for-a-producer.md`: the
+/// only at-rest producer mints a 33-foot interpolant of a boundary
+/// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
+/// curvature one: it proves the two arms admit the class, schedule it
+/// against the face's own certificate budget, and emit a mesh whose
+/// size is the geometry's and not the image's provenance. The
+/// curvature evidence for the speed bound is the unit row
+/// `mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`,
+/// which samples a real wiggle.
+///
+/// The count is pinned against the ORACLE prism — the same solid on
+/// its original charts, with no restatement and no `General` anywhere
+/// — within the chord schedule's own ±: both bodies' meshes are sized
+/// by the same δ against the same six walls, so the positions differ
+/// only by the widened chart's grid arithmetic, not by an order.
+#[test]
+fn a_degree_two_widening_tessellates_against_the_oracle() {
+    let eps = Tol::witness().get().eps;
+    // The spec's cell: 1e-5 of the model, which is what E1's scale
+    // buys (the fixture is 1/1024 across, so an ABSOLUTE 1e-5 would
+    // be a hundredth of the body and size every wall at its floor).
+    let delta = 1e-5 * INTERIOR_COLUMN_SCALE;
+    let (mut body, he, _key) = degree_two_body();
+    topo::mint_pcurves(&mut body, Tol::witness())
+        .unwrap_or_else(|e| panic!("the degree-2 chart mints at rest: {e:?}"));
+    assert!(
+        matches!(body.pcurve(he).unwrap().pcurve(), Pcurve::General(_)),
+        "E2 is about the General image; the seam carries {:?}",
+        body.pcurve(he).unwrap().pcurve()
+    );
+    let got = mesh::tessellate(&body, delta, Tol::witness())
+        .unwrap_or_else(|e| panic!("E2: the General-imaged body tessellates: {e:?}"));
+    let oracle = prism(INTERIOR_COLUMN_SCALE);
+    let want = mesh::tessellate(&oracle, delta, Tol::witness())
+        .expect("the oracle prism tessellates on its own charts");
+    println!(
+        "E2 @ eps={eps:e} delta={delta:e}: General-faced {} positions / {} patches; \
+         oracle {} positions / {} patches",
+        got.positions.len(),
+        got.patches.len(),
+        want.positions.len(),
+        want.patches.len()
+    );
+    assert_eq!(
+        got.patches.len(),
+        want.patches.len(),
+        "E2: the same six walls, so the same patch count"
+    );
+    // The schedule's own ±: a chord count is a ceil, so one step of
+    // the widened chart's grid arithmetic can move each of the six
+    // walls' rows and columns by one. A factor of 2 would be an ORDER
+    // change and is what this bound refuses.
+    let (g, w) = (got.positions.len(), want.positions.len());
+    assert!(
+        g * 2 >= w && w * 2 >= g,
+        "E2: the mesh sizes are the same geometry's — {g} positions against the \
+         oracle's {w} is an order apart, not a ceil apart"
+    );
+    // Watertightness is the claim the trim walk's arm must not move:
+    // the 3-D positions are the carrier's chord points, shared with
+    // the neighbour by id, and only this face's UV shape changed.
+    mesh::validate::check_mesh(&got)
+        .unwrap_or_else(|e| panic!("E2: the General-imaged body's mesh is watertight: {e:?}"));
+}

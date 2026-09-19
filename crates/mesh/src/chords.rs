@@ -23,14 +23,16 @@
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
 //!   needs boundary UV steps within the face's own (h_u, h_v); the
-//!   half-edge's stored CLOSED-FORM pcurve (`IsoLine`/`Harmonic`)
-//!   gives per-axis UV speed bounds (s_u, s_v) — exact `|pl|`
-//!   components for the iso line, the amplitude sum for the harmonic
-//!   form — so each adjacent NURBS face adds n ≥ ⌈s_u·Δt/h_u⌉ and
-//!   ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a straight wall edge is one
-//!   3-D chord but many UV steps). A `Fitted` image has no certified
-//!   speed bound here and refuses typed (the trimmed lane's module
-//!   docs name its consumer).
+//!   half-edge's stored pcurve gives per-axis UV speed bounds
+//!   (s_u, s_v) — exact `|pl|` components for the iso line, the
+//!   closed-form sub-arc rate for the arc rim, the amplitude sum for
+//!   the harmonic form, and for the `General` spline image the hull of
+//!   its own differenced control net (`general_uv_speeds`, a convexity
+//!   fact rather than a closed form) — so each adjacent NURBS face
+//!   adds n ≥ ⌈s_u·Δt/h_u⌉ and ⌈s_v·Δt/h_v⌉, on EVERY carrier kind (a
+//!   straight wall edge is one 3-D chord but many UV steps). A
+//!   `Fitted` image has no certified speed bound here and refuses
+//!   typed (the trimmed lane's module docs name its consumer).
 //!
 //! An adjacent surface reaches a chord count only through
 //! [`adjacent_surface`], and the two tightenings above are its two
@@ -541,7 +543,8 @@ fn nurbs_tighten(
         };
         // Per-axis UV speed bounds (module docs): exact for the iso
         // line, the amplitude sum |pa|+|pb|+|pl| componentwise for the
-        // harmonic form (|P′| = |−pa·sin t + pb·cos t + pl|).
+        // harmonic form (|P′| = |−pa·sin t + pb·cos t + pl|), the
+        // derivative net's hull for the general spline image.
         let (su, sv) = match cache.pcurve() {
             Pcurve::IsoLine { pl, .. } => (pl.x.abs(), pl.y.abs()),
             // The ARC rim (M8-3). With `s = ½ + tan(φ/2)/(2·tan(h/4))`
@@ -580,23 +583,116 @@ fn nurbs_tighten(
                            edge×NURBS-face boolean layer (the cut-loft unit)",
                 });
             }
-            // The general curve-in-UV arm (U2) refuses on the same
-            // ground and names its own class: a NURBS chart image has
-            // no closed-form UV speed sup, whatever its provenance.
-            Pcurve::General(_) => {
-                return Err(TessellateError::UnsupportedCurve {
-                    edge: ek,
-                    note: "NURBS-face half-edge carries a GENERAL curve-in-UV pcurve — \
-                           no certified UV speed bound is wired for a spline chart \
-                           image's chord schedule",
-                });
-            }
+            // The general curve-in-UV arm (U2): no closed form, but
+            // the same KIND of fact as its two siblings — a hull over
+            // the image's own differenced control net
+            // ([`general_uv_speeds`]).
+            Pcurve::General(image) => general_uv_speeds(image, ek)?,
         };
         n = n
             .max(ceil_count(su * span, hu)?)
             .max(ceil_count(sv * span, hv)?);
     }
     Ok(n)
+}
+
+/// The per-axis UV speed sups `(s_u, s_v)` of a **general
+/// curve-in-UV** chart image — what [`nurbs_tighten`] reads where the
+/// `IsoLine` arm reads its exact `|pl|` components and the `Harmonic`
+/// arm its amplitude sum `|pa| + |pb| + |pl|`. Those two are closed
+/// forms of the image; this one is a CONVEXITY fact about its control
+/// net, which is the only shape a spline image admits.
+///
+/// **The fact.** For `P(t) = Σ_j N_{j,p}(t)·P_j` on a clamped vector,
+/// the derivative is again a spline — `P′(t) = Σ_j N_{j,p−1}(t)·Q_j`
+/// with `Q_j = p·(P_{j+1} − P_j)/(u_{j+p+1} − u_{j+1})`
+/// ([`geom_core::spline::SplineCoeffs::derivative_coeffs`], reached
+/// here through [`KnotVector::difference_coeffs`] exactly as the
+/// carrier arm [`nurbs_chord_count`] reaches it) — and the
+/// `N_{j,p−1}` are a nonnegative partition of unity, so every value
+/// of `u′` is a convex combination of the `Q^u_j` and lies in their
+/// hull. `max_j |Q^u_j|` is therefore a certified `sup|u′|`, with no
+/// evaluation and no sampling, and likewise in `v`.
+///
+/// The sup is over the image's WHOLE domain rather than the
+/// half-edge's `[t₀, t₁]`. That dominates the sub-range's sup, so the
+/// count it sizes is conservative in the only direction that matters;
+/// and at every mint on this head the image's domain IS the carrier's
+/// interval, so the two coincide.
+///
+/// **Unit weights only.** The hull licence above is the POLYNOMIAL
+/// one: a rational image's derivative is a quotient whose coefficients
+/// are not the differenced net, and no mint produces a rational
+/// `General` image, so it refuses typed rather than being bounded by a
+/// formula nothing exercises.
+///
+/// A degree-0 image (a step function, no derivative to bound) and one
+/// whose interior multiplicity exceeds its degree (a jump, where
+/// `|ΔP| ≤ sup|P′|·Δt` is false across the break) refuse typed too:
+/// the count formula bounds a UV step by the speed times the
+/// parameter step, which needs the image continuous.
+fn general_uv_speeds(
+    image: &geom::NurbsCurve2<f64>,
+    ek: EdgeKey,
+) -> Result<(f64, f64), TessellateError> {
+    if image.weights().iter().any(|w| *w != 1.0) {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \
+                   the certified UV speed here is the polynomial net's difference hull, \
+                   and a quotient's derivative is not that net; no mint produces a \
+                   rational chart image of this class",
+        });
+    }
+    let kv = image.knots();
+    let p = kv.degree();
+    if p == 0 {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "NURBS-face half-edge carries a degree-0 general curve-in-UV pcurve — \
+                   a step function whose UV steps no speed bound can size",
+        });
+    }
+    if kv.interior_knots().any(|(_, m)| m > p) {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "NURBS-face half-edge carries a general curve-in-UV pcurve with a \
+                   discontinuous interior knot (multiplicity > degree) — the chord \
+                   schedule bounds a UV step by speed times parameter step, which a \
+                   jump breaks",
+        });
+    }
+    let mut speeds = [f64::NAN; 2];
+    for (axis, s) in speeds.iter_mut().enumerate() {
+        let coeffs: Vec<RingInterval> = image
+            .control()
+            .iter()
+            .map(|pt| RingInterval::point(if axis == 0 { pt.x } else { pt.y }))
+            .collect();
+        let q = kv.difference_coeffs(&coeffs);
+        let mut hull = RingInterval::poison();
+        for (k, c) in q.iter().enumerate() {
+            hull = if k == 0 {
+                *c
+            } else {
+                RingInterval::hull(hull, *c)
+            };
+        }
+        // `mag` is NaN on poison — a refused mint (a coefficient array
+        // that is not `control_count()` long) arrives here as a
+        // one-entry poison vector and leaves as the refusal below,
+        // never as a finite bound.
+        *s = hull.mag().next_up();
+    }
+    let [su, sv] = speeds;
+    if !su.is_finite() || !sv.is_finite() {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "general curve-in-UV pcurve whose derivative control hull is \
+                   unbounded/poisoned — outside the certified chord inventory",
+        });
+    }
+    Ok((su, sv))
 }
 
 /// The radius of a circle carrier (caller guarantees the variant).
@@ -674,8 +770,135 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 mod tests {
     use super::*;
     use geom::NurbsCurve3;
-    use geom_core::Point3;
+    use geom_core::{Point2, Point3};
     use topo::EdgeKey;
+
+    /// A degree-1 chart image, the shape this head's producer mints
+    /// (`edge_nurbs::PXN_IMAGE_DEGREE = 1`, 33 interpolated feet): a
+    /// polyline whose per-span speed IS a difference coefficient, so
+    /// the hull bound is the sup exactly and any slack is a defect.
+    fn polyline_image() -> geom::NurbsCurve2<f64> {
+        let n = 9;
+        let pts: Vec<Point2<f64>> = (0..n)
+            .map(|i| {
+                let t = f64::from(i) / f64::from(n - 1);
+                Point2::new(1.0 + t + 0.15 * (6.0 * t).sin(), 0.4 * t * t - 0.2 * t)
+            })
+            .collect();
+        let mut knots = vec![0.0];
+        knots.extend((0..n).map(|i| f64::from(i) / f64::from(n - 1)));
+        knots.push(1.0);
+        let kv = KnotVector::clamped(knots, 1).unwrap();
+        geom::NurbsCurve2::new(kv, pts, vec![1.0; n as usize]).unwrap()
+    }
+
+    /// A degree-3 chart image with an off-grid interior knot — the
+    /// shape `#264`'s banked-edge work raises the producer to, where
+    /// the hull bound is a genuine over-estimate and the row's job is
+    /// to prove it is an over-estimate and not an under-one.
+    fn cubic_image() -> geom::NurbsCurve2<f64> {
+        let kv = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.37, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let pts = vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.2, 0.55),
+            Point2::new(1.9, -0.3),
+            Point2::new(1.4, 0.8),
+            Point2::new(2.0, 1.0),
+        ];
+        geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap()
+    }
+
+    /// The densest honest reading of the image's per-axis UV speeds:
+    /// `|u′|` and `|v′|` at `samples + 1` parameters across the
+    /// domain, plus both sides of every interior knot (a degree-1
+    /// image's speed is piecewise constant and its extremes sit on the
+    /// spans, which a grid that lands ON a break would read as the
+    /// one-sided value the evaluator happens to pick).
+    fn sampled_uv_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
+        let (d0, d1) = c.knots().domain();
+        let span = d1 - d0;
+        let mut ts: Vec<f64> = Vec::new();
+        for i in 0..=samples {
+            #[allow(clippy::cast_precision_loss)]
+            let lam = i as f64 / samples as f64;
+            ts.push(d0 + span * lam);
+        }
+        for (k, _) in c.knots().interior_knots() {
+            ts.push(k - span * 1e-9);
+            ts.push(k + span * 1e-9);
+        }
+        let (mut su, mut sv) = (0.0f64, 0.0f64);
+        for t in ts {
+            let d = c.deriv(t.clamp(d0, d1));
+            su = su.max(d.x.abs());
+            sv = sv.max(d.y.abs());
+        }
+        (su, sv)
+    }
+
+    /// **DOMINATION — the `General` arm's certified sup is a sup.**
+    ///
+    /// [`general_uv_speeds`] answers a convexity fact about the
+    /// differenced control net; this row answers the same question by
+    /// DENSE SAMPLING of `P′` and requires the certificate to dominate
+    /// it on both axes. The vertex-count row downstream (E2 in
+    /// `sweep/tests/m8_4_intersection_iso.rs`) cannot see a sup that
+    /// is too SMALL — it would simply schedule fewer chords and still
+    /// produce a mesh — so this is the row that can, and it prints
+    /// both sides at full precision so a near miss is readable.
+    ///
+    /// Two-sided on the degree-1 image, where the hull is the sup
+    /// exactly: a rewrite that pads the bound is a defect there too.
+    #[test]
+    fn general_uv_speeds_dominate_the_sampled_image_speeds() {
+        for (name, image, tight) in [
+            ("degree-1 polyline (the head's minted shape)", polyline_image(), true),
+            ("degree-3 wiggle with an off-grid knot", cubic_image(), false),
+        ] {
+            let (su, sv) = general_uv_speeds(&image, EdgeKey::default())
+                .expect("a unit-weight polynomial image is in the certified inventory");
+            let (wu, wv) = sampled_uv_speeds(&image, 4096);
+            println!(
+                "DOMINATION {name}: certified s_u {su:.17e} vs sampled {wu:.17e}; \
+                 certified s_v {sv:.17e} vs sampled {wv:.17e}"
+            );
+            assert!(
+                wu > 0.0 && wv > 0.0,
+                "{name}: the fixture must MOVE on both axes, else the row is vacuous — \
+                 sampled sup|u'| {wu:.17e}, sup|v'| {wv:.17e}"
+            );
+            assert!(
+                wu <= su,
+                "{name}: the certified sup|u'| {su:.17e} is DOMINATED BY a sampled \
+                 speed {wu:.17e} — the chord schedule would under-count"
+            );
+            assert!(
+                wv <= sv,
+                "{name}: the certified sup|v'| {sv:.17e} is DOMINATED BY a sampled \
+                 speed {wv:.17e} — the chord schedule would under-count"
+            );
+            if tight {
+                // A degree-1 image's speed on span j is exactly
+                // |Q_j|, so the hull max IS ATTAINED and the two
+                // sides may differ only by the outward rounding each
+                // takes — the ring's difference quotient and its
+                // `next_up` on one side, the evaluator's basis pass on
+                // the other. `1e-14` relative is ~45 ulps at this
+                // magnitude, measured at ~6e-16; a rewrite that pads
+                // the bound by so much as 1e-13 of it reds here.
+                assert!(
+                    su <= wu * (1.0 + 1e-14) && sv <= wv * (1.0 + 1e-14),
+                    "{name}: the degree-1 bound is ATTAINED, so a certified \
+                     s = ({su:.17e}, {sv:.17e}) this far above the sampled \
+                     ({wu:.17e}, {wv:.17e}) is slack this arm must not carry"
+                );
+            }
+        }
+    }
 
     fn wiggle() -> NurbsCurve3<f64> {
         let pts: Vec<Point3<f64>> = (0..7)

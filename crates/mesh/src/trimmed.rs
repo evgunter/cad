@@ -945,9 +945,9 @@ fn trim_frontier(
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point).
-/// `nurbs_chart` widens the accepted image forms to `IsoLine` (the
-/// NURBS chart's minted form); `Fitted` refuses typed on every chart
-/// (module docs).
+/// `nurbs_chart` widens the accepted image forms to `IsoLine`,
+/// `IsoArc` and `General` (the NURBS chart's minted forms); `Fitted`
+/// refuses typed on every chart (module docs).
 fn trim_polygon(
     body: &Body<f64>,
     fk: FaceKey,
@@ -980,14 +980,15 @@ fn trim_polygon(
                        mint in the split/boolean pipelines",
             });
         };
-        // Trim-loop tessellation walks a chart image's CLOSED FORM
-        // (module docs): `Harmonic` on every chart, `IsoLine` on the
-        // NURBS chart (its minted form; an `IsoLine` on a cylinder
-        // chart is not minted at rest — the harmonic form with zero
-        // trigonometric channels owns that image). A fitted (rung-3)
-        // image refuses typed on every chart rather than silently
-        // approximating a spline boundary the chord pass could not
-        // have sized (`crate::chords`' boundary-tightening contract).
+        // Trim-loop tessellation walks the forms whose UV steps the
+        // chord pass can size (module docs): `Harmonic` on every
+        // chart; `IsoLine`, `IsoArc` and `General` on the NURBS chart
+        // (its minted forms; an `IsoLine` on a cylinder chart is not
+        // minted at rest — the harmonic form with zero trigonometric
+        // channels owns that image). A fitted (rung-3) image refuses
+        // typed on every chart rather than silently approximating a
+        // spline boundary the chord pass could not have sized
+        // (`crate::chords`' boundary-tightening contract).
         match cache.pcurve() {
             Pcurve::Harmonic { .. } => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
@@ -1023,16 +1024,33 @@ fn trim_polygon(
                            layer (the cut-loft unit)",
                 });
             }
-            // The general curve-in-UV arm (U2): the trim walk reads
-            // closed-form chart images, and this class has none —
-            // refused typed under its own name, never folded into the
-            // fitted arm's message.
+            // The general curve-in-UV arm (U2) on a NURBS chart: the
+            // image is a spline rather than a closed form, and the
+            // walk needs neither — it reads `eval` at the SHARED chord
+            // parameters, which `Pcurve::eval` answers for this
+            // variant, and the chord pass sizes those parameters from
+            // the image's own certified UV speed
+            // (`crate::chords::general_uv_speeds`).
+            //
+            // **Watertightness does not move.** The 3-D positions are
+            // the carrier's chord points, minted once per edge and
+            // consumed by both adjacent faces by ID; what this arm
+            // adds is only THIS face's UV shape for those same ids, so
+            // the neighbour's polyline still names the same vertices
+            // in the same order. The corner's certificate is the
+            // crate's documented `δ + ε`: the triangle corner sits at
+            // `C(t_i)`, within the image's certified `envelope ≤ ε` of
+            // `S(P(t_i))`.
+            Pcurve::General(_) if nurbs_chart => {}
+            // Off a NURBS chart the class has no meaning: no mint
+            // produces a spline chart image for an analytic carrier,
+            // so this is not a cache the at-rest mint pass yields.
             Pcurve::General(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: he.edge,
                     note: "trimmed face half-edge carries a GENERAL curve-in-UV pcurve \
-                           — the trim walk and the chord pass's boundary tightening \
-                           read closed-form chart images",
+                           on an analytic chart — the class is a spline chart's image \
+                           and no mint produces it elsewhere",
                 });
             }
         }
