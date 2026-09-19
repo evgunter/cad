@@ -132,3 +132,14 @@ corrections are on the row.
   door goes stale the day that program lands** — the cap row said
   "import route dead" two days after PR 2741 opened it. Measure-first
   caught it; nothing else would have.
+
+## Dispatched and asked (2026-09-18, after PR 2849 merged)
+
+- **TESS-1 implementer dispatched** — block TESS-B1 slot 0, branch
+  `tess/1-meridian-free-refusal`. It stops on a green frozen head; the
+  ordinal (5100) is claimed on main at review dispatch.
+- **`[ev]` PR 2850** — is a rim-only sphere cap a face of this kernel?
+  (E) mesh emits it, or (N) import normalizes and validity refuses it.
+  Recommended (N); the half-measure named and rejected. `needs_ev` is
+  on the cap row. The away-channel monitor is armed on `tess/` (it
+  expires every 30 min in this harness and is re-armed at each expiry).
