@@ -40,7 +40,7 @@
 
 use core::f64::consts::PI;
 
-use super::form::{Form, Mono, Poly};
+use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{INDET_PI, IndetMap, SymBudget, SymOp};
 use crate::ring_interval::RingInterval;
@@ -51,10 +51,6 @@ use crate::ring_interval::RingInterval;
 const ROOT_TERMS: usize = 64;
 
 /// The exponent of `id` in `m` (zero where absent).
-fn exp_of(m: &Mono, id: u128) -> u32 {
-    m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e)
-}
-
 /// A graded-lexicographic comparison: total degree first, then the
 /// exponent vector over `ids` — a monomial order, which the
 /// leading-term recurrence below needs (the map's own `Vec` order is
@@ -76,11 +72,7 @@ fn cmp_mono(a: &Mono, b: &Mono, ids: &[u128]) -> core::cmp::Ordering {
 
 /// Every indeterminate id of `p`, sorted.
 fn ids_of(p: &Poly) -> Vec<u128> {
-    let mut ids: Vec<u128> = p
-        .terms
-        .keys()
-        .flat_map(|m| m.iter().map(|(i, _)| *i))
-        .collect();
+    let mut ids: Vec<u128> = p.monos().flat_map(|m| m.iter().map(|(i, _)| *i)).collect();
     ids.sort_unstable();
     ids.dedup();
     ids
@@ -88,7 +80,7 @@ fn ids_of(p: &Poly) -> Vec<u128> {
 
 /// The leading term of `p` under the graded-lex order over `ids`.
 fn lead<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms
+    p.terms()
         .iter()
         .max_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
         .map(|(m, c)| (m, c.clone()))
@@ -168,16 +160,16 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
             .mul(&mono_poly(&r0m, 2), budget)?
             .neg()?,
     )?;
-    let cap = x.terms.len().min(ROOT_TERMS);
+    let cap = x.terms().len().min(ROOT_TERMS);
     while !rem.is_zero() {
-        if root.terms.len() >= cap {
+        if root.terms().len() >= cap {
             return None;
         }
         let (tm, tc) = lead(&rem, &ids)?;
         let nm = mono_div(tm, &r0m)?;
         let nc = tc.mul(&twice.recip()?)?;
         // rem -= 2·root·t + t²
-        let t = single(nm.clone(), nc.clone())?;
+        let t = Poly::term(nm.clone(), nc.clone());
         let two_root_t = root
             .mul(&t, budget)?
             .mul(&Poly::constant(Rat::new(2, 1, 0)?), budget)?;
@@ -197,7 +189,7 @@ fn is_square_at_a_point(x: &Poly, ids: &[u128]) -> bool {
         2 * k as i128 + 3
     };
     let mut acc = Rat::zero();
-    for (m, c) in &x.terms {
+    for (m, c) in x.terms() {
         let mut term = c.clone();
         for &(id, e) in m {
             let v = value_of(id);
@@ -226,25 +218,15 @@ fn is_square_at_a_point(x: &Poly, ids: &[u128]) -> bool {
 
 /// The trailing term of `p` under the graded-lex order over `ids`.
 fn trail<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms
+    p.terms()
         .iter()
         .min_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
         .map(|(m, c)| (m, c.clone()))
 }
 
-/// The one-term polynomial `c · m`.
-fn single(m: Mono, c: Rat) -> Option<Poly> {
-    let mut p = Poly::zero();
-    p.insert(m, c)?;
-    Some(p)
-}
-
 /// The monomial `m^e` as a polynomial with coefficient one.
 fn mono_poly(m: &Mono, e: u32) -> Poly {
-    let mut p = Poly::zero();
-    let powered: Mono = m.iter().map(|&(i, k)| (i, k * e)).collect();
-    p.terms.insert(powered, Rat::one());
-    p
+    Poly::term(m.iter().map(|&(i, k)| (i, k * e)).collect(), Rat::one())
 }
 
 /// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
@@ -261,7 +243,7 @@ fn rat_enclosure(c: &Rat) -> RingInterval {
 /// `p` carries an indeterminate no bracket is known for.
 fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
     let mut acc = RingInterval::zero();
-    for (m, c) in &p.terms {
+    for (m, c) in p.terms() {
         let mut term = rat_enclosure(c);
         for &(id, e) in m {
             let x = if id == INDET_PI {
@@ -318,7 +300,7 @@ pub(super) fn fold(
     // every argument of a real document fails, and it costs one pass
     // over the ids where the polynomial root would cost the recurrence.
     let enclosable = |p: &Poly| {
-        p.terms.keys().all(|m| {
+        p.monos().all(|m| {
             m.iter()
                 .all(|&(id, _)| id == INDET_PI || params.contains_key(&id))
         })

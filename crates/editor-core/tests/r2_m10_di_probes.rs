@@ -286,11 +286,11 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(12);
                         d.p3(position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                    ValuePayload::Datum(DatumValue::Frame(f)) => {
                         d.u64(23);
-                        d.p3(origin);
-                        d.v3(&u.get());
-                        d.v3(&v.get());
+                        d.p3(&f.origin());
+                        d.v3(&f.u().get());
+                        d.v3(&f.v().get());
                     }
                     // Tag 24, appended: both spellings of an in-plane
                     // axis, so a drift in the numbers a revolve

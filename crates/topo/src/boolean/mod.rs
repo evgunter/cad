@@ -127,7 +127,10 @@ pub use rest::{
     TangentLocus, TangentLocusError, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation, tangent_locus,
 };
-pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
+pub use solid_contain::{
+    PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
+    point_in_solid_of,
+};
 pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
 };
@@ -2261,17 +2264,29 @@ fn verify_tangent_declaration<T: Decide>(
         }
     }
     // 2. The DEV-1 witness locus.
-    let surface_of = |body: &Body<T>, f: FaceKey, operand| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .cloned()
-            .ok_or(BooleanError::InvalidDeclaration {
-                operand,
-                what: "declared face lost its surface",
-            })
-    };
-    let sa = surface_of(a, fa, Operand::A)?;
-    let sb = surface_of(b, fb, Operand::B)?;
+    //
+    // **One resolution per declared face, carrying both halves.** The
+    // carrier and the orientation BIT are two facts about the same
+    // `&Face`, and everything below reads them off this one lookup: a
+    // key that does not resolve refuses typed HERE, so no later stage
+    // can answer from a sense it invented for a face that is not
+    // there. The two ways a key can fail are different findings and
+    // are named apart, in `validate_declarations`' own vocabulary: a
+    // key with no FACE behind it did not resolve, and a face whose
+    // surface key is stale lost its surface.
+    let face_of =
+        |body: &Body<T>, f: FaceKey, operand| -> Result<(geom::Surface<T>, bool), BooleanError> {
+            let invalid = |what| BooleanError::InvalidDeclaration { operand, what };
+            let face = body
+                .get_face(f)
+                .ok_or_else(|| invalid("declared face key does not resolve"))?;
+            let surface = body
+                .get_surface(face.surface)
+                .ok_or_else(|| invalid("declared face lost its surface"))?;
+            Ok((surface.clone(), face.sense))
+        };
+    let (sa, sense_a) = face_of(a, fa, Operand::A)?;
+    let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
@@ -2305,14 +2320,6 @@ fn verify_tangent_declaration<T: Decide>(
             let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
                 .map_err(|diag| BooleanError::Escalated { diag })?;
             if let Some(rim) = rim {
-                let (sa, sb) = (
-                    surface_of(a, fa, Operand::A)?,
-                    surface_of(b, fb, Operand::B)?,
-                );
-                let senses = |body: &Body<T>, f: FaceKey| {
-                    body.get_face(f)
-                        .map_or_else(T::one, |face| face.sense_sign::<T>())
-                };
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
                 // material arm's and the rim identification's alike:
@@ -2320,15 +2327,8 @@ fn verify_tangent_declaration<T: Decide>(
                 // consumed, and three stages levering against three
                 // different arms would not be comparable.
                 let extent = rim.radius + rim.radius;
-                match rim_wedge::classify_shared_rim(
-                    &sa,
-                    senses(a, fa),
-                    &sb,
-                    senses(b, fb),
-                    rim,
-                    extent,
-                    band,
-                ) {
+                match rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
+                {
                     // Wedge π: the arm is built and it answered; the
                     // declaration is what is wrong.
                     Ok(rim_wedge::RimRouting::Seam) => {
@@ -2703,6 +2703,51 @@ mod tests {
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         assert!(msg.contains("contact patch face carries rings"), "{msg}");
         assert!(msg.contains("declared-REST union zip"), "{msg}");
+    }
+
+    /// **A declared face key that resolves to no face refuses typed,
+    /// naming what happened.** The `Tangent` verifier reads two facts
+    /// off each declared face — its carrier and its orientation bit —
+    /// and takes both from ONE resolution, so a key with no face
+    /// behind it cannot reach a material verdict through a sense the
+    /// door invented for it. The public entry refuses such a key
+    /// earlier still, which is why this row calls the verifier
+    /// directly: defence in depth is only depth if the inner layer is
+    /// exercised.
+    ///
+    /// **This is a REGRESSION pin, not an anti-vacuity row**, and the
+    /// distinction is worth having in writing: the refusal is not new
+    /// — the carrier resolution at this position always refused a
+    /// stale key — so nothing here goes red for the fold alone. Two
+    /// things together would red it: the one resolution split back
+    /// into two, AND a key that resolves to a face whose surface is
+    /// missing rather than to no face at all. What it therefore pins
+    /// is the `what` string, because that is the half that WAS wrong:
+    /// a key with no face behind it used to report the face's surface
+    /// as lost, conflating the two findings `validate_declarations`
+    /// already distinguishes.
+    #[test]
+    fn a_declared_face_that_does_not_resolve_refuses_typed() {
+        let empty = Body::<f64>::new();
+        let err = verify_tangent_declaration(
+            &empty,
+            FaceKey::default(),
+            &empty,
+            FaceKey::default(),
+            Band::new(1e-9, 1e-8).unwrap(),
+        )
+        .expect_err("a key with no face behind it cannot be verified");
+        assert!(
+            matches!(
+                err,
+                BooleanError::InvalidDeclaration {
+                    operand: Operand::A,
+                    what: "declared face key does not resolve",
+                }
+            ),
+            "a missing declared face is a caller bug, not a classification, and the \
+             refusal says which caller bug it is: {err:?}"
+        );
     }
 
     /// One [`BooleanError`] per arm whose payload is keys, spans,

@@ -7,13 +7,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::Mesh;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::{corners, prism_on};
 use sweep::{Extrusion, extrude};
-use topo::Body;
 
 /// The PRE-FIX spelling, verbatim: fold anchored at the world origin.
 fn origin_fold(m: &Mesh) -> f64 {
@@ -30,31 +30,25 @@ fn origin_fold(m: &Mesh) -> f64 {
     six_v / 6.0
 }
 
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("profile validation");
-    extrude(&vp, Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
-}
-
 fn plane_at(o: f64) -> SketchPlane<f64> {
-    SketchPlane::from_frame(
-        Point3::new(o, o, o),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    )
+    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(o, o, o)))
 }
 
 fn mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64) -> Mesh {
-    tessellate(&prism_on(plane, poly, h), delta, Tol::witness()).expect("tessellate")
+    tessellate(
+        &prism_on(plane, corners(poly), h, Tol::witness()),
+        delta,
+        Tol::witness(),
+    )
+    .expect("tessellate")
 }
 
 /// Like `mesh_of`, but reports an upstream TYPED refusal instead of
 /// panicking — the e2e consumer's actual experience.
 fn try_mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64) -> Option<Mesh> {
+    // Not [`prism_on`]: this row's subject is the TYPED refusal, and a
+    // fixture that panics on one cannot report it. The construction is
+    // that door's, spelled out because the `Result` is the measurement.
     let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
     let vp = match Profile::new(plane, vec![lp]).validate(Tol::witness()) {
         Ok(v) => v,

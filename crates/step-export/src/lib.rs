@@ -60,7 +60,9 @@
 //! | `Cone` | `CONICAL_SURFACE` (apex placement, `radius = 0`) | yes as a LOCUS; `v` differs by the fixed factor cos α (STEP's `v` is axial, the kernel's is slant arc length) — invisible without pcurves |
 //! | `Sphere` | `SPHERICAL_SURFACE` | yes, identity |
 //! | `Torus` | `TOROIDAL_SURFACE` | yes, identity |
-//! | `Nurbs` | — | refuses (see below) |
+//! | `Nurbs` (described) | `B_SPLINE_SURFACE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_SURFACE` complex instance when any weight ≠ 1 | yes, structure for structure |
+//! | `Nurbs` (mvfs placeholder) | — | refuses (see below) |
+//! | `Approx` | — | refuses (see below) |
 //!
 //! | kernel `Curve3` | AP214 entity | exact? |
 //! |---|---|---|
@@ -86,10 +88,15 @@
 //! native entity wins wherever it exists, which for the kernel's conic
 //! rungs is everywhere.
 //!
-//! **What still refuses**, typed and named, never silently degraded:
-//! the mvfs "no description yet" NURBS placeholder
-//! ([`StepExportError::UnsupportedSurface`]) — a mid-surgery fact,
-//! never exportable. A DESCRIBED NURBS surface exports natively as
+//! **What still refuses**, typed and named, never silently degraded,
+//! both through [`StepExportError::UnsupportedSurface`]: the mvfs "no
+//! description yet" NURBS placeholder — a mid-surgery fact, never
+//! exportable — and an approximating surface (`Surface::Approx`),
+//! which refuses rather than printing its fit as though it were the
+//! described geometry (AP214 cannot carry "this B-spline stands in
+//! for an offset, to within ε", so the certificate that makes the fit
+//! honest would be lost; `OFFSET_SURFACE` is its own conversation).
+//! A DESCRIBED NURBS surface exports natively as
 //! `B_SPLINE_SURFACE_WITH_KNOTS` since M6-3 (the loft walls; the
 //! rational complex instance for weighted nets), and a described
 //! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
@@ -106,8 +113,8 @@
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
-//! - A face's outward normal is `topo::Face::sense_sign()` times its
-//!   stored surface normal (M5 S10; before S10 the stored normal
+//! - A face's outward normal is its stored surface normal with
+//!   `topo::Face::sense` folded in (M5 S10; before S10 the stored normal
 //!   simply WAS the outward normal — the M1 interior-left
 //!   ratification, restated in `geom_brep::enters`). STEP has a field
 //!   that means exactly this, so the mapping is an identity and not a
@@ -231,8 +238,10 @@ pub enum StepExportError {
         context: &'static str,
     },
     /// A header/product string contains characters outside Part 21's
-    /// basic alphabet (0x20..=0x7E) — the writer refuses rather than
-    /// emit an encoding it cannot promise importers read back.
+    /// basic alphabet — the writer refuses rather than emit an
+    /// encoding it cannot promise importers read back. [`quoted`]
+    /// decides the band and this arm's `Display` states it; neither
+    /// number is repeated here.
     UnrepresentableString {
         /// Which string field was being quoted (static description).
         context: &'static str,
@@ -326,10 +335,11 @@ pub enum StepExportError {
         /// The rejected value.
         value: f64,
     },
-    /// A key held by the body fails to resolve, or the half-edge
-    /// structure is incoherent — corrupt input, surfaced rather than
-    /// trusted (the structural validators own the diagnosis; this is
-    /// the fail-loud surface).
+    /// A key held by the body fails to resolve, the half-edge
+    /// structure is incoherent, or a shell carries no faces where the
+    /// schema's cardinality demands at least one — corrupt input,
+    /// surfaced rather than trusted (the structural validators own the
+    /// diagnosis; this is the fail-loud surface).
     Corrupt {
         /// What failed to resolve (static description).
         what: &'static str,
@@ -353,7 +363,11 @@ impl fmt::Display for StepExportError {
             Self::UnsupportedSurface { face, kind } => write!(
                 f,
                 "step export: face {face:?}'s surface ({kind}) has no printer in the \
-                 analytic subset (every elementary surface prints; NURBS faces do not)"
+                 analytic subset (every elementary surface prints, and a DESCRIBED \
+                 NURBS surface prints as B_SPLINE_SURFACE_WITH_KNOTS; what refuses \
+                 is the no-description-yet placeholder, which is a mid-surgery fact, \
+                 and an approximating surface, which refuses rather than printing \
+                 its fit as though it were the described geometry)"
             ),
             Self::UnsupportedCurve { edge, kind } => write!(
                 f,
@@ -492,6 +506,27 @@ pub fn write_step<W: std::io::Write>(
 /// Quotes `s` as a Part 21 string literal: surrounding apostrophes,
 /// `'` doubled, `\` doubled; any character outside the basic alphabet
 /// (0x20..=0x7E) is a typed refusal.
+///
+/// **This match arm is where the writer's band is decided.** The
+/// crate states it in exactly two other places — the refusal a caller
+/// reads ([`StepExportError::UnrepresentableString`]'s `Display`) and
+/// the row that pins both bounds (`tests/export.rs`'s
+/// `part21_basic_alphabet_bounds`). Anything else that needs to
+/// mention the alphabet names it without the numbers.
+///
+/// **The band is a DISCLOSED COPY of one rule.** `step_import`'s
+/// `string_body` is the mirror of this writer on the read path, over
+/// the same paragraph of the same standard. They are stated
+/// separately because the two crates share no dependency but the
+/// kernel, which is no home for a text-format constant
+/// (`docs/DESIGN.md`'s `## Layering`); the edge that does exist runs
+/// the other way and is a DEV-dependency for the round-trip oracle,
+/// which cannot carry a shipped constant. A leaf crate below both
+/// would be the workspace's own precedent (`test-utils`) and is a
+/// heavy answer for one range. If Part 21's alphabet is ever read
+/// differently, both sites move. The identical band in `stl`'s
+/// `SolidName` is NOT this rule and does not move with it (that site
+/// says so).
 fn quoted(s: &str, context: &'static str) -> Result<String, StepExportError> {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');

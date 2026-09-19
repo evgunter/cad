@@ -427,3 +427,18 @@ Ratified as written. Answers to §7:
 measurement on the implementer's head at all three ε cells and quote
 the two raising sites; if the degree-2 re-widening no longer mints,
 STOP.
+
+---
+
+## Amendments (TRIM orchestrator)
+
+**2026-09-18 — §4's PROPS acknowledgement gate gains the week's-silence
+fallback.** The seam announcement owed at PR-1's open was made late
+(comment 5683759668 on #2564, 2026-09-15) and nudged (5733656960,
+2026-09-18); PROPS is active on main but has not replied. §4's
+sentence "PR-1 does not merge without PROPS's acknowledgement" is read
+as TRIM-3's plan gate was: an acknowledgement, or a week's silence
+after the announcement with no objection (so no earlier than
+2026-09-22), recorded in the merge record. An objection at any time
+before the merge stops it; a later objection is a filed item on this
+program.

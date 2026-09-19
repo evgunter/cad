@@ -145,8 +145,8 @@
 //! `shell7_seam_corner`); the partial-set and chart-mixed gates and the
 //! sphere lune's whole rim solve (`offset_charts_together` called
 //! directly, `torax_axial` — `shell`'s closing tier 3 needs a volume
-//! the sphere flux arm's `props_band_coplanar` premise cannot yet give
-//! a lune).
+//! the sphere flux arm cannot yet give the cavity's lens face, whose
+//! rims are the moved caps' off-centre sections).
 //!
 //! **The carried arms themselves have door-built rows**: a full tube's
 //! seam vertex (torus circle), a drum's collinear wall vertex

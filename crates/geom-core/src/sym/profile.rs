@@ -25,12 +25,12 @@
 //! on the same thread, and takes it.
 
 use core::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 use super::form::Form;
 use super::report::{FormSize, size_of};
-use super::{SymBudget, SymOp};
+use super::{Hash128, SymBudget, SymOp};
 
 /// Why a node froze — the refusal the ring or the budget made, noted
 /// where it was made.
@@ -165,6 +165,14 @@ pub struct WalkProfile {
     /// — dropping the memos and the table — is outside every walk and
     /// no clock here sees it.
     pub time: Duration,
+    /// **The forms themselves, folded**: every form the walk put in its
+    /// memo under this origin, in build order, each by its canonical
+    /// digest ([`Form::digest`] — the key an atom over it is minted
+    /// under), chained through one hash. Two profiles agree here iff
+    /// the walk built the same forms in the same order, to the
+    /// coefficient and the term order, so a change to what a form IS
+    /// in memory that moved what it SAYS reads as a different number.
+    pub digest: u128,
 }
 
 impl WalkProfile {
@@ -173,7 +181,13 @@ impl WalkProfile {
         self.forms += o.forms;
         self.frozen += o.frozen;
         self.time += o.time;
+        self.digest = chain(self.digest, o.digest);
     }
+}
+
+/// One more link in a digest chain.
+fn chain(acc: u128, next: u128) -> u128 {
+    Hash128::new().wide(acc).wide(next).finish()
 }
 
 /// A timed counter: calls and wall time.
@@ -223,6 +237,29 @@ pub struct SymProfile {
     /// Rule D's fold (`trig::fold`), the memoized closed forms
     /// included.
     pub trig: Timed,
+    /// **The DISTINCT node ids the plain walk computed a form for**,
+    /// over every session recorded — against `walk(Walk::Plain).forms`,
+    /// which counts each computation, this is how many of them a memo
+    /// keyed by the id could have answered from another leaf. The
+    /// ratio is the ceiling of a drive-scoped plain memo's win.
+    pub plain_ids: BTreeSet<u128>,
+    /// **Each session's set of `Opaque` indeterminate ids**, in the
+    /// order the sessions ended.
+    ///
+    /// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
+    /// (`OPAQUE_SEQ`) — the one part of a node id that is not a hash of
+    /// what the expression says. Two leaves that mint in different
+    /// orders therefore build different ids for the same subexpression,
+    /// and a drive-scoped plain memo MISSES on them. It does not answer
+    /// them wrongly: `sym::memo`'s header carries that argument once
+    /// (a plain form is a syntactic normal form of a syntactic id), and
+    /// this set is the instrument for the HIT RATE, not for soundness.
+    ///
+    /// On every document in the tree today every set is EMPTY, because
+    /// no drive mints an opaque at all: `Sym::opaque`'s one caller is
+    /// the unnamed `AxisScalar::axis`, and a drive binds its axes
+    /// through `axis_named`.
+    pub opaque_ids: Vec<BTreeSet<u128>>,
 }
 
 // The install / take scaffold is `report`'s, spelled again: two
@@ -233,6 +270,10 @@ thread_local! {
     static NOTE: Cell<Option<FreezeCause>> = const { Cell::new(None) };
     static ORIGIN: Cell<Origin> = const { Cell::new(Origin::Decision) };
     static PROFILE: RefCell<SymProfile> = RefCell::new(SymProfile::default());
+
+    /// The `Opaque` ids the session now installed has minted, flushed
+    /// into [`SymProfile::opaque_ids`] when it ends.
+    static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -293,7 +334,7 @@ pub(super) fn note_within(budget: SymBudget, f: &Form) {
     if !active() {
         return;
     }
-    let terms = f.num.terms.len() > budget.max_terms || f.den.terms.len() > budget.max_terms;
+    let terms = f.num.terms().len() > budget.max_terms || f.den.terms().len() > budget.max_terms;
     NOTE.set(Some(if terms {
         FreezeCause::Terms
     } else {
@@ -351,6 +392,7 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
         match made {
             Some(f) => {
                 let s = size_of(f);
+                w.digest = chain(w.digest, f.digest());
                 o.built += 1;
                 o.terms_out += terms(s);
                 o.degree_out += u64::from(degree(s));
@@ -450,13 +492,40 @@ pub(super) fn trig_done(t0: Option<Instant>) {
     with(|p| timed(&mut p.trig, t0));
 }
 
+/// One session is about to run: the per-session accumulators start
+/// empty, so a mint outside any session cannot land in a leaf's set.
+pub(super) fn session_start() {
+    if active() {
+        OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
+    }
+}
+
 /// One session ended, with this many nodes and atoms in its table.
 pub(super) fn session_done(nodes: usize, atoms: usize) {
+    let opaque = OPAQUE_LEAF.with(|s| core::mem::take(&mut *s.borrow_mut()));
     with(|p| {
         p.sessions += 1;
         p.nodes += nodes as u64;
         p.atoms += atoms as u64;
+        p.opaque_ids.push(opaque);
     });
+}
+
+/// One id the PLAIN walk put a form in its memo for — the distinct
+/// count a drive-scoped memo would key by.
+pub(super) fn record_plain_id(id: u128) {
+    with(|p| {
+        p.plain_ids.insert(id);
+    });
+}
+
+/// One `Opaque` indeterminate this session minted ([`super::Sym::opaque`]).
+pub(super) fn record_opaque(id: u128) {
+    if active() {
+        OPAQUE_LEAF.with(|s| {
+            s.borrow_mut().insert(id);
+        });
+    }
 }
 
 /// The kids' sizes over one `(cause, op)` class of freezes.
@@ -541,6 +610,25 @@ impl SymProfile {
         out
     }
 
+    /// **The walk ledger**: one line per walk and origin — calls, forms,
+    /// frozen, and the digest chain of the forms built — with no clock
+    /// on it, so it is the same text on every box and a row can pin
+    /// it. `frozen` and the digest are both of the plain walk's forms
+    /// whoever asked; the pin reads the whole table.
+    #[must_use]
+    pub fn walk_ledger(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        for ((w, o), p) in &self.walks {
+            let _ = writeln!(
+                f,
+                "{w:?}/{o:?} calls {} forms {} frozen {} digest {:032x}",
+                p.calls, p.forms, p.frozen, p.digest
+            );
+        }
+        f
+    }
+
     /// The tables, as text: totals; each walk by origin; the early
     /// walk's inner clocks; the ring; per op; freezes by cause and op.
     #[must_use]
@@ -556,17 +644,21 @@ impl SymProfile {
             self.frozen(),
             self.unnoted()
         );
-        let _ = writeln!(f, "walk   | origin     | calls | forms | frozen | time");
+        let _ = writeln!(
+            f,
+            "walk   | origin     | calls | forms | frozen | time | digest"
+        );
         for ((w, o), p) in &self.walks {
             let _ = writeln!(
                 f,
-                "{:6} | {:10} | {:5} | {:5} | {:6} | {:?}",
+                "{:6} | {:10} | {:5} | {:5} | {:6} | {:?} | {:032x}",
                 format!("{w:?}"),
                 format!("{o:?}"),
                 p.calls,
                 p.forms,
                 p.frozen,
-                p.time
+                p.time,
+                p.digest
             );
         }
         let _ = writeln!(

@@ -21,7 +21,8 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, Tol, Vec3};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
+use topo::pcurves::ChartArm;
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect,
     MevSite, PcurveCertifyError, PcurveMintError, chart_boundary,
@@ -79,7 +80,7 @@ fn l_bound() -> topo::MetredBound<Interval> {
         polygon(&L_SHAPE, false),
         Vec::new(),
         None,
-        Interval::one(),
+        ChartArm::Rate(SupSpeed::new(Interval::one())),
         band(),
     )
     .expect("an aperiodic chart has no span premise to violate")
@@ -186,7 +187,7 @@ fn t8_a_centre_grazing_both_axes_is_answered_by_the_oblique_members() {
         polygon(&verts, false),
         Vec::new(),
         None,
-        Interval::one(),
+        ChartArm::Rate(SupSpeed::new(Interval::one())),
         band(),
     )
     .expect("aperiodic")
@@ -250,7 +251,7 @@ fn t5_a_realizable_ring_is_lifted_and_the_lifts_are_inert_inside_the_outer() {
         outer,
         vec![ring],
         Some(Interval::tau()),
-        Interval::one(),
+        ChartArm::Angular(Interval::one()),
         band(),
     )
     .expect("an outer spanning 6.2 < τ satisfies the lift premise");
@@ -312,7 +313,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
         outer,
         vec![ring],
         Some(Interval::tau()),
-        Interval::one(),
+        ChartArm::Angular(Interval::one()),
         band(),
     )
     .expect_err("an outer spanning three periods has no periodic region");
@@ -327,7 +328,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
             polygon(&[(0.0, 0.0), (wide, 0.0), (wide, 2.0), (0.0, 2.0)], false),
             Vec::new(),
             None,
-            Interval::one(),
+            ChartArm::Rate(SupSpeed::new(Interval::one())),
             band(),
         )
         .is_ok(),
@@ -376,9 +377,15 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
     // A cylinder chart's exact arms: `(r, 1)` with r = 2, so the
     // chart's u = 2.1 is 4.2 metres and the metre slack widens it to
     // 4.21 — a chart-space widening of `envelope / arm`.
-    let bound = ChartBound::assembled(outer, Vec::new(), Some(Interval::tau()), iv(2.0), band())
-        .expect("a 2 x 2 outer does not span a period")
-        .metred((iv(2.0), Interval::one()));
+    let bound = ChartBound::assembled(
+        outer,
+        Vec::new(),
+        Some(Interval::tau()),
+        ChartArm::Angular(iv(2.0)),
+        band(),
+    )
+    .expect("a 2 x 2 outer does not span a period")
+    .metred((iv(2.0), Interval::one()));
     let b = band();
     assert!(
         !bound.certifies_outside(MetredRect::new(4.205, 4.3, 0.5, 1.5), b),
@@ -521,7 +528,7 @@ fn face_chart(body: &Body<Interval>, face: topo::FaceKey) -> Surface<Interval> {
 #[test]
 fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
     let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-    let built = common::prism::<Interval>(&square, 1.0);
+    let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
     let mut body = built.body;
     let face = built.bottom_face;
     let chart = face_chart(&body, face);
@@ -645,7 +652,7 @@ fn t10_a_long_edge_guards_the_dimensional_claim() {
         polygon(&[(0.0, 0.0), (long, 0.0), (long, -5.0), (0.0, -5.0)], false),
         Vec::new(),
         None,
-        Interval::one(),
+        ChartArm::Rate(SupSpeed::new(Interval::one())),
         band(),
     )
     .expect("aperiodic")
@@ -713,9 +720,14 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
         ],
         ring: false,
     };
-    let chart_hull =
-        ChartBound::assembled(outer, Vec::new(), Some(Interval::tau()), iv(2.0), band())
-            .expect("a 2.1 x 2 outer does not span a period at arm 2");
+    let chart_hull = ChartBound::assembled(
+        outer,
+        Vec::new(),
+        Some(Interval::tau()),
+        ChartArm::Angular(iv(2.0)),
+        band(),
+    )
+    .expect("a 2.1 x 2 outer does not span a period at arm 2");
     // The CHART hull stops at the control hull: 2.1 chart units.
     assert!(
         (chart_hull.hull.u_max.hi() - 2.1).abs() < 1e-12,

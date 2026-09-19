@@ -49,6 +49,23 @@
 //! diagnosis"). The PR 6 audit inherits the caveat with this
 //! paragraph as its record.
 //!
+//! **The cancelling exchange is NOT what the shadow-exec rung
+//! addresses, and the two absences must not be confused.** That rung
+//! (`super::shadow_exec_flip`) fires when a run recorded NO
+//! `name_frag_side_of` verdict at the minting node at all — the sweep
+//! pruned the pair space — and it does not diff populations: it
+//! re-derives the QUALIFIER on both sides through the emission's own
+//! rule and reports the partner whose side changed. An exchange
+//! records a population, and the same one in both runs, so the rung's
+//! trigger is false there by construction. Nor is the rung a general
+//! answer for the SideOf vanish: it recovers the PRUNED half, and the
+//! COLLAPSE half — the fragment group stops being multi-fragment
+//! while the partner walls stay where they were — has no changed
+//! verdict to find and stays here. This blind spot stays exactly as
+//! this paragraph states it, with the recorded-qualifier delta
+//! (`super::qualifier_delta`, which reads the names rather than the
+//! log) as its live partial answer.
+//!
 //! # The two derived forms, in one module
 //!
 //! A node's verdict log is the substrate, and this module holds BOTH
@@ -92,7 +109,6 @@ use super::derivation_nodes;
 /// audit's persist-grade seam. Its key tag bytes are chosen at
 /// [`VerdictVector::key`], not derived from this enum's shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum RunStatus {
     /// Evaluated to a value (has a verdict log).
     Ok,
@@ -255,15 +271,7 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
         if let (Some(a), Some(b)) = (old.value(id), new.value(id))
             && a.verdicts != b.verdicts
         {
-            // Per-predicate sign populations (module docs).
-            let populate = |log: &[geom_core::k_stats::Verdict]| {
-                let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
-                for v in log {
-                    m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
-                }
-                m
-            };
-            let (pa, pb) = (populate(&a.verdicts), populate(&b.verdicts));
+            let (pa, pb) = (populations(&a.verdicts), populations(&b.verdicts));
             let (flips, diverged) = diff_populations(&pa, &pb);
             delta.flips = flips
                 .into_iter()
@@ -288,6 +296,18 @@ pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation
         }
     }
     FlipSet { nodes: out }
+}
+
+/// A verdict log's per-predicate sign populations — the projection
+/// [`diff_populations`] consumes, written once so the in-process
+/// engine ([`diff_verdicts`]) and the persisted summary
+/// ([`verdict_summary`]) count the same way.
+fn populations(log: &[geom_core::k_stats::Verdict]) -> BTreeMap<&'static str, [u32; 3]> {
+    let mut m: BTreeMap<&'static str, [u32; 3]> = BTreeMap::new();
+    for v in log {
+        m.entry(v.predicate).or_default()[sign_ix(v.sign)] += 1;
+    }
+    m
 }
 
 /// THE population-diff core (module docs): per-predicate sign
@@ -384,13 +404,19 @@ pub struct VerdictSummary {
 pub fn verdict_summary<T: Decide>(run: &Evaluation<T>) -> VerdictSummary {
     let mut nodes = BTreeMap::new();
     for &id in &run.order {
-        let mut populations: BTreeMap<String, [u32; 3]> = BTreeMap::new();
-        if let Some(v) = run.value(id) {
-            for verdict in v.verdicts.iter() {
-                populations.entry(verdict.predicate.to_owned()).or_default()
-                    [sign_ix(verdict.sign)] += 1;
-            }
-        }
+        // The SAME projection the in-process engine counts with
+        // ([`populations`]), re-keyed to the owned names the persisted
+        // form carries. A second counting loop here is how the two
+        // forms would drift.
+        let populations: BTreeMap<String, [u32; 3]> = run
+            .value(id)
+            .map(|v| {
+                populations(&v.verdicts)
+                    .into_iter()
+                    .map(|(name, counts)| (name.to_owned(), counts))
+                    .collect()
+            })
+            .unwrap_or_default();
         nodes.insert(
             id,
             NodeVerdicts {

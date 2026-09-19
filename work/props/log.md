@@ -1068,6 +1068,35 @@ R2 fable. Briefs for both duals stored on `props/b2-block`; four
 review lanes run at once on the box now that the two implementer
 build trees (27 GB) are freed.
 
+**Sign-hull dual adjudicated (2026-09-12).** Both lanes
+NOT-MERGEABLE-AS-IS on `c6f5d7aea`. R1 (opus) 2 MAJOR / 10 MINOR / 6
+NOTE, rubric 4/3/3; R2 (fable) 2 / 5 / 5, rubric 4/3/2.
+Correspondence: the seam regression is BILATERAL by execution (R1: a
+45° face through `newell_plane` at `Interval` hulls to a non-unit
+frame and DOCM's `datum_unit_norm` refuses where main served; R2: an
+extrude on a 45°-tilted sketch frame puts two walls on the `n.x = 0`
+meridian where the two candidates are ANTIPARALLEL — a half-turn flip
+the constructor doc denies — and M10-5's `refines` door refuses where
+main served); both swept ρ over the three corpora: any ρ ≠ 1 gives 0
+of 817 on the seam. R1's second MAJOR is that measured alternative,
+not a defect. **R2's MAJOR 2 is UNILATERAL: the DL6 claim "unbounded
+only where the box contains the zero vector" is false — three boxes
+without a zero vector return `Trv` on every component where Duff's
+`1 + |n.z|` denominator stayed bounded; R1 tested the same claim (C3)
+and reported it upheld. v6 tally candidate +1 (R2, FABLE).** Rulings:
+the comparison becomes `|n.z| ≤ max(|n.x|, |n.y|)/2` (ρ = 1/2, dyadic;
+seam at elevation atan(1/2), off every chamfer, wall, cap and corner
+direction; put to Ev in chat, who may still override before landing);
+a candidate whose norm's lower bound is zero encloses as the unit cube
+at `Def`, never `Trv`; rows that can red on the seam class (both
+reviewers' probes adopted); the census asserted at ρ, constructor
+frames distinguished from stored ones; the STEP receipt corrected (75
+records / 12 files, bottom caps flip); the (c)1 finding folded into
+the trim item that already owns it; eight files of stale rule prose;
+one M10 finding filed (a `Violated` witness off the trimmed face).
+Fix pass dispatched to the unit's own lane; two live specs
+(`TRIM-3`, `PCURVE-P2`) carry the Duff premise and get seam notes at
+landing.
 **Seam announced by BLEND (2026-09-13, at unit 9's dispatch):** BLEND
 unit 9 (`docs/BLEND-9-SPEC.md`, item
 `work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`) adds
@@ -1119,3 +1148,404 @@ dev-dependency edge exactly as `identity-pass-testing` is — the two
 Cargo files are this glob's; the code behind the feature is in
 `sym.rs`/`sym/*` (SYM's). `drive.rs`'s `SymbolicDials` cost note is
 touched only if the profile shows it wrong, and then by this seam.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): `Real::register_equal` gains a `tol: Tol`
+parameter in `crates/geom-core/src/real.rs` (PROPS' file) and the
+`f64` witness's slack becomes `tol.eps() · max(|a|, |b|, 1)` with
+`WITNESS_REL` retired; `interval.rs`'s impl ignores the parameter (the
+meet is exact) and says so. Ev's D1 = (1) on `[ev]` #2552. Nothing
+else in `real.rs` moves; D2 (the refusal arms) is held on the same PR.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6** (PR #2604):
+the lane also re-took one paragraph of `docs/ERROR-DESIGN.md` (E12's
+sentence that the point witness is ε-INDEPENDENT, which cited the
+`WITNESS_REL` this PR deletes) in the present tense, nothing else in
+E12; the sentence was M10-9's fix pass's (`4f8262ad9`, agent-authored,
+no Ev ratification found by `git log -S`), and Ev's D1 = (1) on #2552
+is what reversed it. Disclosed in the PR body; the dual reads it. A
+row on this slate from the same lane:
+`register-equals-witness-limits-citation-names-no-file`.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6 fix pass** (PR
+#2604): the fix pass also re-points `Real::register_equal`'s dangling
+citation of `m10_9_witness_limits_interval.rs` (a file that never
+existed) at the rows that establish the clause, in the same doc
+paragraph the unit re-takes, and closes the row the lane had filed
+here (`register-equals-witness-limits-citation-names-no-file`) as
+fixed by that PR; and adds one sentence to E12 in
+`docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
+D2 on #2552), beside the ε sentence already disclosed.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-7** (`sym/7-plain-memo`,
+`docs/SYM-7-SPEC.md`): `crates/editor-core/src/drive.rs` (PROPS') gains
+the creation of one `DriveMemo` per drive around the level loop,
+passed into `classify`'s `with_session_rules` call, a `DriveConfig.plain_memo`
+flag (default on), and `frozen` on the drive's receipt re-defined as
+distinct nodes frozen over the drive (its `serialize`/`render` docs) —
+nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
+receipt-identity row across schedules is the acceptance the memo is
+shared (not per worker) to keep.
+
+**Session moved to a local machine (2026-09-14).** The cloud session hit
+its usage limit twice; on the second, the sign-hull fix pass died three
+items in (nothing pushed) and the mignitude R2 reviewer died before
+reading its brief. Ev moved the orchestrator to a local box. What was
+lost: every lane worktree, both implementer target dirs, and — the one
+that costs something — all four reviewers' probe files, which are
+reported in their reports but were never pushed. Both units' branches
+and both PRs were untouched at their frozen heads, and `props/b2-block`
+kept every stored brief. Re-dispatched: the mignitude R2 review against
+a re-pathed copy of its stored brief (claims byte-identical, the
+deviation disclosed in the A/B record), and the sign-hull fix pass as a
+fresh lane on the same arm, re-deriving the adopted rows from the
+reports' quoted numbers. Its first job is the merge of `main`, which
+has moved ~2300 commits under it — `crates/geom-core/src/sym.rs` alone
+by ~2670 lines (SYM-5, SYM-7), where this unit adds the tier's first
+three-child node; SYM-8 (#2616) is open on the same file and the lane
+reports whether `SymOp::Select` collides with it.
+
+**Mignitude-floor dual adjudicated (2026-09-15).** Both arms
+APPROVE-WITH-FIXES on `c8fd64033`, **no MAJOR either arm — v6 tally
++0**. R1 (fable) 0/4/8, rubric 4/4/4; R2 (opus) 0/6/3, rubric 4/4/3.
+The bound survived both attacks by execution and independently: R1
+sampled every cell of every round grid on six bases (worst
+`e_lo`/sampled-min ratio 0.9987, ~9300 cells), R2 on five (worst
+0.9434, 1485 cells); the red and green digits, the 24-of-70 corpus
+move, the 807.7× and the single grown bound all reproduced on both,
+and each rebuilt the merge base in its own tree to do it.
+Correspondence: the `m_sup` f64 fold BILATERAL (R1 by reading, R2 by
+execution — 306 of 308 cells carry a divisor below the ring reading,
+worst 4.70e-16 relative, on the unsound side, against the PR's own
+"every intermediate stays a `RingInterval`"; R2 extends the class to
+`ssi/certify.rs`'s `stretch`, which has no `sqrt_up` at all); the test
+`decompose` copy BILATERAL (R2 sharper — it already diverges by a
+missing guard, falsifying the row's own "differ in exactly one
+expression"); the face count 7-vs-8 and the stall row's unasserted
+premise BILATERAL. Unilateral to R1: the D2 "never into them" sentence
+overclaims against this unit's own non-monotonicity item, and the
+filed item's remedies are miscast (executed: the OLD 780-cell grid
+reads the identical bound under the witness reading, so the whole 1.8%
+is schedule divergence at round 1). Unilateral to R2: two stale
+certified digits the change itself moved — one in the module doc, one
+an entire false measured ladder in the recentring row — and the
+bit-identity sentence, false on the four requests whose schedule moved
+the fit's knot count. Fix pass dispatched on the same arm as a fresh
+lane; R2's probe files survived the machine move and are adopted from
+disk, R1's did not and are re-derived from its report.
+
+**Mignitude-floor MERGED (2026-09-15).** PR #2469 at `f050e2d6f` (run
+35015861638 green, 35 jobs; two merge-forwards, main having moved 442
+then 17 commits under the branch and touched all three of its files —
+D290's `on_domain` and RATE-PAIR's speed tags — with no certified digit
+moving, argued by reading `on_domain`'s identity on a `[0,1]` chart and
+measured at all six lane/eps points). Item closed, spec into the
+ledger, A/B row at ordinal 2404, sample #208. The fix pass took all
+twelve adjudicated items, including two the lane was right to decide
+its own way: an unrecoverable digest table retired rather than a byte
+order invented, and a Ratified README sentence measured false and
+corrected after `git log -S` found no ratification behind it. Three
+rows adopted from the review lanes plus a fourteen-column corpus
+census that costs the suite nothing. Filed on other slates: the
+`f64`-fold divisor class on SHELL (`cell_normal`'s assembly B) and
+TRIM (`Box3::speed_sup`, where the extraction's own doc settles the
+rounding difference the wrong way — "folding them into one would move
+bits" is the reading discipline section 3 forbids as a justification).
+
+**Sign-hull HOLDS on Ev's ruling (2026-09-15).** The dual's fix pass
+landed all twelve items and left three rows red that are SYM/M10's, not
+this unit's to re-bless: a frame chosen by a decision is opaque to the
+symbolic tier, and SYM-5's tilted-derived-boss acceptance row refuses.
+Measured before the fork was put: the plain numeric lane is unchanged
+under both constructions (identical refusal set and first enclosure),
+and removing the decision atom does NOT clear the rows — it moves the
+refusal one face earlier and ~45% wider, so the opacity is the
+candidate's form and not the atom. Ev ruled, in chat, that the tier
+learns the fold and the construction stands; PR #2468 holds rather than
+landing red, and the land-now-and-re-aim-their-pin path is rejected
+explicitly. Recorded on the item and put to SYM on its log.
+
+**Orchestrator process correction (Ev, in chat, 2026-09-15).** The fork
+above went to Ev in chat and in a seam note, and Ev did not see it until
+after it had been sitting: *"it would have been ideal to open an [ev]
+pr, though, since as it is i didn't see this until now"*. CLAUDE.md
+already says it — anything for Ev goes in a PR titled `[ev] …` — and
+this orchestrator did not follow it for a design fork. Standing from
+here: a fork, a ruling request or anything else needing Ev's decision
+gets its `[ev]` PR **at the moment it is put**, not after it is
+answered; chat is the notification, the PR is the artifact.
+
+**Sphere-pole-side dispatched (2026-09-15).** Block PROPS-B3 slot 0
+(OPUS, drawn 2026-09-08), branch `props/sphere-pole-side` from main at
+`bfc577bbd`, dual review at the frozen head. The unit takes four items
+as one gap — the rim-only polar cap that refuses `DegenerateFace`, the
+two-face sphere whose complement cancels it to volume `0.0`, `Rim`'s
+duplicated traversal direction, and the cycle-order row the spec's
+amendment folds in as the trap to avoid rather than a deliverable. The
+dispatch carries this machine's build-mutex rules, which the
+orchestrator's earlier briefs omitted, and tells the lane to expect to
+lose the slot and let hosted CI be the record.
+
+**Band-doors in review (2026-09-15).** PR #2729 at `08262efef` (run
+35057977716 green, nothing narrowed), an E rider: single style review,
+no ordinal, no A/B row. The lane did three things worth the record
+before its review even starts. It re-derived the collapse arithmetic
+instead of quoting the item and found the item's own amendment off by
+one tie case, correcting it in place with a sharp bound (ε ≤ 2⁻¹⁰²³,
+both endpoints pinned as rows). It found a THIRD reachable arm in
+`angular_at` that neither the item nor the spec named — θ = ε/arm
+underflowing to zero, which wants the arm fixed rather than ε. And it
+REFUTED part of the orchestrator's ruling with evidence: one of the
+sites the ruling counted takes K as a deliberate parameter, so
+converting it would make the row follow the run's K and destroy what it
+asserts. That refutation is right on its face and the review lane
+adjudicates it; a ruling pushed back on with evidence is a finding, not
+a deviation, and this is the shape that should happen more often. Two
+further sites were found by its sweep, so five converted rather than
+four. Argument order `(tol, eps)` against the spec's `(eps, tol)`, for
+consistency with every other tolerance-coupled constructor.
+
+**REST works where GraphQL refuses (2026-09-15).** `gh pr create` and
+`gh pr merge` have been failing all session with "API rate limit
+already exceeded for user ID …" while `gh api rate_limit` reports the
+full quota — a secondary content-creation limit, not the documented
+one, on an account many sessions share. The band-doors lane found that
+`gh api repos/<o>/<r>/pulls -X POST` and
+`gh api -X PUT …/pulls/<n>/merge` go through unaffected. Recorded here
+because every lane on this machine will hit it.
+
+**Band-doors review adjudicated (2026-09-15).** Single style review,
+APPROVE-WITH-FIXES, no MAJOR, rubric 4/3/3. Every load-bearing claim
+survived independent execution: the tie analysis and the sharp
+ε ≤ 2⁻¹⁰²³ boundary (the reviewer added an exhaustive scan of both ends
+of every normal binade — no normal ε collapses), the third arm at
+ε = 1e-16 with the largest arm, the sweep's count and, probed rather
+than accepted, its declared blind spot, which hides nothing.
+**The lane's refutation is upheld and the orchestrator's ruling is
+withdrawn**: the reviewer found the conversion would break that row TWO
+ways, the band and the adversarial vector being built from the same
+`k`, so converting only the band decouples them on top of making the
+"at K = 1.2" claim follow the run's K. A ruling pushed back on with
+evidence, confirmed by a third party — the shape the review lane exists
+for.
+
+The sharpest finding is the unit's own defect class: the derivation now
+has THREE homes (the door's `# Errors` and two editor-core variant
+docs), none naming the others, and the class has already drifted once —
+the item's amendment carried the wrong boundary while both editor-core
+copies carried the right one. The fix for a doc duplication minted a
+third copy, which is CLAUDE.md's standing warning about structural
+fixes, caught here by the reader who did not write it. Fix pass
+dispatched with ten items, including one home for the derivation, the
+retirement of the now-byte-identical private helper, and a ruling
+against the reviewer on the door's NAME: `_at` is right because
+`offset_fit`'s module doc already fixes that suffix to mean an
+instrument rather than a door — which carries the obligation to weigh
+`#[doc(hidden)]` on the same precedent, since all five consumers are
+suites pinning a chosen ε.
+
+**Affine-try-map in review (2026-09-16).** PR #2743 at `b8a316ede`
+(run 35067530064 green, 35 jobs, nothing narrowed), the second E rider.
+The kernel now owns the fallible twelve-component walk it lacked:
+`try_map` at `Vec3`, `Mat3`, `Affine3` and `SketchPlane`, with `map`
+respelled as `try_map` over `Infallible` rather than kept as a second
+body — the lane's reason being that two bodies would move the walk from
+two copies with two owners to two copies with one, the same defect
+smaller. `editor-core`'s private `map_affine` is retired and
+`pinned_plane` routed through the door, by the announced seam both
+items permit.
+
+The part worth the record is what the lane's own mutation test caught.
+Its lifting row first read the lifted channels back through `map`, so a
+`c0`/`c1` swap in the walk was re-applied by the readout and CANCELLED:
+the row PASSED under the mutation it was written to catch. The lane
+found that, fixed the row to read through a hand-written third
+spelling, and wrote the lesson into the row's doc. A test that cannot
+fail for the reason it is named after is the style lane's Q3, caught
+here by the author rather than the reviewer, which is the cheaper place
+to catch it. Two findings that were not this unit's deliverables were
+filed rather than folded in — one new, one APPENDED to the row whose
+subject it already was, with a correction to that row's own site list.
+
+**Sphere-pole-side dual dispatched (2026-09-16).** PR #2741 at
+`53a9bee9e` (run 35068825589 green, 36 checks). Ordinal 2406, byte 86
+parity 0 ⇒ R1 opus / R2 fable, concurrent on the frozen head, briefs
+stored with sha256 before dispatch. What the unit delivered, for the
+record before its review lands: the rim-only cap measures
+`2πR²(1 ∓ sin v₀)` at `rel < 1e-12` and certifies at all three tiers
+through the public doors against `πh²(3R − h)/3` with both pads zero;
+the half-cap's complement refuses `props_rim_interior_side` while its
+partner still measures exactly, and which of the pair refuses is the
+sense bit's call, pinned both ways round; the three-face sphere whose
+face C is a rim-only cap now reports `4π/3` where the two-face split
+reported `0.0`; `Rim`'s duplicated direction is retired outright, which
+closes half the cycle-order row, and the anchoring-invariance row the
+spec's amendment demanded is green — the new predicate's recorded signs
+do not move under a re-anchoring.
+
+Three things the unit reported that the spec had wrong or left open,
+all disclosed rather than quietly absorbed. **The die's pips were never
+the rim-only shape** — a pip ball is revolved, so it carries a seam
+meridian and its cap has a meridian's levels; there was no
+quadrature-to-closed-form flip to pin, and the public-door evidence was
+built in `topo` instead. **The cone apex sibling is not the same change**
+— no second candidate for the missing extreme, and `fn cone` takes no
+sense bit — so it is measured and filed rather than served. And the
+**`boundary_material_sign` deviation**: the spec said that arm should
+take the predicate; the unit argues it cannot, because check 6 compares
+the boundary's encoding against the sense bit and σ reads that bit, so
+the comparison would become a tautology. That argument is the first
+thing both reviewers are told to adjudicate, and it is the one place
+the spec is not treated as settled.
+
+**Affine-try-map review adjudicated (2026-09-16).** Single style
+review: APPROVE-WITH-FIXES, 1 MAJOR / 5 MINOR / 7 NOTE, rubric 4/5/3 —
+**the first 5 on test quality this program has recorded**. The
+reviewer earned it by attacking the suite rather than the code: five
+mutations of its own (two column swaps, a translation-versus-column
+swap, a transposition INSIDE a column, and a short-circuit removal that
+reds exactly one row and nothing else, which is the sharpest evidence a
+suite can give that its rows are independent), plus a reproduction of
+the lane's self-caught near-miss in both directions — reverting the
+readout fix and re-applying the swap makes the row pass again, 3 red
+where 4 are owed. No mutation escaped. The respelling of `map` over
+`Infallible` is bit-identical over twelve shifted corpora, three
+distinct NaN payloads and an impure closure whose call order and count
+are unchanged. Zero spec deviations, silent or reported.
+
+The MAJOR is a doc comment attached to the wrong module: the new test
+module was inserted BETWEEN an existing module's doc comment and that
+module, so one module lost its header and the new one carries a header
+describing something else — in a diff whose whole subject is that a
+hand-written walk must have one honest statement. The sharpest NOTE is
+that the crate's own naming-convention sentence ("one name, `map` on
+every leaf") is now false and untouched, and that two of the four new
+doors have no consumer outside the ladder itself, which adds two
+members to an open row's population without citing it. Eleven items
+dispatched, including the reviewer's respelling oracle adopted as an
+ordinary row.
+
+**Sphere-pole-side dual adjudicated (2026-09-16).** Both arms
+APPROVE-WITH-FIXES on `53a9bee9e`. R1 (opus) 1/4/3 plus seven style,
+rubric 4/4/3; R2 (fable) 0/4/5, rubric 4/4/4. The construction survived
+both: each re-derived σ from the chart's orientation independently,
+neither could make it name the wrong side on any face it could mint,
+the cap's numbers and the public-door volumes hold to 4e-16 at both
+poles and both traversals, the anchoring invariance holds on measuring
+faces, and `Rim`'s retirement leaves no reader.
+
+**The headline is bilateral by execution with a severity divergence,
+so no tally candidate: tally +0.** The rim-only arm declares a pole
+interior without ever deciding that its rims CLOSE a circle. R1 called
+it MAJOR, R2 a NOTE with door reach unsure; both measured the same
+thing — a lone half rim accepts at half the cap's area, a quarter rim
+at a quarter, the same full rim stated twice at 2×, a full rim plus an
+extra half arc at 1.5×, where all four refused `DegenerateFace` on the
+merge base. So the unit turns four typed refusals into wrong numbers at
+a public door, which is the D2 shape it names itself. **The spec
+asserted that premise rather than requiring a decide, and the unit
+inherited the assertion — the orchestrator's defect first.**
+
+Bilateral too: the material-sign gate CAN take a sense-free form of the
+predicate (unanimity over the rims' boundary-encoded sides), which
+reads no sense bit and is not the tautology the unit's deviation
+argued; both executed an anchor-relative definite ANSWER out of the
+gate, and R2 built the face where it bites — a staircase the old flux
+lane answered **57% low** with a zero pad, which this unit already
+refuses without claiming it. And one comparand under two names.
+
+Unilateral R1: the recorded verdict population is anchor-dependent on a
+REFUSING face (the early return), a narrow fresh instance of the class
+the spec's amendment exists for; a die row whose doc contradicts the
+unit's own measurement; the D2 row disclosed but not filed where the
+spec said to file it; and the public shape door now asking one of the
+two rectangle predicates while `curved_face` asks both. Unilateral R2,
+and the one place an arm was simply right where the other was wrong:
+"the recourse is the certified-quadrature lane" is FALSE — the dispatch
+is structural, so a circle-bounded face refused by `curved_face` has no
+lane at all, and R1 asserted the opposite without checking. Also R2:
+the cone filing overstates its obstacle, the cap's closed form is
+ill-conditioned near a pole with the oracle sharing the cancellation,
+a two-variant enum the predicate has erased, and a dead arm. Fix pass
+dispatched with fourteen items.
+**Band-doors MERGED (2026-09-16).** PR #2729, an E rider. Both items
+closed, spec into the ledger. The unit's shape is worth keeping: a lane
+that re-derived a filed measurement instead of quoting it and found the
+filing off by one tie case; a lane that refuted the orchestrator's
+ruling with evidence; a review that confirmed the refutation and found
+a second reason for it the lane had missed; and a fix pass that took
+the review's harder reading — the derivation gets ONE home with links
+from four citing sites, the private helper the door had made
+byte-identical is retired, and the pathological pairs go through the
+real validator in their own processes rather than through a local copy
+of its conditions.
+
+**Affine-try-map MERGED (2026-09-16).** PR #2743, an E rider, both
+items closed and the spec into the ledger. All eleven review items
+taken, none deviated, and three of them improved on what was asked:
+the reviewer's adopted oracle went into the module's own test block so
+it reuses the existing readout instead of minting a third; the
+hand-written readouts went DOWN from seven to seven rather than up to
+eight, by deleting one and comparing through the door that already is
+that reading; and one of the reviewer's three adopted rows was DROPPED
+with its reason — it asserts nothing a bug could break, which
+discipline §2 calls documentation — with its census content moved into
+a row that can fail. The transposed-column mutation now reds eleven
+rows where it red eight. The lane also recorded how its earlier clippy
+errors reached CI: a `tail` on the output truncated one crate's errors
+behind another's.
+
+**Sphere-pole-side MERGED (2026-09-16).** PR #2741, ordinal 2406,
+sample #214, tally +0. Three items closed, the fourth half closed with
+its measurement, spec into the ledger. The unit fixes two things a user
+would call bugs — a ball cut by one plane refusing as degenerate, and a
+sphere split into two faces measuring zero volume — and the dual caught
+that its first landing had traded those for a third: a pole folded
+against a rim that does not close, which answered a half rim at half
+the cap's area where it had refused. The spec asserted that premise
+instead of requiring a decide, so the orchestrator authored it; the fix
+pass decides it now, metering the arc the rim fails to close by.
+
+Two lessons for the next unit on this file. The spec's amendment — the
+one that told the lane in advance not to let a new predicate's recorded
+sign depend on cycle order — did its job: the predicate is a face fact
+under re-anchoring, and the dual only had to find the narrower case of
+a REFUSING face, which the fix pass closed too. And an arm was simply
+right where the other was wrong: the sentence about the
+certified-quadrature lane being the recourse is false, because the
+dispatch is structural, and only one reviewer read the dispatch rather
+than repeating the sentence.
+
+**Sphere-pole-side MERGED for real (2026-09-16).** The landing took one
+more pass than the fix pass: BOOL-5 landed a rim-free spherical wedge
+arm INSIDE `fn sphere` and routed the interior direction through the
+`OutwardNormal` door while this unit was in review, so the orchestrator
+aborted its own merge rather than pick a hunk and handed the semantic
+merge back to the lane. That was the right call — a textual merge would
+have shipped a real defect: git auto-merged this unit's RIM-BEARING
+premise into BOOL-5's "Established" bullet list, whose preamble scopes
+it to the RIMLESS branch, so the merged text would have claimed the
+premise for a branch that does not carry it. The lane lifted it back
+out.
+
+Three things the lane established rather than inherited, all now in the
+file's docs. The two units' arms have DISJOINT guards (rim count is the
+only arbiter), so their order is not a priority question at all; what
+the order does express is each arm's relation to the extent — the pole
+fold must run BEFORE `require_extent` because it is the only step that
+mutates the level list, and the rimless arms must run after it because
+they settle a Δu the extent says nothing about. σ and BOOL-5's wedge
+azimuth are the SAME rule, `interior = N × T`, taken down two
+collapses; the door returns what σ assumed and the derivation is
+written out at the site citing the sibling. And `props_band_opposite`
+and `props_rim_only_closed` can never both fire, being the same kind of
+premise — "the loop goes round once" — reached independently on the two
+branches, each catching what its own branch's other premises are blind
+to. 125 rows green including all of BOOL-5's own; none of theirs red,
+so nothing was owed to their orchestrator.
+
+Two hazards re-confirmed for the record: a CONFLICTING PR silently gets
+no CI run and none retroactively (the first merge commit got none), and
+`cargo check` does not run clippy, so a doc-only edit still needs a
+clippy pass — one lazy-list-continuation in a lifted paragraph failed
+six jobs.

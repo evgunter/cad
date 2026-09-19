@@ -54,6 +54,7 @@ fn l_prism() -> Body<f64> {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     )
     .body
 }
@@ -65,12 +66,23 @@ fn l_prism() -> Body<f64> {
 #[test]
 fn prism_reflex_kiss_takes_edge_edge_lane() {
     let a = l_prism();
-    let b = prism_z::<f64>(&[(2.0, 2.0), (3.0, 1.0), (4.5, 2.0), (3.0, 3.0)], 0.0, 1.0).body;
+    let b = prism_z::<f64>(
+        &[(2.0, 2.0), (3.0, 1.0), (4.5, 2.0), (3.0, 3.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    )
+    .body;
     // M4 PR 5: the coplanar top/bottom contacts are declared so the
     // classification reaches the edge-edge lane (undeclared, it now
     // refuses earlier at the coincidence door — rung (b)).
-    let err =
-        topo::union_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap_err();
+    let err = topo::union_with(
+        &a,
+        &b,
+        &common::flush_declarations(&a, &b, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(
         matches!(err, BooleanError::ClassificationInvariant { .. }),
         "expected the edge-edge lane's typed refusal, got {err:?}"
@@ -83,18 +95,21 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
 #[test]
 fn tilted_saddle_corner_refuses_typed() {
     let a = l_prism();
-    let b = mapped_cube(|x, y, z| {
-        let (e1, e2, e3) = (
-            Vec3::new(0.9, -0.6, 0.5),
-            Vec3::new(0.7, 0.8, -0.55),
-            Vec3::new(-0.45, 0.5, 0.9),
-        );
-        Point3::new(
-            2.0 + x * e1.x + y * e2.x + z * e3.x,
-            2.0 + x * e1.y + y * e2.y + z * e3.y,
-            0.5 + x * e1.z + y * e2.z + z * e3.z,
-        )
-    });
+    let b = mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, -0.6, 0.5),
+                Vec3::new(0.7, 0.8, -0.55),
+                Vec3::new(-0.45, 0.5, 0.9),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                0.5 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        Tol::witness(),
+    );
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let err = union(&a, &b, Tol::witness()).unwrap_err();
     // JoinDesync ONLY (review tightening): the frontier is known to be
@@ -134,7 +149,7 @@ fn tilt_sweep_no_silent_mispair() {
                     zc + 0.8 * z2 - 0.3 * x1,
                 )
             };
-            let b = mapped_cube(map);
+            let b = mapped_cube(map, Tol::witness());
             match union(&a, &b, Tol::witness()) {
                 // Gated success (tier 1–2 + volume backstop inside).
                 Ok(_) => {}

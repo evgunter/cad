@@ -382,8 +382,10 @@ set at ceiling + δ; `m10_10_pins_interval`):
 **The reach is the unit bulge.** Every document above authors its
 arcs through `LoopProgram::Circle`/`CircleSplit` (kernel bulge `1`).
 A LITERAL bulge other than 1 leaves residue (R1's circular-segment
-boss at bulge 2: `carrier_matches_mapped_source` 6 of 54 and
-`carrier_on_surface_2` 27 of 90 still numeric, ceiling unmoved), and
+boss at bulge 2 stood at `carrier_matches_mapped_source` 6 of 54 and
+`carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved until
+SYM-5's rule E; it is 0 of 54 and 9 of 90 now and the ceiling has moved
+`8.2611e2 → 9.3559e2 · ε`), and
 a PARAMETER bulge is entirely outside the mechanism (R2's D-tab:
 `3.52e2 · ε` with the algebra on and off alike) —
 `work/sym/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.

@@ -391,6 +391,11 @@ fn transform_pass_through_carries_the_attribute_downstream() {
 
 // ---- Loud, typed loss semantics (N3/N5) ----
 
+/// The loss is what the next EVALUATION says about a stranded key;
+/// `dm7_delete_strands`' appearance rows assert what the DELETE DOOR
+/// said about the same key at the moment it stranded it
+/// (`Maintenance::StrandedAppearance`), so the two ends of one key's
+/// life are pinned in one place each.
 #[test]
 fn deleting_the_minting_node_strands_the_attribute_loudly() {
     let (doc, ext) = block(

@@ -274,6 +274,23 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
          verbatim",
     ),
+    // ---- Test-support fixture builders. Why they are in this
+    // population at all is stated once, on
+    // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
+    // them: each writes only through the asserting operators above. ----
+    (
+        "prism_ops",
+        "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
+         arena itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "describe_as_intersections",
+        "rewrites each transverse edge's description through `set_edge_curve` (asserting)",
+    ),
+    (
+        "cube_into",
+        "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     (
         "begin_surgery",
@@ -285,6 +302,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("set_curve_source", "GeomSource metadata, no arena key"),
     ("set_point_source", "GeomSource metadata, no arena key"),
     ("clear_geom_sources", "GeomSource metadata, no arena key"),
+    (
+        "mark_imported",
+        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
+    ),
     (
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",

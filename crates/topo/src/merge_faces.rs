@@ -49,6 +49,7 @@ use crate::body::Body;
 use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
 use crate::readback::DanglingRef;
 use crate::validate::{ValidationError, validate_closed};
@@ -77,9 +78,14 @@ pub struct MergedGroup {
     pub killed_vertices: Vec<VertexKey>,
 }
 
-/// A merge group that was NOT glued: its shape is outside the merge's
-/// never-elide Euler inventory. Loud in the record, never a silent
-/// drop — and never a partial commit.
+/// One record, two subjects, told apart by `reason`: a merge GROUP
+/// that was NOT glued (its shape is outside the merge's never-elide
+/// Euler inventory — loud in the record, never a silent drop, never a
+/// partial commit), or a declared surface PAIR the door has no rung
+/// for — a legal declaration on a non-planar carrier
+/// ([`MergeCoplanarError::DeclaredCarrierUnsupported`]). A consumer
+/// that walks `faces` treats both alike: faces the door left as they
+/// were.
 ///
 /// **The scope statements below are the KERNEL's, not the type's.**
 /// Both fields are public and there is no private constructor, so
@@ -90,7 +96,10 @@ pub struct MergedGroup {
 /// mints carries no such promise and none is claimed for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
-    /// The group's faces (group order).
+    /// The faces the record is about: a group's faces in group
+    /// order, or every live face on either surface of a declared
+    /// pair in face-arena order. Never empty for a kernel-minted
+    /// record.
     pub faces: Vec<FaceKey>,
     /// The inventory refusal that stopped the glue, carried whole:
     /// the same [`MergeCoplanarError`] vocabulary the door refuses
@@ -112,7 +121,9 @@ pub struct MergeCoplanarOutcome {
     /// Groups left unmerged as outside the inventory, with the
     /// refusal that stopped each. Non-empty needs no declaration: a
     /// curved run that would close its chart's full period is
-    /// recorded here through either entry point.
+    /// recorded here through either entry point. Declared pairs on a
+    /// non-planar carrier are recorded here too, ahead of the group
+    /// records, and survive a call that found nothing to merge.
     pub skipped: Vec<SkippedMerge>,
     /// Faces whose surface is the placeholder
     /// ([`MergeKind::Placeholder`]), in face-arena order — named so a
@@ -392,8 +403,10 @@ pub enum MergeCoplanarError {
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or a non-plane surface (M4 PR 5) — a caller bug,
-    /// refused up front.
+    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// argument, refused up front. A pair on one non-planar kind is
+    /// NOT this: it is a legal declaration recorded as
+    /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
     InvalidDeclaration {
         /// The offending surface key.
         surface: SurfaceKey,
@@ -415,6 +428,33 @@ pub enum MergeCoplanarError {
         f1: FaceKey,
         /// The second face.
         f2: FaceKey,
+    },
+    /// A declared surface pair lies on one NON-PLANAR carrier kind.
+    /// The declaration is legal — the boolean's declarable inventory
+    /// admits it and it served the consuming op's classification —
+    /// but this door's declared-pair rung is planar and has no arm
+    /// for the kind, so the pair is left unmerged and RECORDED. Scope
+    /// is the pair: the kernel constructs this only as a
+    /// [`SkippedMerge::reason`], never as an `Err` of the door, and
+    /// it is an inventory statement, not an arena fault. Like
+    /// [`MergeCoplanarError::GroupNotClosed`], that is a fact about
+    /// where the kernel constructs it, not something the type
+    /// enforces. The record is keyed off the DECLARATION: it states
+    /// what this door did with the caller's argument, not what the
+    /// geometry admits — a pair whose surviving faces are a slit's
+    /// two sides is recorded the same as one a curved arm would glue.
+    /// A pair with no live face on either surface is not recorded at
+    /// all, so a record's `faces` is never empty.
+    DeclaredCarrierUnsupported {
+        /// The declared surface pair, as the caller passed it. Both
+        /// keys resolved when the door read them; a caller that
+        /// re-describes edges after this call may drop a surface the
+        /// pair names (a surface held only by an edge curve's
+        /// reference goes with that curve), so a consumer walks the
+        /// record's `faces`, not the pair, for what is live.
+        pair: (SurfaceKey, SurfaceKey),
+        /// The carrier kind both surfaces share.
+        kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline (zero or several positive windings) —
@@ -528,6 +568,13 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
                  orientations — unmergeable in a closed solid"
+            ),
+            Self::DeclaredCarrierUnsupported { pair, kind } => write!(
+                f,
+                "merge_coplanar_faces: declared pair {pair:?} lies on a {kind} carrier — \
+                 the declaration is legal and served the op, but this door's declared-pair \
+                 rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
+                kind = kind.name()
             ),
             Self::MergedFaceRoleAmbiguous { face } => write!(
                 f,
@@ -871,6 +918,7 @@ impl OpPlacement {
             | E::OrbitBroken { .. }
             | E::EmptyAnchorsCollide { .. }
             | E::Certification { .. }
+            | E::RebasedCarrier { .. }
             | E::DescriptionNotAdjacent { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
@@ -1021,18 +1069,24 @@ impl<T: Decide> Body<T> {
 
     /// [`Body::merge_coplanar_faces`] with declared coincident
     /// SURFACE pairs (M4 PR 5, F5): each pair's surfaces are declared
-    /// to describe one plane by recipe intent — they become
-    /// equivalent for the adjacency test (fragments inherit surface
-    /// keys, so every fragment of a declared face is covered),
-    /// verified at each meeting edge through `plane_eq`'s declared
-    /// rung (contradiction refuses typed). Same-source surfaces (N6)
-    /// glue with zero declarations — the retired bit rung's
-    /// replacement.
+    /// to describe one carrier by recipe intent. A PLANAR pair's
+    /// surfaces become equivalent for the adjacency test (fragments
+    /// inherit surface keys, so every fragment of a declared face is
+    /// covered), verified at each meeting edge through `plane_eq`'s
+    /// declared rung (contradiction refuses typed). Same-source
+    /// surfaces (N6) glue with zero declarations — the retired bit
+    /// rung's replacement.
     ///
     /// A declared pair whose surfaces never meet at an edge licenses
     /// nothing and is a no-op (the equivalence is consulted only
-    /// across shared edges); a pair whose keys do not resolve is a
-    /// typed refusal.
+    /// across shared edges); a pair whose keys do not resolve, or
+    /// whose surfaces are of two kinds, is a typed refusal. A pair on
+    /// one NON-PLANAR kind is a legal declaration this door has no
+    /// rung for: it is recorded in [`MergeCoplanarOutcome::skipped`]
+    /// as [`MergeCoplanarError::DeclaredCarrierUnsupported`] (the
+    /// declared-licensed regime's own rule — the declaration served
+    /// the calling op) and never refused, even when the call has
+    /// nothing else to merge.
     ///
     /// # Two failure regimes, one refusal vocabulary
     ///
@@ -1136,26 +1190,73 @@ impl<T: Decide> Body<T> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
-        // ---- Declared pairs: validate, then class the surfaces. ----
-        let planar = |body: &Self, k: SurfaceKey| -> Result<(), MergeCoplanarError> {
-            match body.get_surface(k) {
-                Some(Surface::Plane { .. }) => Ok(()),
-                Some(_) => Err(MergeCoplanarError::InvalidDeclaration {
-                    surface: k,
-                    what: "declared surface is not a plane",
-                }),
-                None => Err(MergeCoplanarError::InvalidDeclaration {
+        // ---- Declared pairs: validate, then class each by carrier kind. ----
+        //
+        // A key that does not resolve, or a pair of two kinds, is a
+        // torn argument and refuses. A planar pair joins the surface
+        // equivalence. A pair on one non-planar kind is a LEGAL
+        // declaration this door has no rung for: it is declined here
+        // and recorded below, never refused — the declaration served
+        // the calling op, and an inventory limit of this door is not
+        // the caller's error.
+        let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
+            self.get_surface(k)
+                .map(SurfaceKind::of)
+                .ok_or(MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                }),
-            }
+                })
         };
         let mut eq = DeclaredSurfaceEq::default();
+        let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
+        let mut declined_seen: std::collections::BTreeSet<(SurfaceKey, SurfaceKey)> =
+            std::collections::BTreeSet::new();
         for &(k1, k2) in declared {
-            planar(self, k1)?;
-            planar(self, k2)?;
-            eq.union(k1, k2);
+            let (kind1, kind2) = (kind_of(k1)?, kind_of(k2)?);
+            if kind1 != kind2 {
+                // Named: the second key, whose kind disagrees with the first's.
+                return Err(MergeCoplanarError::InvalidDeclaration {
+                    surface: k2,
+                    what: "declared surfaces are not one kind",
+                });
+            }
+            if kind1 == SurfaceKind::Plane {
+                eq.union(k1, k2);
+            } else if declined_seen.insert((k1, k2)) {
+                // One record per declared pair: a caller that lowers
+                // several face pairs to one surface pair hands the
+                // door copies, and a copy names nothing new.
+                declined.push(((k1, k2), kind1));
+            }
         }
+        // The declined pairs' records name every live face on either
+        // declared surface, read off the body the caller RECEIVES —
+        // `self` when nothing merges, the staged result otherwise —
+        // so a recorded face is never a dead key (a same-key run on
+        // one of the pair's surfaces can COMMIT beside the declined
+        // pair, absorbing a face the pre-surgery body still had;
+        // `curved_mergedoor::record_beside_a_committing_curved_run_names_only_live_faces`
+        // pins it). A pair with NO live face on either surface — a
+        // surface kept alive by an edge description after every face
+        // left it — gets no record: the declaration served nothing at
+        // this door, and a record naming nothing would be the silent
+        // shape (`curved_mergedoor::pair_with_no_live_faces_mints_no_record`).
+        let declined_records = |body: &Self| -> Vec<SkippedMerge> {
+            declined
+                .iter()
+                .filter_map(|&(pair, kind)| {
+                    let faces: Vec<FaceKey> = body
+                        .faces()
+                        .filter(|(_, face)| face.surface == pair.0 || face.surface == pair.1)
+                        .map(|(key, _)| key)
+                        .collect();
+                    (!faces.is_empty()).then_some(SkippedMerge {
+                        faces,
+                        reason: MergeCoplanarError::DeclaredCarrierUnsupported { pair, kind },
+                    })
+                })
+                .collect()
+        };
         let declared_ctx = if eq.is_empty() {
             None
         } else {
@@ -1206,6 +1307,11 @@ impl<T: Decide> Body<T> {
             }
         }
         if !any {
+            // Nothing to merge: the declined declared pairs still
+            // ship (they are a statement about the caller's argument,
+            // not about any merge), on the outcome whose placeholder
+            // census the initializer already took.
+            outcome.skipped = declined_records(self);
             return Ok(outcome);
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
@@ -1330,6 +1436,9 @@ impl<T: Decide> Body<T> {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
+        let mut skipped = declined_records(&work);
+        skipped.append(&mut outcome.skipped);
+        outcome.skipped = skipped;
         self.adopt(work);
         Ok(outcome)
     }
@@ -1584,14 +1693,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         declared: Option<&DeclaredCtx>,
     ) -> Result<Option<MergeRung>, MergeCoplanarError> {
-        let (Some((k1, sense1, sign1)), Some((k2, sense2, sign2))) = (
-            self.get_face(f1)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-            self.get_face(f2)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-        ) else {
+        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
             return Ok(None);
         };
+        let (k1, k2) = (face1.surface, face2.surface);
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return Ok(None);
         };
@@ -1600,7 +1705,7 @@ impl<T: Decide> Body<T> {
         // — both of which certify the SURFACE, not the face — may
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
-        let same_sense = sense1 == sense2;
+        let same_sense = face1.sense == face2.sense;
         // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
         // cosurface generalization): the same-key and same-source
         // tests never touch a numeric coordinate, so nothing about
@@ -1686,11 +1791,11 @@ impl<T: Decide> Body<T> {
             // pair on one plane lands there by construction.
             let p1 = PlaneDesc {
                 origin: o1,
-                normal: n1 * sign1,
+                normal: plane_outward_normal(face1, n1).vec(),
             };
             let p2 = PlaneDesc {
                 origin: o2,
-                normal: n2 * sign2,
+                normal: plane_outward_normal(face2, n2).vec(),
             };
             return match oriented_plane_eq(&p1, &p2, id, arm, band) {
                 Ok(PlaneRelation::SameOriented) => Ok(Some(MergeRung::DeclaredPair)),
@@ -2195,8 +2300,9 @@ impl<T: Decide> Body<T> {
     /// from an area and a perimeter that are both nothing.
     ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
-    /// multiplies the chart normal by `sense_sign` exactly once, and
-    /// the Newell sum here is left alone. That sum is built from the
+    /// folds the sense into the chart normal exactly once, through
+    /// `face_normal`'s door, and the Newell sum here is left alone.
+    /// That sum is built from the
     /// loop's STORED cycle order, which `revert` reverses in the same
     /// breath as it flips the sense bit, so it already changes sign on
     /// its own — threading the sense onto both factors would cancel
@@ -2371,7 +2477,7 @@ impl<T: Decide> Body<T> {
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
         let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => *normal * survivor.sense_sign::<T>(),
+            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
             // The survivor is a plane at every call: `rings_made` is
             // non-empty only under a planar contract, since the curved
             // arm refuses `PeriodClosure` before any `kemr`. This arm
@@ -2499,7 +2605,7 @@ mod tests {
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
         let mut keys = vec![key];
         for f in &faces[1..] {
-            let plane = body.surfaces.insert(flat_plane());
+            let plane = body.add_surface(flat_plane());
             body.faces.get_mut(*f).expect("live").surface = plane;
             keys.push(plane);
         }
@@ -3171,12 +3277,12 @@ mod tests {
         // Both surfaces are set here: the fixture's faces carry the
         // mvfs placeholder, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
-        let plane = body.surfaces.insert(Surface::Plane {
+        let plane = body.add_surface(Surface::Plane {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         });
-        let cylinder = body.surfaces.insert(Surface::Cylinder {
+        let cylinder = body.add_surface(Surface::Cylinder {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -3209,7 +3315,7 @@ mod tests {
 
         // The placeholder is the third kind, and a group holding one
         // beside a described face of EITHER kind has no contract.
-        let placeholder = body.surfaces.insert(Surface::nurbs_placeholder());
+        let placeholder = body.add_surface(Surface::nurbs_placeholder());
         body.faces
             .get_mut(other)
             .expect("the pair's second face is live")

@@ -55,7 +55,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Why a sole bracket bound is sound at this door — the column a grep
 /// cannot compute, and the reason this file is a roster rather than a
@@ -400,21 +400,6 @@ const ROSTER: &[Site] = &[
     },
 ];
 
-/// The repository root: this crate's directory, two levels up. The
-/// both-ways resolution is [`test_utils::source::crate_dir`]'s, shared.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
-}
-
 /// Is this bound spelled as the bracket door alone?
 fn is_sole_bracket(bound: &str) -> bool {
     let b: String = bound.split_whitespace().collect();
@@ -623,7 +608,7 @@ fn the_roster_names_each_door_once() {
 
 #[test]
 fn every_sole_bracket_bound_door_is_in_the_roster() {
-    let root = repo_root();
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
     let found = walk(&root);
     let listed: BTreeSet<(String, String)> = ROSTER
         .iter()

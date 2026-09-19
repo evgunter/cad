@@ -535,11 +535,12 @@ fn a_collinear_generator_vertex_frustum_shells_through_the_generator_arm() {
 /// through `shell` the thin solid is tier-3 valid at
 /// `4/3·π(r³ − (r−t)³) = 0.5974262029576595` to `1e-12` with the same
 /// vertices at the same images, and tessellates watertight. What sits
-/// between the two is the void
-/// door's `Transfers` posture: the reverted cavity's stored pcurve
-/// rows arrive on the twins with a one-period azimuth wrap mid-chain
-/// (`shell9_probe`, the sphere rows), and the verb's closing mint
-/// re-derives them before the validate.
+/// between the two is the void door's `Transfers` posture: the
+/// reverted cavity's stored pcurve rows arrive on the twins verbatim
+/// and continuous — the reversal moves each loop's anchor with its
+/// direction, so the grafted body is tier-3 valid on the carried rows
+/// (`shell9_probe`, the sphere rows) — and the verb's closing mint
+/// re-derives them all the same, the `Transfers` row's contract.
 #[test]
 fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (r, t) = (1.0, 0.05);

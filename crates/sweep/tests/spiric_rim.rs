@@ -485,7 +485,7 @@ fn the_elbow_stops_at_its_seam_reauthor() {
 /// no public door visits the wall before the cap; the closed-form
 /// parse's own answer for the wall is the row below. The spec named
 /// the wall's parse first; the run shows the cap. Same door as the
-/// lune's (`NotIsoRectangle { "props_band_coplanar" }`), different
+/// lune's (`NotIsoRectangle { "props_meridian_great" }`), different
 /// premise.
 #[test]
 fn the_sectioned_vessel_stops_at_the_props_door() {

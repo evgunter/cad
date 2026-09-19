@@ -28,15 +28,19 @@
 //! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
 //!
-//! Three constants are held composed elsewhere and are not duplicated
+//! Four constants are held composed elsewhere and are not duplicated
 //! here — duplicating them would buy a second copy of the same
 //! evidence at full fixture cost:
 //! `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`
 //! (`FILLET3_SEAM_VERTEX_RECOURSE`),
 //! `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`
-//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`) and
+//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`),
 //! `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
-//! (`FILLET3_RING_RECOURSE`).
+//! (`FILLET3_RING_RECOURSE`) and
+//! `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`
+//! (`FILLET3_CONTACT_RECOURSE`, whose fixtures are derived from the
+//! resolved band; the difference-branch site's own row is
+//! `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`).
 //!
 //! **A recourse constant is not the only place a recourse lives.** Two
 //! refusals map to `Recourse::None` in the recourse table — which
@@ -604,7 +608,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 /// routes as `Recourse::None` — and still says something.
 ///
 /// Reads [`ALL_RECOURSES`], the crate's one home for that list, rather
-/// than a copy: these rows' whole content is that NONE of the fifteen
+/// than a copy: these rows' whole content is that NONE of the list
 /// appears, so a copy that fell behind would weaken them silently, and
 /// the copy this suite used to keep is exactly the failure the home's
 /// own doc records.

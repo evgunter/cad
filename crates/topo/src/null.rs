@@ -183,9 +183,19 @@ impl<T: geom_core::Decide> Body<T> {
     /// null-edge pairs (M3 PRs 2 and 4). Site semantics — fan split,
     /// strut (`he1 == he2`, ch. 15's dangling null edge), lone — and
     /// the surgery are exactly [`Body::mev`]'s; only the geometry lane
-    /// differs (no certification gate: there is no carrier to certify,
-    /// by type — the ratified F9 shape, module docs). Tier 1 accepts
-    /// the result; tier 2 refuses it at rest
+    /// differs, and BOTH of `mev`'s geometry gates are skipped rather
+    /// than passed:
+    ///
+    /// - the new edge's own certification, because there is no carrier
+    ///   to certify, by type (the ratified F9 shape, module docs);
+    /// - the re-basing gate over a fan site's moved run
+    ///   ([`Body::certify_rebased_run`]), because the new vertex's
+    ///   point is the old one's bitwise, so no re-based edge's
+    ///   endpoint moves and every certificate is the one it had. A
+    ///   structural coincidence, not a comparison — which is why this
+    ///   door needs no `Tol`.
+    ///
+    /// Tier 1 accepts the result; tier 2 refuses it at rest
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to

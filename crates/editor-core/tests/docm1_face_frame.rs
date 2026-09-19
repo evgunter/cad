@@ -6,7 +6,8 @@
 //! The kernel half of the read doors is pinned in `topo`'s own suite;
 //! what is pinned HERE is everything a document exercises — the
 //! `StableName` door answers exactly what the arena-key door answers
-//! on the same face, the pose's sense matches the stored flag on
+//! on the same face and on the same edge, the pose's sense matches the
+//! stored flag on
 //! EVERY face of every corpus body, and `Datum::FaceFrame` moves with
 //! its face, turns right-handed about the OUTWARD normal on both
 //! senses, refuses typed through the N5 ladder and the carrier tag,
@@ -23,12 +24,13 @@ use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
     EvalOptions, Expr, InterrogateError, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, ResolveError, RoleSeg, SlotId, StableName, ValuePayload,
-    all_edges, all_faces, apply, edge_frame, evaluate, face_carrier_kind, face_frame,
+    all_edges, all_faces, apply, edge_carrier_kind, edge_frame, evaluate, face_carrier_kind,
+    face_frame,
 };
 use geom_brep::SurfaceKind;
-use geom_core::{Tol, Vec3};
+use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
-use topo::{DatumValue, UnitVec3};
+use topo::{CurveKind, DatumValue};
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
@@ -253,6 +255,115 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
     }
 }
 
+/// The kernel door's answer for an EDGE `name`, reached the way the
+/// name table would — the arena key stays inside this function.
+fn kernel_edge_kind(
+    ev: &editor_core::Evaluation<f64>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> CurveKind {
+    let Some(NodeResult::Ok(v)) = ev.nodes.get(&node) else {
+        panic!("the node evaluated");
+    };
+    let Some(Entry::Unique(e)) = v.name_table.lookup(name) else {
+        panic!("a unique edge");
+    };
+    let ValuePayload::Body(body) = &v.payload else {
+        panic!("a body value");
+    };
+    let EntityKey::Edge(k) = e.key else {
+        panic!("an edge key");
+    };
+    readback::edge_carrier_kind(body, k).expect("a live edge")
+}
+
+/// **The edge-side kind door answers a named edge and walks the same
+/// ladder.** Every edge of a box is straight, and the kernel door
+/// asked with the arena key says what the name door says; a FACE name
+/// through the edge door is `WrongKind` naming both kinds, and a name
+/// the table lacks refuses at the rung `edge_frame` refuses at.
+#[test]
+fn edge_carrier_kind_answers_a_named_edge_and_walks_the_edge_frame_ladder() {
+    let (doc, cube) = box_doc();
+    let ev = eval(&doc);
+    let edges = all_edges(&ev, cube);
+    assert!(!edges.is_empty(), "edges to read");
+    for name in &edges {
+        assert_eq!(
+            edge_carrier_kind(&ev, cube, name),
+            Ok(CurveKind::Line),
+            "a box is all straight edges"
+        );
+        assert_eq!(
+            edge_carrier_kind(&ev, cube, name),
+            Ok(kernel_edge_kind(&ev, cube, name)),
+            "twin agrees"
+        );
+    }
+
+    let face = all_faces(&ev, cube).into_iter().next().expect("a box face");
+    assert_eq!(
+        edge_carrier_kind(&ev, cube, &face),
+        Err(InterrogateError::WrongKind {
+            wanted: EntityKind::Edge,
+            found: EntityKind::Face,
+        })
+    );
+
+    let (other_doc, other_cube) = washer_doc();
+    let other_ev = eval(&other_doc);
+    let stale = all_edges(&other_ev, other_cube)
+        .into_iter()
+        .next()
+        .expect("a washer edge");
+    assert_eq!(
+        edge_carrier_kind(&ev, cube, &stale),
+        Err(InterrogateError::NoSuchName)
+    );
+    assert_eq!(
+        edge_carrier_kind(&ev, cube, &stale).map_err(|e| e.to_string()),
+        edge_frame(&ev, cube, &stale)
+            .map(|_| CurveKind::Line)
+            .map_err(|e| e.to_string()),
+        "same rung as edge_frame"
+    );
+}
+
+/// **The door answers a CURVED carrier too, so the read is a read.**
+///
+/// The box fixture the row above uses is all straight edges, and the
+/// arena-key door it compares against answers `Line` on every one of
+/// them — so both of that row's positive assertions hold of a door
+/// that returns `CurveKind::Line` and reads nothing at all. The washer
+/// is a revolved rectangle: its edges include circles, and a door that
+/// does not read cannot say so.
+#[test]
+fn edge_carrier_kind_answers_a_curved_carrier_not_only_the_box_lines() {
+    let (doc, washer) = washer_doc();
+    let ev = eval(&doc);
+    let names = all_edges(&ev, washer);
+    assert!(!names.is_empty(), "edges to read");
+
+    let mut kinds: Vec<CurveKind> = names
+        .iter()
+        .map(|name| edge_carrier_kind(&ev, washer, name).expect("a live named edge"))
+        .collect();
+    kinds.sort_unstable();
+    kinds.dedup();
+    assert!(
+        kinds.contains(&CurveKind::Circle),
+        "a revolved rectangle has circular edges; got {kinds:?}"
+    );
+
+    for name in &names {
+        assert_eq!(
+            edge_carrier_kind(&ev, washer, name),
+            Ok(kernel_edge_kind(&ev, washer, name)),
+            "twin agrees off the all-line fixture too"
+        );
+    }
+}
+
 /// The leading `//!` block of a Rust file, read through the shared
 /// reader's PROSE view.
 ///
@@ -311,15 +422,15 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) =
+    let ValuePayload::Datum(DatumValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");
     };
     (
-        *origin - geom_core::Point3::origin(),
-        UnitVec3::get(*u),
-        UnitVec3::get(*v),
+        f.origin() - geom_core::Point3::origin(),
+        UnitVec3::get(f.u()),
+        UnitVec3::get(f.v()),
     )
 }
 
@@ -469,7 +580,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     let (doc, frame) = fixture::insert(doc, face_frame_node(cube, top_cap(cube), theta));
     let ev2 = eval(&doc);
     let pose = face_frame(&ev, cube, &top_cap(cube)).expect("the top cap");
-    let n = if pose.sense { pose.axis } else { -pose.axis };
+    let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
     let u_ref = pose.u_ref.expect("a plane fixes u_ref");
     let expected_u = u_ref * theta.cos() + n.cross(u_ref) * theta.sin();
     let (_, u, v) = frame_of(&ev2, frame);

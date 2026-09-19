@@ -5111,3 +5111,68 @@ conflicts between docs PRs landing minutes apart and one placeholder
 left in a pushed log entry, both caught the same hour. The check-in
 routine stays armed at a long interval while anything is parked on
 another program.
+
+## Announced seam from TOPO (2026-09-14): the edge-side carrier-kind read at the façade
+
+TOPO's `edge-carrier-kind-has-no-readback-door` (branch
+`topo/edge-carrier-kind-readback-door`) adds
+`topo::readback::edge_carrier_kind` — the one reading of an edge's
+stored carrier tag, `query::edge_carrier_kind` flattening it — and the
+document twin `editor_core::names::interrogate::edge_carrier_kind`.
+The seam on LIB's ground is one name on two curated lists:
+`crates/pncad/src/select.rs` and `crates/pncad/src/prelude.rs` carry
+`edge_carrier_kind` where `face_carrier_kind` already sits, and
+`select.rs`'s rule-3 paragraph names the edge tag beside the face one.
+Nothing else in `pncad` moves.
+
+The Python BINDING is not built: `Evaluation.face_carrier_kind`
+(`crates/pncad-py/src/py/value.rs`) has no edge twin, and building one
+is LIB's call, not this unit's. Filed as
+`work/lib/python-evaluation-has-no-edge-carrier-kind-twin.md` with what
+the binding would be.
+
+What the new façade name DID oblige is the census entry that names the
+debt: `crates/pncad-py/tests/test_binding_census.py` refuses a curated
+name that is neither bound nor listed, so `edge_carrier_kind` is listed
+as a `gap:` under a new family `B-EDGE-KIND`, chartered there with what
+closing it delivers and pointing at the row above. That is the only
+edit this unit makes under `crates/pncad-py/`. Signed (TOPO implementer
+lane).
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the one line below is yours.
+
+**`crates/pncad-py/src/product_memo.rs` (LIB's), one line.**
+
+`checks_report`'s match on the memoized gather:
+`Err(d::ProductError::NoBodyRoots) => { … }` becomes
+`Err(ref source) if source.kind().means_no_body() => { … }`. The
+arm's body, the `Subject::NoBodyRoots` it builds and the fall-through
+`Subject::refused` arm are unchanged. This site was NOT in the row's
+brief — WIRE's sweep found it, and leaving the fourth consumer
+re-deriving the partition while the other three cite it is the defect
+the unit closes.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).

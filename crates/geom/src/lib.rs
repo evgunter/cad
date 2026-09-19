@@ -148,7 +148,7 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate, Surface,
-    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive,
-    SurfaceSpec, SurfaceWindow,
+    ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface, OffsetCertificate,
+    Surface, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
 };

@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Margin, Sign, Tol};
+use geom_core::{Band, Decide, InfSpeed, Margin, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -210,13 +210,13 @@ impl<T: Decide> Body<T> {
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();
         let scale = match *curve.carrier() {
-            geom::Curve3::Line { .. } => T::one(),
-            geom::Curve3::Circle { radius, .. } => radius,
+            geom::Curve3::Line { .. } => InfSpeed::new(T::one()),
+            geom::Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // The conic lane (M5 PR 5, C12.3): metered at the MINOR
             // semi-axis — the conservative meter (|dP/dθ| ≥ minor), so
             // a sub-span this gate accepts as definitely interior is
             // truly clear of the endpoints in meters.
-            geom::Curve3::Ellipse { minor, .. } => minor,
+            geom::Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor

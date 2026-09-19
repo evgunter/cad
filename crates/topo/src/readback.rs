@@ -18,8 +18,10 @@
 //!    of the carrier's kind tag against `Plane`, the same exact read
 //!    `select_where`'s surface-kind filter makes, and
 //!    [`face_carrier_kind`] hands the tag out for exactly that
-//!    comparison. Nothing here decides anything: every answer is
-//!    stored data, copied out.
+//!    comparison — as [`edge_carrier_kind`] does for an edge's
+//!    certified carrier, one door per stored tag on either side.
+//!    Nothing here decides anything: every answer is stored data,
+//!    copied out.
 //! 2. **Definitional re-read carries no pad.** The produced surface IS
 //!    the definition (DESIGN Q8) — reading a plane's stored origin and
 //!    normal back is a re-read of authored data, not a measurement, so
@@ -56,6 +58,7 @@ use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
+use crate::query::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
 /// own reference directions, verbatim.
@@ -80,8 +83,9 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
 ///   separate fact about the face, and folding it in silently would
 ///   make two different questions share one answer. That second fact
 ///   travels BESIDE the axis as [`Pose::sense`], so a reader that
-///   wants the outward normal forms it as `sense · axis` in the open
-///   rather than receiving it pre-folded.
+///   wants the outward normal mints it through
+///   `geom_brep::OutwardNormal::from_chart(axis, sense)` rather than
+///   receiving it pre-folded.
 /// - `u_ref` is the in-frame reference direction where the carrier's
 ///   convention fixes one (the seam of every closed chart, θ = 0 of a
 ///   circle, an ellipse's semi-major direction) — and a spiric's
@@ -103,8 +107,9 @@ pub struct Pose<T: Real> {
     /// ([`crate::entity::Face::sense`]): `true` when the face's outward
     /// normal is `+axis`, `false` when it is `-axis`. This is the
     /// second fact [`Pose::axis`] deliberately does not fold in — the
-    /// axis stays the chart's, and the outward normal is `sense ·
-    /// axis`, formed by the reader.
+    /// axis stays the chart's, and the reader mints the outward normal
+    /// through `geom_brep::OutwardNormal::from_chart(axis, sense)`, the
+    /// one constructor that takes the bit.
     ///
     /// An EDGE has no orientation sense, so [`edge_pose`] carries
     /// `true` here — the sign that leaves `axis` exactly as the chart
@@ -219,6 +224,56 @@ impl core::fmt::Display for ReadbackError {
 
 impl std::error::Error for ReadbackError {}
 
+/// **Why the walk to an edge's certified carrier came back empty** —
+/// [`edge_carrier_ref`]'s refusal, with one arm per thing that can be
+/// absent rather than one per door that asked.
+///
+/// A stale edge key and a dangling curve key are both [`DanglingRef`]s
+/// and say which; scaffolding that certifies no carrier at all is a
+/// third fact, and the enum keeps it apart because a reader that
+/// renames these (see [`crate::query::rim_of`]) renames them
+/// differently. [`ReadbackError`] is the read-back door's own
+/// spelling of the same three, reached through the `From` below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarrierAbsence {
+    /// A key on the way does not resolve: the edge itself, or the
+    /// curve entry a live edge names.
+    Dangling(DanglingRef),
+    /// The curve entry resolves and certifies nothing — M3 null-edge
+    /// scaffolding, which has no carrier to read.
+    NoCarrier,
+}
+
+impl From<CarrierAbsence> for ReadbackError {
+    fn from(absence: CarrierAbsence) -> Self {
+        match absence {
+            CarrierAbsence::Dangling(what) => Self::Dangling { what },
+            CarrierAbsence::NoCarrier => Self::NoCarrier,
+        }
+    }
+}
+
+/// **The walk to a face's carrier surface** — face, then the surface
+/// its record names — with the face's own orientation sense beside
+/// it, and the two refusals that walk can produce, in one body.
+///
+/// What it guarantees is exactly this and no more: the two face doors
+/// make ONE walk to a face's geometry between them, so WHICH lookup
+/// came back empty is decided in one place rather than twice. It is
+/// the face-side twin of [`edge_carrier_ref`].
+fn carrier_surface<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<(&Surface<T>, bool), ReadbackError> {
+    let f = body.get_face(face).ok_or(ReadbackError::Dangling {
+        what: DanglingRef::Entity(EntityId::Face(face)),
+    })?;
+    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
+        what: DanglingRef::Geometry(GeomRef::Surface(f.surface)),
+    })?;
+    Ok((surface, f.sense))
+}
+
 /// **A face's carrier frame** — the stored plane/axis data of the
 /// surface the face is a region of, copied out.
 ///
@@ -229,7 +284,8 @@ impl std::error::Error for ReadbackError {}
 ///
 /// The face's orientation sense comes back BESIDE the frame
 /// ([`Pose::sense`]): `axis` stays the chart's direction, and the
-/// outward normal is `sense · axis`, formed by the caller.
+/// caller mints the outward normal through
+/// `geom_brep::OutwardNormal::from_chart(axis, sense)`.
 ///
 /// # Errors
 ///
@@ -273,17 +329,12 @@ impl std::error::Error for ReadbackError {}
 /// assert!(pose.sense);
 /// ```
 pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, ReadbackError> {
-    let f = body.get_face(face).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Face(face)),
-    })?;
-    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Geometry(GeomRef::Surface(f.surface)),
-    })?;
+    let (surface, sense) = carrier_surface(body, face)?;
     let frame = |origin: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>| Pose {
         origin,
         axis,
         u_ref: Some(u_ref),
-        sense: f.sense,
+        sense,
     };
     match surface {
         Surface::Plane {
@@ -333,8 +384,10 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// is `face_carrier_kind(..)? == SurfaceKind::Plane`, and no number
 /// is consulted on the way. The total flattening
 /// [`crate::query::face_surface_kind`] reads through this door and
-/// answers `None` where it refuses typed; the predicate seat wants an honest
-/// NO, a read-back wants to know WHICH lookup came back empty.
+/// answers `None` where it refuses typed; the predicate seat wants an
+/// honest NO, a read-back wants to know WHICH lookup came back empty.
+/// That division of labour is the same one on the edge side
+/// ([`edge_carrier_kind`] and its seat), and this is where it is said.
 ///
 /// # Errors
 ///
@@ -366,12 +419,7 @@ pub fn face_carrier_kind<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<SurfaceKind, ReadbackError> {
-    let f = body.get_face(face).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Face(face)),
-    })?;
-    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Geometry(GeomRef::Surface(f.surface)),
-    })?;
+    let (surface, _sense) = carrier_surface(body, face)?;
     Ok(SurfaceKind::of(surface))
 }
 
@@ -423,6 +471,89 @@ pub fn vertex_point_ref<T: Real>(
         .ok_or(DanglingRef::Geometry(GeomRef::Point(v.point)))
 }
 
+/// **The walk to an edge's certified carrier** — edge, then its
+/// curve-arena entry, then the carrier the entry certifies — with the
+/// refusal left as the absence itself, for callers whose own error
+/// vocabulary names these three misses differently
+/// ([`vertex_point_ref`]'s shape, one entity kind over).
+///
+/// What it guarantees is exactly this and no more: every reader of an
+/// edge's carrier in this crate can make ONE walk, so WHICH lookup
+/// came back empty is decided in one place rather than once per
+/// reader. [`edge_carrier_kind`] and [`edge_pose`] read through it,
+/// and so does [`crate::query::rim_of`], which renames the misses in
+/// [`crate::query::RimError`]'s vocabulary.
+///
+/// # Errors
+///
+/// The [`CarrierAbsence`] naming whichever of the three lookups —
+/// edge, its curve entry, then that entry's certified carrier — came
+/// back empty.
+pub fn edge_carrier_ref<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<&Curve3<T>, CarrierAbsence> {
+    let e = body
+        .get_edge(edge)
+        .ok_or(CarrierAbsence::Dangling(DanglingRef::Entity(
+            EntityId::Edge(edge),
+        )))?;
+    let geom = body
+        .get_curve_geom(e.curve)
+        .ok_or(CarrierAbsence::Dangling(DanglingRef::Geometry(
+            GeomRef::Curve(e.curve),
+        )))?;
+    Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
+}
+
+/// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
+/// edge's certified carrier IS, copied out.
+///
+/// The edge-side twin of [`face_carrier_kind`], and a tag read rather
+/// than a verdict (rule 1) for the same reason: the answer is which
+/// closed variant the stored carrier is, and "is this edge straight"
+/// is `edge_carrier_kind(..)? == CurveKind::Line`, with no number
+/// consulted on the way. The total flattening
+/// [`crate::query::edge_carrier_kind`] reads through this door and
+/// answers `None` where it refuses typed, for the reason
+/// [`face_carrier_kind`] states once for both pairs.
+///
+/// It answers where [`edge_pose`] cannot: a NURBS carrier fixes no
+/// frame (rule 3) and has a kind all the same, which is exactly what
+/// the model stores about it.
+///
+/// # Errors
+///
+/// [`ReadbackError::Dangling`] for a stale edge or curve key, and
+/// [`ReadbackError::NoCarrier`] for M3 null-edge scaffolding — the
+/// only refusals: every certified carrier, NURBS included, has a
+/// kind, so [`ReadbackError::NoCanonicalFrame`] is not one of them.
+///
+/// ```
+/// use geom_core::{Point3, Tol};
+/// use topo::CurveKind;
+/// use topo::readback::edge_carrier_kind;
+/// use topo::{Body, MevSite};
+///
+/// let mut body = Body::<f64>::new();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seg = body
+///     .mev_line(
+///         MevSite::Lone { r#loop: seed.r#loop },
+///         Point3::new(1.0, 0.0, 0.0),
+///         Tol::witness(),
+///     )
+///     .expect("a straight strut off the seed vertex");
+///
+/// assert_eq!(edge_carrier_kind(&body, seg.edge), Ok(CurveKind::Line));
+/// ```
+pub fn edge_carrier_kind<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<CurveKind, ReadbackError> {
+    Ok(CurveKind::of(edge_carrier_ref(body, edge)?))
+}
+
 /// **An edge's carrier frame** — the certified carrier's own stored
 /// frame, copied out.
 ///
@@ -437,21 +568,18 @@ pub fn vertex_point_ref<T: Real>(
 /// normal — the six fields ARE its canonical frame, and a reader that
 /// wants a point ON the curve evaluates the carrier.
 ///
+/// The frame is the answer, never a verdict about what KIND of frame
+/// it is — that kind is its own read, [`edge_carrier_kind`], which
+/// walks to the same certified carrier and still answers where this
+/// door has no frame to report.
+///
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale edge or curve key;
 /// [`ReadbackError::NoCarrier`] for null-edge scaffolding;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
-    let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Edge(edge)),
-    })?;
-    let geom = body
-        .get_curve_geom(e.curve)
-        .ok_or(ReadbackError::Dangling {
-            what: DanglingRef::Geometry(GeomRef::Curve(e.curve)),
-        })?;
-    match geom.certified().ok_or(ReadbackError::NoCarrier)?.carrier() {
+    match edge_carrier_ref(body, edge)? {
         Curve3::Line { origin, dir } => Ok(Pose {
             origin: *origin,
             axis: *dir,
@@ -652,11 +780,15 @@ pub fn euler_counts<T: Real>(body: &Body<T>) -> EulerCounts {
 mod tests {
     use geom_core::{Point3, Tol};
 
-    use super::{EulerCounts, EulerParityError, euler_counts};
+    use super::{
+        CarrierAbsence, DanglingRef, EulerCounts, EulerParityError, ReadbackError,
+        edge_carrier_kind, edge_carrier_ref, edge_pose, euler_counts,
+    };
     use crate::body::Body;
-    use crate::entity::Vertex;
+    use crate::entity::{GeomRef, Vertex};
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{ops_cube, ops_genus2, ops_holed_box, prov};
+    use crate::geometry::CurveKey;
     use crate::validate::validate;
 
     #[test]
@@ -841,5 +973,42 @@ mod tests {
         assert_eq!(refusal, EulerParityError { counts });
         let text = refusal.to_string();
         assert!(text.contains("v=9 e=12 f=6 r=0 s=1"), "{text}");
+    }
+
+    /// **A live edge whose curve key does not resolve refuses
+    /// `Dangling { Geometry(Curve) }`, at both edge doors and the
+    /// seat** — the third way the shared walk can come back empty, and
+    /// the one no public door can reach.
+    ///
+    /// It is rowed HERE, beside `torn_store_refuses_typed`, for the
+    /// same reason that one is: minting the state needs a crate-private
+    /// arena writer (`get_edge_mut`), so a `tests/` row could not build
+    /// it. What it pins is that the two doors refuse it identically —
+    /// the one walk — and that the flattening still answers an honest
+    /// `None`.
+    #[test]
+    fn a_live_edge_with_a_torn_curve_key_refuses_dangling_geometry_on_both_doors() {
+        let mut body = ops_cube(Tol::witness()).body;
+        let edge = body.edges().next().expect("a cube has edges").0;
+        let torn = CurveKey::default();
+        body.get_edge_mut(edge).expect("a live edge").curve = torn;
+
+        let want = ReadbackError::Dangling {
+            what: DanglingRef::Geometry(GeomRef::Curve(torn)),
+        };
+        assert_eq!(edge_carrier_kind(&body, edge), Err(want));
+        assert_eq!(
+            edge_pose(&body, edge).err(),
+            Some(want),
+            "one walk, one refusal"
+        );
+        assert_eq!(
+            edge_carrier_ref(&body, edge).err(),
+            Some(CarrierAbsence::Dangling(DanglingRef::Geometry(
+                GeomRef::Curve(torn)
+            ))),
+            "the walk's own vocabulary, before either door renames it"
+        );
+        assert_eq!(crate::query::edge_carrier_kind(&body, edge), None);
     }
 }

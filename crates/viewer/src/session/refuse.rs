@@ -18,7 +18,7 @@ use pncad::document::{
 use pncad::workspace::WorkspaceError;
 
 use crate::combine;
-use crate::display::DisplayFault;
+use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
 
@@ -202,13 +202,14 @@ pub enum Refusal {
     /// one being dragged.
     ///
     /// **Separate from [`Refusal::GestureInFlight`] because it answers
-    /// a different question.** That one is the table's — whether an
-    /// operation is available at all while a drag is open
-    /// ([`super::SessionOp::permitted_during_value_gesture`]) — and
-    /// the driving operations are all available. This one is about
-    /// this operation's own payload against this session's own
-    /// gesture, and folding the two into one refusal would make the
-    /// table's answer unreadable from the outcome.
+    /// a different question.** That one says a drag is open at all —
+    /// either because the operation is unavailable while one is
+    /// ([`super::SessionOp::permitted_during_value_gesture`]) or
+    /// because it would open a second ([`crate::g1::Slot::begin`]) —
+    /// and the driving operations are neither. This one is about this
+    /// operation's own payload against this session's own gesture, and
+    /// folding the two into one refusal would make the table's answer
+    /// unreadable from the outcome.
     ///
     /// It carries no payload and ranks with the bookkeeping refusals
     /// for one reason: it arrives in a batch behind the
@@ -299,7 +300,7 @@ impl Refusal {
             // twins,
             // and the substantive ones rank with the real failures,
             // because "this instance is mate-constrained" is a
-            // decision about what the user tried. A ninth
+            // decision about what the user tried. A fifth
             // `DisplayFault` reds here until its rank is chosen —
             // which is the obligation every other arm on this table
             // gets from `Refusal`'s own variants. `Edit` and
@@ -307,15 +308,23 @@ impl Refusal {
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
             // differently.
+            //
+            // The admission family is walked arm by arm for the same
+            // reason and not folded into one `Admission(_)`: that
+            // spelling would be the default this arm exists to
+            // refuse, one level further down, and a fifth admission
+            // fault would take rank 1 unchosen.
             Self::Display(fault) => match fault {
                 DisplayFault::NoFreeMove
                 | DisplayFault::FreeMoveInFlight
                 | DisplayFault::WrongFreeMove => 2,
-                DisplayFault::NoSuchNode { .. }
-                | DisplayFault::NotAnInstance { .. }
-                | DisplayFault::MateConstrained { .. }
-                | DisplayFault::NonRigidFrame { .. }
-                | DisplayFault::FusedGeometry { .. } => 1,
+                DisplayFault::NonRigidFrame { .. } => 1,
+                DisplayFault::Admission(fault) => match fault {
+                    AdmissionFault::NoSuchNode { .. }
+                    | AdmissionFault::NotAnInstance { .. }
+                    | AdmissionFault::MateConstrained { .. }
+                    | AdmissionFault::FusedGeometry { .. } => 1,
+                },
             },
             Self::NoGesture | Self::GestureInFlight | Self::WrongGesture | Self::NothingToDo => 2,
         }

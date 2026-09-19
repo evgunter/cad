@@ -270,7 +270,11 @@ bindings crate).
   **RATIFIED (Ev 👍 on #362's sign-off comment,
   2026-08-10, with the resonance amendment below folded; M8
   orchestrator's kernel-side concurrence on (b) recorded on the
-  thread).** The proposal as ratified: The 2026-08-10 substrate survey pins the walls:
+  thread).** The proposal as ratified: The 2026-08-10 substrate survey pinned the
+  walls AS THEY STOOD THEN (a dated reading, not a description of the
+  tree today — the start-frame half of it has since moved: every scene
+  and every sweep fixture now calls
+  `geom_core::linalg::frame::path_start_frame`):
   `sweep_body` consumes ONE `NurbsCurve3<f64>`; every scene
   hand-samples its path (17-point S-curve, interpolate degree 3)
   and hand-rolls the start frame (Gram–Schmidt with a
@@ -302,7 +306,8 @@ bindings crate).
   RATIFIED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
   path-start frame with the degenerate-axis policy stated, written
   once), consumed by `SketchPlane::from_frame`
-  and loft/sweep placements as plain `Affine3` values;
+  and loft/sweep placements — the aiming pair through the
+  `OrthoFrame` witness and out as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
   **Amendment (Ev, #362, 2026-08-10): resonance with the PATHS

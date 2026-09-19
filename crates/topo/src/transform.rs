@@ -300,8 +300,12 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// The tripwire for any future extension: an orientation-REVERSING
 /// map (a mirror, `det = −1`) would carry the chart normal to the
 /// NEGATION of the transformed chart normal, and would therefore have
-/// to flip `sense` on every face. `det = +1` is enforced upstream, so
-/// there is no such branch to write here today.
+/// to flip `sense` on every face — and, because it reverses every
+/// loop's cycle, move every loop's `Cycle::first` to its source
+/// predecessor so a periodic chart's wrap stays at the closure
+/// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
+/// [`crate::Body::revert`] is the map that does both). `det = +1` is
+/// enforced upstream, so there is no such branch to write here today.
 fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     s: &Surface<T>,

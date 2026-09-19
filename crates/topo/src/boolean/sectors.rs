@@ -524,7 +524,7 @@ pub(super) struct PairRecord {
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
-/// both together — a second `sense_sign` factor here would cancel
+/// both together — a second sense fold here would cancel
 /// [`sector_face`]'s and turn every membership test inside out.
 pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,

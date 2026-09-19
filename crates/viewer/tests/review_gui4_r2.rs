@@ -39,7 +39,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::AdmissionFault;
 use viewer::matetool::{MateChoice, MateTool, admitted_classes};
 use viewer::session::{DocSession, FaceSelection, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -527,7 +527,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

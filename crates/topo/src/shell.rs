@@ -149,8 +149,7 @@
 //! plane faces' rows re-stated with their frames, the curved faces'
 //! untouched), the graft copies them verbatim onto fresh keys, and
 //! that row's contract is that the producer's final mint re-derives
-//! every row of the merged body — which is also what re-parks a
-//! periodic chart's loop wrap where the reversed walk needs it. This verb is a
+//! every row of the merged body. This verb is a
 //! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
 //! assembled body, before `validate_geometric` — the verb's own
 //! whole-body pass, and it stays whole-body: it is what discharges
@@ -321,6 +320,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
@@ -2474,8 +2474,7 @@ fn planar_faces<T: Real>(
         else {
             continue;
         };
-        // Outward is the chart normal on a positively-sensed face.
-        let normal = if data.sense { *normal } else { -*normal };
+        let normal = plane_outward_normal(data, *normal).vec();
         let v_ref = normal.cross(*u_ref);
         let mut box_u: Option<(T, T)> = None;
         let mut box_v: Option<(T, T)> = None;

@@ -2,10 +2,12 @@
 id: topo-arena-census-duplicate-spellings
 kind: issue
 title: S52 residue — the duplicated-test-vocabulary class survives inside topo (two arena-census spellings, drifted Census copies) and in stl
-status: open
+status: closed
 opened: 2026-08-19
 github: 672
 refs: [668, 679, S52]
+rides_with: S52
+closed: 2026-09-15
 ---
 
 ## From GitHub issue 672
@@ -99,3 +101,21 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Closed with its carrier (2026-09-15, PR 2639)
+
+Passenger of `S52` (`rides_with`), closed by the same PR. Its §1–§3 were
+**verified against the tree rather than assumed closed**: `ArenaSnapshot`
+holds an `ArenaCounts` and has one producer; the four `Census` copies in
+`crates/topo/tests/` are now four distinct quantities (`SideCensus`,
+`EulerCensus`, `GraftCensus`, plus a `SenseCensus` minted since, which
+counts germ sense relations and is not a member of this class); `stl`'s
+two `brick`s share `tests/common`.
+
+Its §4 — the scalar-generic blocker — is what `S52`'s home closed.
+
+**The row's own §3 ("same shape elsewhere") understated the class by an
+order of magnitude**, which is the finding to carry: the duplicated
+test-vocabulary class it named is ~60 live copies of the box fixture
+across seven crates, and a name-shaped census cannot see it. The five
+rows on S-TINT's slate carry what remains.

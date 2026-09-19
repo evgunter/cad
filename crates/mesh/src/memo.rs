@@ -259,14 +259,34 @@ pub struct PatchMemo {
     misses: usize,
 }
 
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`PatchMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `entries` is carried as its COUNT — the fact a dump is asked
+/// for, where the map itself is every patch's triangles.
+///
+/// Two fields are not carried at all, so this ends in
+/// `finish_non_exhaustive`: `finish` claims every field is shown and
+/// these are not. `next_id` is the mint counter, an implementation
+/// detail of identity rather than a fact about the memo's contents;
+/// `closed` qualifies the counters beside it and is the one a reader of
+/// `hits`/`misses` would want — `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
 impl core::fmt::Debug for PatchMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            entries,
+            next_id: _,
+            picture,
+            closed: _,
+            hits,
+            misses,
+        } = self;
         f.debug_struct("PatchMemo")
-            .field("entries", &self.entries.len())
-            .field("picture", &self.picture)
-            .field("hits", &self.hits)
-            .field("misses", &self.misses)
-            .finish()
+            .field("entries", &entries.len())
+            .field("picture", picture)
+            .field("hits", hits)
+            .field("misses", misses)
+            .finish_non_exhaustive()
     }
 }
 

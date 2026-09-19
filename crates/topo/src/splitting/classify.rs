@@ -238,7 +238,10 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     let delta = arg.acos();
     let tau = T::tau();
     // The conservative meter (radians → meters): the minor semi-axis.
-    let meter = s_v;
+    // An INF bound on the speed by being the smaller principal rate,
+    // which is what the interiority claim below needs — a root this
+    // meter proves clear of an endpoint is clear of it in metres.
+    let meter = geom_core::InfSpeed::new(s_v);
     let mut roots: Vec<T> = Vec::with_capacity(2);
     let candidates: [Option<T>; 2] = if both_roots {
         [Some(phi + delta), Some(phi - delta)]

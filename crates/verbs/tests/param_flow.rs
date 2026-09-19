@@ -351,8 +351,8 @@ fn the_shells_flow_is_empty_beside_a_real_record() {
 /// rather than typed: the row would attach nothing — a blend's record
 /// has no swept walls, and `attach_swept` is reached only from the
 /// profile lowering — while still flipping the GLOBAL predicate
-/// `editor-core` reads to decide whether a carrier radius's spelling
-/// enters a profile node's content key. Every profile in every
+/// `editor-core` reads to decide whether a profile edge's radius
+/// spelling enters a profile node's content key. Every profile in every
 /// document would key differently for a row that reaches no field
 /// anywhere. So the census is the guard: the source kind names the
 /// operand, and the operand is the arity.

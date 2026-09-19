@@ -54,7 +54,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -1625,8 +1625,14 @@ fn run_checks<T: Decide>(
 
     // ---- Check 2: interval span (forward direction; circle winding
     // bound) — see the check-sequence docs. Spans are metered as arc
-    // length (radians × radius for circles) so they classify against
-    // the linear band like every other margin (dimensional honesty).
+    // length so they classify against the linear band like every other
+    // margin (dimensional honesty). Every arm is the CARRIER'S OWN
+    // parameter rate — a circle's radius, an ellipse's minor
+    // semi-axis, a net's `speed_lower_bound` — so every arm here is an
+    // `InfSpeed` through the metric door, the same numbers
+    // `pcurve_cache::param_rate` mints for the same kinds. All three
+    // claims are "definitely apart" (forward, or headroom to one
+    // period), which is the inf side.
     let span = t1 - t0;
     // The span decision runs once, before the schedule: not a sample.
     let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
@@ -1636,7 +1642,8 @@ fn run_checks<T: Decide>(
     };
     match &spec.carrier {
         Curve3::Circle { radius, .. } => {
-            let arc = Margin::levered(span, *radius);
+            let rate = InfSpeed::new(*radius);
+            let arc = Margin::metered(span, rate);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
@@ -1645,7 +1652,7 @@ fn run_checks<T: Decide>(
             // Zero (exactly full period, the scaffolding/rim case) and
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
-            let headroom = Margin::levered(T::tau() - span, *radius);
+            let headroom = Margin::metered(T::tau() - span, rate);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
@@ -1666,12 +1673,13 @@ fn run_checks<T: Decide>(
             minor_radius: minor,
             ..
         } => {
-            let arc = Margin::levered(span, *minor);
+            let rate = InfSpeed::new(*minor);
+            let arc = Margin::metered(span, rate);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
-            let headroom = Margin::levered(T::tau() - span, *minor);
+            let headroom = Margin::metered(T::tau() - span, rate);
             match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),

@@ -624,12 +624,18 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 }
 
 /// The corpus dump's hash at the default ε row (see
-/// [`the_corpus_stored_loops_dump_to_the_bit`]).
-const GOLDEN_DEFAULT: u64 = 0x6040_df69_8324_c34b;
+/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived at
+/// BOOL-10: the corpus's fixture #6 (the half-disc equator) authors
+/// its second quarter arc through `.tangent().tangent_arc_to(p)` now
+/// that `arc_continue` is removed, so its `tangent_joints` line reads
+/// `[1]` where it read `[]` — every coordinate and bulge in the dump is
+/// the same bits as before (pinned in `path_program.rs`'s equator
+/// row); the declared joint is the one thing that moved, at every ε.
+const GOLDEN_DEFAULT: u64 = 0x383a_8ffb_2fc0_bb5d;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x15cc_cda3_d88f_d217;
+const GOLDEN_1E6: u64 = 0xbff2_1055_5084_aa01;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x809c_4b2b_98d6_bb9f;
+const GOLDEN_1E12: u64 = 0x6445_fb03_ba1d_f0b9;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

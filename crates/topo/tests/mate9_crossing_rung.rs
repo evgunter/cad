@@ -66,7 +66,7 @@ use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, Validatio
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
 fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
-    let seat = common::straddle_seat();
+    let seat = common::straddle_seat(Tol::witness());
     (
         seat.body,
         seat.post_top,
@@ -150,11 +150,13 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.5,
         1.0,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
@@ -207,16 +209,19 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let flush: common::Prism<f64> = common::prism_z(
         &[(0.70, 0.05), (0.80, 0.05), (0.80, 0.25), (0.70, 0.25)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let fkeys = topo::graft_disjoint_all_keyed(&mut body, &flush.body, Tol::witness()).unwrap();
@@ -318,16 +323,19 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let block: common::Prism<f64> = common::prism_z(
         &[(0.10, 0.30), (0.30, 0.30), (0.30, 0.50), (0.10, 0.50)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let post_top = post.top_face;
     let mut body = post.body;
@@ -368,11 +376,13 @@ fn the_pierce_stays_categorical() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         1.0,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();

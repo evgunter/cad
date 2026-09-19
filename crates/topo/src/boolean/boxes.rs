@@ -55,10 +55,14 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
-//! - `census`'s arm 2 clears an instance pair only on a definitely
-//!   negative margin against a CONTAINING box, so a bigger box turns
-//!   a genuinely-outside instance into `CensusUndecidable` — the
-//!   interference class.
+//! - `census`'s arm 2 clears an instance pair at its gate on a
+//!   definitely negative margin against a CONTAINING box and sends
+//!   every other pair to the material test, so over-width would cost
+//!   a genuinely-outside instance a point-in-solid probe of its
+//!   vertices. Measured, not reached: on planar-only pairs the reach
+//!   box IS the vertex hull, and a reach box a curved face inflates
+//!   belongs to a pair arm 1 refuses first
+//!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The six are not
@@ -2868,8 +2872,11 @@ mod tests {
     ///   changes nothing about what looseness costs.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
-    ///   arm 2 clears only on a definitely negative margin against a
-    ///   CONTAINING box, so over-width is a false `CensusUndecidable`.
+    ///   arm 2 clears for free only on a definitely negative margin
+    ///   against a CONTAINING box, so over-width would send a separated
+    ///   pair to the material test instead of clearing it — a case the
+    ///   planar-only corpus does not reach (the hull is the box) and a
+    ///   curved reach box hands to arm 1 first.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling

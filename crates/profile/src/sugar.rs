@@ -441,7 +441,10 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     },
     /// An in-band or poisoned gate margin.
     Escalated(Indeterminate),
-    /// The band could not be formed (only for a misconfigured ε).
+    /// The band could not be formed. Not ε alone: this arm carries
+    /// [`Band::linear`]'s two, which need a near-`f64::MAX` ε or a
+    /// subnormal one with a K near 1 — stated with their conditions at
+    /// that constructor, and not restated here.
     Band(BandError),
 }
 

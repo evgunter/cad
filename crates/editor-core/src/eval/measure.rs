@@ -61,6 +61,7 @@
 //! interference, for all three carrier pairs.
 
 use geom::{Curve3, Surface};
+use geom_brep::OutwardNormal;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use topo::Body;
@@ -216,10 +217,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T
                     Carrier::Plane {
                         origin: *origin,
                         normal: *normal,
-                        // S10's sense bit, folded once, here: `true`
-                        // means the material side agrees with the chart
-                        // normal.
-                        outward: if face.sense { *normal } else { -*normal },
+                        outward: OutwardNormal::from_chart(*normal, face.sense).vec(),
                         reach,
                     }
                 }

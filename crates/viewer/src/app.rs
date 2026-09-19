@@ -59,16 +59,18 @@ use pncad::geom_core::Tol;
 use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::Drafts;
+use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, IdQueryLog, StatusUpdate};
-use crate::generation::Generation;
+use crate::frame::{self, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
+use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
 use crate::pickcache::{self, PickCache};
-use crate::pickindex::PickIndex;
+use crate::pickindex::{PickIndex, PictureKey};
+use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -92,7 +94,7 @@ pub use crate::forms::FieldWriting;
 /// anything.** Both arms can answer [`prefs::PrefsStore::unusable`]
 /// with `Some`: `Absent` always does, and the native `FileStore` does
 /// in an environment that names no config directory, which is
-/// [`frame::prefs_path`]'s `None`. So everything the chrome does about
+/// [`platform::prefs_path`]'s `None`. So everything the chrome does about
 /// a store that keeps nothing keys on that read and not on the target
 /// — which is what makes the browser and a desktop launched from a
 /// stripped environment one case, and what leaves a future
@@ -107,7 +109,7 @@ fn prefs_store() -> Store {
     #[cfg(not(target_family = "wasm"))]
     {
         // The path comes from `frame`, the crate's one ambient door.
-        prefs::file::FileStore::new(frame::prefs_path())
+        prefs::file::FileStore::new(platform::prefs_path())
     }
     #[cfg(target_family = "wasm")]
     {
@@ -300,10 +302,21 @@ pub struct ViewerApp {
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
-    /// The evaluation generation `scene` was built from. When it
-    /// disagrees with the session's landed generation, the picture is
-    /// out of date and exactly one rebuild is owed.
-    scene_generation: Option<Generation>,
+    /// **The index identity `scene` carries**: the
+    /// [`crate::pickindex::PictureKey`] of the [`PickIndex`] whose id
+    /// map minted the per-corner ids in the mesh on screen, as
+    /// [`PickIndex::current_for`] takes it.
+    ///
+    /// A pick id is a word of ONE index's alphabet. Anything that
+    /// resolves an id the picture produced, or mints one for the
+    /// picture to compare against, is reading that alphabet, so it owes
+    /// a check that the index in hand is the index this pair names —
+    /// `pane::viewport::drawn_index` is where that check lives.
+    ///
+    /// `None` is a picture no index minted ids for: the startup mesh
+    /// comes from [`scene::scene_of`], whose corners all carry
+    /// [`crate::pickindex::IdMap::NOTHING`].
+    scene_key: Option<PictureKey>,
     /// The display-state revision `scene` was built under — hide and
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
@@ -336,6 +349,16 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
+    /// **How many datums the viewport drew nothing of on the last
+    /// frame it drew**, read by [`crate::frame::datums_badge`].
+    ///
+    /// One frame behind for the reason above. Unlike the fault above
+    /// it is not held past the frame that made it: the frame entry
+    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
+    /// panes write and assigns the result back unconditionally, so
+    /// this says what the LAST FRAME found and never what some
+    /// earlier one did.
+    datums_vanished: usize,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -353,6 +376,17 @@ pub struct ViewerApp {
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
+    /// **The display budget's seam** — where the probe tessellations
+    /// that price a document run, which is not this thread.
+    ///
+    /// State ABOUT WORK IN FLIGHT rather than a second opinion about
+    /// the document, which is the same standing `PickCache`'s record
+    /// of what it has asked for has (`crates/viewer/GUI-DESIGN.md`,
+    /// *What that does to the frame-state inventory*). Nothing here is
+    /// derived from the document and nothing here can be WRONG about
+    /// it: what the seam holds is a request, and the δ it answers with
+    /// is compared against the δ in force before it is taken.
+    fit: Box<dyn FitService>,
     /// **The modal tools, at most one open** — the mate tool, the
     /// revolve tool and the four combining tools as one value, with
     /// the exclusivity rule inside it rather than spread across the
@@ -454,9 +488,9 @@ pub struct ViewerApp {
     /// nothing here survives into the next one.
     notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
-    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// once at startup ([`platform::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
-    chooser: frame::ChooserBackend,
+    chooser: platform::ChooserBackend,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -598,6 +632,29 @@ fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
     }
 }
 
+/// The display budget's fit seam this build runs on — [`evaluator`]'s
+/// choice again, for its reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. The index build waits on this seam's answer, so a
+/// viewer whose fit worker never started would open every document to
+/// a picture that never arrives — a failure to meet at startup, not to
+/// discover by opening a file.
+fn fitter() -> Result<Box<dyn FitService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadFitter::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineFitter::new()))
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -691,11 +748,12 @@ impl ViewerApp {
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
-            scene_generation: None,
+            scene_key: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
+            datums_vanished: 0,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -703,6 +761,7 @@ impl ViewerApp {
             // waiting to be a bug.
             fit_delta_on_scene: true,
             budget_delta: None,
+            fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
             profile_form_drawn: false,
@@ -720,10 +779,41 @@ impl ViewerApp {
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
             notices: Vec::new(),
-            chooser: frame::chooser_backend(),
+            chooser: platform::chooser_backend(),
             store,
             keys_pref: saved.keys,
         })
+    }
+
+    /// Take the display budget's answer, if one is ready.
+    ///
+    /// **Dropped rather than applied on either half of a mismatched
+    /// key.** An answer for a generation the session has moved past
+    /// prices a document nobody is looking at. One for a δ the View
+    /// pane has moved off prices a number the user has replaced, and
+    /// the budget's authority stops at the δ a document OPENS at
+    /// ([`ViewerApp::fit_delta_on_scene`]) — so the typed number wins,
+    /// silently, because nothing was taken away from anyone.
+    ///
+    /// A fit that REFUSED leaves δ alone: the document is one whose
+    /// roots do not gather, or one that tessellates at NEITHER of the
+    /// two δ the fit can fall back between (`scene::fit_delta`'s scale
+    /// probe and the rung that prices the request — a refusal at one of
+    /// them is answered by the other, so only a body that refuses at
+    /// both gets here). The index build is about to say so with its own
+    /// typed refusal, and two opinions about that would be one too many.
+    fn take_fit(&mut self) {
+        while let Some(done) = self.fit.poll() {
+            if Some(done.generation) != self.session.landed_generation()
+                || done.requested != self.delta
+            {
+                continue;
+            }
+            if let Ok(fitted) = done.fit {
+                self.delta = fitted.delta;
+                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+            }
+        }
     }
 
     /// Take whatever the seam finished and, if the picture is behind
@@ -753,33 +843,24 @@ impl ViewerApp {
         // carries the method and the numbers; `TRIANGLE_BUDGET` says
         // why there is a budget at all.
         //
-        // A fit that cannot run leaves δ alone: the document is one
-        // whose roots do not gather (no landed body), or one that
-        // tessellates at NEITHER of the two δ the fit can fall back
-        // between (`scene::fit_delta`'s scale probe and the rung that
-        // prices the request — a refusal at one of them is answered by
-        // the other, so only a body that refuses at both reaches
-        // here). The index build below is about to say so with its own
-        // typed refusal, and two opinions about that would be one too
-        // many.
-        if self.fit_delta_on_scene
-            && let Some((doc, evaluation)) = self.session.landed_pair()
-        {
+        // **It runs on its own worker** (`crate::evalseam::FitService`).
+        // The ladder is a run of probe tessellations costing about an
+        // eighth of a full one, which on a document dense enough to
+        // want a budget is the better part of a second, and a window
+        // that stops repainting for it is the defect the index seam was
+        // cut to remove — one step earlier, and on the very documents
+        // the seam was cut for. So the shape is the index seam's:
+        // submit, keep painting, take the answer when it comes.
+        self.take_fit();
+        if self.fit_delta_on_scene && self.session.landed_generation().is_some() {
+            // Spent on the first landing, whether or not that landing
+            // has a body to price: a document whose product refuses has
+            // no size to fit a δ to, and leaving the budget armed for
+            // its first successful EDIT would make it something other
+            // than the δ a document OPENS at.
             self.fit_delta_on_scene = false;
-            // The LANDING's body, which its own gather already paid
-            // for. The gather below runs for one landing shape only —
-            // an assembly whose A5 gate refused ate the product it
-            // judged — and is spelled out rather than hidden behind
-            // the getter, so the one path that costs a gather is the
-            // one path that names one.
-            let fitted = match self.session.landed_body() {
-                Some(body) => scene::fit_delta(body, self.delta, self.session.tol()),
-                None => scene::product_of_evaluation(doc, evaluation, self.session.tol())
-                    .and_then(|body| scene::fit_delta(&body, self.delta, self.session.tol())),
-            };
-            if let Ok(fitted) = fitted {
-                self.delta = fitted.delta;
-                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+            if let Some(request) = self.session.fit_request(self.delta) {
+                self.fit.submit(request);
             }
         }
         // **The index seam answers here.** A build that finished is
@@ -810,7 +891,22 @@ impl ViewerApp {
         // Every arm but `Current` leaves the viewport drawing the mesh
         // it already has — an older picture, which the indexing
         // indicator names and `pickcache::unindexed` refuses picks against.
-        match self.picks.sync(self.session.index_inputs(), self.delta) {
+        // **The index waits for the budget's answer.** A build
+        // submitted at the δ in force while the fit is still pricing
+        // the document IS the un-budgeted build the budget exists to
+        // avoid, so there is no δ to offer until the fit is done and
+        // `None` is how the cache is told. It forgets: the previous
+        // document's index stops answering picks the moment this one
+        // lands, exactly as it would have on a submit.
+        //
+        // A δ typed while a fit is outstanding waits for it too, then
+        // discards it (`ViewerApp::take_fit`) and builds verbatim. The
+        // wait is the fit's own length and buys nothing, and is
+        // accepted rather than tracked: the alternative is a second
+        // record of what the seam already holds, for a window under a
+        // second on the frames just after a document opens.
+        let settled = (!self.fit.busy()).then_some(self.delta);
+        match self.picks.sync(self.session.index_inputs(), settled) {
             pickcache::CacheStep::Held
             | pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
@@ -834,7 +930,12 @@ impl ViewerApp {
                 // not consume this (generation, display) pair, or the
                 // stale picture stays on screen marked as the current
                 // one and is never retried.
-                self.scene_generation = self.session.landed_generation();
+                // Taken from the INDEX, not from the session: the
+                // pair that matters is the one whose id map is in this
+                // mesh, and reading the session's generation here would
+                // be a second derivation of it that nothing holds to
+                // the first.
+                self.scene_key = Some(index.key());
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
@@ -918,9 +1019,9 @@ impl ViewerApp {
         let Some(stacked) = model_stack(tiles) else {
             return;
         };
-        // Slack over the measured height so the last row is not flush
-        // against the divider.
-        let fraction = ((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP);
+        let Some(fraction) = features_fraction(wanted, stack) else {
+            return;
+        };
         if let Some(Tile::Container(egui_tiles::Container::Linear(linear))) = tiles.get_mut(stacked)
         {
             // Shares are relative, so a pair summing to 2 states the
@@ -1224,7 +1325,7 @@ impl ViewerApp {
             let chooser = self.chooser;
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm — `chooser` is `Absent`
@@ -1243,7 +1344,7 @@ impl ViewerApp {
             }
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm, for the reason the Open…
@@ -1310,7 +1411,15 @@ impl ViewerApp {
             // the session owes against what the index seam is
             // doing, so the toolbar never lights two spinners for
             // the same moment.
-            match frame::progress(self.session.outstanding(), self.picks.indexing()) {
+            // **The spinner follows the work, never the name**
+            // (`frame::Progress::Canceled`). A fit in flight is the
+            // index build's first step from a user's seat — nothing is
+            // on screen for it, the build follows it with no gap, and
+            // the one progress state is what says a picture is coming.
+            match frame::progress(
+                self.session.outstanding(),
+                self.picks.indexing() || self.fit.busy(),
+            ) {
                 Some(frame::Progress::Evaluating) => {
                     ui.separator();
                     ui.spinner();
@@ -1422,6 +1531,17 @@ impl ViewerApp {
             {
                 draw_badge(ui, &self.theme, &badge);
             }
+            // **The datums the last drawn frame drew nothing of.**
+            // Not one of the three above: those hold a refusal until
+            // the seam they name succeeds, and this is a count the
+            // frame re-takes, so it stands for exactly as long as the
+            // view that produced it. What it buys is the one thing the
+            // picture cannot say — that the document HAS datums and
+            // this view draws none of them, which on screen is
+            // indistinguishable from a document with none.
+            if let Some(badge) = frame::datums_badge(self.datums_vanished) {
+                draw_badge(ui, &self.theme, &badge);
+            }
             ui.separator();
             // The palette picker. Every registered theme, by the
             // name `crate::theme` gives it — the registry IS the
@@ -1503,6 +1623,12 @@ impl eframe::App for ViewerApp {
             .flatten()
             .map(|plane| sketch::preview(plane, &authored, self.session.tol(), self.delta.get()));
         let mut profile_form_drawn = false;
+        // **Zeroed here and assigned back below, every frame.** The
+        // viewport writes it while it draws; a frame the viewport does
+        // not draw at all is a frame with no datums vanishing in it,
+        // and this is where that is said rather than left to whatever
+        // the field last held.
+        let mut datums_vanished = 0_usize;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1530,6 +1656,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    scene_key: self.scene_key,
                     indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
@@ -1543,6 +1670,7 @@ impl eframe::App for ViewerApp {
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
+                    datums_vanished: &mut datums_vanished,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -1557,10 +1685,13 @@ impl eframe::App for ViewerApp {
             });
         self.checks_window(ui.ctx(), &mut ops);
         self.profile_form_drawn = profile_form_drawn;
+        self.datums_vanished = datums_vanished;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        if profile_form_drawn && self.drafts.profile_loops() != authored {
+        if profile_form_drawn
+            && !sketch::authors_same_loops(&self.drafts.profile_loops(), &authored)
+        {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a
@@ -1623,6 +1754,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// The index identity the `scene` above carries (`ViewerApp::
+    /// scene_key`), for the reads of `index` that are about the
+    /// PICTURE rather than about the document.
+    pub(crate) scene_key: Option<PictureKey>,
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
@@ -1662,6 +1797,21 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **How many datums the viewport drew nothing of this frame**,
+    /// for [`frame::datums_badge`] to read.
+    ///
+    /// Written by the viewport pane and read by the toolbar next
+    /// frame, like the fault above — and unlike it, it does not have
+    /// to be cleared by anyone. The frame entry point
+    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
+    /// borrows before the panes draw and assigns the result back
+    /// after, whether or not the viewport was one of them, so a
+    /// viewport dragged shut or tabbed away reports none rather than
+    /// leaving the last count it made standing. That is
+    /// `profile_form_drawn`'s discipline above, and it is the one
+    /// `work/view/projection-fault-has-no-sweeper.md` says the fault
+    /// still lacks.
+    pub(crate) datums_vanished: &'a mut usize,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -1794,7 +1944,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
 /// `rfd`'s wasm backend offers only the async dialog, and there are
 /// no paths behind it either — so the browser build does not have a
 /// half-open door here; it has no door, and
-/// [`frame::chooser_backend`] is what says so to the chrome.
+/// [`platform::chooser_backend`] is what says so to the chrome.
 #[cfg(not(target_family = "wasm"))]
 fn pick_open() -> Option<std::path::PathBuf> {
     rfd::FileDialog::new()
@@ -1814,6 +1964,40 @@ fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
         dialog = dialog.set_directory(dir);
     }
     dialog.save_file()
+}
+
+/// **The Features tile's share of the stack it sits in**, capped at
+/// [`FEATURES_SHARE_CAP`], and `None` when the two measurements are
+/// not numbers to divide.
+///
+/// **The caller's `stack <= 0.0` arm above is about an EMPTY stack and
+/// this one is about an unmeasurable one**, and they are written apart
+/// because they are different facts: the first is the very first
+/// frame, before either tile has a rectangle, which is a legitimate
+/// state the caller is documented to do nothing in. The second is a
+/// toolkit measurement that is not a length, and there is nothing
+/// legitimate about it.
+///
+/// **A `clamp` is not a bound against the value it cannot order.**
+/// `f32::clamp` returns `self` when `self` is a `NaN`, so a share that
+/// could not be computed used to leave here looking exactly like one
+/// that had been — and `egui_tiles` keeps shares as STATE rather than
+/// recomputing them per frame, so a single poisoned frame left the
+/// pair of panes with a split no later frame and no divider drag could
+/// recover. Refusing keeps the last share the arithmetic actually
+/// produced.
+///
+/// `stack > 0.0` is stated here as well as at the caller rather than
+/// relied on from it: this door's answer has to be true of its own
+/// arguments, and a division whose denominator is checked somewhere
+/// else is checked by nothing when a second caller arrives.
+fn features_fraction(wanted: f32, stack: f32) -> Option<f32> {
+    if !wanted.is_finite() || !(stack.is_finite() && stack > 0.0) {
+        return None;
+    }
+    // Slack over the measured height so the last row is not flush
+    // against the divider.
+    Some(((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP))
 }
 
 /// The container holding the feature tree and the properties — the
@@ -1926,7 +2110,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     // itself sets), so every other environment keeps winit's own
     // backend choice and needs nothing unset.
     #[cfg(target_os = "linux")]
-    if frame::running_under_wsl() {
+    if platform::running_under_wsl() {
         options.event_loop_builder = Some(Box::new(|builder| {
             use winit::platform::x11::EventLoopBuilderExtX11 as _;
             builder.with_x11();
@@ -2065,9 +2249,91 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{Theme, ViewerApp};
+    use super::{FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
     use eframe::egui;
+
+    /// **A share that could not be computed is not a share.**
+    ///
+    /// `f32::clamp` returns `self` when `self` is a `NaN`, so both of
+    /// this door's measurements used to arrive at `set_share` in a
+    /// field shaped like a number the layout had produced.
+    ///
+    /// The shape this pins is DISTINGUISHABILITY, and for an `f32`
+    /// answer that takes two rows rather than one. Asserting only that
+    /// the poisoned answer differs from every legitimate one passes
+    /// over a `Some(NaN)` for free — a `NaN` is unequal to everything,
+    /// including itself — which is the broken door's own answer wearing
+    /// the test's approval. So: the poisoned inputs answer `None`, and
+    /// the row below holds that every legitimate input answers a share.
+    /// Neither row alone says anything.
+    ///
+    /// Both arguments are poisoned in turn, because a `NaN` in either
+    /// one reaches the division and a row that poisoned only the
+    /// denominator would have chosen its answer.
+    #[test]
+    fn a_share_that_could_not_be_measured_is_no_share() {
+        for (what, wanted, stack) in [
+            ("a content height", f32::NAN, 500.0),
+            ("a stack height", 100.0, f32::NAN),
+            ("an unbounded stack", 100.0, f32::INFINITY),
+            ("an unbounded content height", f32::INFINITY, 500.0),
+        ] {
+            assert_eq!(
+                features_fraction(wanted, stack),
+                None,
+                "{what} that is not a number",
+            );
+        }
+    }
+
+    /// **Every answer this door does give is a share**: a number, at
+    /// or above nothing, at or below the cap. The row above is a claim
+    /// about `None` and this one is what makes it mean anything — a
+    /// door that answered `None` for everything would satisfy the
+    /// first and fail this.
+    #[test]
+    fn every_share_it_gives_is_a_share() {
+        for (what, wanted, stack) in [
+            ("a tree that wants nothing", 0.0, 500.0),
+            ("a tree taller than the stack", 5_000.0, 500.0),
+            ("an ordinary tree", 100.0, 500.0),
+        ] {
+            let answer = features_fraction(wanted, stack);
+            assert!(
+                matches!(answer, Some(share)
+                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                "{what} answered {answer:?}",
+            );
+        }
+    }
+
+    /// The door's answers are not one answer, which is what makes the
+    /// two rows above a test of anything: a function returning the cap
+    /// for every input satisfies both.
+    #[test]
+    fn the_legitimate_shares_are_distinct() {
+        let floor = features_fraction(0.0, 500.0);
+        let cap = features_fraction(5_000.0, 500.0);
+        let ordinary = features_fraction(100.0, 500.0);
+        assert_ne!(floor, ordinary, "the floor and an ordinary share");
+        assert_ne!(ordinary, cap, "an ordinary share and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
+        assert_eq!(cap, Some(FEATURES_SHARE_CAP), "the cap is the cap");
+    }
+
+    /// The very first frame, before either tile has a rectangle, is
+    /// the caller's own arm and not this door's — so a zero stack is
+    /// not something this function is asked about. What it IS asked
+    /// about is a denominator it was handed anyway, and it refuses
+    /// rather than dividing by it.
+    #[test]
+    fn an_empty_stack_is_refused_here_too() {
+        assert_eq!(features_fraction(100.0, 0.0), None, "an empty stack");
+        assert_eq!(features_fraction(100.0, -1.0), None, "a negative stack");
+    }
 
     /// The narrowest window this chrome is held to, in points.
     ///
@@ -2167,6 +2433,115 @@ mod tests {
             row.occupied,
             row.available,
             row.occupied - row.available
+        );
+    }
+    /// The context startup installed onto, and the app it assembled.
+    ///
+    /// [`ViewerApp::assemble`] is the half of startup that needs no
+    /// graphics device, and both of the context-wide installs are in
+    /// it — the `egui::Context` it is handed reaches nothing else —
+    /// so a bare context is the whole subject. **No frame is run**:
+    /// each install exists to be in force before anything is drawn,
+    /// so the read a row owes is the one taken straight afterwards.
+    fn started() -> (egui::Context, ViewerApp) {
+        let ctx = egui::Context::default();
+        let app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        (ctx, app)
+    }
+
+    /// **Startup states the resolved palette's polarity on the
+    /// context.**
+    ///
+    /// Two reads, because neither alone is a statement about the
+    /// install. The visuals are what the first frame paints, and they
+    /// are the reason the install is where it is — but `egui`'s
+    /// `fallback_theme` is `Theme::Dark` and this chrome's default
+    /// palette is a dark one, so a context startup never touched
+    /// already answers `dark_mode` here and that read is green over
+    /// no install at all. The preference is what `apply_polarity`
+    /// states — `set_theme` rather than `set_visuals`, for the reason
+    /// its own doc gives — and an untouched context holds
+    /// `ThemePreference::System` whichever palette resolves, so it is
+    /// the read that fails when nobody applies anything.
+    #[test]
+    fn startup_states_the_resolved_polarity_on_the_context() {
+        let (ctx, app) = started();
+        let stated = ctx.options(|options| options.theme_preference);
+        let wanted = match app.theme.polarity {
+            Polarity::Light => egui::ThemePreference::Light,
+            Polarity::Dark => egui::ThemePreference::Dark,
+        };
+        assert_eq!(
+            stated, wanted,
+            "startup resolved {:?} and left the context stating {stated:?}",
+            app.theme.polarity
+        );
+        let dark_mode = ctx.global_style().visuals.dark_mode;
+        assert_eq!(
+            dark_mode,
+            matches!(app.theme.polarity, Polarity::Dark),
+            "startup resolved {:?} and the visuals a first frame would paint report dark_mode = {dark_mode}",
+            app.theme.polarity
+        );
+    }
+
+    /// **Startup installs the chrome's numeric rule onto both of the
+    /// context's styles.**
+    ///
+    /// Behavioural, because a `NumberFormatter` is a function value
+    /// and its `PartialEq` is `Arc::ptr_eq`: a comparison against a
+    /// freshly built `NumberFormatter::new(number_text)` is false
+    /// however right the install is, and one that passed would be a
+    /// statement about an allocation rather than about what a field
+    /// will say. So the read is the text — a value spelled through
+    /// the context's own formatter, against the text the door spells.
+    ///
+    /// **Both styles rather than whichever the polarity in force
+    /// selects**, so this row reads nothing that the other install
+    /// decides. That the install writes both is
+    /// `widgets::field_tests::a_bare_field_survives_a_theme_switch`'s
+    /// claim, and stays its claim; what is read here is that startup
+    /// performs the install at all.
+    ///
+    /// The witness is what makes the reading a statement, and the
+    /// first assertion is what says so: 40 nm in millimetres over the
+    /// decimal range a length field is really handed is a value
+    /// `{:.3}` cannot read back, so the door's text and the toolkit's
+    /// untouched default differ there. When that assertion goes red
+    /// this row can no longer see the install, whatever the other two
+    /// say.
+    #[test]
+    fn startup_installs_the_number_rule_onto_both_of_the_contexts_styles() {
+        /// 40 nm, in the millimetres a length field holds.
+        const WITNESS: f64 = 4.0e-5;
+        /// The decimal range a length field shown in millimetres is
+        /// handed, derived at `widgets::field_tests::MM`.
+        const DECIMALS: core::ops::RangeInclusive<usize> = 1..=3;
+
+        let door = crate::widgets::number_text(WITNESS, DECIMALS);
+        let toolkit = egui::emath::format_with_decimals_in_range(WITNESS, DECIMALS);
+        assert_ne!(
+            door, toolkit,
+            "the witness spells the same either way, so nothing below distinguishes the install from the toolkit's default"
+        );
+
+        let (ctx, _app) = started();
+        let (dark, light) = ctx.options(|options| {
+            (
+                options.dark_style.number_formatter.clone(),
+                options.light_style.number_formatter.clone(),
+            )
+        });
+        assert_eq!(
+            dark.format(WITNESS, DECIMALS),
+            door,
+            "the context's dark style spells {WITNESS} its own way"
+        );
+        assert_eq!(
+            light.format(WITNESS, DECIMALS),
+            door,
+            "the context's light style spells {WITNESS} its own way"
         );
     }
 }

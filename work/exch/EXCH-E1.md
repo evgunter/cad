@@ -2,10 +2,12 @@
 id: EXCH-E1
 kind: unit
 title: D343 — typed payloads stop rendering through Debug in the two STEP crates, with its two riders
-status: dispatched
+status: closed
 opened: 2026-09-04
 branch: exch/d343-typed-payloads
 refs: [D343, 1490, 1481]
+closed: 2026-09-17
+pr: 1854
 ---
 
 Executes code-quality row `D343` (Track U, claimed by EXCH):
