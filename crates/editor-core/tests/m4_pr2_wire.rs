@@ -980,6 +980,7 @@ fn declare_passes_through_and_boolean_accepts_it() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

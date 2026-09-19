@@ -291,7 +291,7 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 /// never overlap.)
 #[test]
 fn p4_chain_g1_refuses_at_a_cornered_junction() {
-    let body = block(1.0, 1.0, 1.0, Tol::witness());
+    let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
         .find(|(_, f)| {

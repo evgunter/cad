@@ -45,7 +45,7 @@ fn the_selection_reaches_the_wire_canonical() {
             },
         },
     ] {
-        doc = apply(&doc, &edit, Tol::witness())
+        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the fixture builds")
             .doc;
     }
@@ -70,6 +70,7 @@ fn the_selection_reaches_the_wire_canonical() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fillet node inserts")
     .doc;

@@ -5,26 +5,25 @@
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
-use pncad::profile::{TipState, Verb};
 
-use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
+use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
 };
 use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
+use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
 use crate::session::SessionOp;
-use crate::sketch::{self, PreviewError};
+use crate::sketch;
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, length_picker, new_row_step, number_field, path_step_fields, point_fields,
-    unit_field, unit_vec3_row, vec3_row,
+    angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
 };
 
 /// **The smallest pattern count the form offers.**
@@ -70,7 +69,9 @@ impl ViewerBehavior<'_> {
     /// extrude forms plus the modal revolve tool. Each form is
     /// minimal — its few required fields with sensible defaults — and
     /// emits exactly one creation op; the property panel is the
-    /// editor for everything after the insert.
+    /// editor for everything after the insert — for a profile, through
+    /// this section's own path editor opened on the node
+    /// ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing("Add feature", |ui| {
             self.add_datum_ui(ui);
@@ -184,7 +185,13 @@ impl ViewerBehavior<'_> {
                             },
                             clocking: None,
                         };
-                        match tool.proposal(doc, eval, self.session.tol(), choice) {
+                        match tool.proposal(
+                            doc,
+                            eval,
+                            &self.session.eval_options(),
+                            self.session.tol(),
+                            choice,
+                        ) {
                             Ok(proposal) => {
                                 // Exactly one committed DocEdit; the
                                 // tool closes with it.
@@ -478,7 +485,7 @@ impl ViewerBehavior<'_> {
     /// template's stated intent; the op stays unjudged and the
     /// kernel's containment rule stays the one home.
     pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
-        *self.profile_form_drawn = true;
+        self.profile_drawn.create = true;
         ui.horizontal(|ui| {
             ui.label("profile");
             for (shape, label) in ShapeKind::ALL {
@@ -567,7 +574,20 @@ impl ViewerBehavior<'_> {
                 });
             }
             Some(ShapeKind::Path) => {
-                self.path_steps_ui(ui);
+                notation_row(
+                    ui,
+                    "path",
+                    &mut self.drafts.length_unit,
+                    &mut self.drafts.angle_unit,
+                );
+                path_steps_ui(
+                    ui,
+                    "path",
+                    self.session.tol(),
+                    (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
+                    ShapeEdits::Free,
+                    &mut self.drafts.profile_path,
+                );
                 // A chain with no steps is a form waiting for its
                 // first one, not a chain that fails to close. Without
                 // this the empty list drew the lattice's own refusal
@@ -593,55 +613,11 @@ impl ViewerBehavior<'_> {
         // what disables the commit; this only keeps a second one from
         // contradicting it.
         let at_rest = shape.is_none() || self.drafts.profile_path.is_empty() && blocked.is_some();
-        let refused = match self.profile_preview.as_ref().filter(|_| !at_rest) {
-            // The first frame this form is on screen: the latch has
-            // not asked for a preview yet, so there is nothing
-            // honest to say about one. The commit door is still the
-            // judge, so the button is not held for a frame either.
-            None => false,
-            Some(Ok(drawn)) if drawn.has_open_chain() => {
-                // **Drawn, and still not committable.** The chain is
-                // in the viewport (`sketch::preview` walks it under a
-                // provisional close) so the shape can be looked at
-                // while it is written; what it is not yet is a loop,
-                // and the commit door refuses a program that does not
-                // close. Saying which of the two this is beats a
-                // disabled button with a lattice refusal beside it.
-                ui.weak("the chain does not close yet — its last step has to target the start");
-                true
-            }
-            Some(Ok(drawn)) => {
-                if let Some(invalid) = &drawn.invalid {
-                    ui.colored_label(
-                        chrome(self.theme.unresolved),
-                        format!("does not validate: {invalid}"),
-                    );
-                    true
-                } else {
-                    ui.weak(format!(
-                        "{} loop(s), drawn in the viewport",
-                        drawn.loops.len()
-                    ));
-                    false
-                }
-            }
-            Some(Err(error)) => {
-                // **Unfinished is not wrong.** The end-of-program arm
-                // says only that the chain has no closing verb yet,
-                // which is the state every chain passes through while
-                // it is being written — a one-point chain reaches the
-                // form this way, because there is no leg for the
-                // provisional close to be walked over. Every OTHER
-                // refusal blames a step somebody actually wrote, and
-                // keeps the colour that says so.
-                if matches!(error, PreviewError::Transition { verb: None, .. }) {
-                    ui.weak(error.to_string());
-                } else {
-                    ui.colored_label(chrome(self.theme.unresolved), error.to_string());
-                }
-                true
-            }
-        };
+        let refused = preview_verdict(
+            ui,
+            self.theme,
+            self.profile_previews.create.as_ref().filter(|_| !at_rest),
+        );
         if ui
             .add_enabled(
                 blocked.is_none() && !refused,
@@ -670,182 +646,6 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
-    }
-
-    /// **The path form's step list**: one row per verb, plus the
-    /// control that appends another.
-    ///
-    /// Each row is `N [x] [up] [down] <verb> <the verb's fields>` — a
-    /// list a person edits in place, because a chain IS a list and its
-    /// order is the whole content. Changing a row's verb replaces the
-    /// step with a fresh one of that verb rather than carrying
-    /// numbers across: two verbs' fields mean different things (a
-    /// `line`'s length is not a `turn`'s angle), so a carried number
-    /// would be a guess the form cannot check.
-    ///
-    /// **The row number is the one the refusals use.** A preview
-    /// refusal reads "loop 0 step 2", and a list with nothing written
-    /// on it left a reader counting rows to find which one that was.
-    /// It is therefore zero-based, matching the sentence rather than
-    /// matching what a list of things usually looks like.
-    ///
-    /// **The verb combo offers only what the lattice admits at that
-    /// tip**, and shows the rest greyed with the tip's state as their
-    /// hover text. The tip comes from replaying the rows before it
-    /// ([`sketch::tip_state_at`]); what it admits is read off the
-    /// kernel's own transition table ([`sketch::admits_at`]) and, for
-    /// an arc spec, off its dispatcher's forms — both projected from
-    /// the declarations the replay runs, so the form keeps no copy of
-    /// the lattice. A verb picked lands in the first arc form its row
-    /// takes ([`sketch::fresh_step_at`]).
-    pub(crate) fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
-        let length_unit = self.drafts.length_unit.def();
-        let angle_unit = self.drafts.angle_unit.def();
-        ui.horizontal(|ui| {
-            ui.weak("written in");
-            length_picker(ui, "path_length", &mut self.drafts.length_unit);
-            angle_picker(ui, "path_angle", &mut self.drafts.angle_unit);
-        });
-        // The row edits are COLLECTED and applied after the loop: a
-        // list cannot be reordered or shortened while it is being
-        // iterated, and one edit per frame is what keeps two buttons
-        // clicked in one frame from compounding into a move nobody
-        // asked for.
-        let mut remove: Option<usize> = None;
-        let mut swap: Option<(usize, usize)> = None;
-        // A verb chosen in a row's combo, applied after the loop for
-        // the same reason the moves are: the probe that decides which
-        // verbs a combo may offer reads the WHOLE list, and it cannot
-        // borrow it while a row holds a mutable slice of it.
-        let mut rebind: Option<(usize, Verb, Option<TipState>)> = None;
-        let mut insert: Option<usize> = None;
-        let tol = self.session.tol();
-        // The tip each row's step lands on, read off the replay of the
-        // rows before it. Every frame rather than only while a combo is
-        // open, because the arc pickers grey their refused modes from
-        // it too; a replay per row of a hand-authored path is cheap.
-        let states: Vec<Option<TipState>> = (0..self.drafts.profile_path.len())
-            .map(|index| sketch::tip_state_at(&self.drafts.profile_path, index, tol))
-            .collect();
-        let last = self.drafts.profile_path.len().saturating_sub(1);
-        for (index, &state) in states.iter().enumerate() {
-            let salt = format!("path_step_{index}");
-            ui.horizontal(|ui| {
-                // Zero-based, because "loop 0 step 2" is.
-                ui.weak(format!("{index}"));
-                if ui
-                    .small_button(GLYPH_REMOVE)
-                    .on_hover_text("remove this step")
-                    .clicked()
-                {
-                    remove = Some(index);
-                }
-                if ui
-                    .add_enabled(index > 0, egui::Button::new(GLYPH_UP).small())
-                    .on_hover_text("move this step earlier")
-                    .clicked()
-                {
-                    swap = Some((index, index - 1));
-                }
-                if ui
-                    .add_enabled(index < last, egui::Button::new(GLYPH_DOWN).small())
-                    .on_hover_text("move this step later")
-                    .clicked()
-                {
-                    swap = Some((index, index + 1));
-                }
-                // **Insert after this row.** A chain is written in the
-                // middle as often as at the end — a leg forgotten
-                // between two that exist used to mean appending it and
-                // walking it up with the arrows — so every row carries
-                // the control, and the last row's is the append.
-                //
-                // In the row's own control cluster rather than at the
-                // far end of it, which is where this first went: a
-                // row's width is its verb's, so at the end the `+`
-                // sits at a different place on every row and, on the
-                // widest, past the edge of a pane that does not scroll
-                // sideways. A control that moves under the cursor is
-                // worse than one that is not where a reader first
-                // looks for it.
-                if ui
-                    .small_button("+")
-                    .on_hover_text("insert a step after this one")
-                    .clicked()
-                {
-                    insert = Some(index + 1);
-                }
-                let verb = self.drafts.profile_path[index].verb();
-                egui::ComboBox::from_id_salt(("path_verb", index))
-                    .selected_text(verb.to_string())
-                    .width(120.0)
-                    .show_ui(ui, |ui| {
-                        for &option in Verb::ALL {
-                            let refusal = sketch::admits_at(state, option).err();
-                            // `add_enabled` on the widget itself, not
-                            // an `add_enabled_ui` around it: the
-                            // reason a choice is greyed out is told
-                            // through `on_disabled_hover_text`, and
-                            // that is a `Response`'s door — a region's
-                            // response shows nothing.
-                            let row = ui.add_enabled(
-                                refusal.is_none(),
-                                egui::Button::selectable(option == verb, option.to_string()),
-                            );
-                            match refusal {
-                                Some(state) => {
-                                    // The verb's `Display`, which is
-                                    // the word the combo shows, not
-                                    // its `Debug`: the sentence is
-                                    // about the row a reader is
-                                    // looking at.
-                                    row.on_disabled_hover_text(format!(
-                                        "{option} is not well-typed here — the tip is {}",
-                                        sketch::tip_state_words(state),
-                                    ));
-                                }
-                                None if row.clicked() && option != verb => {
-                                    rebind = Some((index, option, state));
-                                }
-                                None => {}
-                            }
-                        }
-                    });
-                let step = &mut self.drafts.profile_path[index];
-                path_step_fields(ui, &salt, length_unit, angle_unit, state, step);
-            });
-        }
-        if let Some((index, verb, state)) = rebind {
-            self.drafts.profile_path[index] = sketch::fresh_step_at(verb, state);
-        }
-        if let Some(index) = remove {
-            self.drafts.profile_path.remove(index);
-        }
-        if let Some(at) = insert {
-            self.drafts.profile_path.insert(at, new_row_step(at));
-        }
-        if let Some((from, to)) = swap {
-            self.drafts.profile_path.swap(from, to);
-        }
-        ui.horizontal(|ui| {
-            // **"Add step" only when there is no row to insert after.**
-            // Once the list has rows, every one of them carries a `+`
-            // that inserts after it — including the last, which is the
-            // append — so a second control at the bottom would be the
-            // same move spelled twice.
-            //
-            // There is no verb picker beside it either. It duplicated
-            // the row combo one row down: whatever the new step is,
-            // the way to change it is the same control either way, and
-            // a second one only asked the question a frame earlier.
-            if self.drafts.profile_path.is_empty() {
-                if ui.button("Add step").clicked() {
-                    self.drafts.profile_path.push(new_row_step(0));
-                }
-            } else if ui.button("Clear").clicked() {
-                self.drafts.profile_path.clear();
-            }
-        });
     }
 
     /// The extrude form: the current selection is the profile (a tree

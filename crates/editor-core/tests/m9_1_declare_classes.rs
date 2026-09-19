@@ -139,7 +139,11 @@ fn an_authored_class_is_what_the_node_holds() {
         ],
     };
     let applied = doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the Declare inserts");
     let id = applied.record.minted.unwrap();
     let Some(Node::Declare { pairs }) = applied.doc.node(id) else {
@@ -177,6 +181,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
                     node: declare(class),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .expect("the Declare inserts");
         let d = applied.record.minted.unwrap();
@@ -192,6 +197,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
                     },
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .expect("the boolean inserts");
         let id = applied.record.minted.unwrap();

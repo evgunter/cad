@@ -611,6 +611,7 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -679,6 +680,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
             )]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::DeclareNamesMissingNode { .. })),
@@ -702,6 +704,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
                 node: Node::declare_rest(vec![sides]),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         );
         assert!(
             matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
@@ -980,7 +983,11 @@ fn a_declared_unions_document_replays_in_document_order() {
     for id in doc.order() {
         let node = doc.node(*id).expect("a live node").clone();
         replay = replay
-            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
             .unwrap_or_else(|e| panic!("re-inserting {id:?} refused: {e:?}"))
             .doc;
     }
@@ -1179,7 +1186,11 @@ fn a_deleted_site_refuses_at_the_next_evaluation() {
         "a site that left the member list must refuse"
     );
     let applied = doc
-        .apply(&DocEdit::DeleteNode { id: b }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: b },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("a delete never refuses over a dangling reference (N5)");
     let ev = run(&applied.doc);
     assert!(
@@ -1209,6 +1220,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
                 to: to.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the rebind applies");
     let Some(Node::Declare { pairs }) = applied.doc.node(decl) else {

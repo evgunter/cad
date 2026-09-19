@@ -113,12 +113,22 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
-        &save(&origin, &log_a, Tol::witness()).unwrap(),
+        &save(
+            &origin,
+            &editor_core::LoggedEdit::bare_all(&log_a),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let loaded_b = load(
-        &save(&origin, &log_b, Tol::witness()).unwrap(),
+        &save(
+            &origin,
+            &editor_core::LoggedEdit::bare_all(&log_b),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .unwrap();

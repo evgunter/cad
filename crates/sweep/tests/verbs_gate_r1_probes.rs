@@ -304,7 +304,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
 /// face's boundary, so a relabel is exactly what its box arithmetic
 /// sees.
 fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
-    let mut b = brick((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let face = b
         .faces()
         .find(|(_, f)| match b.get_surface(f.surface) {

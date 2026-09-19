@@ -1306,3 +1306,64 @@ Six are structurally invisible to any grep for the sentence, four of
 them a family nobody had looked at, and two sit in `work/*/plan.md` —
 one in a program's **exit criteria**. A source header states a rule
 where a lane *may* read it; a plan states it where a lane *must*.
+
+## 2026-09-19 — F6's third spelling folded; the strengthening is a null result, the mutation is not
+
+`f6-display-predicate-is-spelled-three-times-with-no-home` closed, the
+program's oldest open row. `crates/viewer/tests/panel_edits.rs` now
+calls `test_utils::f6::assert_f6` with an `f6_variants!` census over
+all 23 `Refusal` arms instead of banning one identifier per arm.
+
+**The strengthening reddened nothing** — 626 passed / 0 failed / 1
+ignored on `viewer --test all`, identical at the merge base and after.
+The measurement the unit owed was whether the whole-roster ban catches
+a real leak in what `viewer` renders, and it does not: the six sampled
+renderings are clean.
+
+**Method item 11 is what made that an honest null rather than a
+guess.** Two mutations:
+
+- a sibling identifier planted in `Refusal::NoSuchParam`'s `Display`
+  is **green under the old per-arm form and red under the new one**.
+  The delta is real even though the tree does not currently exercise
+  it.
+- a twenty-fourth `Refusal` arm reds the `f6_variants!` block with
+  `E0004`, so the ban list is rustc's, not a hand-kept mirror. That is
+  the half `assert_f6`'s `dumps: &[&str]` parameter cannot give a
+  caller on its own, and the reason a site with 23 identifiers is
+  cheaper to keep right than one with 6.
+
+### The census was stale in both directions, which is item 1 again
+
+The row named three copies and two more "outside its scope" in `topo`
+and `mesh`. **The topo and mesh copies had already been folded** by
+S-TINT's PR #2694 four days before this brief was written; reading the
+row as current would have sent a lane to convert two files that are
+already converted.
+
+Two members the row never named are live, and both are the shapes this
+program keeps meeting:
+
+- **a paraphrase no grep for the predicate reaches** —
+  `crates/viewer/tests/error_display.rs` spells the brace clause
+  `" { "`, so the `contains('{')` instrument that found every other
+  member walks straight past it. 29 call sites, one file over from the
+  one the row was about, in the same crate, with the same per-arm
+  approximation. → S-TINT.
+- **a spelling inline mid-file rather than in a header or a helper** —
+  `crates/quantity/src/tests.rs` transcribes `assert_f6`'s whole body,
+  **panic wording included**, inside a `src/` unit-test module. No
+  sweep for `dumps`, `guts`, `assert_f6` or a `tests/` path reaches a
+  `src/` file. → S-FIX.
+
+Both shapes are already in method item 10's roster. Both still cost a
+census that did not deliberately run an instrument against them. The
+instrument that found `quantity` was **prose** — its doc comment
+announces the rule it copies.
+
+### On the size of the row
+
+One call site and a measurement is thinner than a unit, and the unit
+said so rather than dressing it up. What earned it its own PR is the
+census: the row's stated population was wrong in both directions, and
+the two rows filed out of it are each larger than the fold was.

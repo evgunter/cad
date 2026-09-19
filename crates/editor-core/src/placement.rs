@@ -340,9 +340,11 @@ impl Frame {
 
 /// What makes a [`Frame`] inadmissible as a placement
 /// ([`Frame::admission_fault`]) — one vocabulary, and one SENTENCE, for
-/// every door that admits a frame.
+/// every door that admits a frame. Public because the load door
+/// carries it out on [`crate::PersistError::MaintenanceFrame`], for a
+/// recorded maintenance row held to the same rule.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum FrameFault {
+pub enum FrameFault {
     /// A coordinate that is not a number: no predicate downstream can
     /// decide anything about where this frame puts the material.
     NonFinite,

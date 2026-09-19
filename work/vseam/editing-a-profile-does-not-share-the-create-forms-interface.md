@@ -2,8 +2,11 @@
 id: editing-a-profile-does-not-share-the-create-forms-interface
 kind: issue
 title: Editing an existing profile has a different, worse interface than creating one (Ev-requested, high priority)
-status: open
+status: closed
 opened: 2026-09-17
+branch: vseam/profile-editor
+pr: 2862
+closed: 2026-09-19
 ---
 
 ## Ev's note (verbatim)
@@ -48,3 +51,16 @@ The work crosses programs:
 Filed here because the core is what the viewer authors and lowers on
 the document's behalf, which is VSEAM's charter. Announce it to VGEOM
 and VNEWS when it is taken.
+
+## Closed
+
+Landed by PR 2862 (`vseam/profile-editor`). One editor, `pane/profile.rs`, has two doors: create (`InsertNode`) and edit (`SessionOp::EditProfile`, which carries its `base` program and refuses `ProfileEditStale` if the document has moved). Both drive one preview pipeline, `drafts::ProfileDoors`. An untouched Apply writes nothing. Moved numbers are written in an order `session::accepted_order` finds by exact search, capped at 12 writes. While a node is edited, the committed-profile pass leaves it out (`Drafts::edited_in_place`). The slot rows stay reachable under the editor, in a folded "arguments" section.
+
+The shape is locked on a committed profile until the document has a whole-program edit (`a-committed-profile-program-has-no-whole-program-edit`, EDIT), which was put to Ev in chat. Residue:
+
+- `the-profile-editors-fields-carry-no-per-argument-affordances`
+- `a-number-fields-focus-round-trip-writes-its-rounded-text`
+- `the-rectangle-and-circle-templates-reopen-as-paths`
+- `dragging-a-profile-argument-freezes-its-outline`
+
+All four are on this slate.
