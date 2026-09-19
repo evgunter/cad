@@ -32,12 +32,12 @@
 
 use crate::EulerCounts;
 use crate::readback::euler_counts;
+use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::{
     Body, Edge, EntityId, EulerOpError, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, MefCreated, MefSite, MekrSite, MevCreated, MevSite, MvfsCreated, Provenance, Shell,
     Solid, Vertex, VertexKey, validate,
 };
-use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use geom_core::Point3;
 use geom_core::Tol;
 
@@ -2049,4 +2049,3 @@ fn failing_ring_ops_leave_lineage_pure() {
     let (_dirty_body, dirty) = build(true);
     assert_eq!(clean, dirty, "failed ring ops perturbed the lineage");
 }
-

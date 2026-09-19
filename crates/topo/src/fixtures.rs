@@ -1095,4 +1095,3 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsStrutCube { body, outer, strut }
 }
-

@@ -618,3 +618,30 @@ row's evidence for method item 1.
 The rule this hardens, for every row this program closes: **correct the
 number everywhere it is asserted, and leave it everywhere it is
 quoted.** A closed row's title is an assertion.
+
+## 2026-09-19 — the cube-sequence fold
+
+`dup/fold-the-cube-sequence`. `prism_ops` gains the declined axis as a
+`FaceGeometry` parameter; `splitting::reassembly::quad_prism`,
+`fixtures::ops_cube`, `review_m1_pr3::build_box`, `mesh`'s MESH-6
+scaffold probe, `review_m3_pr1::ops_cube_public` and
+`interval_body`'s interval cube all fold onto it. Every body
+byte-identical (`deep_snapshot`, all ten arenas + provenance).
+`cube_independent.rs` untouched, as its header requires.
+
+Two of the row's three unmeasured questions are now measured and
+written into it: the placeholder surfaces ARE depended on as
+placeholders (10 rows red when handed planes), `build_box`'s 2x scale
+is read by NO assertion but is kept because the hole recipes planted on
+it live outside a unit cube and nothing would go red. The X4 re-census
+turned up the §9.3 holed-box class, filed as
+`work/dup/the-9-3-holed-box-sequence-is-written-out-four-times.md`.
+
+The `mesh` dev-edge question the brief flagged is NOT the `sweep` one:
+`sweep` needs the feature at LIBRARY build time (its `test_support` is
+a `src/` module), `mesh` needs it on a dev edge only, and
+`crates/step-export/Cargo.toml` and `crates/step-import/Cargo.toml`
+already carry exactly the shape `mesh` takes — a featureless `topo`
+in `[dependencies]` beside a `topo = { features = ["test-support"] }`
+in `[dev-dependencies]`. `scripts/gates/test-features-dev-only.sh`
+passes.

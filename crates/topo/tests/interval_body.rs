@@ -19,64 +19,22 @@ use geom::{NetState, NurbsSurface, Surface};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
-use topo::{
-    Body, FaceSurface, MefSite, MevSite, ValidationError, validate, validate_closed,
-    validate_geometric,
-};
+use topo::{FaceSurface, ValidationError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 
-/// A point enclosure from exact `f64` coordinates ([`Real::from_f64`] is
-/// an exact embedding; these dyadic values are single points).
-fn pt(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(
-        Interval::from_f64(x),
-        Interval::from_f64(y),
-        Interval::from_f64(z),
-    )
-}
-
 #[test]
 fn interval_cube_builds_and_validates_at_both_tiers() {
-    // The §9.4.2-minimal cube (1 mvfs + 7 mev + 5 mef), transcribed from
-    // the f64 acceptance test with interval coordinates.
-    let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-    let strut = |body: &mut Body<Interval>, at, x, y, z| {
-        body.mev_line(
-            MevSite::Fan { he1: at, he2: at },
-            pt(x, y, z),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let mef = |body: &mut Body<Interval>, he1, he2| {
-        body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
-            .unwrap()
-    };
-    let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
-    let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
-    let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
-    let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
-    let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
-    let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
-    let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
-    mef(&mut body, e_bb.he_minus, e_cc.he_minus);
-    mef(&mut body, e_cc.he_minus, e_dd.he_minus);
-    mef(&mut body, e_dd.he_minus, f_front.he_plus);
+    // The §9.4.2-minimal cube (1 mvfs + 7 mev + 5 mef) with its face
+    // geometry declined, at `T = Interval`: [`common::declined_cube`],
+    // the same generic door the geometric rows below take. The pure-
+    // replay claim this file is about is that ONE operator sequence
+    // instantiates at both scalars, so taking the shared builder here
+    // states it instead of transcribing it.
+    let cube = common::declined_cube::<Interval>(Tol::witness());
+    let body = cube.body;
+    // The strut up from B, whose far end is the B' corner read below.
+    let e_bb = cube.mevs[4];
 
     // Minimal counts, both validation tiers.
     assert_eq!(body.vertices().count(), 8);

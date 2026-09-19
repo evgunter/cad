@@ -667,7 +667,14 @@ pub fn cube_into<T: geom_core::Decide>(
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
 ) {
-    prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, FaceGeometry::Certified, tol);
+    prism_ops(
+        body,
+        &UNIT_SQUARE,
+        (0.0, 1.0),
+        map,
+        FaceGeometry::Certified,
+        tol,
+    );
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);

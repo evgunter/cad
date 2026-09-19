@@ -2,9 +2,10 @@
 id: the-cube-sequence-is-written-five-times-and-twice-inside-src
 kind: issue
 title: The §9.4.2 cube sequence is written five times in topo; after link 3 every copy is in src/ and they fold onto each other
-status: open
+status: review
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
+branch: dup/fold-the-cube-sequence
 ---
 
 
@@ -226,3 +227,53 @@ about moving the family. What landed is the disclosure: `quad_prism`'s
 doc now says it is a copy of `test_support_fixtures::prism_ops` and
 points here, and `cert_m3r1_probes.rs`'s header no longer claims the
 moved family is *"the one Euler-op fixture family"*.
+
+## What the fold measured (2026-09-19, `dup/fold-the-cube-sequence`)
+
+**The placeholder surfaces ARE depended on as placeholders.** The row
+recorded this as unmeasured. Instrument: hand `fixtures::ops_cube` real
+Newell planes (one character at the fold's call site) and count what
+reddens. **Ten rows**, all in `topo`'s lib suite — nine in
+`merge_faces::tests`
+(`the_placeholder_cube_forms_no_group_and_its_faces_are_named`,
+`a_placeholder_run_has_no_regime_and_is_set_aside`,
+`a_source_stamp_joining_a_placeholder_to_a_plane_refuses_typed`,
+`an_ok_carries_a_recorded_skip_beside_the_placeholder_census`,
+`a_described_face_beside_placeholders_is_untouched_and_they_are_named`,
+`every_contradicted_fact_escapes_the_recording_regime`,
+`every_contradicted_fact_refuses_the_refusing_regime`,
+`the_door_records_same_face_as_a_skip`,
+`the_planar_fixtures_take_the_two_regimes`) and one in `revert::tests`
+(`revert_flips_sense_on_non_plane_faces_instead_of_refusing`). So the
+weaker reading — "not read" — is false, and the declined axis is a
+parameter, not a default to be folded away.
+
+**`build_box`'s 2x scale is NOT read by any assertion.** Instrument:
+normalise it to the unit square and run the whole `topo` suite. 1291
+of 1291 pass. It is still kept, for a reason that is not an assertion:
+the three hole recipes its callers plant sit at x, y in (0.5, 1.5) and
+z up to 1.5, which is inside a 2x2x2 box and outside a unit cube.
+These are tier-1/2 suites, so nothing would go red — the fixture would
+just become geometrically incoherent silently. The scale is therefore
+`prism_ops`'s extent argument at the call site, stated, rather than a
+`2.0` multiplier hidden in a map.
+
+**The fold preserves every body key-for-key.** `fixtures::deep_snapshot`
+(all ten arenas in slot order, full payloads, D5 provenance) over
+`ops_cube`, `ops_holed_box`, `ops_genus2`, `build_box` and
+`quad_prism`, before and after: byte-identical, all five. The `mesh`
+probe's printed output is identical down to `FaceKey(3v1)`.
+
+**Two more members the row's censuses missed**, both loop- or
+closure-written and so under the arity census's threshold:
+`crates/topo/tests/review_m3_pr1.rs`'s `ops_cube_public` (the declined
+cube, twenty-eight operator calls) and
+`crates/topo/tests/interval_body.rs`'s
+`interval_cube_builds_and_validates_at_both_tiers` (the same at
+`T = Interval`, in a file whose OTHER rows already take
+`common::geometric_cube::<Interval>`). Both folded. The same
+re-measurement shows `crates/topo/tests/cube_by_hand.rs` and
+`review_m1_pr2/cube_independent.rs` score 1 `mvfs` / 4 `mev` / 2 `mef`
+— **neither is matched by the arity census at all**, so this row's
+"`review_m1_pr2/*` already dispositioned" line was matching that
+directory's other two files, not the exempt one.

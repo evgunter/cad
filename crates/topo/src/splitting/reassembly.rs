@@ -35,9 +35,8 @@ use crate::entity::{FaceKey, LoopBoundary};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::props::mass_properties;
+use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::validate::{validate, validate_closed};
-use crate::test_support_fixtures::FaceGeometry::Certified;
-use crate::test_support_fixtures::prism_ops;
 use geom_brep::EdgeCurveSpec;
 
 /// A geometric quad prism (profile in x–y, extruded +z): planar Newell
@@ -48,7 +47,14 @@ use geom_brep::EdgeCurveSpec;
 /// whole of what this oracle's fixtures need.
 pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Body<f64> {
     let mut body = Body::<f64>::new();
-    prism_ops(&mut body, profile, (0.0, height), Point3::new, Certified, tol);
+    prism_ops(
+        &mut body,
+        profile,
+        (0.0, height),
+        Point3::new,
+        FaceGeometry::Certified,
+        tol,
+    );
     body
 }
 
