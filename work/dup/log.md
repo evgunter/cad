@@ -1516,3 +1516,49 @@ change a verdict?* Both units can, if the fold turns out to move what a
 suite measures — and whether it does is exactly what the lanes were
 sent to measure. The tier is decided on the hand-back, from the
 measurement, rather than asserted now from the row.
+
+### A third lane, and a row whose headline had gone stale underneath it
+
+`the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files` and
+`viewer-review-suites-cite-the-withdrawn-independence-reading` are one
+class and went out as one unit → `dup/policy-memory-citations`,
+worktree `/home/user/dup-citation`.
+
+Before briefing it I re-took both rows' counts at `5b4979ef2`, and the
+first row's headline no longer describes the tree:
+
+- **The withdrawn sentence survives in three source files, not
+  nineteen.** `rg -U 'do not\s*(//!)?\s*"simplify"'` over every tracked
+  file returns `topo/src/review_m1_pr3.rs`, `topo/src/review_m1_pr4.rs`
+  and `topo/tests/review_m1_pr5.rs` — which is precisely the group the
+  row itself identifies as stating a **surviving** rule scoped to the
+  derivations. The sixteen group-A carriers were cleared by the row's
+  own carrier PR. What is still open is not the sentence, it is the
+  per-file judgement the row says it owes, and the paraphrase carriers
+  no sentence-grep reaches.
+- **The citation denominator is 35 tracked paths**, against the viewer
+  row's four. It reaches `editor-core`, `step-export`, a `sweep`
+  example, `docs/REVIEW-STYLE-DISPATCH.md` and two `memories/` files
+  that neither row names.
+
+This is method item 12 (**stale modality**) happening to S-DUP's own
+slate, and it is the third time this sitting a count has been stale in
+the **closed** direction — the tree moved under the row while the row
+sat. It is also why the brief hands the lane both measurements *with
+the instrument and its blind spot named, and an instruction to re-take
+them anyway*: a sentence-shaped grep cannot see a paraphrase, and a
+line-shaped grep cannot see a citation that wraps across `//!` lines,
+which is the defect that undercounted this very row three separate
+times.
+
+Two guards in that brief the other two did not need:
+
+- **`memories/` carriers are read-only for the lane.** Some of the 35
+  sit in files whose contents are Ev's call. The lane quotes what it
+  finds and hands it back; it does not edit it. A lane correcting a
+  memory would be exactly the permission-laundering shape this program
+  keeps writing about.
+- **The seven PR #17 attribution sentences are fenced off**, including
+  in headers the lane is otherwise editing. That row is already waiting
+  on Ev, and settling it means writing a new provenance claim about
+  Ev's own words — which is not a lane's call and not mine.
