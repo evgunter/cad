@@ -72,9 +72,9 @@ that paragraph says, not only to three signatures.
   wrong. The gate skips a forward whose SOURCE feature is test-only, by
   construction: its scan reads
   `if is_test_feature(feature) …: continue` over the `[features]`
-  table before it looks at any entry. **The precedent is three lines
-  above the `topo` dependency it would sit beside**:
-  `crates/sweep/Cargo.toml:28` already reads
+  table before it looks at any entry. **The precedent is in the same
+  manifest**, in the `[features]` table rather than beside the
+  dependency it forwards to: `crates/sweep/Cargo.toml:28` already reads
   `test-support = ["profile/test-support"]`, with a comment saying the
   forward is not optional — `src/test_support.rs` names
   `profile::RawLoop`, so a feature that turns this module on without
