@@ -584,3 +584,18 @@ merge carried main forward 63 commits (78 crate files) after the
 verified fix-pass head, so the merged head ran CI before the merge.
 Next in the lane: TRIM-2 PR-2 (tessellation; seam to TESS announced
 at dispatch), TRIM-B2 slot 1.
+
+## TRIM-2 PR-2 dispatched; TESS acked the seam (2026-09-19)
+
+PR-1 merged at a833156d4 (sample #222). TESS acknowledged the PR-2 seam
+within the hour (#2564 comment 5739504272): both arms' shape fine; one
+ask — a domination row for `nurbs_tighten`'s `General` sup against
+densely sampled UV speeds (via `nurbs_cert::tests::Domination` from
+#2848 if on main) — folded into the brief; two in-flight TESS PRs on
+the same files' test modules and the error enum noted; PROPS's
+`rational_cells` hull finding passed on as not-this-unit's. TRIM-B2
+slot 1 = TRIM-2 PR-2, pre-draw S / NUMERIC, arm OPUS by the block's
+draw; brief stored (sha256 7ac2e42863…); lane `trim-2-pr2`, branch
+`trim/2-tess`. The sign-off watchlist is empty: all three seams this
+orchestrator owed are closed (TRIM-3's by silence, TRIM-2 PR-1's by
+Ev's ruling, PR-2's by TESS's ack).

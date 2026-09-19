@@ -49,10 +49,11 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::{deep_snapshot, ops_cube};
+use crate::fixtures::deep_snapshot;
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
 use crate::seqgen;
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
 use geom_core::Tol;
 
@@ -229,7 +230,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     let tol = Tol::witness();
     // Chords general (valence > minimal: cut a cube face corner to
     // corner).
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let before = canonical_form(&body);
     // two half-edges of the top face's loop, two apart
@@ -828,7 +829,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 fn component_formula_holds_on_reference_bodies() {
     let tol = Tol::witness();
     // Cube: c = 1, g = 0.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let shell = t.body.shells().next().unwrap().0;
     let comps = shell_components(&t.body, shell);
     assert_eq!(comps.len(), 1);
@@ -1668,7 +1669,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     // Cube; kfmrh(top, front): front's outer becomes a ring of top;
     // the shared top/front edge now has one half in top's outer, the
     // other in top's ring.
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut body = t.body;
     let top = t.seed.face;
     let front = t.mefs[1].face;
