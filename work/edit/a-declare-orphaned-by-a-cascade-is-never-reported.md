@@ -2,7 +2,8 @@
 id: a-declare-orphaned-by-a-cascade-is-never-reported
 kind: issue
 title: A Declare orphaned by a cascade that deleted its consumer is silent forever
-status: review
+status: closed
+closed: 2026-09-19
 pr: 2874
 branch: edit/orphaned-declare-report
 opened: 2026-09-17
@@ -271,3 +272,36 @@ variant, and `node` answering a second question.
 assertion in an existing row, and the build added a four-node fixture
 inside that row because `part()` has no union. Kept, and now widened
 with the mirror cut and the closed cut.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2874 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). The delete that takes a
+`Declare`'s LAST consumer reports `Maintenance::OrphanedDeclare {
+declare }` — a transition rule, never a state (a fresh declaration is
+legally consumerless in the one-pass window), read out of the
+post-removal document exactly as the strands are; report, never
+refuse, never repair; the order contract is strands, then orphans,
+then cluster acts. DM7's clause text is untouched (the arm calls
+itself the delete door's report beside DM7's strands, ruled at EDIT's
+wave 11 and put to Ev for objection). One spec row could not be built
+as ruled and the orchestrator ruled at the fix pass that the built
+shape stands: deleting the `Declare` itself cascades its consumer
+first, and `apply` — a function of `(document, edit)` — reports the
+orphan at the consumer's step and removes its subject at the next;
+the NET over a cascade is the cascade door's answer (the viewer's
+`commit_action`; Python has no cascade door and its docstring states
+the transient), filed on CHROME's `cascade-delete-shows-the-strand-count`
+row with the reviewer's one-line cancellation measured. The review
+(0 MAJOR, 1 MINOR) found the consumer scan copying `roots::is_sink`'s
+body one file over; the fix pass gave "who consumes this node" one
+home (`roots::consumer`, `is_sink` over it) and closed the class
+across the crate (five sites, three fixed), narrowed the walk to the
+deleted node's inputs, said the set is at most one today, corrected
+the Python contract sentence, and cited the LIB row the seventh
+variant widens. Filed by the review and left standing:
+`an-orphaned-declare-joins-the-product-root-set`. Territory crossed
+by announcement: four TCOST/TINT suites, LIB (`pncad.pyi`,
+`py/mate.rs`, `tags.rs` — tag `orphaned_declare` — `tests.rs`, two
+Python suites), FIX (`refactor.rs`, one line), CHROME and LIB rows
+appended.
