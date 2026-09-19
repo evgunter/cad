@@ -2,16 +2,18 @@
 id: sweep-test-support-brick-is-still-a-second-box-construction
 kind: issue
 title: sweep::test_support::brick still builds the box a second way; one measured thing blocks the delegation and two scope it
-status: open
+status: review
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
+branch: dup/sweep-brick-delegation
 ---
 
 ## Finding
 
 - **Where**: `crates/sweep/src/test_support.rs` (`brick`, `block`,
-  `cube`, over `prism_at` → `prism_on` → the extrude machinery)
-  against `crates/topo/src/test_support_fixtures.rs` (`brick`, over
+  `cube`, which when this row was opened went over `prism_at` →
+  `prism_on` → the extrude machinery) against
+  `crates/topo/src/test_support_fixtures.rs` (`brick`, over
   `prism_ops`).
 - **Importance**: medium
 - **Confidence**: sure about §1, which is read off two signatures and
@@ -188,13 +190,27 @@ delegation reproduces `topo`'s body and nothing else.
   because narrowing is the direction the module's own convention
   already points.
 
-## What would settle it
+## Settled (2026-09-19, branch `dup/sweep-brick-delegation`)
 
-§2 is settled (above). The cheapest remaining measurement is whether
-the swap moves the committed STEP bytes at all: the arena permutation may or may not reach the
-exporter's entity numbering, and nobody has run it. If it does not, 1
-and 2 are the whole cost. If it does, the unit is a delegation plus a
-re-baseline with its own argument about which body the corpus should
-show.
+All three sections are measured and none of them blocks. The remedy is
+**narrow `sweep`, then delegate**: `brick`, `block` and `cube` take
+`f64` extents like every other constant-taking door in that module,
+and `brick` is one line of `topo::test_support::brick`.
 
-Not blocked on anything: the home it needed exists now.
+- §1 dies on its own premises: no call site passes a computed `T`, and
+  the header paragraph it cites claims genericity **in the scalar**,
+  which the narrowed doors keep.
+- §2 is a manifest change, cleared by Ev, and the gate passes on the
+  head that makes it.
+- §3 evaporates: the committed STEP bytes do not move.
+
+Cost, measured: **11** call-site edits — 4 that got shorter (the
+call-site lift is now the door's job) and 7 turbofishes for `T`
+witnesses the extent argument used to supply. The suites are
+**8231/8231** on both sides of the diff at default features, 3081 on
+`interval` and 2923 on `probe`, and a `+1e-3` mutation on the
+delegated extent reds **79** rows in `sweep`, so the green is about
+the fold rather than about a fixture nothing executes.
+
+The residue the unit's own structural needle turned up is
+`work/dup/private-extruded-box-builders-outside-the-brick-door.md`.
