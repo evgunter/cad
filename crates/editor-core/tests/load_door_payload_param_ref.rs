@@ -6,8 +6,8 @@
 //! `MeasureExpr` value leaves and a `Node::Assertion`'s bound
 //! (`node::payload_exprs`) — ask the same one predicate the slot
 //! expressions ask. The two doors only name its answer: the edit door
-//! as `EditError::UnknownPayloadParam` and
-//! `EditError::PayloadParamDimensionMismatch`, the load door as
+//! as `EditError::PayloadUnknownDocParam` and
+//! `EditError::PayloadDocParamDimension`, the load door as
 //! `SnapshotError::PayloadUnknownDocParam` and
 //! `SnapshotError::PayloadDocParamDimension`. So a file cannot carry a
 //! payload expression an edit door would have refused.
@@ -161,7 +161,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::UnknownPayloadParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
     }
 
@@ -193,7 +193,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
         },
         Tol::witness(),
     ) {
-        Err(EditError::PayloadParamDimensionMismatch {
+        Err(EditError::PayloadDocParamDimension {
             name: n,
             node,
             declared,
@@ -254,7 +254,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::UnknownPayloadParam { name: n, .. }) => assert_eq!(n, missing),
+        Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
     }
 
