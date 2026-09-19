@@ -630,22 +630,27 @@ impl<T: Decide> ValuePayload<T> {
 /// # Errors
 ///
 /// [`NodeErrorKind::MissingInput`] naming a transform's input that is
-/// no live node: the refusal that transform's own evaluation raises,
-/// and the only word the evaluation has for the shape — the operand
-/// never lands in a family, so its consumer is poisoned through the
-/// transform rather than refused with one. Unreachable through
-/// `apply`, which takes a node's dependents with it on delete; refused
-/// typed anyway.
+/// no live node, beside the id of THAT transform — the node whose own
+/// evaluation raises this refusal — because the operand never lands
+/// in a family: the evaluation poisons its consumer through the
+/// transform rather than refusing it with one, and a road that holds
+/// no poison seats the refusal at the same node instead. `id` is
+/// `node`'s own id, which is where the walk starts and what it names
+/// when the first transform's input is the one that dangles.
+/// Unreachable through `apply`, which takes a node's dependents with
+/// it on delete; refused typed anyway.
 pub(crate) fn node_value_kind<P>(
     doc: &Doc<P>,
+    id: RecipeNodeId,
     node: &crate::node::Node<P>,
-) -> Result<&'static str, NodeErrorKind> {
+) -> Result<&'static str, (RecipeNodeId, NodeErrorKind)> {
     use crate::node::Node;
-    let mut at = node;
+    let (mut at_id, mut at) = (id, node);
     while let Node::Transform { input, .. } = at {
         at = doc
             .node(*input)
-            .ok_or(NodeErrorKind::MissingInput { input: *input })?;
+            .ok_or((at_id, NodeErrorKind::MissingInput { input: *input }))?;
+        at_id = *input;
     }
     Ok(match at {
         Node::Transform { .. } => {
