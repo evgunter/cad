@@ -346,7 +346,9 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .iter()
         .filter_map(|row| match row {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
-            Maintenance::Cluster(_) | Maintenance::StrandedAppearance { .. } => None,
+            Maintenance::Cluster(_)
+            | Maintenance::StrandedAppearance { .. }
+            | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect();
     assert_eq!(

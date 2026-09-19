@@ -2204,7 +2204,13 @@ pub enum Node<P> {
     /// inserted first and the boolean or union carrying its edge
     /// second. The site is also the SIDE — a name carried by both
     /// operands says which one it means — so nothing about a
-    /// declaration depends on the consumer's own name space.
+    /// declaration depends on the consumer's own name space. A
+    /// `Declare` left with no consumer is a legal document — it
+    /// evaluates to its own payload and refuses nothing — so what
+    /// says the node went inert is the delete that TOOK its last
+    /// consumer, as a [`crate::edit::Maintenance::OrphanedDeclare`]
+    /// on the accepted edit — the delete door's orphan report,
+    /// beside DM7's strands, whose arm carries the transition rule.
     ///
     /// **A union's own fold rows are therefore UNREPRESENTABLE here,
     /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the

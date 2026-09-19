@@ -1961,7 +1961,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -2018,6 +2018,10 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
 /// carriers, and it offers both repairs: `Rebind` moves the key,
 /// `ClearAppearance` retires it, and only the second works without a
 /// live node to move to.
+/// The orphan arm's subject is the SURVIVOR — the node named is the
+/// declaration that is still there — where both strand sentences name
+/// a carrier and close on the casualty, so it says what the
+/// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
     let gauge = RecipeNodeId(3);
@@ -2048,6 +2052,18 @@ fn maintenance_display_says_what_the_edit_did() {
                 "the appearance store holds an attachment under a face name minted by node 7",
                 "this edit deleted node 7",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::OrphanedDeclare { declare: other },
+            vec![
+                "node 5 declares contacts",
+                "deleted the last node that consumed it",
+                // What it lost is a CONSUMER. "nothing reads it"
+                // would be false — the same delete re-roots the
+                // declaration into the document's product roots.
+                "so no node consumes the declaration",
+                "until a boolean or union names it again",
             ],
         ),
     ];

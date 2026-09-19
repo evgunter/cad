@@ -4477,6 +4477,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "drop",
             "gauge_rewrite",
             "join",
+            "orphaned_declare",
             "split",
             "strand",
             "stranded_appearance",
