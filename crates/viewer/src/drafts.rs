@@ -587,8 +587,15 @@ mod tests {
             v: [scalar(0.0), scalar(1.0), scalar(0.0)],
         });
         let insert = |doc: &Doc<ProfileProgram>, node| {
-            let applied =
-                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            // A part-less fixture: no mate, no cluster, so the reach
+            // is the refusing one and is never asked.
+            let applied = apply(
+                doc,
+                &DocEdit::InsertNode { node },
+                tol,
+                &pncad::document::RefusingReach,
+            )
+            .expect("the fixture's edit applies");
             let id = applied.record.minted.expect("an insert mints an id");
             (applied.doc, id)
         };
