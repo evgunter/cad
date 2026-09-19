@@ -925,6 +925,13 @@ pub(crate) fn scope_of_moves<T: Real>(
     // A face names its solid in two pointer hops, so the solids are
     // read off the moves themselves and the ONE structural walk that
     // follows covers those solids alone.
+    //
+    // The two hops are spelled out rather than read through
+    // [`Body::solid_of_face`] because their refusals are not the same
+    // sentence: a key the caller handed over names ITSELF
+    // (`StaleFace`), while a back-pointer the body owns is the body's
+    // own corruption (`Corrupt`). `the_two_hops_refuse_differently`
+    // reds on a fold that collapses them.
     let mut solids: Vec<SolidKey> = Vec::new();
     for m in moves {
         for &face in &m.faces {
@@ -953,7 +960,8 @@ mod scope_walks {
 
     use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
     use crate::body::Body;
-    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, SolidKey};
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+    use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 
@@ -1107,5 +1115,52 @@ mod scope_walks {
         let mut work = body.clone();
         offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
             .expect("the door reads its scope, and its scope charts");
+    }
+
+    /// The scope walk's two hops refuse DIFFERENTLY, and that is why it
+    /// is spelled out instead of read through [`Body::solid_of_face`].
+    /// A face key the CALLER handed over is named back to it
+    /// ([`ReplaceFaceError::StaleFace`]); a shell back-pointer the BODY
+    /// owns is the body's own incoherence
+    /// ([`ReplaceFaceError::Corrupt`]), and no key the caller holds is
+    /// wrong. An `Option` door raises one value for both, so a fold
+    /// onto it has to pick one of the two sentences and tell the other
+    /// caller something false. This row is the only thing in the tree
+    /// that reads the difference.
+    #[test]
+    fn the_two_hops_refuse_differently() {
+        let (mut body, first, _second) = two_boxes();
+
+        // Hop 1 — a key the caller handed over. The refusal names it,
+        // so the caller can say WHICH of its faces went stale.
+        let dead = FaceKey::default();
+        let moves = vec![ChartMove {
+            faces: vec![dead],
+            distance: 0.0,
+        }];
+        let Err(err) = scope_of_moves(&body, &moves) else {
+            panic!("a stale face key refuses the scope walk")
+        };
+        assert!(
+            matches!(err, ReplaceFaceError::StaleFace { face } if face == dead),
+            "hop 1 names the caller's own key: {err:?}"
+        );
+
+        // Hop 2 — a live face of that same body whose `shell`
+        // back-pointer is not. Every key the caller holds is good, so
+        // the refusal names none of them.
+        let live = faces_of(&body, first)[0];
+        body.get_face_mut(live).expect("the face is live").shell = ShellKey::default();
+        let moves = vec![ChartMove {
+            faces: vec![live],
+            distance: 0.0,
+        }];
+        let Err(err) = scope_of_moves(&body, &moves) else {
+            panic!("a dangling shell back-pointer refuses the scope walk")
+        };
+        assert!(
+            matches!(err, ReplaceFaceError::Corrupt),
+            "hop 2 is the body's own incoherence, not a stale argument: {err:?}"
+        );
     }
 }
