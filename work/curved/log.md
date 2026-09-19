@@ -342,3 +342,17 @@ the lane: PR-1b (`Pcurve::Spiric` + STEP) on `curved/spiric-1b`, then
 `equator-seam-reauthor-refuses-the-hollowed-elbow`. Instrument note
 for the A/B log: STOP rulings posted on a PR under review must not name
 the slot's arm (R1 read "FABLE" in comment 5662340417).
+
+## Spiric PR-1b dispatched (2026-09-19)
+
+Ev, in-chat: proceed to the next dispatch. CURVED-B2 slot 2 = spiric
+PR-1b (`Pcurve::Spiric` + STEP, spec §3/§5, rows 9–10, the C4 README
+line 1a deferred), pre-draw M / STRUCTURAL logged branch-side, arm
+OPUS by the block's draw; brief stored (sha256 758dec8323…); lane
+`curved-spiric-1b`, branch `curved/spiric-1b`. The brief carries 1a's
+adjudication notes that are 1b's to close (the wall's payload once the
+cache lands; the `param_on` anchor branch if a longer-span fixture
+appears). Operations: the session's Monitor tool expires every 30
+minutes (a harness bug, Ev in-chat) — the four watchdog scripts run
+detached into one event log and the orchestrator waits on it with
+one-shot background commands.
