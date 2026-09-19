@@ -214,7 +214,8 @@ fn no_new_failure(doc: &ProfileDoc, p: &str, value: f64) -> bool {
             name: name(p),
             value: editor_core::DocParamValue::Continuous(value),
         },
-        tol(), &editor_core::RefusingReach,
+        tol(),
+        &editor_core::RefusingReach,
     )
     .expect("a value edit applies")
     .doc;
@@ -778,7 +779,8 @@ fn a_taken_synthetic_name_refuses() {
             name: name(&taken),
             value: DocParam::continuous(Dimension::Length, 3.0),
         },
-        tol(), &editor_core::RefusingReach,
+        tol(),
+        &editor_core::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
