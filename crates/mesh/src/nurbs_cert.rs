@@ -1213,7 +1213,7 @@ impl NurbsCellGrid {
     }
 }
 
-// `pub(crate)`, and only under `cfg(test)`: four of this module's helpers
+// `pub(crate)`, and only under `cfg(test)`: some of this module's helpers
 // are the doors `nurbs_cert_fuzz`'s rows take, and that sibling module
 // exists so the per-file test gate can skip the randomized rows without
 // skipping the deterministic pins here. Re-declaring the helpers there
@@ -1240,6 +1240,143 @@ pub(crate) mod tests {
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
     use profile::RawLoop;
+
+    /// A componentwise domination claim — every `lesser <= greater` — and
+    /// the one spelling of its failure message in this crate.
+    ///
+    /// A red on such a row is read by someone who did not write it, and
+    /// is decided by the last bits as readily as by a percent. So the
+    /// message says which side each number is on, names every component
+    /// that escaped together with its excess, and prints each `f64` at
+    /// `{:.17e}` — the fewest digits at which two distinct doubles never
+    /// print alike.
+    ///
+    /// The comparison is the bare `<=` and nothing else: a NaN on either
+    /// side fails it, and no rounding allowance is made, because what a
+    /// certificate claims is domination.
+    pub(crate) struct Domination<'a> {
+        lesser: &'a str,
+        greater: &'a str,
+        components: Vec<(&'a str, f64, f64)>,
+    }
+
+    impl<'a> Domination<'a> {
+        /// `components` are `(name, lesser, greater)`; `lesser` and
+        /// `greater` name the two SIDES, and label every number printed.
+        pub(crate) fn new(
+            lesser: &'a str,
+            greater: &'a str,
+            components: &[(&'a str, f64, f64)],
+        ) -> Self {
+            Self {
+                lesser,
+                greater,
+                components: components.to_vec(),
+            }
+        }
+
+        /// Dense-sampled truth under a certified sup, component by
+        /// component.
+        pub(crate) fn sampled_under_certified(components: &[(&'a str, f64, f64)]) -> Self {
+            Self::new("sampled", "certified", components)
+        }
+
+        /// The sampled second-partial norms `(uu, uv, vv)` under `b`'s.
+        pub(crate) fn second_partials(sampled: (f64, f64, f64), b: &NurbsFaceBound) -> Self {
+            Self::sampled_under_certified(&[
+                ("uu", sampled.0, b.muu),
+                ("uv", sampled.1, b.muv),
+                ("vv", sampled.2, b.mvv),
+            ])
+        }
+
+        pub(crate) fn holds(&self) -> bool {
+            self.components.iter().all(|&(_, lo, hi)| lo <= hi)
+        }
+    }
+
+    impl core::fmt::Display for Domination<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let (lesser, greater) = (self.lesser, self.greater);
+            for &(name, lo, hi) in &self.components {
+                if lo > hi {
+                    write!(
+                        f,
+                        "`{name}` ESCAPES: {lesser} {lo:.17e} exceeds {greater} {hi:.17e} by \
+                         {:.17e} ({:.3e} of the {greater}); ",
+                        lo - hi,
+                        (lo - hi) / hi
+                    )?;
+                } else if lo.partial_cmp(&hi).is_none() {
+                    write!(
+                        f,
+                        "`{name}` IS UNORDERED: {lesser} {lo:.17e} against {greater} {hi:.17e}; "
+                    )?;
+                }
+            }
+            let names: Vec<&str> = self.components.iter().map(|c| c.0).collect();
+            let side = |pick: fn(&(&str, f64, f64)) -> f64| -> String {
+                let v: Vec<String> = self
+                    .components
+                    .iter()
+                    .map(|c| format!("{:.17e}", pick(c)))
+                    .collect();
+                v.join(", ")
+            };
+            write!(
+                f,
+                "all components ({}): {lesser} ({}) against {greater} ({})",
+                names.join(", "),
+                side(|c| c.1),
+                side(|c| c.2)
+            )
+        }
+    }
+
+    /// The message is the deliverable, so it is pinned on the case that
+    /// needs it most: an escape of two ULPs in one component of three,
+    /// which prints as three equal pairs at any precision short of 17
+    /// significant digits.
+    #[test]
+    fn a_failed_domination_names_the_component_the_side_and_the_excess() {
+        let sampled = (
+            1.248_592_341_233_724_8_f64,
+            6.659_454_728_150_955,
+            4.294_173_537_974_707,
+        );
+        let b = NurbsFaceBound {
+            muu: 1.248_592_341_233_724_3,
+            muv: 6.659_454_728_151_211_5,
+            mvv: 4.294_173_537_974_748,
+            mu1: 1.0,
+            mv1: 1.0,
+        };
+        assert!(sampled.0 > b.muu, "the fixture is a real escape in uu");
+        let d = Domination::second_partials(sampled, &b);
+        assert!(!d.holds());
+        let msg = d.to_string();
+        assert!(
+            msg.starts_with(
+                "`uu` ESCAPES: sampled 1.24859234123372476e0 exceeds certified \
+                 1.24859234123372431e0 by 4.44089209850062616e-16"
+            ),
+            "{msg}"
+        );
+        assert!(
+            !msg.contains("`uv` ESCAPES") && !msg.contains("`vv` ESCAPES"),
+            "{msg}"
+        );
+        assert!(
+            msg.contains("sampled (1.24859234123372476e0, 6.65945472815095485e0, ")
+                && msg.contains("certified (1.24859234123372431e0, 6.65945472815121153e0, "),
+            "both sides are printed in full, labelled: {msg}"
+        );
+        // The comparison is the bare `<=`: equality holds, a NaN does not.
+        assert!(Domination::sampled_under_certified(&[("k", 1.0, 1.0)]).holds());
+        let nan = Domination::sampled_under_certified(&[("k", f64::NAN, 1.0)]);
+        assert!(!nan.holds());
+        assert!(nan.to_string().contains("`k` IS UNORDERED"), "{nan}");
+    }
 
     /// A wavy degree-2×3 integral net on [0,1]² (nothing symmetric, so
     /// every second partial is genuinely nonzero).
@@ -1336,7 +1473,14 @@ pub(crate) mod tests {
         ];
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
-        assert!(b.muu < 1e-100 && b.muv < 1e-12 && b.mvv < 1e-100);
+        assert!(
+            b.muu < 1e-100 && b.muv < 1e-12 && b.mvv < 1e-100,
+            "a flat bilinear quad's certified (uu, uv, vv) is not dust: \
+             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-100, 1e-12, 1e-100)",
+            b.muu,
+            b.muv,
+            b.mvv
+        );
         let (hu, hv) = b.grid_steps(1e-3);
         // Effectively unconstrained: one cell across any real chart
         // rectangle (spans are O(1)).
@@ -1357,10 +1501,21 @@ pub(crate) mod tests {
         ];
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
-        assert!(b.muu < 1e-100 && b.mvv < 1e-100);
+        assert!(
+            b.muu < 1e-100 && b.mvv < 1e-100,
+            "a bilinear quad's certified (uu, vv) is not dust: ({:.17e}, {:.17e}) against \
+             a ceiling of 1e-100",
+            b.muu,
+            b.mvv
+        );
         // S_uv = P11 − P10 − P01 + P00 = (0, 0, 0.5); the hull only
         // ever widens.
-        assert!(b.muv >= 0.5 && b.muv < 0.5 + 1e-12);
+        assert!(
+            b.muv >= 0.5 && b.muv < 0.5 + 1e-12,
+            "certified uv {:.17e} against the exact |S_uv| = 5.00000000000000000e-1: it \
+             must dominate it, and by less than 1e-12",
+            b.muv
+        );
     }
 
     /// REVIEW Z2: degree-0 direction refuses typed (if constructible).
@@ -1414,13 +1569,8 @@ pub(crate) mod tests {
                     wvv = wvv.max(jet.dvv.norm());
                 }
             }
-            assert!(
-                wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
-                "deg {p_deg} mult {mult}: sampled ({wuu},{wuv},{wvv}) vs hull ({},{},{})",
-                b.muu,
-                b.muv,
-                b.mvv
-            );
+            let d = Domination::second_partials((wuu, wuv, wvv), &b);
+            assert!(d.holds(), "deg {p_deg} mult {mult}: {d}");
         }
     }
 
@@ -1454,14 +1604,8 @@ pub(crate) mod tests {
                     wvv = wvv.max(jet.dvv.norm());
                 }
             }
-            assert!(
-                wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
-                "{name}: sampled ({wuu},{wuv},{wvv}) escapes the certified \
-                 ({},{},{})",
-                b.muu,
-                b.muv,
-                b.mvv
-            );
+            let d = Domination::second_partials((wuu, wuv, wvv), &b);
+            assert!(d.holds(), "{name}: {d}");
             assert!(
                 b.muu > 0.0,
                 "{name}: muu must be real, not a fabricated zero"
@@ -1514,15 +1658,12 @@ pub(crate) mod tests {
                     }
                 }
                 let b = c.bound;
+                let d = Domination::second_partials((wuu, wuv, wvv), &b);
                 assert!(
-                    wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
-                    "{name} cell {k} u{:?} v{:?}: sampled ({wuu:e},{wuv:e},{wvv:e}) escapes \
-                     its own certified ({:e},{:e},{:e})",
+                    d.holds(),
+                    "{name} cell {k} u{:?} v{:?}, against its own bound: {d}",
                     c.u,
-                    c.v,
-                    b.muu,
-                    b.muv,
-                    b.mvv
+                    c.v
                 );
             }
         }
@@ -1546,9 +1687,17 @@ pub(crate) mod tests {
             let cells = nurbs_cell_bounds(&s, FaceKey::default()).expect("covered");
             let n = 12;
             for (k, c) in cells.iter().enumerate() {
+                let refines = Domination::new(
+                    "cell",
+                    "patch",
+                    &[
+                        ("u1", c.bound.mu1, whole.mu1),
+                        ("v1", c.bound.mv1, whole.mv1),
+                    ],
+                );
                 assert!(
-                    c.bound.mu1 <= whole.mu1 && c.bound.mv1 <= whole.mv1,
-                    "{name} cell {k}: first-derivative sup exceeds the patch's"
+                    refines.holds(),
+                    "{name} cell {k}: first-derivative sup exceeds the patch's: {refines}"
                 );
                 let inside = |lo: f64, hi: f64, k: u32| {
                     lo + (hi - lo) * f64::from(k) / f64::from(n) * (1.0 - 1e-9)
@@ -1561,14 +1710,15 @@ pub(crate) mod tests {
                         wv = wv.max(jet.dv.norm());
                     }
                 }
+                let d = Domination::sampled_under_certified(&[
+                    ("u1", wu, c.bound.mu1),
+                    ("v1", wv, c.bound.mv1),
+                ]);
                 assert!(
-                    wu <= c.bound.mu1 && wv <= c.bound.mv1,
-                    "{name} cell {k} u{:?} v{:?}: sampled speeds ({wu:e},{wv:e}) escape \
-                     the certified ({:e},{:e})",
+                    d.holds(),
+                    "{name} cell {k} u{:?} v{:?}, first-derivative speeds: {d}",
                     c.u,
-                    c.v,
-                    c.bound.mu1,
-                    c.bound.mv1
+                    c.v
                 );
             }
         }
@@ -1587,20 +1737,20 @@ pub(crate) mod tests {
         ] {
             let whole = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
             for c in nurbs_cell_bounds(&s, FaceKey::default()).expect("covered") {
+                let refines = Domination::new(
+                    "cell",
+                    "patch",
+                    &[
+                        ("uu", c.bound.muu, whole.muu),
+                        ("uv", c.bound.muv, whole.muv),
+                        ("vv", c.bound.mvv, whole.mvv),
+                    ],
+                );
                 assert!(
-                    c.bound.muu <= whole.muu
-                        && c.bound.muv <= whole.muv
-                        && c.bound.mvv <= whole.mvv,
-                    "{name}: cell u{:?} v{:?} bound ({:e},{:e},{:e}) exceeds the patch's \
-                     ({:e},{:e},{:e})",
+                    refines.holds(),
+                    "{name}: cell u{:?} v{:?} bound exceeds the patch's: {refines}",
                     c.u,
-                    c.v,
-                    c.bound.muu,
-                    c.bound.muv,
-                    c.bound.mvv,
-                    whole.muu,
-                    whole.muv,
-                    whole.mvv
+                    c.v
                 );
             }
         }
@@ -1915,9 +2065,11 @@ pub(crate) mod tests {
                     (got - own).abs() <= f64::EPSILON * own.abs(),
                     "{name}: in-cell cert {got:e} is not the cell's own {own:e}"
                 );
+                let under_patch =
+                    Domination::new("per-cell", "whole-patch", &[("cert", got, whole.cert(uv))]);
                 assert!(
-                    got <= whole.cert(uv),
-                    "{name}: per-cell cert exceeds the whole-patch one"
+                    under_patch.holds(),
+                    "{name}: per-cell cert exceeds the whole-patch one: {under_patch}"
                 );
             }
             // A triangle spanning the whole chart: componentwise sup
@@ -1933,12 +2085,20 @@ pub(crate) mod tests {
             );
             let uv = [[ul, vl], [uh, vl], [ul, vh]];
             let got = grid.cert(uv);
-            assert!(got <= whole.cert(uv), "{name}: spanning cert exceeds patch");
+            let under_patch =
+                Domination::new("spanning", "whole-patch", &[("cert", got, whole.cert(uv))]);
+            assert!(
+                under_patch.holds(),
+                "{name}: spanning cert exceeds patch: {under_patch}"
+            );
             for c in &cells {
+                let own = c.bound.cert(uv);
                 assert!(
-                    got >= c.bound.cert(uv) - f64::EPSILON,
-                    "{name}: spanning cert below a covered cell's — the componentwise \
-                     sup is missing a cell"
+                    got >= own - f64::EPSILON,
+                    "{name}: spanning cert {got:.17e} is below the {own:.17e} of the covered \
+                     cell u{:?} v{:?} — the componentwise sup is missing a cell",
+                    c.u,
+                    c.v
                 );
             }
         }
@@ -2113,7 +2273,8 @@ pub(crate) mod tests {
                 // here and at two more rows of the same shape.
                 assert!(
                     worst_ratio <= 1.0,
-                    "{name}: a triangle's samples exceeded its certificate"
+                    "{name} delta={delta:e}: a triangle's samples exceeded its certificate — \
+                     worst sampled-deviation / certificate = {worst_ratio:.17e}"
                 );
             }
         }
@@ -2252,14 +2413,8 @@ pub(crate) mod tests {
     ) -> (f64, f64, f64, NurbsFaceBound) {
         let b = nurbs_face_bound(s, FaceKey::default()).expect("covered");
         let (wuu, wuv, wvv) = sample_worst(s, n);
-        assert!(
-            wuu <= b.muu && wuv <= b.muv && wvv <= b.mvv,
-            "{name}: sampled ({wuu:.6e},{wuv:.6e},{wvv:.6e}) escapes certified \
-             ({:.6e},{:.6e},{:.6e})",
-            b.muu,
-            b.muv,
-            b.mvv
-        );
+        let d = Domination::second_partials((wuu, wuv, wvv), &b);
+        assert!(d.holds(), "{name}: {d}");
         println!(
             "{name}: truth/bound uu={:.4} uv={:.4} vv={:.4}",
             wuu / b.muu,
@@ -2503,7 +2658,8 @@ pub(crate) mod tests {
             // gap.
             assert!(
                 worst_ratio <= 1.0,
-                "r1_extreme: a sample exceeded its own certificate ({worst_ratio})"
+                "r1_extreme delta={delta:e}: a sample exceeded its own certificate — worst \
+                 sampled-deviation / certificate = {worst_ratio:.17e}"
             );
         }
     }
