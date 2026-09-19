@@ -2,8 +2,7 @@
 //! salvaged from the M0 orchestrator session scratchpad and promoted into
 //! CI 2026-07-16 (archived at
 //! `references/review-artifacts-m0/pr5-review-demos/`). These are
-//! **independent derivations** — do not "simplify" them to match shipped
-//! fixtures; the independence is the regression value.
+//! **independent derivations**.
 //!
 //! Sections mirror the review charter parts 1.1–1.5, plus the review
 //! extras (6: interval chain-rule width, 7: the `powi(2)` fix the review
