@@ -1509,6 +1509,13 @@ fn between_edge_in_plane<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(Some(true)),
+        // The join lanes are fenced against the spiric (the boolean's
+        // operand gate refuses the kind), so a run edge carrying one is
+        // an invariant break, never assumed ON.
+        geom::Curve3::Spiric { .. } => Err(SplitJoinError::SectionInvariant {
+            face: owning_face()?,
+            what: "a join lane reached a spiric run edge (the operand gate refuses the kind)",
+        }),
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));

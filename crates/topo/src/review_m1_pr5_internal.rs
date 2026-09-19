@@ -18,7 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov};
+use crate::fixtures::{pillow, prov};
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::{ValidationError, validate, validate_closed};
 use geom_core::Tol;
 
@@ -28,7 +29,7 @@ use geom_core::Tol;
 #[test]
 fn missing_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
 
     // Solids.
     let mut b = t.body.clone();
@@ -109,7 +110,7 @@ fn missing_provenance_all_seven_arenas() {
 #[test]
 fn leaked_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     macro_rules! leak_probe {
         ($arena:ident, $variant:ident) => {{
             let mut b = t.body.clone();
@@ -142,7 +143,7 @@ fn leaked_provenance_all_seven_arenas() {
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut b = t.body;
     let faces: Vec<_> = b.faces.keys().collect();
     let solid = b.solids.keys().next().unwrap();

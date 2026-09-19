@@ -552,3 +552,35 @@ false, the monotone margin levered by the round. Adjudication on the PR
 (comment 5734849876); thirteen items; fix pass dispatched. **Seam
 gate**: PROPS has not acknowledged; spec §Amendments now carries the
 week's-silence fallback (merge no earlier than 2026-09-22).
+
+## TRIM-2 PR-1 fix pass verified; merge waits on the seam gate (2026-09-19)
+
+Head `e38ca5d87`, run 35418382136 green (twelve `test` jobs at step
+level, four render lanes, five k-lint rows). All thirteen items taken;
+the headline (the area rule) is now the rectangle lane's own 2-D cell
+rule per sub-chord with a second-order trapezoid term, at
+`QUAD2_AREA_PIECES` — E1's area bracket, 2.3× the oracle's before, now
+equals it; Q3's all-iso bit-identity held throughout. The walk's
+closure is checked (`TRIM_OPEN_WALK`) and shared vertices are hulled
+into one bracket; `TrimChord::len` is gone (the door derives it).
+Five mutants red nothing and are stated at their sites, not claimed
+(the closure gap pad, the sliver constant, the λ pad, the bisection
+ladder, the weights' bracket); `mu−1` was the wrong mutant (closed
+Newton–Cotes on an even count is exact one degree past its order) —
+`mu−2` reds Q6/Q9. One row outside the fence moved with a written
+reason: `bool4_material_containment`'s tier-3 row, whose spline-walled
+bracket now passes check 7 through the trimmed lane and is refused at
+the census for its face kind (the row's own doc had named the day).
+Filed: `curved-trim-e2e-fixture-waits-for-a-producer`. **Merge gate**:
+no PROPS acknowledgement through 2026-09-19; per the spec's Amendments
+the merge proceeds no earlier than 2026-09-22 absent an objection.
+
+## TRIM-2 PR-1 merged (2026-09-19) — block TRIM-B2 slot 0 concludes
+
+PR #2564, ordinal 2503, sample #222. Ev, in-chat: PROPS is paused —
+merge; so the spec's §4 acknowledgement gate closes on Ev's ruling
+rather than the amendment's 2026-09-22 fallback (both recorded). The
+merge carried main forward 63 commits (78 crate files) after the
+verified fix-pass head, so the merged head ran CI before the merge.
+Next in the lane: TRIM-2 PR-2 (tessellation; seam to TESS announced
+at dispatch), TRIM-B2 slot 1.

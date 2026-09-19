@@ -326,3 +326,19 @@ including `cosurface-disjoint-curved-walls-refuse` and
 "S-BOOL's today" lanes; the handover the plan waited on happened by
 exit rather than reply. The plan is re-cut after the two open units
 merge.
+
+## CURVED-SPIRIC PR-1a merged (2026-09-19) — block CURVED-B2 slot 1 concludes
+
+PR #2566, ordinal 2204, sample #221. Fix pass from the dual: all
+thirteen items taken; the one behaviour-shaped change is the deciding
+constructor `Curve3::spiric(...)` (four named regime predicates on the
+audit; `mint_carrier` mints through it; bit-identity re-run identical).
+The main merge crossed main's new `InfSpeed` speed meter in five files
+(spiric arms answer `InfSpeed::new(minor_radius)`) and the lune's
+renamed premise `props_meridian_great`; the merged head's real
+`pull_request` run is the verification of record (a dispatch run on
+the conflicting pre-merge head had its render lanes skipped). Next in
+the lane: PR-1b (`Pcurve::Spiric` + STEP) on `curved/spiric-1b`, then
+`equator-seam-reauthor-refuses-the-hollowed-elbow`. Instrument note
+for the A/B log: STOP rulings posted on a PR under review must not name
+the slot's arm (R1 read "FABLE" in comment 5662340417).

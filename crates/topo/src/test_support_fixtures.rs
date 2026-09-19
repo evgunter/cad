@@ -1,9 +1,15 @@
-//! **The Euler-op fixture family**: the geometric unit cube, the prism
-//! builders, the straddle seat, and the two construction steps they
-//! share. Generic over the scalar lane (`f64`, `Dual`, `Interval` —
-//! every `Decide` scalar) wherever the builder is, with real certified
-//! geometry at every step: a `Plane` on every face, a certified chord
-//! line on every edge, and a body whose mass properties compute.
+//! **The Euler-op fixture family**: the unit cube, the prism builders,
+//! the straddle seat, and the two construction steps they share.
+//! Generic over the scalar lane (`f64`, `Dual`, `Interval` — every
+//! `Decide` scalar) wherever the builder is.
+//!
+//! **Every edge carries a certified chord line**, on every door here.
+//! Face geometry is the one axis the doors differ on, and it is a
+//! parameter ([`FaceGeometry`]): the certified doors put a `Plane` on
+//! every face and build a body whose mass properties compute, while
+//! [`declined_cube`] leaves all `n + 2` faces on the one
+//! `Surface::nurbs_placeholder` the seed `mvfs` minted, because the
+//! suites it serves read that shared key.
 //!
 //! # Which home this is, and the one it is not
 //!
@@ -27,13 +33,19 @@
 //!
 //! **It is not `crate::fixtures`, and the two are not two spellings of
 //! one thing.** (Not linked: that module is `#[cfg(test)]` and does not
-//! exist in a doc build.) That module builds bodies through the raw builder
-//! with placeholder geometry — `NaN` NURBS surfaces, self-loop circle
-//! carriers, index-derived collinear points, no mass properties at all
-//! — for structural tests that never read a coordinate. This one
-//! builds them through the Euler operators with the real geometry
-//! above, for suites that do. A body from one is not a substitute for
-//! a body from the other at any call site, and
+//! exist in a doc build.) Its RAW family is built through the raw
+//! builder — `NaN` NURBS surfaces, self-loop circle carriers,
+//! index-derived collinear points standing in for positions nobody
+//! reads — for structural tests that never read a coordinate. Every
+//! door here builds through the Euler operators instead, with real
+//! points and a certified chord on every edge whichever
+//! [`FaceGeometry`] it is handed. **A declined face surface does not
+//! narrow that difference**: [`declined_cube`]'s corners are the unit
+//! cube's corners and its edges are the chords between them, which is
+//! what a raw-family body is not, and `crate::fixtures`' own
+//! operator-built family grows from this door rather than from a
+//! sequence of its own. A raw-family body is not a substitute for one
+//! of these at any call site, and
 //! `the_two_prism_families_build_different_bodies` below is the
 //! assertion that says so in a form a rebinding would break.
 
@@ -107,8 +119,12 @@ pub fn assert_every_chord_named_by_both_rules<T: Real>(
     );
 }
 
-/// Key bundle for the geometric unit cube.
-pub struct GeoCube<T: Real> {
+/// The unit cube's [`PrismOps`] at `n = 4` — the same keys in the same
+/// construction order, flattened into fixed-length arrays — together
+/// with the body they were minted into. Both unit-cube doors return it:
+/// [`geometric_cube`] and [`declined_cube`] differ in what their faces
+/// carry, never in which keys exist or in what order.
+pub struct CubeOps<T: Real> {
     pub body: Body<T>,
     pub seed: MvfsCreated,
     /// [`PrismOps::chain`] then [`PrismOps::struts`], in that order:
@@ -136,6 +152,49 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
 /// A Newell-certified plane from an outward-CCW-ordered corner list.
 pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>], tol: Tol) -> Surface<T> {
     newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
+}
+
+/// Whether [`prism_ops`] certifies its faces or declines face geometry.
+///
+/// **The declined arm is a subject, not a shortcut.** A prism grown
+/// with `Declined` is the §9.4.2 sequence written through `mef`'s
+/// [`FaceSurface::Inherit`] arm — exactly what `mef_chord` does — so
+/// every face it mints, and the seed face it leaves alone, ends on the
+/// ONE `Surface::nurbs_placeholder` the opening `mvfs` minted. The
+/// suites built on it are operator-count, atomicity, revert and
+/// coplanar-merge rows, and they are not merely geometry-indifferent:
+/// several READ that single shared key, and `merge_faces`' coincidence
+/// rows are about six faces sitting on it. Handing them real planes
+/// would change their subject, which is why this is a parameter rather
+/// than a defect to be folded away.
+///
+/// The edge carriers do NOT vary with it: both arms mint the certified
+/// chord line between the two endpoints, which is what `mev_line` and
+/// `mef_chord` compute too.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FaceGeometry {
+    /// Every `mef` supplies its face's outward-CCW Newell plane, and
+    /// the seed face — which survives as the top cap — gets its own
+    /// through `set_face_surface` at the end (the documented seed-face
+    /// path). `n + 2` surface keys for an `n`-corner profile.
+    Certified,
+    /// Every `mef` inherits, and the seed face is left as `mvfs` made
+    /// it: one placeholder surface key for the whole prism.
+    Declined,
+}
+
+impl FaceGeometry {
+    /// The [`FaceSurface`] this arm hands `mef` for a face whose
+    /// outward-CCW corners are `corners`.
+    fn of<T: geom_core::Decide>(self, corners: &[Point3<T>], tol: Tol) -> FaceSurface<T> {
+        match self {
+            // The plane is computed only on this arm: `Declined` is
+            // for fixtures that decline geometry, and a profile whose
+            // Newell plane does not certify is theirs to build.
+            Self::Certified => FaceSurface::New(plane(corners, tol)),
+            Self::Declined => FaceSurface::Inherit,
+        }
+    }
 }
 
 /// The operator keys [`prism_ops`] mints, in construction order.
@@ -169,18 +228,19 @@ pub struct PrismOps {
 /// profile must be counterclockwise", which this doc said until the
 /// builders were unified, was never the rule the callers obeyed.
 ///
-/// It is the §9.4.2-minimal sequence with real geometry at every step —
-/// every `mef` supplies its face's Newell plane, every edge a certified
-/// chord-line carrier; the seed face (which survives as the top cap)
-/// gets its plane via `set_face_surface` at the end (the documented
-/// seed-face path).
+/// It is the §9.4.2-minimal sequence: every edge a certified chord-line
+/// carrier, and every face's surface whatever `faces` says.
 ///
-/// The two axes the callers differ on are both parameters here, and
+/// The three axes the callers differ on are all parameters here, and
 /// that is the whole of the difference between them:
 ///
 /// - **`map`** is where the tilted operands live. `Point3::new` at
 ///   `T::from_f64` gives the untransformed prism; anything else — a
 ///   scale, an affine, a shear — is the same body pushed through it.
+///   The 2x box and the unit cube are one call apart.
+/// - **`faces`** is [`FaceGeometry`]: real Newell planes, or face
+///   geometry declined. Declining is a SUBJECT, not a shortcut; that
+///   enum's doc is where the reason is written.
 /// - **The description step is the CALLER's.** This stops before
 ///   [`describe_as_intersections`]: run it and every transverse edge
 ///   trades its conventional chord for the `Intersection` its two faces
@@ -219,6 +279,7 @@ pub fn prism_ops<T: geom_core::Decide>(
     profile: &[(f64, f64)],
     z: (f64, f64),
     map: impl Fn(f64, f64, f64) -> Point3<T>,
+    faces: FaceGeometry,
     tol: Tol,
 ) -> PrismOps {
     assert!(profile.len() >= 3, "a prism needs at least three corners");
@@ -270,7 +331,7 @@ pub fn prism_ops<T: geom_core::Decide>(
                 he2: chain[0].he_plus,
             },
             line(bot[n - 1], bot[0]),
-            FaceSurface::New(plane(&rev, tol)),
+            faces.of(&rev, tol),
             tol,
         )
         .unwrap();
@@ -314,7 +375,7 @@ pub fn prism_ops<T: geom_core::Decide>(
                     he2,
                 },
                 line(top[i], top[j]),
-                FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]], tol)),
+                faces.of(&[bot[i], bot[j], top[j], top[i]], tol),
                 tol,
             )
             .unwrap();
@@ -324,9 +385,13 @@ pub fn prism_ops<T: geom_core::Decide>(
         sides.push(f);
     }
     // The seed face survives as the top cap (outward +z ⇒ profile
-    // order viewed from above).
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
-        .unwrap();
+    // order viewed from above). Under `Declined` it keeps the `mvfs`
+    // placeholder every other face inherited, so the whole prism sits on
+    // one surface key.
+    if faces == FaceGeometry::Certified {
+        body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
+            .unwrap();
+    }
 
     PrismOps {
         seed,
@@ -340,7 +405,7 @@ pub fn prism_ops<T: geom_core::Decide>(
 /// The unit square, counterclockwise viewed from +z — the profile the
 /// cube doors spell, and the one at which [`prism_ops`] is the cube
 /// sequence.
-const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+pub const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
 
 /// The geometric unit cube with its key bundle, at any `Decide` scalar:
 /// [`prism_ops`] over [`UNIT_SQUARE`] at the identity map into a fresh
@@ -348,20 +413,40 @@ const UNIT_SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 
 /// scaffolding door, named by both at-rest rules — the state this
 /// fixture's suites measure, and the one thing that distinguishes it
 /// from every other box builder in this file.
-pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> GeoCube<T> {
+pub fn geometric_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+    unit_cube(FaceGeometry::Certified, tol)
+}
+
+/// [`geometric_cube`] with its face geometry **declined**
+/// ([`FaceGeometry::Declined`], whose doc is where the reason that arm
+/// exists is written): the same operators, the same chord carriers, the
+/// same keys in the same order, and all six faces on the one `mvfs`
+/// placeholder surface.
+///
+/// It is a separate door rather than a `bool` at the call site for the
+/// same reason the description step is: a reader must be able to see
+/// which body a suite took.
+pub fn declined_cube<T: geom_core::Decide>(tol: Tol) -> CubeOps<T> {
+    unit_cube(FaceGeometry::Declined, tol)
+}
+
+/// The shared body of [`geometric_cube`] and [`declined_cube`]: the
+/// cube sequence at [`UNIT_SQUARE`], untransformed, bundled.
+fn unit_cube<T: geom_core::Decide>(faces: FaceGeometry, tol: Tol) -> CubeOps<T> {
     let mut body = Body::<T>::new();
     let ops = prism_ops(
         &mut body,
         &UNIT_SQUARE,
         (0.0, 1.0),
         |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        faces,
         tol,
     );
     // The bundle's arrays are the N-general vectors at N = 4: the rim
     // chain then the struts, the bottom cap then the sides.
     let mevs: Vec<MevCreated> = ops.chain.into_iter().chain(ops.struts).collect();
     let mefs: Vec<MefCreated> = core::iter::once(ops.bottom).chain(ops.sides).collect();
-    GeoCube {
+    CubeOps {
         body,
         seed: ops.seed,
         // Infallible: `UNIT_SQUARE` fixes n = 4, so `prism_ops` returns
@@ -465,6 +550,7 @@ pub fn prism_z<T: geom_core::Decide>(
         profile,
         (z0, z1),
         |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        FaceGeometry::Certified,
         tol,
     );
     // Construction-final description step (D6): prisms are the M3
@@ -487,15 +573,16 @@ pub fn prism_z<T: geom_core::Decide>(
 /// rectangular case of [`prism_z`], body only; a caller that needs the
 /// keys calls `prism_z` and keeps its [`Prism`].
 ///
-/// [`geometric_cube`] is the one box-or-cube door in this file that
-/// builds a different body: it stops before
-/// [`describe_as_intersections`] and so keeps the conventional chords
-/// its rows assert on. Every other one — `brick`, [`prism`],
-/// [`prism_z`], [`mapped_cube`], [`cube_into`] — is [`prism_ops`] and
-/// then that step, so they agree arena for arena wherever their domains
-/// meet, an axis-aligned box, and they differ only in what they vary:
-/// an extent on one side, a point map on the other with tilts included.
-/// Every one of them is generic in the `Decide` scalar.
+/// **Two of the box-or-cube doors here build a different body**, and
+/// both stop before [`describe_as_intersections`] so as to keep the
+/// conventional chords their rows assert on: [`geometric_cube`], and
+/// [`declined_cube`], which declines its face geometry on top of that.
+/// Every other one — `brick`, [`prism`], [`prism_z`], [`mapped_cube`],
+/// [`cube_into`] — is [`prism_ops`] and then that step, so they agree
+/// arena for arena wherever their domains meet, an axis-aligned box,
+/// and they differ only in what they vary: an extent on one side, a
+/// point map on the other with tilts included. Every one of them is
+/// generic in the `Decide` scalar.
 ///
 /// **Both halves of that are pinned by `tests/cube_doors_agree.rs`**,
 /// which is where to look before trusting either. A shared core is what
@@ -592,7 +679,14 @@ pub fn cube_into<T: geom_core::Decide>(
     map: impl Fn(f64, f64, f64) -> Point3<T>,
     tol: Tol,
 ) {
-    prism_ops(body, &UNIT_SQUARE, (0.0, 1.0), map, tol);
+    prism_ops(
+        body,
+        &UNIT_SQUARE,
+        (0.0, 1.0),
+        map,
+        FaceGeometry::Certified,
+        tol,
+    );
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);
