@@ -634,14 +634,39 @@ more to this program than a bug would have been.
 cannot see.** `crates/topo/src/source_walk.rs:422` holds
 `DOORS_MEASURED = 48`. The move added three `pub fn`s taking
 `&mut Body`, so the walk now finds 52 — and the constant's own doc says
-*"It is re-measured, never left behind."* The floor is the constant
-less two, so the walk could previously lose 3 doors before reddening
-and can now lose 6. **Nothing reds.** The guard does not break; it
-gets slacker. The PR body discussed the two tables it had to edit at
+*"It is re-measured, never left behind."* The assertion is
+`out.len() + 2 >= DOORS_MEASURED`, so the floor is the constant less
+two: at 48 against a real 52 the walk could lose **six** doors before
+reddening, and at 52 it can lose **two**. **Nothing reds.** The guard
+does not break; it gets slacker. The PR body discussed the two tables it had to edit at
 length and never mentioned the constant, because the tables refused to
 compile and the constant did not. That is the whole mechanism: **what
 a change is forced to notice is what fails loudly, and a measurement
 recorded as a constant fails quietly by construction.**
+
+**A correction this orchestrator owes on the same finding.** The first
+version of the paragraph above had the slack **backwards** — it said
+the walk could previously lose 3 doors and could now lose 6, which
+reads the fix as loosening a guard when it tightens one. The
+arithmetic is the assertion's: `out.len() + 2 >= DOORS_MEASURED` sets
+the floor at the constant less two, so a *low* constant is the slack
+one. The lane correcting the PR body caught it and gave the measured
+numbers. Worth recording rather than quietly fixing, because it is
+this program's own subject a third time in one sitting: I wrote a
+paragraph about the cost of not re-taking a measurement, and got the
+measurement's direction wrong without re-deriving it. The rule stands
+against its author — **a number you did not derive is a number you are
+quoting**, and I was quoting my own summary of a review.
+
+Two smaller ones from the same pass, both mine and both the same
+shape. I told the body lane that five family items are named from
+`src/`; the real set is **three** (`geometric_cube`,
+`describe_as_intersections`, `face_surface_of_he`) — `line` and
+`plane` are internal to `geometric_cube`. And I carried a review
+phrase, *"the precedent is three lines above the `topo` dependency"*,
+into the sweep row without opening the manifest: the forward is
+`crates/sweep/Cargo.toml:28` in the `[features]` table and the `topo`
+dependency is `:63`. Corrected on the row in its own commit.
 
 **2. "True and checkable" is half true.** The guard tables check rot in
 the *name* direction — renamed, deleted, started asserting. The reason
