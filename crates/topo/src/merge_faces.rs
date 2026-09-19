@@ -2505,7 +2505,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::ops_cube;
+    use crate::test_support_fixtures::declined_cube;
 
     /// A shared edge of the ops cube, as the pair of faces meeting
     /// there — addressed exactly as the absorption scan addresses it,
@@ -2567,7 +2567,7 @@ mod tests {
     // ---- Fixtures whose REGIME is a property of the fixture ----
     //
     // A group's regime must be asserted, never inherited from an
-    // accident of the fixture: `ops_cube`'s faces sit on the `mvfs`
+    // accident of the fixture: `declined_cube`'s faces sit on the `mvfs`
     // NURBS placeholder, which has no regime at all — the door sets
     // the whole cube aside and no surgery runs. These two build the
     // regime deliberately, out of planes.
@@ -2577,7 +2577,7 @@ mod tests {
     /// structural rung groups the whole cube and, being planar and
     /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
     fn structural_planar_cube(tol: Tol) -> Body<f64> {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         describe_shared_key(&mut body);
         body
     }
@@ -2615,7 +2615,7 @@ mod tests {
     /// The declared planar cube: [`GroupRegime::RecordsASkip`] with
     /// no curved face anywhere.
     fn declared_planar_cube(tol: Tol) -> (Body<f64>, Vec<(SurfaceKey, SurfaceKey)>) {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let declared = declare_planes_pairwise(&mut body);
         (body, declared)
     }
@@ -2703,7 +2703,7 @@ mod tests {
             TearPoint::RingBecomesItsFacesOuter | TearPoint::RingsFaceLeavesTheShell => {
                 crate::fixtures::ops_holed_box(tol).body
             }
-            _ => ops_cube(tol).body,
+            _ => declined_cube::<f64>(tol).body,
         }
     }
 
@@ -2826,12 +2826,12 @@ mod tests {
     /// loop, which is the nesting the drain re-homes.
     fn cube_with_membrane(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         let pt = geom_core::Point3::new;
-        let crate::fixtures::OpsCube {
+        let crate::test_support_fixtures::CubeOps {
             mut body,
             seed,
             mefs,
             ..
-        } = ops_cube(tol);
+        } = declined_cube::<f64>(tol);
         let strut = |body: &mut Body<f64>, at, x, y, z| {
             body.mev_line(
                 crate::euler::MevSite::Fan { he1: at, he2: at },
@@ -2946,7 +2946,7 @@ mod tests {
     /// membrane's `add_face` then reuses.
     fn cube_with_arena_first_membrane(tol: Tol) -> (Body<f64>, FaceKey) {
         let pt = geom_core::Point3::new;
-        let cube = ops_cube(tol);
+        let cube = declined_cube::<f64>(tol);
         let mut body = cube.body;
         let seed_face = cube.seed.face;
         let victim = body
@@ -3235,7 +3235,7 @@ mod tests {
     #[test]
     fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let he = body
             .edges()
             .map(|(_, e)| e.he_plus)
@@ -3272,7 +3272,7 @@ mod tests {
     #[test]
     fn a_group_that_straddles_two_surface_kinds_has_no_regime() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let (rep, other) = adjacent_pair(&body);
         // Both surfaces are set here: the fixture's faces carry the
         // mvfs placeholder, and the row is about KINDS, not about
@@ -3343,14 +3343,14 @@ mod tests {
     }
 
     /// **A run of placeholders is set aside, not run.** The contract
-    /// of [`ops_cube`]'s six faces on their one placeholder key is
+    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one placeholder key is
     /// [`GroupContract::SetAside`] — no regime, because a placeholder
     /// is neither of the two kinds the regimes are written for — and
     /// the door names the faces.
     #[test]
     fn a_placeholder_run_has_no_regime_and_is_set_aside() {
         let tol = Tol::witness();
-        let body = ops_cube(tol).body;
+        let body = declined_cube::<f64>(tol).body;
         assert_eq!(contract_of(&body, false), GroupContract::SetAside);
     }
 
@@ -3400,7 +3400,7 @@ mod tests {
             Ok(MergeKind::Placeholder)
         );
         assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
             .expect("a live face takes a surface");
@@ -3430,7 +3430,7 @@ mod tests {
     #[test]
     fn a_poisoned_net_refuses_before_any_surgery() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let (first, second) = adjacent_pair(&body);
         body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
             .expect("a live face takes a surface");
@@ -3452,10 +3452,10 @@ mod tests {
         assert_eq!(crate::fixtures::deep_snapshot(&body), before);
     }
 
-    /// [`ops_cube`] with its one shared key re-described as a
+    /// [`crate::test_support_fixtures::declined_cube`] with its one shared key re-described as a
     /// cylinder: one curved same-key run over the whole cube.
     fn curved_same_key_cube(tol: Tol) -> Body<f64> {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let key = body.faces().next().expect("faces").1.surface;
         *body
             .surfaces
@@ -3549,11 +3549,11 @@ mod tests {
         assert_eq!(outcome.placeholders, vec![side]);
     }
 
-    /// [`ops_cube`] with its arena-first face re-described as a real
+    /// [`crate::test_support_fixtures::declined_cube`] with its arena-first face re-described as a real
     /// plane on its OWN key, the other five still on the shared
     /// placeholder.
     fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
             .expect("a live face takes a surface");
@@ -3776,7 +3776,7 @@ mod tests {
     }
 
     /// **The placeholder cube forms no merge group.** Every face of
-    /// `ops_cube` carries the `mvfs` seed's surface on one key, and
+    /// `declined_cube` carries the `mvfs` seed's surface on one key, and
     /// the structural rung reads one key as one surface — but that
     /// surface describes no locus, so there is nothing to glue: the
     /// door returns `Ok` with no group and no skip, names the six
@@ -3790,7 +3790,7 @@ mod tests {
     #[test]
     fn the_placeholder_cube_forms_no_group_and_its_faces_are_named() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
         let before = crate::fixtures::deep_snapshot(&body);
         let outcome = body

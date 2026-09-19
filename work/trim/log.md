@@ -575,6 +575,16 @@ Filed: `curved-trim-e2e-fixture-waits-for-a-producer`. **Merge gate**:
 no PROPS acknowledgement through 2026-09-19; per the spec's Amendments
 the merge proceeds no earlier than 2026-09-22 absent an objection.
 
+## TRIM-2 PR-1 merged (2026-09-19) — block TRIM-B2 slot 0 concludes
+
+PR #2564, ordinal 2503, sample #222. Ev, in-chat: PROPS is paused —
+merge; so the spec's §4 acknowledgement gate closes on Ev's ruling
+rather than the amendment's 2026-09-22 fallback (both recorded). The
+merge carried main forward 63 commits (78 crate files) after the
+verified fix-pass head, so the merged head ran CI before the merge.
+Next in the lane: TRIM-2 PR-2 (tessellation; seam to TESS announced
+at dispatch), TRIM-B2 slot 1.
+
 ## TRIM-2 PR-2 dispatched; TESS acked the seam (2026-09-19)
 
 PR-1 merged at a833156d4 (sample #222). TESS acknowledged the PR-2 seam
