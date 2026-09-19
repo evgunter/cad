@@ -673,6 +673,7 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::nurbs_cert::tests::Domination;
     use geom::NurbsCurve3;
     use geom_core::Point3;
     use topo::EdgeKey;
@@ -920,10 +921,8 @@ mod tests {
             let t = d0 + (d1 - d0) * f64::from(k) / 4000.0;
             truth = truth.max(n.deriv2(t).norm());
         }
-        assert!(
-            truth <= m,
-            "{name}: sampled sup|C''| {truth:.6e} escapes the certified {m:.6e}"
-        );
+        let d = Domination::sampled_under_certified(&[("sup|C''|", truth, m)]);
+        assert!(d.holds(), "{name}: {d}");
         println!("{name}: truth/bound = {:.4}", truth / m);
         // (b) chord counts keep the secant inside delta_s.
         for &delta_s in deltas {
