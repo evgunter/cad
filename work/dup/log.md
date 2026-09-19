@@ -619,6 +619,172 @@ The rule this hardens, for every row this program closes: **correct the
 number everywhere it is asserted, and leave it everywhere it is
 quoted.** A closed row's title is an assertion.
 
+## 2026-09-19 — what the full review found, and the four shapes of a stale number
+
+Link 3's review came back with no correctness defect and no false
+guard entry — the implementer's three test counts reproduced to the
+test, every gate green, and the two guard-table entries it flagged for
+scrutiny turned out **true and load-bearing** (the reviewer planted a
+deletion and watched
+`every_public_mutation_path_preserves_tier1` red naming exactly
+`test_support_fixtures.rs::cube_into`). What it found instead is worth
+more to this program than a bug would have been.
+
+**1. A constant that records a measurement is a stale number that CI
+cannot see.** `crates/topo/src/source_walk.rs:422` holds
+`DOORS_MEASURED = 48`. The move added three `pub fn`s taking
+`&mut Body`, so the walk now finds 52 — and the constant's own doc says
+*"It is re-measured, never left behind."* The assertion is
+`out.len() + 2 >= DOORS_MEASURED`, so the floor is the constant less
+two: at 48 against a real 52 the walk could lose **six** doors before
+reddening, and at 52 it can lose **two**. **Nothing reds.** The guard
+does not break; it gets slacker. The PR body discussed the two tables it had to edit at
+length and never mentioned the constant, because the tables refused to
+compile and the constant did not. That is the whole mechanism: **what
+a change is forced to notice is what fails loudly, and a measurement
+recorded as a constant fails quietly by construction.**
+
+**A correction this orchestrator owes on the same finding.** The first
+version of the paragraph above had the slack **backwards** — it said
+the walk could previously lose 3 doors and could now lose 6, which
+reads the fix as loosening a guard when it tightens one. The
+arithmetic is the assertion's: `out.len() + 2 >= DOORS_MEASURED` sets
+the floor at the constant less two, so a *low* constant is the slack
+one. The lane correcting the PR body caught it and gave the measured
+numbers. Worth recording rather than quietly fixing, because it is
+this program's own subject a third time in one sitting: I wrote a
+paragraph about the cost of not re-taking a measurement, and got the
+measurement's direction wrong without re-deriving it. The rule stands
+against its author — **a number you did not derive is a number you are
+quoting**, and I was quoting my own summary of a review.
+
+Two smaller ones from the same pass, both mine and both the same
+shape. I told the body lane that five family items are named from
+`src/`; the real set is **three** (`geometric_cube`,
+`describe_as_intersections`, `face_surface_of_he`) — `line` and
+`plane` are internal to `geometric_cube`. And I carried a review
+phrase, *"the precedent is three lines above the `topo` dependency"*,
+into the sweep row without opening the manifest: the forward is
+`crates/sweep/Cargo.toml:28` in the `[features]` table and the `topo`
+dependency is `:63`. Corrected on the row in its own commit.
+
+**2. "True and checkable" is half true.** The guard tables check rot in
+the *name* direction — renamed, deleted, started asserting. The reason
+string is never read against the body. The reviewer planted a raw
+arena write in `prism_ops` — exactly the orphaned-key violation the
+`ALLOWED` reason disclaims — and **all three guards stayed green**.
+That is pre-existing and true of every entry, but the existing entries
+are one-to-three-line delegations whose whole body fits beside the
+entry, and `prism_ops` is a hundred-line generic builder that future
+lanes will edit *as a fixture, not as a kernel door*, with nothing at
+the function saying an exemption rides on it.
+
+**3. Disclosing a blind spot is not compensating for it.** The row said
+of its shape census: *"it undercounts every builder that loops."* Then
+the count was declared closed. `crates/topo/src/splitting/reassembly.rs`'s
+`quad_prism` is a **seventh** copy of the moved builder, in `src/`, whose
+own doc calls it *"the tests/common builder's minimal in-crate copy"* —
+naming a path this very diff deleted. It is loop-written, so the shape
+census scored it 1/3/2; it has a new name, so the name census missed
+it. A census shaped on **geometry rather than arity** (files holding
+both `mvfs(` and `newell_plane`) puts it directly beside the family, in
+about thirty seconds, as does `rg 'in-crate copy'` over the prose that
+declares it. The five-instruments result now has its sharpest
+corollary: **a disclosed blind spot is an instruction to run a third
+instrument, not a licence to publish the count.**
+
+**4. A name census cannot close a class that is not name-shaped.** The
+unit folded four copies of `face_surface_of_he` and recorded the class
+closed. The class is the half-edge → loop → face walk, and at least
+twelve more spellings survive under other names — including
+`topo/src/shell.rs` and `topo/src/replace_face.rs`, which are
+**byte-identical closures under two names**, both in `topo/src`,
+mutually reachable, neither disclosed. Relabelled a half-fix.
+
+**And the trap does not care that the file names it.** Two of the
+review's findings are fresh X4 instances minted by the diff, and both
+landed in the files that state the rule against them: two new
+guard-table comments restate one paragraph in two phrasings, in the two
+files whose docs say *"This paragraph is the one statement of that
+decision"* and *"The reason a posture is SAFE lives once."* Naming the
+trap in the header does not stop the author walking into it four
+hundred lines below.
+
+**One correction the review made to this orchestrator's brief.** I sent
+it to check three sweep-deviation reasons; one of the three is
+overstated and one should not have been a reason. The gate the PR says
+forbids a `sweep` feature forward **skips a forward from a test-only
+feature by construction**, and `crates/sweep/Cargo.toml:28` already
+does exactly that for `profile`, three lines above the dependency the
+PR cites. And a byte-golden corpus that moves is never a cost to weigh
+against a change that makes the code right — `implementer-discipline.md`
+§3 says so, and I adjudicate against it. The deviation still stands,
+carried by reason 1 alone: `sweep`'s `brick` takes `(T, T)` extents and
+`Real` declares `from_f64` with no inverse.
+
+So the running tally of stale-number shapes this program has now met:
+a title (`topo-tests-brick-copies`, 24), a live use inside its own
+correction (same row), an intermediate figure left standing as if
+final (34), and now **a constant that records a measurement nobody
+re-took**. The first three are prose. The fourth compiles.
+
+## 2026-09-19 — link 3 merged; the brick unit is closed and the wall is down
+
+PR #2842 merged green on the full code tier (12 `test`, 5 `k-lint`, 35
+success, 4 skipped, zero failures). `crates/topo/tests/common/mod.rs`
+is now `crates/topo/src/test_support_fixtures.rs`, re-exported through
+`topo::test_support` — option 3, the sibling module, so `ArenaCounts`
+keeps its allow-free file. `cert_m3r1_probes.rs`'s in-`src` copy is
+folded and its row closed. **All three links of the brick unit are
+done**, and the row that opened this thread —
+`brick-has-two-constructions-and-two-homes` — is closed.
+
+**One `mod` declaration moved and 279 references did not.** `mod
+common;` became `use topo::test_support as common;` at `tests/all.rs`;
+a crate-root `use` is private but visible to descendants, so all 74
+suite files compiled unchanged. The row's *"read, not compiled"*
+caveat is retired by the build.
+
+**The collision was resolved by renaming the incumbent.**
+`fixtures::prism`/`Prism` are `raw_prism`/`RawPrism` — 12 sites against
+125 the other way — so each name has one definition in the crate. Four
+proofs, none count-shaped, and the fourth is a test that asserts the
+two families agree on *every arena length* before separating them on
+surfaces, carriers and volume. The review then sharpened what it
+guards: bodies converging, not names re-colliding. Names are covered
+by the structural three.
+
+**A false CI failure worth remembering.** A `check_run.completed` wake
+said `gate ok` **failed** on the previous head. The run it belonged to
+had concluded **cancelled** with `failed_jobs: 0` — my own next push
+superseded it mid-flight and the aggregate reported failure because
+its dependencies were cancelled under it. The check-run layer and the
+run layer disagreed, and only the second is a fact about the code.
+That is exactly why the check-in discipline says read the workflow
+**runs** list rather than the PR's checks list.
+
+**The slate after this unit.** Six rows closed, four open:
+`the-cube-sequence-is-written-five-times-and-twice-inside-src`
+(unparked by this merge — all five copies are now under
+`crates/topo/src/` and the shared builder is nameable from every one
+of them), `half-edge-to-face-walk-is-spelled-once-per-suite` (56
+tracked files, filed by the review), `sweep-test-support-brick-is-\
+still-a-second-box-construction`, and
+`f6-display-predicate-is-spelled-three-times-with-no-home`.
+
+**Next unit: the cube sequence**, taken as a sequencing decision with
+a recommendation per `memories/orchestration-model.md`. It is the
+direct payoff of link 3 rather than a new front — the wall link 3 took
+down is precisely what blocked it, all five copies now sit in one
+crate, and it closes the class this program opened on. The half-edge
+walk follows, starting at its cheapest pair (`shell.rs`'s `face_of_he`
+and `replace_face.rs`'s `face_of`, byte-identical closure bodies under
+two names, both in `topo/src`). The `sweep` row waits: what holds it
+is a reading of the adjudication's *"no manifest edge is added at any
+step"* against a feature appended to an existing forward list, and
+that is Ev's sentence to interpret, not mine to reinterpret in my own
+favour.
+
 ## 2026-09-19 — the cube-sequence fold
 
 `dup/fold-the-cube-sequence`. `prism_ops` gains the declined axis as a
@@ -645,6 +811,69 @@ already carry exactly the shape `mesh` takes — a featureless `topo`
 in `[dependencies]` beside a `topo = { features = ["test-support"] }`
 in `[dev-dependencies]`. `scripts/gates/test-features-dev-only.sh`
 passes.
+
+## 2026-09-19 — three times in one sitting, I treated unratified text as binding
+
+Ev stopped me on a sentence I had attributed to him. `git log -S` puts
+*"No manifest edge is added at any step"* in `1f3fbc3c8`, 2026-09-16,
+**written by an agent in this session** — my own adjudication of the
+brick row. CLAUDE.md has a rule for exactly this and I skipped it:
+*"Check that Ev ever agreed, before you wait for Ev."*
+
+And I had truncated it. In full: *"No manifest edge is added at any
+step — **every consumer already depends on `topo`**."* That is a
+**justification**, not a prohibition: it argues the plan is cheap
+because the edges already exist. I quoted the first clause, read it as
+a rule about what is permitted, and then declined to interpret it "in
+my own favour" — deferring to Ev over a cost argument an agent wrote
+three days earlier. The claim is still true on its own terms:
+`crates/sweep/Cargo.toml:63` already carries `topo`, so a feature
+appended to an existing forward list adds no edge. **The sentence
+never conflicted with the fold; it described it.**
+
+The row itself was honest (*"whether that sentence reaches it is a
+reading of the brief and a small one"*) and so was PR #2842's body
+(*"the brief's own sentence"*). The escalation happened only in what I
+said to Ev — the one channel with no reviewer.
+
+**Then the same error twice more, in the opposite direction.** The
+cube-fold lane asked for a second reader on `review_m1_pr3.rs`'s header
+— *"do not 'simplify' them to match the implementation's comments"* —
+and I went looking for its provenance instead of taking it. It cites
+`memories/review-and-dependency-policy.md`, which is Ev's-call text, and
+that memory says:
+
+> **Reviewer tests are ordinary tests (Ev, 2026-09-04).** … An earlier
+> version of this memory made reviewer suites a protected class …
+> **"never simplify to match shipped fixtures"**; **that reading was
+> withdrawn**.
+
+So the phrase is retracted, the lane's fold is what the surviving clause
+*directs* rather than an exception to it — and **seventeen files under
+`crates/` still state the withdrawn rule**, filed as
+`work/dup/the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files.md`.
+
+The third instance is mine again: I have twice written that
+`cube_independent.rs` is exempt *"per Ev's request (PR #17 thread)"*,
+sourced from that file's own header, never checked. It may well stay
+unfolded — but on the surviving clause (*its row's claim needs its own
+derivation*, which for an independence cross-check holds), not on a
+protected-class rule Ev withdrew.
+
+**The shape, named once for all three.** The day's earlier findings were
+stale *numbers*: a title, a live use, an intermediate figure, a
+constant. These are stale **modality** — text whose force changed while
+its words did not. A justification read as a constraint; a rule read as
+still standing after its retraction. A number goes wrong when the world
+moves under it. A modality goes wrong when nobody re-asks *who said
+this, and does it still bind* — and the answer is one `git log -S` away
+every time.
+
+The memory that carries the withdrawal also carries the remedy, two
+paragraphs up: *"When you retract one, grep for the claim, not the
+sentence: a correction made where you first wrote it leaves every other
+copy standing."* The retraction was made where it was first written.
+Seventeen copies stood.
 
 ## 2026-09-19 — the fold's fix pass
 
@@ -674,3 +903,406 @@ unnamed four-file bucket, and a second file from that same bucket
 (`m3_pr1_surgery.rs`) was still in it. **A bucket disposition is where
 a census loses things**; one line per hit is what this program already
 asks for, and this is the receipt for why.
+
+## 2026-09-19 — the cube fold merged; what five instruments cost and what they bought
+
+PR #2843 merged green on the full matrix (12 `test`, 5 `k-lint`, 36
+success, 3 skipped). The §9.4.2 class is closed: eight spellings folded
+onto `prism_ops`, every body proved **byte-identical before and after**
+by `deep_snapshot` over all ten arenas — and the two late members proved
+identical **before** the edit rather than after, by a scratch probe
+building each hand-written body beside its replacement.
+
+**The unit's own count went 5 → 8 while it was being worked.** Three
+members were not on the row: `review_m3_pr1.rs::ops_cube_public`,
+`interval_body.rs`'s interval cube, and — after the style review —
+`m3_pr1_surgery.rs`'s outer cube and `boolean/ops.rs::far_cube`. The
+row's census had been re-run at the head each time. **A class does not
+hold still while you close it**, and the count on a duplication row is
+a lower bound with a date on it, never a total.
+
+**Three refusals from lanes, all of them better than what this
+orchestrator asked for.** I told the fix pass to wire
+`cube_doors_agree.rs` to the newly exported `UNIT_SQUARE`; it refused,
+because that file's own doc says a guard reaching for the builder's
+constant compares it against itself, and wiring it would delete the
+row's independence. It un-exported the constant instead — the third
+option neither I nor the reviewer had offered. I told it to delete
+three `expect`s as documentation; it showed that `<[T; N]>::try_from`
+returns a `Result` so something must consume it, and that the very
+convention I cited **keeps** its own `expect`. And it declined to fold
+the nine-spelling cylindrical-patch class it found, on the ground that
+the class straddles `src/` and `tests/` on another program's territory
+and its bodies were never dumped.
+
+**The instrument story, which is this program's real output.** Four
+censuses (arity, geometry, name, prose) closed the unit; a **fifth,
+structural** one — `git grep 'find_half_edge(seed.face'`, the sequence's
+distinctive bottom-close step — found two more members after the first
+review passed. Its 26 hits then paid for themselves twice over: three
+are a quad-sheet helper written three times across two files, and
+**nine are one two-rim cylindrical-patch builder spelled nine times
+across seven files**, seven of them with a token-identical closing
+`mef` block. Eight of those nine are **closures**, so no name census can
+see them; they loop, so no arity census can; their surface is a
+cylinder, so the geometry census cannot. Both filed.
+
+So the five-instruments result now has its own measurement attached:
+this unit ran five, and the **fifth found members the other four could
+not**, in a class four instruments had already declared closed. The
+corollary stands and hardens — *no single instrument has ever found even
+half of any class* — with the practical form: **when a census closes a
+class, the next instrument is not optional work, it is the check.**
+
+**And the bucket lesson, which is new.** The row's census had matched
+`review_m3_pr1.rs` at 20 `mev` / 14 `mef` — three times its threshold —
+and then lost it inside an unnamed line reading *"four `topo/tests/`
+suites already dispositioned"*. Two of those four were mis-dispositioned;
+the first pass found one and re-buried the other. All four are now named
+with their reasons so the bucket cannot swallow a third.
+**A bucket disposition is where a census loses things** — not the
+threshold, which is where everyone looks.
+
+## 2026-09-19 — the walk unit, and a baseline this orchestrator propagated without measuring
+
+PR #2857 (`Body::face_of_half_edge`, `topo/src` folded onto it) came
+back green on the full matrix. The lane **refused two parts of the
+row's plan on measurement**, and both refusals were right:
+
+- **"`Result` spellings as thin wrappers over the `Option` door" holds
+  only where the error variant is entity-agnostic.**
+  `splitting/join.rs`'s `he_face` raises `corrupt_he(he)` at hop 1 and
+  `corrupt_loop(l)` at hop 2; an `Option` door refuses with `None` and
+  can name neither. **The lane folded it anyway, as a planted mutation,
+  and all 727 `topo` lib tests stayed green** — the "changes a verdict
+  while everything stays green" defect, demonstrated live rather than
+  argued. Three guards now red on it. `editor-core`'s `emit.rs` has the
+  same shape and no census in the row had reached it.
+- **The `.surface` hop does not belong on the door**: 10 of 73 sites
+  carry it in the same statement, and `topo/src` carries it at **1 of
+  17** — that one wanting the `Face`, not the surface key.
+
+**A fourth instrument shape, and it is the compiler.** The lane put
+`#[deprecated]` on `HalfEdge::parent_loop` and `Loop::face` and paired
+the warning spans over `cargo check --workspace --all-targets`.
+Deprecation *warns* rather than erroring, so the build does not stop at
+`topo` and the whole dependent graph is read: **103 files / 145 sites**
+against the row's regex at 56/73, including two buckets the row's table
+had no row for. The regex is a floor and the probe a ceiling. **The
+compiler is a census instrument, and it reads what no regex can** —
+this program's fifth instrument shape and the first that is not a
+pattern over text.
+
+Its own method note is worth keeping: rustc attributes a chained field
+read's span to the *start* of the expression, so `.face` can be
+reported on an earlier line than `parent_loop`, and forward-only
+pairing missed nine files the regex had. An instrument has a reading
+convention, and getting that wrong undercounts exactly like a bad
+regex.
+
+### The baseline was mine, and it was wrong
+
+I briefed the lane with baselines **3195 / 1356 / 1296**. It measured
+at its own merge base instead of taking them, and reported them stale.
+**It was right**: `cargo nextest run -p topo -p sweep -p stl
+-p step-export -p mesh` on `origin/main` gives **3209 passed, 14
+skipped**, measured here, twice. The branch gives 3212 — exactly the
+lane's three guards.
+
+Where 3195 came from is **unexplained, and I am not going to invent an
+account of it**. `3195 + 14 = 3209` is suggestive and it is not
+evidence. One hypothesis was testable and is **refuted**: reverting
+`crates/mesh/Cargo.toml`'s `topo = { features = ["test-support"] }` dev
+edge — added by PR #2843, and exactly the feature-unification hazard
+`sweep`'s manifest comment warns about — leaves the count at 3209
+either way, so that edge did not move the population.
+`memories/review-and-dependency-policy.md` says it directly: *"Never
+enshrine a causal story you have not checked."*
+
+**What this orchestrator did wrong is simpler than the mystery.** The
+3195 was a lane's self-reported figure. I verified its *delta* — one
+`#[test]` added, none removed, by diff — and then carried the
+*absolute* into the next brief as fact. **A delta can be right while
+the baseline under it is wrong**, and checking the delta feels like
+checking the number. Every number a lane reports is a claim; the ones
+that get propagated into the next brief are the ones that need
+measuring, and a diff check does not measure a total.
+
+So the running tally of stale-number shapes gains a fifth: a title, a
+live use inside its own correction, an intermediate figure left
+standing, a constant recording a measurement — and now **a baseline
+inherited from a report and re-issued as an instruction.** The first
+four rotted in place. This one was propagated by the person whose job
+is to catch that.
+
+## 2026-09-19 — the same error a third time, and it was in my review brief
+
+The walk unit's style review found no unsafe code — every fold is
+behaviour-preserving and the three guards are real guards. What it
+found is that **the claims are false**, and they sit in a row that
+stays `open` and binds future work.
+
+**"The 3-hop walk is spelled once in `topo/src`" is false.** I checked
+two myself. `crates/topo/src/boolean/rest.rs:1498-1505` is literally
+`body.get_loop(body.get_half_edge(mate)?…parent_loop)?.face` — the exact
+form the PR's own structural instrument reports as having **one** hit in
+`topo/src` afterwards. And `boolean/reduce.rs:547` is a plain `Option`
+`face_of` closure with **no posture argument at all**, sitting in a file
+the PR folded two other sites in. The reviewer counts at least ten
+residual spellings.
+
+**And the hazard population was measured at two.** The PR's central
+argument — that folding an entity-naming refusal onto the `Option` door
+changes a verdict with every test green — is now *established*, and it
+applies to at least eight sites, seven of them inside `topo/src`,
+including `shell.rs`, which the row itself named as half of its
+"cheapest pair" and which this PR edited. **Exactly one is guarded.**
+
+**The error is mine, and it is the third of its shape today.** My
+review brief said the class had three members and asked whether there
+was "a fourth flattening". I took that population from the
+implementer's report and built the review's question on it — the same
+move as the baseline I propagated unmeasured two units ago, and the
+same move as the `17` I wrote into a row after a single-line grep.
+Three times in one sitting: **a number arrived in a report, I used it
+to frame the next step, and I never re-derived it.** The guard budget
+was sized to a figure nobody had measured.
+
+**A ratified rule I let a lane talk me out of.** The lane filed no new
+rows, reasoning that separate rows would mint the duplicate this
+program exists to prevent. It is a sympathetic argument and
+`work/README.md` settles it the other way (Ev, 2026-09-06, quoted in
+CLAUDE.md): *"That sweep sees items, not sentences … Disclosing a
+residue is therefore not scheduling it — give it its own file at the
+moment you disclose it."* The argument against duplicate rows is an
+argument for **one row per seam owner**, not for zero. I read that
+reasoning in the hand-back and did not check it against the rule,
+which is the orchestrator's one job at that moment.
+
+**Two more instruments, and the better one turns the change on
+itself.** The reviewer re-censused the door this PR cites as its
+*precedent* — `Body::solid_of_face` — and found four hand-written
+face → shell → solid walks outside it, two of them byte-identical
+`faces_of` helpers. The instrument is: **take the door a change cites
+as precedent and re-census that door's own walk.** The second is a
+closure-name census over `let face_of = |…`, which is cheap, over-fires,
+and reaches `demos/` and feature-gated files no compiler probe can —
+because `cargo check --workspace` does not compile four cargo roots and
+feature-gated code never type-checks, so it never warns. `demos/tour`
+spells this walk three times, two of them a byte-identical twin pair,
+and **no census in this program has ever had a `demos` bucket**.
+
+So the type-directed probe's "103/145 is the ceiling" is not a ceiling,
+and the row's "20 of the 145 sites" divides folded 3-hop reads by a
+denominator that also counts field *writes* and 2-hop reads. Against
+the comparable instrument it is 20 of 32 — a different sentence
+entirely. **Two numbers of different kinds, divided.**
+
+## 2026-09-19 — a posture asserted in a brief, and the fence a door inherits
+
+The `solid_of_face` lane came back with the class at **fourteen, not
+eleven** — and with **two of the eleven not members at all**. The row's
+structural regex had matched a *handle field's name* (`t.shell`) rather
+than a `Face::shell` read, so `sweep/tests/revolve_ring.rs` and
+`verbs_tubewall.rs` were never in the class. Two more of the same shape
+stand in `demos/tour`, recorded so the next lane does not re-find them
+as members. An instrument that over-fires costs exactly as much as one
+that under-fires; this program has mostly met the second.
+
+**My brief asserted a posture, and it was wrong.** I told the lane that
+`seqgen.rs`'s four sites *"carry `expect(...)` with a distinct message
+per hop"*. They do not — each has exactly one lookup and one `expect`,
+because the face datum arrives from the `body.faces()` iterator. They
+fold cleanly and did. I took that from the row's shape table and
+restated it as fact about the code.
+
+That is the sixth propagated-number error of the sitting and the first
+that was not a number: **a posture is a claim about code, and it rots
+the same way a count does.** The rule generalises — *a fact you did not
+derive is a fact you are quoting* — and quoting a shape table is
+quoting.
+
+**The hazard was real, just somewhere else.** The one site that must not
+fold is `offset_together::scope_of_moves`, the class's **only production
+site**: hop 1 refuses `StaleFace { face }` — the caller's own key named
+back to it — and hop 2 refuses `Corrupt`, nullary, because no key the
+caller holds is wrong. The lane planted the fold and **nothing red
+across 4405 tests** in three crates. So the guard is the deliverable
+again, and it reds on both flattenings, each on its own arm.
+
+### The finding worth keeping: a door inherits its minting pass's fence
+
+`solid_of_face` cites no model, so the sibling-door re-census that found
+this class cannot be run on it. Its own provenance answers instead:
+`docs/MODEL-AB-LOG.md`'s BOOL4 row says the door was minted in **PR
+#2767's fix pass**, out of a bilateral review finding —
+*"face→shell→solid spelled four times"* — and the fold was scoped to
+that PR's own four sites. The doc sentence that reads as a survey
+(*"the one spelling … the census, the point-in-solid door and their
+suites read"*) was never a survey. It was a report of one PR's reach.
+
+**A door minted by a fix pass inherits that pass's fence, and its doc
+sentence inherits it silently.** The tree had fourteen. That is a
+general instrument for the next door: when a claim of the form "the one
+spelling of X" turns up, find the commit that minted the door and ask
+what that commit's scope was — the claim is true inside the fence and
+says nothing outside it, and nothing in its wording marks where the
+fence is.
+
+Which is the same defect as the withdrawn no-simplify rule, the "no
+manifest edge" justification and the `DOORS_MEASURED` constant, in a
+fourth costume: **text whose scope was true when written, read later as
+though it had none.**
+
+## 2026-09-19 — the solid_of_face fold merged, and the instrument that ends the argument
+
+PR #2865 merged green on the full matrix. Eight walks folded, **four
+kept with their reasons stated**, one guarded. The class went **11 →
+14 → 17** across three independent re-derivations in one unit.
+
+**The review found the PR committing its own headline finding.** The
+PR documented that *"a door minted by a fix pass inherits that pass's
+fence, and its doc sentence inherits it silently"* — then wrote a fresh
+unscoped sentence of its own (*"Every spelling in THIS CRATE that
+refuses uniformly across the two hops reads through here"*) whose
+counterexample, `seqgen::fusion_remake_shell`, sat **in a file the same
+PR edited, between two sites it folded**.
+
+**And the fix pass refused the review's remedy, with a better reason
+than either the review or I had.** The review said the site "folds with
+no behaviour change"; I caught that `shell2` is reused once more and
+flagged the fork. The lane read it properly: `shell2` is read **twice**
+more, so folding cannot delete the `let` and would *add* a second
+resolution of a key the function already holds. The four `seqgen` folds
+each **replaced** a lookup; this one would only add one. So the site
+stays and the sentence narrows — and the carve-out is written as a
+**shape** (*"a caller still using the intermediate shell key"*) rather
+than as a site, which is what stops it going stale again.
+
+**The door now claims no census at all.** Three populations, each with
+members, and at the claim site: *"No census is claimed here … held true
+by no mechanical guard."* That is a better answer than guarding the
+sentence — a rustdoc on a three-line `pub fn` should carry an invariant
+for a user, not a measurement for a future lane. The six lines counting
+the project's own test suites moved to the row. Filed as a class:
+**two doors in a row shipped an unguarded census sentence**, and
+`face_of_half_edge`'s "sixteen sites" is still one.
+
+### Denominator-first classification, and why it ends the argument
+
+Five instruments had run on this class and the count kept moving. The
+sixth settles it by inverting the question. Instead of searching for the
+*walk*, enumerate the **terminal read** — every textual `.solid` in
+every tracked `.rs` file, all roots, all cfgs, all features, 149 hits —
+and classify each one **backwards** by where its receiver came from.
+
+It cannot miss what a `Face::shell`-oriented instrument misses, because
+**every member must terminate in a `Shell::solid` read**. Its closable
+blind spots were closed by measurement rather than asserted: no
+`.solid()` accessor exists, no `Shell { solid, .. }` destructuring
+exists, eight `shell_of` helpers exist and none feeds a `.solid`. What
+remains is a macro-assembled walk, which the method cannot falsify and
+says so.
+
+**The general form: when a class keeps growing under every instrument
+you point at it, stop searching for the pattern and enumerate the
+narrowest thing every member must contain, then classify backwards.**
+A search over a shape has a blind spot for every way the shape can be
+written; an enumeration over a required atom has one only where the
+atom itself can hide.
+
+### The receipt rule earned its keep
+
+`implementer-discipline.md` §5 — *"a pattern with no hits recorded is a
+claim; a hit list is a receipt"* — caught the whole thing. The PR gave
+instrument 2's pattern and its delta but not its hits. Reconstructed,
+it returns 14 hits and **fires on the missed site**: the member was
+inside the instrument's reach and simply was not dispositioned. That
+also exposed a blind spot nobody had stated — a face datum arriving
+from a `body.faces()` **iterator** rather than a lookup, which is **six
+of the eight sites this PR folded**. The instrument could not see most
+of what the unit closed.
+
+## 2026-09-19 — the exemption this program twice called Ev's was a lane's own recommendation
+
+PR #2866 merged green on the full matrix. Twenty-one carriers retired —
+the instruction deleted, the provenance kept, and **nothing rewritten
+into a new rule**. Four rows filed where the remedy would have been to
+*write* a standing instruction rather than remove a withdrawn one.
+
+**The attribution, checked at last, and it does not hold.** This
+program has twice written that `review_m1_pr2/cube_independent.rs` is
+exempt *"per Ev's request (PR #17 thread)"*. I verified the commit that
+minted it, `e9eeace50`, 2026-07-16 — which wrote the seven headers
+**and** the memory clause they copied, in one commit. The clause reads:
+
+> **Reviewer suites get promoted into CI.** … promoted into the repo as
+> `crates/topo/tests/review_m1_prN*.rs` **(Evan, PR #17 thread)**. The
+> suites are independent derivations — that independence is their
+> regression value, so do not "simplify" them to match shipped
+> fixtures…
+
+**The citation attaches to the promotion. The no-simplify sentence is
+the next sentence and carries no citation at all.** The headers copied
+the attribution onto the whole paragraph.
+
+And the thread itself settles where the phrase came from. Ev's own
+words are a question: *"do reveiwer artifacts feed acceptance tests? we
+may want to keep them as an auxiliary source of tests even if we don't
+run them in ci"*. **Eighty-nine seconds later**, a long status report
+from the same account answers it with *"recommendation is to promote
+reviewer suites into the repo as labeled integration tests that DO run
+in CI"* and proposes the provenance header verbatim — *"independent
+derivations — do not simplify to match shipped fixtures, the
+independence is the value"*. Ev's next message is *"how's it going on
+pr 3?"*.
+
+So the rule was **a lane's own recommendation, cited back to the person
+it was recommended to**, and then quoted as his ruling by three
+subsequent units of this program, mine included. That is the exact
+failure the same memory names two paragraphs above the withdrawal:
+*"Never enshrine a causal story you have not checked."*
+
+Nothing downstream changes: Ev withdrew the reading in 2026-09-04
+regardless of where it came from, and `cube_independent.rs` keeps its
+own code on the clause that survived — its claim **is** the
+cross-check, evidenced by the file's own description of its different
+addressing. What changes is that the exemption never rested on anything
+Ev ratified. The lane correctly did **not** edit the attribution line:
+the promotion half is true, and narrowing it is a provenance claim on
+an authorship question one account cannot settle. Filed for Ev.
+
+### The ratification procedure is weaker than CLAUDE.md implies
+
+Two measured findings about the check itself, both worth more than this
+unit:
+
+- **This checkout has 149 shallow grafts over 18,910 commits.** So
+  `git log -S` does not merely bottom out at one bot render commit — it
+  returns a long list of grafted commits in which every file reads as
+  newly added, and path-scoping does not fix it. What works is
+  `git log --all --format=… -- <path>` read oldest-first, then reading
+  the actual diff.
+- **`git log -S` misses wrapped text exactly as a grep does.**
+  `-S"nothing here is a protected class"` returns nothing, because the
+  phrase spans two `//!` lines; `-S"protected class"` finds the commit.
+  **The tool CLAUDE.md prescribes for checking a sentence's provenance
+  is a line-shaped instrument with the same defect as the grep it is
+  meant to check.**
+
+### And the population was 21, not 19, in a shape nobody had assumed
+
+The sentence census confirmed the row's 19 and its 16/3 split exactly.
+Two more came from paraphrase needles — *"promoted as-is"*, *"keep
+verbatim"* — which no sentence grep reaches. The twenty-first was found
+only on the **post-edit re-sweep**: an inline `//` comment mid-file, not
+a `//!` header. **The whole program, this brief included, had been
+reading the class as a header class.** It is not.
+
+The denominator-first instrument then answered the sharper question:
+30 citations of the memory in 27 files, of which **8 cite it for
+something it no longer says — and only 2 of those 8 are among the 19.**
+Six are structurally invisible to any grep for the sentence, four of
+them a family nobody had looked at, and two sit in `work/*/plan.md` —
+one in a program's **exit criteria**. A source header states a rule
+where a lane *may* read it; a plan states it where a lane *must*.

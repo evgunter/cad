@@ -738,7 +738,7 @@ class TestTheCountParamBinding(unittest.TestCase):
         doc, group = self.build()
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(group, ParamName("nope")))
-        self.assertEqual(caught.exception.variant, "unknown_doc_param")
+        self.assertEqual(caught.exception.variant, "slot_unknown_doc_param")
 
     def test_binding_a_parameter_of_the_wrong_dimension_refuses(self):
         """The slot is a Count, and a Length parameter is not one —
@@ -747,7 +747,7 @@ class TestTheCountParamBinding(unittest.TestCase):
         doc.apply(DocEdit.set_doc_param(ParamName("width"), DocParam.length(1 * m)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(group, ParamName("width")))
-        self.assertEqual(caught.exception.variant, "doc_param_dimension_mismatch")
+        self.assertEqual(caught.exception.variant, "slot_doc_param_dimension")
 
     def test_an_explicit_group_has_no_count_slot_to_bind(self):
         """The list IS the count, so there is nothing for a parameter
