@@ -10,10 +10,10 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    StableName, ValuePayload, evaluate, vertex_position,
+    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName,
+    ValuePayload, evaluate, vertex_position,
 };
-use fixture::{ang, insert, len, scl, table, vname};
+use fixture::{ang, insert, len, scl, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -26,13 +26,15 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn pole(node: RecipeNodeId, v: u32) -> StableName {
-    vname(
+/// A pole of the document's one outer loop — the only loop these
+/// revolves have, so a row names a pole by its vertex alone.
+fn outer_pole(node: RecipeNodeId, v: u32) -> StableName {
+    fixture::pole(
         node,
-        RoleSeg::Pole(ProfileVertexRef {
+        ProfileVertexRef {
             loop_index: 0,
             vertex: v,
-        }),
+        },
     )
 }
 
@@ -123,12 +125,12 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     // Canonical v0=(0,0), v1=(1,0) off-axis, v2=(0,1).
-    assert!(t.lookup(&pole(rev, 0)).is_some());
+    assert!(t.lookup(&outer_pole(rev, 0)).is_some());
     assert!(
-        t.lookup(&pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(rev, 1)).is_none(),
         "off-axis vertex is not a pole"
     );
-    assert!(t.lookup(&pole(rev, 2)).is_some());
+    assert!(t.lookup(&outer_pole(rev, 2)).is_some());
 }
 
 /// The subdivided axis run, authored through the program layer: the
@@ -199,12 +201,18 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
     let (doc, rev) = subdivided_axis_run(std::f64::consts::TAU);
     let ev = run(&doc);
     let t = table(&ev, rev);
-    assert!(t.lookup(&pole(rev, 0)).is_some(), "run tip v0 unnamed");
     assert!(
-        t.lookup(&pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(rev, 0)).is_some(),
+        "run tip v0 unnamed"
+    );
+    assert!(
+        t.lookup(&outer_pole(rev, 1)).is_none(),
         "the deleted interior vertex must have no name"
     );
-    assert!(t.lookup(&pole(rev, 2)).is_some(), "run tip v2 unnamed");
+    assert!(
+        t.lookup(&outer_pole(rev, 2)).is_some(),
+        "run tip v2 unnamed"
+    );
     assert_eq!(
         export_poles_by_program_vertex(&doc, &ev, sweep::Revolution::Full),
         vec![true, false, true],
@@ -223,10 +231,11 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     for v in 0..3 {
-        assert!(t.lookup(&pole(rev, v)).is_some(), "pole {v} unnamed");
+        assert!(t.lookup(&outer_pole(rev, v)).is_some(), "pole {v} unnamed");
     }
     // The interior vertex is the run's midpoint, not a third tip.
-    let at = |v| vertex_position(&ev, rev, &pole(rev, v)).expect("a named pole has a position");
+    let at =
+        |v| vertex_position(&ev, rev, &outer_pole(rev, v)).expect("a named pole has a position");
     let (a, b, c) = (at(0), at(1), at(2));
     for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
         assert!(

@@ -42,7 +42,7 @@ use crate::fixture::{len, vname};
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap-vertex name at `node`, on the document's one outer loop.
-fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+fn outer_cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
     fixture::cap_vertex(
         node,
         end,
@@ -105,8 +105,14 @@ pub fn document() -> CorpusDoc {
     // resolve in u1's table (the A operand of the union below), so
     // this is `resolve_declarations`' same-operand carried v-v arm,
     // and the record survives into the second union's contacts.
-    let kiss_a = vname(u1, RoleSeg::FromA(cap_vertex(a, CapEnd::End, 2).into()));
-    let kiss_b = vname(u1, RoleSeg::FromB(cap_vertex(b, CapEnd::Start, 0).into()));
+    let kiss_a = vname(
+        u1,
+        RoleSeg::FromA(outer_cap_vertex(a, CapEnd::End, 2).into()),
+    );
+    let kiss_b = vname(
+        u1,
+        RoleSeg::FromB(outer_cap_vertex(b, CapEnd::Start, 0).into()),
+    );
     // Both names are rows of `u1`'s table — the same-operand
     // carried pair — so both are sited there, which is what says
     // they are operand A's carry and not a cross-operand contact.

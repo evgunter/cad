@@ -37,8 +37,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, ProfileVertexRef,
-    RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, ProfileVertexRef, RecipeNodeId,
+    RimSupport, RoleSeg, evaluate,
 };
 use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom::Surface;
@@ -168,19 +168,18 @@ fn a_closed_rim_carve_names_its_whole_output() {
     let (doc, fillet) = filleted_mouth();
     let ev = run(&doc);
     let t = table(&ev, fillet);
-    let count = |f: fn(&RoleSeg) -> bool| fixture::count(t, f);
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandFace(_))),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandFace(_))),
         1,
         "one band face rounds the rim"
     );
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandTrim { .. })),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandTrim { .. })),
         2,
         "one trimline per support"
     );
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandSlit(_))),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandSlit(_))),
         1,
         "the band's slit keeps it ring-free"
     );
@@ -345,11 +344,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
             angle: ang(std::f64::consts::TAU),
         },
     );
-    let arc = |seg: RoleSeg| StableName {
-        kind: EntityKind::Edge,
-        node: revolve,
-        path: vec![seg],
-    };
+    let arc = |seg: RoleSeg| fixture::ename(revolve, seg);
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
     let pv = ProfileVertexRef {
