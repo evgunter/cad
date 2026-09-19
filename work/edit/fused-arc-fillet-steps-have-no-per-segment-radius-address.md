@@ -169,3 +169,48 @@ found.
 Not done here: nothing from the spec. `crates/profile/src/path/arc_fillet.rs`
 (BLEND's) turned out not to need touching — every emission site is in
 `path.rs` and `path/family.rs`.
+
+### Fix pass (2026-09-19)
+
+The v6 dual's two blinded reviews were both APPROVE-WITH-FIXES and
+converged on five findings; the union was built under the EDIT
+orchestrator's rulings, with both review branches merged
+authorship-preserving and their probes folded into the suites they
+belong to.
+
+**The door is one walk, and both arms are checked.** `segment_radii`'s
+CARRIER arm walked `0..segments` off the canonical record and read
+neither the recorded span nor the emission list, so a record the
+per-step door refused was answered here. Both arms now go through
+`CheckedRecords::edges_of_step`, and a carrier record carrying
+emissions refuses `CarrierRecordsEmissions` — a carrier form emits
+none. An emission crediting a segment off the loop draws its own arm,
+`EmissionOffTheLoop`, rather than a span refusal with a range the
+record never carried; `RadiusNotAnArgument` no longer renders "carrier
+radius radius"; both sentences are pinned whole in the F6 census.
+
+**The exact-fit close joins the list.** `family::resolve_arc_close`'s
+exact-fit arm routes through `record_fillet_arc`, so its arc is
+re-read at the close like every other fillet arc; measured, the
+`bulge * 2.0` mutant that passed the whole suite before is now
+refused by the door. That closes
+`work/paths/exact-fit-close-fillet-arc-is-never-re-read-for-its-stored-tangency.md`
+(the duplicate `radius-r1` filed is folded into it and deleted).
+
+**One address spelling.** `record_fillet_arc` is `record_radius` plus
+the tangency re-read's own list; `PendingMeta::carrier_address` is
+gone; `pending` and its meta are ONE `Option<(Pending, PendingMeta)>`,
+so `take_pending` has one refusal instead of two and the window where
+a fallible `current_step()?` left half of it written cannot exist.
+
+**The vocabularies and the fence.** `ArcData::carries_radius` and
+`spec_slots` are held to one answer, mode for mode and position for
+position, by one row; the coverage corpus gained a `Radius`-arrival
+fused chain so the guided fence reproduces all three roles, anchored
+on `RadiusRole::ALL`; `fillet_arc(r, Radius)` and a `Via` close's
+binder address get rows of their own. §5's seven-statement preamble
+is `fixture::wall_row`.
+
+Re-baselined: `fillet_stored_tangency`'s three corpus dump goldens, at
+the three eps rows — the new corpus chain is an addition to the dump,
+not an edit of anything in it.
