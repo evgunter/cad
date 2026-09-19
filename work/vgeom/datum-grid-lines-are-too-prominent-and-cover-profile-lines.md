@@ -2,8 +2,10 @@
 id: datum-grid-lines-are-too-prominent-and-cover-profile-lines
 kind: issue
 title: Datum grid lines are far too prominent and draw over profile lines (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: vgeom/overlay-lanes
+pr: 2859
 ---
 
 ## Ev's note (verbatim)

@@ -2,8 +2,10 @@
 id: committed-profiles-are-not-drawn-in-the-viewport
 kind: issue
 title: A profile vanishes from the viewport once it is committed (Ev-requested, high priority)
-status: open
+status: review
 opened: 2026-09-17
+branch: vgeom/overlay-lanes
+pr: 2859
 ---
 
 ## Ev's note (verbatim)
