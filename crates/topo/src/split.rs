@@ -233,7 +233,7 @@ impl<T: Decide> Body<T> {
             // The spiric's speed floor is its minor radius (`|dP/dv|
             // ≥ r`, the variant docs), the same meter certification
             // spans it at.
-            geom::Curve3::Spiric { minor_radius, .. } => minor_radius,
+            geom::Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
         };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
