@@ -347,11 +347,10 @@ amended:
      take more than reading it, the review carries the correctness
      claims too.
      **The one class that still merges on the ORCHESTRATOR'S OWN READ
-     stays exactly what it was** — a ruled
-     rename, a prose fix, a one-predicate move whose shape is already
-     written in the row (Ev, in chat, 2026-09-16, as EDIT's E-class
-     tier; the description moves here from `work/edit/plan.md`
-     §Process). Those merge on green CI and the orchestrator's read,
+     stays exactly what it was** — a ruled rename, a prose fix, a
+     one-predicate move whose shape is already written in the row (Ev,
+     in chat, 2026-09-16, as EDIT's E-class tier; the description
+     moves here from `work/edit/plan.md` §Process). Those merge on green CI and the orchestrator's read,
      with no review lane and no row. Everything between that class and
      the protocol gets the opus implementer and opus reviewer above.
   3. **Blocks and slots are spent by protocol units only.** A block's
