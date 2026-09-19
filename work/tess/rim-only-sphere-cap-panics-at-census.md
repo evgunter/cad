@@ -34,3 +34,73 @@ Band: S-MESH (1200–1299). Not scheduled; parked behind MESH-12.
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Measured, 2026-09-18 (`tess/rim-only-cap-diag` at `83833e586`) — and three corrections to the text above
+
+Survey lane, default ε, local; rows in `crates/mesh/tests/tess_cap_diag.rs`
+and `crates/step-import/tests/tess_cap_diag_import.rs` on that branch.
+
+**Corrections.** (1) "f = 0" above is MESH-12's gap factor `R·Δv = f·ε`
+(one rim circle), not the equator; the panic has no latitude or pole
+dependence. (2) "The import route is dead at all ε" is stale since PROPS'
+sphere-pole-side (PR 2741, 2026-09-16): a STEP rim-only cap + disc —
+stated as two half arcs or as ONE closed circle edge — imports as
+`Solid`, passes tiers 1–3, measures the exact closed-form volume, and
+then panics at the census. `pcurve_loop_continuity` refuses only a rim
+v-JUMP. (3) "The release build emits the non-manifold patch silently":
+this workspace's `[profile.release]` sets `debug-assertions = true`, so
+in-repo release PANICS too; with assertions off `tessellate` returns
+`Ok` with **zero triangles for the face** — a hole, not a non-manifold
+patch (`check_mesh` = `Err(BoundaryEdge)` beside a disc, `Ok(())` on a
+two-cap sphere: `check-mesh-passes-the-empty-mesh`).
+
+**Mechanism.** `walk::loop_polygon` classifies every arc `Rim`; with no
+meridian the polygon has one v value bitwise (n = 32, `area2 = 0`,
+`poles = 0`), `require_swept_rectangle` passes (every entry is on its
+zero-height box), `grid_counts` gives `nv = 1`, the CDT gets collinear
+points, `inner_faces = 0`, and `tessellate_curved` returns an empty
+patch. `walk_anchor`'s doc calls the meridian-free loop "unreachable
+through `traversals`"; it is reached. The census is correct; its
+message's stated cause ("the faces meeting on that edge did not
+identify it") is not the cause here.
+
+**It is a class**: any curved face whose single loop is rims only.
+Measured the same on a cone apex cap and a one-rim cylinder face (both
+door-admitted; props refuses both `DegenerateFace`, so neither is
+tier-3 valid — `work/props/cone-apex-cap-refuses-degenerateface.md`).
+
+**No native verb mints the face.** Revolve (ball, dome), `boolean_op_with`
+plane cuts and `merge_coplanar_faces` all keep the seamed form — two
+half-caps on meridians meeting at a valence-2 pole vertex (DESIGN.md's
+V2/E2/F2 minimal sphere) — and `merge_coplanar_faces` refuses
+`PeriodClosure` rather than make the full-wrap loop. The reach is STEP
+import and the Euler door. Import already normalizes four seamless
+statements into the seamed form (`NormalizationKind::{EdgeFreeSphere,
+DegenerateApexCone, FullPeriodTorus, SeamlessPeriodicBand}`); there is
+none for the rim-only cap, and the one-face seamed statement is refused
+(`ScaffoldingStrutVertex`, the valence-1 pole).
+
+**The rest of the kernel accepts the sphere cap**: tiers 1–3 `Ok`,
+`mass_properties` exact, `examine_chart_coherence` silent. The doors
+(`geom_brep::props::curved`) decide the pole side structurally —
+`rim_interior_side` (σ), `sphere_rim_only_pole_level`,
+`require_rim_only_closed` — all private; the public surface is
+`boundary_material_sign` → `MaterialSign::Unencoded`.
+
+## Disposition
+
+- **TESS-1** (specced): the class refuses typed at the walk, on the
+  structural fact (no meridian traversal). True under either answer
+  below — the cone and cylinder members have no other future.
+- **The design question this row opened with is Ev's** (an `[ev]` PR
+  carries it): does the mesh lane learn the interior pole and emit the
+  sphere cap, or does import normalize the statement into the seamed
+  form and TESS-1's refusal stand for good? This row stays open on it.
+
+Doc rot found by the survey, in files that are not TESS': the module
+header of `crates/topo/tests/mesh12_rim_row_reach.rs` still says the
+flux lane refuses the rim-only cap while its own third row measures it;
+`crates/step-import/tests/poleguard.rs`'s door enumeration reads as
+"every sphere-face boolean cut refuses" while macroscopic `ball ∩ slab`
+cuts succeed. TESS-1 fixes the first (the file is MESH-12's row);
+the second is filed on its owner's slate by TESS-1's lane.
