@@ -1,0 +1,36 @@
+--- orig uu: u=0.0 v=1.0
+    bound                 = 1.2485923412337243121328356E+0
+    f64-sampled norm(vec) = 1.2485923412337248534499108E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 1.2485923412337246170391400E+0  EXCEEDS bound  (true-bound)/bound=2.442e-16
+        per-channel f64-minus-true: ['4.095e-17', '-2.452e-16', '2.179e-17']
+    TRUE f64-refined S_r   span(1,16) = 1.2485923412337183615884525E+0  within bound  (true-bound)/bound=-4.766e-15
+--- orig uv: u=0.0 v=1.0
+    bound                 = 6.6594547281512115333157453E+0
+    f64-sampled norm(vec) = 6.6594547281509551547073981E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 6.6594547281509541196829281E+0  within bound  (true-bound)/bound=-3.865e-14
+        per-channel f64-minus-true: ['-1.329e-16', '1.072e-15', '1.280e-17']
+    TRUE f64-refined S_r   span(1,16) = 6.6594547281509557564302223E+0  within bound  (true-bound)/bound=-3.841e-14
+--- orig vv: u=0.0 v=1.0
+    bound                 = 4.2941735379747481005097143E+0
+    f64-sampled norm(vec) = 4.2941735379747070556024081E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 4.2941735379747067757479145E+0  within bound  (true-bound)/bound=-9.623e-15
+        per-channel f64-minus-true: ['2.467e-16', '7.595e-17', '2.291e-16']
+    TRUE f64-refined S_r   span(1,16) = 4.2941735379747276171276879E+0  within bound  (true-bound)/bound=-4.770e-15
+--- transposed uu: u=1.0 v=0.0
+    bound                 = 4.2941735379747481005097143E+0
+    f64-sampled norm(vec) = 4.2941735379747070556024081E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 4.2941735379747067757479145E+0  within bound  (true-bound)/bound=-9.623e-15
+        per-channel f64-minus-true: ['2.467e-16', '7.595e-17', '2.291e-16']
+    TRUE f64-refined S_r   span(16,1) = 4.2941735379747276171276879E+0  within bound  (true-bound)/bound=-4.770e-15
+--- transposed uv: u=1.0 v=0.0
+    bound                 = 6.6594547281512168623862635E+0
+    f64-sampled norm(vec) = 6.6594547281509534951610203E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 6.6594547281509541196829281E+0  within bound  (true-bound)/bound=-3.945e-14
+        per-channel f64-minus-true: ['-1.329e-16', '-7.039e-16', '1.280e-17']
+    TRUE f64-refined S_r   span(16,1) = 6.6594547281509557564302223E+0  within bound  (true-bound)/bound=-3.921e-14
+--- transposed vv: u=1.0 v=0.0
+    bound                 = 1.2485923412337243121328356E+0
+    f64-sampled norm(vec) = 1.2485923412337248534499108E+0   (exact norm of the f64 jet vector)
+    TRUE original S        span(1,1) = 1.2485923412337246170391400E+0  EXCEEDS bound  (true-bound)/bound=2.442e-16
+        per-channel f64-minus-true: ['4.095e-17', '-2.452e-16', '2.179e-17']
+    TRUE f64-refined S_r   span(16,1) = 1.2485923412337183615884525E+0  within bound  (true-bound)/bound=-4.766e-15

@@ -1,5 +1,37 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
-     Running unittests src/lib.rs (~/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 2323907 since 19:51:02 (@1789786262): shared [held 0m26s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4912m46s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 490m48s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (60s; holding: slot-1: pid 2325047 since 19:52:14 (@1789786334): shared [held 0m14s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4913m46s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 491m48s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (120s; holding: slot-1: pid 2325047 since 19:52:14 (@1789786334): shared [held 1m14s]; slot-2: pid 142349 since 09:58:42 (@1789491522): exclusive [held 4914m46s] [record is stale (pid 142349 dead); this shared request never polls slot-2 at width 1]; express: pid 1571861 since 11:40:40 (@1789756840): express(500s) [held 492m48s] [record is stale (pid 1571861 dead); this shared request never polls express at width 1])
+   Compiling autocfg v1.5.1
+   Compiling libm v0.2.16
+   Compiling crossbeam-utils v0.8.22
+   Compiling crossbeam-epoch v0.9.20
+   Compiling version_check v0.9.5
+   Compiling crossbeam-deque v0.8.7
+   Compiling rayon-core v1.13.0
+   Compiling either v1.16.0
+   Compiling foldhash v0.2.0
+   Compiling allocator-api2 v0.2.21
+   Compiling equivalent v1.0.2
+   Compiling robust v1.2.0
+   Compiling smallvec v1.15.2
+   Compiling slotmap v1.1.1
+   Compiling num-traits v0.2.19
+   Compiling test-utils v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/test-utils)
+   Compiling hashbrown v0.16.1
+   Compiling num-integer v0.1.46
+   Compiling spade v2.15.1
+   Compiling num-bigint v0.4.8
+   Compiling rayon v1.12.0
+   Compiling geom-core v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom-core)
+   Compiling bvh v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/bvh)
+   Compiling profile v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/profile)
+   Compiling geom v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom)
+   Compiling geom-brep v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/geom-brep)
+   Compiling topo v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/topo)
+   Compiling sweep v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/sweep)
+   Compiling mesh v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/mesh)
+    Finished `release` profile [optimized] target(s) in 1m 15s
+     Running unittests src/lib.rs (~/.local/share/cad-work/tess-nurbs-diag-target/release/deps/mesh-a6b1e784f11cf0d9)
 
 running 1 test
 TRIAL 0: pu=3 pv=2 red=false ratios=(0.116965,0.020677,0.966369)
@@ -197,6 +229,6 @@ TRIAL 58: pu=3 pv=2 red=false ratios=(0.484212,0.373381,0.969609)
 TRIAL 59: pu=2 pv=1 red=false ratios=(0.971656,0.060556,0.007860)
 test nurbs_cert_fuzz::diag::diag_replay ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 2.20s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.60s
 
 exit=0

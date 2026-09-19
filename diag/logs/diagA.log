@@ -1,6 +1,6 @@
-   Compiling mesh v0.0.0 (/home/evan/.local/share/cad-work/tess-nurbs-diag/cad/crates/mesh)
+   Compiling mesh v0.0.0 (~/.local/share/cad-work/tess-nurbs-diag/cad/crates/mesh)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 10.28s
-     Running unittests src/lib.rs (/home/evan/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+     Running unittests src/lib.rs (~/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
 
 running 1 test
 TRIAL 0: pu=3 pv=2 red=false ratios=(0.311044,0.033035,0.022105)

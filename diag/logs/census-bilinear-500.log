@@ -1,0 +1,11 @@
+
+running 1 test
+test nurbs_cert_fuzz::diag::diag_frequency has been running for over 60 seconds
+RED seed=0xd8bfeeee7191309c trial=21 comp=vv pu=1 pv=1 sampled=2.30467272953935520e0 bound=2.30467272953935209e0 rel=1.3488355327447193e-15 ulps=7
+RED seed=0x275adf8edd3bf735 trial=29 comp=uv pu=1 pv=1 sampled=6.07595977082966385e1 bound=6.07595977082965959e1 rel=7.01659750123471e-16 ulps=6
+CENSUS seeds=500 trials/seed=60 compared=30000 red-components=2 red-seeds=2 A-type(rel>1e-9)=0 B-type=2 (worst B rel=1.3488355327447193e-15) zero-direction(bound<1e-100)=0 worst-rel=1.3488355327447193e-15 comparisons-within-1e-12-of-bound=7866 max-rel-overall=1.3488355327447193e-15
+test nurbs_cert_fuzz::diag::diag_frequency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 300.60s
+
+exit=0

@@ -1,0 +1,9 @@
+
+running 1 test
+test nurbs_cert_fuzz::diag::diag_frequency has been running for over 60 seconds
+CENSUS seeds=300 trials/seed=60 compared=12461 red-components=0 red-seeds=0 A-type(rel>1e-9)=0 B-type=0 (worst B rel=-inf) zero-direction(bound<1e-100)=0 worst-rel=-inf comparisons-within-1e-12-of-bound=761 max-rel-overall=-2.307666089965677e-15
+test nurbs_cert_fuzz::diag::diag_frequency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 365.82s
+
+exit=0

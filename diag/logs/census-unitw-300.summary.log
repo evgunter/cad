@@ -1,0 +1,14 @@
+
+running 1 test
+test nurbs_cert_fuzz::diag::diag_frequency has been running for over 60 seconds
+CENSUS seeds=300 trials/seed=60 compared=18000 red-components=6017 red-seeds=300 A-type(rel>1e-9)=0 B-type=0 (worst B rel=-inf) zero-direction(bound<1e-100)=6017 worst-rel=4.143434533558158e146 comparisons-within-1e-12-of-bound=13648 max-rel-overall=4.143434533558158e146
+test nurbs_cert_fuzz::diag::diag_frequency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 312.35s
+
+exit=0
+RED seed=0x71b06b624f01c45d trial=0 comp=uu pu=1 pv=2 sampled=5.72012141418284452e-16 bound=3.84993108707641654e-162 rel=1.485772416390607e146 ulps=2186749847805760878
+RED seed=0x71b06b624f01c45d trial=3 comp=uu pu=1 pv=1 sampled=3.18077248360235054e-16 bound=3.84993108707641654e-162 rel=8.261894594112811e145 ulps=2182896728939981326
+RED seed=0x71b06b624f01c45d trial=10 comp=uu pu=1 pv=2 sampled=7.95879565722665325e-16 bound=3.84993108707641654e-162 rel=2.0672566540068776e146 ulps=2189020133204088847
+RED seed=0x71b06b624f01c45d trial=12 comp=uu pu=1 pv=3 sampled=7.57298669841518379e-16 bound=3.84993108707641654e-162 rel=1.9670447410958732e146 ulps=2188628876437520217
+RED seed=0x71b06b624f01c45d trial=13 comp=uu pu=1 pv=3 sampled=9.16607835142096247e-16 bound=3.84993108707641654e-162 rel=2.380842187588753e146 ulps=2190100309047444694

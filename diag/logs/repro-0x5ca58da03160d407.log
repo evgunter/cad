@@ -1,5 +1,5 @@
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
-     Running unittests src/lib.rs (/home/evan/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
+     Running unittests src/lib.rs (~/.local/share/cad-work/tess-nurbs-diag-target/debug/deps/mesh-b87dc5e4d0cb25d0)
 
 running 1 test
 [fuzz] nurbs_cert::r1_random_rational_soundness: seed=0x5ca58da03160d407 effort=1 — replay with CAD_FUZZ_SEED=0x5ca58da03160d407
