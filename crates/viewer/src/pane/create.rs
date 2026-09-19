@@ -5,7 +5,7 @@
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
-use pncad::profile::Verb;
+use pncad::profile::{TipState, Verb};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -690,15 +690,14 @@ impl ViewerBehavior<'_> {
     /// matching what a list of things usually looks like.
     ///
     /// **The verb combo offers only what the lattice admits at that
-    /// tip**, and shows the rest greyed with the refusal as their
-    /// hover text — [`sketch::admits_at`], which answers by putting
-    /// the candidate in front of the same `replay` the commit door
-    /// runs. That is deliberately NOT a table here: an earlier version
-    /// of this form offered every verb everywhere precisely to avoid
-    /// keeping a second copy of the lattice in step by hand, and the
-    /// probe is how the offer narrows without one existing. The
-    /// admissible set is computed only while a combo is OPEN, so a
-    /// closed form pays nothing for it.
+    /// tip**, and shows the rest greyed with the tip's state as their
+    /// hover text. The tip comes from replaying the rows before it
+    /// ([`sketch::tip_state_at`]); what it admits is read off the
+    /// kernel's own transition table ([`sketch::admits_at`]) and, for
+    /// an arc spec, off its dispatcher's forms — both projected from
+    /// the declarations the replay runs, so the form keeps no copy of
+    /// the lattice. A verb picked lands in the first arc form its row
+    /// takes ([`sketch::fresh_step_at`]).
     pub(crate) fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
         let length_unit = self.drafts.length_unit.def();
         let angle_unit = self.drafts.angle_unit.def();
@@ -718,9 +717,16 @@ impl ViewerBehavior<'_> {
         // the same reason the moves are: the probe that decides which
         // verbs a combo may offer reads the WHOLE list, and it cannot
         // borrow it while a row holds a mutable slice of it.
-        let mut rebind: Option<(usize, Verb)> = None;
+        let mut rebind: Option<(usize, Verb, Option<TipState>)> = None;
         let mut insert: Option<usize> = None;
         let tol = self.session.tol();
+        // The tip each row's step lands on, read off the replay of the
+        // rows before it. Every frame rather than only while a combo is
+        // open, because the arc pickers grey their refused modes from
+        // it too; a replay per row of a hand-authored path is cheap.
+        let states: Vec<Option<TipState>> = (0..self.drafts.profile_path.len())
+            .map(|index| sketch::tip_state_at(&self.drafts.profile_path, index, tol))
+            .collect();
         let last = self.drafts.profile_path.len().saturating_sub(1);
         for index in 0..self.drafts.profile_path.len() {
             let salt = format!("path_step_{index}");
@@ -770,18 +776,13 @@ impl ViewerBehavior<'_> {
                     insert = Some(index + 1);
                 }
                 let verb = self.drafts.profile_path[index].verb();
+                let state = states[index];
                 egui::ComboBox::from_id_salt(("path_verb", index))
                     .selected_text(verb.to_string())
                     .width(120.0)
                     .show_ui(ui, |ui| {
-                        // Asked once per OPEN combo, never per frame:
-                        // the probe replays the prefix once per
-                        // candidate verb, which is cheap but not free,
-                        // and a closed combo has nobody to show it to.
-                        let mut chain = self.drafts.profile_path.clone();
                         for &option in Verb::ALL {
-                            chain[index] = sketch::fresh_step(option);
-                            let refusal = sketch::admits_at(&chain, index, tol).err();
+                            let refusal = sketch::admits_at(state, option).err();
                             // `add_enabled` on the widget itself, not
                             // an `add_enabled_ui` around it: the
                             // reason a choice is greyed out is told
@@ -793,7 +794,7 @@ impl ViewerBehavior<'_> {
                                 egui::Button::selectable(option == verb, option.to_string()),
                             );
                             match refusal {
-                                Some((state, _refused)) => {
+                                Some(state) => {
                                     // The verb's `Display`, which is
                                     // the word the combo shows, not
                                     // its `Debug`: the sentence is
@@ -805,18 +806,18 @@ impl ViewerBehavior<'_> {
                                     ));
                                 }
                                 None if row.clicked() && option != verb => {
-                                    rebind = Some((index, option));
+                                    rebind = Some((index, option, state));
                                 }
                                 None => {}
                             }
                         }
                     });
                 let step = &mut self.drafts.profile_path[index];
-                path_step_fields(ui, &salt, length_unit, angle_unit, step);
+                path_step_fields(ui, &salt, length_unit, angle_unit, state, step);
             });
         }
-        if let Some((index, verb)) = rebind {
-            self.drafts.profile_path[index] = sketch::fresh_step(verb);
+        if let Some((index, verb, state)) = rebind {
+            self.drafts.profile_path[index] = sketch::fresh_step_at(verb, state);
         }
         if let Some(index) = remove {
             self.drafts.profile_path.remove(index);
