@@ -35,8 +35,8 @@ use crate::fixture;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickHit, PickTarget, ProfileDoc,
-    RecipeNodeId, ValuePayload, pick_face,
+    CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickHit, PickTarget,
+    ProfileDoc, RecipeNodeId, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
@@ -121,20 +121,42 @@ impl Door {
     }
 
     /// `pick_face` over one target per group of triangles, in the
-    /// order given.
-    fn ask(&self, groups: &[&[[Point3<f64>; 3]]], ray: &Ray) -> PickHit {
-        self.ask_from(groups, &vec![0usize; groups.len()], ray)
-    }
-
-    /// [`Door::ask`] with each target's triangles carried under the
-    /// face keys starting at `first_patch[i]`, so two targets can hold
-    /// the SAME triangle under DIFFERENT faces.
+    /// order given, where the door ANSWERS. Each target's triangles
+    /// are carried under the face keys starting at `first_patch[i]`,
+    /// so two targets can hold the SAME triangle under DIFFERENT
+    /// faces — and one target's triangles can be spread over several.
     fn ask_from(
         &self,
         groups: &[&[[Point3<f64>; 3]]],
         first_patch: &[usize],
         ray: &Ray,
     ) -> PickHit {
+        self.raw(groups, first_patch, ray)
+            .expect("no error")
+            .expect("a hit")
+    }
+
+    /// [`Door::ask_from`] where the door REFUSES: the tied faces'
+    /// hits, in the order the refusal lists them.
+    fn tied(
+        &self,
+        groups: &[&[[Point3<f64>; 3]]],
+        first_patch: &[usize],
+        ray: &Ray,
+    ) -> Vec<PickHit> {
+        match self.raw(groups, first_patch, ray) {
+            Err(HitTestError::Ambiguous { hits }) => hits,
+            other => panic!("the certified tie between faces refuses: {other:?}"),
+        }
+    }
+
+    /// The door's answer, whatever it is.
+    fn raw(
+        &self,
+        groups: &[&[[Point3<f64>; 3]]],
+        first_patch: &[usize],
+        ray: &Ray,
+    ) -> Result<Option<PickHit>, HitTestError> {
         let meshes: Vec<Mesh> = groups
             .iter()
             .zip(first_patch)
@@ -149,9 +171,12 @@ impl Door {
             .map(|p| PickTarget::new(&self.ev, self.node, 0, p))
             .collect();
         pick_face(&self.ev, &targets, ray)
-            .expect("no error")
-            .expect("a hit")
     }
+}
+
+/// The names the refusal lists, in its own order.
+fn named(hits: &[PickHit]) -> Vec<String> {
+    hits.iter().map(|h| h.name.to_string()).collect()
 }
 
 fn entry(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
@@ -194,9 +219,11 @@ fn corner_tangent(k: f64, scale: f64, at: f64) -> [Point3<f64>; 3] {
 /// A wide candidate at `t = 4` and a narrower one whose box the ray
 /// does not enter until `t = 4.5` — past the wide one's upper end, so
 /// the un-margined break fires — but not past the narrow one's own
-/// lower end, so the narrow one is IN the tie by the door's own rule
-/// and, being narrower, is what the tie-break takes. The two answers
-/// are different faces, not different ULPs.
+/// lower end, so the narrow one is IN the tie by the door's own rule.
+/// The two are different faces, so the door refuses with both, and
+/// the kept candidate is what the refusal's second entry IS:
+/// `Pruned == Every` over the LIST. A door that pruned it would
+/// answer the wide face alone, and answering is not refusing.
 ///
 /// Authored by review lane `pick3-r1`, where it was red; re-expressed
 /// through `pick_face` rather than through a hand-run traversal, so a
@@ -227,21 +254,25 @@ fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
         narrow.t_lo,
         wide.t_hi
     );
-    assert!(
-        narrow.width() < wide.width(),
-        "and it is the narrower of the two, so the tie-break takes it"
-    );
     assert_eq!(
-        TSpan::best_of(&[wide, narrow]),
-        Some(1),
-        "the certified order over both candidates answers the narrow one"
+        TSpan::survivors(&[wide, narrow]),
+        vec![0, 1],
+        "the certified order over both candidates keeps both"
     );
 
     let door = Door::new("pick3_early_out_r1");
+    let hits = door.tied(&[&tris], &[0], &ray);
     assert_eq!(
-        door.ask(&[&tris], &ray).t,
-        narrow.t,
-        "and so does the door, with both triangles in one target"
+        hits.iter().map(|h| h.t).collect::<Vec<_>>(),
+        vec![wide.t, narrow.t],
+        "and so does the door, with both triangles in one target: the refusal carries both, \
+         the kept candidate included"
+    );
+    assert_eq!(
+        named(&hits).len(),
+        2,
+        "two faces, not two triangles of one: {:?}",
+        named(&hits)
     );
 }
 
@@ -285,11 +316,12 @@ fn near_tangent_copy(k: f64, lambda: f64, t_a: f64, ray: &Ray) -> [Point3<f64>; 
 /// Two `near_tangent` triangles on one ray: B, whose interval reaches
 /// below its own box entry, and A, a scaled copy nearer the origin
 /// whose `t_hi` lands in `[t_lo(B), t_enter(B))`. Neither precedes the
-/// other, so they are one certified tie, and B is the narrower claim.
-/// The rule says B in all three arrangements — both in one target, B's
-/// target first, A's target first — and an early-out that prunes B
-/// answers A in two of the three, which is the order-dependence the
-/// determinism contract forbids.
+/// other, so they are one certified tie; carried under two different
+/// faces, they are the refusal. The rule says the SAME two faces in
+/// all three arrangements — both in one target, B's target first, A's
+/// target first — and an early-out that prunes B answers A alone in
+/// two of the three, which is the order-dependence the determinism
+/// contract forbids.
 ///
 /// The search over `(k_a, k_b, λ, t_a)` is deterministic and prints
 /// what it found. Authored by review lane `pick3-r2`, where it was
@@ -344,32 +376,52 @@ fn the_certified_tie_is_decided_by_the_candidates_and_not_the_targets_order() {
     );
     assert!(
         span_b.width() < span_a.width(),
-        "and B is the narrower claim"
+        "and B is the narrower claim, which decides nothing"
     );
 
     let door = Door::new("pick3_early_out_r2");
     let both = [a, b];
-    let one_target = door.ask(&[&both], &ray).t;
-    let b_then_a = door.ask(&[&[b], &[a]], &ray).t;
-    let a_then_b = door.ask(&[&[a], &[b]], &ray).t;
-    println!("# one target {one_target} ; [B, A] {b_then_a} ; [A, B] {a_then_b}");
-    assert_eq!(
-        b_then_a, span_b.t,
-        "with B tested first, both survive and the narrower claim B wins"
+    // A under the cube's first face, B under its second, in all three
+    // arrangements: the same two faces are tied every time.
+    let one_target = door.tied(&[&both], &[0], &ray);
+    let b_then_a = door.tied(&[&[b], &[a]], &[1, 0], &ray);
+    let a_then_b = door.tied(&[&[a], &[b]], &[0, 1], &ray);
+    let set = |hits: &[PickHit]| {
+        let mut names = named(hits);
+        names.sort();
+        names
+    };
+    println!(
+        "# one target {:?} ; [B, A] {:?} ; [A, B] {:?}",
+        named(&one_target),
+        named(&b_then_a),
+        named(&a_then_b)
     );
     assert_eq!(
-        a_then_b, b_then_a,
-        "and the answer does not depend on which target was offered first"
+        named(&b_then_a),
+        named(&one_target).into_iter().rev().collect::<Vec<_>>(),
+        "with B's target first the LIST is B then A — target order, and nothing else"
     );
     assert_eq!(
-        one_target, span_b.t,
+        set(&a_then_b),
+        set(&b_then_a),
+        "and the refusal's SET does not depend on which target was offered first"
+    );
+    assert_eq!(
+        set(&one_target),
+        set(&a_then_b),
         "nor on whether the two triangles share a target: the early-out prunes only \
          candidates the set rule already drops"
+    );
+    assert_eq!(
+        [a_then_b[0].t, a_then_b[1].t],
+        [span_a.t, span_b.t],
+        "and each tied face carries its own true parameter"
     );
 }
 
 // ---------------------------------------------------------------
-// The bound the early-out compares, and the last tie-break key.
+// The bound the early-out compares.
 // ---------------------------------------------------------------
 
 /// **The early-out's bound is the interval's UPPER end.** Two
@@ -380,9 +432,10 @@ fn the_certified_tie_is_decided_by_the_candidates_and_not_the_targets_order() {
 /// first candidate's ROUNDED answer but before its upper end.
 ///
 /// The door reaches the second candidate — the geometry has not yet
-/// said which is in front — and the certified tie falls to the narrow
-/// one at `1.7`. A door whose bound were the rounded `t` would stop
-/// first and answer `1.5`.
+/// said which is in front — so the two are one certified tie on two
+/// faces and the door refuses with both. A door whose bound were the
+/// rounded `t` would stop first and ANSWER the near-tangent face at
+/// `1.5`.
 #[test]
 fn the_early_outs_bound_is_the_intervals_upper_end() {
     let (ray, wide) = near_tangent(64.0);
@@ -417,33 +470,36 @@ fn the_early_outs_bound_is_the_intervals_upper_end() {
         spans[0].t_hi
     );
     let door = Door::new("pick3_early_out_upper_end");
+    let one_target = door.tied(&[&tris], &[0], &ray);
     assert_eq!(
-        door.ask(&[&tris], &ray).t,
-        spans[1].t,
-        "the door reaches the transversal candidate and the tie falls to it"
+        one_target.iter().map(|h| h.t).collect::<Vec<_>>(),
+        vec![spans[0].t, spans[1].t],
+        "the door reaches the transversal candidate, and both faces are in the tie"
     );
+    let reversed = door.tied(&[&[tris[1]], &[tris[0]]], &[1, 0], &ray);
     assert_eq!(
-        door.ask(&[&[tris[1]], &[tris[0]]], &ray).t,
-        spans[1].t,
-        "and again with the candidates offered the other way round"
+        reversed.iter().map(|h| h.t).collect::<Vec<_>>(),
+        vec![spans[1].t, spans[0].t],
+        "and again with the candidates offered the other way round: the same two, listed in \
+         the new target order"
     );
 }
 
-/// **At equal width, the target's position decides** — the tie-break's
-/// last key, pinned through the door.
+/// **At equal width, the door refuses** — there is no last key.
 ///
 /// The SAME triangle at the same magnitudes, offered as two targets
 /// under two DIFFERENT faces of the cube. Every number either
 /// candidate computes is the same number, so neither precedes the
-/// other and the widths are equal to the bit: nothing but position is
-/// left. The door answers the earlier target's face, and swapping the
-/// targets swaps the answer — while both place the hit at the same
-/// point, which is what makes the tie a tie. The door is choosing
-/// which face to NAME, not where the ray met the mesh.
+/// other and the widths are equal to the bit: nothing is left to
+/// choose with, and choosing anyway would be choosing which face to
+/// NAME on a rule the user never asked for. The door names both, at
+/// the one point they agree on, and swapping the targets swaps the
+/// LIST's order and nothing else.
 ///
-/// Reversing `target_pos` in `pick_face`'s order reds this row.
+/// A door that kept the position key answers one face here and reds
+/// this row.
 #[test]
-fn equal_widths_fall_to_the_earlier_target() {
+fn equal_widths_refuse_with_both_faces() {
     let tri = [
         Point3::new(1.0, 1.0, 1.0),
         Point3::new(5.0, 1.0, 1.0),
@@ -461,29 +517,251 @@ fn equal_widths_fall_to_the_earlier_target() {
         one.name, two.name,
         "the fixture: the two targets carry the triangle under different faces"
     );
-    let first = door.ask_from(&[&[tri], &[tri]], &[0, 1], &ray);
-    let second = door.ask_from(&[&[tri], &[tri]], &[1, 0], &ray);
+    let first = door.tied(&[&[tri], &[tri]], &[0, 1], &ray);
+    let second = door.tied(&[&[tri], &[tri]], &[1, 0], &ray);
     assert_eq!(
-        first.name, one.name,
-        "the earlier target wins the equal-width tie"
+        named(&first),
+        vec![one.name.to_string(), two.name.to_string()],
+        "both faces are refused, listed in target order"
     );
     assert_eq!(
-        second.name, two.name,
-        "and it is position that decided, not the face: swapping the targets swaps the answer"
+        named(&second),
+        vec![two.name.to_string(), one.name.to_string()],
+        "and swapping the targets swaps the LIST and nothing else"
     );
     assert_eq!(
-        (first.t, second.t),
-        (span.t, span.t),
-        "both answers are the same hit"
+        first.iter().map(|h| h.t).collect::<Vec<_>>(),
+        vec![span.t, span.t],
+        "both entries are the same hit"
+    );
+    for hit in first.iter().chain(&second) {
+        assert_eq!(
+            [hit.point.x, hit.point.y, hit.point.z],
+            [first[0].point.x, first[0].point.y, first[0].point.z],
+            "at the same point: the refusal names faces, not places"
+        );
+        assert_eq!(
+            hit.t_hi - hit.t_lo,
+            span.t_hi - span.t_lo,
+            "on intervals of equal width, which is why nothing could have decided"
+        );
+    }
+}
+
+// ---------------------------------------------------------------
+// The certified tie between faces, through the door.
+// ---------------------------------------------------------------
+
+/// **A ray down a shared edge refuses with BOTH faces.**
+///
+/// Two triangles mirrored across the segment from `(0, 0, 0)` to
+/// `(1, 0, 0)`, carried under two different faces of the cube, and a
+/// `−z` ray through the segment's midpoint. Both triangles compute
+/// `u = 0.5`, `v = 0`, `t = 2` without a rounding, so neither
+/// precedes the other and both hits are TRUE: each places the hit at
+/// the midpoint, to the bit. The geometry names no face, so the door
+/// names none either — it refuses with both, each carrying its own
+/// hit, listed in the caller's target order.
+///
+/// **The refusal is a function of the set.** Offering the targets the
+/// other way round reverses the list and changes nothing else: the
+/// same two faces, the same two parameters, the same point.
+///
+/// The arithmetic underneath is `pick.rs`'s
+/// `a_ray_down_a_shared_edge_ties_two_narrow_intervals_and_nothing_breaks_it`;
+/// this row is what the door does with it.
+#[test]
+fn a_ray_down_a_shared_edge_refuses_with_both_faces() {
+    let shared = [Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)];
+    let above = [shared[0], shared[1], Point3::new(0.5, 1.0, 0.0)];
+    let below = [shared[0], shared[1], Point3::new(0.5, -1.0, 0.0)];
+    let midpoint = Point3::new(0.5, 0.0, 0.0);
+    let ray = Ray {
+        origin: Point3::new(midpoint.x, midpoint.y, 2.0),
+        dir: Vec3::new(0.0, 0.0, -1.0),
+    };
+    let spans = [
+        span_of(&ray, &above, "the triangle above the edge"),
+        span_of(&ray, &below, "the triangle below it"),
+    ];
+    assert!(
+        !spans[0].precedes(&spans[1]) && !spans[1].precedes(&spans[0]),
+        "the row's premise: neither interval lies below the other, so they are one \
+         certified tie ({spans:?})"
+    );
+
+    let door = Door::new("pick3_shared_edge_refuses");
+    // Each triangle under its own face of the cube: the tie is
+    // BETWEEN faces, which is what refuses.
+    let hits = door.tied(&[&[above], &[below]], &[0, 1], &ray);
+    assert_eq!(hits.len(), 2, "one hit per tied face: {:?}", named(&hits));
+    for (i, hit) in hits.iter().enumerate() {
+        assert_eq!(hit.t, 2.0, "tied face {i} answers the midpoint at t = 2");
+        assert_eq!(
+            [hit.point.x, hit.point.y, hit.point.z].map(f64::to_bits),
+            [midpoint.x, midpoint.y, midpoint.z].map(f64::to_bits),
+            "and places it at the shared edge's midpoint: every tied hit is TRUE"
+        );
+    }
+    assert_ne!(
+        hits[0].name, hits[1].name,
+        "the two entries are two faces, not one face met twice"
+    );
+
+    let swapped = door.tied(&[&[below], &[above]], &[1, 0], &ray);
+    assert_eq!(
+        named(&swapped),
+        named(&hits).into_iter().rev().collect::<Vec<_>>(),
+        "offering the targets the other way round reverses the LIST"
+    );
+    let mut one = named(&hits);
+    let mut other = named(&swapped);
+    one.sort();
+    other.sort();
+    assert_eq!(one, other, "and refuses with the same SET of faces");
+}
+
+/// **Several triangles of ONE face are one answer, not a tie.**
+///
+/// A face split along a diagonal, both halves carried under the SAME
+/// face of the cube, and a ray down that diagonal: both triangles are
+/// hit, neither precedes the other, and the survivors name one face —
+/// so the door answers that face, with the HULL of the two intervals
+/// and the smaller of the two rounded `t`s.
+///
+/// This is the case a refusal must not reach: it is every ray across
+/// a triangle diagonal or an in-face shared edge, which is most
+/// picks. A door that refused on the number of surviving TRIANGLES
+/// rather than on the number of faces reds here.
+///
+/// **The two halves do not meet the ray at the same depth, on
+/// purpose.** A face's triangles are chorded one by one, so two of
+/// them meet along a seam only to within a rounding — and the second
+/// half here sits a few ulps along the ray, far enough that the two
+/// members answer DIFFERENT rounded parameters and far inside either
+/// interval, so neither is certified in front of the other. Both
+/// halves in one exact plane, struck at a dyadic midpoint, answer one
+/// `t` between them and a door reporting the LARGER member, or the
+/// hull's midpoint, passes the row. The far half is offered FIRST, so
+/// a door answering its first member rather than its smallest reds
+/// too. All of it is asserted rather than assumed.
+#[test]
+fn several_triangles_of_one_face_answer_that_face() {
+    // The unit square in z = 0, split along the diagonal from
+    // (0, 0) to (1, 1); the ray runs down that diagonal's midpoint.
+    // The second half is chorded a few ulps further along the ray,
+    // which is the seam a tessellation actually leaves.
+    let sag = 2e-15;
+    let corners = [
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+    ];
+    let dropped = |p: Point3<f64>| Point3::new(p.x, p.y, p.z - sag);
+    // The FIRST half offered is the far one, so "the smallest rounded
+    // `t`" and "the first member" are different answers here.
+    let halves = [
+        [
+            dropped(corners[0]),
+            dropped(corners[1]),
+            dropped(corners[2]),
+        ],
+        [corners[0], corners[2], corners[3]],
+    ];
+    let midpoint = Point3::new(0.5, 0.5, 0.0);
+    let ray = Ray {
+        origin: Point3::new(midpoint.x, midpoint.y, 3.0),
+        dir: Vec3::new(0.0, 0.0, -1.0),
+    };
+    let spans = [
+        span_of(&ray, &halves[0], "the first half"),
+        span_of(&ray, &halves[1], "the second half"),
+    ];
+    assert!(
+        !spans[0].precedes(&spans[1]) && !spans[1].precedes(&spans[0]),
+        "the row's premise: the diagonal is a hit for both halves and neither is in \
+         front ({spans:?})"
+    );
+    assert_ne!(
+        spans[0].t, spans[1].t,
+        "the row's premise: the two members answer DIFFERENT rounded parameters, so \
+         the smallest-`t` rule has something to decide ({spans:?})"
+    );
+
+    let door = Door::new("pick3_one_face_diagonal");
+    // ONE face: both halves are offered as two targets carrying the
+    // cube's first patch, so the two candidates share a face key.
+    let hit = door.ask_from(&[&[halves[0]], &[halves[1]]], &[0, 0], &ray);
+    let one = door.ask_from(&[&[halves[0]]], &[0], &ray);
+    assert_eq!(
+        hit.name, one.name,
+        "the door answers that face rather than refusing"
     );
     assert_eq!(
-        [first.point.x, first.point.y, first.point.z],
-        [second.point.x, second.point.y, second.point.z],
-        "at the same point: the door picks a name, not a place"
+        hit.t,
+        spans[0].t.min(spans[1].t),
+        "with the smaller of the members' rounded parameters"
     );
     assert_eq!(
-        first.t_hi - first.t_lo,
-        second.t_hi - second.t_lo,
-        "on intervals of equal width, which is why position had to decide"
+        (hit.t_lo, hit.t_hi),
+        (
+            spans[0].t_lo.min(spans[1].t_lo),
+            spans[0].t_hi.max(spans[1].t_hi)
+        ),
+        "and the HULL of their intervals, which encloses every crossing the tie holds"
+    );
+}
+
+/// **One face's members answer the SMALLEST rounded `t`**, at any
+/// separation.
+///
+/// `several_triangles_of_one_face_answer_that_face` puts its two
+/// members a rounding apart, which is where the rule is REACHED — a
+/// diagonal, an in-face shared edge. This row puts two members of one
+/// face at `t = 1.5` and `t = 1.7` (the `the_early_outs_bound_…`
+/// pair, carried under one face instead of two): their intervals
+/// overlap, so both survive, and the parameters they answer are far
+/// enough apart that no rounding could confuse the two.
+///
+/// Reds a door that answers the larger member, or the hull's midpoint.
+#[test]
+fn one_faces_members_answer_the_smallest_rounded_t() {
+    let (ray, wide) = near_tangent(64.0);
+    let narrow = [
+        Point3::new(0.7, 0.5, -0.2),
+        Point3::new(0.7, 0.9, -0.2),
+        Point3::new(0.7, 0.7, 0.3),
+    ];
+    let spans = [
+        span_of(&ray, &wide, "the near-tangent member"),
+        span_of(&ray, &narrow, "the transversal member"),
+    ];
+    assert!(
+        !spans[0].precedes(&spans[1]) && !spans[1].precedes(&spans[0]),
+        "the row's premise: both members survive ({spans:?})"
+    );
+    assert!(
+        spans[0].t < spans[1].t,
+        "and they answer DIFFERENT parameters: {spans:?}"
+    );
+    let door = Door::new("pick3_one_face_two_parameters");
+    // Both members under the cube's FIRST face: one face, one answer.
+    let hit = door.ask_from(&[&[wide], &[narrow]], &[0, 0], &ray);
+    assert_eq!(
+        hit.t, spans[0].t,
+        "the smallest rounded t of the face's members, not the largest"
+    );
+    assert_eq!(
+        (hit.t_lo, hit.t_hi),
+        (
+            spans[0].t_lo.min(spans[1].t_lo),
+            spans[0].t_hi.max(spans[1].t_hi)
+        ),
+        "on the hull of both members' intervals"
+    );
+    assert_ne!(
+        hit.t, spans[1].t,
+        "a door answering the LARGEST member's parameter reds here"
     );
 }

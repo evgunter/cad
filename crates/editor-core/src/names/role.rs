@@ -846,11 +846,12 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest. A declaration written in these names keeps
-    /// that identity through the fold's MERGES: a member's face that a
-    /// declared merge has consumed resolves, at the step its pair is
-    /// fed to, to the accumulation's `Merged` row whose flat
-    /// constituent set holds it. A face consumed any other way — by a
+    /// renaming the rest. A declaration, which names a member's entity
+    /// SITED at that member and is rewritten into this wrapper at the
+    /// routing door, keeps that identity through the fold's MERGES: a
+    /// member's face that a declared merge has consumed resolves, at
+    /// the step its pair is fed to, to the accumulation's `Merged` row
+    /// whose flat constituent set holds it. A face consumed any other way — by a
     /// split, by containment, or inside a merged row later fragmented
     /// — is not looked through, and a pair naming it is order-shaped
     /// ([`crate::Node::Union`] states the bound).
@@ -1306,12 +1307,11 @@ pub(crate) use name_free_seg;
 /// PATTERN rather than a predicate.
 ///
 /// A union's value is a fold of the pair verb, so a fold table is a
-/// boolean table and this is the same list for both. Three matches
+/// boolean table and this is the same list for both. Two matches
 /// classify segments by it and each does something different with the
 /// half it does recognize — the rewrite descends a name's head
-/// (`emit_union`'s `collapse`), rebuilds its tail, and the routing
-/// walk (`eval::wire`'s `latest_member`) reads member ids out of it.
-/// Only the negative answer is common, so only the negative answer is
+/// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
+/// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
 /// [`name_free_seg`] is: none of the three loses its exhaustiveness,
 /// so a variant added to [`RoleSeg`] and not added here still stops

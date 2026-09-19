@@ -8,8 +8,8 @@ use crate::fixture;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName, band,
-    band_rim, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf,
+    StableName, band, band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
@@ -722,13 +722,14 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
     );
     let (doc, b) = cube(doc, 0.5, 1.0);
     let pair = (
-        name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)),
-        name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Start)),
+        SitedRef::new(a, name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Start))),
     );
     let (doc, _decl) = insert(doc, Node::declare_rest(vec![pair.clone()]));
     let ev = run(&doc);
-    for name in [&pair.0, &pair.1] {
-        let t = table(&ev, name.node);
+    for r in [&pair.0, &pair.1] {
+        let name = &r.name;
+        let t = table(&ev, r.at);
         assert!(
             matches!(t.lookup(name), Some(Entry::Unique(_))),
             "declared name does not resolve: {name:?}"

@@ -12,9 +12,9 @@
 //!    centers, down all 12 edges, into all 8 corners, and from the
 //!    interior, on dyadic geometry where every winning computation is
 //!    exact — asserting hit `t`, the resolved face (via public
-//!    `resolve`), and the documented tie-break among the exactly-tied
-//!    (the narrower `t` interval, then the earliest flat patch-major
-//!    triangle) on every case.
+//!    `resolve`), and the door's set rule over the exactly-tied — one
+//!    face is one answer, several are the refusal, and no second key
+//!    separates them — on every case.
 //! 2. `coplanar_cross_target_tie_...` (static): two touching bodies
 //!    whose faces meet the ray at the SAME exact `t` — a certified tie
 //!    the door breaks by the narrower interval, so the answer is a
@@ -47,8 +47,8 @@ use crate::fixture;
 
 use editor_core::resolve::{TSpan, ray_triangle};
 use editor_core::{
-    CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
-    RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
+    CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickTarget,
+    ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
@@ -109,16 +109,25 @@ fn resolved_patch_index(
     mesh: &Mesh,
     name: &editor_core::StableName,
 ) -> usize {
+    resolved_patch(doc, ev, mesh, name).expect("resolved face has a patch in the mesh")
+}
+
+/// [`resolved_patch_index`] where the name may belong to another
+/// mesh — the cross-target rows, where each answer is resolved
+/// against whichever body drew it.
+fn resolved_patch(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    mesh: &Mesh,
+    name: &editor_core::StableName,
+) -> Option<usize> {
     let Resolution::Resolved(r) = resolve(RunCtx { doc, eval: ev }, name) else {
         panic!("picked name resolves");
     };
     let EntityKey::Face(fk) = r.entity.key else {
         panic!("picked name denotes a face");
     };
-    mesh.patches
-        .iter()
-        .position(|p| p.face == fk)
-        .expect("resolved face has a patch in the mesh")
+    mesh.patches.iter().position(|p| p.face == fk)
 }
 
 /// Exact integer coordinates of a mesh position (this suite's meshes
@@ -244,17 +253,13 @@ fn flat_triangle(meshes: &[(usize, &Mesh)], target_pos: usize, flat: usize) -> [
     panic!("no flat triangle {flat} on target {target_pos}")
 }
 
-/// **The documented tie-break over the exactly-tied hits**, through
-/// [`TSpan::best_of`] rather than a second spelling of it. The
+/// **The certified tie over the exactly-tied hits**, through
+/// [`TSpan::survivors`] rather than a second spelling of it. The
 /// oracle's exact arithmetic says WHICH hits tie — that half stays
 /// deliberately independent of the door, which is the point of this
-/// file; how wide each claim is, and which of them wins, is the
-/// door's own answer and is read from it.
-fn tie_break_winner(
-    tied: &[OracleHit],
-    meshes: &[(usize, &Mesh)],
-    ray: &Ray,
-) -> (OracleHit, TSpan) {
+/// file; which of them the certified order keeps is the door's own
+/// answer and is read from it.
+fn tie_survivors(tied: &[OracleHit], meshes: &[(usize, &Mesh)], ray: &Ray) -> Vec<OracleHit> {
     let mut rows: Vec<(OracleHit, TSpan)> = tied
         .iter()
         .map(|h| {
@@ -265,7 +270,49 @@ fn tie_break_winner(
         .collect();
     rows.sort_by_key(|(h, _)| (h.target_pos, h.flat));
     let spans: Vec<TSpan> = rows.iter().map(|&(_, s)| s).collect();
-    rows[TSpan::best_of(&spans).expect("at least one tied hit")]
+    TSpan::survivors(&spans)
+        .into_iter()
+        .map(|i| rows[i].0)
+        .collect()
+}
+
+/// **What the door said**, as a list of hits: the one answer, the
+/// empty miss, or the tied faces of a refusal. Every row here reads
+/// the door this way, because the refusal is not an error to swallow
+/// — it is the door naming more than one face, and each hit in it is
+/// true.
+fn answered(
+    ev: &Evaluation<f64>,
+    targets: &[PickTarget<'_>],
+    ray: &Ray,
+) -> Vec<editor_core::PickHit> {
+    match pick_face(ev, targets, ray) {
+        Ok(None) => Vec::new(),
+        Ok(Some(hit)) => vec![hit],
+        Err(HitTestError::Ambiguous { hits }) => hits,
+        Err(other) => panic!("no hit-test error: {other:?}"),
+    }
+}
+
+/// The distinct patches a set of answers resolves to, sorted.
+fn patches_of(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    meshes: &[&Mesh],
+    hits: &[editor_core::PickHit],
+) -> Vec<usize> {
+    let mut out: Vec<usize> = hits
+        .iter()
+        .map(|h| {
+            meshes
+                .iter()
+                .find_map(|m| resolved_patch(doc, ev, m, &h.name))
+                .unwrap_or_else(|| panic!("the answered name resolves to a drawn patch"))
+        })
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
 }
 
 fn oracle_winner(hits: &[OracleHit]) -> Option<OracleHit> {
@@ -280,12 +327,13 @@ fn oracle_winner(hits: &[OracleHit]) -> Option<OracleHit> {
 
 /// Row 1 — the dyadic battery: face centers, all 12 edges, all 8
 /// corners, and an interior (both-sided) origin, each checked against
-/// the exact oracle including the documented flat-order tie-break.
+/// the exact oracle including what the door does with a certified tie
+/// — answer the one face, or refuse with every tied face.
 /// Every ray here has integer origin/direction and hits at integer
 /// `t` through triangles whose determinants make the service's f64
 /// arithmetic exact, so the assertions are equality, not tolerance.
 #[test]
-fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
+fn dyadic_battery_pins_faces_edges_corners_and_the_certified_tie() {
     let doc = ProfileDoc::empty_derived("r1_battery", Tol::witness());
     let (doc, ext) = cube_doc_node(doc, 0.0);
     let ev = run(&doc);
@@ -375,26 +423,29 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
             [o[0] * 2.0, o[1] * 2.0, o[2] * 2.0],
             [d[0] * 2.0, d[1] * 2.0, d[2] * 2.0],
         );
-        let hit = pick_face(&ev, &scaled_targets, &r2)
-            .expect("no hit-test error")
-            .unwrap_or_else(|| panic!("case {ci}: service hit expected"));
-        assert_eq!(
-            hit.t,
-            win.t_f64(),
-            "case {ci}: exact dyadic t (o={o:?} d={d:?})"
-        );
-        let got_patch = resolved_patch_index(&doc, &ev, &mesh, &hit.name);
-        let tied: Vec<OracleHit> = hits.iter().copied().filter(|h| h.t_ties(&win)).collect();
+        let said = answered(&ev, &scaled_targets, &r2);
         assert!(
-            tied.iter().any(|h| h.patch == got_patch),
-            "case {ci}: the winner is one of the hits tied at the minimal exact t (o={o:?} \
-             d={d:?}; oracle hits {hits:?})"
+            !said.is_empty(),
+            "case {ci}: service hit expected (o={o:?} d={d:?})"
         );
-        let (documented, span) = tie_break_winner(&tied, &scaled_meshes, &r2);
+        for hit in &said {
+            assert_eq!(
+                hit.t,
+                win.t_f64(),
+                "case {ci}: exact dyadic t (o={o:?} d={d:?})"
+            );
+        }
+        let tied: Vec<OracleHit> = hits.iter().copied().filter(|h| h.t_ties(&win)).collect();
+        let survivors = tie_survivors(&tied, &scaled_meshes, &r2);
+        let mut expected: Vec<usize> = survivors.iter().map(|h| h.patch).collect();
+        expected.sort_unstable();
+        expected.dedup();
         assert_eq!(
-            got_patch, documented.patch,
-            "case {ci}: documented winner patch — the narrower interval ({span:?}), then \
-             position (o={o:?} d={d:?}; tied {tied:?})"
+            patches_of(&doc, &ev, &[&mesh], &said),
+            expected,
+            "case {ci}: the door names exactly the faces the certified tie keeps — one of them \
+             when the tie is one face, all of them as a refusal when it is several (o={o:?} \
+             d={d:?}; oracle hits {hits:?}; tied {tied:?})"
         );
     }
 }
@@ -403,16 +454,16 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
 /// share the plane `x = 1`; a ray running INSIDE that plane first
 /// touches both bodies at the same exact `t` (their `y = 0` faces'
 /// shared edge point). Their `t` intervals overlap, so this is a
-/// CERTIFIED TIE and the door takes the narrower claim; target
-/// position decides only where the widths are equal, and here they
-/// are not. **So the answer is a function of the candidates and not
-/// of the slice order**: reversing the slice does not flip it, which
-/// is the stronger determinism property and is what this row now
-/// pins. The parallel `x = 1` faces themselves are misses (zero
-/// determinant), which this row also witnesses through the resolved
-/// patch being a `y = 0` patch, not an `x = 1` patch.
+/// CERTIFIED TIE between two FACES on two bodies, and the door
+/// refuses with both — one hit each, both true, at the same `t`.
+/// **The refusal is a function of the candidates and not of the slice
+/// order**: reversing the slice reverses the LIST and nothing else,
+/// which is the determinism property this row pins. The parallel
+/// `x = 1` faces themselves are misses (zero determinant), which this
+/// row also witnesses through both resolved patches being `y = 0`
+/// patches.
 #[test]
-fn coplanar_cross_target_tie_resolves_by_the_narrower_interval() {
+fn a_coplanar_cross_target_tie_refuses_with_both_bodies() {
     let doc = ProfileDoc::empty_derived("r1_xtie", Tol::witness());
     let (doc, a) = cube_doc_node(doc, 0.0); // x ∈ [0, 1]
     let (doc, b) = cube_doc_node(doc, 1.0); // x ∈ [1, 2] — touching
@@ -427,16 +478,21 @@ fn coplanar_cross_target_tie_resolves_by_the_narrower_interval() {
     // reaching it at t = 1 for both bodies' y = 0 faces.
     let r = ray([1.0, -1.0, 0.5], [0.0, 1.0, 0.0]);
 
-    let hit = pick_face(&ev, &[ta, tb], &r)
-        .expect("no error")
-        .expect("tie ray hits");
-    assert_eq!(hit.t, 1.0);
-    assert!(
-        hit.t_lo < hit.t && hit.t < hit.t_hi,
-        "the answer is an interval around the exact t: {hit:?}"
+    let said = answered(&ev, &[ta, tb], &r);
+    assert_eq!(
+        said.iter().map(|h| h.node).collect::<Vec<_>>(),
+        vec![a, b],
+        "both bodies are tied and neither is named alone: {said:?}"
     );
-    // Which claim is narrower is the door's own answer, so the row
-    // reads it rather than asserting a body: each target alone.
+    for hit in &said {
+        assert_eq!(hit.t, 1.0);
+        assert!(
+            hit.t_lo < hit.t && hit.t < hit.t_hi,
+            "each tied hit is an interval around the exact t: {hit:?}"
+        );
+    }
+    // The widths differ, and the refusal is deaf to that: what used to
+    // be the second key is now only a measurement.
     let alone_a = pick_face(&ev, &[ta], &r)
         .expect("no error")
         .expect("a hits");
@@ -447,49 +503,51 @@ fn coplanar_cross_target_tie_resolves_by_the_narrower_interval() {
     let (wa, wb) = (alone_a.t_hi - alone_a.t_lo, alone_b.t_hi - alone_b.t_lo);
     assert!(
         wb < wa,
-        "the second body's claim is the better-certified one: {wb} against {wa}"
-    );
-    assert_eq!(
-        hit.node, b,
-        "and it wins the certified tie though its target is second in the slice"
+        "the second body's claim is the better-certified one ({wb} against {wa}), and the \
+         door refuses all the same"
     );
 
-    let flipped = pick_face(&ev, &[tb, ta], &r)
-        .expect("no error")
-        .expect("tie ray hits");
-    assert_eq!(flipped.t, 1.0);
+    let flipped = answered(&ev, &[tb, ta], &r);
     assert_eq!(
-        flipped.node, hit.node,
-        "and it wins from either slice order — the certified tie is decided by the candidates, \
-         not by the order they were offered in"
+        flipped.iter().map(|h| h.node).collect::<Vec<_>>(),
+        vec![b, a],
+        "reversing the slice reverses the LIST — the certified tie is decided by the \
+         candidates, not by the order they were offered in"
     );
     assert_eq!(
-        (flipped.t_lo.to_bits(), flipped.t_hi.to_bits()),
-        (hit.t_lo.to_bits(), hit.t_hi.to_bits()),
-        "to the bit"
-    );
-
-    // The winning face is a y = 0 patch (the in-plane x = 1 faces are
-    // parallel-miss by the documented zero-determinant rule).
-    let pi = resolved_patch_index(&doc, &ev, &mesh_b, &hit.name);
-    let patch = &mesh_b.patches[pi];
-    assert!(
-        patch
-            .triangles
+        flipped
             .iter()
-            .flatten()
-            .all(|&i| mesh_b.positions[i as usize].y == 0.0),
-        "winner lies on the y = 0 face"
+            .map(|h| (h.t_lo.to_bits(), h.t_hi.to_bits()))
+            .rev()
+            .collect::<Vec<_>>(),
+        said.iter()
+            .map(|h| (h.t_lo.to_bits(), h.t_hi.to_bits()))
+            .collect::<Vec<_>>(),
+        "and carries the same intervals, to the bit"
     );
+
+    // Both tied faces are y = 0 patches (the in-plane x = 1 faces are
+    // parallel-miss by the documented zero-determinant rule).
+    for (hit, mesh) in said.iter().zip([&mesh_a, &mesh_b]) {
+        let pi = resolved_patch_index(&doc, &ev, mesh, &hit.name);
+        assert!(
+            mesh.patches[pi]
+                .triangles
+                .iter()
+                .flatten()
+                .all(|&i| mesh.positions[i as usize].y == 0.0),
+            "each tied face lies on the y = 0 face"
+        );
+    }
 }
 
 /// Row 3 — random integer rays vs the exact oracle (counterexample
 /// search; varying seed, effort dial). Unique oracle winner ⇒ the
-/// service must agree exactly on the face and to ≤ 4 ulps on `t`
+/// service must answer that one face and agree to ≤ 4 ulps on `t`
 /// (distinct rational `t`s here differ by ≥ 1/64, so agreement on the
 /// face is never blurred by f64 noise); exactly-tied oracle winners ⇒
-/// the service's face must be among the tied minimal set; oracle miss
-/// ⇒ the typed miss.
+/// every face the service names is in the tied minimal set; oracle
+/// miss ⇒ the typed miss.
 #[test]
 fn random_integer_rays_match_the_exact_oracle() {
     let doc = ProfileDoc::empty_derived("r1_oracle", Tol::witness());
@@ -516,8 +574,8 @@ fn random_integer_rays_match_the_exact_oracle() {
         );
         let hits = oracle_hits(&meshes, o, d);
         let win = oracle_winner(&hits);
-        let got = pick_face(&ev, &targets, &r).expect("no hit-test error");
-        match (win, got) {
+        let said = answered(&ev, &targets, &r);
+        match (win, said.first()) {
             (None, None) => {}
             (None, Some(h)) => panic!(
                 "case {case}: service hit {h:?} where the exact oracle misses \
@@ -529,16 +587,18 @@ fn random_integer_rays_match_the_exact_oracle() {
                  (o={o:?} d={d:?}); {}",
                 fuzz::replay()
             ),
-            (Some(w), Some(h)) => {
+            (Some(w), Some(_)) => {
                 hits_seen += 1;
-                assert!(
-                    (h.t - w.t_f64()).abs() <= 4.0 * f64::EPSILON * w.t_f64().abs().max(1.0),
-                    "case {case}: t {} vs exact {} (o={o:?} d={d:?}); {}",
-                    h.t,
-                    w.t_f64(),
-                    fuzz::replay()
-                );
-                let got_patch = resolved_patch_index(&doc, &ev, &mesh, &h.name);
+                for h in &said {
+                    assert!(
+                        (h.t - w.t_f64()).abs() <= 4.0 * f64::EPSILON * w.t_f64().abs().max(1.0),
+                        "case {case}: t {} vs exact {} (o={o:?} d={d:?}); {}",
+                        h.t,
+                        w.t_f64(),
+                        fuzz::replay()
+                    );
+                }
+                let got = patches_of(&doc, &ev, &[&mesh], &said);
                 let tied: Vec<usize> = hits
                     .iter()
                     .filter(|x| x.t_ties(&w))
@@ -546,15 +606,16 @@ fn random_integer_rays_match_the_exact_oracle() {
                     .collect();
                 if tied.len() == 1 {
                     assert_eq!(
-                        got_patch,
-                        w.patch,
-                        "case {case}: unique oracle winner (o={o:?} d={d:?}); {}",
+                        got,
+                        vec![w.patch],
+                        "case {case}: unique oracle winner, answered and not refused \
+                         (o={o:?} d={d:?}); {}",
                         fuzz::replay()
                     );
                 } else {
                     assert!(
-                        tied.contains(&got_patch),
-                        "case {case}: winner outside the exactly-tied set \
+                        got.iter().all(|p| tied.contains(p)),
+                        "case {case}: a named face outside the exactly-tied set \
                          {tied:?} (o={o:?} d={d:?}); {}",
                         fuzz::replay()
                     );
