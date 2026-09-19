@@ -136,8 +136,8 @@ use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TargetKind, TipState,
-    Verb, replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
+    TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
