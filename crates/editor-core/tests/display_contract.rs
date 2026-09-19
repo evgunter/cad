@@ -2205,7 +2205,8 @@ test_utils::f6_variants! {
     /// the door could not answer, so every arm must say which question
     /// in words a consumer can act on.
     const STEP_SEGMENTS_ERROR: StepSegmentsError =
-        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, SpanOffTheLoop];
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RadiusNotAnArgument,
+         SpanOffTheLoop];
 }
 
 #[test]
@@ -2228,6 +2229,13 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
         (
             StepSegmentsError::NoAnchor { loop_: 0 },
             vec!["naming anchor", "loop 0"],
+        ),
+        (
+            StepSegmentsError::RadiusNotAnArgument {
+                step: 3,
+                arg: editor_core::StepArg::CarrierRadius2,
+            },
+            vec!["step 3", "arrival carrier radius", "no such argument"],
         ),
         (
             StepSegmentsError::SpanOffTheLoop {

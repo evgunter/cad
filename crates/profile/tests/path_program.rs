@@ -29,8 +29,8 @@ use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
-    Start, Step, Target, TipState, Verb, replay,
+    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, RadiusRole, ReplayError,
+    ReplayErrorKind, Start, Step, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -844,4 +844,249 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
         }) => {}
         other => panic!("a negative fillet radius must refuse typed, got {other:?}"),
     }
+}
+
+// ------------------------------------------------------------------
+// The per-radius emission record
+//
+// A span says which segments a step produced; it cannot say which of
+// that step's radii drew which of them, and for a BINDER it cannot say
+// anything at all — the radius is on one step and the arc it opens is
+// emitted by another. `ReplayStructure::radii` is that fact, and the
+// rows below are what pin it: the address is the step whose RADIUS
+// ARGUMENT drew the arc, whichever step emitted it.
+// ------------------------------------------------------------------
+
+/// The emission record of a chain, in emission order.
+fn radii(closed: &ClosedLoop<f64>) -> Vec<(usize, RadiusRole, usize)> {
+    closed
+        .structure
+        .radii
+        .iter()
+        .map(|e| (e.step, e.role, e.segment))
+        .collect()
+}
+
+/// **A fillet arc is credited to the step that BINDS its radius**, not
+/// to the step that emits it.
+///
+/// The composite §2c walk is the fixture because it holds three binder
+/// shapes at once: a `fillet(r)` whose arc a later arrival emits, a
+/// `fillet_arc(r, spec)` that emits its own, and an
+/// `arc_fillet(spec, r)` whose arc a later straight arrival emits. Each
+/// records at the step holding the radius a reader would edit, and the
+/// row asserts the binders' SPANS are empty beside it — which is what
+/// makes the credit unobtainable from the spans and the reason this
+/// record exists.
+///
+/// The `Sweep` leg records its carrier radius on its own step; the
+/// `arc_fillet(Radius { .. })` extension records none for its incoming
+/// side, because an extension emits no segment — it moves the vertex
+/// the previous leg already owns.
+#[test]
+fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
+    use profile::{ArcSide, Center, Radius, Sweep};
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .fillet(0.2, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, -1.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        radii(&walk),
+        vec![
+            (2, RadiusRole::Carrier, 0),
+            (3, RadiusRole::Fillet, 2),
+            (6, RadiusRole::Fillet, 4),
+            (7, RadiusRole::Fillet, 6),
+        ],
+        "each radius names the segment its own arc drew"
+    );
+    for step in [3, 7] {
+        assert!(
+            walk.structure.steps[step].is_empty(),
+            "step {step} is a BINDER — it emitted {}, so the segment credited to its \
+             radius cannot have come from its span",
+            walk.structure.steps[step]
+        );
+    }
+    assert!(
+        walk.structure.steps[5].start() <= 2 && 2 < walk.structure.steps[5].end(),
+        "and segment 2 was emitted by the ARRIVAL step 5, which holds no radius: {}",
+        walk.structure.steps[5]
+    );
+}
+
+/// **A fused step records one emission per radius ROLE**: three radii,
+/// three segments, three addresses on one step.
+///
+/// `arc_fillet_arc(Sweep, r, Radius)` is the whole shape — the incoming
+/// carrier the verb authors, the fillet it opens, the arrival carrier
+/// it lands on — and each is a different argument of one step. A
+/// recording that swapped the incoming and arrival roles, or that
+/// shifted a segment by one, would name a different wall for two of
+/// the three and reds here.
+#[test]
+fn a_fused_step_records_one_emission_per_radius_role() {
+    use profile::{ArcSide, Radius, Sweep};
+    let three = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(4.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&three))[4],
+        Verb::ArcFilletArc,
+        "step 4 is the fused verb the addresses below name"
+    );
+    assert_eq!(
+        radii(&three),
+        vec![
+            (4, RadiusRole::Carrier, 1),
+            (4, RadiusRole::Fillet, 2),
+            (4, RadiusRole::Carrier2, 3),
+        ],
+        "one step, three radius arguments, three segments — each on its own"
+    );
+    assert!(
+        three.structure.steps[4].is_empty(),
+        "and the fused step emitted {} of them: a `Radius` arrival binds its anchor \
+         and its director on later steps, so all three arcs are emitted by the \
+         binder that completes it",
+        three.structure.steps[4]
+    );
+    let emitter = three.structure.steps[6];
+    assert_eq!(
+        (emitter.start(), emitter.end()),
+        (1, 4),
+        "step 6 is the director binding that emitted them, and it holds no radius \
+         at all — which is why the SPANS alone cannot say which radius drew which"
+    );
+}
+
+/// **An arc no radius argument authored records nothing.**
+///
+/// A `Bulge`, `Via` or `Center` spec authors a carrier from a bulge, a
+/// through-point or a centre, so its arc has no radius address to name
+/// and the record says so by omission rather than by naming an
+/// argument the step does not hold. The fused step's own fillet radius
+/// is still recorded: the two halves of `arc_fillet(Bulge { .. }, r)`
+/// are answered separately.
+#[test]
+fn an_arc_no_radius_drew_records_no_emission() {
+    use profile::{Bulge, Center};
+    let bulged = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Bulge {
+                p: p2(3.0, 0.0),
+                b: 0.2,
+            },
+            0.2,
+            Tol::witness(),
+        )
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .to(p2(3.3, 4.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(0.0, 4.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        radii(&bulged)
+            .iter()
+            .map(|(step, role, _)| (*step, *role))
+            .collect::<Vec<_>>(),
+        vec![(1, RadiusRole::Fillet)],
+        "the bulge spec's arc names no radius; the fillet's own still does"
+    );
+    let centred = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    assert_eq!(
+        radii(&centred)
+            .iter()
+            .map(|(step, role, _)| (*step, *role))
+            .collect::<Vec<_>>(),
+        vec![(3, RadiusRole::Fillet)],
+        "nor does a Center arrival's closing carrier run"
+    );
 }

@@ -4180,9 +4180,11 @@ where
             // is a subset of it.** This feed has no record of the
             // evaluation in hand — it runs before one exists — so it
             // asks `LoopProgram::step_radii`, which reads the program
-            // alone. The attach asks `ProfileProgram::segment_radii`,
-            // which additionally reads the replay's spans and drops
-            // what they leave ambiguous. That inclusion is the whole
+            // alone and answers EVERY radius argument it authors. The
+            // attach asks `ProfileProgram::segment_radii`, which
+            // additionally reads the replay's record of which segment
+            // each of those radii drew, and answers only where an arc
+            // was drawn. That inclusion is the whole
             // guard, and it is the direction that cannot go stale: a
             // spelling can be keyed and not attached, which costs a
             // memo hit and nothing else, and cannot be attached without
@@ -4227,9 +4229,11 @@ where
                 verbs::EdgeScalar::Radius,
             )) {
                 for lp in &program.loops {
-                    // Every step's own radius, in program-step order: a
-                    // carrier form's one, a chain's per radius-bearing
-                    // step. The loop shapes are not distinguished here
+                    // Every radius the loop authors, in program-step
+                    // order: a carrier form's one, a chain's per
+                    // radius-bearing ARGUMENT — a fused step's two or
+                    // three all enter. The loop shapes are not
+                    // distinguished here
                     // because the question is not per loop — it is
                     // "which spellings of this program can reach a
                     // stored field", and a chain's arc radii reach the

@@ -2210,6 +2210,18 @@ enum FirstSeg {
 /// what keeps the verbs pure (§2c round 12).
 #[derive(Clone, Debug)]
 struct PendingMeta<T: Real> {
+    /// **The authored step this fillet was BOUND at**, in program
+    /// order. The radius is that step's argument wherever the arc is
+    /// finally emitted: a `fillet(r)` binds on one step and its arc is
+    /// emitted by the arrival step, and the emission record names the
+    /// binder, because that is where the radius a reader would edit
+    /// lives.
+    bound_at: usize,
+    /// Whether the INCOMING side's carrier was authored by a radius
+    /// argument (a `Radius`, `Sweep` or `ArcLen` spec). A bulge, a
+    /// through-point or a centre authors the same carrier from no
+    /// radius at all, so the arc it emits has no address to record.
+    incoming_radius: bool,
     /// The ray was bound by `.tangent()` (or ray-extended off a leg
     /// end): its origin joint is already declared.
     by_tangent: bool,
@@ -2221,6 +2233,15 @@ struct PendingMeta<T: Real> {
     /// exemption, exactly as ray extension) instead of pushing a
     /// co-carrier neighbour.
     extends_carrier: bool,
+}
+
+impl<T: Real> PendingMeta<T> {
+    /// The address the incoming side's carrier arc is recorded at —
+    /// the binder's step, `None` where the incoming carrier was
+    /// authored by no radius argument.
+    fn carrier_address(&self) -> Option<usize> {
+        self.incoming_radius.then_some(self.bound_at)
+    }
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -2242,7 +2263,17 @@ pub struct Core<T: Real> {
     /// vertex it LEAVES paired with the radius that was asked for —
     /// what [`Core::fillets_carry_their_tangency`] re-reads at the
     /// close, and the radius its sentence names.
+    ///
+    /// Not `radii` below in another spelling, and deliberately not
+    /// folded into it: this one is a CLOSE-TIME CHECK keyed by vertex
+    /// and carrying the scalar radius the sentence prints, that one is
+    /// the authored ADDRESS of every radius-drawn arc — fillet and
+    /// carrier alike — and carries no scalar at all.
     fillet_arcs: Vec<(usize, T)>,
+    /// Which segment each authored radius drew, in emission order —
+    /// recorded as the pass emits, and reported beside the spans
+    /// ([`Core::finish`]). See [`crate::structure::RadiusEmission`].
+    radii: Vec<crate::structure::RadiusEmission>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
@@ -2274,6 +2305,7 @@ impl<T: Real> Core<T> {
             pending: None,
             pending_meta: None,
             fillet_arcs: Vec::new(),
+            radii: Vec::new(),
             program: Vec::new(),
             step_starts: Vec::new(),
             guide: crate::structure::Guide::recording(),
@@ -2424,7 +2456,7 @@ impl<T: Real> Core<T> {
     /// be about to emit one; the door says so rather than recording
     /// nothing and letting the close read a shorter list than the loop
     /// has arcs.
-    fn record_fillet_arc(&mut self, radius: T) -> Result<usize, PathError<T>> {
+    fn record_fillet_arc(&mut self, radius: T, bound_at: usize) -> Result<usize, PathError<T>> {
         let leaving = self
             .verts
             .len()
@@ -2433,7 +2465,57 @@ impl<T: Real> Core<T> {
                 site: "a fillet arc emitted onto an empty chain",
             })?;
         self.fillet_arcs.push((leaving, radius));
+        self.radii.push(crate::structure::RadiusEmission {
+            step: bound_at,
+            role: crate::structure::RadiusRole::Fillet,
+            segment: leaving,
+        });
         Ok(leaving)
+    }
+
+    /// Records that the radius argument at `(step, role)` drew the arc
+    /// whose bulge is about to be set — the segment leaving the chain's
+    /// last vertex, which is the one spelling for both emissions, the
+    /// interior arc that pushes its end vertex and the closing arc that
+    /// does not.
+    ///
+    /// Called immediately BEFORE the emission, exactly as
+    /// [`Core::record_fillet_arc`] is, so the index it reads is the
+    /// segment the arc becomes. An arc no radius argument authored
+    /// never comes here: there is no address to record.
+    fn record_radius(
+        &mut self,
+        step: usize,
+        role: crate::structure::RadiusRole,
+    ) -> Result<(), PathError<T>> {
+        let segment = self
+            .verts
+            .len()
+            .checked_sub(1)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "an arc emitted onto an empty chain",
+            })?;
+        self.radii.push(crate::structure::RadiusEmission {
+            step,
+            role,
+            segment,
+        });
+        Ok(())
+    }
+
+    /// The step being lowered: the last one recorded, since every row
+    /// records before it constructs ([`Core::record`]).
+    ///
+    /// A chain with no recorded step has nothing under construction, so
+    /// an emission claiming one is an internal invariant break rather
+    /// than a step 0 to assume.
+    fn current_step(&self) -> Result<usize, PathError<T>> {
+        self.program
+            .len()
+            .checked_sub(1)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "an arc emitted before any step was recorded",
+            })
     }
 
     /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
@@ -2454,6 +2536,7 @@ impl<T: Real> Core<T> {
     /// produced it (see [`ClosedLoop`]).
     fn finish(mut self) -> ClosedLoop<T> {
         let spans = self.step_spans();
+        let radii = core::mem::take(&mut self.radii);
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2461,7 +2544,7 @@ impl<T: Real> Core<T> {
                 tangent_joints: self.tangent,
             },
             program: self.program,
-            structure: structure.into_record(spans),
+            structure: structure.into_record(spans, radii),
         }
     }
 }
@@ -2978,11 +3061,17 @@ impl<T: Decide> Core<T> {
             .pending
             .take()
             .ok_or(PathError::OverdeterminedJunction { site })?;
-        let meta = self.pending_meta.take().unwrap_or(PendingMeta {
-            by_tangent: false,
-            origin_incoming: None,
-            extends_carrier: false,
-        });
+        // The two are written together at every door that opens a
+        // fillet and taken together here, and the meta now carries the
+        // binder's own step index — a fact no default can invent. So a
+        // pending without its bookkeeping is an internal invariant
+        // break, said rather than papered over.
+        let meta = self
+            .pending_meta
+            .take()
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "an opened fillet without its chain-side bookkeeping",
+            })?;
         Ok((pending, meta))
     }
 
@@ -3019,13 +3108,13 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
         let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
-        self.emit_fillet_in(&trims, meta.extends_carrier)?;
+        self.emit_fillet_in(&trims, meta.extends_carrier, meta.carrier_address())?;
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
-                let leaving = self.record_fillet_arc(arc.radius)?;
+                let leaving = self.record_fillet_arc(arc.radius, meta.bound_at)?;
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
@@ -3038,9 +3127,9 @@ impl<T: Decide> Core<T> {
                 }
                 self.tangent.push(0);
             }
-            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true)?,
+            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true, meta.bound_at)?,
             ArrivalKind::EndsAtAnchor => {
-                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)?;
+                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive, meta.bound_at)?;
             }
         }
         Ok((trims.arc, trims.fit_out))
@@ -3175,7 +3264,7 @@ impl<T: Decide> Core<T> {
         // must declare manually). Seam: the arc IS the closing
         // segment; the entry vertex retrims to its end and joint 0 is
         // the constructed seam tangency.
-        let leaving = self.record_fillet_arc(pending.radius)?;
+        let leaving = self.record_fillet_arc(pending.radius, meta.bound_at)?;
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
@@ -3209,6 +3298,10 @@ impl<T: Decide> Core<T> {
     /// — along that side's own carrier when it has one, straight when
     /// it does not — and declares the joint it lands on.
     ///
+    /// `carrier` is the authored step whose CARRIER radius drew that
+    /// incoming arc, `None` where no radius argument did — the address
+    /// the emitted segment is recorded at.
+    ///
     /// Bit-identity note: this is `fillet_corner`'s emission verbatim
     /// (`arc_to_center(t1, centre, sweep)` / `line_to(t1)`, then
     /// `declare_tangent()`), which is what lets a migrated site
@@ -3219,15 +3312,25 @@ impl<T: Decide> Core<T> {
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
         merge: bool,
+        carrier: Option<usize>,
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
                 None if merge => self.extend_leg_to(t.t1)?,
                 None => self.push_line(t.t1)?,
+                // An EXTENSION emits no segment — the leg's own end
+                // vertex moves along the carrier it already had — so
+                // the segment keeps the address the leg step gave it
+                // and there is nothing to record here.
                 Some((centre, sweep)) if merge => self.extend_arc_to(t.t1, centre, sweep)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
+                    // The incoming carrier is the BINDER's own argument
+                    // wherever the arrival finally emits it.
+                    if let Some(step) = carrier {
+                        self.record_radius(step, crate::structure::RadiusRole::Carrier)?;
+                    }
                     self.push_arc(t.t1, bulge)?;
                 }
             }
@@ -3294,8 +3397,9 @@ impl<T: Decide> Core<T> {
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
         declare: bool,
+        bound_at: usize,
     ) -> Result<(), PathError<T>> {
-        let leaving = self.record_fillet_arc(t.arc.radius)?;
+        let leaving = self.record_fillet_arc(t.arc.radius, bound_at)?;
         self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
@@ -3945,6 +4049,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             radius,
         }));
         self.core.pending_meta = Some(PendingMeta {
+            bound_at: self.core.current_step()?,
+            incoming_radius: false,
             by_tangent: self.tip.ang_by_tangent,
             origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
             extends_carrier: false,

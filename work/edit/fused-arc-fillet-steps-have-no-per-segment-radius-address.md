@@ -2,7 +2,7 @@
 id: fused-arc-fillet-steps-have-no-per-segment-radius-address
 kind: issue
 title: A fillet arc's radius never reaches the wall it drew: the radius binds on one step and the segments are credited to another
-status: spec
+status: review
 branch: edit/radius-emission-record
 opened: 2026-09-17
 ---
@@ -128,3 +128,43 @@ persisted) and BLEND's (`path/arc_fillet.rs`), announced with lines.
 The full spec — premises, rows (the arrival-step row this row names
 first), mutants, territory, verification — is `docs/EDIT-RADIUS-SPEC.md`
 on main, deleted at merge and ledgered.
+
+## Built (2026-09-19)
+
+`ReplayStructure` gains `radii: Vec<RadiusEmission { step, role:
+RadiusRole { Fillet, Carrier, Carrier2 }, segment }>`, recorded at the
+moment each arc's bulge is set: a fillet arc at the step that BOUND it
+(the pending fillet's chain-side meta carries that index), a carrier
+arc at the step whose spec authored it — which for a fused verb's
+incoming and arrival specs is that verb's own step, not the step being
+lowered, since a `Radius` or `Via` arrival binds its anchor and its
+director on later steps. An arc no radius argument drew records
+nothing. `into_record` reports what THIS pass emitted, and
+`replay_guided` compares the emissions it reproduced against the
+record the way it already compared the spans (`Decision::RadiusEmission`,
+`DecisionValue::Emission`).
+
+`ProfileProgram::segment_radii` reads that record through the one
+permutation `profile_edges_of` checks (both now go through a factored
+`checked_records`), so a fillet arc's wall carries its radius and a
+fused step's two or three radii each reach their own wall. The "one
+radius, one segment" rule and `radius_arg` are retired;
+`LoopProgram::step_radii` yields every radius ARGUMENT of every step,
+so "attached ⊆ keyed" holds by construction. Two emission-shaped
+refusals at the map: `SpanOffTheLoop` for a segment the loop does not
+have, `RadiusNotAnArgument` (new arm) for a radius argument the step
+it names does not hold.
+
+Rows: the arrival-step row the finding named is authored and green —
+a closed chain with `FilletArc { radius, spec: Via { .., Start } }`,
+which the filed row could not close inside its budget; the four §5
+rows it named are inverted; three profile-side rows pin the emission
+record and two the guided comparison. Corpus keys: the dump at both
+heads is byte-identical (355 node keys) — the feed widens only for a
+step holding more than one radius argument, and the corpus authors
+none, so the strict side of the inclusion row is authored rather than
+found.
+
+Not done here: nothing from the spec. `crates/profile/src/path/arc_fillet.rs`
+(BLEND's) turned out not to need touching — every emission site is in
+`path.rs` and `path/family.rs`.

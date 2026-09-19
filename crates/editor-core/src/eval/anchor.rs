@@ -114,9 +114,9 @@ pub struct ProfileValue<T: geom_core::Real> {
     ///
     /// `None` at a position is an answer: that segment is a straight
     /// one, or an arc whose radius the program does not author as a
-    /// scalar (a `bulge`, a `via`), or one of several segments a fused
-    /// step emitted (`ProfileProgram::segment_radii` says why each
-    /// answers nothing).
+    /// scalar at all — a `bulge`, a `via`, a `center`
+    /// (`ProfileProgram::segment_radii` says why each answers
+    /// nothing).
     ///
     /// **Why it rides the VALUE.** It is the expression side of the
     /// per-edge flow source, and the node that HOLDS those expressions

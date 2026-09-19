@@ -352,6 +352,29 @@ arc_modes! {
     }
 }
 
+impl<T: Real> ArcData<T> {
+    /// **Whether this spec's carrier was authored by a RADIUS
+    /// argument.**
+    ///
+    /// Three of the six modes carry one — `Radius`, `Sweep` and
+    /// `ArcLen` — and three author the same carrier from a bulge, a
+    /// through-point or a centre and carry none. That is what decides
+    /// whether an arc emitted from this spec has an address for the
+    /// replay's radius-emission record: an arc no radius drew has no
+    /// radius to name.
+    ///
+    /// Total over the mode vocabulary with no wildcard arm, exactly as
+    /// the spec dispatchers below are: a mode the vocabulary gains
+    /// breaks here rather than defaulting to "no radius" and dropping
+    /// its arcs out of the record silently.
+    pub(crate) fn carries_radius(&self) -> bool {
+        match self {
+            Self::Radius { .. } | Self::Sweep { .. } | Self::ArcLen { .. } => true,
+            Self::Bulge { .. } | Self::Via { .. } | Self::Center { .. } => false,
+        }
+    }
+}
+
 /// **The transition table — ONE declaration, SIX projections**
 /// (PATHS-DESIGN §2c rounds 13–15, lean (a)).
 ///
@@ -2496,7 +2519,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
 /// than the program reaches is refused the same way, and so is one
-/// whose per-step segment spans this pass did not reproduce.
+/// whose per-step segment spans — or whose per-radius emissions —
+/// this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2539,6 +2563,30 @@ pub fn replay_guided<T: ArcCarrierScalar>(
                 Decision::StepSpan { step },
                 DecisionValue::Span(*recorded),
                 DecisionValue::Span(*found),
+            )));
+        }
+    }
+    // The radius emissions, checked here for the reason the spans are:
+    // this pass reports what IT emitted, so the record is consumed
+    // rather than carried along unread, and a pass that emitted an arc
+    // from a different authored radius than the record names says so.
+    if structure.radii.len() != closed.structure.radii.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.radii.len(),
+            closed.structure.radii.len(),
+        )));
+    }
+    for (at, (recorded, found)) in structure
+        .radii
+        .iter()
+        .zip(&closed.structure.radii)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::RadiusEmission { at },
+                DecisionValue::Emission(*recorded),
+                DecisionValue::Emission(*found),
             )));
         }
     }

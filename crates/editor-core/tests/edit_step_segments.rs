@@ -933,11 +933,15 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
 // ------------------------------------------------------------------
 // 5. The per-edge radius door
 //
-// `ProfileProgram::segment_radii` is `profile_edges_of` read for one
-// argument role: which radius each of a loop's edges is drawn at. The
-// rows here are about the PAIRING — that the expression handed back
-// with a ref is the one the wall that ref names is drawn from — which
-// §2 and §3 say nothing about, because neither reads a step's radius.
+// `ProfileProgram::segment_radii` answers which radius each of a
+// loop's edges is drawn at, from the replay's record of which segment
+// each authored radius drew and through the permutation
+// `profile_edges_of` checks. The rows here are about the PAIRING —
+// that the expression handed back with a ref is the one the wall that
+// ref names is drawn from — which §2 and §3 say nothing about,
+// because neither reads a step's radius. The sharp case is the one
+// the spans cannot answer: the step a radius is AUTHORED on is not
+// the step its arc is credited to.
 //
 // Measured against the extruded solid: an answered ref's wall must be a
 // CYLINDER at the answered expression's own radius, and every wall the
@@ -1171,39 +1175,50 @@ fn a_carrier_loop_is_answered_at_every_edge() {
     }
 }
 
-/// **A step carrying more than one radius answers NOTHING**, and a
-/// straight step answers nothing either.
+/// **A step carrying more than one radius answers EACH of them**, in
+/// its own argument order, and a straight step answers nothing.
 ///
 /// Read off the program alone, because that is where the rule lives:
 /// `arc_fillet_arc` authors three radii — the incoming spec's, the
-/// fillet's, the arrival spec's — and the record says only which
-/// segments the step emitted, never which of its radii drew which. A
-/// door that answered the first would stamp two of those walls with an
-/// expression they are not drawn from, and no per-edge row over a
-/// single-radius chain can see it.
+/// fillet's, the arrival spec's — and every one of them is a spelling
+/// this program can lower onto a wall, so every one of them must reach
+/// the content key. WHICH segment each drew is not a question the
+/// program can answer and is not asked here; that is the replay's
+/// emission record, read by [`ProfileProgram::segment_radii`].
 ///
 /// The program is never replayed here, so the fused step's arguments
 /// need not be a geometry that closes: what is under test is which
 /// arguments the enumeration calls radii.
 #[test]
-fn a_step_with_several_radii_answers_no_radius() {
+fn a_step_with_several_radii_answers_each_of_them() {
     let spec = || ProgramArcData::Radius {
         r: len(1.0),
         side: profile::ArcSide::Left,
     };
+    let fillet = len(0.5);
     let fused = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Line(len(1.0)),
         ProgramStep::ArcFilletArc {
             spec: spec(),
-            radius: len(0.5),
+            radius: fillet.clone(),
             spec2: spec(),
         },
     ]);
+    let answer = fused.step_radii();
+    assert_eq!(
+        answer.len(),
+        3,
+        "three radius arguments, three answers — got {answer:?}"
+    );
     assert!(
-        fused.step_radii().is_empty(),
-        "a step with three radii says which segment none of them drew, and the \
-         straight leg beside it has none at all"
+        answer.iter().all(|(step, _)| *step == 2),
+        "all three are the fused step's, and the straight leg beside it has none: \
+         {answer:?}"
+    );
+    assert_eq!(
+        *answer[1].1, fillet,
+        "in the step's own argument order: incoming spec, fillet, arrival spec"
     );
     let one = LoopProgram::Chain(vec![ProgramStep::ArcTo(spec())]);
     assert_eq!(
@@ -1214,21 +1229,32 @@ fn a_step_with_several_radii_answers_no_radius() {
     );
 }
 
-/// **A `fillet(r)` is answered by the program and by NO edge**, and
-/// that gap is this unit's stated residue.
+/// Which authored step EMITTED a segment — the step whose recorded
+/// span contains it, which is a different question from which step's
+/// radius drew it and is the whole reason the emission record exists.
+fn emitter_of(r: &Records, segment: u32) -> usize {
+    let segment = segment as usize;
+    r.structure.replay[0]
+        .steps
+        .iter()
+        .position(|s| s.start() <= segment && segment < s.end())
+        .unwrap_or_else(|| panic!("segment {segment} is in some step's span"))
+}
+
+/// **A `fillet(r)`'s radius reaches the wall its arc drew**, though
+/// the step it is authored on emitted no segment at all.
 ///
-/// `fillet` is a tip-state binder: it holds the radius and emits no
-/// segment, and the arc it opens is emitted by the ARRIVAL step, which
-/// holds no radius of its own. So there is no step whose radius and
-/// whose segments can be paired, and the filleted corner's wall
-/// carries no parameter identity — while the radius's SPELLING does
-/// reach the content key, because `step_radii` is program-side and
-/// cannot see a span. That is the conservative side of the inclusion
-/// the key's feed rests on, and the row pins both halves of it so a
-/// widening has to move them together
-/// (`work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`).
+/// `fillet` is a tip-state binder: it holds the radius and its
+/// recorded span is EMPTY, and the arc it opens is emitted by the
+/// ARRIVAL step, which holds no radius of its own. So the pairing
+/// cannot come from the spans, and it does not: the replay records
+/// which segment each authored radius drew as it emits, and the door
+/// reads that. The row measures the answer against the extruded
+/// solid — the answered edge's wall is a cylinder at the authored
+/// radius — so a door crediting the arc to the arrival step, or
+/// shifting the segment by one, names a plane here and reds.
 #[test]
-fn a_fillets_radius_is_a_program_answer_and_no_edges() {
+fn a_fillets_radius_reaches_its_arcs_wall() {
     let pt = |x: f64, y: f64| [len(x), len(y)];
     let radius = len(0.5);
     let filleted = LoopProgram::Chain(vec![
@@ -1262,6 +1288,13 @@ fn a_fillets_radius_is_a_program_answer_and_no_edges() {
             loops: vec![filleted],
         }),
     );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
@@ -1276,13 +1309,157 @@ fn a_fillets_radius_is_a_program_answer_and_no_edges() {
          {}",
         r.structure.replay[0].steps[4]
     );
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let [(edge, expr)] = answer[..] else {
+        panic!("one radius, one arc, one pair — got {answer:?}");
+    };
+    assert_eq!(*expr, radius, "the pair carries the fillet's own spelling");
+    let emitter = emitter_of(&r, edge.segment);
+    assert_ne!(
+        emitter, 4,
+        "the arc it names was emitted by the ARRIVAL step and credited to the \
+         BINDER, which is why the credit cannot be read off a span"
+    );
+    let LoopProgram::Chain(steps) = &program.loops[0] else {
+        panic!("the fixture is a chain");
+    };
+    assert!(
+        LoopProgram::Chain(vec![steps[emitter].clone()])
+            .step_radii()
+            .is_empty(),
+        "and that arrival step holds no radius of its own: {:?}",
+        steps[emitter]
+    );
+    let got = wall_radius(&ev, ext, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall, so it is not the arc's"));
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "and that wall is a cylinder at the authored radius, not {got}"
+    );
+    let attached: Vec<&Expr> = pv.edge_radii[0].iter().flatten().collect();
     assert_eq!(
-        program
-            .segment_radii(&r.structure, &pv.naming, 0)
-            .expect("the door answers")
-            .len(),
-        0,
-        "no edge is answered, because the step that holds the radius drew none of them"
+        attached,
+        vec![&radius],
+        "the attach carries it too, on exactly one canonical segment"
+    );
+}
+
+/// **A closed chain whose fillet arc is authored by the ARRIVAL
+/// step** — the one shape of the finding nothing pinned.
+///
+/// `fillet_arc(r, spec)` emits the fillet arc AND the arrival spec's
+/// arc, so its span is longer than one segment and the old "one
+/// radius, one segment" rule dropped it. Here the arrival is a `Via`
+/// close: the fillet arc is credited to the arrival step and carries
+/// `r`, and the `Via` arc carries nothing, because a through-point is
+/// not a radius argument. The filed row could not author this shape
+/// inside its budget — its attempts refused `NoCornerForFillet` — and
+/// the geometry that meets is a straight incoming ray east off the
+/// chain's corner closing onto the circle about the origin through
+/// (√2, √2).
+#[test]
+fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let h = 2.0_f64.sqrt();
+    let radius = len(0.5);
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::Toward {
+            dx: fixture::scl(2.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::FilletArc {
+            radius: radius.clone(),
+            spec: ProgramArcData::Via {
+                q: pt(h, h),
+                target: ProgramTarget::Start,
+            },
+        },
+        ProgramStep::Toward {
+            dx: fixture::scl(-1.0),
+            dy: fixture::scl(0.0),
+        },
+    ]);
+    assert_eq!(
+        chain.step_radii(),
+        vec![(3, &radius)],
+        "the arrival step holds one radius: its own fillet's, the Via spec carrying \
+         a through-point instead"
+    );
+    let doc = ProfileDoc::empty_derived("segment-radii-via-arrival", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![chain],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let [(edge, expr)] = answer[..] else {
+        panic!("one of the step's two arcs was drawn by a radius — got {answer:?}");
+    };
+    assert_eq!(*expr, radius);
+    let emitter = emitter_of(&r, edge.segment);
+    assert!(
+        r.structure.replay[0].steps[emitter].len() > 1,
+        "one step emitted the fillet arc AND the Via arc — telling those two apart \
+         is what this row is about, and step {emitter} emitted {}",
+        r.structure.replay[0].steps[emitter]
+    );
+    let got =
+        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "the answered edge is the FILLET arc's wall, at its own radius, not {got}"
+    );
+    // The Via arc is a cylinder too — at the carrier's radius, which
+    // no argument of this program spells — so a door answering the
+    // step's whole span would stamp it with the fillet's radius.
+    let others: Vec<u32> = (0..r.verts[0].len() as u32)
+        .filter(|s| *s != edge.segment)
+        .filter(|s| {
+            wall_radius(
+                &ev,
+                ext,
+                ProfileEdgeRef {
+                    loop_index: 0,
+                    segment: *s,
+                },
+            )
+            .is_some()
+        })
+        .collect();
+    assert_eq!(
+        others.len(),
+        1,
+        "the Via arc is the loop's other cylindrical wall: {others:?}"
+    );
+    assert_eq!(
+        pv.edge_radii[0].iter().flatten().count(),
+        1,
+        "and nothing is attached to it: {:?}",
+        pv.edge_radii[0]
     );
 }
 
@@ -1332,6 +1509,77 @@ fn the_per_edge_door_refuses_where_the_map_does() {
     assert_eq!(
         program.segment_radii(&r.structure, &ProfileNaming::default(), 0),
         Err(StepSegmentsError::NoAnchor { loop_: 0 })
+    );
+}
+
+/// **A radius emission that does not describe this program refuses
+/// typed**, in the two ways it can be wrong.
+///
+/// The record arrives as a second argument, so nothing in the types
+/// says it belongs to this program. An emission crediting a segment
+/// the loop does not have would mint an out-of-range
+/// [`ProfileEdgeRef`]; one crediting an argument the step it names
+/// does not hold — a different role, or a step past the end of the
+/// program — would pair an edge with somebody else's expression, or
+/// with none. Both refuse where they are read, and neither guesses.
+#[test]
+fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
+    let (doc, profile, _, _) =
+        arc_prism("segment-radii-bad-emission", profile::ArcSide::Left, &[1.0]);
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    let n = r.verts[0].len();
+    assert_eq!(
+        r.structure.replay[0].radii.len(),
+        1,
+        "the fixture's one arc step recorded one emission"
+    );
+
+    // A segment the loop does not have.
+    let mut off = r.structure.clone();
+    off.replay[0].radii[0].segment = n;
+    assert_eq!(
+        program.segment_radii(&off, &pv.naming, 0),
+        Err(StepSegmentsError::SpanOffTheLoop {
+            step: off.replay[0].radii[0].step as u32,
+            end: n + 1,
+            segments: n,
+        })
+    );
+
+    // A role the step it names does not hold: the `Sweep` spec is an
+    // incoming carrier, and no argument of that step is an ARRIVAL
+    // spec's radius.
+    let mut role = r.structure.clone();
+    let step = role.replay[0].radii[0].step as u32;
+    role.replay[0].radii[0].role = profile::RadiusRole::Carrier2;
+    assert_eq!(
+        program.segment_radii(&role, &pv.naming, 0),
+        Err(StepSegmentsError::RadiusNotAnArgument {
+            step,
+            arg: editor_core::StepArg::CarrierRadius2,
+        })
+    );
+
+    // A step past the end of the program, which is the same answer:
+    // the record names an argument this program does not hold. The
+    // STEP-COUNT guard cannot see it — the record's own step list is
+    // the right length, and only the emission is wrong.
+    let mut gone = r.structure.clone();
+    let past = gone.replay[0].steps.len();
+    gone.replay[0].radii[0].step = past;
+    assert_eq!(
+        program.segment_radii(&gone, &pv.naming, 0),
+        Err(StepSegmentsError::RadiusNotAnArgument {
+            step: past as u32,
+            arg: editor_core::StepArg::CarrierRadius,
+        })
     );
 }
 
@@ -1503,16 +1751,21 @@ fn a_reversed_and_rotated_chains_arcs_are_answered_in_program_indices() {
 /// The STRICT side is asserted too — at least one spelling that is
 /// keyed and never attached — because an inclusion that happened to be
 /// an equality would make the row pass while saying nothing about the
-/// direction. A fillet's radius is the corpus's instance of it.
+/// direction. Its instance is AUTHORED here rather than found in the
+/// corpus: now that the emission record pairs a fillet's radius with
+/// the arc it drew, the corpus's fillets are all attached, and the
+/// remaining shape is a radius argument that draws NO segment — the
+/// `Radius` spec of an `arc_fillet` whose carrier the arriving leg is
+/// already on, which EXTENDS that leg's own segment rather than
+/// emitting one of its own.
 #[test]
 fn every_attached_radius_was_keyed_first() {
-    let documents = corpus::documents();
     let mut attached = 0_usize;
     let mut keyed_only = 0_usize;
-    for d in &documents {
-        let ev = run(&d.doc);
+    let mut check = |name: &str, doc: &ProfileDoc| {
+        let ev = run(doc);
         for &id in &ev.order {
-            let Some(Node::Profile(program)) = d.doc.node(id) else {
+            let Some(Node::Profile(program)) = doc.node(id) else {
                 continue;
             };
             let Some(value) = ev.value(id) else { continue };
@@ -1522,16 +1775,14 @@ fn every_attached_radius_was_keyed_first() {
             assert_eq!(
                 pv.edge_radii.len(),
                 pv.naming.loops.len(),
-                "{}: one canonical row per anchor",
-                d.name
+                "{name}: one canonical row per anchor"
             );
             for (ci, row) in pv.edge_radii.iter().enumerate() {
                 let anchor = &pv.naming.loops[ci];
                 assert_eq!(
                     row.len() as u32,
                     anchor.len,
-                    "{}: canonical loop {ci} has one slot per segment",
-                    d.name
+                    "{name}: canonical loop {ci} has one slot per segment"
                 );
                 let fed: Vec<&Expr> = program.loops[anchor.program_loop as usize]
                     .step_radii()
@@ -1542,9 +1793,8 @@ fn every_attached_radius_was_keyed_first() {
                     attached += 1;
                     assert!(
                         fed.contains(&slot),
-                        "{}: canonical loop {ci} attaches {slot:?}, which its program \
-                         loop's key feed never wrote",
-                        d.name
+                        "{name}: canonical loop {ci} attaches {slot:?}, which its \
+                         program loop's key feed never wrote"
                     );
                 }
             }
@@ -1557,13 +1807,66 @@ fn every_attached_radius_was_keyed_first() {
                 }
             }
         }
+    };
+    for d in &corpus::documents() {
+        check(d.name, &d.doc);
     }
+    check("segment-radii-extension", &keyed_but_never_attached());
     assert!(attached > 0, "the corpus exercises the attach at all");
     assert!(
         keyed_only > 0,
-        "the corpus exercises the STRICT side of the inclusion too — a spelling that \
+        "the rows exercise the STRICT side of the inclusion too — a spelling that \
          is keyed and never attached, which is what makes the direction a claim"
     );
+}
+
+/// The document whose program authors a radius that draws no segment:
+/// an `arc_fillet(Radius { .. })` off a directed leg end whose derived
+/// carrier IS the leg's own, so the incoming side EXTENDS that leg
+/// (the §4 item 4 vertex-move exemption) instead of emitting a segment
+/// of its own. The spelling reaches the content key, as every authored
+/// radius does, and no wall carries it.
+fn keyed_but_never_attached() -> ProfileDoc {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let program = LoopProgram::Chain(vec![
+        ProgramStep::ArcFilletArc {
+            spec: ProgramArcData::Center {
+                c: pt(0.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                target: ProgramTarget::Point(pt(5.0, 0.0)),
+            },
+            radius: len(0.5),
+            spec2: ProgramArcData::Center {
+                c: pt(0.0, 7.0),
+                winding: profile::ArcSweep::Cw,
+                target: ProgramTarget::Point(pt(0.0, 4.0)),
+            },
+        },
+        ProgramStep::ArcFillet {
+            spec: ProgramArcData::Radius {
+                r: len(3.0),
+                side: profile::ArcSide::Right,
+            },
+            radius: len(0.3),
+        },
+        ProgramStep::At(pt(-2.0, 2.0)),
+        ProgramStep::Toward {
+            dx: fixture::scl(0.0),
+            dy: fixture::scl(-1.0),
+        },
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let doc = ProfileDoc::empty_derived("segment-radii-extension", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, _) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![program],
+        }),
+    );
+    doc
 }
 
 /// **A `fillet(r)` has exactly one authorable position**: mid-chain,
@@ -1669,25 +1972,23 @@ fn a_fused_step_over_a_radius_less_spec_holds_one_radius() {
     );
 }
 
-/// **A one-radius FUSED step still attaches to no edge**, because the
-/// segments it is responsible for are not on the step its radius is on.
+/// **A one-radius FUSED step attaches to its fillet arc**, on a step
+/// whose own span is empty.
 ///
 /// `arc_fillet(spec, r)` authors an incoming arc carrier AND opens a
 /// fillet off it in one act, and the step is a BINDER: its recorded
-/// span is EMPTY, and the incoming arc, the fillet arc and the arrival
-/// leg are all credited to the ARRIVAL step, which holds no radius of
-/// its own. So the pairing has no single step whose radius and whose
-/// one segment can be put together, exactly as for a plain `fillet` —
-/// and the wall carries nothing rather than the wrong thing.
+/// span is EMPTY, and the incoming arc, the fillet arc and the
+/// arrival leg are all emitted by later steps, which hold no radius
+/// of their own. The emission record is what pairs the radius with
+/// the one of those segments it drew.
 ///
-/// The fixture is the one shape that reaches this: a bulge spec bears
-/// no radius role, so the step passes `radius_arg` where a `Sweep` or
-/// `Radius` spec would make it a two-radius step and never get here.
-/// The residue row
-/// `work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`
-/// is what would move this.
+/// The fixture's incoming spec is a BULGE, which bears no radius role
+/// at all — so the step holds exactly one radius and the row is about
+/// the SPAN rule rather than the radius count, and the bulge's own arc
+/// is answered by nobody, because no argument of this program is its
+/// radius.
 #[test]
-fn a_one_radius_fused_step_attaches_to_no_edge() {
+fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
     let radius = len(0.2);
     let program = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
@@ -1728,6 +2029,13 @@ fn a_one_radius_fused_step_attaches_to_no_edge() {
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;
     let profile = *doc.order().last().expect("the inserted profile node");
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
@@ -1741,17 +2049,126 @@ fn a_one_radius_fused_step_attaches_to_no_edge() {
         "the fused step is the binder shape this row is about: it emitted {}",
         r.structure.replay[0].steps[1]
     );
-    assert_eq!(
-        program
-            .segment_radii(&r.structure, &pv.naming, 0)
-            .expect("the door answers")
-            .len(),
-        0,
-        "no edge is answered, because the step that holds the radius drew none of them"
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    let [(edge, expr)] = answer[..] else {
+        panic!("the step's one radius drew one arc — got {answer:?}");
+    };
+    assert_eq!(*expr, radius);
+    assert_ne!(
+        emitter_of(&r, edge.segment),
+        1,
+        "and the step that drew it is not the step that emitted it"
     );
+    let got =
+        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
-        pv.edge_radii[0].iter().all(Option::is_none),
-        "and nothing is attached: {:?}",
+        (got - 0.2).abs() < 1e-9,
+        "the answered wall is the fillet arc's, at its own radius, not {got}"
+    );
+    assert_eq!(
+        pv.edge_radii[0].iter().flatten().collect::<Vec<_>>(),
+        vec![&radius],
+        "the attach carries exactly that one: {:?}",
+        pv.edge_radii[0]
+    );
+}
+
+/// **Three radii on one step, three segments, three addresses.**
+///
+/// `arc_fillet_arc(Sweep, r, Radius)` authors the incoming arc
+/// carrier, the fillet off it and the arrival arc carrier in one act,
+/// each from its own argument — and, because a `Radius` arrival binds
+/// its anchor and its director on later steps, ALL THREE arcs are
+/// emitted by a step that holds no radius at all. Every wall is
+/// measured against the extruded solid, so a record that swapped the
+/// incoming and arrival roles, or shifted a segment by one, stamps two
+/// walls with the wrong expression and reds here.
+#[test]
+fn a_fused_steps_three_radii_each_reach_their_own_wall() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let side = profile::ArcSide::Left;
+    let (carrier, fillet, carrier2) = (len(2.0), len(0.25), len(3.0));
+    let program = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::Angle(fixture::ang(0.0)),
+        ProgramStep::Line(len(4.0)),
+        ProgramStep::Tangent,
+        ProgramStep::ArcFilletArc {
+            spec: ProgramArcData::Sweep {
+                r: carrier.clone(),
+                side,
+                angle: fixture::ang(0.6),
+            },
+            radius: fillet.clone(),
+            spec2: ProgramArcData::Radius {
+                r: carrier2.clone(),
+                side,
+            },
+        },
+        ProgramStep::At(pt(2.0, 6.0)),
+        ProgramStep::Toward {
+            dx: fixture::scl(-1.0),
+            dy: fixture::scl(0.0),
+        },
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    assert_eq!(
+        program.step_radii(),
+        vec![(4, &carrier), (4, &fillet), (4, &carrier2)],
+        "the key's feed takes all three spellings"
+    );
+    let doc = ProfileDoc::empty_derived("segment-radii-three", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![program],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+        panic!("carries a profile");
+    };
+    let r = records(&doc, program);
+    assert!(
+        r.structure.replay[0].steps[4].is_empty(),
+        "the fused step emitted {} — the `Radius` arrival's binders emit its arcs",
+        r.structure.replay[0].steps[4]
+    );
+    let answer = program
+        .segment_radii(&r.structure, &pv.naming, 0)
+        .expect("the door answers");
+    assert_eq!(answer.len(), 3, "three radii, three arcs — got {answer:?}");
+    for ((edge, expr), want) in answer.iter().zip([2.0, 0.25, 3.0]) {
+        let got = wall_radius(&ev, ext, *edge)
+            .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+        assert!(
+            (got - want).abs() < 1e-9,
+            "{edge:?} was paired with {expr:?} and its wall stores {got}, not {want}"
+        );
+    }
+    let mut segments: Vec<u32> = answer.iter().map(|(e, _)| e.segment).collect();
+    segments.sort_unstable();
+    segments.dedup();
+    assert_eq!(segments.len(), 3, "three DIFFERENT segments");
+    assert_eq!(
+        pv.edge_radii[0].iter().flatten().count(),
+        3,
+        "and the attach carries all three: {:?}",
         pv.edge_radii[0]
     );
 }

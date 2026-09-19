@@ -684,14 +684,25 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
 /// identifier where a word belongs is the defect being guarded.
 #[test]
 fn structure_refusal_renders_its_payloads_as_words_not_debug() {
-    use profile::{CornerGate, LoopRole, SegmentShape, StructureRefusal};
+    use profile::{CornerGate, LoopRole, RadiusRole, SegmentShape, StructureRefusal};
 
     // Each converted vocabulary, rendered on its own. The paired
     // `Debug` spelling is asserted absent: it is what a reverted arm
     // would emit, and it differs from the prose in case alone for
     // `LoopRole`, which a substring check would miss.
-    let rows: [(String, &str, &str); 6] = [
+    let rows: [(String, &str, &str); 9] = [
         (CornerGate::Admitted.to_string(), "admitted", "Admitted"),
+        (RadiusRole::Fillet.to_string(), "fillet", "Fillet"),
+        (
+            RadiusRole::Carrier.to_string(),
+            "incoming carrier",
+            "Carrier",
+        ),
+        (
+            RadiusRole::Carrier2.to_string(),
+            "arrival carrier",
+            "Carrier2",
+        ),
         (
             CornerGate::RefusedAdvance.to_string(),
             "refused (corner not ahead of the incoming anchor)",
@@ -771,4 +782,77 @@ fn structure_refusal_renders_its_payloads_as_words_not_debug() {
         "{g}"
     );
     assert!(!g.contains("Admitted"), "the gate reverted to Debug: {g}");
+}
+
+/// **A record whose radius emissions this pass did not reproduce
+/// refuses TYPED, naming the emission** — the emission record is
+/// consumed the way the spans are, not carried along unread.
+///
+/// What this pins is that the guided pass reports ITS OWN emissions
+/// and that the comparison happens: an arm that handed the caller back
+/// the record it was given would agree with any lie, including one
+/// crediting a fillet arc to a step that never held a radius, and the
+/// consumer two layers up would then stamp a wall with an expression
+/// nothing drew it from.
+///
+/// The fence row above buys the positive half over the whole coverage
+/// corpus: every recorded program is replayed guided against its own
+/// record, and a reproduced emission list that differed anywhere would
+/// refuse there.
+#[test]
+fn a_lying_radius_emission_refuses_typed_naming_the_emission() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    assert!(
+        !structure.radii.is_empty(),
+        "the lens draws a fillet arc, so its record names one"
+    );
+    let mut lie = structure.clone();
+    lie.radii[0].step += 1;
+    let err = replay_guided(&program, &lie, tol()).expect_err("the emission is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::RadiusEmission { at: 0 });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Emission(_),
+            found: DecisionValue::Emission(_),
+        }
+    ));
+    // Both sides reach the sentence as words, through the emission's
+    // own `Display` — the vocabulary rule the refusal payloads follow.
+    let rendered = refusal.to_string();
+    for want in [lie.radii[0].to_string(), structure.radii[0].to_string()] {
+        assert!(rendered.contains(&want), "{rendered:?} is missing {want:?}");
+    }
+    assert!(
+        !rendered.contains("RadiusEmission"),
+        "the Debug spelling leaked into the sentence: {rendered}"
+    );
+}
+
+/// **A record naming MORE radius emissions than the pass made is
+/// refused at the record's own shape** — the same arm a short fillet
+/// list draws, because no single emission moved.
+#[test]
+fn a_record_with_an_extra_radius_emission_refuses_at_its_shape() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let mut lie = structure.clone();
+    let extra = *lie.radii.first().expect("the lens records one");
+    lie.radii.push(extra);
+    let err = replay_guided(&program, &lie, tol()).expect_err("the record is longer");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::RecordShape);
+    assert_eq!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Count(structure.radii.len() + 1),
+            found: DecisionValue::Count(structure.radii.len()),
+        }
+    );
 }

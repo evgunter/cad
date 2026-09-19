@@ -340,10 +340,13 @@ it.*
 
 The map from an authored profile step (`SlotId::Profile { loop_, step,
 arg }`) to the profile edges it became (`ProfileEdgeRef {
-loop_index, segment }`) is a function in `program.rs` reading two
+loop_index, segment }`) is a function in `program.rs` reading the
 records the evaluation already produces: the replay's per-step segment
-span (a field of `crates/profile`'s `ReplayStructure`, beside its
-fillet decisions) gives the answer, in the program's own step order —
+span and its per-radius emission (fields of `crates/profile`'s
+`ReplayStructure`, beside its fillet decisions) give the answer — the
+span for a step, the emission for a radius, since the step a radius is
+authored on is not always the step its arc is credited to — in the
+program's own step order —
 the numbering the published names carry, since `eval/anchor.rs`
 renumbers every emitted ref canonical → program before the name table
 is published — and canonicalization's `reversed` and `start` on
@@ -362,8 +365,8 @@ persisted. For a loft the published anchoring is section 0's
   authored step and would grow one for a consumer two layers up.
 - Consumers: the viewer's per-segment focus marking (VIEW's row), and
   the per-edge radius door in `program.rs` (`segment_radii`), which
-  pairs each authored step's radius with the edges that step swept and
-  is what a sweep's per-edge parameter-identity attach reads.
+  pairs each authored radius with the edge its own arc drew and is
+  what a sweep's per-edge parameter-identity attach reads.
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`authored-step-to-canonical-segment-map-has-no-home`); the
