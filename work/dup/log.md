@@ -618,3 +618,87 @@ row's evidence for method item 1.
 The rule this hardens, for every row this program closes: **correct the
 number everywhere it is asserted, and leave it everywhere it is
 quoted.** A closed row's title is an assertion.
+
+## 2026-09-19 — what the full review found, and the four shapes of a stale number
+
+Link 3's review came back with no correctness defect and no false
+guard entry — the implementer's three test counts reproduced to the
+test, every gate green, and the two guard-table entries it flagged for
+scrutiny turned out **true and load-bearing** (the reviewer planted a
+deletion and watched
+`every_public_mutation_path_preserves_tier1` red naming exactly
+`test_support_fixtures.rs::cube_into`). What it found instead is worth
+more to this program than a bug would have been.
+
+**1. A constant that records a measurement is a stale number that CI
+cannot see.** `crates/topo/src/source_walk.rs:422` holds
+`DOORS_MEASURED = 48`. The move added three `pub fn`s taking
+`&mut Body`, so the walk now finds 52 — and the constant's own doc says
+*"It is re-measured, never left behind."* The floor is the constant
+less two, so the walk could previously lose 3 doors before reddening
+and can now lose 6. **Nothing reds.** The guard does not break; it
+gets slacker. The PR body discussed the two tables it had to edit at
+length and never mentioned the constant, because the tables refused to
+compile and the constant did not. That is the whole mechanism: **what
+a change is forced to notice is what fails loudly, and a measurement
+recorded as a constant fails quietly by construction.**
+
+**2. "True and checkable" is half true.** The guard tables check rot in
+the *name* direction — renamed, deleted, started asserting. The reason
+string is never read against the body. The reviewer planted a raw
+arena write in `prism_ops` — exactly the orphaned-key violation the
+`ALLOWED` reason disclaims — and **all three guards stayed green**.
+That is pre-existing and true of every entry, but the existing entries
+are one-to-three-line delegations whose whole body fits beside the
+entry, and `prism_ops` is a hundred-line generic builder that future
+lanes will edit *as a fixture, not as a kernel door*, with nothing at
+the function saying an exemption rides on it.
+
+**3. Disclosing a blind spot is not compensating for it.** The row said
+of its shape census: *"it undercounts every builder that loops."* Then
+the count was declared closed. `crates/topo/src/splitting/reassembly.rs`'s
+`quad_prism` is a **seventh** copy of the moved builder, in `src/`, whose
+own doc calls it *"the tests/common builder's minimal in-crate copy"* —
+naming a path this very diff deleted. It is loop-written, so the shape
+census scored it 1/3/2; it has a new name, so the name census missed
+it. A census shaped on **geometry rather than arity** (files holding
+both `mvfs(` and `newell_plane`) puts it directly beside the family, in
+about thirty seconds, as does `rg 'in-crate copy'` over the prose that
+declares it. The five-instruments result now has its sharpest
+corollary: **a disclosed blind spot is an instruction to run a third
+instrument, not a licence to publish the count.**
+
+**4. A name census cannot close a class that is not name-shaped.** The
+unit folded four copies of `face_surface_of_he` and recorded the class
+closed. The class is the half-edge → loop → face walk, and at least
+twelve more spellings survive under other names — including
+`topo/src/shell.rs` and `topo/src/replace_face.rs`, which are
+**byte-identical closures under two names**, both in `topo/src`,
+mutually reachable, neither disclosed. Relabelled a half-fix.
+
+**And the trap does not care that the file names it.** Two of the
+review's findings are fresh X4 instances minted by the diff, and both
+landed in the files that state the rule against them: two new
+guard-table comments restate one paragraph in two phrasings, in the two
+files whose docs say *"This paragraph is the one statement of that
+decision"* and *"The reason a posture is SAFE lives once."* Naming the
+trap in the header does not stop the author walking into it four
+hundred lines below.
+
+**One correction the review made to this orchestrator's brief.** I sent
+it to check three sweep-deviation reasons; one of the three is
+overstated and one should not have been a reason. The gate the PR says
+forbids a `sweep` feature forward **skips a forward from a test-only
+feature by construction**, and `crates/sweep/Cargo.toml:28` already
+does exactly that for `profile`, three lines above the dependency the
+PR cites. And a byte-golden corpus that moves is never a cost to weigh
+against a change that makes the code right — `implementer-discipline.md`
+§3 says so, and I adjudicate against it. The deviation still stands,
+carried by reason 1 alone: `sweep`'s `brick` takes `(T, T)` extents and
+`Real` declares `from_f64` with no inverse.
+
+So the running tally of stale-number shapes this program has now met:
+a title (`topo-tests-brick-copies`, 24), a live use inside its own
+correction (same row), an intermediate figure left standing as if
+final (34), and now **a constant that records a measurement nobody
+re-took**. The first three are prose. The fourth compiles.
