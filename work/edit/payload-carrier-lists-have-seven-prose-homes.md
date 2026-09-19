@@ -2,7 +2,8 @@
 id: payload-carrier-lists-have-seven-prose-homes
 kind: issue
 title: The payload-carrier list is hand-copied into seven prose homes
-status: open
+status: spec
+branch: edit/prose-one-home
 opened: 2026-09-19
 refs: [instantiate-part-crossings-are-names-payload-names-does-not-list, 2872]
 ---
@@ -67,3 +68,33 @@ macro, which buys the doc comment and nothing else.
 
 Ruling wanted before code: which of the seven are load-bearing
 documentation and which are decoration.
+
+## Ruled and spec'd (2026-09-19, EDIT orchestrator) — E-class, branch `edit/prose-one-home` (shared with `doc-param-refusals-keep-two-conventions-inside-one-enum`)
+
+**Ruling: two of the seven are load-bearing; the other five point.**
+Load-bearing: (1) `Node::payload_names`' own doc — the code's home,
+beside the exhaustive match that enforces it; (6) `REFERENCES.md`
+§0's `Carriers:` list — the design page a reader without the code
+reads. Every other prose restatement (2, 3, 4, 5, 7) is decoration
+that can rot silently: each becomes one sentence that says what the
+site DOES with the list and points at `Node::payload_names` for what
+is in it ("every payload name — `Node::payload_names` is the list"),
+with no variant names. The eighth site, `dm7_delete_strands.rs`'
+hand-spelled "name-free kinds" arm, is a second MATCH: replace it
+with the door's own answer (`node.payload_names().is_empty()`, or
+whatever predicate the suite actually needs), so the suite cannot
+disagree with the crate about a variant. No gate script and no macro
+(candidates (b) and (c) buy a tool for a list that now has two homes).
+
+**Rows.** None new; `dm7_delete_strands` green unchanged after its
+arm is replaced (say which rows exercised the arm). **Sweep.** Every
+site the row lists, plus a grep for two adjacent carrier names
+(`Declare` pairs … `Mate` heads, `blend's selection`, `shell's open`)
+across `crates/editor-core/src`, `tests`, `*.md`, for an eighth prose
+home the unit did not count; disposition each hit.
+
+**Territory.** `crates/editor-core/src/{node.rs, edit.rs, doc.rs,
+resolve/mod.rs}` (EDIT), `REFERENCES.md` §0 untouched (already
+load-bearing), `crates/editor-core/tests/dm7_delete_strands.rs`
+(TCOST/TINT, by announcement). E-class: merges on green CI and the
+orchestrator's read; no review lane.
