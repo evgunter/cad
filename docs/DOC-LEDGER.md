@@ -4056,3 +4056,23 @@ and its MERGED entry in `work/msolve/log.md` (no A/B row: the program
 runs none).
 
 - `MSOLVE-6-SPEC.md` — MSOLVE-6, the mate's lever is the mated parts' own extent (#2116)
+
+## Per-merge deletion — MSOLVE-7's spec (2026-09-19)
+
+Recoverable at `git show dcf5e149d5f7ef97154473f499011b54f27e03c3:docs/MSOLVE-7-SPEC.md`
+(the MSOLVE-7 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; three of its sentences did
+not survive measurement. It named `fold_pair` as `derived_offset`'s
+caller, which is `pair_left_factor` (the lane took the better
+letter). It said a delete's dependents cascade, which the door
+measures as a `DeleteWouldDangle` refusal — the condition is
+unreachable either way, as the spec said. And its §2 seated only the
+dangling-input shape at the transform, while a transform over a
+DATUM as the axis is reachable through `apply` and was seated at the
+pattern on one road and the transform on the other; the fix pass
+seated it at the transform through the one classifier, which is the
+spec's thesis carried one shape further. The rule above; the unit's
+record is its item's `## Closed` section and its MERGED entry in
+`work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)

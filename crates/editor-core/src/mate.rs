@@ -75,6 +75,7 @@ pub mod solve;
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, member_of};
 pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
+pub(crate) use solve::solve_with_env;
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
@@ -164,7 +165,7 @@ pub enum AxisSense {
 /// The **mate primitive**: which coset of SE(3) this mate pins the
 /// pair's relative pose to (A11 rule 1; the spec's coset table).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MatePrimitive {
     /// The two mate frames coincide outright — residual trivial.
     FrameCoincidence,
@@ -736,10 +737,12 @@ pub enum MateFault {
         /// **The node whose evaluation raised the refusal.** It lies
         /// on the reference's derivation: a pattern or a transform on
         /// the chain, or a node one of those reads to derive its map
-        /// — a circular rule's axis DATUM is the one such node today,
-        /// and a slot of it that does not evaluate is reported here
-        /// under the datum's id, because that is the node an author
-        /// goes and fixes.
+        /// — a circular rule's axis DATUM, whose slot that does not
+        /// evaluate is reported under the datum's id, or a TRANSFORM
+        /// on the way to that datum, whose own operand refusal is
+        /// reported under the transform's — because that is the node
+        /// an author goes and fixes, and the node the evaluation
+        /// itself fails.
         placer: RecipeNodeId,
         /// The evaluation layer's own typed refusal for it, unchanged.
         error: NodeRefusal,

@@ -246,6 +246,8 @@ mod msolve4_mate_memo;
 mod msolve5_read_below_a_root;
 #[path = "msolve6_part_extent.rs"]
 mod msolve6_part_extent;
+#[path = "msolve7_member_residue.rs"]
+mod msolve7_member_residue;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
