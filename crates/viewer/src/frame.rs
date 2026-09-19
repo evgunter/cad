@@ -1539,9 +1539,8 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
 ///
 /// **A document's directory is its `parent`, and an EMPTY parent is
 /// no candidate** whatever `is_dir` says of it: the parent of a bare
-/// relative file name is `""`, which `rfd` reads as "no directory"
-/// and zenity would read as the process cwd, so it is dropped here
-/// before either backend can give it a meaning.
+/// relative file name is `""`, which names no directory, and taking
+/// it would stop the search before the candidates behind it.
 pub fn dialog_dir<'a>(
     document: Option<&'a Path>,
     last: Option<&'a Path>,

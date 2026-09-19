@@ -1233,13 +1233,12 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     use platform::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
         platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
-        ChooserBackend::Zenity,
-        "zenity needs no portal, and with no bus the portal cannot answer first"
+        ChooserBackend::ZenityPresent
     );
     assert_eq!(
         platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
-        ChooserBackend::ZenityOrPortal,
-        "zenity needs no portal, but `rfd` tries the portal first"
+        ChooserBackend::ZenityPresent,
+        "zenity needs no portal"
     );
     assert_eq!(
         platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
@@ -1250,30 +1249,12 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
-    assert!(ChooserBackend::Zenity.usable());
-    assert!(ChooserBackend::ZenityOrPortal.usable());
+    assert!(ChooserBackend::ZenityPresent.usable());
     assert!(ChooserBackend::PortalPossible.usable());
     assert!(
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
     );
-    // Which backend ANSWERS is known in exactly one arm. The zenity
-    // backend reads a starting directory only through `--filename`,
-    // so this is the read that decides whether a dialog's directory
-    // is spelled into its file name — and it must not say yes where
-    // the portal might answer, or the portal would show the directory
-    // in its name field.
-    assert!(ChooserBackend::Zenity.zenity_answers());
-    for other in [
-        ChooserBackend::ZenityOrPortal,
-        ChooserBackend::PortalPossible,
-        ChooserBackend::Absent,
-    ] {
-        assert!(
-            !other.zenity_answers(),
-            "{other:?} cannot be sure zenity is the one that answers"
-        );
-    }
 }
 
 #[test]
@@ -1329,8 +1310,8 @@ fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
     );
 
     // A bare relative file name has `""` for a parent, and `""` is
-    // not a place to open at whatever the witness says of it: `rfd`
-    // would read it as no directory and zenity as the process cwd.
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
     assert_eq!(
         frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
         Some(last),

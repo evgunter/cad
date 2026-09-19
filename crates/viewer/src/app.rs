@@ -1244,7 +1244,7 @@ impl ViewerApp {
             self.launch_dir.as_deref(),
             std::path::Path::is_dir,
         );
-        file_dialog(self.chooser, start, name)
+        file_dialog(start, name)
     }
 
     /// This application's door onto [`frame::apply`], for the verdict
@@ -2027,18 +2027,18 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
 /// responsiveness during an interaction that is already modal, at the
 /// cost of a second state machine.
 ///
-/// **The starting directory goes through the door the answering
-/// backend reads**, and the two Linux backends read different ones.
-/// The portal takes `set_directory`; `rfd`'s zenity backend drops it
-/// and forwards only `set_file_name`, as `--filename` — where a
-/// directory spelled with a trailing separator opens the dialog there
-/// with an empty name, and `<dir>/<name>` opens it there with the name
-/// filled in. So `set_directory` is always set, and where the probe
-/// knows zenity answers ([`platform::ChooserBackend::zenity_answers`])
-/// the directory is spelled into the file name as well. A directory
-/// that is not UTF-8 cannot be spelled into a `String` at all, and
-/// then zenity gets the bare name and opens at its own default — the
-/// same fall-through as no candidate.
+/// **The starting directory reaches the portal and nothing else.**
+/// `rfd` hands `set_directory` to the portal as `current_folder`; its
+/// zenity fallback drops it and forwards only the file name, so a
+/// zenity dialog opens at zenity's own default (the process's working
+/// directory, which is the launch directory). The directory is not
+/// spelled into the file name for zenity's sake: which backend answers
+/// cannot be known from here — with no session-bus address in the
+/// environment `rfd` still reaches a portal through D-Bus autolaunch
+/// where one runs — and a portal handed that name shows the whole
+/// directory path in its name field. A portal old enough to lack
+/// `current_folder` on its open dialog shows its own default there;
+/// its save dialog honours it.
 ///
 /// **Absent on wasm**, with the two callers `cfg`-ed to match. That
 /// second state machine is exactly what the browser would force —
@@ -2047,21 +2047,13 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
 /// half-open door here; it has no door, and
 /// [`platform::chooser_backend`] is what says so to the chrome.
 #[cfg(not(target_family = "wasm"))]
-fn file_dialog(
-    chooser: platform::ChooserBackend,
-    start: Option<&std::path::Path>,
-    name: Option<&str>,
-) -> rfd::FileDialog {
+fn file_dialog(start: Option<&std::path::Path>, name: Option<&str>) -> rfd::FileDialog {
     let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
     if let Some(dir) = start {
         dialog = dialog.set_directory(dir);
     }
-    let spelled_into_name = start
-        .filter(|_| chooser.zenity_answers())
-        .and_then(|dir| dir.to_str())
-        .map(|dir| format!("{dir}{}{}", std::path::MAIN_SEPARATOR, name.unwrap_or("")));
-    if let Some(file_name) = spelled_into_name.or_else(|| name.map(str::to_owned)) {
-        dialog = dialog.set_file_name(file_name);
+    if let Some(name) = name {
+        dialog = dialog.set_file_name(name);
     }
     dialog
 }

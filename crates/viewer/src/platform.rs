@@ -44,28 +44,10 @@
 /// click: `rfd`'s blocking dialogs return the same bare `None` for a
 /// user cancel and for a backend that could not put a dialog up, so
 /// the time to know is before the click.
-///
-/// **The two zenity arms are one fact about whether a dialog appears
-/// and two about WHICH backend puts it up**, and the second question
-/// is asked: `rfd` tries the portal first and spawns `zenity` only
-/// when the portal call fails, and the two backends read a dialog's
-/// starting directory through different doors — the portal from
-/// `set_directory`, zenity only from `--filename`, to which `rfd`
-/// forwards `set_file_name` and nothing else. So the dialog layer
-/// has to know which one will answer, and the probe can say so with
-/// certainty in exactly one case: zenity present and no session bus,
-/// where the portal cannot be reached at all ([`Self::zenity_answers`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChooserBackend {
-    /// `zenity` is on `PATH` and no session bus is advertised: a
-    /// dialog is certain, and so is WHO shows it — `rfd`'s portal
-    /// attempt cannot connect, so zenity answers.
-    Zenity,
-    /// `zenity` is on `PATH` and a session bus is advertised: a
-    /// dialog is certain (zenity is the fallback), but the portal is
-    /// tried first, and whether it answers is the same hint
-    /// [`Self::PortalPossible`] carries.
-    ZenityOrPortal,
+    /// `zenity` is on `PATH`: dialogs work with no portal at all.
+    ZenityPresent,
     /// No `zenity`, but a D-Bus session-bus address exists, so an
     /// `xdg-desktop-portal` file chooser is possible. **A HINT, not a
     /// verdict**: a session bus without a working portal frontend
@@ -82,20 +64,6 @@ impl ChooserBackend {
     /// Whether attempting a dialog can possibly show one.
     pub fn usable(self) -> bool {
         !matches!(self, Self::Absent)
-    }
-
-    /// Whether `zenity` is the backend that will answer, for certain.
-    ///
-    /// True on [`Self::Zenity`] alone. [`Self::ZenityOrPortal`] is
-    /// deliberately NOT included: a bus that is advertised may or may
-    /// not have a frontend behind it, and a starting directory handed
-    /// through zenity's door there would land in the portal's file
-    /// NAME field whenever the portal does answer. The residue —
-    /// zenity answering behind a dead portal and opening at its own
-    /// default — is the same hint-not-verdict residue the README's
-    /// troubleshooting entry already carries.
-    pub fn zenity_answers(self) -> bool {
-        matches!(self, Self::Zenity)
     }
 }
 
@@ -132,8 +100,7 @@ pub enum SessionBus {
 /// so the rows exercising it do not depend on the CI box's `PATH`.
 pub fn chooser_backend_of(zenity: Zenity, bus: SessionBus) -> ChooserBackend {
     match (zenity, bus) {
-        (Zenity::OnPath, SessionBus::NotAdvertised) => ChooserBackend::Zenity,
-        (Zenity::OnPath, SessionBus::Advertised) => ChooserBackend::ZenityOrPortal,
+        (Zenity::OnPath, _) => ChooserBackend::ZenityPresent,
         (Zenity::NotOnPath, SessionBus::Advertised) => ChooserBackend::PortalPossible,
         (Zenity::NotOnPath, SessionBus::NotAdvertised) => ChooserBackend::Absent,
     }
