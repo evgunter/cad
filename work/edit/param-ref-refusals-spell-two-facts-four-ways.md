@@ -112,11 +112,13 @@ quote a tag word, and six `editor-core` test files. The edit door's
 tag words moved with the names.
 
 **The guard.**
-`display_contract::the_two_doors_spell_the_four_param_ref_refusals_with_the_same_four_names`
-reads the eight variant names off `Debug` and asserts the edit door's
-four are the load door's four, against the `{address} x {fact}`
-product spelled once. Proved red on a one-door rename before it was
-green.
+`display_contract::the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports_its_address`
+measures both halves of the convention. Half one reads the eight
+variant names off `Debug` and asserts the edit door's four are the
+load door's four, against the `{address} x {fact}` product spelled
+once (red on a one-door rename). Half two ties each name to the
+address its rendered sentence reports (red on the pairwise swap that
+half one survives).
 
 **What did not move**, as spec'd: the `Display` sentences, both mapper
 shapes, and the four `SnapshotError` arms.
@@ -124,12 +126,13 @@ shapes, and the four `SnapshotError` arms.
 **Corrections to the spec's premises** (all in the PR body):
 `persist::check` names no edit-door arm, so nothing moved there and
 the file is not in the diff; no `f6_variants!` roster changed, because
-the only roster naming any of the eight is `SNAPSHOT_ERROR`; and nine
-files beyond the territory paragraph's list carry the old identifiers
-and were swept.
+the only rosters naming any of the eight are the two macro-welded
+`SNAPSHOT_ERROR` rosters (`persist/check.rs`, `display_contract.rs`),
+whose four names do not move; and nine files beyond the territory
+paragraph's list carry the old identifiers and were swept.
 
-**Filed, not fixed here**: the four edit-door tag words are now also
-`snapshot_error_tag`'s, which
+**Dispositioned on the census row**: the four edit-door tag words are
+now also `snapshot_error_tag`'s, which
 `every_word_two_tag_maps_share_is_on_the_committed_roster` reds on.
 They are pinned in `SHARED_TAG_WORDS` as one fact, and the evidence is
 appended to CENSUS's open row
@@ -137,6 +140,63 @@ appended to CENSUS's open row
 
 **Left with the old spelling, deliberately**: the test function
 `m10_2_r1_probes::r1_an_unknown_payload_param_refuses_at_the_edit_door`
-(prose, not an identifier the sweep can see) and four closed
+(prose, not an identifier the sweep can see) and TWO closed
 `work/edit/` rows whose bodies record a finding at the SHA they
-describe.
+describe — `load-door-does-not-check-payload-expression-param-refs`
+and `three-door-predicates-are-hand-copied-not-shared`. (The first
+count of four came from a sweep without word boundaries:
+`UnknownDocParam` is a substring of the NEW names, so
+`load-door-checks-slot-dimensions-for-profile-nodes-only` and
+`quoted-parameter-name-in-error-prose-has-no-decision` matched their
+own already-current spelling.)
+
+## Fix pass (2026-09-19, PR #2819, review branch `review/paramref-rv` merged)
+
+**The guard measures the mapping, not just the set.** The reviewer's
+probe `rv_each_param_ref_name_reports_the_address_its_name_claims` is
+folded INTO the convention row as its second half rather than living
+beside it, so `variant_of` has one home and
+`tests/rv_paramref_probes.rs` is gone. Measured: the pairwise swap of
+the edit door's Slot pair with its Payload pair leaves the other 28
+`display_contract` rows green and reds the folded row — *"the edit
+door's PayloadUnknownDocParam claims a PAYLOAD address (fact
+UnknownDocParam) but renders \"document parameter width does not exist
+(referenced by node 5, slot radius)\""*. `edit_payload.rs`'s E0026 on
+the same swap is a payload-shape accident, not the guard: it holds
+only while the slot arm carries a field the payload arm does not.
+
+**The convention has ONE home, and it is the enum.** The rule is
+stated once on `EditError`'s own enum doc (`edit.rs`); `SnapshotError`
+points at it in one sentence; the eight variant docs are each their
+own fact; and the three paraphrases — `display_contract`'s row doc,
+`SHARED_TAG_WORDS`'s note, the census-row appendix — are one sentence
+each citing the home. The four `EditError` arms are now adjacent, in
+`Slot`-then-`Payload` order, with `edit_error_tag`'s four arms
+following them. Nothing pins the order: `EditError` has no
+`f6_variants!` roster (the only two are `SNAPSHOT_ERROR`'s),
+`TAG_INVENTORY` is alphabetical and its own doc says arm order is not
+the contract, and `EditError` derives no `Serialize` and no
+discriminant is stored.
+
+**The one-fact pair is pinned, per `tags.rs`'s own convention.**
+`tests::the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`
+builds each of the four (address, fact) pairs at BOTH doors and
+asserts the two words equal, then checks the four words against the
+`{address}_{fact}` product so a drift of both maps together still
+reds. `edit_error_tag` and `snapshot_error_tag` each name the pin, and
+`tags.rs`'s header counts three pinned pairs instead of two.
+`SHARED_TAG_WORDS` keeps its four entries; their reason now points at
+the agreement row. Proved red by re-minting `slot_unknown_doc_param`
+at one door.
+
+**Filed**: `work/edit/doc-param-refusals-keep-two-conventions-inside-one-enum.md`
+— `EditError`'s other doc-param refusals (`DocParamUnitMismatch`,
+`DocParamValueKindMismatch`, `DocParamNotDeclared`,
+`DocParamCountHasNoUnit`) and `EvalError::ParamDimensionMismatch` keep
+the old shape. That is a class outside this row's fence and each
+rename moves a Python tag.
+
+**Disclosures corrected**: two closed rows, not four; the census-row
+appendix trimmed to its three facts and a pointer; and the PR body's
+census list gained its negative — a tag word quoted in a DOCSTRING
+(`pncad.pyi`, `py/doc.rs`) is guarded by nothing but a hand audit.
