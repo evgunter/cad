@@ -22,7 +22,7 @@
 use geom_core::{Band, Point2, Tol};
 use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
-use step_import::{ImportOptions, StepImport, import_step};
+use step_import::{ImportOptions, import_step};
 use sweep::{Revolution, RevolveAxis, revolve};
 
 fn tol() -> Tol {
@@ -110,10 +110,25 @@ fn vessel_cavity() -> topo::Body<f64> {
 }
 
 /// **Where the trip lands.** The cavity writes out with one cubic
-/// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim and reads back as a
-/// solid; the imported body's tier-3 answer is the payload this row
-/// pins, beside the NATIVE body's, so the two doors are compared
-/// rather than asserted equal by hope.
+/// `B_SPLINE_CURVE_WITH_KNOTS` per spiric rim, and the import door
+/// itself refuses: `import_step` validates all three tiers and hands
+/// back `StepImport::TierInvalid` rather than a solid. The payload is
+/// the props frontier, one face over from the native body's —
+///
+/// - NATIVE: `VolumeUncomputable { Face { FaceKey(1v1), Unimplemented } }`,
+///   a CAP's `loop_vector_area` (the oval's area is an elliptic
+///   integral), because the cap is first in arena order and the torus
+///   wall behind it carries a spiric pcurve;
+/// - IMPORTED: `VolumeUncomputable { Face { FaceKey(6v1),
+///   QuadratureUnsupported { "conic trim on a cone/sphere/torus chart
+///   …" } } }`, the TORUS WALL, because the adopted spline is a
+///   `Curve3::Nurbs` carrier and the cap's loop is no longer one the
+///   spiric arm refuses — so the wall is reached first.
+///
+/// §5 predicted `PropsError::Unimplemented` at check 7 on re-import;
+/// the measured payload is the same check and the same lane, on the
+/// wall rather than the cap, and the row pins what the run shows and
+/// names what was predicted.
 #[test]
 fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     let native = vessel_cavity();
@@ -142,21 +157,36 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
         rims,
         "one export-only spline per spiric rim"
     );
-    println!(
-        "[roundtrip] native tier 3: {:?}",
-        topo::validate_geometric(&native, tol())
+    let native_tier3 = topo::validate_geometric(&native, tol());
+    println!("[roundtrip] native tier 3: {native_tier3:?}");
+    assert!(
+        matches!(
+            native_tier3.as_ref().map_err(Vec::as_slice),
+            Err([topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::Unimplemented,
+                    ..
+                },
+            }])
+        ),
+        "the native cavity stops at a cap's loop area, got {native_tier3:?}"
     );
 
-    let back = match import_step(&text, &ImportOptions::default(), tol()) {
-        Ok(StepImport::Solid { body, .. }) => body,
-        other => panic!("the cavity must re-import as a solid, got {other:?}"),
+    let back = import_step(&text, &ImportOptions::default(), tol());
+    println!("[roundtrip] import door: {back:?}");
+    let Err(step_import::StepImportError::TierInvalid { errors, .. }) = back else {
+        panic!("the imported cavity's volume is the props lane's frontier, got {back:?}");
     };
-    assert_eq!(topo::validate(&back), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(&back), Ok(()), "tier 2");
-    let tier3 = topo::validate_geometric(&back, tol());
-    println!("[roundtrip] imported tier 3: {tier3:?}");
     assert!(
-        tier3.is_err(),
-        "the imported body's volume is the props lane's frontier, not a computed number"
+        matches!(
+            errors[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::QuadratureUnsupported { .. },
+                    ..
+                },
+            }]
+        ),
+        "check 7 at the torus wall's quadrature lane, got {errors:?}"
     );
 }

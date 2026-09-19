@@ -2248,14 +2248,9 @@ impl<T: Decide> PcurveCache<T> {
             // The spiric lane: closed-form like the harmonic and iso
             // ones — no mate operand, no bracket obligation — so it
             // shares this `Decide`-scalar door.
-            Pcurve::Spiric {
-                major,
-                minor,
-                offset,
-                image,
-            } => run_spiric_checks(
-                &pcurve, *major, *minor, *offset, image, t0, t1, carrier, surface, window, band,
-            )?,
+            spiric @ Pcurve::Spiric { .. } => {
+                run_spiric_checks(spiric, t0, t1, carrier, surface, window, band)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -2445,17 +2440,8 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
                 window,
                 band,
             ),
-            Pcurve::Spiric {
-                major,
-                minor,
-                offset,
-                image,
-            } => run_spiric_checks(
-                &self.pcurve,
-                *major,
-                *minor,
-                *offset,
-                image,
+            spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
+                spiric,
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -3167,10 +3153,6 @@ fn run_harmonic_checks<T: Decide>(
 /// 5. **Trim containment**: the shared chart-box limb.
 fn run_spiric_checks<T: Decide>(
     pcurve: &Pcurve<T>,
-    major: T,
-    minor: T,
-    offset: T,
-    image: &SpiricImage<T>,
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -3178,6 +3160,15 @@ fn run_spiric_checks<T: Decide>(
     window: ChartWindow<T>,
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let &Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        ref image,
+    } = pcurve
+    else {
+        return Err(PcurveCertifyError::UnsupportedCarrier);
+    };
     // ---- Check 1: the certified lane. ----
     let Curve3::Spiric {
         center: c_c,
