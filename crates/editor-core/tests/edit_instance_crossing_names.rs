@@ -36,7 +36,7 @@ use editor_core::{
     inline, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part};
-use fixture::{insert, on_frame, step};
+use fixture::{insert, on_frame, step, step_with};
 use geom_core::Tol;
 
 /// A one-block part document — the part every row below instantiates.
@@ -188,7 +188,10 @@ fn an_instances_payload_names_are_its_crossing_outers_in_record_order() {
 /// inserts the same record while the node is live.
 #[test]
 fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
-    let doc_ref = part_ref("crossnames-door-part");
+    // `target` and `keeper` are mated, so the delete below moves that
+    // cluster's gauge and levers the parts through the store's reach.
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc("crossnames-door-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-door"), Tol::witness());
     let (doc, target) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, keeper) = insert(doc, Node::instantiate_part(doc_ref));
@@ -213,13 +216,16 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
         "while the `outer`'s node is live the door accepts the record whole"
     );
 
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: target });
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: target }, &reach);
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::instantiate_part_with(doc_ref, record()),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => assert_eq!(
             name, outer,
@@ -324,7 +330,11 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
 /// added; the mate's was there before it.
 #[test]
 fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
-    let doc_ref = part_ref("crossnames-strand-part");
+    // `target` and `keeper` are mated, so deleting `target` moves that
+    // cluster's gauge and the maintenance levers the parts through the
+    // store's reach.
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc("crossnames-strand-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-strand"), Tol::witness());
     let (doc, target) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, keeper) = insert(doc, Node::instantiate_part(doc_ref));
@@ -339,8 +349,15 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: target }, Tol::witness())
-        .expect("a name reference is not a DAG edge, so the delete is legal");
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: target },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("a name reference is not a DAG edge, so the delete is legal");
     let strands: Vec<(RecipeNodeId, StableName)> = applied
         .maintenance
         .iter()
@@ -451,6 +468,7 @@ fn the_insert_door_refuses_a_record_whose_mate_is_not_live() {
             node: Node::instantiate_part_with(doc_ref, with_mate(never)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ReadSiteMissingNode { at }) => assert_eq!(
             at, never,
@@ -487,10 +505,13 @@ fn deleting_a_crossings_mate_reports_nothing() {
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = record_of(&doc, instance);
 
+    // The mate's heads are both `b`'s, so it joins no cluster and its
+    // delete moves no gauge: the reach is never asked.
     let applied = apply(
         &doc,
         &DocEdit::DeleteNode { id: crossing_mate },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a crossing's mate is not a DAG edge, so the delete is legal");
     assert!(
@@ -546,6 +567,7 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         &cut,
         DocumentId::derive("crossnames-split-cut"),
         Tol::witness(),
+        None,
     )
     .expect_err("the instance's `outer` is a payload name reaching the remainder");
     let SplitError::PartNameReachesRemainder { node, name } = refused else {
@@ -585,7 +607,13 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = doc.order().len();
 
-    let back = inline(&doc, instance, &store, Tol::witness()).expect("inline succeeds");
+    let back = inline(
+        &doc,
+        instance,
+        &(std::sync::Arc::new(store) as std::sync::Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("inline succeeds");
     assert!(
         back.doc.node(instance).is_none(),
         "the instance is gone, and its record with it"

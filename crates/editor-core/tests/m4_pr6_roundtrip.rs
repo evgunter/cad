@@ -22,9 +22,7 @@
 
 use crate::corpus;
 
-use editor_core::{
-    CancelToken, DocEdit, EvalOptions, ProfileDoc, ProfileProgram, apply, evaluate, load, save,
-};
+use editor_core::{CancelToken, EvalOptions, ProfileDoc, ProfileProgram, evaluate, load, save};
 
 use corpus::documents;
 use geom_core::Tol;
@@ -63,7 +61,12 @@ fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
 /// state, so the (expensive) evaluation fingerprint is checked once per
 /// document — on the log shape, the one with more machinery between
 /// the bytes and the state.
-type Fixture = (String, ProfileDoc, Vec<DocEdit<ProfileProgram>>, bool);
+type Fixture = (
+    String,
+    ProfileDoc,
+    Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    bool,
+);
 
 fn files() -> Vec<Fixture> {
     let mut out = Vec::new();
@@ -85,7 +88,7 @@ fn save_load_replay_identity() {
         // The expected current state: snapshot + edits.
         let mut expected = snapshot.clone();
         for edit in &edits {
-            expected = apply(&expected, edit, Tol::witness())
+            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
                 .expect("corpus edit")
                 .doc;
         }

@@ -1562,3 +1562,220 @@ Two guards in that brief the other two did not need:
   in headers the lane is otherwise editing. That row is already waiting
   on Ev, and settling it means writing a new provenance claim about
   Ev's own words — which is not a lane's call and not mine.
+
+## 2026-09-19 — the cylindrical-patch rim builder (`dup/cyl-rim-builder`)
+
+**The count moved in both directions, which is item 1 with a twist.**
+The row opened at nine spellings across seven files. Re-taken at the
+merge base with four instruments over every tracked file and no path
+argument, the class — one construction, one home — is **five**, in
+four files, and it includes one member the row never named: a
+`#[cfg(feature = "interval")]` `wall` in `mate5_cyl_eps_rung.rs`,
+which no census that reads a default build can reach because the
+compiler never type-checks it.
+
+The row's OTHER four turned out not to be members. Two are the `src`
+`cyl_sheet` pair, which builds a **measurably different body** — 1
+solid, 2 faces, 4 vertices against the `tests/` family's 3, 4 and 6 —
+because `Body::add_surface` is `pub(crate)` and a `tests/` binary
+cannot call it, so every `tests/` spelling mints a scaffold `mvfs` per
+rim to give the rim plane a face. **The two constructions diverged
+along the crate boundary, not along intent.** Two more are torus
+patches in `boxes.rs`: the row guessed one "may be a genuine sibling",
+and measured it is a different class outright — four curved sides,
+closing on a curved meridian spec where every member of this class
+closes on a chord line.
+
+**Instrument 3 is the one that earned its keep**, and it was chosen
+because item 8 says a disclosed blind spot is an instruction: the row
+disclosed that its structural needle keys on `find_half_edge(seed.face`,
+so a second needle went at the surface key instead —
+`FaceSurface::Shared(cyl)` — and that is what surfaced the interval
+member. Its own blind spot (a key bound to another name) is
+demonstrated rather than asserted: it misses both `boxes.rs` torus
+patches, which say `Shared(torus)`.
+
+**The mutation that stayed green is the residue worth having.**
+Deleting the source write from the shared builder — so no sheet's
+cylinder key carries a `GeomSource` at all — left **all 617
+integration rows and 744 lib rows green at both lanes**, although
+three suites name the distinct-`GeomSource` fingerprint as their
+subject in prose. Filed on S-TINT. The mutation that DID work (the
+descending rim's axis left unnegated) reds 23 rows across all four
+folded suites, the interval member included.
+
+**A live probe the fold did not have to plant.** Moving a fixture
+builder into `topo/src` makes it a `pub fn … &mut …` under that tree,
+which is the population `review_m1_pr5_internal`'s two door tables
+walk — so the fold redded on a table with no entry for the new door
+until it declared how tier 1 survives it. Worth knowing before the
+next `tests/` → `src` fold: the home is not free, and what it costs is
+an entry, not a feature.
+
+**X4, caught in the diff by re-reading it**: the door's own
+`lift_point` / `lift_vec` are the 23rd and 24th componentwise
+`T::from_f64` lifts in the tree with no shared home. Filed. So is the
+second X4 the fold left standing: `try_wall_sheet`, token-identical in
+two probe suites, whose reason to exist was the local builder and
+which now wraps the shared one.
+
+### The style-review fix pass, same day
+
+Nine items, and two of them are this program's own method firing on
+this unit.
+
+**X4 a third time, and I did not self-report it.** The unit unified
+`CylFrame` the TYPE and left its CONSTRUCTORS duplicated — and put the
+shared home in the file it was editing, so the duplication had a home
+and did not go there. Re-censused: twelve spellings in three families
+(the review said seven; two families had a second parameterisation
+inside one file, which is item 1 one level down). All twelve now sit on
+`CylFrame::canonical` / `::tilted` / `::opposed`. **The reader who did
+not write the fix is the only one who has ever caught an X4 here, three
+units running.**
+
+**"A second construction" was wrong, and my own row said so two
+paragraphs above the phrase.** The `src` `cyl_sheet` pair is the same
+construction as the folded door with one difference — two scaffold
+`mvfs` calls that exist only because `add_surface` is `pub(crate)`. The
+row measured that and then labelled it "a second construction", which
+is what a future lane would have read. **A measurement and a summary of
+it can disagree inside one file**, and the summary is the part that
+travels.
+
+**The scar is inert, and now that is measured rather than asserted.**
+Switching the door's rim planes to `add_surface` — the `src` form —
+reds only the unit's own arena row and leaves all 617 integration rows
+green at both lanes. So the word "inert" in the door's rustdoc, which
+the review correctly called an unmeasured claim, is now a row's
+measurement and not the door's prose (method item 13).
+
+**Two more silent mutations.** The reviewer changed
+`GeomSource::minted(source, 0)` to `minted(source, 7)` and got 566 + 730
+green: the minted INDEX of every sheet's source is asserted by nothing,
+as its `node` already was. The unit's row now asserts the whole
+`GeomSource`, and the S-TINT row was widened from one claim to three —
+`node`, the index, and the pairwise distinctness a single-sheet row
+cannot reach at all. **A row about one field of a struct is a half-fix
+of a class.**
+
+**A gate decided an open question.** The review asked whether `tol` —
+passed as `Tol::witness()` at all 23 call sites and never anything else
+— is a knob that is never varied. It is, and it cannot go:
+`scripts/gates/witness-not-ambient.sh` forbids `Tol::witness()` under
+`crates/*/src` and does not exempt the `#[cfg(any(...))]` mount, which
+`work/dup/thread-the-tolerance-through-the-prism-fixture-family.md`
+established by planting a violation. Planted one in the door; the gate
+fired and named the line. So the readability fix is the other arm — the
+suite that had no local adapter got one, and its eleven eight-line call
+blocks are one-liners again with each row's two chart windows adjacent.
+
+**And one guard that cannot see what it says.** The unit's own
+allowlist entry in `review_m1_pr5_internal` was materially false and
+both guards reading that table went green, because they check
+membership and never an entry's reason. Filed on GUARD, with the two
+entries anyone has checked named and no count of the rest published,
+because nobody has measured one.
+
+### Third pass: a blanket claim replaced by a wider blanket claim
+
+The fix pass corrected `review_m1_pr5_internal`'s section comment
+because it was false for one of the four entries under it. **The
+replacement was false for all four**, including `prism_ops` — the entry
+that was the correct precedent. It said each builder "writes only
+through doors already on this list", and `mvfs`, `mev` and `mef` are not
+on that list and *cannot* be: it is by construction the doors that do
+NOT assert, and the guard's other-direction row reds an asserting door
+that appears on it. The true statement is the union of the two halves,
+and it is two words longer than the false one.
+
+**The failure is not the wording.** A blanket claim was rewritten and
+not re-checked against every member it now covered — which is a census
+published without being re-taken, one level up from code. The rule that
+catches it is already item 1; what is new is that it applies to a
+SENTENCE's scope as much as to a count's. A per-entry rewrite is
+checkable by a reader in one step and a blanket one is not, which is why
+the entry-level fix in the same pass was right and the section-level one
+was not.
+
+Two more from the same pass, both minted by it:
+
+- **A bound promoted out of its scope.** `CylFrame::tilted`'s doc
+  carried `radius·(1 − cos θ)` as the distance between the two loci.
+  True at `v = 0` only — the tilt displaces a point at height `v` by
+  `v·sin θ` — and the consuming suites compute exactly that, one of
+  them calling it "the tilt's first-order transfer error `r·θ`" where
+  the promoted bound is second order. It was inherited from a deleted
+  LOCAL helper where its scope was one fixture. **A sentence true of a
+  fixture becomes a claim when the fixture becomes a door**, which is
+  item 12 minted inside the pass that was fixing item 12. Dropped
+  rather than qualified: a caller of a test fixture does not reason
+  with a displacement bound.
+- **The unfolded duplicate under the folded one.** Two token-identical
+  fifteen-line closures in `mate5_cyl_eps_rung.rs`, differing only in a
+  source id. The pass edited BOTH of them — rewriting the frame
+  expression inside each — and folded neither. The judgement that the
+  inline frame expression should stay was right and was recorded; the
+  duplicate one level out was not seen, because the edit was scoped to
+  the line being changed rather than the block containing it.
+
+The fold keeps `src` per-call deliberately: nothing asserts that two
+sheets carry distinct `GeomSource`s, so merging two ids would erase the
+subject of the S-TINT row this unit filed before anyone measures it.
+
+### Orchestrator addendum on PR #2887 — three things the lane's entry does not carry
+
+Merged 2026-09-19 as `967741f59`, after **two** review rounds: a style
+review of the unit, then a delta read of the fix pass by the same
+reader. Everything below is about the second round, because the second
+round is what this unit taught.
+
+- **Every unit gets a reader. This evening establishes that every FIX
+  PASS needs one too.** The fix pass for an X4 defect minted three
+  fresh instances, two of them in the exact classes it was fixing: a
+  blanket claim corrected *because it was false for one member* was
+  replaced by one false for all four — including the entry that was the
+  correct precedent the brief pointed at — and a bound whose scope was
+  one fixture in a deleted local helper was promoted into a `src`
+  door's rustdoc, where it does not hold. Method item 12 and item 13,
+  minted inside the pass fixing item 12 and item 13. The third was a
+  pair of token-identical closures in a file the pass edited **in both
+  copies** without seeing the block containing them.
+  The lane's own diagnosis is the one to keep: *a per-entry claim is
+  checkable by a reader in one step where a section-level one is not*,
+  which is why the entry-level fix in that same pass survived and the
+  section-level one did not. **Item 1 applies to a sentence's scope as
+  much as to a count.**
+  The delta read cost little: the same reader resumed with its context
+  and was told to read one diff, not the PR. That is the cheap half of
+  the lesson and the reason this is a method note rather than a
+  complaint.
+- **One count passed through three hands and was low at every hand.**
+  The row opened at nine and the class was five; the reviewer named
+  seven frame constructors and there were twelve, because two families
+  carried a second parameterisation *inside a single file*, which no
+  cross-file read catches; the orchestrator relayed twenty-two call
+  sites and there were twenty-three, the extra being the witness
+  tolerance behind a local alias. Three readings, three undercounts,
+  every one corrected by the same act — re-taking rather than
+  inheriting. Item 15 is not a caution about lanes; it is a caution
+  about every hand a number passes through, this one included.
+- **The orchestrator flattened a modality in relay, which is item 12 in
+  miniature.** The lane's row says the visibility scar is inert *to the
+  `tests/` side*, and that the `src` side is what still blocks the
+  fold. The orchestrator's summary said "inert". One-directional claims
+  lose their direction when they are restated by someone who is not
+  holding the measurement, and the restatement is what travels — the
+  same mechanism this unit's own wording defect turned on, where a row
+  measured one thing and summarised it as the opposite two paragraphs
+  apart. The lane's wording stands over the orchestrator's.
+
+**On the review tier, for the next dispatch.** Style tier was right and
+held through both rounds: the fold was proved bit-identical, so it
+could not move a verdict, and nothing either round found rose to a
+correctness MAJOR. What earned its keep was naming, in the brief, the
+two hunks where a green diff tells you least — the guard-table entry
+the move forced, and the mutation that reddened nothing. **Both rounds'
+findings concentrated there.** A style brief that names its two
+suspicious hunks is not a full review and does most of what one would
+have done here.

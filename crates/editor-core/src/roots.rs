@@ -272,6 +272,15 @@ pub(crate) fn consumer<P: crate::ProfilePayload>(
 /// [`consumer`]'s predicate half, so "what makes a node a root" is
 /// answered in one place: D-2's coverage plus ancestor-freedom make
 /// the root set exactly the sink set.
+///
+/// A sink of ANY kind is a root, and that is A10's meaning rather
+/// than a gap in it: a mate is an isolated sink under consuming
+/// edges, and a `Declare` whose last consumer a delete removed is a
+/// sink from that delete on — both are listed, and both contribute
+/// nothing to the gather, which reads only body-denoting roots. The
+/// kind question is the gather's, never this predicate's
+/// (`work/edit/an-orphaned-declare-joins-the-product-root-set`, ruled
+/// a non-issue on exactly that ground).
 pub(crate) fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
     consumer(doc, id).is_none()
 }

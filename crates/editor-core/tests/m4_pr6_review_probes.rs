@@ -41,6 +41,7 @@ fn small() -> (ProfileDoc, String) {
             value: DocParam::continuous(Dimension::Length, 2.5),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -249,7 +250,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
-        let a = apply(doc, &e, Tol::witness())
+        let a = apply(doc, &e, Tol::witness(), &editor_core::RefusingReach)
             .unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
         *doc = a.doc;
         edits.push(e);
@@ -495,12 +496,16 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     // Round-trip as a FULL LOG from an empty snapshot.
     let text = save(
         &ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()),
-        &edits,
+        &editor_core::LoggedEdit::bare_all(&edits),
         Tol::witness(),
     )
     .expect("save log");
     let loaded = load(&text, Tol::witness()).expect("load log");
-    assert_eq!(loaded.edits, edits, "edit log round-trip");
+    assert_eq!(
+        loaded.edits,
+        editor_core::LoggedEdit::bare_all(&edits),
+        "edit log round-trip"
+    );
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
     // AND as a snapshot.
     let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");
@@ -632,6 +637,7 @@ fn attack_meta_order_canonical() {
                 value: tree(order),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -661,6 +667,7 @@ fn duplicate_keys_refuse_in_every_map() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -676,6 +683,7 @@ fn duplicate_keys_refuse_in_every_map() {
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -689,6 +697,7 @@ fn duplicate_keys_refuse_in_every_map() {
             value: MetaValue::Map(m),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;

@@ -427,9 +427,14 @@ mod tests {
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
         });
-        let doc = apply(&doc, &DocEdit::InsertNode { node: frame }, Tol::witness())
-            .expect("frame")
-            .doc;
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node: frame },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("frame")
+        .doc;
         let plane = *doc.order().last().expect("the frame");
         let n = MAX_CIRCLE_SPLIT + 1;
         let loops = vec![
@@ -447,9 +452,14 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram { plane, loops });
-        let doc = apply(&doc, &DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the document admits a split circle above the form's cap")
-            .doc;
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the document admits a split circle above the form's cap")
+        .doc;
         let profile = *doc.order().last().expect("the profile");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");

@@ -131,11 +131,11 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
-    MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
-    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
-    RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, Subgroup, UpdateError,
+    EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
+    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
+    ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError,
+    SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -247,7 +247,9 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 }
 
 /// The stable tag for a recorded-program lift refusal
-/// (`LoopProgram::from_recorded` and its notation-bearing twin). The
+/// (`LoopProgram::from_recorded` and its notation-bearing twin), and
+/// for the one refusal raised at the WRITING door instead
+/// (`RecordedNotation::set_after` against an empty recording). The
 /// literal arm carries the expression layer's own tag through rather
 /// than flattening it.
 ///
@@ -255,12 +257,30 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// which argument role the notation named. Nothing is lost that a
 /// Python caller could not say for itself — it wrote the entry — and
 /// the Rust sentence still names both.
+///
+/// `notation_before_any_step` is the derived notation door's own
+/// refusal, kept apart from `notation_off_program` because the
+/// caller named no step for that tag to be about.
+///
+/// **Both notation words are vocabulary no Python caller can reach
+/// today, and this is where that is said.** The binding's only lift
+/// is `py::path::loop_program`, which calls
+/// `LoopProgram::from_recorded` — the notation-free twin — and no
+/// Python door builds a `RecordedNotation` at all, so neither
+/// `notation_off_program` nor `notation_before_any_step` can arrive
+/// on the wire. They are carried because this map is exhaustive over
+/// the enum and a word that appears the day the door does is better
+/// than a build break then; they become live the day a Python path
+/// builder threads a notation, which is
+/// `work/lib/path-legs-erase-the-authored-notation-one-layer-down`'s
+/// work and not this crate's.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
         RecordedProgramError::NotationOffProgram { .. } => "notation_off_program",
+        RecordedProgramError::NotationBeforeAnyStep { .. } => "notation_before_any_step",
     }
 }
 
@@ -571,6 +591,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+        EditError::MaintenanceRefused { .. } => "maintenance_refused",
+        EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
 }
 
@@ -1099,6 +1121,13 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // says which of the three ways the D7 producer convention was
         // broken rather than which door broke it.
         EditError::MetaUnversioned { error, .. } => Some(meta_version_error_tag(error)),
+        // The maintenance's refusal carries the prior solve's own
+        // fault, when it recorded one: that fault's word is the arm.
+        EditError::MaintenanceRefused {
+            fault: Some(fault), ..
+        } => Some(mate_fault_tag(fault)),
+        EditError::MaintenanceRefused { fault: None, .. } => None,
+        EditError::MaintenanceUnrecorded { .. } => None,
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
@@ -1604,20 +1633,37 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::PlacerRefused { .. } => "mate_placer_refused",
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
-        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
+        MateFault::Unleverable { .. } => "mate_unleverable",
     }
 }
 
-/// The stable tag for a lever-arm refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_datum_too_small_to_lever`, whose scale
-/// numbers ride beside it as `extent` and `floor`.
+/// The stable tag for a lever refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_unleverable`: why one of the mated
+/// parts' reach was not in hand, so no lever could be formed.
 ///
-/// One word today, and the map is exhaustive rather than a constant
-/// so a second way to refuse a lever arm arrives here as a compile
-/// error.
+/// The map is exhaustive rather than a constant so a new way to
+/// refuse a lever arrives here as a compile error.
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
-        LeverRefusal::DatumTooSmall { .. } => "datum_too_small",
+        LeverRefusal::PartUnresolved { .. } => "part_unresolved",
+        LeverRefusal::FaceUnbounded { .. } => "face_unbounded",
+        LeverRefusal::MalformedBody { .. } => "malformed_body",
+        LeverRefusal::NoExtent { .. } => "no_extent",
+        LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
+        LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+    }
+}
+
+/// The stable tag for what a frame fails to be a placement
+/// (`Frame::placement_fault`): the word `PersistError`'s
+/// `maintenance_frame` arm publishes on `inner_variant` — a recorded
+/// maintenance row's frame held to the `SetPlacement` door's rule at
+/// load. Exhaustive so a new way for a frame to fail arrives here as
+/// a compile error.
+pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
+    match fault {
+        FrameFault::NonFinite => "non_finite",
+        FrameFault::Improper { .. } => "improper",
     }
 }
 
@@ -1743,6 +1789,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::Unreadable { .. } => "unreadable",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
+        PersistError::MaintenanceFrame { .. } => "maintenance_frame",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
     }

@@ -65,6 +65,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
             value: DocParam::continuous(Dimension::Length, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a well-formed length parameter declares")
     .doc;
@@ -160,6 +161,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
@@ -192,6 +194,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
             value: DocParam::continuous(Dimension::Angle, 1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadDocParamDimension {
             name: n,
@@ -253,6 +256,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
             node: bound(&missing),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadUnknownDocParam { name: n, .. }) => assert_eq!(n, missing),
         other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
@@ -329,6 +333,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
             expr: Expr::param(name.clone(), Dimension::Length),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a length parameter drives a length slot")
     .doc;
@@ -400,6 +405,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionTarget { .. }) => {}
         other => panic!("the edit door must refuse an assertion on a non-measure, got {other:?}"),

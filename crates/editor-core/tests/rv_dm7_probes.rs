@@ -26,7 +26,13 @@ use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
 
 fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness()).expect("the delete is legal")
+    apply(
+        doc,
+        &DocEdit::DeleteNode { id },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the delete is legal")
 }
 
 /// **A carrier that names ITS OWN space reports nothing when it is
@@ -60,6 +66,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
             to: fname(fillet, wall(2)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the rebind target is live");
     let doc = applied.doc;
@@ -118,6 +125,10 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
+    // The delete moves the pair's gauge and the solve levers the
+    // parts, so both go through the store's reach.
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -150,7 +161,13 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         },
     );
 
-    let applied = delete(&doc, placed);
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: placed },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("the delete is legal");
     assert!(
         !applied
             .maintenance
@@ -159,7 +176,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         "the operand is a read site, not a name: {:?}",
         applied.maintenance
     );
-    let fault = solve_document(&applied.doc, Tol::witness())
+    let fault = solve_document(&applied.doc, &reach, Tol::witness())
         .fault(mate)
         .expect("the solve refuses the mate whose operand left")
         .clone();
@@ -263,6 +280,7 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -300,6 +318,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -320,6 +339,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
             to: live.clone(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the reported key is rebindable onto a live name")
     .doc;

@@ -29,6 +29,7 @@ use fixture::flush_pairs;
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Tol;
+use std::sync::Arc;
 
 // ---- Evaluation through the shared part store (no files, full pin gate) ----
 
@@ -117,7 +118,7 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
 /// edits ARE the result" comparator undo leans on.
 fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
     for edit in edits {
-        doc = editor_core::apply(&doc, edit, Tol::witness())
+        doc = editor_core::apply(&doc, edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the recorded edit replays")
             .doc;
     }
@@ -149,6 +150,7 @@ fn row1_split_one_cluster_preserves_structure_and_names() {
         &cut,
         DocumentId::derive("asm4-r1-new"),
         Tol::witness(),
+        None,
     )
     .expect("the split is legal");
 
@@ -275,6 +277,7 @@ fn row1_split_plain_subtree_preserves_structure() {
         &cut,
         DocumentId::derive("asm4-r1p-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     assert!(
@@ -310,6 +313,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
         &cut,
         DocumentId::derive("asm4-r2-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     // Undo of the split: the input document is untouched, and the
@@ -333,8 +337,13 @@ fn row2_inline_inverts_split_and_undo_restores() {
     store2.insert(out.part.clone(), Tol::witness());
 
     let remainder_snapshot = out.remainder.clone();
-    let inlined =
-        inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("the inline is legal");
+    let inlined = inline(
+        &out.remainder,
+        out.instance,
+        &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the inline is legal");
     assert!(
         out.remainder.bit_eq(&remainder_snapshot),
         "inline leaves its input untouched"
@@ -415,6 +424,7 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         &cut,
         DocumentId::derive("asm4-r2a-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     let RoleSeg::InPart { of } = &face.path[0] else {
@@ -444,7 +454,13 @@ fn row2_appearance_rides_the_bridge_both_ways() {
     let mut store2 = PartStore::default();
     store2.insert(part("asm4-r2a-part", 0.0, 1.0), Tol::witness());
     store2.insert(out.part.clone(), Tol::witness());
-    let inlined = inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("legal");
+    let inlined = inline(
+        &out.remainder,
+        out.instance,
+        &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("legal");
     let back = inlined.node_map[&out.node_map[&ids[1]]];
     let restored = StableName {
         kind: face.kind,
@@ -477,6 +493,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &BTreeSet::from([plane, profile]),
         DocumentId::derive("n1"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -494,6 +511,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &BTreeSet::from([extrude]),
         DocumentId::derive("n2"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -530,6 +548,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &everything_but_the_declaration,
         DocumentId::derive("n3"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -550,6 +569,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &just_the_declaration,
         DocumentId::derive("n3-mirror"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::SeveredEdge {
             consumer,
@@ -569,6 +589,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         &everything,
         DocumentId::derive("n3-all"),
         Tol::witness(),
+        None,
     )
     .expect("a cut closed under the DAG is accepted");
 }
@@ -613,6 +634,7 @@ fn row3_uncut_param_reference_refuses() {
         &BTreeSet::from([f1, p1, e1]),
         DocumentId::derive("n"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::UncutParamReference {
             param,
@@ -632,6 +654,7 @@ fn row3_uncut_param_reference_refuses() {
         &BTreeSet::from([f1, p1, e1, f2, p2, e2]),
         DocumentId::derive("n"),
         Tol::witness(),
+        None,
     )
     .expect("a cut containing every referencing node carries the parameter");
     assert!(out.part.params().contains_key(&ParamName::new("h")));
@@ -648,7 +671,12 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
     // The referenced document moves on under the same id: the pin the
     // host carries no longer holds.
     store.insert(part("asm4-r3i-part", 0.0, 2.0), Tol::witness());
-    match inline(&host, id, &store, Tol::witness()) {
+    match inline(
+        &host,
+        id,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
         Err(InlineError::Unresolved { failure }) => {
             assert_eq!(failure.fault, ResolveFault::PinMismatch);
         }
@@ -667,12 +695,19 @@ fn row3_further_typed_refusals() {
             &doc,
             &BTreeSet::new(),
             DocumentId::derive("n"),
-            Tol::witness()
+            Tol::witness(),
+            None
         ),
         Err(SplitError::EmptyCut)
     ));
     assert!(matches!(
-        split(&doc, &BTreeSet::from([ids[0]]), doc.id(), Tol::witness()),
+        split(
+            &doc,
+            &BTreeSet::from([ids[0]]),
+            doc.id(),
+            Tol::witness(),
+            None
+        ),
         Err(SplitError::PartIdCollides { .. })
     ));
     assert!(matches!(
@@ -681,6 +716,7 @@ fn row3_further_typed_refusals() {
             &BTreeSet::from([RecipeNodeId(999)]),
             DocumentId::derive("n"),
             Tol::witness(),
+            None
         ),
         Err(SplitError::UnknownCutNode { .. })
     ));
@@ -689,6 +725,7 @@ fn row3_further_typed_refusals() {
     // consumer onto a spliced product).
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r3f-part", 0.0, 1.0), Tol::witness());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let (host, consumer) = insert(
@@ -700,7 +737,7 @@ fn row3_further_typed_refusals() {
             rotation_angle: fixture::ang(0.0),
         },
     );
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {
             assert_eq!((node, by), (inst, consumer));
         }
@@ -719,7 +756,7 @@ fn row3_further_typed_refusals() {
             frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
         },
     );
-    match inline(&host2, inst2, &store, Tol::witness()) {
+    match inline(&host2, inst2, &resolver, Tol::witness()) {
         Err(InlineError::UnplaceableFrame { root }) => {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
@@ -733,7 +770,8 @@ fn row3_further_typed_refusals() {
     // The same instance at IDENTITY inlines fine.
     let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"), Tol::witness());
     let (host3, inst3) = insert(host3, Node::instantiate_part(doc_ref));
-    inline(&host3, inst3, &store, Tol::witness()).expect("an identity-placed plain part inlines");
+    inline(&host3, inst3, &resolver, Tol::witness())
+        .expect("an identity-placed plain part inlines");
 }
 
 // ---- Row 4: roots and placements, both sides ----
@@ -750,6 +788,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r4-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     let mapped = out.node_map[&ids[1]];
@@ -809,6 +848,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &BTreeSet::from([inst[0], inst[2]]),
         DocumentId::derive("asm4-r4b-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     assert_eq!(
@@ -852,6 +892,7 @@ fn row5_interface_record_exists_and_round_trips() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r5-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     match out.remainder.node(out.instance) {
@@ -891,6 +932,7 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-per-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     let part_loaded = load(
@@ -981,6 +1023,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
         &cut,
         DocumentId::derive("asm4-min1-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     assert_eq!(
@@ -997,7 +1040,13 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     let mut store2 = PartStore::default();
     store2.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     store2.insert(out.part.clone(), Tol::witness());
-    let inlined = inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("inlines");
+    let inlined = inline(
+        &out.remainder,
+        out.instance,
+        &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("inlines");
     let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
     // The pinned collapse: [e, i2, i0, i1] round-trips to
     // [e, i2, i1, i0] (in correspondence) — the spliced block lands
@@ -1078,6 +1127,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("n"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::BodyNameCrossesCut { name }) => {
             assert_eq!(*name, body_name);
@@ -1139,6 +1189,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &BTreeSet::from([cut_f, cut_p, cut_e]),
         DocumentId::derive("n"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::NameStraddlesCut { name }) => {
             assert_eq!(*name, straddler);
@@ -1189,6 +1240,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &BTreeSet::from([cut_f, cut_p, cut_e, decl]),
         DocumentId::derive("n"),
         Tol::witness(),
+        None,
     ) {
         Err(SplitError::PartNameReachesRemainder { node, name }) => {
             assert_eq!(node, decl);
@@ -1226,7 +1278,12 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         },
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(
+        &host,
+        inst,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
         Err(InlineError::ParamConflict { param }) => {
             assert_eq!(param, ParamName::new("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
@@ -1248,7 +1305,12 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
     let doc_ref = store.insert(part_doc, Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(
+        &host,
+        inst,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
         Err(InlineError::EpsilonSeam { host_eps, part_eps }) => {
             assert_eq!(host_eps.to_bits(), host.epsilon().to_bits());
             assert_eq!(part_eps.to_bits(), moved_eps.to_bits());
@@ -1279,7 +1341,12 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let doc_ref = store.insert(carrying, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(
+        &host,
+        inst,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
         Err(InlineError::PartCarriesMetadata { key }) => {
             assert_eq!(key, "note");
             let msg = format!("{}", InlineError::PartCarriesMetadata { key });
@@ -1296,6 +1363,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     use editor_core::EntityKind;
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0), Tol::witness());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
 
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
@@ -1324,7 +1392,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::ForeignInstanceName { name }) => {
             assert_eq!(*name, foreign);
             let msg = format!("{}", InlineError::ForeignInstanceName { name });
@@ -1352,7 +1420,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceBodyNameReferenced { name }) => {
             assert_eq!(*name, body_name);
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
@@ -1398,12 +1466,13 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     );
     let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
     let doc_ref = store.insert(part_doc, Tol::witness());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(
         DocumentId::derive("asm4-min2-stranded-host"),
         Tol::witness(),
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store, Tol::witness()) {
+    match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::StrandedPartName { name }) => {
             assert_eq!(*name, stranded);
             let msg = format!("{}", InlineError::StrandedPartName { name });

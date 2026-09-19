@@ -5148,6 +5148,7 @@ mod route_tests {
                         node: Node::declare_rest(Vec::new()),
                     },
                     Tol::witness(),
+                    &crate::mate::RefusingReach,
                 )
                 .expect("an empty Declare inserts");
             ids.push(applied.record.minted.expect("the insert minted an id"));
@@ -5378,7 +5379,11 @@ mod route_tests {
         let (doc, union, ms) = doc_with_members(4);
         let gone = ms[3];
         let doc = doc
-            .apply(&DocEdit::DeleteNode { id: gone }, Tol::witness())
+            .apply(
+                &DocEdit::DeleteNode { id: gone },
+                Tol::witness(),
+                &crate::mate::RefusingReach,
+            )
             .expect("the empty Declare deletes")
             .doc;
         let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));

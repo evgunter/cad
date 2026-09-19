@@ -1672,6 +1672,7 @@ pub fn apply_with_names<T: Decide>(
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
     tol: Tol,
+    reach: &dyn crate::mate::MateReach,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     // The pairing, before any name is read (why: this fn's docs).
@@ -1723,7 +1724,7 @@ pub fn apply_with_names<T: Decide>(
             return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
         }
     }
-    crate::edit::apply(doc, edit, tol)
+    crate::edit::apply(doc, edit, tol, reach)
 }
 
 /// The nodes a name's derivation passes through: its minting node,

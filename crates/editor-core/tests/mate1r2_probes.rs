@@ -23,10 +23,9 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame,
     MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, assemble,
-    solve_document,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -266,7 +265,8 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(mate),
         None,
@@ -355,7 +355,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
     assert_eq!(poses.role(m1), Some(MateRole::Declaring));
@@ -363,7 +364,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
     // NOTE: the pattern direction is a DOCUMENT-coordinate map applied
     // outside the placement, so the copies march along document x̂ even
     // though the leg is rotated; the top must land so both seats hold.
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     match &result {
         Ok(_) => {}
@@ -428,7 +429,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     assert_eq!(poses.gauge(leg2), Some(leg1), "leg1 is document-first");
@@ -486,7 +488,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.gauge(leg), Some(top), "the top is document-first");
 
@@ -556,7 +559,8 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses
         .fault(m1)
         .cloned()
@@ -577,7 +581,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     // not the pair's, and not the document's.
     assert_eq!(poses.role(m0), Some(editor_core::MateRole::Determining));
     assert!(poses.fault(m0).is_none());
-    let _ = (store, m0);
+    let _ = m0;
 }
 
 // ---- P5: a nested pattern head ----
@@ -636,7 +640,8 @@ fn r2_nested_pattern_head_is_a_member() {
         },
     );
     let mate = mate.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "a nested pattern head resolves through both levels: {:?}",
@@ -647,7 +652,7 @@ fn r2_nested_pattern_head_is_a_member() {
         Some(editor_core::MateRole::Determining),
         "the nested copy's reference places its pair"
     );
-    let _ = (store, inner);
+    let _ = inner;
 }
 
 // ---- P6: plain-document pose bits (cross-revision instrument) ----
@@ -689,7 +694,8 @@ fn r2_plain_document_pose_bits() {
         },
     );
     let _ = (m0.expect("m0 mints"), m1.expect("m1 mints"));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     for id in [ia, ib, ic] {
         let f = poses.relative(id).expect("a pose");
         let bits: Vec<u64> = f

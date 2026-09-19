@@ -79,6 +79,7 @@ fn main() {
                 value: value.clone(),
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("declaration applies")
         .doc;

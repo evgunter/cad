@@ -402,3 +402,105 @@ gained its amendment section; the lane resumes on PR 2116.
 ## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no solver behaviour and no serde spelling changes.
+
+## MSOLVE-6 landed, in review (2026-09-12)
+
+The lane died twice on model limits (2026-09-08, 01:45Z and ~03:20Z)
+after pushing the whole unit — the lever, the reach trait and door,
+the edit door taking the reach, `LoggedEdit` and the replay doors,
+the retired constants, ~400 call sites — and the orchestrator's
+session idled until 2026-09-12. Resumed that day: main had moved 474
+merged PRs, the lane merged it (2,420 commits) into
+`msolve/6-part-extent`, and PR 2116 is job-level green at `21f5a65`
+(39 checks; CI grew a corrupt-input job and a viewer montage lane in
+the interval). What the build measured, beyond the spec: the bracket
+read lives under `EvalScalar` in the eval adapter after the
+bounds-allowlist gate refused a compound bound in `mate/` (ruled: no
+allowlist entry); `split` and `inline` take a resolver rather than a
+reach because the maintenance of a split's own rebinds levers on the
+part the split is minting; the edit refuses only where the prior
+solve reached NO verdict and records `Split { frame: None }` where it
+decided there is no pose (deviation 2, argued in the PR). Style review
+and correctness arm dispatched on that head. Five items were routed
+onto this slate by EVAL and LIB in the interval (the `FromFace` mate
+frame arm under Ev's ruling (F) on PR 2256; three levered clash
+margins with their arm invisible; the flat-index `Part` over a nested
+pattern at `check_reference`; `axis_datum`'s seat; the per-check
+nominal environment) — triaged after this unit's review.
+
+## The routed items triaged (2026-09-12)
+
+Five items reached this slate from EVAL, LIB and FIX while the
+orchestrator idled. Triaged into three units after MSOLVE-6, in
+`plan.md`: MSOLVE-7 gathers the three `member.rs` findings (the
+nested-pattern flat index at `check_reference`, `axis_datum`'s seat,
+the per-check nominal environment); MSOLVE-8 is the three levered
+clash margins with their arm invisible, with the radians-vs-pure-number
+decision the item names; MSOLVE-9 is the `FromFace` mate-frame arm
+under Ev's ruling (F) on PR 2256, last, on MSOLVE-6's reach road. The
+exit walk moves behind them.
+
+## MSOLVE-6 reviews adjudicated, fix pass dispatched (2026-09-12)
+
+Correctness arm PASS with MINORs: C1 the lever bounds the true reach
+on six fixture parts (exact on all-line bodies, 24 % loose on the
+cylinder by the documented rim bound); C2 by construction plus the
+113 pose-pinning rows (main not rebuilt — disk); C3 typed on every
+road; C4 the census; C5 replay store-free and the reach asked only
+when a gauge moves (4 asks on a 3-instance chain: two pairs, two
+parts). Findings: a recorded maintenance row's frame is trusted
+bytes at load (a reflection loads; `SetPlacement` of it refuses);
+`unsolved_because`'s document-wide fallback could attribute another
+cluster's fault and, for a decided kind, PROCEED — dead in practice,
+ruled fixed by dropping the fallback and refusing `fault: None` as
+the typed invariant-excluded report; no interval-lane row for the
+bracket read (P2b adopted). Style: no MAJOR of its own; the
+`Applied.maintenance` and README premises now false; nine spellings
+of "a reach from a resolver"; the lever sum formed twice; five replay
+loops; two knobs for three states in `apply_maintaining`; a
+`PartialEq<DocEdit>` in `src` for a test; the archaeology in
+`lever_arm`'s doc (ruled: discipline §4 over the spec's "keep the
+story"); `PosesOfAnotherDocument` filed as decided (ruled: refuse).
+Twenty-seven items to the lane.
+
+## MSOLVE-6 lane resumed; six routed items triaged (2026-09-19)
+
+The implementer lane died on a session limit on 2026-09-12 with the
+whole 27-item fix pass committed locally (two commits over a merge
+with main) and nothing pushed; PR 2116 sat at `21f5a65ec` for a week
+while main moved 3506 commits and went `dirty`. Resumed 2026-09-19:
+push first, merge main again (EDIT's typed mate head, PR 2799, lands
+in the same files), the full verification as a fresh head, the PR
+body's fix-pass section, green at job level, then the head to this
+orchestrator for the item 1/2/4/8/10/11 spot-check and the merge.
+
+Six items reached `work/msolve/` from other programs while the
+orchestrator was idle. Two closed at triage as records (the stale
+`tree.rs` citation in the closed memo-key row, and MSOLVE-5's three
+kind rows that EDIT's typed head made unwritable — ruled: an ordering
+over one question is empty, nothing replaces it). `MatePrimitive`'s
+missing `deny_unknown_fields` joins MSOLVE-7's lane; `coset.rs`'s
+unit-direction witness and the `MateFault` subject row join MSOLVE-8's
+(ruled: no `subject()`, a sentence on the enum naming its two
+consumers and the `Band`/`PosesOfAnotherDocument` asymmetry); the
+clocking row splits — the static `FrameCoincidence`+clocking refusal
+at `AddMate` is MSOLVE-10, the roll convention rides MSOLVE-9's spec.
+`plan.md` items 13–16.
+## MSOLVE-6 MERGED (2026-09-19, PR 2116)
+
+The lever is the mated parts' own extent, and the edit door takes the
+reach with the log recording the maintenance. Reviews on `21f5a65ec`
+(correctness PASS with MINORs, style no MAJOR); the twenty-seven-item
+fix pass landed after the lane's session limit reset, over two merges
+with main (3506 commits, then 32: EDIT's typed mate head, DM7's mated
+deletes, the drafts row) and one CI round for four callers main added
+and the `deny_unknown_fields` census tally (two new sites in `edit.rs`,
+one in `mate/solve.rs` — a re-baseline, the sibling row passing).
+Orchestrator spot-check on the diff: the row-frame walk and the
+`SetPlacement` door share `Frame::admission_fault`; `unsolved_because`
+reads the gauge's own fault and `None` refuses; `PosesOfAnotherDocument`
+refuses; one `PartReach::with_resolver` at every resolver-only door;
+`mate_coset` takes the arm; one `replay_entry` behind five replays.
+Spec into the ledger at the unit head. Closes the lever item and the
+reconcile fork. Next: MSOLVE-7 (member.rs residue + the `MatePrimitive`
+wire hole), then MSOLVE-8, -9, -10 per `plan.md`.

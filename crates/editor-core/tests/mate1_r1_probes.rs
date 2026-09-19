@@ -14,10 +14,10 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame, MateFrame,
-    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, clusters, solve_document,
+    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, clusters,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -160,7 +160,8 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         "the top joins the pattern's cluster; the leg is the gauge"
     );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     assert_eq!(poses.gauge(top), Some(leg));
@@ -198,7 +199,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         world.translation
     );
 
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -308,7 +309,8 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
         },
     );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the oblique circular mate solves");
     let world = poses.placement(&doc, top).expect("the top places");
 
@@ -384,7 +386,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         },
     );
     let mate = mate.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None);
 
     // The pattern node holds no pose and no gauge: copies are not
@@ -403,6 +406,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         bad.is_err(),
@@ -491,7 +495,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
         };
         let (doc, _) = step(doc, DocEdit::SetPlacement { node: a, frame: fr });
 
-        let poses = solve_document(&doc, Tol::witness());
+        let o = with_resolver(store);
+        let poses = solve(&doc, &o, Tol::witness());
         for inst in [a, b, c] {
             let Some(f) = poses.relative(inst) else {
                 lines.push(format!("{tag} {} NONE", inst.0));
@@ -659,7 +664,8 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         },
     );
     let m = m.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses
         .fault(m)
         .expect("a one-level name over a nest refuses");
@@ -716,7 +722,8 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         },
     );
     let m2 = m2.expect("the mate mints");
-    let poses2 = solve_document(&doc2, Tol::witness());
+    let o2 = with_resolver(store2);
+    let poses2 = solve(&doc2, &o2, Tol::witness());
     // A pattern OF A TRANSFORM resolves: the walk goes from the
     // operand through the pattern's `Instance(i)` and on through the
     // transform to the minting instance, and the offset composes
@@ -733,7 +740,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         Some(editor_core::MateRole::Determining),
         "and it places its pair"
     );
-    let _ = (store2, pat);
+    let _ = pat;
 }
 
 // ---------------------------------------------------------------
@@ -800,7 +807,8 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
     let good = good.expect("the good mate mints");
     let bad = bad.expect("the malformed mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.role(good), Some(MateRole::Determining));
 
     let fault = poses
@@ -875,7 +883,8 @@ fn r1_reproduce_the_quoted_red_first_fault() {
         (0, 1, 2, 3),
         "the node ids the PR body's quote names"
     );
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let line = match poses.fault(mate) {
         Some(f) => format!("{f:?} | {f}"),
         None => "NO FAULT (the head resolves)".to_string(),

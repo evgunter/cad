@@ -77,7 +77,7 @@ fn some_order_lands(
         if used[i] {
             continue;
         }
-        if let Ok(next) = apply(doc, &edits[i], tol) {
+        if let Ok(next) = apply(doc, &edits[i], tol, &pncad::document::RefusingReach) {
             used[i] = true;
             if some_order_lands(&next.doc, edits, used, tol) {
                 return true;

@@ -862,12 +862,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::DatumTooSmall {
-                extent: 1.0e-9,
-                floor: 1.0e-6,
+            refusal: LeverRefusal::PartUnresolved {
+                instance: id(0),
+                fault: pncad::document::PartFault::NoResolver,
             },
         },
-        &["mate", "inner_variant", "extent", "floor"],
+        &["mate", "instance", "inner_variant"],
     );
     // A levered clash carries both halves of the lever beside it;
     // one measured without a lever carries neither.
@@ -1009,15 +1009,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::DatumTooSmall {
-            extent: 1.0e-9,
-            floor: 1.0e-6,
+        refusal: LeverRefusal::PartUnresolved {
+            instance: id(0),
+            fault: pncad::document::PartFault::NoResolver,
         },
     };
     let payload = mate_payload(&unleverable);
-    assert_eq!(payload.inner_variant, Some("datum_too_small"));
-    assert_eq!(payload.extent, Some(1.0e-9));
-    assert_eq!(payload.floor, Some(1.0e-6));
+    assert_eq!(payload.inner_variant, Some("part_unresolved"));
+    assert_eq!(payload.instance, Some(id(0)));
 
     // The classifier's numbers are the ones the band and the margin
     // held, on the frame door's own names.
@@ -1170,7 +1169,13 @@ fn resolution_status_tags_are_stable() {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the node inserts");
         let id = applied.record.minted.expect("an inserted id");
         (applied.doc, id)
     };
@@ -1224,9 +1229,14 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
-        .expect("the leaf deletes")
-        .doc;
+    let pruned = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: extrude },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the leaf deletes")
+    .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1590,6 +1600,7 @@ fn expression_evaluation_tags_are_stable() {
                 value: param,
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1706,6 +1717,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
@@ -1718,6 +1730,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the profile inserts");
     let text = save(&applied.doc, &[], tol).expect("the document saves");
@@ -4235,6 +4248,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "maintenance_refused",
+            "maintenance_unrecorded",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -4283,6 +4298,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -4402,6 +4418,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "frame_fault_tag",
+        values: &["improper", "non_finite"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "hit_test_error_tag",
         values: &[
             "ambiguous",
@@ -4452,7 +4473,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["datum_too_small"],
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "not_an_instance",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -4491,7 +4519,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
-            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -4500,6 +4527,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_self",
             "mate_table_lacks",
             "mate_under",
+            "mate_unleverable",
         ],
         delegates: &[],
     },
@@ -4786,6 +4814,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edit_replay",
             "header_id",
             "id_mismatch",
+            "maintenance_frame",
             "non_finite",
             "parse",
             "profile_program",
@@ -4879,6 +4908,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "recorded_program_error_tag",
         values: &[
             "carrier_in_chain",
+            "notation_before_any_step",
             "notation_off_program",
             "subdivision_count",
         ],
@@ -5443,12 +5473,14 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("node_failed", 4),
     ("node_not_evaluated", 3),
     ("node_poisoned", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("not_a_body", 2),
+    ("not_an_instance", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
+    ("part_unresolved", 2),
     // ONE concept, and pinned as one: the param-ref convention
     // `editor_core::EditError`'s enum doc states. That the two maps
     // agree word for word is held by
@@ -5479,10 +5511,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_param", 4),
     ("unnamed", 2),
     ("unreadable", 2),
-    // `program_refusal_tag`'s profile-program validator and
-    // `validation_refusal_tag`'s `Body.validate`: two vocabularies that
-    // share an English word and nothing else — different attributes on
-    // different classes. Coincidence, decided here.
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
@@ -9136,8 +9164,13 @@ mod product_memo_rows {
         doc: d::ProfileDoc,
         node: d::Node<d::ProfileProgram>,
     ) -> (d::ProfileDoc, d::RecipeNodeId) {
-        let applied = d::apply(&doc, &d::DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the edit is accepted");
+        let applied = d::apply(
+            &doc,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the edit is accepted");
         let minted = applied.record.minted.expect("an insert mints an id");
         (applied.doc, minted)
     }

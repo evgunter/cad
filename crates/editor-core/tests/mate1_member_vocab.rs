@@ -19,10 +19,10 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
     Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, clusters, solve_document,
+    RoleSeg, StableName, assemble, clusters,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, relations, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, relations, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -170,7 +170,8 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
         "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
     );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     assert_eq!(poses.gauge(top), Some(leg));
@@ -195,7 +196,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     );
 
     // End to end: the evaluation runs the same solve; no node refuses.
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -253,7 +254,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
 
     // Hand-composed from θ alone: copy 1 is the master rotated θ about
@@ -353,7 +355,8 @@ fn two_seats(
 #[test]
 fn a_consistent_sibling_loop_declares_and_verifies() {
     let (doc, _, [m0, m1], store) = two_seats("mate1-loop-ok", 1.5, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
     assert_eq!(
@@ -367,7 +370,7 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
         "the sibling seat closes a loop: non-tree, declaring"
     );
 
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     // The branch this fixture takes is `Ok` with both declarations
     // minted — asserted hard, so the row reds if loop verification
@@ -392,7 +395,8 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
 #[test]
 fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
     let (doc, _, [m0, m1], store) = two_seats("mate1-loop-bad", 4.0, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(m1),
         None,
@@ -400,7 +404,7 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
     );
     assert_eq!(poses.role(m1), Some(MateRole::Declaring));
 
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("an inconsistent loop is a finding against the document, got {result:?}");
@@ -429,11 +433,11 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
 #[test]
 fn mates_never_solve_pattern_parameters() {
     let (doc, pattern, [m0, m1], store) = two_seats("mate1-pin-spacing", 3.0, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
 
-    let o = with_resolver(store);
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
@@ -528,7 +532,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let m0 = m0.expect("mate 0 mints");
     let m1 = m1.expect("mate 1 mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses.fault(m0).expect("the pair's fold refuses");
     assert!(
         matches!(
@@ -647,7 +652,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         },
     );
     let stale = stale.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses.fault(stale).expect("an out-of-range copy refuses");
     assert!(
         matches!(
@@ -693,7 +699,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         },
     );
     let m = m.expect("the mate mints");
-    let poses2 = solve_document(&doc2, Tol::witness());
+    let o2 = with_resolver(store2);
+    let poses2 = solve(&doc2, &o2, Tol::witness());
     let fault2 = poses2.fault(m).expect("a patterned non-instance refuses");
     assert!(
         matches!(
@@ -755,7 +762,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     );
     let selfish = selfish.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.role(declared),
         Some(MateRole::Declaring),

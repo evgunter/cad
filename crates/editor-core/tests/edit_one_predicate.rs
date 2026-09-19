@@ -103,6 +103,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
             node: assertion(frame_node, len(1.0)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m, frame_node),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
@@ -135,6 +136,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
             node: assertion(measure, fixture::ang(0.5)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionDimension {
             measured: Dimension::Length,
@@ -168,6 +170,7 @@ fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (Str
             node: assertion(measure, bound),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a well-dimensioned assertion inserts");
     let id = applied.record.minted.expect("the insert minted an id");
@@ -332,6 +335,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
             node: mate(ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::NonFiniteAlignment { .. }) => {}
         other => panic!("a non-finite alignment must refuse typed, got {other:?}"),
@@ -609,6 +613,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, other),
         other => panic!("a placement on a non-instance must refuse typed, got {other:?}"),
@@ -643,6 +648,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
             frame: mirror,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ImproperPlacement { determinant, .. }) => {
             assert!(determinant < 0.0, "the refusal carries the determinant");
@@ -803,6 +809,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
@@ -830,9 +837,14 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     // Deleted rather than invented, so the id stays BELOW the mint
     // counter and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `IdBeyondCounter`.
-    let doc = apply(&doc, &DocEdit::DeleteNode { id: gone }, Tol::witness())
-        .expect("the extrude has no consumer")
-        .doc;
+    let doc = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: gone },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the extrude has no consumer")
+    .doc;
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -840,6 +852,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
@@ -869,7 +882,12 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 #[test]
 fn a_non_positive_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::SetTolerance { eps: 0.0 },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
     }
@@ -939,6 +957,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
                 value: value.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         ) {
             Err(EditError::NonFiniteDocParam { name: n, field }) => {
                 assert_eq!(n, name);
@@ -951,7 +970,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             name: name.clone(),
             value,
         };
-        match save(&doc, &[edit], Tol::witness()) {
+        match save(&doc, &[edit.into()], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
@@ -995,6 +1014,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
             value: DocParam::continuous(Dimension::Count, 3.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ContinuousParamCannotBeCount { name: n }) => assert_eq!(n, name),
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),

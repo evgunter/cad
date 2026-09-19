@@ -38,7 +38,13 @@ fn scalar(v: f64) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol()).expect("the node inserts");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the node inserts");
     let id = applied.record.minted.expect("one minted id");
     *doc = applied.doc;
     id
@@ -56,6 +62,7 @@ fn slab(depth: f64) -> ProfileDoc {
             value: DocParam::continuous(Dimension::Length, depth),
         },
         tol(),
+        &pncad::document::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
@@ -130,6 +137,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
                 value: DocParamValue::Continuous(v),
             },
             tol(),
+            &pncad::document::RefusingReach,
         )
         .expect("a value edit applies")
         .doc;

@@ -889,16 +889,20 @@ BOUND_AS = {
     # below, `different-shape`, because its discriminant arrives as
     # which of these attributes is set rather than as a word.
     "Indeterminate": "FrameError.margin",
-    # THE LEVER-ARM REFUSAL, curated at `pncad::document` beside the
-    # `MateFault` arm that carries it, and its discriminant is the
-    # word that arm publishes: `datum_too_small`, the one way a datum
-    # can name a scale too small to lever a verdict over.
-    #
-    # Its fields DO cross, which is the difference from the shell
-    # row below: `MateFault.extent` and `MateFault.floor` are the
-    # scale the datum named and the floor it is under, in metres, so
-    # nothing about this refusal is readable only in the prose.
+    # THE LEVER REFUSAL, curated at `pncad::document` beside the
+    # `MateFault` arm that carries it (`mate_unleverable`), and its
+    # discriminant is the word that arm publishes: why one mated
+    # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
+    # `malformed_body`, `no_extent`, `no_finite_bound`,
+    # `not_an_instance`). The instance it is about crosses as
+    # `MateFault.instance`, and a face that cannot be bounded names its
+    # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
+    # What a frame fails to be a placement: the word `PersistError`'s
+    # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
+    # `improper`) for a recorded maintenance row held to the
+    # `SetPlacement` door's rule at load.
+    "FrameFault": "PersistError.inner_variant",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -1131,6 +1135,21 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
+    # The mate solve's reach — the mated parts' own extent, what a
+    # solve and a mate-graph edit lever through — is spelled in Python
+    # as the `resolver=` keyword `evaluate` already has, on
+    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
+    # `Workspace` IS the reach's seam, and absent it every door refuses
+    # typed the way the kernel's refusing reach does.
+    "MateReach": "Doc.apply",
+    "PartReach": "Doc.apply",
+    "RefusingReach": "Doc.apply",
+    "mate_reach": "Doc.apply",
+    # A part whose reach is not in hand faults the mate; Python reads
+    # it as `MateFault`'s `mate_unleverable` variant, with the lever
+    # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
+    # `different-shape` family, beside the other inner refusals).
+    "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
     "declare_node": "Node.declare",
@@ -2067,6 +2086,16 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
+    # Python's document keeps no edit log: `Doc.save` writes an empty
+    # log and `load` replays below the wrapper, so the logged entry
+    # (an edit with the cluster-maintenance rows it performed), the
+    # replay door that re-applies those rows, and the migration door
+    # that re-derives them for a log from before they were recorded
+    # have no Python shape to bind.
+    "LoggedEdit": SHAPE,
+    "apply_logged": SHAPE,
+    "replay_entry": SHAPE,
+    "load_with": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -3113,6 +3142,8 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFiniteAlignment": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
+    "EditError::MaintenanceRefused": "EditError.variant",
+    "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
     "EvalError::ParamDimensionMismatch": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
@@ -3211,6 +3242,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
+    "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",

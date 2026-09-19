@@ -30,11 +30,16 @@ the cluster and every mate holding it together
 (`crates/editor-core/src/mate/solve.rs:838-856`), and those faults name
 the offending mates in public fields — so a consumer that trusts the
 blame will point a user at a green row. CHROME's fix had to corroborate
-every blame against the evaluation before using it
-(`crates/viewer/src/tree.rs:337-339`: take the first blamed mate the
-run *agrees* is `Failed`, else keep the row's own failure). Without
-that guard the naive read points at an `Ok` row **and drops the
-message**, which is strictly worse than the defect it was fixing.
+every blame against the evaluation before using it (the viewer's
+`downstream_of_mate`, `crates/viewer/src/tree.rs`: take the first
+blamed mate the run *agrees* is `Failed`, else keep the row's own
+failure). Without that guard the naive read points at an `Ok` row
+**and drops the message**, which is strictly worse than the defect it
+was fixing. *That guard is gone*: once this row's fix made the memo
+key carry the solve, `downstream_of_mate` reads the blame directly
+and its doc says why, citing this row's subject — the workaround
+retired with the defect it worked around (recorded 2026-09-19 from
+`memo-key-rows-tree-rs-citation-now-lands-on-the-opposite-claim`).
 
 That guard is a viewer-side workaround for a kernel inconsistency. It
 should not have to exist, and the next consumer of `MateFault` will not

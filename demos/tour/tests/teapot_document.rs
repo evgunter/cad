@@ -97,7 +97,13 @@ fn lid_meridian() -> LoopProgram {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
