@@ -7,6 +7,7 @@ opened: 2026-09-19
 closed: 2026-09-20
 branch: dup/src-cyl-sheet
 refs: [try-wall-sheet-stands-down-on-any-panic, the-canonical-unit-cylinder-literal-has-no-reachable-home]
+pr: 2925
 ---
 
 
