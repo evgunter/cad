@@ -702,7 +702,8 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
                    f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
                    f"{ev or ''} |")
-    out.append(f"| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES) + " | | | | | | | | | | |")
+    out.append("| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES)
+               + " | | | | | | | | | | |")
     out.append("")
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
                "(`work/README.md`, Priority); a row is counted whatever its "
