@@ -101,27 +101,32 @@ at this program's first dispatch moved four of them. Recorded here
 rather than fixed silently, because the order is the thing a later
 session reads first.
 
-- **`converged-recourse-has-no-home` leaves group 1.** The group calls
-  it *"the third crosses a crate and announces"*; announcing is not
-  what it needs. Both shapes the row states — a `pub const` beside
-  `EditError`, or a `recourse()` method on it — **add API surface to
-  `crates/editor-core`**, and the authorisation this program inherits
-  is scoped to `EditError`'s `Display` WORDING (Ev, in-chat,
-  2026-09-04). The row itself says so: *"Widening it to add an item was
-  refused on the spot rather than taken quietly."* `crates/editor-core`
-  is EDIT's and MSOLVE's. So this is a hand-off or an `[ev]` question,
-  not a lane here, and the row's own closing line — *"ride it on
-  whichever unit next touches `EditError`'s surface with an
-  authorisation wider than `Display` wording"* — names EDIT as the
-  program that will have one.
-- **`viewer-preview-names-a-verb-by-its-variant-identifier` cannot
-  land from here alone**, for the reason the row already gives: the fix
-  is `impl Display for Verb` in `crates/profile`, now **PATHS'**
-  territory as S-BOOL's successor, and forwarding the word from the
-  viewer instead would mint a fourth spelling. Its viewer-side citation
-  has also gone stale — the `PreviewError` render is `pane/profile.rs`
-  now, not `pane/create.rs:582-586` — and that file is claimed by no
-  successor (`work/view/viewer-src-files-no-successor-claims`).
+- **`converged-recourse-has-no-home` left group 1 and then left this
+  program — it is EDIT's now** (moved 2026-09-19; Ev granted the move
+  and the standing authority to re-home a unit between tracks without a
+  ruling). The group called it *"the third crosses a crate and
+  announces"*; announcing is not what it needed. Both shapes the row
+  states — a `pub const` beside `EditError`, or a `recourse()` method on
+  it — **add API surface to `crates/editor-core`**, and the
+  authorisation this program inherits is scoped to `EditError`'s
+  `Display` WORDING (Ev, in-chat, 2026-09-04). `EditError` is declared
+  in `crates/editor-core/src/edit.rs`, which is EDIT's territory. Only
+  the viewer arm stays here: a forward at one site in
+  `session/refuse.rs` once `editor-core` exposes the recourse, landing
+  with the EDIT unit that exposes it.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` is CLOSED
+  — it was already discharged when this program inherited it.**
+  `profile::path::Verb` has had a `Display` since
+  `work/fix/verb-and-dimension-render-through-debug` (FIX, PR 2347,
+  2026-09-11), and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
+  forwards to it — `{verb}`, not `{verb:?}`. **This entry first said the
+  row "cannot land from here alone" and routed it to PATHS**, which was
+  wrong: the orchestrator re-derived the row's citation and not its
+  premise. The correction is kept visible rather than overwritten
+  because the rule it breaks — *a row's premise ages against the tree
+  exactly like a citation does* — is the one handed to every lane this
+  program dispatches, and the register's own instances of it are mostly
+  the orchestrator's.
 - **`tone-is-a-value-in-frame-and-a-comment-in-two-panes` keeps its
   place and loses a citation.** `pane/features.rs`'s hand-picked
   `ui.weak` / `ui.colored_label` pair is there as described, with the
