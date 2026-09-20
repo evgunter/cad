@@ -323,6 +323,23 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     (2026-09-20, `dup/src-cyl-sheet`; the corollary is the lane's, the
     backtrace instrument the reviewer's.)
 
+24. **A negative result carries the scope of the search that produced
+    it.** A lane was asked whether a convention existed in a crate's
+    shared test module. It searched that crate's `common/mod.rs`, found
+    nothing, and reported *"neither string occurs anywhere in
+    `crates/viewer/tests/`"*. True of the file it read; the convention
+    lives in a **sibling crate's** `tests/common/` **submodules**. Its
+    own diagnosis is the item: *my negative result was correctly scoped
+    to the file I searched and wrongly stated as a fact about the repo.*
+    The orchestrator made the mirror-image error in the same exchange,
+    asserting a fact learned from one crate's `tests/common` about
+    another's. Both are item 3 (**re-derive the SCOPE**) in the negative
+    direction, where it is harder to see: a positive hit carries its own
+    path, and an absence carries nothing at all. **State a negative with
+    its fence attached** — "not under `<path>`, with `<instrument>`" —
+    never as a bare "there is none".
+    (2026-09-20, `dup/viewer-shared-doors`; the wording is the lane's.)
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full
