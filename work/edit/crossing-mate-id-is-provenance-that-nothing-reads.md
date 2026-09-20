@@ -2,7 +2,7 @@
 id: crossing-mate-id-is-provenance-that-nothing-reads
 kind: issue
 title: An interface crossing's mate id is provenance nothing reads: checked at insertion today, deletable tomorrow
-status: spec
+status: review
 branch: edit/crossing-drops-mate-id
 opened: 2026-09-19
 ---
@@ -100,3 +100,56 @@ The spec, as premises (verify each against the tree before building):
    `crates/editor-core/tests/*` (TCOST/TINT). Middle tier: one opus
    style review with a correctness arm, then the fix pass.
 
+
+## Built (2026-09-20)
+
+**The field is gone.** `InterfaceCrossing::Mate` is `{ class, outer,
+inner }`: a crossing carries what the seam needs and no provenance.
+
+- `node.rs` — the variant loses `mate`; both doc rows (the
+  `compile_fail` twin and its running twin) lose the line; a **No
+  provenance** paragraph says why the field is absent.
+  `Node::payload_read_sites` loses its `InstantiatePart` arm and the
+  two paragraphs that argued a provenance check, and the variant
+  joins the exhaustive empty group — an instance answers no read
+  site.
+- `refactor.rs` — `split`'s crossing walk writes three fields.
+  `inline`'s dissolve reads `inner` and did not move.
+- `eval/wire.rs`, `eval/mod.rs` — `NodeErrorKind::CrossingUnverified`
+  carries `outer: Box<FaceName>` in place of `mate`, and the Display
+  names the crossing by the reference the remainder keeps. The
+  content key feeds class, `outer`, `inner` — the mate id is not
+  data any more, so it is not keyed.
+- `doc.rs`, `pncad/tests/all.rs` — fixtures re-authored.
+- `crates/pncad-py` — the `mate` getter and its `pncad.pyi` paragraph
+  go; `tags.rs` is unchanged (`crossing_unverified` and the crossing
+  tag both match `{ .. }`). The binding census now lists
+  `InterfaceCrossing::Mate` in `MEMBERS_BOUND_AS` as
+  `InterfaceCrossing.variant`: the arm was accounted by the accident
+  that the retired getter shared its snake-cased name.
+
+**The wire.** `InterfaceCrossing` is `deny_unknown_fields`, so a file
+carrying `mate` refuses at the load door as `PersistError::Unreadable`
+— the door's own typed arm (serde_json classifies the failure `Data`;
+`persist::parse_err` maps that class), with serde's sentence inside
+it. No committed corpus or persisted fixture carries a crossing: the
+four `.pncad` files in the tree hold no instantiate node at all.
+
+**Rows.** Retired: `edit_instance_crossing_names`'
+`the_insert_door_refuses_a_record_whose_mate_is_not_live` and
+`deleting_a_crossings_mate_reports_nothing`, replaced by
+`an_instances_record_answers_no_read_site` (empty read sites over a
+two-crossing record, with a mate's two operands beside it as the
+control). Added in `asm_r2b_interface_wire`:
+`a_crossing_is_three_fields_on_the_wire` and
+`a_file_whose_crossing_carries_a_fourth_field_refuses_at_the_load_door`.
+`edit_one_predicate`'s literal wire pin and
+`asm_r2b_assembly`'s `the_crossing_refusal_is_a_named_node_error`
+moved with the shape; the latter now pins that the refusal names the
+crossing by its `outer`.
+
+**Premise corrections** (both reported in the PR body): the Display
+row lives in `asm_r2b_assembly`, not `display_contract.rs` (which has
+no `CrossingUnverified` row at all), and `crates/pncad/tests/all.rs`'s
+cross-process probe is a fifth construction site the spec did not
+list.
