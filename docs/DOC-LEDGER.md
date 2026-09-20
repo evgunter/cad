@@ -4104,6 +4104,48 @@ record is its item's `## Closed` section and its MERGED entry in
 
 - `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
 
+## Per-merge deletion - PROPS escalation-channel's spec (2026-09-20)
+
+Recoverable at `git show 3502371ec:docs/PROPS-ESCALATION-CHANNEL-SPEC.md`
+(PR #2928's merge commit, the last head carrying it). A/B row
+`escalation`, ordinal 2407, sample #225. The spec's rulings are the
+unit's record together with the two closed items
+(`work/props/escalation-channel-misses-op-minted-indeterminates.md`,
+`work/props/indeterminate-error-arms-sweep.md`), the MERGED entry in
+`work/props/log.md`, and the five residues it left:
+`work/props/should-classify-replays-error-enum-arms-be-deleted.md`,
+`work/props/the-gating-corpus-reaches-no-collapsed-arm-gate.md`,
+`work/props/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`,
+`work/curved/topo-mints-indeterminates-outside-the-funnel.md` and
+`work/msolve/mate-lane-escalations-reach-no-nodes-log.md`.
+
+**Two spec notes at deletion, both cases of the spec asserting a premise
+instead of requiring a decide** - the same fault the sphere-pole-side
+spec shipped a MAJOR through, recorded here so the pattern is visible
+across units rather than once per unit:
+
+- The spec's **Posture** asserted "Recorded-verdict populations WILL
+  move". They did not. The unit measured zero movement and made the zero
+  its receipt, which was the right answer; had it obeyed the spec
+  instead of measuring, it would have re-baselined goldens that nothing
+  had moved.
+- The spec inherited its item's **"roughly forty error variants across
+  five crates"** as fact. The true population is 88 across nine crates,
+  the item's stated recipe yields 83, and the written-down 82 came from
+  neither - a third ad-hoc script whose enclosing-enum regex silently
+  dropped `PropsError::Escalated`. A measurement whose stated recipe
+  does not reproduce it is not a measurement; the unit said so in the
+  item and re-derived all three figures.
+
+A third note, on the spec's **order** (the channel first, the sweep
+second, the sweep scoped by what the channel then carries): the order
+held and was worth ruling, but the sweep it scoped inverted the item's
+premise rather than executing it, retiring nothing. Both blinded
+reviewers independently hunted the counterexample - a variant whose
+every construction and consumer sits inside an open bracket - and both
+failed to find one, which is stronger evidence for the 0-retired
+conclusion than the argument that predicted it.
+
 ## Per-merge deletion — MSOLVE-8's spec (2026-09-20)
 
 Recoverable at `git show 399d411c87031e18c2e9135c44fd02c4c66c7b76:docs/MSOLVE-8-SPEC.md`
