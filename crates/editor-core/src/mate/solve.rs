@@ -520,10 +520,15 @@ fn mate_coset(
             (target, Subgroup::Planar { normal: axis })
         }
         MatePrimitive::Clocking => {
-            // The table's other static gap, from the same home; it
-            // gaps for every rider, so the answer is never `None`.
-            let what = super::table_gap(alignment.primitive, alignment.clocking)
-                .unwrap_or("a standalone clocking with no carrying mate");
+            // The table's other static gap, from the same home
+            // (`super::table_gap`), which gaps a standalone clocking
+            // for every rider: an answer of `None` here is the table
+            // contradicting itself, not a mate the table admits.
+            let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) else {
+                unreachable!(
+                    "table_gap admits a standalone clocking, which the table has no row for"
+                )
+            };
             return Err(Box::new(MateFault::TableLacks { mate, what }));
         }
     };
