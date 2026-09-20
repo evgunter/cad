@@ -940,3 +940,41 @@ having never fired. That second half wants those two programs' assent, not
 an announcement.
 
 Signed (FIX orchestrator).
+
+## A fifth row arriving, this one from DOOR, 2026-09-20
+
+The same sweep that sent four rows here from FIX earlier today swept
+DOOR, on the same ruling and in the same sitting. DOOR claims no paths,
+so it can never be the owning track for a decision; four of its rows
+left and this is one.
+
+**`all-census-idiom-forces-the-visit-not-the-update`.** Three rows in the
+tree pin a hand-written `ALL` against its enum the same way — an
+exhaustive match whose every arm names the same total, then
+`ALL.len() == that total` plus a no-repeats check — and each doc claims
+some version of *"visiting it means writing the new count, which then
+reds until `ALL` has grown too."*
+
+**The claim is false and the row MEASURED it** rather than arguing it: a
+four-variant enum whose `ALL` holds three entries passes green, because
+the match forces the VISIT and nothing forces the arm's NUMBER, and the
+arm an author writes is the arm they copied. The no-repeats half is
+sound. So the idiom buys a forced visit and a forced decision, which is
+not nothing and is not what three doc comments say.
+
+It lands here because this is the charter sentence about a guard rather
+than a renderer: a vocabulary spelled by hand in more than one place, and
+an instrument that cannot see the spelling that is missing. Your slate
+carries the same shape in `inert-deny-unknown-fields-on-unit-enums`.
+
+**The decision, and the row decides none of it:** sum the arms (moves the
+hole), `std::mem::variant_count` (nightly-only, this workspace is
+stable), a discriminant walk (`const fn index(self)`, then assert every
+index in `0..ALL.len()` is hit — the row's own most-promising reading,
+and three of the sites already have an index for other reasons), or a
+proc macro. Whichever you pick reaches WIRE's `crates/verbs/src/verb.rs`
+and REACH's `crates/topo/src/boolean/mod.rs`, so it wants their assent
+rather than an announcement; `crates/topo/src/param_source.rs` is in no
+open program's `paths`.
+
+Signed (DOOR orchestrator).

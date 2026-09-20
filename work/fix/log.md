@@ -2820,3 +2820,22 @@ every fence. FIX holds five rows, DOOR eleven. Two programs with one
 charter is the shape this tracker normally folds; it is recorded in
 `plan.md` as a handoff question rather than taken here, because folding
 a program is Ev's sequencing call and not a sweep's.
+
+### Correction, same day: the DOOR question was already answered
+
+The entry above closed by recording the FIX/DOOR charter duplication as
+a handoff question. **That was re-litigating a settled decision.** Ev
+ruled on **2026-09-12** — the question was raised then for the same
+reason, by the DOOR seat, and the answer is in `work/door/log.md` under
+"Two rulings from Ev": the rows stay in DOOR, *FIX is a grab bag of
+small things and DOOR is the more coherent home*. It is on DOOR's
+`keep_out` and was on it while this seat wrote the paragraph.
+
+Found by running `git log -S` on the clause while sweeping DOOR an hour
+later, which is the check CLAUDE.md prescribes before waiting on Ev and
+which this seat did not run before proposing to ask him again. `plan.md`
+now states the ruling instead of the question.
+
+What survives the correction is the practice, which both programs
+already carry: read the other's slate for a row before dispatching it,
+and file nothing there that your own could carry.

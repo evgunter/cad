@@ -114,9 +114,18 @@ ground no live program is working may be homed here while the program
 is open — **new findings that need a decision first may not**, and go
 to the owning track the day they are filed.
 
-**Worth raising at the next handoff rather than deciding here:**
-`work/door/` was opened on this program's own precedent and carries the
-same charter in the same words — *"one-PR rows whose body already
-contains the fix: no design question, no ruling, no census to build
-first"*. Two programs with one charter is the shape this tracker
-normally folds. FIX holds five rows; DOOR holds eleven.
+**The DOOR adjacency is SETTLED and is not to be re-raised.**
+`work/door/` was opened on this program's precedent and carries a
+charter that reads alike — *"one-PR rows whose body already contains the
+fix: no design question, no ruling, no census to build first"*. Whether
+its rows should come here was asked on 2026-09-12 and **Ev answered: they
+stay in DOOR — FIX is a grab bag of small things and DOOR is the more
+coherent home** (`work/door/log.md`, "Two rulings from Ev"). What
+replaces a merge is a standing practice on both sides: read the other's
+slate for a row before dispatching it, and file nothing on the other's
+slate that your own could carry.
+
+The two programs did diverge on 2026-09-20's sweep, and the difference is
+worth knowing: **DOOR claims no paths, so it can never rule** — every
+decision row it holds leaves. FIX owns three files, so a decision about
+those is its own to take.
