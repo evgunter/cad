@@ -176,6 +176,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/geom-brep/tests/kstats_escalation_channel.rs",
+        disposition: Shared, // op-minted `Indeterminate` scan, code view
+    },
+    Entry {
         path: "crates/geom-brep/tests/pcurve_conic.rs",
         disposition: Shared, // wildcard-arm scan, code view
     },

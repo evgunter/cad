@@ -342,12 +342,9 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // that ever survives the fold refuses TYPED, carrying the
     // `Invalid` diagnostic, instead of riding out as a reported number
     // no caller can tell from a measurement.
-    let min_sin = geom_core::k_stats::gate_measured(
-        "plane_nurbs_transversality_reported",
-        min_sin,
-        band,
-    )
-    .map_err(PlaneNurbsRefusal::Escalated)?;
+    let min_sin =
+        geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
+            .map_err(PlaneNurbsRefusal::Escalated)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
     let localized = localized(wall);

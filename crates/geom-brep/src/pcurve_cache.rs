@@ -2647,7 +2647,11 @@ fn param_rate_gate<T: Decide>(
         }
         _ => T::one(),
     };
-    geom_core::k_stats::decide_positive("pcurve_interval_meter", Margin::metered(extent, rate), band)?;
+    geom_core::k_stats::decide_positive(
+        "pcurve_interval_meter",
+        Margin::metered(extent, rate),
+        band,
+    )?;
     Ok(rate)
 }
 
