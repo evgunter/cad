@@ -2,7 +2,9 @@
 id: converged-recourse-has-no-home
 kind: issue
 title: the converged 'declare it first' recourse is two literals in two crates, held in step only by a test
-status: spec
+status: closed
+closed: 2026-09-20
+pr: 2920
 branch: edit/recourse-one-home
 opened: 2026-09-05
 ---
@@ -134,4 +136,44 @@ recourse — a different unit, not this row's.
    (TCOST/TINT). E-class: green CI and the orchestrator's read; the
    PR body records the sweep (`declare it first`, every hit and its
    disposition) and the crossing.
+
+## Built (2026-09-20) — PR #2920
+
+`crates/editor-core/src/edit.rs` carries
+`pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first"` beside
+`EditError`, documenting the one recourse for a parameter name that does
+not exist, why the two doors converge on the recourse rather than on the
+sentence, and naming `crates/viewer/src/session/refuse.rs` as the second
+reader. `EditError::DocParamNotDeclared`'s `Display` renders it and its
+comment points at the const. The viewer's `Refusal::NoSuchParam` arm
+renders it and the `NoSuchParam` doc paragraph cites it (the announced
+crossing into VNEWS'/VSEAM's ground, one site).
+`panel_edits::refusals_render_as_sentences` is now a pin: it binds the
+const and asserts both renderings carry it. The three `editor-core` rows
+(`edit_doc_param_unit` ×2, `edit_doc_param_distribution` ×1) assert the
+const too, and `story_parametric`'s narrative comment names it instead
+of quoting the clause.
+
+Rendered text is byte-identical on both sides — a single-homing, not a
+wording change.
+
+Not done, and deliberately: the const is not lifted to `editor-core`'s
+root and not carried through `pncad`'s façade. The viewer reads it
+through its existing direct `editor-core` edge, the ruling `pncad`'s
+crate docs state for a name the façade does not carry. The public-surface
+question belongs to the recourse census accessor LIB wants, which the
+ruling already separates from this row.
+
+## Closed (2026-09-20, EDIT orchestrator) — E-class, merged on green CI and the orchestrator's read
+
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` (`edit.rs`) is the one
+home of "declare it first"; `EditError::DocParamNotDeclared` and the
+viewer's `Refusal::NoSuchParam` both render it, the viewer through a
+direct `editor-core` edge (the ruling `pncad`'s crate docs state for a
+name the façade does not carry — no root re-export, so no LIB census
+moves), and `panel_edits::refusals_render_as_sentences` pins both
+renderings against the const rather than a literal. Rendered text is
+byte-identical on both sides; nothing re-baselined. The name follows
+the tree's `<subject>_RECOURSE` shape. The recourse-census accessor
+LIB wants stays a separate question. PR #2920.
 

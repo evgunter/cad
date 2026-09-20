@@ -304,7 +304,8 @@ fn the_unit_door_refuses_typed() {
     // carry-forward edits do not render one indistinguishable refusal.
     let notation = refuse("nonesuch", mm()).to_string();
     assert!(
-        notation.contains("a notation edit") && notation.contains("declare it first"),
+        notation.contains("a notation edit")
+            && notation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
         "the sentence names the notation door and keeps its recourse: {notation:?}"
     );
     let value = apply(
@@ -319,7 +320,8 @@ fn the_unit_door_refuses_typed() {
     .expect_err("the value door refuses the same undeclared name")
     .to_string();
     assert!(
-        value.contains("a value edit") && value.contains("declare it first"),
+        value.contains("a value edit")
+            && value.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
         "and the value door names itself, with the same recourse: {value:?}"
     );
     assert_ne!(
