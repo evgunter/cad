@@ -342,7 +342,15 @@ pair's relative pose to a coset of an SE(3) subgroup; the closure is
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
 Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
-with the added mate's measured clash. (2) Placement lives on the
+with the added mate's measured clash. The edit door asks the same
+per-mate admission of a mate being inserted — the walk, the class,
+each frame, the table's row, the rider on a coincidence decided over
+the mate's own lever — so a mate the table refuses on its own is
+refused at the insert door (`EditError::MateRefused`, carrying the
+solve's fault); the doors decide edits and the solve decides states,
+so a verdict about the pair, and a state a mate comes to hold after
+insert (a head a rebind or a shrunk pattern strands, a re-pointed
+`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
 cluster: clusters are connected components of the instance–mate graph
 (`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
 keyed by its gauge, a missing entry being the identity, so zero- and
