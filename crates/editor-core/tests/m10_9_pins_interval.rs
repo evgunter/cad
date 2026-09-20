@@ -484,6 +484,47 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
     }
 }
 
+/// **R1's SYM-8 review re-take of the pad's four.** The same replay
+/// the gating row above takes, at the pad's `certifies_at`, at BOTH
+/// dials, printing every column of `SymCounts` — so "24 into the door,
+/// twenty out of `numeric` and FOUR out of `symbolic_zero`" is read
+/// whole rather than through the one `registered` number the pin
+/// asserts. The pin above cannot see the four: a later change that
+/// costs four more theorems to `numeric` leaves `registered` at 128.
+#[test]
+#[ignore = "evidence-only: R1's SYM-8 re-take of the pad's split at both dials"]
+fn r1_sym8_the_pads_four_at_both_dials() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    for study in measured_studies(tol) {
+        if study.name != "r2_rounded_pad" {
+            continue;
+        }
+        let doc = (study.at)(study.certifies_at * eps);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = ParamBox::of(&analyzed);
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", SymRules::shipped()),
+        ] {
+            let t = std::time::Instant::now();
+            let (refusal, c) = replay_counts(&doc, &box_, rules, tol);
+            println!(
+                "pad {label} eps={eps:e} ({:.1}s): sym0 {} registered {} gated {} numeric {} \
+                 frozen {} refused_regs {} -> {refusal:?}",
+                t.elapsed().as_secs_f64(),
+                c.symbolic_zero,
+                c.registered,
+                c.sign_gated,
+                c.numeric,
+                c.frozen,
+                c.registrations_refused
+            );
+            println!("   raw {c:?}");
+        }
+    }
+}
+
 /// **AND THE BOUND IS ONE PREDICATE, door open or shut** — the
 /// over-band set at ceiling + δ on the three documents a gate can
 /// afford to name it for.
