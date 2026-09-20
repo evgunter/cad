@@ -283,9 +283,13 @@ pub fn boundary_material_sign<T: Decide>(
 /// **The iso-rectangle SHAPE door** — *is this curved face's domain an
 /// iso-parameter rectangle?* — answered by the S58 single-home
 /// predicate (`require_rims_at_extremes`, decided as `props_rim_level`)
-/// on top of the same per-kind boundary classification the flux lane
-/// and [`boundary_material_sign`] parse with, and by nothing else: no
-/// flux, no area, no material side. A consumer whose own lane rests on
+/// and its sense-free companion (`unanimous_rim_side`: the rims all
+/// encode one material side), on top of the same per-kind boundary
+/// classification the flux lane and [`boundary_material_sign`] parse
+/// with, and by nothing else: no flux, no area, and no material side
+/// DERIVED for the face — the second predicate asks the rims to agree
+/// with each other, which takes no `Face::sense` and answers nothing
+/// about where the material is. A consumer whose own lane rests on
 /// the premise — `mesh`'s swept-rectangle walk is the first — cites
 /// this door itself rather than inheriting the refusal transitively
 /// through a mass-properties call: no consumer keeps a transitive
@@ -378,12 +382,11 @@ pub fn boundary_material_sign<T: Decide>(
 /// `topo::mass_properties`) and treat its `NotIsoRectangle` as this
 /// door's. `mesh`'s walk is the live caller and does not need it: it
 /// walks the boundary it is given and meshes the region that boundary
-/// bounds, which is the L-shaped face itself. The sense-free residue
-/// of the premise — that every rim ENCODES THE SAME SIDE, which
-/// catches a multi-rim contradiction without a bit
-/// ([`unanimous_rim_side`], taken in [`boundary_material_sign`]) — is
-/// not taken here either, and the row is
-/// `work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`.
+/// bounds, which is the L-shaped face itself. What this door DOES take
+/// is the premise's sense-free residue — every rim encodes the same
+/// side ([`unanimous_rim_side`], via [`linear_rims_at_extremes`]) —
+/// which catches a multi-rim contradiction without a bit and leaves
+/// the one-rim divergence above exactly where it was.
 ///
 /// **A zero-extent face PASSES too.** Two rims at one level joined by
 /// zero-length meridians have every rim at an extreme (`lo == hi`);
@@ -392,7 +395,10 @@ pub fn boundary_material_sign<T: Decide>(
 /// rectangle — so this door does not ask it: a consumer that cannot
 /// mesh a zero-area face refuses it on its own terms (the walk's and
 /// the CDT's), and one that can is not told otherwise by a shape
-/// predicate. Pinned beside the lune in `tests/r2_mesh7_door_probes`.
+/// predicate. The unanimity companion is vacuous there for the same
+/// reason ([`linear_rims_at_extremes`]): with no extreme to sit at, no
+/// rim encodes a side for another to contradict. Pinned beside the
+/// lune in `tests/r2_mesh7_door_probes`.
 ///
 /// **A plane is not its question.** A planar face's loop is arbitrary
 /// by design (rings, polygons, splines); asked anyway, this refuses
@@ -699,13 +705,45 @@ pub fn require_one_chart_branch<T: Decide>(
     }
 }
 
-/// The predicate on a linearly-leveled parse: the face's extremes from
-/// `min_max` over every level the boundary touches, lifted into the
-/// rims' own representation. Vacuous on a rimless parse (the sphere
-/// band), which is the door's stated answer for it.
+/// The shape door's predicate on a linearly-leveled parse: the face's
+/// extremes from `min_max` over every level the boundary touches,
+/// lifted into the rims' own representation, with **every rim required
+/// to encode the same material side** ([`unanimous_rim_side`]).
+///
+/// The second half is the SENSE-FREE residue of the flux lane's
+/// interior-side premise. The door cannot take that premise itself —
+/// σ is the rim's traversal under the face's sense BIT and the door is
+/// handed a surface and a loop with no face, deliberately — but
+/// unanimity needs no bit: it says the rims agree with EACH OTHER,
+/// which is a fact about the boundary alone. What it catches is a face
+/// whose rims contradict one another, for which [`linear_rim_side`]
+/// answers a definite ±1 decided by which rim the owning body's loop
+/// walk handed over first.
+///
+/// **It does not close the door's documented divergence.** The
+/// L-shaped complement of a half-cap has ONE rim, so there is nothing
+/// for a unanimity rule to compare and no sense-free door can tell it
+/// from the half-cap; that residue is `props_rim_interior_side`'s
+/// alone and stays with the flux lane.
+///
+/// **Vacuous where it has nothing to decide**, in the door's own two
+/// senses of that word. A rimless parse (the sphere band) has no rim
+/// to place and none to compare. A ZERO-EXTENT parse has no extreme
+/// for a rim to sit at, so "which extreme is this rim at" — and with
+/// it "do the rims agree" — is undefined rather than violated:
+/// [`rim_side`] answers that with `DegenerateFace`, and this door
+/// admits it, because extent is not a shape question (a degenerate
+/// rectangle is a rectangle) and the flux lane refuses it at its own
+/// [`require_extent`] first.
 fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
-    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)
+    if b.rims.is_empty() {
+        return Ok(());
+    }
+    match unanimous_rim_side(b, (lo, hi), band) {
+        Ok(_) | Err(PropsError::DegenerateFace) => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 /// A torus face's parse with the anchor meridian's chart orientation:
