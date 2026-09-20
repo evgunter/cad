@@ -163,10 +163,9 @@ The shared spine is nonetheless smaller than the row assumed: the
 outer step of `Scope::walk` — `get_solid(solid)?.shells` — folded onto
 `Body::shells_of_solid` with the rest of that class.
 `SolidOwners::of` and `SolidSeparation::of` were **not members** of
-that class at all: both iterate `body.solids()` and already hold the
-`&Solid`, so there is no key to resolve and no refusal to make. The
-three-posture table above compares three things of which only one ever
-resolved a solid key.
+that class at all — they are in its "not members" table, with the
+reason. The three-posture table above therefore compares three things
+of which only one ever resolved a solid key.
 
 ### What is left for a unit here
 

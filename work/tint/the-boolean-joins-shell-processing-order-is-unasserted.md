@@ -26,10 +26,11 @@ Measured at `230c46738`, baseline **733 lib / 566 integration**:
 
 **Its control is the fold's own first plant**, not a second run here:
 shrinking `Body::shells_of_solid`'s answer by one shell reddens this
-site broadly — `bool4r1_probes` ×5, `bool4r2_probes` ×5,
-`issue93_nested_islands` ×5, `issue86_double_subtract`, `merge_skip`,
-among 190 integration reds. So the loop is live and heavily asserted
-about WHICH shells it walks; only the ORDER is dark.
+site across the boolean suites, among 190 integration reds. The
+per-site red map is tabulated once, on
+`work/dup/the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times.md`.
+So the loop is live and heavily asserted about WHICH shells it walks;
+only the ORDER is dark.
 
 ## Why this is not the door's problem
 

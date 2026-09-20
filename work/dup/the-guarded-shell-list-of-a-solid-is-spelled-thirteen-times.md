@@ -140,7 +140,7 @@ within eight lines of it.
 | of the 34: this row's own prose, line 26 | 1 |
 | of the 34: **`crates/topo/src`** — the fold's subject | **21** |
 | of the 34: outside `crates/topo/src`, all test-side | 11 |
-| of the 41: not reaching `.shells` — **six `is_some()`/`is_none()` liveness checks and `faces_of_solid`'s guard-and-discard** | 7 |
+| of the 41: not reaching `.shells` — **five `is_some()`/`is_none()` liveness checks, one `let _ = …` no-panic row (`review_m1_pr1.rs` ~:1041) and `faces_of_solid`'s guard-and-discard** | 7 |
 
 **The atom's blind spots, closed by measurement rather than asserted:**
 
@@ -148,7 +148,11 @@ within eight lines of it.
   Vec<ShellKey>`), so no caller resolves a solid and reads something
   else. That is also why the last row of the table is what it is: the
   seven `get_solid` sites that do NOT reach `.shells` read nothing at
-  all from the solid — they ask whether it is live.
+  all from the solid — five ask whether it is live, one asserts that
+  asking does not panic (`review_m1_pr1.rs` ~:1041, a `let _ = …`), and
+  one is `faces_of_solid`'s own guard. **This row first called all six
+  of the first group liveness checks**, which is one more than there
+  are.
 - No `Solid::shells()` accessor exists. `git grep 'fn shells'` over
   every tracked file returns `Body::shells` (the ARENA iterator, a
   different object) and one `sweep/tests` helper whose name merely
@@ -165,6 +169,36 @@ within eight lines of it.
   so an `interval`- or `probe`-gated member is in the denominator even
   though no default build type-checks it. (Both lanes were compiled
   anyway; neither holds a member.)
+- **The mutable-handle population is excluded, and that exclusion is
+  a judgement rather than a blind spot — so it is named.** `git grep
+  'get_solid_mut('` is **37 tree-wide, 35 in `crates/topo/src`**, of
+  which **33** read a solid's shell list through the mut handle; the
+  other two are the accessor's own definition (a window over-fire onto
+  the adjacent `get_shell_mut`, the same over-fire this census reports
+  at `get_solid`'s own definition) and one `is_none()` assert. A
+  `get_solid_mut(`-shaped enumeration would itself miss
+  `splitting/finish.rs` (~:764), which takes `body.solids.get_mut(solid)`
+  directly. Every one of them is a WRITE — `.push`, `.insert`,
+  `.retain`, `.clear` — so a read door has nothing to offer them and
+  they are not members. **But this unit's own headline diagnosis is a
+  bucket dropped without being named**, and a population thirty-three
+  strong, sitting one keystroke from the atom, is exactly the bucket a
+  later lane would find and call a miss. It is here so that it cannot
+  be. (The two raw writes inside this unit's own new test helper are in
+  it.)
+
+  **The figure was first written as 31, and the sentence that corrects
+  it is a few lines below — where this row had already written it.**
+  The 31 came from a five-line window; `movefac.rs` (~:171, ~:295) each
+  put their `.shells` write six and seven lines below the call, pushed
+  out of that window by a four-line `unreachable!` string. So *the
+  instrument that corrects a count can be wrong the same way the count
+  was* — twice in one row, the second time inside the paragraph arguing
+  that a bucket is safely excludable. It **undercounted the bucket it
+  was excluding**, which is the direction that reads as caution and so
+  never prompts a re-take. The cheap check the five-line reading never
+  ran: the figure is stable at eight, twelve and sixteen lines and
+  moves only below eight.
 - What it cannot see: a member assembled by a **macro**, which is
   unfalsifiable by text.
 
@@ -407,27 +441,21 @@ and two integration rows (`bool4_material_containment::a_part_in_a_cavity_clears
 `bool4r1_probes::probe_g_…`).
 
 **Plant 3 is a null, and its control is plant 1**, which reds this
-exact site through eighteen-odd integration rows. So the loop is live
-and heavily asserted about WHICH shells it walks; only the order is
-dark. Filed as
+exact site broadly. The control argument and the red list are argued
+once, on the row that holds the finding:
 `work/tint/the-boolean-joins-shell-processing-order-is-unasserted.md`.
 
-**Plant 5 was a null whose control was the WRONG control**, and that is
-the finding worth keeping from it. `seqgen::fusion_remake_shell`'s
-`.last()` → `.first()` reddened nothing; the control run replaced the
-whole body with `-> None` and also reddened nothing, and this row read
-that as "the site is unasserted entirely". It is — but `-> None` does
-not show it. **A plant that changes a RETURN VALUE cannot distinguish
-`called and unasserted` from `never called`; only a plant that cannot
-be satisfied by any answer can.** Planted `panic!` instead: **732 / 1**
-lib, the red being
-`seqgen::random_op_sequences::random_op_sequences_hold_all_properties`.
-So the site IS reached and its answer is wholly unasserted — the right
-conclusion, reached the first time by luck of the tree rather than by
-the control. Both runs are in
-`work/tint/seqgen-fusion-remake-shell-is-dark.md`, and the rule is
-general enough to belong in the program's method rather than in this
-row.
+**Plant 5 was a null whose control was the WRONG control.**
+`seqgen::fusion_remake_shell`'s `.last()` → `.first()` reddened
+nothing, and so did a control that replaced the whole body with
+`-> None`; this row read the pair as proof the site is unasserted
+entirely. It is — but the pair does not show it, and a `panic!` plant
+does: **732 / 1**, the red being
+`seqgen::random_op_sequences::random_op_sequences_hold_all_properties`,
+so the site is reached. **Both runs and the rule they yield are argued
+in full on `work/tint/seqgen-fusion-remake-shell-is-dark.md`**, which
+is the row that holds the measurement; the rule is the program's
+method item 19 and does not want a third copy here.
 
 ## X4 the fold minted — THREE, of which the unit self-caught one
 
@@ -436,48 +464,21 @@ whose door prose this unit censused, and both were found by the reader
 who did not write the fix. That is this program's standing result, now
 at four units running.
 
-**The fixture, and an OPEN row of this program already named its
-class.** The door's new reference row hand-built a same-solid
-two-shell body — the four raw writes, `solids.remove` /
-`solid_provenance.remove` pair included — **forty lines below a copy
-of exactly that sequence**, and
-`work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md`
-prints the sequence statement by statement. The new copy also dropped
-the comment saying why the removal has to be PAIRED, which is that
-row's stated reason for wanting a shared fixture at all. That row even
-writes its own epitaph: *"a fourth copy that says nothing about itself
-would not have been found this way either."* Fixed by folding
-**both** `body.rs` copies onto one local `adopt_shell_into` helper
-carrying the pairing comment; the class stays at three SITES
-(`euler_ring.rs`, `body.rs`, `validate.rs`) and `body.rs`'s is now one
-named block rather than two open-coded ones. Where the shared fixture
-lives is still that row's decision, not this one's.
+**Each of the three is argued in ONE place, and this section is not
+that place for two of them.** The sibling row set that rule —
+*"**This section is the single home for the argument**; the sibling
+rows point here rather than restating it, because a restated argument
+with restated numbers is `orient-module-prose-accumulation` minted by
+the unit disclosing that it had not minted one"* — and the first
+draft of this section broke it on both: it carried the fixture
+argument in full beside the row that owns that class, and the clause
+argument in full beside the row that now has a bucket for it.
 
-**A third copy of a bolded clause, in the prose class this unit
-filed.** `body.rs` now opens three door paragraphs with the
-byte-identical **"`None` is the only refusal this door can make"** —
-`solid_of_face` (~:876), `face_of_half_edge` (~:999) and the new door —
-each then restating the consequence in its own words. The residue row
-this unit filed sorts `body.rs` door prose into two shapes (the short
-stale-vs-foreign parenthetical and the long form) and **has no bucket
-for this clause at all**, so the unit minted the third copy of a class
-its own census could not see. The new door now states the refusal by
-reference to `solid_of_face` instead; the clause is added to the
-residue row as its second family.
-
-**One, caught in the diff before the push.** The door's first draft
-wrote `faces_of_solid`'s foreign-key sentence over again with "shell
-list" for "face list" — ten doc lines above it, in the same file, in a
-unit whose subject is one thing spelled *n* times. The door now points
-at `faces_of_solid` for the `SolidKey` hazard. The class it belongs to
-is thirteen `body.rs` door rustdocs restating the module's
-stale-vs-foreign section, filed as
-`work/dup/the-stale-vs-foreign-key-clause-is-spelled-at-thirteen-body-doors.md`.
-
-**The order argument was written twice and trimmed to once**: the
-draft restated `faces_of_solid`'s arena-order contract inside
-`shells_of_solid`'s doc. Each door now states its own order and points
-at the other for the contrast.
+| X4 | what it was | fixed by | argued in full at |
+| --- | --- | --- | --- |
+| **the fixture** | the door's new reference row hand-built the same-solid two-shell body a **fourth** time, forty lines below a copy an open row already prints statement by statement, and dropped the comment saying why the arena removal must be PAIRED | both `body.rs` copies fold onto one local `adopt_shell_into`; the class stays at three SITES and where the shared fixture lives is still that row's decision | `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md` |
+| **the clause** | a third `body.rs` door paragraph opening with the byte-identical bolded **"`None` is the only refusal this door can make"**, in a prose class this unit's own residue row had no bucket for | the door keeps the FACT at the door and makes the argument a pointer | `work/dup/the-stale-vs-foreign-key-clause-is-spelled-at-thirteen-body-doors.md`, second family |
+| **the foreign-key sentence** — the one the unit self-caught, before the push | `faces_of_solid`'s sentence rewritten with "shell list" for "face list", ten doc lines above it. The order argument was written twice the same way | both trimmed to pointers | the same residue row, first family |
 
 **No `.expect` / `.unwrap()` tax.** The `faces_of_solid` fold paid
 eighteen sites of ceremony because it turned a `&Solid`-returning
@@ -513,3 +514,23 @@ Residue, one file each:
 | the owner index: two doors that already DISAGREE about a lone vertex, measured — **and the falsification is pinned by nothing in the tree** | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
 | the same-solid two-shell body: a FOURTH hand-build, minted by this unit's own reference row and folded back to a local helper | `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md` |
 | `review_m1_pr4.rs`'s *"the probes are otherwise verbatim"* — a closed exception list this unit's fold added to without amending | `work/dup/review-m1-pr4s-verbatim-sentence-is-one-edit-less-true.md` |
+
+## A note on how two of these corrections nearly did not land
+
+The fix pass applied its first three edits from one script that
+asserted every anchor up front and wrote the file only at the end. The
+third anchor missed, the script aborted, and **the two that had
+already matched were never written** — while the pass reported all
+three as done and went on. They are in this row now because the delta
+read asked about one of their numbers and the number was not there to
+check.
+
+It is the same failure as every other one this unit recorded, at the
+level of the tooling rather than the prose: **an operation that
+reports success for work it did not do**, and nothing between the
+report and the reader that re-reads the artifact. The repair is the
+one this repo already prescribes for measurements — read the tree, not
+the transcript — and the cheap mechanical form is to apply and verify
+each edit independently, so one failure cannot silently take its
+neighbours with it. Both re-applications above were made that way and
+each printed its own confirmation.

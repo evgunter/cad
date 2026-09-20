@@ -33,27 +33,20 @@ solid by key and reach into [`Solid::shells`] themselves:
 | `topo/tests/void_door.rs` (~:308) | `.unwrap().shells.len()` |
 | `editor-core/tests/asm_roots.rs` (~:518) | `if let Some(s) = body.get_solid(solid)` then `s.shells` |
 
-## The census that produced it, and its denominator
+## Where the census and its blind spots are argued
 
-Every `get_solid(` occurrence in every tracked file, no path argument —
-**41** at `cd9fdfd6b` — classified by whether `.shells` appears within
-eight lines: **34 do**. Of those 34, one is `Body::get_solid`'s own
-definition (a window over-fire onto the arena read two lines below),
-one is a row of this program's own prose, **21 are in
-`crates/topo/src`** and are the fold's subject, and these **11** are
-the remainder.
+**Not here.** These eleven are one arm of a single enumeration taken at
+`cd9fdfd6b`, and restating its denominator and its blind spots beside
+the row that holds them is the defect this program exists to remove —
+under the single-home rule
+`work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`
+states and this unit's parent row quotes.
 
-The atom is closed, not asserted: `Solid` has exactly **one** field
-(`entity.rs`, `pub shells: Vec<ShellKey>`), so a caller that resolves a
-solid and reads anything reads this; no `Solid::shells()` accessor
-exists (`git grep 'fn shells'` finds `Body::shells`, the arena
-iterator, and one `sweep/tests` helper); no site in the tree
-destructures `Solid { shells, .. }` as a pattern; and **no site builds
-one solid's shell list by scanning the shell arena on the `Shell::solid`
-back-pointer** — 344 `.shells()` calls, 44 with a solid token within
-four lines, every one of them an arena COUNT rather than a per-solid
-selection. What the enumeration cannot see is a member assembled by a
-macro, which is unfalsifiable by text.
+The single home is
+`work/dup/the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times.md`,
+under *"Re-taken 2026-09-20"*. What belongs here is only this arm's
+share of it: **11 of the 34 `get_solid(` sites that reach `.shells` sit
+outside `crates/topo/src`**, and every one of the eleven is test-side.
 
 ## Why this is filed on dup, and why it was not folded
 
