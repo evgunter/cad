@@ -571,7 +571,7 @@ impl Subgroup {
 /// value; the fork itself is `crate::escalation`, which both doors
 /// call.
 ///
-/// The thirty-two read off ONE record, [`crate::mate_payload`], whose
+/// All of them read off ONE record, [`crate::mate_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: a fault
 /// arm added there is a compile error rather than a mate that every
 /// accessor here silently answers `None` about.
@@ -669,7 +669,9 @@ impl MateFault {
     }
 
     /// The measured clash: the margin that should have been zero and
-    /// was not.
+    /// was not — a length verbatim, or a lever's product. `None` for
+    /// the structural refusal (`mate_member_empty`), which measures
+    /// nothing.
     #[getter]
     fn clash(&self) -> Option<Length> {
         self.payload().clash.map(length)

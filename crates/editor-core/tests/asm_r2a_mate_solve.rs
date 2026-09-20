@@ -20,7 +20,7 @@ use editor_core::{
     clusters, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
-use fixture::{insert, len, on_frame, run, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -358,7 +358,6 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         added,
         predicate,
         clash,
-        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -366,13 +365,14 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
     assert_eq!(*held, mates[0], "the mate already folded is named");
     assert_eq!(*added, mates[1], "the mate that died against it is named");
     assert_eq!(*predicate, "mate_member_translation_in_plane");
+    let editor_core::Clash::Length { metres } = *clash else {
+        panic!(
+            "a translation predicate measures a LENGTH outright, so there is no lever: {clash:?}"
+        );
+    };
     assert!(
-        (clash.abs() - 1.0).abs() < 1e-9,
-        "the measured clash IS the authored gap mismatch: {clash}"
-    );
-    assert!(
-        lever.is_none(),
-        "a translation predicate measures a LENGTH outright, so there is no lever: {lever:?}"
+        (metres.abs() - 1.0).abs() < 1e-9,
+        "the measured clash IS the authored gap mismatch: {metres}"
     );
     let message = fault.to_string();
     assert!(message.contains(predicate), "{message}");
@@ -736,7 +736,7 @@ fn row5_the_closure_set_is_closed_under_intersection() {
     use geom_core::linalg::{Point3, UnitVec3, Vec3};
     use geom_core::predicate::Band;
     let band = Band::linear(Tol::witness()).expect("a band");
-    let unit = |v| UnitVec3::new(v, "asm_r2a_row5_axis", band).expect("a basis vector");
+    let unit = |v| UnitVec3::new(v, FIXTURE_MATE_AXIS, band).expect("a basis vector");
     let x = unit(Vec3::new(1.0, 0.0, 0.0));
     let y = unit(Vec3::new(0.0, 1.0, 0.0));
     let z = unit(Vec3::new(0.0, 0.0, 1.0));
@@ -901,7 +901,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
     use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
     use geom_core::predicate::Band;
     let band = Band::linear(Tol::witness()).expect("a band");
-    let z = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), "asm_r2a_row5b_axis", band).expect("unit z");
+    let z = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), FIXTURE_MATE_AXIS, band).expect("unit z");
     // Pin 1 pins the shared axis through the origin; pin 2's A-side
     // axis is at +x while its representative carries B's at +y.
     let held = Coset {
@@ -955,20 +955,18 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
         added,
         predicate,
         clash,
-        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
     };
     assert_eq!((*held, *added), (first, second), "both mates are named");
     assert_eq!(*predicate, "mate_member_point_on_axis");
+    let editor_core::Clash::Length { metres } = *clash else {
+        panic!("a point-on-axis offset is a LENGTH outright, so there is no lever: {clash:?}");
+    };
     assert!(
-        (clash.abs() - 1.0).abs() < 1e-9,
-        "the clash IS the inter-axis invariant difference (2 − 1): {clash}"
-    );
-    assert!(
-        lever.is_none(),
-        "a point-on-axis offset is a LENGTH outright, so there is no lever: {lever:?}"
+        (metres.abs() - 1.0).abs() < 1e-9,
+        "the clash IS the inter-axis invariant difference (2 − 1): {metres}"
     );
 }
 
@@ -1811,7 +1809,6 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
         added,
         predicate,
         clash,
-        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -1822,16 +1819,16 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
         "the mate contradicts ITSELF, so it stands on both sides"
     );
     assert_eq!(*predicate, "mate_clocking_redundant");
-    let Some(editor_core::Lever::Roll { radians, arm }) = *lever else {
+    let editor_core::Clash::Levered(editor_core::Lever::Roll { radians, arm }) = *clash else {
         panic!(
-            "the clocking clash is levered by an authored ROLL, not measured as a length: {lever:?}"
+            "the clocking clash is levered by an authored ROLL, not measured as a length: {clash:?}"
         );
     };
     assert!((radians - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
-    assert!(
-        (radians * arm - clash).abs() < 1e-15,
-        "the stored metre figure IS the product of the halves at the raising site: \
-         {radians} * {arm} vs {clash}"
+    assert_eq!(
+        clash.deviation(),
+        Some(radians * arm),
+        "the deviation IS the product of the halves, to the bit"
     );
     let message = fault.to_string();
     assert!(

@@ -35,7 +35,7 @@ use geom_core::k_stats::decide;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, MarginDiag, Sign};
 
-use super::Lever;
+use super::{Clash, Lever};
 
 /// A residual SE(3) subgroup — the closure set the table is closed
 /// over. Its directions are [`UnitVec3`] witnesses: the predicates
@@ -359,12 +359,8 @@ pub enum FoldStop {
     Clash {
         /// The membership predicate that refused.
         predicate: &'static str,
-        /// Its measured margin, in metres.
-        margin: f64,
-        /// The two halves of that margin when the predicate measured a
-        /// pure number and levered it by the arm; `None` when it
-        /// measured a length outright.
-        lever: Option<Lever>,
+        /// What it measured.
+        clash: Clash,
     },
 }
 
@@ -376,18 +372,41 @@ impl From<Indeterminate> for FoldStop {
 
 // ---- The table's case splits, each a named decided predicate ----
 
-/// Predicate: two directions are parallel (either sense). The margin
-/// is the sine of the angle between them — which the cross product's
-/// length IS because both are witnesses — levered by `arm` into the
-/// displacement it induces there.
+/// Predicate: two directions are parallel (either sense), decided as
+/// ONE mint. The margin is the sine of the angle between them — which
+/// the cross product's length IS because both are witnesses — levered
+/// by `arm` into the displacement it induces there, spelled as the
+/// length of the levered vector `(u × v) · arm` so that the direction
+/// the non-parallel verdict hands out is minted by the very decision
+/// that made it: `None` when parallel, `Some(line)` — the unit
+/// direction of `u × v`, the line two planes with these normals meet
+/// in — when not. A second decision of the same number at a mint
+/// would be spelled a rounding apart and could land in the band where
+/// this one did not.
+///
+/// The direction door's arms in this predicate's vocabulary: a
+/// decided-zero length is the parallel verdict, and so is a levered
+/// sine that underflowed the format (below ~1e-162, a length the band
+/// calls zero at every ε; the door refuses it before the funnel, so
+/// that vanishing sample is not recorded — reachable by no pair of
+/// witnesses at any arm the reach bounds); a length that is no number
+/// is what the classifier says of a poisoned margin.
 fn parallel(
     u: UnitVec3<f64>,
     v: UnitVec3<f64>,
     band: Band,
     arm: f64,
-) -> Result<bool, Indeterminate> {
-    let sin = u.get().cross(v.get()).norm();
-    Ok(decide("mate_axes_parallel", Margin::levered(sin, arm), band)? == Sign::Zero)
+) -> Result<Option<UnitVec3<f64>>, Indeterminate> {
+    match UnitVec3::new(u.get().cross(v.get()) * arm, "mate_axes_parallel", band) {
+        Ok(line) => Ok(Some(line)),
+        Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
+        Err(UnitVec3Error::Escalated(diag)) => Err(diag),
+        Err(UnitVec3Error::NonFiniteLength) => Err(Indeterminate {
+            margin: MarginDiag::Invalid,
+            band,
+            predicate: Some("mate_axes_parallel"),
+        }),
+    }
 }
 
 /// Predicate: a direction is perpendicular to a normal. The margin is
@@ -422,45 +441,6 @@ fn point_on_line(
     Ok(decide("mate_axis_point_offset", Margin::norm3(off), band)? == Sign::Zero)
 }
 
-/// **A direction the fold DERIVES, re-minted as a witness under the
-/// run's band.** Two shapes reach it: a witness transported by a
-/// rotation (the inverse coset's directions), whose length is one
-/// within rounding, and the line two non-parallel planes meet in
-/// ([`intersect_subgroups`]'s planar pair), whose vector is the
-/// normals' cross product LEVERED by the arm so the length decided
-/// here is the levered sine `parallel` has just decided positive.
-/// Neither can refuse on a document the doors build; a refusal is the
-/// witness doing its job and escalates like every other decision in
-/// the fold, under `site`, the funnel name the length was decided
-/// under.
-///
-/// The direction door refuses in four ways and the fold has one
-/// escalation to carry them. An in-band length is that escalation
-/// verbatim. The other three are stated on the same diagnostic with
-/// what the door measured — the length it decided to zero, or that
-/// the length was no number at all — so a refusal that does arrive is
-/// diagnosable from its payload rather than laundered into a
-/// value the door never had.
-pub(super) fn derived_direction(
-    v: Vec3<f64>,
-    site: &'static str,
-    band: Band,
-) -> Result<UnitVec3<f64>, Indeterminate> {
-    UnitVec3::new(v, site, band).map_err(|error| match error {
-        UnitVec3Error::Escalated(diag) => diag,
-        UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength => Indeterminate {
-            margin: MarginDiag::Value(v.norm()),
-            band,
-            predicate: Some(site),
-        },
-        UnitVec3Error::NonFiniteLength => Indeterminate {
-            margin: MarginDiag::Invalid,
-            band,
-            predicate: Some(site),
-        },
-    })
-}
-
 /// **The subgroup half of the binding table**: `G ∩ G′`, every case
 /// split decided through the funnel.
 ///
@@ -493,21 +473,11 @@ pub fn intersect_subgroups(
         (Trivial, _) | (_, Trivial) => Trivial,
         // 1. planar ∩ planar — the flush merge and the V-block.
         (Planar { normal: n1 }, Planar { normal: n2 }) => {
-            if parallel(n1, n2, band, arm)? {
-                Planar { normal: n1 }
-            } else {
-                // The line the two planes meet in. Its vector is the
-                // cross product levered by the arm: the length minted
-                // here is then the very margin `parallel` decided
-                // positive one line up, not the bare sine measured
-                // against a metre band.
-                Prismatic {
-                    direction: derived_direction(
-                        n1.get().cross(n2.get()) * arm,
-                        "mate_planar_pair_line",
-                        band,
-                    )?,
-                }
+            match parallel(n1, n2, band, arm)? {
+                None => Planar { normal: n1 },
+                // The line the two planes meet in, as the verdict
+                // minted it.
+                Some(direction) => Prismatic { direction },
             }
         }
         // 2. planar ∩ cylindrical — pin-in-hole, slot, and the generic
@@ -526,7 +496,7 @@ pub fn intersect_subgroups(
             },
             Planar { normal: n },
         ) => {
-            if parallel(u, n, band, arm)? {
+            if parallel(u, n, band, arm)?.is_none() {
                 Revolute {
                     point: p,
                     direction: u,
@@ -561,7 +531,7 @@ pub fn intersect_subgroups(
             },
             Planar { normal: n },
         ) => {
-            if parallel(u, n, band, arm)? {
+            if parallel(u, n, band, arm)?.is_none() {
                 Revolute {
                     point: p,
                     direction: u,
@@ -582,7 +552,7 @@ pub fn intersect_subgroups(
                 direction: u2,
             },
         ) => {
-            if parallel(u1, u2, band, arm)? {
+            if parallel(u1, u2, band, arm)?.is_none() {
                 if point_on_line(p2, p1, u1, band)? {
                     Cylindrical {
                         point: p1,
@@ -598,7 +568,7 @@ pub fn intersect_subgroups(
         // 6. cylindrical ∩ prismatic.
         (Cylindrical { direction: u, .. }, Prismatic { direction: d })
         | (Prismatic { direction: d }, Cylindrical { direction: u, .. }) => {
-            if parallel(d, u, band, arm)? {
+            if parallel(d, u, band, arm)?.is_none() {
                 Prismatic { direction: d }
             } else {
                 Trivial
@@ -625,7 +595,7 @@ pub fn intersect_subgroups(
                 direction: uc,
             },
         ) => {
-            if parallel(uc, ur, band, arm)? && point_on_line(pr, pc, uc, band)? {
+            if parallel(uc, ur, band, arm)?.is_none() && point_on_line(pr, pc, uc, band)? {
                 Revolute {
                     point: pr,
                     direction: ur,
@@ -636,7 +606,7 @@ pub fn intersect_subgroups(
         }
         // 8. prismatic ∩ prismatic.
         (Prismatic { direction: d1 }, Prismatic { direction: d2 }) => {
-            if parallel(d1, d2, band, arm)? {
+            if parallel(d1, d2, band, arm)?.is_none() {
                 Prismatic { direction: d1 }
             } else {
                 Trivial
@@ -655,7 +625,7 @@ pub fn intersect_subgroups(
                 direction: u2,
             },
         ) => {
-            if parallel(u1, u2, band, arm)? && point_on_line(p2, p1, u1, band)? {
+            if parallel(u1, u2, band, arm)?.is_none() && point_on_line(p2, p1, u1, band)? {
                 Revolute {
                     point: p1,
                     direction: u1,
@@ -669,33 +639,34 @@ pub fn intersect_subgroups(
 
 // ---- Membership: the decided predicate the representative meets ----
 
-/// What one membership predicate measured: a length outright, or a
-/// pure number it levers by the arm — which is what a refusal quotes,
-/// so the number the sentence prints is the number the predicate
-/// decided on.
+/// **What one predicate measured, before it is decided** — a length
+/// outright, or a pure number it levers by an arm. The one home of
+/// the levered margin in the solve: every levered site names its
+/// number here, decides [`Measured::margin`] and, refusing, quotes
+/// [`Measured::clash`], so the number the sentence prints is the
+/// number the funnel decided on.
 #[derive(Debug, Clone, Copy)]
-enum Measured {
+pub(super) enum Measured {
     /// A length, in metres.
     Length(f64),
-    /// A dimensionless residual, levered by `arm` into the margin.
-    Levered { value: f64, arm: f64 },
+    /// A pure number and the arm that levers it.
+    Lever(Lever),
 }
 
 impl Measured {
-    /// The margin the predicate decides — one multiplication for the
-    /// levered shape, so it is the product of the halves bit for bit.
-    fn margin(self) -> Margin<f64> {
+    /// The margin the predicate decides.
+    pub(super) fn margin(self) -> Margin<f64> {
         match self {
             Self::Length(m) => Margin::of(m),
-            Self::Levered { value, arm } => Margin::levered(value, arm),
+            Self::Lever(lever) => lever.margin(),
         }
     }
 
-    /// The halves, for the refusal that quotes them.
-    fn lever(self) -> Option<Lever> {
+    /// The measurement, as the refusal quotes it.
+    pub(super) fn clash(self) -> Clash {
         match self {
-            Self::Length(_) => None,
-            Self::Levered { value, arm } => Some(Lever::Residual { value, arm }),
+            Self::Length(metres) => Clash::Length { metres },
+            Self::Lever(lever) => Clash::Levered(lever),
         }
     }
 }
@@ -708,22 +679,17 @@ impl Measured {
 /// measured — the CONTRADICTORY refusal's own quotation — or
 /// [`FoldStop::Indeterminate`] when a check landed in the band.
 fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: f64) -> Result<(), FoldStop> {
+    let residual = |value: f64| Measured::Lever(Lever::Residual { value, arm });
     let axis_fixed = |axis: UnitVec3<f64>| {
         (
             "mate_member_axis_fixed",
-            Measured::Levered {
-                value: (x.linear * axis.get() - axis.get()).norm(),
-                arm,
-            },
+            residual((x.linear * axis.get() - axis.get()).norm()),
         )
     };
     let rotation_identity = || {
         (
             "mate_member_rotation_identity",
-            Measured::Levered {
-                value: rotation_residual(x.linear),
-                arm,
-            },
+            residual(rotation_residual(x.linear)),
         )
     };
     let checks: Vec<(&'static str, Measured)> = match g {
@@ -732,8 +698,7 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: f64) -> Result<(), F
         Subgroup::Empty => {
             return Err(FoldStop::Clash {
                 predicate: super::MATE_MEMBER_EMPTY,
-                margin: f64::INFINITY,
-                lever: None,
+                clash: Clash::Structural,
             });
         }
         Subgroup::Se3 => Vec::new(),
@@ -778,12 +743,10 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: f64) -> Result<(), F
         ],
     };
     for (predicate, measured) in checks {
-        let margin = measured.margin();
-        if decide(predicate, margin, band)? != Sign::Zero {
+        if decide(predicate, measured.margin(), band)? != Sign::Zero {
             return Err(FoldStop::Clash {
                 predicate,
-                margin: margin.value(),
-                lever: measured.lever(),
+                clash: measured.clash(),
             });
         }
     }
@@ -868,7 +831,7 @@ fn candidate_rotation(
             (Rotations::Fixed, _) => q1,
             (_, Rotations::Fixed) => q2,
             (Rotations::About(a1), Rotations::About(a2)) => {
-                if parallel(a1, a2, band, arm)? {
+                if parallel(a1, a2, band, arm)?.is_none() {
                     // PARALLEL rotation axes: the held side admits EVERY
                     // rotation about its own axis, so the candidate's
                     // clocking about that axis is free — and free means it
@@ -889,13 +852,16 @@ fn candidate_rotation(
                     let (a1, a2) = (a1.get(), a2.get());
                     let m = q1 * q2.transpose();
                     let v = m * a2;
-                    let reach = v.dot(a1) - a2.dot(a1);
-                    let margin = Margin::levered(reach, arm);
-                    if decide("mate_rotation_two_axis_reachable", margin, band)? != Sign::Zero {
+                    let reach = Measured::Lever(Lever::Residual {
+                        value: v.dot(a1) - a2.dot(a1),
+                        arm,
+                    });
+                    if decide("mate_rotation_two_axis_reachable", reach.margin(), band)?
+                        != Sign::Zero
+                    {
                         return Err(FoldStop::Clash {
                             predicate: "mate_rotation_two_axis_reachable",
-                            margin: margin.value(),
-                            lever: Some(Lever::Residual { value: reach, arm }),
+                            clash: reach.clash(),
                         });
                     }
                     let vp = v.reject_from(a1);

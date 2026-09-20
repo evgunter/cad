@@ -158,6 +158,13 @@ pub const DIE_VOLUME: f64 = 7.8359375;
 /// `Frame::rotate_then_translate` asks the direction door with. Rows
 /// whose axis is a literal pass this and unwrap; a row whose SUBJECT
 /// is the axis decision reads the refusal instead.
+/// The K funnel name a fixture decides a mate-frame axis or normal
+/// under when a row builds a witness by hand — one name the fixtures
+/// own, rostered in `docs/K-REPORT.md` beside the other fixture
+/// mints, so a suite never names a production funnel for a decision
+/// no door made.
+pub const FIXTURE_MATE_AXIS: &str = "fixture_mate_axis";
+
 pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }

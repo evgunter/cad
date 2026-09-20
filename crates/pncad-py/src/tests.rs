@@ -652,7 +652,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// The arm table, executable and TOTAL: all thirteen arms are built
 /// here and every field each carries is read.
 /// `crate::mate_payload::mate_payload` is the projection
-/// `MateFault`'s thirty-two Python attributes are read off, and this
+/// `MateFault`'s Python attributes are read off, and this
 /// pin says what each arm puts on the wire: the exact set it CARRIES,
 /// in publication order, with the rest `None`.
 ///
@@ -668,8 +668,8 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
-        RecipeNodeId, Subgroup,
+        Clash, DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind,
+        NodeRefusal, RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
         Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
@@ -878,8 +878,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             held: id(1),
             added: id(1),
             predicate: "mate_clocking_redundant",
-            clash: 0.5,
-            lever: Some(Lever::Roll {
+            clash: Clash::Levered(Lever::Roll {
                 radians: 0.25,
                 arm: 2.0,
             }),
@@ -898,8 +897,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             held: id(1),
             added: id(2),
             predicate: "mate_member_axis_fixed",
-            clash: 0.5,
-            lever: Some(Lever::Residual {
+            clash: Clash::Levered(Lever::Residual {
                 value: 0.25,
                 arm: 2.0,
             }),
@@ -913,6 +911,17 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             "lever_arm",
         ],
     );
+    // A length measured outright carries the clash and no lever; the
+    // structural refusal measures nothing and carries no clash.
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_translation_zero",
+            clash: Clash::Length { metres: 0.01 },
+        },
+        &["held", "added", "predicate", "clash"],
+    );
     carries(
         &F::TableLacks {
             mate: id(1),
@@ -925,10 +934,9 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             held: id(1),
             added: id(2),
             predicate: "mate_member_empty",
-            clash: 0.25,
-            lever: None,
+            clash: Clash::Structural,
         },
-        &["held", "added", "predicate", "clash"],
+        &["held", "added", "predicate"],
     );
     carries(
         &F::Under {
@@ -1073,8 +1081,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         held: id(1),
         added: id(1),
         predicate: "mate_clocking_redundant",
-        clash: 0.25 * 2.0,
-        lever: Some(Lever::Roll {
+        clash: Clash::Levered(Lever::Roll {
             radians: 0.25,
             arm: 2.0,
         }),
@@ -1092,8 +1099,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         held: id(1),
         added: id(2),
         predicate: "mate_rotation_two_axis_reachable",
-        clash: 0.75 * 3.0,
-        lever: Some(Lever::Residual {
+        clash: Clash::Levered(Lever::Residual {
             value: 0.75,
             arm: 3.0,
         }),
@@ -1107,23 +1113,24 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     assert_eq!(payload.clash, Some(residual * arm));
     assert_eq!(payload.lever_tilt, None);
-    // A margin measured without a lever carries none of the three —
-    // `None` rather than zeroes claiming a lever nothing measured.
-    let unlevered = F::Contradictory {
+    // The structural refusal measures nothing: no clash and none of
+    // the three halves — `None` rather than zeroes claiming a
+    // measurement nothing made.
+    let structural = F::Contradictory {
         held: id(1),
         added: id(2),
         predicate: "mate_member_empty",
-        clash: f64::NAN,
-        lever: None,
+        clash: Clash::Structural,
     };
-    let payload = mate_payload(&unlevered);
+    let payload = mate_payload(&structural);
     assert_eq!(
         (
+            payload.clash,
             payload.lever_tilt,
             payload.lever_residual,
             payload.lever_arm
         ),
-        (None, None, None)
+        (None, None, None, None)
     );
 }
 

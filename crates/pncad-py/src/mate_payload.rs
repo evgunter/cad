@@ -18,10 +18,10 @@
 //! arms and read every field of each. It is the `crate::edit_payload`
 //! shape, for the same reasons.
 //!
-//! One record rather than one match per attribute: `MateFault` has
-//! thirty-two attributes over thirteen arms, so a per-accessor match
-//! would name the same thirteen arms thirty-two times and an arm
-//! added kernel-side would owe thirty-two edits.
+//! One record rather than one match per attribute: every field of
+//! [`MateFaultPayload`] is read off `MateFault`'s thirteen arms, so a
+//! per-accessor match would name the same thirteen arms once per
+//! field and an arm added kernel-side would owe an edit per field.
 //!
 //! # The flattening
 //!
@@ -64,7 +64,7 @@
 //! `FrameError::Band` as well as through `Band` itself.
 
 use pncad::document::{
-    DocumentId, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId, Subgroup,
+    Clash, DocumentId, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId, Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 
@@ -109,7 +109,9 @@ pub struct MateFaultPayload {
     /// not decide at all. One concept, one attribute — the arm says
     /// which outcome it names.
     pub predicate: Option<&'static str>,
-    /// The measured clash, in metres.
+    /// The measured clash, in metres: a length verbatim, a lever's
+    /// product, and `None` for the structural refusal
+    /// (`mate_member_empty`), which measures nothing.
     pub clash: Option<f64>,
     /// The `Part` node whose index expression disagrees with the copy
     /// the reference's name names.
@@ -433,29 +435,28 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
         // The lever is the mated parts' own extent rather than
         // anything in the model, and `clash` is the PRODUCT of its
         // two halves. The kind of number levered is which half is
-        // set — a roll's tilt or a residual — and an arm that
-        // measured its margin without a lever carries none of the
+        // set — a roll's tilt or a residual — and a length measured
+        // outright, or the structural refusal, carries none of the
         // three.
         MateFault::Contradictory {
             held,
             added,
             predicate,
             clash,
-            lever,
         } => {
-            let (lever_tilt, lever_residual) = match lever {
-                Some(Lever::Roll { radians, .. }) => (Some(*radians), None),
-                Some(Lever::Residual { value, .. }) => (None, Some(*value)),
-                None => (None, None),
+            let (lever_tilt, lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
+                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None, None),
             };
             MateFaultPayload {
                 held: Some(*held),
                 added: Some(*added),
                 predicate: Some(predicate),
-                clash: Some(*clash),
+                clash: clash.deviation(),
                 lever_tilt,
                 lever_residual,
-                lever_arm: lever.map(Lever::arm),
+                lever_arm,
                 ..none
             }
         }

@@ -15,7 +15,7 @@
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
+    AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
     Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
     Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
@@ -1537,8 +1537,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         held: RecipeNodeId(3),
         added: RecipeNodeId(5),
         predicate: "mate_member_translation_zero",
-        clash: 0.01,
-        lever: None,
+        clash: Clash::Length { metres: 0.01 },
     };
     assert_f6(
         &pair,
@@ -1558,8 +1557,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         held: RecipeNodeId(6),
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
-        clash: core::f64::consts::FRAC_PI_2,
-        lever: Some(Lever::Roll {
+        clash: Clash::Levered(Lever::Roll {
             radians: core::f64::consts::FRAC_PI_2,
             arm: 1.0,
         }),
@@ -1579,24 +1577,22 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     );
 }
 
-/// **A levered clash prints only a product that IS the product.** The
-/// metre figure is computed from the two halves the message shows, so
-/// the sentence cannot assert an identity the payload failed to keep:
-/// a `clash` field that disagrees with its own lever is not what the
-/// reader is told.
+/// **A levered clash prints the product of its two halves.** The
+/// metre figure is computed from the halves the message shows, and a
+/// stored figure that could disagree with them is not representable:
+/// `Clash::Levered` holds the lever and nothing beside it.
 #[test]
 fn a_levered_clash_prints_only_a_product_that_is_the_product() {
-    let honest = MateFault::Contradictory {
+    let fault = MateFault::Contradictory {
         held: RecipeNodeId(6),
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
-        clash: core::f64::consts::FRAC_PI_2 * 2.0,
-        lever: Some(Lever::Roll {
+        clash: Clash::Levered(Lever::Roll {
             radians: core::f64::consts::FRAC_PI_2,
             arm: 2.0,
         }),
     };
-    let shown = honest.to_string();
+    let shown = fault.to_string();
     for want in [
         "a roll of 1.5707963267948966 rad",
         "on a 2 m arm",
@@ -1604,23 +1600,13 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
     ] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
-
-    // The same lever, beside a stored figure that is not its product.
-    let inconsistent = MateFault::Contradictory {
-        held: RecipeNodeId(6),
-        added: RecipeNodeId(6),
-        predicate: "mate_clocking_redundant",
-        clash: 99.0,
-        lever: Some(Lever::Roll {
-            radians: 0.25,
-            arm: 2.0,
-        }),
+    let MateFault::Contradictory { clash, .. } = &fault else {
+        unreachable!()
     };
-    let shown = inconsistent.to_string();
-    assert!(
-        shown.contains("a deviation of 0.5 m") && !shown.contains("99"),
-        "the printed metre figure is the product of the halves shown, never a stored \
-         number that disagrees with them: {shown:?}"
+    assert_eq!(
+        clash.deviation(),
+        Some(core::f64::consts::FRAC_PI_2 * 2.0),
+        "the deviation is the product, to the bit"
     );
 }
 
@@ -1636,8 +1622,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
         held: RecipeNodeId(3),
         added: RecipeNodeId(5),
         predicate: "mate_member_rotation_identity",
-        clash: 0.25 * 4.0,
-        lever: Some(Lever::Residual {
+        clash: Clash::Levered(Lever::Residual {
             value: 0.25,
             arm: 4.0,
         }),
@@ -1657,43 +1642,26 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
         !shown.contains("rad") && !shown.contains("roll"),
         "a residual is a pure number, never a roll in radians: {shown:?}"
     );
-    // The same lever beside a stored figure that is not its product:
-    // the product printed is the halves', as for the roll.
-    let inconsistent = MateFault::Contradictory {
-        held: RecipeNodeId(3),
-        added: RecipeNodeId(5),
-        predicate: "mate_member_axis_fixed",
-        clash: 99.0,
-        lever: Some(Lever::Residual {
-            value: 0.5,
-            arm: 3.0,
-        }),
-    };
-    let shown = inconsistent.to_string();
-    assert!(
-        shown.contains("a deviation of 1.5 m") && !shown.contains("99"),
-        "{shown:?}"
-    );
 }
 
 /// **A non-finite clash that is not the empty set does not claim to
-/// be.** The structural refusal is the PREDICATE's fact, so a margin
-/// that merely fails to be finite — a NaN, a negative infinity, or an
-/// infinity under some other predicate — is reported as the
-/// non-measurement it is and never borrows the empty set's sentence.
+/// be.** The structural refusal is the TYPE's fact (`Clash::Structural`),
+/// so a length that merely fails to be finite — a NaN, a negative
+/// infinity, an infinity — is reported as the non-measurement it is
+/// and never borrows the empty set's sentence, and a levered clash
+/// whose halves are not finite keeps its halves.
 ///
-/// The four shapes below are every exit the arm has, and each is
-/// checked to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the
-/// repair does not depend on which measurement the predicate could
-/// report, so no exit may drop it.
+/// The exits below are every arm the type has, and each is checked
+/// to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the repair does
+/// not depend on which measurement the predicate could report, so no
+/// exit may drop it.
 #[test]
 fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     let empty = MateFault::Contradictory {
         held: RecipeNodeId(3),
         added: RecipeNodeId(5),
         predicate: "mate_member_empty",
-        clash: f64::INFINITY,
-        lever: None,
+        clash: Clash::Structural,
     };
     let shown = empty.to_string();
     assert!(
@@ -1714,8 +1682,7 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
             held: RecipeNodeId(3),
             added: RecipeNodeId(5),
             predicate: "mate_member_translation_zero",
-            clash,
-            lever: None,
+            clash: Clash::Length { metres: clash },
         };
         let shown = fault.to_string();
         assert!(
@@ -1732,22 +1699,21 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
         );
     }
 
-    // An infinity that carries a lever is still levered: the empty-set
-    // sentence must not swallow the halves.
+    // A lever whose roll is not finite is still levered: the sentence
+    // keeps its halves and prints the product they make.
     let levered = MateFault::Contradictory {
         held: RecipeNodeId(6),
         added: RecipeNodeId(6),
         predicate: "mate_clocking_redundant",
-        clash: f64::INFINITY,
-        lever: Some(Lever::Roll {
-            radians: core::f64::consts::FRAC_PI_2,
+        clash: Clash::Levered(Lever::Roll {
+            radians: f64::INFINITY,
             arm: 1.0,
         }),
     };
     let shown = levered.to_string();
     assert!(
-        shown.contains("a roll of") && !shown.contains("empty set"),
-        "a levered clash keeps its halves whatever the stored figure is: {shown:?}"
+        shown.contains("a roll of inf rad") && !shown.contains("empty set"),
+        "a levered clash keeps its halves whatever they are: {shown:?}"
     );
     assert!(
         shown.contains(editor_core::CONTRADICTORY_RECOURSE),

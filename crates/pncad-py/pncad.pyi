@@ -5118,7 +5118,11 @@ class MateFault:
     @property
     def predicate(self) -> Optional[str]: ...
     @property
-    def clash(self) -> Optional[Length]: ...
+    def clash(self) -> Optional[Length]:
+        """The measured clash: a length verbatim, or a lever's product.
+        `None` for the structural refusal (`mate_member_empty`), which
+        measures nothing."""
+
     @property
     def part(self) -> Optional[NodeId]: ...
     @property

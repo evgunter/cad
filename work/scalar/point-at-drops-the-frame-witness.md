@@ -2,8 +2,10 @@
 id: point-at-drops-the-frame-witness
 kind: issue
 title: point_at decides a frame witness and returns only its affine; a caller wanting the axis as a UnitVec3 re-asks the aim decision
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-20
+pr: 2896
 ---
 
 
@@ -52,3 +54,15 @@ without restating the refusal projection. `MateFrame::placement` and
 `frame_point_at_aim` funnel stops recording the mate frame's aim twice
 per solve. SCALAR's ground (`crates/geom-core/src/linalg/frame.rs`,
 `ortho_frame.rs`); the consumer is MSOLVE's `mate.rs`.
+
+## Closed (2026-09-20, PR 2896)
+
+Done by MSOLVE-8 itself, on the ruling at its fix pass that the fence
+widens by one door: `geom_core::linalg::frame::point_at_frame`
+(`crates/geom-core/src/linalg/frame.rs`) returns the `OrthoFrame`
+`point_at` builds, and `point_at` is that door's `to_affine()` — one
+construction, bit-identical by construction and pinned over a grid by
+`point_at_is_point_at_frame_to_affine_bit_for_bit`. `MateFrame::frame`
+reads it; `placement` is its affine and `axis` its `w`; the re-mint,
+the restated refusal projection and the third aim decision per mate
+are gone (`msolve8_levered_clash::kstats_aim_decided_twice_per_mate`).

@@ -30,13 +30,14 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use geom_core::Tol;
-use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
-use geom_core::predicate::{Band, Indeterminate};
+use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
+use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::predicate::Band;
 
-use super::coset::{Coset, FoldStop, Subgroup, derived_direction};
+use super::coset::{Coset, FoldStop, Measured, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
-use super::{Alignment, AxisSense, Lever, MateFault, MatePrimitive, MateSide};
+use super::{Alignment, AxisSense, Clash, Lever, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
 use crate::edit::EditError;
 use crate::expr::ParamEnv;
@@ -401,13 +402,12 @@ fn opposed() -> Affine3<f64> {
 /// The clocking RIDER is applied here too, because it never stands
 /// alone: it modifies its carrier's target frame and cuts its residual.
 ///
-/// The subgroup's direction is the `a` frame's axis as the frame
-/// ladder decided it ([`super::MateFrame::axis`], the witness whose
-/// value is the placement's third column), negated exactly for an
-/// opposed sense. Every primitive's target keeps that axis — a
-/// standoff translates along it and the rider spins about it — so no
-/// direction here is read back off a product of matrices, which would
-/// be unit only to rounding and a witness to nothing.
+/// Each side's frame is read ONCE ([`super::MateFrame::frame`]): its
+/// affine is the placement and its `w` the axis witness, negated
+/// exactly for an opposed sense. Every primitive's target keeps that
+/// axis — a standoff translates along it and the rider spins about it
+/// — so no direction here is read back off a product of matrices,
+/// which would be unit only to rounding and a witness to nothing.
 ///
 /// `arm` is this mate's lever — the two mated parts' reach summed
 /// ([`pair_reach`]) plus the datum's own terms
@@ -421,21 +421,14 @@ fn mate_coset(
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
     let frame = |side: MateSide, f: &super::MateFrame| {
-        f.placement(tol)
+        f.frame(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
     };
     let fa = frame(MateSide::A, &alignment.a)?;
-    let fb = frame(MateSide::B, &alignment.b)?;
-    let axis = alignment.a.axis(tol).map_err(|error| {
-        Box::new(MateFault::Frame {
-            mate,
-            side: MateSide::A,
-            error,
-        })
-    })?;
+    let fb = frame(MateSide::B, &alignment.b)?.to_affine();
     let (fa, axis) = match alignment.sense {
-        AxisSense::Aligned => (fa, axis),
-        AxisSense::Opposed => (fa * opposed(), -axis),
+        AxisSense::Aligned => (fa.to_affine(), fa.w()),
+        AxisSense::Opposed => (fa.to_affine() * opposed(), -fa.w()),
     };
     let local_z = Vec3::new(0.0, 0.0, 1.0);
     let spin = |theta: f64| {
@@ -451,25 +444,24 @@ fn mate_coset(
             // already pinned the roll, so the only clocking it can
             // agree with is zero.
             if let Some(theta) = alignment.clocking {
-                let margin = geom_core::predicate::Margin::levered(theta, arm);
-                let deviation = margin.value();
-                let sign = geom_core::k_stats::decide("mate_clocking_redundant", margin, band)
-                    .map_err(|diag| {
-                        Box::new(MateFault::Indeterminate {
-                            mate,
-                            diag: Box::new(diag),
-                        })
-                    })?;
+                let roll = Measured::Lever(Lever::Roll {
+                    radians: theta,
+                    arm,
+                });
+                let sign =
+                    geom_core::k_stats::decide("mate_clocking_redundant", roll.margin(), band)
+                        .map_err(|diag| {
+                            Box::new(MateFault::Indeterminate {
+                                mate,
+                                diag: Box::new(diag),
+                            })
+                        })?;
                 if sign != geom_core::predicate::Sign::Zero {
                     return Err(Box::new(MateFault::Contradictory {
                         held: mate,
                         added: mate,
                         predicate: "mate_clocking_redundant",
-                        clash: deviation,
-                        lever: Some(Lever::Roll {
-                            radians: theta,
-                            arm,
-                        }),
+                        clash: roll.clash(),
                     }));
                 }
             }
@@ -531,10 +523,9 @@ fn mate_coset(
 ///
 /// # Errors
 ///
-/// [`Indeterminate`] when a transported direction's length could not
-/// be decided — the witness refusing, escalated like every other
-/// decision in the fold.
-fn invert(c: Coset, band: Band) -> Result<Coset, Indeterminate> {
+/// The frame ladder's own refusal for a transported direction whose
+/// length could not be decided ([`derived_direction`]).
+fn invert(c: Coset, band: Band) -> Result<Coset, FrameError> {
     let r = c.representative.inverse();
     let dir = |u: UnitVec3<f64>| derived_direction(r.linear * u.get(), "mate_coset_inverse", band);
     let pt = |p: Point3<f64>| r.transform_point(p);
@@ -560,6 +551,40 @@ fn invert(c: Coset, band: Band) -> Result<Coset, Indeterminate> {
     Ok(Coset {
         subgroup,
         representative: r,
+    })
+}
+
+/// **A direction the fold derives from a witness, re-minted under the
+/// run's band**, with the direction door's refusal in the frame
+/// ladder's vocabulary — the refusal a mate frame's own axis gets —
+/// so a decided ZERO stays a definite refusal and only an in-band
+/// length is the escalation: `Degenerate` and an underflowed length
+/// are the ladder's `Degenerate` and `UnderflowedLength` at the aim,
+/// an in-band length carries its diagnostic, a length that is no
+/// number is `NonFiniteLength`. The invariant a caller relies on is
+/// that a proper rotation of a witness has length one within
+/// rounding, so on a document the doors build the mint never refuses;
+/// a refusal is the witness doing its job.
+fn derived_direction(
+    v: Vec3<f64>,
+    site: &'static str,
+    band: Band,
+) -> Result<UnitVec3<f64>, FrameError> {
+    UnitVec3::new(v, site, band).map_err(|error| match error {
+        UnitVec3Error::Degenerate => FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: None,
+        },
+        UnitVec3Error::Escalated(diag) => FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: Some(diag),
+        },
+        UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength {
+            input: FrameVector::Aim,
+        },
+        UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength {
+            input: FrameVector::Aim,
+        },
     })
 }
 
@@ -641,11 +666,14 @@ fn fold_pair<P: crate::ProfilePayload>(
         let mut coset = mate_coset(mate, alignment, mate_arm, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
+        // The transported direction is `a`'s axis carried into `b`'s
+        // coordinates, so a refusal is reported at side `a`.
         if (ha, hb) != (parent, child) {
-            coset = invert(coset, band).map_err(|diag| {
-                Box::new(MateFault::Indeterminate {
+            coset = invert(coset, band).map_err(|error| {
+                Box::new(MateFault::Frame {
                     mate,
-                    diag: Box::new(diag),
+                    side: MateSide::A,
+                    error,
                 })
             })?;
         }
@@ -654,17 +682,12 @@ fn fold_pair<P: crate::ProfilePayload>(
             Err(FoldStop::Indeterminate(diag)) => {
                 return Err(Box::new(MateFault::Indeterminate { mate, diag }));
             }
-            Err(FoldStop::Clash {
-                predicate,
-                margin,
-                lever,
-            }) => {
+            Err(FoldStop::Clash { predicate, clash }) => {
                 return Err(Box::new(MateFault::Contradictory {
                     held: held_mate.unwrap_or(mate),
                     added: mate,
                     predicate,
-                    clash: margin,
-                    lever,
+                    clash,
                 }));
             }
         };
@@ -673,8 +696,7 @@ fn fold_pair<P: crate::ProfilePayload>(
                 held: held_mate.unwrap_or(mate),
                 added: mate,
                 predicate: super::MATE_MEMBER_EMPTY,
-                clash: f64::INFINITY,
-                lever: None,
+                clash: Clash::Structural,
             }));
         }
         held_mate.get_or_insert(mate);
@@ -1443,4 +1465,62 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
     }
     after.set_placements(registry_after(before.placements(), &acts));
     Ok(acts)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::predicate::MarginDiag;
+
+    const SITE: &str = "solve_test_direction";
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A derived direction refuses in the frame ladder's own
+    /// vocabulary, and a decided zero is not an escalation.** A length
+    /// inside `(ε, Kε)` is the in-band escalation carrying its
+    /// diagnostic under the site's name; one the band calls zero is
+    /// the definite `Degenerate` with no diagnostic; one that
+    /// underflowed the format, or is no number, is that arm; a proper
+    /// rotation of a witness mints.
+    #[test]
+    fn a_derived_direction_refuses_as_the_frame_ladder_does() {
+        let eps = Tol::witness().eps();
+        let in_band = derived_direction(Vec3::new(3.0 * eps, 0.0, 0.0), SITE, band()).unwrap_err();
+        let FrameError::Degenerate {
+            input: FrameInput::Aim,
+            indeterminate: Some(diag),
+        } = in_band
+        else {
+            panic!("an in-band length escalates with its diagnostic: {in_band:?}");
+        };
+        assert_eq!(diag.predicate, Some(SITE));
+        assert!(matches!(diag.margin, MarginDiag::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9));
+        assert_eq!(
+            derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: None,
+            }
+        );
+        assert_eq!(
+            derived_direction(Vec3::new(f64::NAN, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::NonFiniteLength {
+                input: FrameVector::Aim,
+            }
+        );
+        assert_eq!(
+            derived_direction(Vec3::new(1e-200, 0.0, 0.0), SITE, band()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Aim,
+            }
+        );
+        let axis = UnitVec3::new(Vec3::new(1.0, 2.0, -3.0), SITE, band()).unwrap();
+        let turned = Mat3::rotation_about(Vec3::new(0.3, -0.7, 0.2), 1.234) * axis.get();
+        let minted = derived_direction(turned, SITE, band()).unwrap().get();
+        assert!((minted - turned).norm() <= 4.0 * f64::EPSILON);
+    }
 }

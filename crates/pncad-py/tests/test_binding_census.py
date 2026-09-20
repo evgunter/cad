@@ -2199,6 +2199,11 @@ NOT_BOUND = {
     # is distinguishable from the other, so a `lever_kind` word beside
     # them would publish one fact twice.
     "Lever": SHAPE,
+    # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
+    # lever above and crosses the same way: a length is `clash` alone,
+    # a lever is `clash` beside its halves, and the structural refusal
+    # is `clash` absent under the predicate word `mate_member_empty`.
+    "Clash": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.

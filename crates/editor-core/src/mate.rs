@@ -63,9 +63,9 @@
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
-use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
-use geom_core::linalg::{Affine3, Point3, UnitVec3, UnitVec3Error, Vec3};
-use geom_core::predicate::{Band, BandError, Indeterminate};
+use geom_core::linalg::frame::FrameError;
+use geom_core::linalg::{Affine3, OrthoFrame, Point3, UnitVec3, Vec3};
+use geom_core::predicate::{BandError, Indeterminate, Margin};
 
 pub mod coset;
 pub mod member;
@@ -129,9 +129,14 @@ pub struct MateFrame {
 }
 
 impl MateFrame {
-    /// The rigid placement this frame denotes: local +Z is `axis`,
-    /// local origin is `origin`, roll fixed by `reference` (U4B's
-    /// `point_at` convention, verbatim).
+    /// **The frame this datum denotes, as the witness the ladder
+    /// decided**: local +Z is `axis`, local origin is `origin`, roll
+    /// fixed by `reference` (U4B's `point_at` convention, verbatim),
+    /// through `point_at_frame` — so a reader that levers a sine or a
+    /// cosine off the axis takes it as [`OrthoFrame::w`], a
+    /// [`UnitVec3`], holding the fact by type. [`Self::placement`] is
+    /// this frame's `to_affine`, and [`Self::axis`] its `w`; one
+    /// construction, read once per side by the solve.
     ///
     /// # Errors
     ///
@@ -141,70 +146,32 @@ impl MateFrame {
     /// perpendicular offset is not a finite NUMBER
     /// (`FrameError::NonFiniteLength`, at `Aim` and `RollReference`
     /// respectively). This is `point_at`'s own list; the three cases
-    /// arrive here unchanged because `placement` calls it directly.
-    pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
-        let eye = self.eye();
+    /// arrive here unchanged.
+    pub fn frame(&self, tol: Tol) -> Result<OrthoFrame<f64>, FrameError> {
+        let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
+        let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);
         let reference = Vec3::new(self.reference[0], self.reference[1], self.reference[2]);
-        geom_core::linalg::frame::point_at(eye, eye + self.axis_raw(), reference, tol)
+        geom_core::linalg::frame::point_at_frame(eye, eye + axis, reference, tol)
     }
 
-    /// **The axis the placement aims along, as the witness the ladder
-    /// decided**: the direction [`Self::placement`] stores in its
-    /// third column, carried as a [`UnitVec3`] so a reader that levers
-    /// a sine or a cosine off it holds the fact by type rather than by
-    /// this doc.
-    ///
-    /// The one decision `point_at` makes for its aim, made through the
-    /// same door under the same funnel name on the same vector
-    /// (`(eye + axis) − eye`, the ladder's own spelling, so the aim
-    /// carries the ladder's rounding and not the raw field's) — so
-    /// `axis(tol)?.get()` is `placement(tol)?.linear.c2` bit for bit,
-    /// and the two doors refuse together, with the aim's refusal
-    /// projected onto [`FrameError`] exactly as `point_at` projects
-    /// it. `point_at` returns the affine and drops the witness it had,
-    /// which is why this door re-asks the question instead of reading
-    /// the column: a column read back off an affine is a placement,
-    /// not a witness (`geom_core::OrthoFrame`'s docs), and the door
-    /// that would hand the frame witness out of the ladder is
-    /// `work/scalar/point-at-drops-the-frame-witness.md`.
+    /// The rigid placement this frame denotes: [`Self::frame`]'s
+    /// affine, bit for bit.
     ///
     /// # Errors
     ///
-    /// The aim's refusals from [`Self::placement`]'s list, and only
-    /// those: [`FrameError::NonFiniteLength`] and
-    /// [`FrameError::UnderflowedLength`] at [`FrameVector::Aim`],
-    /// [`FrameError::Degenerate`] at [`FrameInput::Aim`] (carrying the
-    /// escalation when the length landed in the band), and
-    /// [`FrameError::Band`].
+    /// [`Self::frame`]'s.
+    pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
+        Ok(self.frame(tol)?.to_affine())
+    }
+
+    /// The axis this frame aims along, as the witness [`Self::frame`]
+    /// decided: its `w`, which is [`Self::placement`]'s third column.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::frame`]'s.
     pub fn axis(&self, tol: Tol) -> Result<UnitVec3<f64>, FrameError> {
-        let band = Band::linear(tol).map_err(FrameError::Band)?;
-        let eye = self.eye();
-        UnitVec3::new((eye + self.axis_raw()) - eye, "frame_point_at_aim", band).map_err(|error| {
-            match error {
-                UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength {
-                    input: FrameVector::Aim,
-                },
-                UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength {
-                    input: FrameVector::Aim,
-                },
-                UnitVec3Error::Degenerate => FrameError::Degenerate {
-                    input: FrameInput::Aim,
-                    indeterminate: None,
-                },
-                UnitVec3Error::Escalated(indeterminate) => FrameError::Degenerate {
-                    input: FrameInput::Aim,
-                    indeterminate: Some(indeterminate),
-                },
-            }
-        })
-    }
-
-    fn eye(&self) -> Point3<f64> {
-        Point3::new(self.origin[0], self.origin[1], self.origin[2])
-    }
-
-    fn axis_raw(&self) -> Vec3<f64> {
-        Vec3::new(self.axis[0], self.axis[1], self.axis[2])
+        Ok(self.frame(tol)?.w())
     }
 }
 
@@ -350,12 +317,9 @@ impl Alignment {
     /// mate is ordinarily written. With a real part on each side the
     /// lever is never zero, so no floor guards this door.
     ///
-    /// A floor once stood under this term because the datum was the
-    /// only scale in hand, and a lever of `L` makes the smallest
-    /// decidable tilt `ε / L`, so a datum a nanometre from the origin
-    /// read every tilt as parallel. The parts' own reach is that scale
-    /// now, at whatever size the author works, so the case the floor
-    /// guarded has no document that reaches it.
+    /// No floor stands under this term: the parts' own reach is the
+    /// scale, at whatever size the author works, and a lever of `L`
+    /// makes the smallest decidable tilt `ε / L`.
     pub fn lever_arm(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
         self.primitive
@@ -648,6 +612,13 @@ impl core::fmt::Display for LeverRefusal {
 /// the two arms are the two kinds of number the solve levers, and a
 /// third kind is a new arm with its own sentence, never a free string
 /// a site could set to a length.
+///
+/// The arm is the one the predicate was decided over, and the two
+/// kinds are decided over different ones: a `Roll` is decided in the
+/// mate's own coset over that mate's lever, a `Residual` in the fold
+/// over the largest lever of the mates folded so far — so a pair can
+/// print one arm on a roll and a larger one on a residual, each the
+/// truth of its own decision.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Lever {
     /// An authored roll, in radians (the clocking rider's
@@ -677,13 +648,56 @@ impl Lever {
         }
     }
 
-    /// The deviation the lever measured, in metres: the product of the
-    /// two halves, computed here and nowhere stored — one
-    /// multiplication, so it is `Margin::levered`'s value bit for bit.
-    pub fn deviation(self) -> f64 {
+    /// **The margin this lever decides**: the pure number levered by
+    /// the arm through [`Margin::levered`] — the ONE home of that
+    /// multiplication for every levered predicate in the solve, so
+    /// the number a refusal quotes and the number the funnel decided
+    /// are one value.
+    pub fn margin(self) -> Margin<f64> {
         match self {
-            Self::Roll { radians, arm } => radians * arm,
-            Self::Residual { value, arm } => value * arm,
+            Self::Roll { radians, arm } => Margin::levered(radians, arm),
+            Self::Residual { value, arm } => Margin::levered(value, arm),
+        }
+    }
+
+    /// The deviation the lever measured, in metres: [`Self::margin`]'s
+    /// value, computed here and nowhere stored.
+    pub fn deviation(self) -> f64 {
+        self.margin().value()
+    }
+}
+
+/// **What a contradictory refusal measured** — closed over the three
+/// ways a membership predicate refuses, so the refusal carries the
+/// measurement and nothing that could disagree with it: no metre
+/// figure stored beside the halves it is the product of, no sentinel
+/// read back out of a number.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Clash {
+    /// The predicate decided the empty intersection STRUCTURALLY
+    /// (`mate_member_empty`): the empty set holds nothing and no
+    /// margin decides that, so there is no measurement at all.
+    Structural,
+    /// A length the predicate measured outright.
+    Length {
+        /// The margin that should have been zero and was not, in
+        /// metres.
+        metres: f64,
+    },
+    /// A pure number the predicate levered by an arm; the deviation
+    /// is the product ([`Lever::deviation`]).
+    Levered(Lever),
+}
+
+impl Clash {
+    /// The deviation in metres, when the predicate measured one: a
+    /// length verbatim, a lever's product, and `None` for the
+    /// structural refusal.
+    pub fn deviation(self) -> Option<f64> {
+        match self {
+            Self::Structural => None,
+            Self::Length { metres } => Some(metres),
+            Self::Levered(lever) => Some(lever.deviation()),
         }
     }
 }
@@ -705,12 +719,9 @@ impl Lever {
 /// asymmetry, which is the one fact both consumers exist to carry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
-    /// The solve is a solve of ANOTHER document (DI3): one of the two
-    /// arms whose subject is not a mate at all — `Band`, whose subject
-    /// is the constructor, is the other. Raised by
-    /// [`crate::SolvedPoses::placement`], never recorded against a
-    /// node — a solve records no fault about a document it never read,
-    /// which is why `viewer::tree` blames no row for it.
+    /// The solve is a solve of ANOTHER document (DI3). Names no mate
+    /// and reaches no row — the enum's own doc states which of the two
+    /// mate-less arms reaches what.
     PosesOfAnotherDocument {
         /// The document whose placement was asked for.
         expected: crate::ident::DocumentId,
@@ -768,27 +779,17 @@ pub enum MateFault {
         added: RecipeNodeId,
         /// The predicate that decided against them.
         predicate: &'static str,
-        /// The measured clash, in metres: the margin that should have
-        /// been zero and was not, or — for the predicate that decides
-        /// the empty intersection STRUCTURALLY — no measurement at all.
-        /// Which of those it is, is settled by `predicate`, never by
-        /// reading this number.
-        clash: f64,
-        /// The lever, when the predicate measured a pure number — an
-        /// authored roll, or a dimensionless residual — and an arm
-        /// carried it to `clash`: the two halves whose product is the
-        /// deviation, typed by what was measured ([`Lever`]). `None`
-        /// only when the predicate measured a length outright or
-        /// decided structurally, which `predicate` settles.
+        /// What it measured: a length outright, a pure number levered
+        /// by an arm, or nothing — the structural refusal.
         ///
-        /// The arm is the mate's lever as the solve forms it — the two
-        /// mated parts' own extent from the datum plus the datum's own
-        /// terms, `ASSEMBLY.md` A11 rule 5's qualifier
+        /// A lever's arm is the mate's lever as the solve forms it —
+        /// the two mated parts' own extent from the datum plus the
+        /// datum's own terms, `ASSEMBLY.md` A11 rule 5's qualifier
         /// ([`Alignment::lever_arm`] states the sum; [`MateReach`] is
         /// the parts' half) — and NOT a contact feature, so a message
         /// that names it is naming the parts' scale and nothing in the
         /// model.
-        lever: Option<Lever>,
+        clash: Clash,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -981,7 +982,6 @@ impl core::fmt::Display for MateFault {
                 added,
                 predicate,
                 clash,
-                lever,
             } => {
                 // One mate named on BOTH sides is a mate contradicting
                 // itself, and "mates 6 and 6" reads as an indexing
@@ -997,53 +997,43 @@ impl core::fmt::Display for MateFault {
                     write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
                 }
                 write!(f, ": predicate `{predicate}` ")?;
-                // WHETHER there is a measurement to report is the
-                // predicate's fact, settled where the refusal is
-                // raised. The margin's value never stands in for it:
-                // reading a sentinel back out of a number makes every
-                // other non-finite margin claim to be this case.
-                if *predicate == MATE_MEMBER_EMPTY {
-                    write!(
+                // WHETHER there is a measurement to report, and of
+                // which kind, is the predicate's fact and the type
+                // carries it: a levered clash prints the product of
+                // the two halves it shows, computed here, so the
+                // sentence cannot assert an identity the payload
+                // failed to keep.
+                match clash {
+                    Clash::Structural => write!(
                         f,
                         "found the cosets meet in the empty set — a structural refusal, with no \
                          margin to measure"
-                    )?;
-                } else if let Some(lever) = lever {
-                    // A levered clash IS the product of its two halves,
-                    // so the sentence prints the product it computes
-                    // here. Stating a stored figure beside the halves
-                    // would assert an identity nothing enforces.
-                    match lever {
-                        Lever::Roll { radians, arm } => write!(
-                            f,
-                            "measured a roll of {radians} rad on a {arm} m arm, a deviation of \
-                             {} m where the cosets would have had to meet",
-                            lever.deviation()
-                        )?,
-                        Lever::Residual { value, arm } => write!(
-                            f,
-                            "measured a dimensionless residual of {value} on a {arm} m arm, a \
-                             deviation of {} m where the cosets would have had to meet",
-                            lever.deviation()
-                        )?,
-                    }
-                } else if clash.is_finite() {
-                    // Every other margin is a length measured outright
-                    // — and a length that is not finite is not one.
-                    write!(
+                    )?,
+                    Clash::Length { metres } if metres.is_finite() => write!(
                         f,
-                        "measured a clash of {clash} m where the cosets would have had to meet"
-                    )?;
-                } else {
-                    write!(
+                        "measured a clash of {metres} m where the cosets would have had to meet"
+                    )?,
+                    // A length that is not finite is not one.
+                    Clash::Length { metres } => write!(
                         f,
-                        "measured a clash that is not a finite length ({clash}) where the cosets \
+                        "measured a clash that is not a finite length ({metres}) where the cosets \
                          would have had to meet"
-                    )?;
+                    )?,
+                    Clash::Levered(lever @ Lever::Roll { radians, arm }) => write!(
+                        f,
+                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
+                         where the cosets would have had to meet",
+                        lever.deviation()
+                    )?,
+                    Clash::Levered(lever @ Lever::Residual { value, arm }) => write!(
+                        f,
+                        "measured a dimensionless residual of {value} on a {arm} m arm, a \
+                         deviation of {} m where the cosets would have had to meet",
+                        lever.deviation()
+                    )?,
                 }
                 // The repair is the same whichever measurement the
-                // predicate had to report, so it is stated once, after
-                // all four.
+                // predicate had to report, so it is stated once.
                 write!(f, " — {CONTRADICTORY_RECOURSE}")
             }
             Self::Under {
