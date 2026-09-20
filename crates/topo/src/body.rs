@@ -908,7 +908,11 @@ impl<T: Real> Body<T> {
 
     /// The faces of `solid`, in slot-index order (deterministic per D9
     /// — the order [`Body::faces`] yields), or `None` where the solid
-    /// key does not resolve.
+    /// key does not resolve. A foreign key is not caught (see the
+    /// [module docs](self)), and here that costs more than at a
+    /// single-entity lookup: a foreign `SolidKey` landing on a live
+    /// slot passes the resolution and this door hands back **another
+    /// solid's face list** as though it were the caller's.
     ///
     /// [`Body::solid_of_face`]'s inverse, and
     /// [`crate::query::all_faces`] restricted to one solid. It selects
@@ -1428,28 +1432,66 @@ mod tests {
             vec![second.face]
         );
 
-        // The same SET the shell walk answers, which is the other
-        // spelling of this question.
-        let walk: std::collections::BTreeSet<FaceKey> = body
+        // A solid with no faces answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.faces_of_solid(barren).unwrap(), Vec::<FaceKey>::new());
+        assert_eq!(body.faces_of_solid(SolidKey::default()), None);
+    }
+
+    /// The door's ORDER is the ARENA's, not the shell walk's, and the
+    /// two are only the same sequence while a solid has one shell.
+    ///
+    /// The fixture puts a solid's two shells out of step with the face
+    /// arena — shell 1 holds the first face, shell 2 the third and
+    /// then the second — which is the state an operator that moves a
+    /// face between one solid's shells leaves behind. Arena order is
+    /// then `[fa, fb, fc]` and the shell walk `[fa, fc, fb]`: same
+    /// SET, different SEQUENCE. A shell-walking implementation of this
+    /// door passes every assertion in the row above and fails here.
+    #[test]
+    fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // One solid, two shells: adopt the minted shell, and move
+        // `face_b` into it so the shells interleave with the arena.
+        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
+        body.get_solid_mut(t.solid)
+            .unwrap()
+            .shells
+            .push(second.shell);
+        body.get_solid_mut(second.solid).unwrap().shells.clear();
+        body.get_shell_mut(t.shell)
+            .unwrap()
+            .faces
+            .retain(|&f| f != t.face_b);
+        body.get_shell_mut(second.shell)
+            .unwrap()
+            .faces
+            .push(t.face_b);
+        body.get_face_mut(t.face_b).unwrap().shell = second.shell;
+
+        let walk: Vec<FaceKey> = body
             .get_solid(t.solid)
             .unwrap()
             .shells
             .iter()
             .flat_map(|&sh| body.get_shell(sh).unwrap().faces.clone())
             .collect();
-        assert_eq!(
-            body.faces_of_solid(t.solid)
-                .unwrap()
-                .into_iter()
-                .collect::<std::collections::BTreeSet<_>>(),
-            walk
-        );
+        assert_eq!(walk, vec![t.face_a, second.face, t.face_b], "the fixture");
 
-        // A solid with no faces answers the empty list; a solid key
-        // the body does not hold answers `None`.
-        let barren = body.add_solid(Solid { shells: vec![] }, prov());
-        assert_eq!(body.faces_of_solid(barren).unwrap(), Vec::<FaceKey>::new());
-        assert_eq!(body.faces_of_solid(SolidKey::default()), None);
+        let door = body.faces_of_solid(t.solid).unwrap();
+        assert_eq!(door, vec![t.face_a, t.face_b, second.face]);
+        assert_ne!(door, walk, "the two orders are distinguishable here");
+        assert_eq!(
+            door.iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>(),
+            walk.into_iter().collect::<std::collections::BTreeSet<_>>(),
+            "same set, different sequence"
+        );
     }
 
     #[test]

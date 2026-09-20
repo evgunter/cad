@@ -352,13 +352,16 @@ them as the class, which is what this row already did for
 
 ### Citations that had rotted (numbers, not names)
 
-`kfmrh`'s two walks are at ~:769 and ~:774 with their `.solid` reads at
-~:786 and ~:794; the row said ~:764, ~:772 and ~:787. The names are
-right and the numbers are allowed to rot (`CLAUDE.md` §Citations); they
-are corrected here only because the next lane re-running the
-8-line-window instrument needs the real gap, which is **17 lines, not
-14** — wider than the row said, so `kfmrh` escapes that window by more
-than it claimed.
+`kfmrh`'s two walks anchor at ~:769 and ~:774; their `.solid` reads are
+at ~:787 and ~:794. The names are right and the numbers are allowed to
+rot (`CLAUDE.md` §Citations); they are corrected here only because the
+next lane re-running the 8-line-window instrument needs the real gaps,
+which are **18 for walk 1 and 20 for walk 2** — not the one figure the
+row gave (14), and not the single 17 this section gave at its first
+attempt, which read walk 1's `.solid` off the `})?` line at ~:786 and
+then quoted one gap for two walks that differ by two. **A correction
+that is itself a number is the third of its kind on this program**;
+give both, or give the larger.
 
 ## Closed
 

@@ -27,14 +27,20 @@ entity belong to", indexed. `SolidOwners` is `pub` and documented as
 the offset-together verb's working set.
 
 They differ in **refusal posture**, which is the part a fold has to
-decide rather than assume:
+decide rather than assume — and there is a **third posture in
+`SolidOwners`' own file**, 124 lines above it:
 
-| | `SolidOwners::of` | `Scope::walk` |
-| --- | --- | --- |
-| an unresolved shell | skipped (`let Some(..) else { continue }`) | refuses (`?` on `Option`, so `of_solids` answers `None`) |
-| scope | every solid of the body | the named solids only, extendable by a re-scope |
-| vertices | derived from the half-edge arena, via `faces` | walked with the loops, in the same pass |
-| edges | none | indexed |
+| | `SolidOwners::of` (`separation.rs` ~:528) | `Scope::walk` (`offset_together.rs` ~:819) | `SolidSeparation::of` (`separation.rs` ~:409) |
+| --- | --- | --- | --- |
+| an unresolved shell | skipped (`let Some(..) else { continue }`) | refuses `None` (`?`), so `of_solids` answers `None` | refuses **typed** — `BooleanError::ClassificationInvariant { what: "solid separation: a solid names a shell the body lost" }` |
+| scope | every solid of the body | the named solids only, extendable by a re-scope | every solid of the body |
+| what it builds | a face→solid and vertex→solid index | the same, plus edges and a scope list | a per-solid list of face BOXES, then a hull |
+
+**Three postures on one nest, two of them in one file.** The third was
+missed on this row's first pass because the row's subject was stated as
+"the pair that build the same index", and `SolidSeparation::of` builds
+boxes rather than an index — literally true, and the wrong fence for a
+row whose table IS the posture comparison.
 
 So this is not a copy to delete: it is one index under two contracts,
 and the question is whether the total-and-lenient reading and the
@@ -66,3 +72,21 @@ consume the faces inline for a point cloud, a bounding box or an arena
 count. The instrument cannot see an index assembled without a
 `Solid::shells` read — one built by scanning the face arena and reading
 each face's back-pointer would be invisible to it.
+
+
+## Dispositioned, and not a member: `Scope::faces_in_scope`
+
+`offset_together.rs` (~:858) is a third spelling of "these solids'
+faces in arena order" — and it is **not** a member of this row or of
+`listing-a-solids-faces-…`, for a reason its own rustdoc states: it
+walks no body at all. It filters the `SecondaryMap` the scope already
+built, whose key-slot iteration IS arena order, so it is a read of a
+cached partition rather than a scan. Nothing there can fail, which is
+why it returns a bare `Vec` where `Body::faces_of_solid` returns
+`Option`.
+
+It is listed here because it was neither member nor non-member on the
+first pass, and because `body.rs`'s
+`faces_of_solid_restricts_the_face_arena_to_one_solid` and
+`offset_together::scope_walks` now assert the two agree as SEQUENCES —
+so if this index and the door ever diverge, those rows say so.

@@ -2394,7 +2394,10 @@ pub struct SolidFaces {
 }
 
 impl SolidFaces {
-    /// The faces of `solid`'s shells in face-arena order, guarded.
+    /// One solid's faces in face-arena order, guarded — selected by
+    /// the faces' own back-pointers through [`Body::faces_of_solid`],
+    /// not by a walk of [`crate::Solid::shells`] (that door's doc
+    /// carries why the two orders differ).
     ///
     /// # Errors
     ///
@@ -2411,10 +2414,16 @@ impl SolidFaces {
         // A group-read kind whose surface key is carried on both sides
         // of the selection boundary (the variant's doc). One pass over
         // the arena: every key's first face outside the selection.
+        //
+        // OUTSIDE is the complement of `faces`, read off `faces`
+        // itself rather than re-asked of the back-pointers: the two
+        // passes then cannot disagree about where the boundary is,
+        // which a second spelling of the membership test could.
+        let selected: std::collections::BTreeSet<FaceKey> = faces.iter().copied().collect();
         let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
             std::collections::BTreeMap::new();
         for (k, d) in body.faces() {
-            if body.solid_of_face(k) != Some(solid) {
+            if !selected.contains(&k) {
                 foreign.entry(d.surface).or_insert(k);
             }
         }

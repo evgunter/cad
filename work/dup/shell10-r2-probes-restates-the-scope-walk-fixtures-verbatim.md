@@ -37,15 +37,14 @@ rewrote the walk inside both copies, and the `faces_of` unit
 `break_a_loop` and `SQUARE`.
 
 That fold left one thing for this row to collect. `Body::faces_of_solid`
-refuses (`Option`) for a solid key the body does not hold, so every
-former `faces_of(body, solid)` call site now carries
-`.expect("a live solid")` — twelve copies across the two modules as of
-2026-09-20, measured after repeated calls inside one row were bound
-once. Nothing goes stale with them and they carry no logic, so they are
-idiom rather than a copy of a *thing* (the ambient rate in `topo/src`
-is 362 `.expect(` and 2055 `.unwrap()`); but they collapse to one the
-day this family gets a single home with a local adapter over the door,
-which is this row's decision.
+refuses (`Option`), so every former `faces_of(body, solid)` call site
+in these two modules now carries an `.expect`, and they collapse to one
+the day this family gets a single home with a local adapter over the
+door — this row's decision. **The count, the measurement date and the
+argument about whether it is a duplication at all live in one place**,
+`work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`'s
+X4 section; restating them here is the accumulation this program has a
+row about (`orient-module-prose-accumulation`).
 
 The prose disclosure is the finding's own instrument: the reviewer
 brief's Q1 sweep (`rg -n 'verbatim|re-derived|ported from|mirror of'`)

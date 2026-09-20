@@ -85,10 +85,12 @@ Two things a lane folding them should know, both measured on the
 `topo/src` side of the same fold:
 
 - The door answers **`None` for a solid key the body does not hold**,
-  so each call site grows an `.expect`. Where a row asks for the same
-  solid's faces twice, bind it once rather than re-asking — that is
-  what took the `topo/src` side from fifteen `.expect` copies to
-  twelve.
+  so each call site grows an `.expect`, and deleting a one-line
+  wrapper multiplies the unwrap it used to hold once. Where a row asks
+  for the same solid's faces twice, bind it once rather than
+  re-asking. What that cost on the `topo/src` side is counted in
+  `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`'s
+  X4 section, dated; it is not restated here.
 - The `topo/src` copies carried `.expect("a live face names its solid")`
   *inside* the filter, so a face whose shell had gone would panic;
   these three compare `solid_of(body, k) == solid` and would silently
