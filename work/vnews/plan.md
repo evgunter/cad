@@ -254,6 +254,44 @@ exposure the full pass does not already judge, and the full pass is the
 one CI runs on any branch that touches this crate. Check the gating
 before treating a missing skip-pass receipt as uncovered.
 
+**Apply the charter's reader test at SPEC time, not at review.** The
+Charter's *"a row belongs here only if a reader would see the
+difference; a rename nobody reads is not news"* is a scoping test —
+does this row belong to a NEWS program at all, rather than to a sibling
+— and it is cheap to run before a lane is dispatched and expensive
+after. `is-instance-collapses-absent-and-wrong-kind` reached its style
+review before anyone asked it: the split it makes is real, its one
+caller draws nothing either way, and `DisplayState::prune` had already
+told the two states apart. The unit is worth having — one decision site
+where there were two, and a `pub` door whose next caller cannot get it
+wrong — but it is NOT news, and nothing on this slate said so until a
+reviewer read the charter back at it.
+
+The consequence is about ORDER, not merit. Three rows in group 6 change
+what a reader is actually told — Undo and Redo disabled in silence over
+a refusal that has words, the range button's third spelling, the New
+document button — and any of them would have been a better wave-1 unit
+than a door nobody can currently misuse. **A row whose fix no reader
+sees goes behind every row whose fix one does.**
+
+**And when a lane refuses the orchestrator's recommended shape, the
+burden is the orchestrator's.** Adjudicating that same unit I proposed
+the panel SAY the absent-node sentence, to make the change news. The
+lane refused and was right on four independent grounds, the decisive
+one being that `pane/properties.rs`'s `standing_ui` already draws
+*"deleted"* three lines earlier from the same lookup on the same
+document — so the sentence would have been a second spelling of news
+already on screen, minting the node-side twin of
+`three-spellings-say-a-parameter-is-not-declared`, which is open on
+this slate against the parameter half of the same function. Two further
+grounds I had not weighed: `session::Standing`'s doc makes the section
+not drawing the SECOND CLAUSE of its own rule (*"the affordances that
+need a live entity switch off"*), and that clause is **GQ7's recorded
+constraint** — ratified design in `crates/viewer/GUI-DESIGN.md`, so the
+shape I recommended would have needed an `[ev]` PR to implement. An
+orchestrator's fix shape is a claim like any other and gets checked
+against the tree before it is issued.
+
 **Read a row's STATUS before you build on its premise — a citation
 check is not a premise check.** Three rows on this slate had premises
 that the tree had already falsified, and the sessions that dispatched
