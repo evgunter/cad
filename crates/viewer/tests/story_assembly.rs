@@ -824,7 +824,10 @@ fn the_windmill_story() {
         })
     };
     let Some(Refusal::Edit(error)) = &clocked.refusal else {
-        panic!("the rider is refused at the door, got {:?}", clocked.refusal);
+        panic!(
+            "the rider is refused at the door, got {:?}",
+            clocked.refusal
+        );
     };
     let pncad::document::EditError::MateRefused { fault, .. } = &**error else {
         panic!("the door carries the solve's own fault, got {error}");

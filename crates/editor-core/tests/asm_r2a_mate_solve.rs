@@ -1544,7 +1544,10 @@ fn row7a_a_standalone_clocking_refuses_typed() {
 /// The edit door's refusal of `node` on the solve's own per-mate
 /// admission, through the refusing reach: the fault it carries, which
 /// is what the solve would have recorded against the mate.
-fn door_refusal(doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>) -> editor_core::MateFault {
+fn door_refusal(
+    doc: &ProfileDoc,
+    node: Node<editor_core::ProfileProgram>,
+) -> editor_core::MateFault {
     let err = doc
         .apply(
             &DocEdit::InsertNode { node },

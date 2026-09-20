@@ -710,7 +710,10 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 /// admission: the fault it carries, which is what the solve would
 /// have recorded against the mate. Through the refusing reach, since
 /// none of the refusals here needs a lever.
-fn door_refusal(doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>) -> editor_core::MateFault {
+fn door_refusal(
+    doc: &ProfileDoc,
+    node: Node<editor_core::ProfileProgram>,
+) -> editor_core::MateFault {
     let err = doc
         .apply(
             &DocEdit::InsertNode { node },

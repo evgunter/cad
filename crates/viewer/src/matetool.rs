@@ -435,7 +435,12 @@ fn table_refusal(choice: &MateChoice) -> Option<&'static str> {
     match (choice.primitive, choice.clocking) {
         (MatePrimitive::PlanarRest { .. }, Some(_)) => Some("a clocking rider on a planar rest"),
         (MatePrimitive::Clocking, _) => Some("a standalone clocking with no carrying mate"),
-        (MatePrimitive::FrameCoincidence | MatePrimitive::Coaxial | MatePrimitive::PlanarRest { .. }, _) => None,
+        (
+            MatePrimitive::FrameCoincidence
+            | MatePrimitive::Coaxial
+            | MatePrimitive::PlanarRest { .. },
+            _,
+        ) => None,
     }
 }
 

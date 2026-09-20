@@ -328,7 +328,11 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
     let fault = match at_the_door(&doc, &opts, clocked(ids[0], ids[1], alignment)) {
         Ok((doc, mate)) => {
             let poses = solve(&doc, &opts, Tol::witness());
-            assert_eq!(poses.fault(mate), None, "admitted at the door, placed by the solve");
+            assert_eq!(
+                poses.fault(mate),
+                None,
+                "admitted at the door, placed by the solve"
+            );
             assert_eq!(poses.role(mate), Some(MateRole::Determining));
             None
         }

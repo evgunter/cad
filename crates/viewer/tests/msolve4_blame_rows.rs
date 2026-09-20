@@ -112,7 +112,11 @@ fn add_seat(
 /// the PAIR, which the edit door admits — a mate the coset table
 /// refuses on its own datum never enters the document, so no row
 /// here can build a refused cluster out of one.
-fn add_rest(session: &mut DocSession, bench: &common::asm::Bench, post: RecipeNodeId) -> RecipeNodeId {
+fn add_rest(
+    session: &mut DocSession,
+    bench: &common::asm::Bench,
+    post: RecipeNodeId,
+) -> RecipeNodeId {
     common::insert(
         session,
         SessionOp::AddMate {
