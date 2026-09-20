@@ -4,11 +4,12 @@
 //!
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::collections::BTreeSet;
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, SweepStrategy, SweepTrace, sweep_traces};
 
@@ -39,48 +40,22 @@ fn cylinder() -> Body<f64> {
     cylinder_at(0.0)
 }
 
+/// `s16_box_soundness`'s fixture, adopted with the rest of that
+/// corpus — see this file's header.
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body
+    brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }
 
 fn nested_box(cx: f64, h: f64) -> Body<f64> {
     small_box(cx, h, 0.3)
 }
 
-fn plate(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
-            .into_iter()
-            .map(|(a, b)| ProfileVertex::new(p2(a, b), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
 fn rim_plate(x_max: f64) -> Body<f64> {
-    plate((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1))
+    brick((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1), Tol::witness())
 }
 
 fn top_rim_plate(y_min: f64) -> Body<f64> {
-    plate((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1))
+    brick((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1), Tol::witness())
 }
 
 fn rounded_plate() -> Body<f64> {
@@ -142,17 +117,17 @@ fn corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         (
             "rounded x box clear of round".to_string(),
             rounded.clone(),
-            plate((1.2, 1.6), (0.36, 0.6), (0.2, 0.5)),
+            brick((1.2, 1.6), (0.36, 0.6), (0.2, 0.5), Tol::witness()),
         ),
         (
             "rounded x box grazing round".to_string(),
             rounded.clone(),
-            plate((1.18, 1.6), (0.33, 0.6), (0.2, 0.5)),
+            brick((1.18, 1.6), (0.33, 0.6), (0.2, 0.5), Tol::witness()),
         ),
         (
             "rounded x corner box".to_string(),
             rounded,
-            plate((1.1, 1.6), (0.2, 0.6), (0.2, 0.5)),
+            brick((1.1, 1.6), (0.2, 0.6), (0.2, 0.5), Tol::witness()),
         ),
         (
             "cylinder x cylinder 1e-3 apart".to_string(),

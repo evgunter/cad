@@ -1,8 +1,19 @@
-//! **Review R1's consumer suite for GUI-3 (PR #1101)** — an
-//! independent derivation of the unit's claims, with its own fixtures
-//! (`memories/review-and-dependency-policy.md`: pointing a review
-//! suite at the implementation's own constants would spend exactly
-//! the independence that is its value).
+//! **Review R1's consumer suite for GUI-3 (PR #1101)**
+//! (`memories/review-and-dependency-policy.md`).
+//!
+//! **What keeps these rows honest is where their expectations come
+//! from, not what their fixture is made of.** Every row here asserts
+//! on history structure, refusals, landing generations or file bytes,
+//! written out from the PR's prose rather than read off the unit's
+//! rows. The profile's shape and the parameter's name are not oracles
+//! here — no row asserts on either — so a row added that DOES assert
+//! on geometry states that at its own site and brings its own fixture,
+//! because nothing below would catch it if it did not.
+//!
+//! The triangle and `r1_depth` are R1's own so that its document reads
+//! apart from the unit suites' in one aggregated binary. The sugar
+//! that carries no claim is shared:
+//! `common::{len, scl, tempdir, xy_frame}`.
 //!
 //! Shapes per `memories/test-suite-cost.md`: every row here is a
 //! static-witness row (deterministic fixtures authored through the
@@ -18,6 +29,8 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
+
+use crate::common::{len, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -25,29 +38,15 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 use viewer::{docio, props, tree};
 
-/// R1's own parameter name — not the implementation suites'.
+/// R1's own parameter name, so this suite's document reads apart from
+/// the unit suites' in the aggregated binary. No row asserts on the
+/// name.
 fn depth_param() -> ParamName {
     ParamName::new("r1_depth")
 }
 
-/// A triangle profile — deliberately not the square the unit's own
-/// fixtures use.
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
+/// A triangle, for the same reason as `depth_param` — it reads apart
+/// from the unit suites' square. No row asserts on the shape.
 fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
         plane,
@@ -55,14 +54,6 @@ fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
     })
-}
-
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
 fn applied(
@@ -134,15 +125,6 @@ fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
         SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("r1_depth is continuous"),
     }
-}
-
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
 }
 
 /// The abandoned branch keeps its whole SUBTREE, not just the one

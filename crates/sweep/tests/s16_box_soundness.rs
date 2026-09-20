@@ -57,6 +57,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::collections::BTreeSet;
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
@@ -95,19 +96,7 @@ fn cylinder(z0: f64, height: f64) -> Body<f64> {
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
 /// spanning `z in [z0, z0 + 0.4]`.
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body
+    brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }
 
 /// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
@@ -209,7 +198,7 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
 /// this row is what moves the day that ring lands.
 #[test]
 fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
-    let block = plate((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0));
+    let block = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness());
     let tool = cylinder(0.5, 1.0);
     let BooleanResult::Body(bored) = topo::subtract(&block, &tool, Tol::witness()).unwrap() else {
         panic!("the bore cuts a body");
@@ -410,43 +399,26 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
 // 3. The conic edge box as a PRUNE, through the sweep
 // ---------------------------------------------------------------------
 
-/// An axis-aligned plate over `x × y × z`.
-fn plate(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
-            .into_iter()
-            .map(|(a, b)| ProfileVertex::new(p2(a, b), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
 /// A plate straddling the cylinder's bottom rim (`z = 0`) about the
 /// rim's x-extremum at 180°, which lies mid-arc between the vertices
 /// at 120° and 240°: `x ∈ [−0.9, x_max]`, thin in `y`, `z ∈ [−0.1, 0.1]`.
 /// The rim reaches `x = −0.5`; whether the plate meets it is decided by
 /// `x_max` alone.
 fn rim_plate(x_max: f64) -> Body<f64> {
-    plate((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1))
+    brick((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1), Tol::witness())
 }
 
 /// The same about the top rim's y-extremum at 90°, mid-arc between the
 /// vertices at 0° and 120°: the rim reaches `y = 0.5`.
 fn top_rim_plate(y_min: f64) -> Body<f64> {
-    plate((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1))
+    brick((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1), Tol::witness())
 }
 
 /// A plate straddling the TOP rim about its x-extremum — the second
 /// fixture whose loci meet a rim mid-arc, so the through-the-door
 /// soundness pin does not rest on one.
 fn top_rim_x_plate(x_max: f64) -> Body<f64> {
-    plate((-0.9, x_max), (-0.15, 0.15), (0.9, 1.1))
+    brick((-0.9, x_max), (-0.15, 0.15), (0.9, 1.1), Tol::witness())
 }
 
 /// The cylinder shifted along `x` by `1 + gap`: two rims a gap apart
@@ -520,12 +492,12 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         (
             "rounded plate × box clear of the round".to_string(),
             rounded.clone(),
-            plate((1.2, 1.6), (0.36, 0.6), (0.2, 0.5)),
+            brick((1.2, 1.6), (0.36, 0.6), (0.2, 0.5), Tol::witness()),
         ),
         (
             "rounded plate × box grazing the round".to_string(),
             rounded,
-            plate((1.18, 1.6), (0.33, 0.6), (0.2, 0.5)),
+            brick((1.18, 1.6), (0.33, 0.6), (0.2, 0.5), Tol::witness()),
         ),
     ];
     for &x_max in &[-0.5003, -0.5006, -0.501, -0.502, -0.51, -0.6] {

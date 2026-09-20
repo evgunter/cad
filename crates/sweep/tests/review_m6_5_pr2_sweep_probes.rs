@@ -8,29 +8,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use profile::RawLoop;
-
-use geom_core::Point2;
 use geom_core::Tol;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::build::fillet_edges;
-use sweep::{Extrusion, extrude};
+use sweep::test_support::brick;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
+/// The unit-side box with its low corner at `x0` on the x axis — the
+/// `x0 + l` arithmetic done once, so a second placement cannot get it
+/// wrong on its own.
 fn box_at(x0: f64, l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(x0, 0.0), (x0 + l, 0.0), (x0 + l, l), (x0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l), Tol::witness())
-        .unwrap()
-        .body
+    brick((x0, x0 + l), (0.0, l), (0.0, l), Tol::witness())
 }
 
 fn filleted_die() -> Body<f64> {
