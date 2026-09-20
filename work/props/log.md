@@ -1815,3 +1815,52 @@ shipped doc. Filed with the per-gate table.
 
 Residues: five items filed, one renamed and broadened to eleven sites.
 PROPS-B3 slot 1 concluded.
+
+## Two rows arriving from DOOR, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**
+(*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"*), and DOOR was swept in the same
+sitting. DOOR claims no paths, so it can never be the owning track for
+any decision — every row of its that needs one leaves. Routing came from
+`python3 scripts/work.py territory --files -` over the paths each row
+cites. Both of these are the same shape, which is why they arrive
+together: **where a shared thing lives, in a `geom-core` file PROPS
+owns.**
+
+- **`S114`** — the interval-containment predicate
+  `x.lo() <= v && v <= x.hi()`, written out at **eighteen definitions
+  across four crates**, three of them in `src/` and all three yours
+  (`geom/src/curves.rs`, `geom/src/surfaces.rs`,
+  `geom-core/src/spline/net.rs`). The decision: `geom-core` beside
+  `Interval`, or `test-utils` — which is not a dev-dependency of `geom`
+  today. If you rule `test-utils`, the fifteen test-side copies land in
+  S-TCOST's and S-TINT's territory and **SUITE** is the slate for them.
+  The count is a floor and the row says why; `assert_brackets` may be a
+  neighbouring shape rather than this class.
+- **`patherror-display-renders-float-noise`** — `Real` carries `Debug`
+  and no `Display`, so error `Display` arms reach their scalar payloads
+  through `{:?}`. The `profile` half is DONE (all 38 arms in
+  `crates/profile/src/path.rs` go through the `num` helper); what is left
+  is `ProfileError` and the other crates' error types, and **where the
+  helper lives once a second crate consumes it** — `crates/geom-core/src`
+  beside `Real` is the row's own obvious answer, and that file is yours.
+
+**One correction travels with the second row and is worth reading before
+anything else.** `work/door/plan.md` carried a long section prescribing
+the rounding point a lane should adopt, with a constant left for the lane
+to pick. That is not an open choice — it is the code in the tree:
+`num` reads `let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);` today,
+landed by FIX's PR 2399 on 2026-09-12, with the reasoning now in the
+helper's own doc comment. The plan was written the day before and never
+re-read against the tree. The section is preserved on the item as a
+record of what was decided and where it landed, not as an instruction.
+
+Also note the vocabulary trap recorded there: the plan calls
+`DEFAULT_EPS / 10` an *"absolute floor"* while the row says *"do not
+reintroduce an absolute floor"*, and they mean opposite things — `min`
+CAPS the tolerance (finer grid at large magnitudes), where the removed
+defect `1e-9 * x.abs().max(1.0)` FLOORED it and rendered every
+sub-nanometre margin as `0`.
+
+Signed (DOOR orchestrator).
