@@ -1749,3 +1749,69 @@ prevents. So curved-residues records the arm that actually ran, marked
 not a drawn assignment, fills no slot, and the next two PROPS units are
 fable — one for the owed slot, one to repay the extra opus row. The
 ratio is restored, not just noted.
+
+**MERGED: escalation-channel, ordinal 2407, sample #225 (2026-09-20).**
+Merge `3502371ec`, fix run 35518555739 green on the full matrix. Both
+arms APPROVE-WITH-FIXES; no v6 tally candidate, because both
+MAJOR-class findings were bilateral and the one severity divergence
+(R1 MAJOR / R2 MINOR on the same proven fact) is a divergence, not a
+unilateral finding.
+
+**What the dual actually bought, which is the entry worth keeping.** The
+unit's code was right and both arms said so independently. What they
+found was that three of its *claims* were stronger than what shipped,
+and one of them had become a false sentence in shipped code — the
+rewritten `drive.rs` comment, which justified keeping
+`classify_replay`'s two arms by naming two paths that escalate with no
+bracket open, when the two items the comment itself cites each say the
+opposite. Both arms checked it against those files. I verified it
+myself before either reported, and found the part neither named: the
+citation was **circular** — the comment cited the item, the item cited
+the comment, and the item contradicted itself inside one file.
+
+**Ruling: the arms stay.** Neither reviewer found a live path to them,
+which is tempting grounds to delete, but deleting is a behaviour change
+that wants its own red-first row. So the arms stay and the record stops
+claiming a reason it lacks. The fix pass then produced the reason the
+deletion question actually turns on, which no review had: **read (2)
+speaks for the log's FIRST escalation where an arm speaks for the one
+the error carried**, and those differ on a node that recovered from an
+earlier escalation. Filed as
+`should-classify-replays-error-enum-arms-be-deleted`.
+
+**Two spec faults of mine, recorded because they are the same fault
+twice.** This spec asserted that recorded-verdict populations WOULD
+move; they did not, and only the unit's decision to measure rather than
+obey kept it from re-baselining goldens nothing had touched. And it
+inherited its item's "roughly forty variants across five crates" as
+fact when the population is 88 across nine. That is the sphere spec's
+fault again — asserting a premise instead of requiring a decide. It
+cost nothing here; it shipped a MAJOR there. Both are written into the
+ledger at the spec's deletion so the pattern is visible across units
+rather than once per unit.
+
+**The convergence is the experiment's own result.** Blind, in separate
+worktrees, the two arms each compiled and ran the old shape to an empty
+log; each found the same undisclosed evasion (`sign_within` then
+`.with_predicate`, no guarded spelling); each wrote its own enum-body
+parser and both returned **88**; each found the same latent bug in the
+census guard by a different route; and each hunted the counterexample
+to the 0-retired conclusion and failed to find one — which is better
+evidence for that conclusion than the argument that predicted it.
+
+**The fix pass exceeded the ask twice and declined once, all three
+correctly.** It reconciled the population arithmetic (recipe 83, parser
+88, and the written-down 82 from a third ad-hoc script that silently
+dropped `PropsError::Escalated`; 83 − 1 = 82 exactly). It swept for the
+SHAPE rather than the spelling and found a second family the census
+structurally cannot see — four local `fn invalid(band, predicate)`
+helpers minting after a definite sign at eight more `topo` sites. And
+it declined the one ruling I left an escape hatch on, with a
+measurement rather than a shrug: no gating-corpus document reaches a
+gate because at every shipped caller the caller has already gated the
+same quantity, and for `material_wedge_side` such a document is
+self-contradictory for well-formed input per that function's own
+shipped doc. Filed with the per-gate table.
+
+Residues: five items filed, one renamed and broadened to eleven sites.
+PROPS-B3 slot 1 concluded.
