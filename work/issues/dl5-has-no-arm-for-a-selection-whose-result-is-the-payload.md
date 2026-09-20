@@ -4,6 +4,8 @@ kind: issue
 title: DL5 has no arm for a selection whose result IS the payload (map_refusal's nearest-fit read)
 status: open
 opened: 2026-09-13
+priority: P1
+cost: D
 ---
 
 

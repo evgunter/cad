@@ -4,6 +4,8 @@ kind: issue
 title: Six shipped files cite work/ items at paths that no longer resolve
 status: open
 opened: 2026-09-13
+priority: P4
+cost: E
 ---
 
 
