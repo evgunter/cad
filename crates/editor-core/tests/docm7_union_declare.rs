@@ -8,6 +8,7 @@
 use crate::fixture;
 
 use crate::corpus::body_of;
+use crate::wire::doctored;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
     EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
@@ -555,18 +556,16 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     // Doctored BY PATH, through the wire's own structure, so a field
     // rename breaks the probe instead of silently moving it.
-    let split = text.find('{').expect("the JSON body follows the header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
-    let bare = side["name"].clone();
-    assert!(
-        !bare.is_null(),
-        "a sited side carries a name beside its site"
-    );
-    *side = bare;
-    let doctored = format!("{header}{wire}");
-    let refused = editor_core::persist::load(&doctored, tol)
+    let bare_sided = doctored(&text, |wire| {
+        let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+        let bare = side["name"].clone();
+        assert!(
+            !bare.is_null(),
+            "a sited side carries a name beside its site"
+        );
+        *side = bare;
+    });
+    let refused = editor_core::persist::load(&bare_sided, tol)
         .expect_err("a declared side without its site loaded");
     // The `Unreadable` DETAIL is serde's own, and stays serde's: a
     // shape mismatch has no analogue of the mate head's constructor
@@ -583,10 +582,11 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
     }
     // The other half of the same shape: an EXTRA field on a side is
     // refused too, which is what `deny_unknown_fields` buys.
-    let mut wire2: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let side2 = &mut wire2["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
-    side2["surprise"] = serde_json::Value::from(1);
-    let said2 = editor_core::persist::load(&format!("{header}{wire2}"), tol)
+    let surprised = doctored(&text, |wire| {
+        let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+        side["surprise"] = serde_json::Value::from(1);
+    });
+    let said2 = editor_core::persist::load(&surprised, tol)
         .expect_err("an unknown field on a site loaded")
         .to_string();
     assert!(said2.contains("`surprise`"), "{said2}");

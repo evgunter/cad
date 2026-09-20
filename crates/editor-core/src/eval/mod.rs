@@ -1624,8 +1624,11 @@ pub enum NodeErrorKind {
     CrossingUnverified {
         /// The instance carrying the record.
         instance: RecipeNodeId,
-        /// The mate whose crossing it is.
-        mate: RecipeNodeId,
+        /// WHICH crossing: its remainder-side reference, the one the
+        /// remainder's mate keeps. A record is keyed by nothing else
+        /// — a crossing carries no provenance — and this is a name in
+        /// the reader's own document, which a mate id never was.
+        outer: Box<crate::names::FaceName>,
         /// The part-side reference that did not resolve.
         name: Box<crate::names::StableName>,
     },
@@ -1916,16 +1919,16 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
                 instance,
-                mate,
+                outer,
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration from mate {} names {} {} of the part \
-                 (minted by its node {}), which the pinned part's product does not \
-                 name — the crossing does not re-verify against this version of the \
-                 part",
+                "instance {}'s seam declaration crosses at the remainder's {} and claims \
+                 {} {} of the part (minted by its node {}), which the pinned part's \
+                 product does not name — the crossing does not re-verify against this \
+                 version of the part",
                 instance.0,
-                mate.0,
+                outer,
                 name.kind.article(),
                 name.kind.noun(),
                 name.node.0
@@ -4316,12 +4319,10 @@ where
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
-                    mate,
                     class,
                     outer,
                     inner,
                 } = crossing;
-                h.write_u64(mate.0);
                 h.write_u64(class.content_tag());
                 feed_stable_name(&mut h, outer);
                 feed_stable_name(&mut h, inner);
