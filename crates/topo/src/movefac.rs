@@ -257,12 +257,11 @@ impl<T: Decide> Body<T> {
             }
         }
         let listed = self
-            .get_solid(source)
+            .shells_of_solid(source)
             .ok_or(EulerOpError::StaleKey {
                 key: EntityId::Solid(source),
             })?
-            .shells
-            .clone();
+            .to_vec();
         // A shell whose back-pointer names `source` but which `source`
         // does not list is an ownership desync (tier 1's pass 7); the
         // op refuses rather than building on it.

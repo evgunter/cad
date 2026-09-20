@@ -473,9 +473,8 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     // per solid and within each solid). ----
     for (src_solid, dst_solid) in pairs {
         let shell_list: Vec<ShellKey> = src
-            .get_solid(src_solid)
+            .shells_of_solid(src_solid)
             .ok_or_else(corrupt)?
-            .shells
             .iter()
             .map(|&s| shells.get(s).copied().ok_or_else(corrupt))
             .collect::<Result<_, _>>()?;

@@ -361,7 +361,7 @@ mod tests {
         // The grafted solid is the one the call named, and it holds
         // exactly the source's shells — arrived whole, no surgery.
         assert_eq!(
-            dst.get_solid(key).unwrap().shells.len(),
+            dst.shells_of_solid(key).unwrap().len(),
             src.solids().next().unwrap().1.shells.len()
         );
         // And the union is a body: the disjoint pair validates.
@@ -380,13 +380,7 @@ mod tests {
         let original: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
         let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a graft");
 
-        let grafted: Vec<_> = dst
-            .get_solid(key)
-            .unwrap()
-            .shells
-            .iter()
-            .flat_map(|&sh| dst.get_shell(sh).unwrap().faces.clone())
-            .collect();
+        let grafted = dst.faces_of_solid(key).expect("the grafted solid");
         assert_eq!(grafted.len(), src.faces().count(), "every face arrived");
         for f in &grafted {
             assert!(!original.contains(f), "a transplanted face reused a key");

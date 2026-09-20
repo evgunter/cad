@@ -921,9 +921,10 @@ impl<T: Real> Body<T> {
     /// same SET — the ownership partition and the back-pointers are
     /// validated against each other — and differ in ORDER, this door
     /// answering in arena order and a shell walk in shell-then-face-
-    /// list order. A caller that needs the shells kept apart walks
-    /// them; a caller that wants "the faces of this solid" to hand to
-    /// a key-taking verb asks here.
+    /// list order. A caller that needs the shells kept apart asks
+    /// [`Body::shells_of_solid`] and resolves them; a caller that
+    /// wants "the faces of this solid" to hand to a key-taking verb
+    /// asks here.
     ///
     /// **The empty list and the absent solid are different answers**,
     /// which is why this refuses rather than returning a bare `Vec`: a
@@ -943,6 +944,41 @@ impl<T: Real> Body<T> {
                 .map(|(k, _)| k)
                 .collect(),
         )
+    }
+
+    /// The shells of `solid`, **in the order the solid lists them**,
+    /// or `None` where the solid key does not resolve. A foreign key
+    /// is not caught (see the [module docs](self)): a foreign
+    /// `SolidKey` landing on a live slot passes the resolution and
+    /// this door hands back **another solid's shell list** as though
+    /// it were the caller's.
+    ///
+    /// This is a read of the STORED ownership list — [`Solid::shells`]
+    /// itself — so it borrows rather than building: no caller pays an
+    /// allocation to ask, and one that needs to own the list (because
+    /// it mutates the body while walking it) says `.to_vec()`. That is
+    /// the difference from [`Body::faces_of_solid`], which SELECTS on
+    /// the faces' back-pointers and therefore must build.
+    ///
+    /// The two orders differ, and the difference is the caller's to
+    /// reason with: [`Body::faces_of_solid`] answers in face-arena
+    /// order (D9), while this answers in the solid's list order, which
+    /// no arena determines — an operator that moves a shell between
+    /// solids appends to the destination's list, so a solid's shells
+    /// need not be arena-ascending. [`Shell::solid`] is the inverse
+    /// back-pointer; tier 1's ownership pass validates the two against
+    /// each other, so on a valid body they agree about WHICH shells,
+    /// never about their order.
+    ///
+    /// **`None` is the only refusal this door can make**, and that is
+    /// why it can stand under callers that refuse in different
+    /// vocabularies: each keeps its own `ok_or`, and what folds is the
+    /// lookup, not the refusal. A caller that must distinguish a stale
+    /// SOLID key from a stale SHELL key still resolves the shells
+    /// itself, because that second hop is not here.
+    #[must_use]
+    pub fn shells_of_solid(&self, solid: SolidKey) -> Option<&[ShellKey]> {
+        Some(&self.get_solid(solid)?.shells)
     }
 
     /// The face owning `he`'s loop — through the half-edge's
@@ -1509,6 +1545,43 @@ mod tests {
             walk.into_iter().collect::<std::collections::BTreeSet<_>>(),
             "same set, different sequence"
         );
+    }
+
+    /// [`Body::shells_of_solid`] answers the SOLID's list order,
+    /// which no arena determines: the fixture puts a solid's two
+    /// shells in the reverse of the order the shell arena holds them,
+    /// and the door follows the list. Its three answers — a list, the
+    /// empty list, and `None` — are kept apart, as at
+    /// [`Body::faces_of_solid`].
+    #[test]
+    fn shells_of_solid_answers_the_solids_own_list_order_not_the_arenas() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // Adopt the minted shell into the pillow's solid and list it
+        // FIRST, so the list runs against the arena's slot order.
+        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
+        body.get_solid_mut(t.solid)
+            .unwrap()
+            .shells
+            .insert(0, second.shell);
+        body.solids.remove(second.solid);
+        body.solid_provenance.remove(second.solid);
+
+        let arena: Vec<ShellKey> = body.shells().map(|(k, _)| k).collect();
+        assert_eq!(arena, vec![t.shell, second.shell], "the arena's order");
+        assert_eq!(
+            body.shells_of_solid(t.solid).unwrap(),
+            [second.shell, t.shell],
+            "the solid's own order, reversed against the arena"
+        );
+
+        // A solid with no shells answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.shells_of_solid(barren).unwrap(), [] as [ShellKey; 0]);
+        assert_eq!(body.shells_of_solid(SolidKey::default()), None);
     }
 
     #[test]
