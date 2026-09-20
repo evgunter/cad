@@ -4,6 +4,7 @@ kind: issue
 title: Doc::next_id is pub(crate), so DI1's minting-entry walk has no layer-3 door
 status: review
 branch: edit/minted-id-door
+pr: 2905
 opened: 2026-09-04
 refs: [layer3-recipenodeid-aliases-across-rewinds]
 ---
