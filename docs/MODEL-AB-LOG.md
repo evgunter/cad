@@ -7225,6 +7225,19 @@ bank for the program's next kernel units; pre-draw fields at their
 specs.
 
 
+Block EDIT-B2 slot 1 concluded (2026-09-20): EDIT-RADIUS, PR #2892,
+implementer OPUS per the draw above, ordinals 4806/4807, sample #223
+(R1 fable 0/4/6 rubric 4/4/4 APPROVE-WITH-FIXES; R2 opus 0/5/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 0 unilateral; tally +0;
+convergent on five findings, R2 alone on the carrier arm's skipped
+span check). Pre-draw fields (M / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The sample row
+is on main with the merge (numbered #223: EDIT-DECL's "#216" above was
+written against a stale count, disclosed on the EDIT-RADIUS row). Slot
+2 (FABLE) banks for the program's next kernel unit; pre-draw fields at
+its spec.
+
+
 ## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
 
 EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
