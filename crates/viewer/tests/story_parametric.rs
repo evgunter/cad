@@ -205,7 +205,8 @@ fn the_parametric_living_walk() {
     // an undeclared name — here a typo — is refused by the EDIT door
     // instead: `DocEdit::SetDocParamValue` carries an existing
     // declaration forward and says so, `EditError::DocParamNotDeclared`
-    // naming the parameter and the recourse ("declare it first").
+    // naming the parameter and the one recourse both doors render
+    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {

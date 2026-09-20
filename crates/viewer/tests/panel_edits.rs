@@ -610,9 +610,11 @@ fn refusals_render_as_sentences() {
 
     // And the one mistake that reaches two doors reaches one recourse:
     // the typed route and the dragged route name the same thing to do.
+    // Asserted against the CONST both renderings read, so the clause
+    // cannot come back as a second literal without this row reddening.
+    let recourse = editor_core::edit::UNDECLARED_PARAM_RECOURSE;
     assert!(
-        edit.to_string().contains("declare it first")
-            && lookup.to_string().contains("declare it first"),
+        edit.to_string().contains(recourse) && lookup.to_string().contains(recourse),
         "typed {edit}\ndragged {lookup}"
     );
 }
