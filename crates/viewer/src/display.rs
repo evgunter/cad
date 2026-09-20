@@ -162,7 +162,7 @@ pub enum AdmissionFault {
     /// arm, which is not a discard.** `PropertiesPane::instance_ui`
     /// draws no per-instance section for either refusal. For this arm
     /// the sentence is already on screen directly above it:
-    /// `standing_ui` renders [`crate::session::Standing::Node`]'s
+    /// `standing_ui` renders [`crate::session::Standing`]'s `Node`
     /// vanished arm from the SAME lookup on the SAME document in the
     /// same frame, and that type's ratified rule is that a vanished
     /// reference is rendered there *while the affordances that need a
