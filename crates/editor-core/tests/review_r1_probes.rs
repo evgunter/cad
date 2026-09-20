@@ -495,3 +495,185 @@ fn probe_a_leg_inserted_before_the_close_leaves_vertex_zero_alone() {
         other => panic!("a fillet, got {other:?}"),
     }
 }
+
+// ---------------------------------------------------------------- //
+// Claim 2 — a loft's LATER section
+// ---------------------------------------------------------------- //
+
+/// **Reshaping a loft's SECOND section moves none of the loft's
+/// names** — DM8's stated exception (a loft's table is anchored by
+/// section 0's map alone), so `Node::anchoring_profile` answers the
+/// first section and the walk leaves the loft alone. What the row also
+/// measures is what the reshaping then does to the SOLID: the two
+/// sections no longer have the same segment count, and the loft
+/// refuses rather than re-skinning under the unchanged names.
+#[test]
+fn probe_reshaping_a_lofts_second_section_moves_none_of_its_names() {
+    let doc = ProfileDoc::empty_derived("probe-loft", tol());
+    let (doc, low_frame) = insert(doc, fixture::xy_frame());
+    let (doc, low) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: low_frame,
+            loops: vec![square()],
+        }),
+    );
+    let (doc, high_frame) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, high) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: high_frame,
+            loops: vec![square()],
+        }),
+    );
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![low, high],
+            v_degree: editor_core::Expr::count(1),
+        },
+    );
+    let (doc, frame) = frame_on_wall(doc, loft, 1);
+    let applied = set_program(
+        &doc,
+        high,
+        vec![bumped_square()],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), None, None, Some(1), Some(2), Some(3), Some(4)],
+        }],
+    )
+    .expect("accepted");
+    assert_eq!(
+        applied.maintenance,
+        vec![],
+        "the loft's locators are section 0's and this reshaped section 1"
+    );
+    assert_eq!(face_of(&applied.doc, frame), wall(loft, 0, 1));
+    let ev = fixture::run(&applied.doc, &EvalOptions::default());
+    assert!(
+        !crate::corpus::failures(&ev).is_empty(),
+        "sections of different segment counts do not skin"
+    );
+}
+
+// ---------------------------------------------------------------- //
+// Claim 7 — the old-build refusal's line
+// ---------------------------------------------------------------- //
+
+/// **Where the `Unreadable` refusal actually sits.** The suite's row
+/// asserts `line >= entry_line`, which is satisfied by a refusal at
+/// the LAST line of the file as readily as one at the entry's. This
+/// row measures the two and pins the distance, so a refusal that
+/// drifts to the end of the file is visible.
+#[test]
+fn probe_the_unreadable_refusal_sits_at_the_entry_line_not_the_files_end() {
+    let (doc, profile, ext) = extruded("probe-unreadable", vec![square()]);
+    let (doc, _frame) = frame_on_wall(doc, ext, 1);
+    let log = editor_core::LoggedEdit::bare_all(&[
+        DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+        DocEdit::SetProgram {
+            node: profile,
+            loops: vec![bumped_square()],
+            provenance: vec![LoopProvenance {
+                from: Some(0),
+                steps: vec![Some(0), None, None, Some(1), Some(2), Some(3), Some(4)],
+            }],
+        },
+        // A THIRD entry after the bad one, so "the end of the bad
+        // entry" and "the end of the log" are different lines.
+        DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+    ]);
+    let text = editor_core::save(&doc, &log, tol()).expect("saves");
+    let total = text.lines().count();
+    let entry_line = text
+        .lines()
+        .position(|l| l.contains("\"SetProgram\""))
+        .expect("the tag is in the file")
+        + 1;
+    let older = text.replace("\"SetProgram\"", "\"SetProgramme\"");
+    match editor_core::load(&older, tol()) {
+        Err(editor_core::PersistError::Unreadable { line, detail, .. }) => {
+            // The bad entry runs from its tag to the line before the
+            // next entry opens.
+            let next = older
+                .lines()
+                .enumerate()
+                .position(|(i, l)| i + 1 > entry_line && l == "    {")
+                .expect("a third entry follows")
+                + 1;
+            assert!(
+                entry_line <= line && line < next,
+                "measured: the refusal sits at {line}, the entry spans \
+                 {entry_line}..{next} of {total} — {detail}"
+            );
+            assert_ne!(
+                line, entry_line,
+                "measured: it is the entry's LAST line, not the line the tag is on"
+            );
+        }
+        other => panic!("expected Unreadable, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------- //
+// Claim 8 — the Python rows' document, built in Rust
+// ---------------------------------------------------------------- //
+
+/// **The Python suite's two rows, measured in Rust.** The Python
+/// `TestTheWholeProgramEdit` rows use a square whose wall 2 carries a
+/// rim fillet and a provenance `[0, 1, None, 2, 3, 4]` (rebound) or
+/// `[0, 1, None, 2, None, 4]` (strand). This row builds the same
+/// programs and the same provenances against the Rust door: a
+/// provenance that continues old step 3 rebinds segment 2 to 3, and
+/// one that does not strands it. That the FIRST Python head answered
+/// `rebound` where `strand` was expected is therefore a defect in the
+/// provenance that row stated, not in the binding's translation.
+#[test]
+fn probe_the_python_rows_provenances_answer_the_same_in_rust() {
+    let reshaped = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    for (steps, want) in [
+        (vec![Some(0), Some(1), None, Some(2), Some(3), Some(4)], true),
+        (vec![Some(0), Some(1), None, Some(2), None, Some(4)], false),
+    ] {
+        let (doc, profile, ext) = extruded("probe-python-twin", vec![square()]);
+        let (doc, frame) = frame_on_wall(doc, ext, 2);
+        let applied = set_program(
+            &doc,
+            profile,
+            vec![reshaped.clone()],
+            vec![LoopProvenance {
+                from: Some(0),
+                steps,
+            }],
+        )
+        .expect("accepted");
+        let rebound = matches!(
+            applied.maintenance.as_slice(),
+            [Maintenance::Rebound { .. }]
+        );
+        assert_eq!(rebound, want, "{:?}", applied.maintenance);
+        if want {
+            assert_eq!(face_of(&applied.doc, frame), wall(ext, 0, 3));
+        } else {
+            assert!(matches!(
+                applied.maintenance.as_slice(),
+                [Maintenance::Strand { .. }]
+            ));
+        }
+    }
+}
