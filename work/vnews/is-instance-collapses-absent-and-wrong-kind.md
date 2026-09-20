@@ -2,9 +2,10 @@
 id: is-instance-collapses-absent-and-wrong-kind
 kind: issue
 title: display::is_instance answers bool because its one caller wanted one, collapsing the two states the crate just argued are different news
-status: spec
+status: review
 opened: 2026-09-05
 refs: [sweep-blind-spots-the-precheck-sweep-could-not-see, prune-discards-the-fault-that-explains-the-supersession, 1886]
+branch: vnews/is-instance-two-states
 ---
 
 
@@ -68,3 +69,30 @@ sweeps those rather than fixing one.
 
 VIEW's: `crates/viewer/src/display.rs`, with the caller in
 `crates/viewer/src/pane/properties.rs`.
+
+## Fixed (VNEWS, 2026-09-19)
+
+`is_instance` is now
+`instance_check(doc, node) -> Result<(), AdmissionFault>`, raising
+`NoSuchNode` for an id the document does not hold and `NotAnInstance`
+for a node of another kind. The shape reuses the vocabulary #1886
+established rather than minting a second one, for this program's own
+reason: two enums over the same states are the defect two other rows
+on this slate already carry.
+
+`drawn_targets` now runs it instead of repeating the match, so the
+two states are decided in one place and `AdmissionFault::NoSuchNode`'s
+doc — which said *"[`is_instance`] is NOT where this is decided and
+still collapses the two states into `false`"* — says where it IS
+decided instead.
+
+**No behaviour changed.** The one caller,
+`PropertiesPane::instance_ui`, discards the fault at the call site
+(`.is_err()`) and draws nothing for both states, which is what it did
+before; the difference is that the panel is now the party deciding the
+two are one answer, rather than being handed a door that decided it.
+`instance_check_tells_an_absent_node_from_a_wrong_kind`
+(`crates/viewer/tests/assembly_display.rs`) holds the door's two arms,
+verified red with the arms swapped.
+
+The sweep's dispositions are in the PR body.
