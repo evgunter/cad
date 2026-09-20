@@ -2,7 +2,8 @@
 id: converged-recourse-has-no-home
 kind: issue
 title: the converged 'declare it first' recourse is two literals in two crates, held in step only by a test
-status: open
+status: spec
+branch: edit/recourse-one-home
 opened: 2026-09-05
 ---
 
@@ -92,3 +93,45 @@ the recourse, as an announced crossing into `session/refuse.rs`
 asserts both renderings carry the clause. Verify it still does before
 relying on it — that file is VDOC's, S-TCOST's and S-TINT's ground and
 the row is three programs' from where you will be standing.
+
+## Ruled and spec'd (2026-09-20, EDIT orchestrator) — E-class, wave 16, branch `edit/recourse-one-home`
+
+**Ruling: the first shape, as a `pub const`.** The row's own analysis
+carries it: the clause is one recourse over one fact reached by two
+doors, and the discipline in `refuse.rs` ("two independently built
+copies is how the wording drifts") is the project's. The authorisation
+this row lacked was API surface on `crates/editor-core`; `edit.rs` is
+EDIT's and this is EDIT's slate, so it is granted here. A `pub const`
+rather than `recourse()`: the viewer's `Refusal::NoSuchParam` holds no
+`EditError` value to ask, and a method answering one recourse for one
+arm and `""` for every other would say "already told" of arms that
+have no recourse at all (`finding.rs`'s own meaning of an empty
+recourse). The accessor LIB wants is a census over every arm's
+recourse — a different unit, not this row's.
+
+1. `crates/editor-core/src/edit.rs` gains one `pub const` beside
+   `EditError` carrying the clause (name it for the recourse, in the
+   tree's vocabulary — grep `DECLARE`/`RECOURSE` consts first and
+   match), with a doc saying what it is (the one recourse for a
+   parameter name that does not exist, reached by `DocEdit`'s doors
+   and by the viewer's lookup) and where the second reader is.
+   `DocParamNotDeclared`'s `Display` renders through it; the arm's
+   comment about the viewer convergence points at the const instead of
+   re-telling the story.
+2. `crates/viewer/src/session/refuse.rs`'s `NoSuchParam` arm renders
+   the const (an announced crossing into VNEWS'/VSEAM's ground, one
+   site, written on both sides per the row's `## Re-homed` section);
+   the `refuse.rs:140` paragraph that describes the convergence points
+   at the const.
+3. `crates/viewer/tests/panel_edits.rs::refusals_render_as_sentences`
+   stays, re-worded from tripwire to pin: both renderings carry the
+   ONE const (assert against the const, not a literal), so the copy
+   cannot come back without the row going red. The three
+   `editor-core` rows that assert the literal (`edit_doc_param_unit`,
+   `edit_doc_param_distribution`) assert the const too.
+4. Territory: `edit.rs` (EDIT); `crates/viewer/src/session/refuse.rs`
+   (VNEWS/VSEAM by announcement); `crates/{editor-core,viewer}/tests/*`
+   (TCOST/TINT). E-class: green CI and the orchestrator's read; the
+   PR body records the sweep (`declare it first`, every hit and its
+   disposition) and the crossing.
+
