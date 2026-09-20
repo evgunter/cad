@@ -110,8 +110,8 @@ pub use ::profile::{
 // through exactly these two functions.
 pub use ::profile::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, ReplayStructure, SegmentShape, StepSpan, StructureRefusal,
-    StructureRefusalKind, replay_guided, replay_recording, structure,
+    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind, replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.
