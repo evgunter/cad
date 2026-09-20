@@ -36,7 +36,7 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Band, OrthoFrame, Point2, Point3};
+use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
@@ -358,19 +358,7 @@ fn fixed_concave_arc_wall_sense_is_false() {
 /// Every point of it is genuinely OUTSIDE `mixed_turn_arcs` (the notch
 /// floor at `x = 1` is `y ≈ 1.0858`), so the two solids are disjoint.
 fn pellet() -> Body<f64> {
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.9, 1.25),
-        p2(1.1, 1.25),
-        p2(1.1, 1.35),
-        p2(0.9, 1.35),
-    ]);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
 /// **Construction row (M5 S11, e2e half — flipped from S10's

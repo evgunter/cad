@@ -16,7 +16,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom_core::Tol;
-use geom_core::{Band, Bounds, Interval, OrthoFrame, Point2, Point3, Real, Vec2};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -62,19 +62,7 @@ fn notched() -> Body<Interval> {
 
 /// The pellet strictly inside the notch (the S10 witness fixture).
 fn pellet() -> Body<Interval> {
-    let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-        p2(0.9, 1.25),
-        p2(1.1, 1.25),
-        p2(1.1, 1.35),
-        p2(0.9, 1.35),
-    ]);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.3)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
 #[test]

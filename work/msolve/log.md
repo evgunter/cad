@@ -594,3 +594,20 @@ Roll/Residual arms print different levers (the mate's own vs the
 fold's) — ruled honest, each the arm its predicate was decided over,
 stated at the type. Twenty-two items to the lane; one row to file
 (`LeverRefusal` mirroring `ReachRefusal`).
+## MSOLVE-8 MERGED (2026-09-20, PR 2896)
+
+The typed lever and the closed `Clash`; the coset's directions as
+`UnitVec3` with `parallel` deciding once and returning its witness;
+`MateFrame::frame` over geom-core's new `point_at_frame` (the fence
+widened by that one door, announced on SCALAR's tracker); the
+`MateFault` consumer sentence. Reviews on `f3896c554` (correctness
+one MAJOR — the planar-pair line's second decision refused under its own name at
+the boundary — and one MINOR, the aim decided three times per mate;
+style no MAJOR); the twenty-two-item fix pass landed in one push,
+the lane's argued-past stop clause reversed by ruling. Orchestrator
+spot-check on the diff: `parallel`'s one decision, `mate_planar_pair_
+line` gone; `point_at` = `point_at_frame(..).to_affine()`; `Clash`
+without the string compare; the aim-count row at two per mate. Spec
+into the ledger at the unit head. Closes the three items; two rows
+filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
+(the static clocking refusal at `AddMate`) specs next.

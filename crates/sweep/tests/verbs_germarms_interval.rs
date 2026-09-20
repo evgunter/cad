@@ -24,7 +24,8 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tol, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -51,17 +52,6 @@ fn pipe() -> Body<Interval> {
         .body
 }
 
-fn bar(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<Interval> {
-    let tol = Tol::witness();
-    let lp: ProfileLoop<Interval> =
-        RawLoop::polygon([p2(x0, y0), p2(x1, y0), p2(x1, y1), p2(x0, y1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(z0))));
-    let vp = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&vp, Extrusion::Distance(iv(z1 - z0)), tol)
-        .unwrap()
-        .body
-}
-
 /// **The build arm.** The bar's crossings are found at the certified
 /// scalar too, so the union walks past the crossing layer and refuses
 /// at the ring's absent JOIN arm (#1291) — the same door the `f64` lane
@@ -78,7 +68,12 @@ fn bar(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<Interval> {
 fn the_ring_lane_builds_at_the_certified_scalar() {
     let err = topo::union(
         &pipe(),
-        &bar(-1.125, 1.125, -0.25, 0.25, -0.25, 0.25),
+        &brick(
+            (-1.125, 1.125),
+            (-0.25, 0.25),
+            (-0.25, 0.25),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");
@@ -101,10 +96,12 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
 #[test]
 fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
     let tol = Tol::witness();
-    let topo::BooleanResult::Body(out) =
-        topo::union(&pipe(), &bar(1.5, 2.5, -0.25, 0.25, -0.25, 0.25), tol)
-            .expect("no crossing to route")
-    else {
+    let topo::BooleanResult::Body(out) = topo::union(
+        &pipe(),
+        &brick((1.5, 2.5), (-0.25, 0.25), (-0.25, 0.25), tol),
+        tol,
+    )
+    .expect("no crossing to route") else {
         panic!("two clear solids union into a two-shell body");
     };
     assert_eq!(out.body.shells().count(), 2);

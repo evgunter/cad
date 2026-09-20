@@ -1714,13 +1714,16 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 /// of this one against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
-/// records were minted from this program by the same pre-pass, so no
-/// loop is missing, no record is of the wrong shape and no span runs
-/// off its loop. That is the class `ProfileProgram::profile_edges_of`
-/// asserts on rather than refusing, and it is surfaced the same way
-/// here: a typed error would be one no document can reach and no
-/// caller can repair, so it is a kernel bug the code observes in a
-/// branch — `unreachable!`'s own job (D9's D2 addendum).
+/// records were minted from this program by the same pre-pass, so
+/// every refusal the door has is a statement about a record from
+/// somewhere else: no loop is missing, no record is of the wrong
+/// shape, no span or emission runs off its loop, and no emission
+/// credits a radius role the step it names does not hold. That is the
+/// class `ProfileProgram::profile_edges_of` asserts on rather than
+/// refusing, and it is surfaced the same way here: a typed error
+/// would be one no document can reach and no caller can repair, so it
+/// is a kernel bug the code observes in a branch — `unreachable!`'s
+/// own job (D9's D2 addendum).
 fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::expr::Expr>>> {
     pre.naming
         .loops
@@ -1731,9 +1734,10 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .unwrap_or_else(|e| {
                     unreachable!(
                         "this profile's structure record and its naming anchor were \
-                         minted from this one program by one pre-pass, so every loop \
-                         the anchor names is a loop the record describes — program \
-                         loop {} is not: {e}",
+                         minted from this one program by one pre-pass, so the record \
+                         describes THIS program — its steps, its segments and its \
+                         radius arguments. Program loop {} is answered from a record \
+                         that does not: {e}",
                         anchor.program_loop
                     )
                 });
@@ -1743,6 +1747,12 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                         loop_index: anchor.program_loop,
                         segment: anchor.segment(k),
                     };
+                    // FIRST match: one segment carries at most one
+                    // emission, because each arc's bulge is set once
+                    // and the address is recorded at that one moment.
+                    // `no_two_emissions_of_one_loop_name_the_same_segment`
+                    // (`crates/profile/tests/path_program.rs`) is that
+                    // property, measured over the corpus.
                     by_program_segment
                         .iter()
                         .find(|(e, _)| *e == want)

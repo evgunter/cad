@@ -418,16 +418,36 @@ pub fn point_at<T: Decide>(
     roll_reference: Vec3<T>,
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
+    Ok(point_at_frame(eye, target, roll_reference, tol)?.to_affine())
+}
+
+/// [`point_at`]'s frame as the WITNESS it is built from, before the
+/// conversion to a placement — the same ladder, so a caller that
+/// needs the aim as a [`UnitVec3`] (its `w`) beside the affine holds
+/// the decision the ladder made rather than re-asking it or reading
+/// a column back off the map. `point_at` is this door's `to_affine`,
+/// so the two are one construction and agree bit for bit by
+/// construction.
+///
+/// The evaluation order, the roll convention and the refusals are
+/// [`point_at`]'s, stated there once.
+///
+/// # Errors
+///
+/// Exactly [`point_at`]'s.
+pub fn point_at_frame<T: Decide>(
+    eye: Point3<T>,
+    target: Point3<T>,
+    roll_reference: Vec3<T>,
+    tol: Tol,
+) -> Result<OrthoFrame<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
     let unit = UnitVec3::new(aim, "frame_point_at_aim", band)
         .map_err(|e| refused_direction(e, FrameVector::Aim))?;
     let perp = roll_reference.cross(unit.get());
-    Ok(
-        OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
-            .map_err(|e| refused_direction(e.error, FrameVector::RollReference))?
-            .to_affine(),
-    )
+    OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
+        .map_err(|e| refused_direction(e.error, FrameVector::RollReference))
 }
 
 /// The profile frame at the start of a swept path: a frame at `origin`
@@ -606,6 +626,91 @@ pub fn mirror_across_plane<T: Decide>(
 mod tests {
     use super::*;
     use crate::tolerance::Tol;
+
+    /// **`point_at` IS `point_at_frame`'s placement**, pinned where a
+    /// reader can see it rather than left to the one-line body: over
+    /// a grid of aims (every combination of signed units, halves,
+    /// in-band and sub-band lengths, underflowing and overflowing
+    /// magnitudes, the non-finite values), six references and four
+    /// origins, the affine and the frame's `to_affine` agree bit for
+    /// bit and the two doors refuse with one `FrameError`.
+    #[test]
+    fn point_at_is_point_at_frame_to_affine_bit_for_bit() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let vals = [
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            0.5,
+            -0.3,
+            3.0 * eps,
+            0.5 * eps,
+            1e-200,
+            1e200,
+            f64::NAN,
+            f64::INFINITY,
+        ];
+        let refs = [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 1.0, 1e-12),
+            Vec3::new(-0.0, 3e-9, 1.0),
+        ];
+        let origins = [
+            Point3::origin(),
+            Point3::new(1e6, -1e6, 1e6),
+            Point3::new(-0.0, -0.0, -0.0),
+        ];
+        let bits = |a: &Affine3<f64>| {
+            let l = a.linear;
+            [
+                l.c0.x,
+                l.c0.y,
+                l.c0.z,
+                l.c1.x,
+                l.c1.y,
+                l.c1.z,
+                l.c2.x,
+                l.c2.y,
+                l.c2.z,
+                a.translation.x,
+                a.translation.y,
+                a.translation.z,
+            ]
+            .map(f64::to_bits)
+        };
+        let (mut placed, mut refused) = (0_u32, 0_u32);
+        for x in vals {
+            for y in vals {
+                for z in vals {
+                    for r in refs {
+                        for eye in origins {
+                            let target = eye + Vec3::new(x, y, z);
+                            let affine = point_at(eye, target, r, tol);
+                            let frame = point_at_frame(eye, target, r, tol);
+                            match (affine, frame) {
+                                (Ok(a), Ok(f)) => {
+                                    placed += 1;
+                                    assert_eq!(bits(&a), bits(&f.to_affine()), "at {x} {y} {z}");
+                                }
+                                (Err(a), Err(f)) => {
+                                    refused += 1;
+                                    assert_eq!(a, f, "at {x} {y} {z}");
+                                }
+                                (a, f) => panic!("the doors disagree at {x} {y} {z}: {a:?} {f:?}"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            placed > 0 && refused > 0,
+            "{placed} placed, {refused} refused"
+        );
+    }
 
     /// The frame's twelve entries, in column order then translation —
     /// the whole map, bit for bit. Orientation pins compare these, so a

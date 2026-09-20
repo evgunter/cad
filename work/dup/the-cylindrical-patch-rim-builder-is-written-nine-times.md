@@ -2,10 +2,12 @@
 id: the-cylindrical-patch-rim-builder-is-written-nine-times
 kind: issue
 title: The two-rim cylindrical-patch builder is written five times in crates/topo/tests, all as closures a name census cannot see; the src spellings are the same construction with a visibility scar
-status: review
+status: closed
 opened: 2026-09-19
 branch: dup/cyl-rim-builder
 refs: [topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one, census-cyl-sheet-b-keeps-the-unrepaired-radial-read, the-componentwise-scalar-lift-has-no-shared-home, the-fallible-wall-sheet-wrapper-is-written-twice, topo-cylinder-sheet-geomsources-are-asserted-by-nothing]
+pr: 2887
+closed: 2026-09-19
 ---
 
 
