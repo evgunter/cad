@@ -12,8 +12,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane};
+use geom_core::{Affine3, Point2, Tol};
+use profile::{Profile, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -59,17 +60,6 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
         .body
 }
 
-fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp =
-        profile::ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let prof = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&prof, Extrusion::Distance(z.1 - z.0), tol)
-        .unwrap()
-        .body
-}
-
 /// **The boundary just past the pin.** The unit pins r in {3, 4, 5, 6};
 /// the closed form `(80*40 - r^2*(4 - pi))*8 - 20*20*5` stays exactly
 /// valid for every r < 10 (the corner rounds' material lives in
@@ -83,7 +73,9 @@ fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
     let tol = Tol::witness();
     for r in [6.5_f64, 7.0, 8.0, 9.5] {
         let plate = rounded_plate(80.0, 40.0, r, 8.0);
-        let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
+        // `bracket.py`'s pocket, in millimetres — the other half of
+        // the corpus `rounded_plate` above carries.
+        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
         match topo::subtract(&plate, &pocket, tol) {
             Err(e) => {
                 // A typed refusal is honest; record which door.
@@ -111,7 +103,9 @@ fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
 fn the_tangential_radius_ten_refuses_or_meters_exactly() {
     let tol = Tol::witness();
     let plate = rounded_plate(80.0, 40.0, 10.0, 8.0);
-    let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
+    // `bracket.py`'s pocket, in millimetres — the other half of
+    // the corpus `rounded_plate` above carries.
+    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
     match topo::subtract(&plate, &pocket, tol) {
         Err(e) => eprintln!("r = 10: refused at {e:?}"),
         Ok(topo::BooleanResult::Body(bb)) => {
