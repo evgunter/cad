@@ -10,11 +10,11 @@ use crate::fixture;
 use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName,
-    ValuePayload, evaluate,
+    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
+    ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName, ValuePayload,
+    evaluate,
 };
-use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
+use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
 pub(crate) use fixture::{flush_pairs, member_face};
 use geom_core::Tol;
 
@@ -33,12 +33,6 @@ pub(crate) fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     );
     fixture::assert_no_nested_merged(&ev);
     ev
-}
-
-pub(crate) fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {
@@ -617,6 +611,7 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -685,6 +680,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
             )]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::DeclareNamesMissingNode { .. })),
@@ -708,6 +704,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
                 node: Node::declare_rest(vec![sides]),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         );
         assert!(
             matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
@@ -855,17 +852,14 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let vertex = StableName {
-        kind: EntityKind::Vertex,
-        node: a,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        )],
-    };
+    let vertex = fixture::cap_vertex(
+        a,
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex: 0,
+        },
+    );
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
     // Two entities of ONE member, sited there: the same pair reads as
     // that member's carried contact wherever the member sits.
@@ -989,7 +983,11 @@ fn a_declared_unions_document_replays_in_document_order() {
     for id in doc.order() {
         let node = doc.node(*id).expect("a live node").clone();
         replay = replay
-            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
             .unwrap_or_else(|e| panic!("re-inserting {id:?} refused: {e:?}"))
             .doc;
     }
@@ -1188,7 +1186,11 @@ fn a_deleted_site_refuses_at_the_next_evaluation() {
         "a site that left the member list must refuse"
     );
     let applied = doc
-        .apply(&DocEdit::DeleteNode { id: b }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: b },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("a delete never refuses over a dangling reference (N5)");
     let ev = run(&applied.doc);
     assert!(
@@ -1218,6 +1220,7 @@ fn rebind_moves_the_name_and_leaves_the_site() {
                 to: to.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the rebind applies");
     let Some(Node::Declare { pairs }) = applied.doc.node(decl) else {

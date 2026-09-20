@@ -23,7 +23,7 @@
 use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
     Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, apply, evaluate,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
@@ -59,7 +59,8 @@ fn param(n: &str) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -72,6 +73,7 @@ fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution
             value: DocParam::continuous_with(Dimension::Length, value, distribution),
         },
         tol,
+        &RefusingReach,
     )
     .expect("the parameter applies");
     *doc = applied.doc;

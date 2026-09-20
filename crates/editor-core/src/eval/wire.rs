@@ -756,9 +756,16 @@ fn operand<'v, T: Decide, R>(
 /// # Errors
 ///
 /// [`NodeErrorKind::MissingInput`] for a reference that names no live
-/// node, or that [`super::node_value_kind`] cannot classify; otherwise
-/// [`NodeErrorKind::WrongOperand`] naming the family the node lands
-/// in.
+/// node; otherwise [`NodeErrorKind::WrongOperand`] naming the family
+/// the node lands in. The seat [`super::node_value_kind`] answers
+/// beside a refusal of its own is dropped here, because no refusal of
+/// its own can arrive: the reference this door reads is one of the
+/// consuming node's INPUT edges (a loft's or sweep's section), which
+/// the schedule evaluated `Ok` before the op ran — a transform in that
+/// slot whose source is not placeable, or whose input is no live
+/// node, fails on its own and poisons the consumer ahead of this door.
+/// What is dropped is therefore a seat the evaluation has already
+/// given, not a seat this door chooses.
 fn node_operand<'d, P, R>(
     doc: &'d crate::doc::Doc<P>,
     input: RecipeNodeId,
@@ -773,7 +780,7 @@ fn node_operand<'d, P, R>(
         None => Err(operand_refusal(
             input,
             expected,
-            super::node_value_kind(doc, node)?,
+            super::node_value_kind(doc, input).map_err(|seated| seated.1)?,
         )),
     }
 }
@@ -865,7 +872,9 @@ impl<T: Decide> Placeable<T> {
 /// The operand of a placer, read off its evaluated value: one body
 /// (a `Body` value or a boolean's non-empty result), or an `Instances`
 /// value taken whole. Everything else refuses typed naming both
-/// admitted shapes; an empty boolean is a typed absence.
+/// admitted shapes; an empty boolean is a typed absence. The same
+/// rule over NODE kinds, for the road that holds no value, is decided
+/// in [`super::node_value_kind`]'s one match, beside the family word.
 fn placeable_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,
@@ -1705,13 +1714,16 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 /// of this one against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
-/// records were minted from this program by the same pre-pass, so no
-/// loop is missing, no record is of the wrong shape and no span runs
-/// off its loop. That is the class `ProfileProgram::profile_edges_of`
-/// asserts on rather than refusing, and it is surfaced the same way
-/// here: a typed error would be one no document can reach and no
-/// caller can repair, so it is a kernel bug the code observes in a
-/// branch — `unreachable!`'s own job (D9's D2 addendum).
+/// records were minted from this program by the same pre-pass, so
+/// every refusal the door has is a statement about a record from
+/// somewhere else: no loop is missing, no record is of the wrong
+/// shape, no span or emission runs off its loop, and no emission
+/// credits a radius role the step it names does not hold. That is the
+/// class `ProfileProgram::profile_edges_of` asserts on rather than
+/// refusing, and it is surfaced the same way here: a typed error
+/// would be one no document can reach and no caller can repair, so it
+/// is a kernel bug the code observes in a branch — `unreachable!`'s
+/// own job (D9's D2 addendum).
 fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::expr::Expr>>> {
     pre.naming
         .loops
@@ -1722,9 +1734,10 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .unwrap_or_else(|e| {
                     unreachable!(
                         "this profile's structure record and its naming anchor were \
-                         minted from this one program by one pre-pass, so every loop \
-                         the anchor names is a loop the record describes — program \
-                         loop {} is not: {e}",
+                         minted from this one program by one pre-pass, so the record \
+                         describes THIS program — its steps, its segments and its \
+                         radius arguments. Program loop {} is answered from a record \
+                         that does not: {e}",
                         anchor.program_loop
                     )
                 });
@@ -1734,6 +1747,12 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                         loop_index: anchor.program_loop,
                         segment: anchor.segment(k),
                     };
+                    // FIRST match: one segment carries at most one
+                    // emission, because each arc's bulge is set once
+                    // and the address is recorded at that one moment.
+                    // `no_two_emissions_of_one_loop_name_the_same_segment`
+                    // (`crates/profile/tests/path_program.rs`) is that
+                    // property, measured over the corpus.
                     by_program_segment
                         .iter()
                         .find(|(e, _)| *e == want)
@@ -5148,6 +5167,7 @@ mod route_tests {
                         node: Node::declare_rest(Vec::new()),
                     },
                     Tol::witness(),
+                    &crate::mate::RefusingReach,
                 )
                 .expect("an empty Declare inserts");
             ids.push(applied.record.minted.expect("the insert minted an id"));
@@ -5378,7 +5398,11 @@ mod route_tests {
         let (doc, union, ms) = doc_with_members(4);
         let gone = ms[3];
         let doc = doc
-            .apply(&DocEdit::DeleteNode { id: gone }, Tol::witness())
+            .apply(
+                &DocEdit::DeleteNode { id: gone },
+                Tol::witness(),
+                &crate::mate::RefusingReach,
+            )
             .expect("the empty Declare deletes")
             .doc;
         let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));

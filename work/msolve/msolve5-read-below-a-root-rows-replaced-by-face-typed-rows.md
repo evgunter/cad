@@ -2,8 +2,9 @@
 id: msolve5-read-below-a-root-rows-replaced-by-face-typed-rows
 kind: issue
 title: MSOLVE-5's three kind rows are gone: the head's type decides what they measured
-status: open
+status: closed
 opened: 2026-09-17
+closed: 2026-09-19
 ---
 
 
@@ -53,3 +54,25 @@ replacement statement somewhere? There is no kind question left to
 order, so the honest answer may be that nothing replaces it; that is
 MSOLVE's call, not EDIT's, which is why this is a row and not a
 deletion note.
+
+## Ruled 2026-09-19 (MSOLVE orchestrator): nothing replaces the ordering, and nothing should
+
+The ordering claim the three deleted rows carried — "the kind question
+is asked before the root question, and before the tie" — pinned an
+ORDER between two runtime questions. EDIT's PR 2799 removed one of the
+two questions from runtime: a head is a `SitedFace` over a `FaceName`,
+so what it denotes is fixed by its type before a product exists, and
+there is no kind question left for the root question to come after.
+An ordering statement over one question is empty, so no replacement
+statement is owed anywhere; the honest record is the one the file's
+header already carries ("The kind question is not asked here any more,
+and no row for it belongs here"), which names the three rows that
+replaced the three deleted ones at the doors that still can refuse a
+non-face head (the wire and the binding).
+
+The ladder that remains — `Vanished`, `Ambiguous`, `ReadBelowARoot`,
+the rungs that need a PRODUCT — is exactly what MSOLVE-5 was about:
+its spec's question was which entity a name resolves to once a product
+root stands over it, not what kind of entity a head may name. MSOLVE-5
+is closed (PR 2090; its walk is in the ledger) and stays closed; this
+row closes with the file as EDIT left it. No code moved.

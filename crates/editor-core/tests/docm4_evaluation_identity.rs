@@ -17,10 +17,10 @@ use crate::fixture;
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
     Frame, MateFault, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, assemble, evaluate,
-    product, product_named, product_recorded, solve_document,
+    product, product_named, product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, square};
+use fixture::{insert, len, on_frame, solve, square};
 use geom_core::Tol;
 
 // ---- Fixtures ----
@@ -134,6 +134,7 @@ fn an_all_nodes_refusal_carries_its_document_too() {
             eps: Tol::witness().eps() * 2.0,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("SetTolerance applies as a pure doc edit")
     .doc;
@@ -380,7 +381,8 @@ fn solved_poses_placement_refuses_another_document() {
     let (a, ids_a) = assembly_of(DocumentId::derive("docm4-a3-poses-a"), part_ref);
     let (b, _) = assembly_of(DocumentId::derive("docm4-a3-poses-b"), part_ref);
 
-    let poses = solve_document(&a, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&a, &o, Tol::witness());
     assert_eq!(poses.document(), a.id());
     poses
         .placement(&a, ids_a[1])

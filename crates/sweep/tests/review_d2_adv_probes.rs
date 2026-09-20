@@ -184,7 +184,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
         out.push(("die_one_pip", b.clone()));
         // A body the SURGERY itself minted, filleted again: its faces
         // and carriers are the surgery's own output, not a primitive's.
-        let box_edges: Vec<EdgeKey> = cube(1.0, Tol::witness())
+        let box_edges: Vec<EdgeKey> = cube::<f64>(1.0, Tol::witness())
             .edges()
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())

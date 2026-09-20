@@ -31,10 +31,20 @@ from them:
   through a name table under the N5 ladder — `NodeGone`, then
   `Ambiguous`, then `Vanished` — never silently shrunk
   (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
-  `Fillet`/`Chamfer` selections, `Declare` pairs, `Mate` heads,
-  `Measure` refs (`Node::payload_names`). A name is not a DAG edge:
-  the only door that REFUSES on it is `InsertNode`'s liveness check; a
-  later delete strands it (N5) and says so (DM7).
+  `Fillet`/`Chamfer` selections, `Shell` open lists, a
+  `Datum::FaceFrame`'s face, `Declare` pairs, `Mate` heads,
+  `Measure` refs, an `InstantiatePart`'s interface crossings' `outer`s
+  (`Node::payload_names`; a crossing's `inner` is not a name of THIS
+  document, and that list's arm is the one home for why). This clause
+  and `Node::payload_names`' own doc are the list's TWO homes, and
+  every other site in the tree points at the latter rather than
+  restating it. A name is
+  not a DAG edge, and TWO doors refuse on one: `InsertNode`'s liveness
+  check, and `split`'s `PartNameReachesRemainder` precondition, which
+  refuses a cut whose taken node carries a name reaching the kept
+  remainder — a `Declare` pair's, a `Mate` head's, an instance's
+  crossing `outer`. A later delete strands a name (N5) and says so
+  (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }`
@@ -246,6 +256,19 @@ So the chain goes, not the link:
   consumed by a split, by containment, or by a merge a later step
   fragmented is not looked through and stays order-shaped
   (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+  **The refusal against a fold-minted row.** "The same recourse"
+  above holds for a member's own face verbatim, and for a face the
+  fold MERGED through a constituent: the refusal sites that side at
+  one constituent (the first in member order — any constituent
+  declares the same contact through the look-through, so the pick is
+  immaterial and the finding carries the flat set beside it), and the
+  caller declares what the refusal names. A row the fold minted that
+  no member's entity stands for (a `Fragment` — a `Seam` mints edges
+  and vertices, never a face) has no site to name and so no declare
+  arm: it refuses typed, `UndeclarableContact`, rather than degrading
+  into an emission bug that blames the crate for a document the user
+  wrote. The refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its
+  two arms for every sited row; this one row has only the second.
 
 *Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
@@ -330,10 +353,13 @@ it.*
 
 The map from an authored profile step (`SlotId::Profile { loop_, step,
 arg }`) to the profile edges it became (`ProfileEdgeRef {
-loop_index, segment }`) is a function in `program.rs` reading two
+loop_index, segment }`) is a function in `program.rs` reading the
 records the evaluation already produces: the replay's per-step segment
-span (a field of `crates/profile`'s `ReplayStructure`, beside its
-fillet decisions) gives the answer, in the program's own step order —
+span and its per-radius emission (fields of `crates/profile`'s
+`ReplayStructure`, beside its fillet decisions) give the answer — the
+span for a step, the emission for a radius, since the step a radius is
+authored on is not always the step its arc is credited to — in the
+program's own step order —
 the numbering the published names carry, since `eval/anchor.rs`
 renumbers every emitted ref canonical → program before the name table
 is published — and canonicalization's `reversed` and `start` on
@@ -352,8 +378,8 @@ persisted. For a loft the published anchoring is section 0's
   authored step and would grow one for a consumer two layers up.
 - Consumers: the viewer's per-segment focus marking (VIEW's row), and
   the per-edge radius door in `program.rs` (`segment_radii`), which
-  pairs each authored step's radius with the edges that step swept and
-  is what a sweep's per-edge parameter-identity attach reads.
+  pairs each authored radius with the edge its own arc drew and is
+  what a sweep's per-edge parameter-identity attach reads.
 
 *Record: ruled by Ev on the `[ev]` PR of 2026-09-16
 (`authored-step-to-canonical-segment-map-has-no-home`); the

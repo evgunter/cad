@@ -1306,3 +1306,569 @@ Six are structurally invisible to any grep for the sentence, four of
 them a family nobody had looked at, and two sit in `work/*/plan.md` —
 one in a program's **exit criteria**. A source header states a rule
 where a lane *may* read it; a plan states it where a lane *must*.
+
+## 2026-09-19 — the sweep brick: every premise the row was parked on was false
+
+PR #2877 merged green on the full matrix. `sweep::test_support::brick`,
+`block` and `cube` are now `topo::test_support::brick` — **one
+construction of the axis-aligned box in the tree**, which is what the
+brick unit set out to do on 2026-09-16 and could not reach until the
+home existed.
+
+This row had sat on three stated blockers. **All three dissolved under
+measurement, and none of them had ever been run.**
+
+**§3 — "the delegation re-authors the committed `.step` corpus."** It
+moves nothing: all 17 files byte-identical before and after. And the
+probe was **live** — mutating the delegation by `+0.001` on the mapped
+z moves 5 of the 17. A zero-diff from a probe that never executed is
+the failure this guards against, and the lane ran the mutation to
+prove its instrument worked before trusting its null result.
+
+**§1 — "at least one call site passes a genuinely `T`-typed value."**
+Type-directed census across three lanes: **not one does.** All four
+candidates are an `f64` constant lifted at the call site — exactly what
+the door now does internally — and all four got *shorter*. **Two were
+invisible to the row because they sit behind `interval` and `probe`,
+which `cargo check --workspace` compiles neither of** — the same blind
+spot that hid a member from the half-edge unit's compiler probe.
+
+**§1's second claim — "a change to what that paragraph says."** Also
+false. The same module's `corners` already takes `f64` pairs at every
+scalar, with the reason written out: *"a fixture's outline is a set of
+chosen constants, and a chosen constant is an `f64` whatever the lane's
+arithmetic is."* The `(T, T)` extents were the outlier in that module,
+not the convention they were defended as.
+
+### A working option, rejected for the right reason
+
+The row's numerical objection to widening `topo`'s door —
+`x.0 + u·(x.1 − x.0)` is not `x.1` in floating point — is **true of
+that formulation and false of the approach**. `prism_ops` evaluates its
+map only at the profile's own corners, so a **selector** map
+(`if t == 0.0 { lo } else { hi }`) is exact with no arithmetic at all;
+measured, it builds an arena-identical body and moves none of the 17
+files. The lane then rejected it anyway, because it would widen
+`topo`'s door away from the convention to serve **zero** call sites.
+
+Worth keeping: **an objection to a formulation is not an objection to
+the approach**, and the way to tell is to build the other formulation.
+Rejecting a thing that demonstrably works, for a reason that is not
+"it doesn't work", is the shape of a good design call.
+
+### The pair order is now measured, not read
+
+The 2026-09-16 measurement disclosed *"whether the (s1, s2) order
+matters is read, not measured"* and it stayed that way for three days.
+The lane made `describe_as_intersections` — the step every
+`topo::test_support` box, prism and cube builder ends with — write the
+pair reversed on **every edge of every fixture in the tree**, and re-ran
+the workspace: **8231 passed, 0 failed, identical to the unmutated
+run.** Not one row in the tree can see it.
+
+That lands on S-CARVE's existing row as evidence for its fork (2) — a
+type that cannot carry an order — over fork (1), a ratified order:
+**a ratified convention with nothing enforcing it is the same
+unenforced convention under a better name.**
+
+### X4 fired on the diff, and the catch was the census
+
+Deleting `rect` left `square` spelling out the corner map that
+`corners` owns **four lines above it**. Method item 5 exactly — the
+fold nearly minted a copy inside the paragraph naming the trap, and it
+was the self-census that caught it rather than the writing.
+
+Residue filed: seven private extruded-box builders the structural
+needle found outside the door, on S-DUP's slate with the reason it is
+one row rather than four.
+
+## 2026-09-19 — F6's third spelling folded; the strengthening is a null result, the mutation is not
+
+`f6-display-predicate-is-spelled-three-times-with-no-home` closed, the
+program's oldest open row. `crates/viewer/tests/panel_edits.rs` now
+calls `test_utils::f6::assert_f6` with an `f6_variants!` census over
+all 23 `Refusal` arms instead of banning one identifier per arm.
+
+**The strengthening reddened nothing** — 626 passed / 0 failed / 1
+ignored on `viewer --test all`, identical at the merge base and after.
+The measurement the unit owed was whether the whole-roster ban catches
+a real leak in what `viewer` renders, and it does not: the six sampled
+renderings are clean.
+
+**Method item 11 is what made that an honest null rather than a
+guess.** Two mutations:
+
+- a sibling identifier planted in `Refusal::NoSuchParam`'s `Display`
+  is **green under the old per-arm form and red under the new one**.
+  The delta is real even though the tree does not currently exercise
+  it.
+- a twenty-fourth `Refusal` arm reds the `f6_variants!` block with
+  `E0004`, so the ban list is rustc's, not a hand-kept mirror. That is
+  the half `assert_f6`'s `dumps: &[&str]` parameter cannot give a
+  caller on its own, and the reason a site with 23 identifiers is
+  cheaper to keep right than one with 6.
+
+### The census was stale in both directions, which is item 1 again
+
+The row named three copies and two more "outside its scope" in `topo`
+and `mesh`. **The topo and mesh copies had already been folded** by
+S-TINT's PR #2694 four days before this brief was written; reading the
+row as current would have sent a lane to convert two files that are
+already converted.
+
+Two members the row never named are live, and both are the shapes this
+program keeps meeting:
+
+- **a paraphrase no grep for the predicate reaches** —
+  `crates/viewer/tests/error_display.rs` spells the brace clause
+  `" { "`, so the `contains('{')` instrument that found every other
+  member walks straight past it. 29 call sites, one file over from the
+  one the row was about, in the same crate, with the same per-arm
+  approximation. → S-TINT.
+- **a spelling inline mid-file rather than in a header or a helper** —
+  `crates/quantity/src/tests.rs` transcribes `assert_f6`'s whole body,
+  **panic wording included**, inside a `src/` unit-test module. No
+  sweep for `dumps`, `guts`, `assert_f6` or a `tests/` path reaches a
+  `src/` file. → S-FIX.
+
+Both shapes are already in method item 10's roster. Both still cost a
+census that did not deliberately run an instrument against them. The
+instrument that found `quantity` was **prose** — its doc comment
+announces the rule it copies.
+
+### On the size of the row
+
+One call site and a measurement is thinner than a unit, and the unit
+said so rather than dressing it up. What earned it its own PR is the
+census: the row's stated population was wrong in both directions, and
+the two rows filed out of it are each larger than the fold was.
+
+**Three things the orchestrator would add**, rather than a second
+entry about one PR — this log is the program's narrative and two
+accounts of one unit is the defect the program exists to close.
+
+- **A census can be stale in the CLOSED direction too.** This program
+  has found counts too low seven times running. This is the first time
+  a row's population was too HIGH, because other programs had already
+  done part of the work. **A count is a claim about a date, in both
+  directions**, and a row that has sat for thirteen days has had
+  thirteen days for the tree to move under it either way.
+- **The denominator argument was made with its limits named.** The
+  brace is the terminal atom because `assert_f6` bans it
+  unconditionally, so every full copy carries it; the alternative
+  terminal — a variant identifier — is **unbounded and therefore not
+  enumerable**, which is why it could not be the denominator. The lane
+  then stated the one blind spot it could not close rather than
+  publishing past it. That distinction, between a blind spot disclosed
+  and a blind spot closed, is what method item 8 asks for and it is
+  rarely this cleanly done.
+- **X4 fired on the lane's own doc comment.** It had written *"a
+  twenty-fourth arm stops this file compiling"* — a number with
+  nothing holding it — two paragraphs below where the same PR deletes
+  a stale *"`Refusal` has 18 arms"* (it has 23). It removed the number
+  rather than writing `24` in its place, which is the correct repair:
+  the `match` the macro writes is what holds the roster complete, and
+  a doc comment carries an invariant, not a measurement (item 13).
+
+## 2026-09-19 — two lanes dispatched: the box-builder residue and the cylindrical rim
+
+Slate after F6 closed: 12 open rows, 11 closed. Two dispatched together
+because their territories do not overlap.
+
+- **`private-extruded-box-builders-outside-the-brick-door`** →
+  `dup/private-box-builders`, worktree `/home/user/dup-boxbuilders`.
+  The residue of PR #2877: the tree's box door no longer extrudes, so
+  the private builders that still do are one layer out from the class
+  this program just closed. The row publishes a **floor** and says so —
+  its needle was one literal spelling of the extrusion call, and it
+  names by hand four ways a member can decline that spelling. The brief
+  therefore asks for a second instrument before any count is published
+  (method item 8), and for a **per-site disposition rather than a
+  blanket fold**: a suite whose subject IS the extrusion loses its
+  subject by taking an Euler-built box, and the row is explicit that
+  deciding which is the unit's question, not the row's.
+- **`the-cylindrical-patch-rim-builder-is-written-nine-times`** →
+  `dup/cyl-rim-builder`, worktree `/home/user/dup-cylrim`. Nine
+  spellings, and nearly every one a **closure**, which is why the name,
+  arity and geometry censuses all missed them — the second piece of
+  evidence this program has that a structural needle catches what three
+  name/arity censuses do not. The row names three things it never
+  measured (body identity, the home, whether the surface must be a
+  parameter), and those three ARE the unit.
+
+**Neither brief carries a count or a posture as fact** (method item
+15). Both cite the row's numbers as the candidate list method item 1
+says they are, and tell the lane to re-take the census at its own merge
+base. Six times this sitting a number arrived in a report, went into
+the next brief as fact, and was wrong.
+
+**Neither row was set to `dispatched` by the orchestrator.** One file,
+one item: the lane owns its row file and sets `status`, `branch` and
+`pr` in its own PR, the way F6 and the brick row did. An orchestrator
+editing the same file on a parallel branch is the merge conflict
+`work/README.md` describes, and this sitting has already paid once for
+committing conflict markers into this log.
+
+Review tier is deliberately **not** fixed in either brief. Ev's rule is
+style-only by default with a full review reserved for units whose logic
+is tricky, and `plan.md`'s restatement makes the test *can this unit
+change a verdict?* Both units can, if the fold turns out to move what a
+suite measures — and whether it does is exactly what the lanes were
+sent to measure. The tier is decided on the hand-back, from the
+measurement, rather than asserted now from the row.
+
+### A third lane, and a row whose headline had gone stale underneath it
+
+`the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files` and
+`viewer-review-suites-cite-the-withdrawn-independence-reading` are one
+class and went out as one unit → `dup/policy-memory-citations`,
+worktree `/home/user/dup-citation`.
+
+Before briefing it I re-took both rows' counts at `5b4979ef2`, and the
+first row's headline no longer describes the tree:
+
+- **The withdrawn sentence survives in three source files, not
+  nineteen.** `rg -U 'do not\s*(//!)?\s*"simplify"'` over every tracked
+  file returns `topo/src/review_m1_pr3.rs`, `topo/src/review_m1_pr4.rs`
+  and `topo/tests/review_m1_pr5.rs` — which is precisely the group the
+  row itself identifies as stating a **surviving** rule scoped to the
+  derivations. The sixteen group-A carriers were cleared by the row's
+  own carrier PR. What is still open is not the sentence, it is the
+  per-file judgement the row says it owes, and the paraphrase carriers
+  no sentence-grep reaches.
+- **The citation denominator is 35 tracked paths**, against the viewer
+  row's four. It reaches `editor-core`, `step-export`, a `sweep`
+  example, `docs/REVIEW-STYLE-DISPATCH.md` and two `memories/` files
+  that neither row names.
+
+This is method item 12 (**stale modality**) happening to S-DUP's own
+slate, and it is the third time this sitting a count has been stale in
+the **closed** direction — the tree moved under the row while the row
+sat. It is also why the brief hands the lane both measurements *with
+the instrument and its blind spot named, and an instruction to re-take
+them anyway*: a sentence-shaped grep cannot see a paraphrase, and a
+line-shaped grep cannot see a citation that wraps across `//!` lines,
+which is the defect that undercounted this very row three separate
+times.
+
+Two guards in that brief the other two did not need:
+
+- **`memories/` carriers are read-only for the lane.** Some of the 35
+  sit in files whose contents are Ev's call. The lane quotes what it
+  finds and hands it back; it does not edit it. A lane correcting a
+  memory would be exactly the permission-laundering shape this program
+  keeps writing about.
+- **The seven PR #17 attribution sentences are fenced off**, including
+  in headers the lane is otherwise editing. That row is already waiting
+  on Ev, and settling it means writing a new provenance claim about
+  Ev's own words — which is not a lane's call and not mine.
+
+## 2026-09-19 — the cylindrical-patch rim builder (`dup/cyl-rim-builder`)
+
+**The count moved in both directions, which is item 1 with a twist.**
+The row opened at nine spellings across seven files. Re-taken at the
+merge base with four instruments over every tracked file and no path
+argument, the class — one construction, one home — is **five**, in
+four files, and it includes one member the row never named: a
+`#[cfg(feature = "interval")]` `wall` in `mate5_cyl_eps_rung.rs`,
+which no census that reads a default build can reach because the
+compiler never type-checks it.
+
+The row's OTHER four turned out not to be members. Two are the `src`
+`cyl_sheet` pair, which builds a **measurably different body** — 1
+solid, 2 faces, 4 vertices against the `tests/` family's 3, 4 and 6 —
+because `Body::add_surface` is `pub(crate)` and a `tests/` binary
+cannot call it, so every `tests/` spelling mints a scaffold `mvfs` per
+rim to give the rim plane a face. **The two constructions diverged
+along the crate boundary, not along intent.** Two more are torus
+patches in `boxes.rs`: the row guessed one "may be a genuine sibling",
+and measured it is a different class outright — four curved sides,
+closing on a curved meridian spec where every member of this class
+closes on a chord line.
+
+**Instrument 3 is the one that earned its keep**, and it was chosen
+because item 8 says a disclosed blind spot is an instruction: the row
+disclosed that its structural needle keys on `find_half_edge(seed.face`,
+so a second needle went at the surface key instead —
+`FaceSurface::Shared(cyl)` — and that is what surfaced the interval
+member. Its own blind spot (a key bound to another name) is
+demonstrated rather than asserted: it misses both `boxes.rs` torus
+patches, which say `Shared(torus)`.
+
+**The mutation that stayed green is the residue worth having.**
+Deleting the source write from the shared builder — so no sheet's
+cylinder key carries a `GeomSource` at all — left **all 617
+integration rows and 744 lib rows green at both lanes**, although
+three suites name the distinct-`GeomSource` fingerprint as their
+subject in prose. Filed on S-TINT. The mutation that DID work (the
+descending rim's axis left unnegated) reds 23 rows across all four
+folded suites, the interval member included.
+
+**A live probe the fold did not have to plant.** Moving a fixture
+builder into `topo/src` makes it a `pub fn … &mut …` under that tree,
+which is the population `review_m1_pr5_internal`'s two door tables
+walk — so the fold redded on a table with no entry for the new door
+until it declared how tier 1 survives it. Worth knowing before the
+next `tests/` → `src` fold: the home is not free, and what it costs is
+an entry, not a feature.
+
+**X4, caught in the diff by re-reading it**: the door's own
+`lift_point` / `lift_vec` are the 23rd and 24th componentwise
+`T::from_f64` lifts in the tree with no shared home. Filed. So is the
+second X4 the fold left standing: `try_wall_sheet`, token-identical in
+two probe suites, whose reason to exist was the local builder and
+which now wraps the shared one.
+
+### The style-review fix pass, same day
+
+Nine items, and two of them are this program's own method firing on
+this unit.
+
+**X4 a third time, and I did not self-report it.** The unit unified
+`CylFrame` the TYPE and left its CONSTRUCTORS duplicated — and put the
+shared home in the file it was editing, so the duplication had a home
+and did not go there. Re-censused: twelve spellings in three families
+(the review said seven; two families had a second parameterisation
+inside one file, which is item 1 one level down). All twelve now sit on
+`CylFrame::canonical` / `::tilted` / `::opposed`. **The reader who did
+not write the fix is the only one who has ever caught an X4 here, three
+units running.**
+
+**"A second construction" was wrong, and my own row said so two
+paragraphs above the phrase.** The `src` `cyl_sheet` pair is the same
+construction as the folded door with one difference — two scaffold
+`mvfs` calls that exist only because `add_surface` is `pub(crate)`. The
+row measured that and then labelled it "a second construction", which
+is what a future lane would have read. **A measurement and a summary of
+it can disagree inside one file**, and the summary is the part that
+travels.
+
+**The scar is inert, and now that is measured rather than asserted.**
+Switching the door's rim planes to `add_surface` — the `src` form —
+reds only the unit's own arena row and leaves all 617 integration rows
+green at both lanes. So the word "inert" in the door's rustdoc, which
+the review correctly called an unmeasured claim, is now a row's
+measurement and not the door's prose (method item 13).
+
+**Two more silent mutations.** The reviewer changed
+`GeomSource::minted(source, 0)` to `minted(source, 7)` and got 566 + 730
+green: the minted INDEX of every sheet's source is asserted by nothing,
+as its `node` already was. The unit's row now asserts the whole
+`GeomSource`, and the S-TINT row was widened from one claim to three —
+`node`, the index, and the pairwise distinctness a single-sheet row
+cannot reach at all. **A row about one field of a struct is a half-fix
+of a class.**
+
+**A gate decided an open question.** The review asked whether `tol` —
+passed as `Tol::witness()` at all 23 call sites and never anything else
+— is a knob that is never varied. It is, and it cannot go:
+`scripts/gates/witness-not-ambient.sh` forbids `Tol::witness()` under
+`crates/*/src` and does not exempt the `#[cfg(any(...))]` mount, which
+`work/dup/thread-the-tolerance-through-the-prism-fixture-family.md`
+established by planting a violation. Planted one in the door; the gate
+fired and named the line. So the readability fix is the other arm — the
+suite that had no local adapter got one, and its eleven eight-line call
+blocks are one-liners again with each row's two chart windows adjacent.
+
+**And one guard that cannot see what it says.** The unit's own
+allowlist entry in `review_m1_pr5_internal` was materially false and
+both guards reading that table went green, because they check
+membership and never an entry's reason. Filed on GUARD, with the two
+entries anyone has checked named and no count of the rest published,
+because nobody has measured one.
+
+### Third pass: a blanket claim replaced by a wider blanket claim
+
+The fix pass corrected `review_m1_pr5_internal`'s section comment
+because it was false for one of the four entries under it. **The
+replacement was false for all four**, including `prism_ops` — the entry
+that was the correct precedent. It said each builder "writes only
+through doors already on this list", and `mvfs`, `mev` and `mef` are not
+on that list and *cannot* be: it is by construction the doors that do
+NOT assert, and the guard's other-direction row reds an asserting door
+that appears on it. The true statement is the union of the two halves,
+and it is two words longer than the false one.
+
+**The failure is not the wording.** A blanket claim was rewritten and
+not re-checked against every member it now covered — which is a census
+published without being re-taken, one level up from code. The rule that
+catches it is already item 1; what is new is that it applies to a
+SENTENCE's scope as much as to a count's. A per-entry rewrite is
+checkable by a reader in one step and a blanket one is not, which is why
+the entry-level fix in the same pass was right and the section-level one
+was not.
+
+Two more from the same pass, both minted by it:
+
+- **A bound promoted out of its scope.** `CylFrame::tilted`'s doc
+  carried `radius·(1 − cos θ)` as the distance between the two loci.
+  True at `v = 0` only — the tilt displaces a point at height `v` by
+  `v·sin θ` — and the consuming suites compute exactly that, one of
+  them calling it "the tilt's first-order transfer error `r·θ`" where
+  the promoted bound is second order. It was inherited from a deleted
+  LOCAL helper where its scope was one fixture. **A sentence true of a
+  fixture becomes a claim when the fixture becomes a door**, which is
+  item 12 minted inside the pass that was fixing item 12. Dropped
+  rather than qualified: a caller of a test fixture does not reason
+  with a displacement bound.
+- **The unfolded duplicate under the folded one.** Two token-identical
+  fifteen-line closures in `mate5_cyl_eps_rung.rs`, differing only in a
+  source id. The pass edited BOTH of them — rewriting the frame
+  expression inside each — and folded neither. The judgement that the
+  inline frame expression should stay was right and was recorded; the
+  duplicate one level out was not seen, because the edit was scoped to
+  the line being changed rather than the block containing it.
+
+The fold keeps `src` per-call deliberately: nothing asserts that two
+sheets carry distinct `GeomSource`s, so merging two ids would erase the
+subject of the S-TINT row this unit filed before anyone measures it.
+
+### Orchestrator addendum on PR #2887 — three things the lane's entry does not carry
+
+Merged 2026-09-19 as `967741f59`, after **two** review rounds: a style
+review of the unit, then a delta read of the fix pass by the same
+reader. Everything below is about the second round, because the second
+round is what this unit taught.
+
+- **Every unit gets a reader. This evening establishes that every FIX
+  PASS needs one too.** The fix pass for an X4 defect minted three
+  fresh instances, two of them in the exact classes it was fixing: a
+  blanket claim corrected *because it was false for one member* was
+  replaced by one false for all four — including the entry that was the
+  correct precedent the brief pointed at — and a bound whose scope was
+  one fixture in a deleted local helper was promoted into a `src`
+  door's rustdoc, where it does not hold. Method item 12 and item 13,
+  minted inside the pass fixing item 12 and item 13. The third was a
+  pair of token-identical closures in a file the pass edited **in both
+  copies** without seeing the block containing them.
+  The lane's own diagnosis is the one to keep: *a per-entry claim is
+  checkable by a reader in one step where a section-level one is not*,
+  which is why the entry-level fix in that same pass survived and the
+  section-level one did not. **Item 1 applies to a sentence's scope as
+  much as to a count.**
+  The delta read cost little: the same reader resumed with its context
+  and was told to read one diff, not the PR. That is the cheap half of
+  the lesson and the reason this is a method note rather than a
+  complaint.
+- **One count passed through three hands and was low at every hand.**
+  The row opened at nine and the class was five; the reviewer named
+  seven frame constructors and there were twelve, because two families
+  carried a second parameterisation *inside a single file*, which no
+  cross-file read catches; the orchestrator relayed twenty-two call
+  sites and there were twenty-three, the extra being the witness
+  tolerance behind a local alias. Three readings, three undercounts,
+  every one corrected by the same act — re-taking rather than
+  inheriting. Item 15 is not a caution about lanes; it is a caution
+  about every hand a number passes through, this one included.
+- **The orchestrator flattened a modality in relay, which is item 12 in
+  miniature.** The lane's row says the visibility scar is inert *to the
+  `tests/` side*, and that the `src` side is what still blocks the
+  fold. The orchestrator's summary said "inert". One-directional claims
+  lose their direction when they are restated by someone who is not
+  holding the measurement, and the restatement is what travels — the
+  same mechanism this unit's own wording defect turned on, where a row
+  measured one thing and summarised it as the opposite two paragraphs
+  apart. The lane's wording stands over the orchestrator's.
+
+**On the review tier, for the next dispatch.** Style tier was right and
+held through both rounds: the fold was proved bit-identical, so it
+could not move a verdict, and nothing either round found rose to a
+correctness MAJOR. What earned its keep was naming, in the brief, the
+two hunks where a green diff tells you least — the guard-table entry
+the move forced, and the mutation that reddened nothing. **Both rounds'
+findings concentrated there.** A style brief that names its two
+suspicious hunks is not a full review and does most of what one would
+have done here.
+
+## 2026-09-20 — the sitting's close: three units merged, and what the fix passes taught
+
+`967741f59` (#2887, cylindrical rim), `3d4ab7595` (#2886, citation
+census), `cb38b6c82` (#2891, private box builders). Slate: **15 closed,
+19 open** — four new rows filed out of the three units, which is this
+program's normal yield and not a sign anything went wrong.
+
+### The finding of the sitting: a fix pass needs a reader as much as a unit does
+
+Every unit here got a style review, and **every fix pass written
+against that review's findings minted fresh defects** — three, two and
+two, plus one more on a fourth pass. The classes:
+
+- **Code and prose duplication**, the ordinary X4: a unified type left
+  twelve constructors duplicated; three private re-spellings of a const
+  the shared home exports, in files the lane had just censused; a
+  fourteen-line operand written twice inside the file being rewritten.
+- **The defect being fixed, committed inside the fix.** Twice. A lane
+  told to remove unguarded counts wrote **twelve** fresh ones, one of
+  them the same sentence byte-identical in five files. A lane told to
+  fix stale modality promoted a bound out of a deleted local helper's
+  scope into a `src` door, where it does not hold.
+- **A rewritten blanket claim, false for more members than the one it
+  was corrected for.** A section comment false for one entry was
+  replaced by one false for all four, including the entry the brief
+  named as the correct precedent.
+- **A claim about a measurement** — the fourth pass's, and the hardest
+  of the four to see. The measurement was real, was run, came back
+  green, and the sentence describing *what it discriminated* was false:
+  a control offered as varying two axes varied neither.
+
+The mechanism is not carelessness. A fix pass is written fast, against
+a list, by someone who has just been told what the defects are — which
+is exactly the state in which the next one is invisible. **Only a
+reader who did not write the fix has ever caught one**, in this program
+or in the two tracks before it, and that now holds for fix passes as
+firmly as for units.
+
+The cost is small: the same reviewer resumes with its context and is
+told to read one diff. Three delta reads this sitting, ≤80 lines each,
+and each found something the lane had not.
+
+### Counts, one hand at a time
+
+A number was low at every hand it passed through, repeatedly, and the
+orchestrator was one of the hands:
+
+- nine → five (row → lane); seven → twelve (reviewer → lane);
+  twenty-two → twenty-three, ~fifteen → twenty-five, ~forty-eight →
+  forty-seven (orchestrator → lane); seven → thirty-four → forty-four
+  (row → lane → lane); eleven → twelve (reviewer → lane).
+- **The instrument defect worth keeping**: a denominator of 18 where
+  the suite has 9, from `grep -c '^fn r1_\|^#\[test\]'` — an
+  alternation that double-counts a row whose test fn is both attributed
+  and named at column 0. Exactly one file in that crate has the shape,
+  so **three of the four figures taken the same way were right, and the
+  wrong one looked sound**. An instrument that fails on one input in
+  four does not look broken; it looks like it works.
+- Method item 15 is therefore not about lanes. It is about every hand a
+  number passes through, and re-taking is the only act that has ever
+  fixed one.
+
+### An orchestrator failure mode, named because it happened twice
+
+**A modality dropped in relay.** A lane wrote that a visibility scar is
+inert *to the `tests/` side*, with the `src` side still blocking the
+fold; the orchestrator's summary said "inert". A lane wrote that two
+constructions of one box feed a certified width identically; the
+orchestrator called it *"the first end-to-end check of the parent
+unit's arena-level claim through a certified predicate"*, which the
+measurement did not support. Both times the lane's text was correctly
+scoped and the restatement was stronger. **The lane writes the careful
+version; the orchestrator writes the quotable one, and the quotable one
+is what travels** — which is this program's own subject (a row that
+measured one thing and summarised it as the opposite) happening one
+level up.
+
+The repair is the same as everywhere else here: quote the row's own
+sentence rather than paraphrasing it, and when a lane scopes a claim
+down, carry the scope.
+
+### Two things the reviewers established that outlive these units
+
+- **A style brief that names its two suspicious hunks does most of what
+  a full review would.** Style tier held on all three units; in each,
+  both rounds' findings concentrated in the hunks the brief named as
+  the places where a green diff tells you least.
+- **Verify the reviewer too.** One delta read reported a wrong count as
+  living in the lane's hand-back rather than in the tree. It was
+  committed, in a row, on line 139. Merging on that summary would have
+  landed a wrong count in the tracker of the program whose subject is
+  counts that do not survive re-taking.

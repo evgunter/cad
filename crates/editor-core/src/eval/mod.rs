@@ -598,11 +598,18 @@ impl<T: Decide> ValuePayload<T> {
     }
 }
 
+/// **A refusal beside the node it is seated at**: the id of the node
+/// whose own evaluation raises `kind`, and the kind. Boxed once, here,
+/// for every road that carries one: the pair is the cold half of every
+/// classification and derivation, and a [`NodeErrorKind`] is wide.
+pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
+
 /// **The value family a node's evaluation lands in**, in
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
-/// of the same question, for the one road that re-derives a node from
-/// its expressions and never holds its value (the mate solve's
-/// derived offset, refusing a circular rule's `axis` operand).
+/// of the same question, for the roads that never hold a value: a
+/// reference read straight out of the document (the mate solve's
+/// derived offset refusing a circular rule's `axis` operand, and the
+/// wire's `node_operand` door).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a
@@ -629,37 +636,58 @@ impl<T: Decide> ValuePayload<T> {
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::MissingInput`] naming a transform's input that is
-/// no live node: the refusal that transform's own evaluation raises,
-/// and the only word the evaluation has for the shape — the operand
-/// never lands in a family, so its consumer is poisoned through the
-/// transform rather than refused with one. Unreachable through
-/// `apply`, which takes a node's dependents with it on delete; refused
-/// typed anyway.
-pub(crate) fn node_value_kind<P>(
-    doc: &Doc<P>,
-    node: &crate::node::Node<P>,
-) -> Result<&'static str, NodeErrorKind> {
+/// Each seated at the node whose own evaluation raises it
+/// ([`Seated`]), so a road that holds no poison can refuse where the
+/// evaluation fails:
+///
+/// - [`NodeErrorKind::WrongOperand`] at a transform whose source is
+///   not placeable — the transform's own refusal, in its own words.
+///   Whether a placer takes a family is decided in the one match
+///   below, beside the family itself: a body, a boolean (whose
+///   non-empty result is a body; the empty one is a typed absence
+///   only a value can show) and instances, which is the value door's
+///   rule (`wire::placeable_operand`) read over node kinds. The
+///   evaluation fails that transform and poisons every consumer
+///   through it; a document holding one is admitted by `apply`.
+/// - [`NodeErrorKind::MissingInput`] naming a transform's input that
+///   is no live node, at that transform — likewise the transform's own
+///   refusal. Unreachable through `apply`, which refuses the delete
+///   that would leave it (`DeleteWouldDangle`), and through `load`,
+///   whose validator holds liveness; refused typed anyway.
+/// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
+///   live node, seated at `id`: the walk has no other node to name.
+pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
     use crate::node::Node;
-    let mut at = node;
-    while let Node::Transform { input, .. } = at {
-        at = doc
-            .node(*input)
-            .ok_or(NodeErrorKind::MissingInput { input: *input })?;
-    }
-    Ok(match at {
+    let mut at = id;
+    // The transform whose input the walk is reading, once one is passed.
+    let mut placer: Option<RecipeNodeId> = None;
+    let source = loop {
+        let Some(node) = doc.node(at) else {
+            return Err(Box::new((
+                placer.unwrap_or(at),
+                NodeErrorKind::MissingInput { input: at },
+            )));
+        };
+        let Node::Transform { input, .. } = node else {
+            break node;
+        };
+        placer = Some(at);
+        at = *input;
+    };
+    // The family, and whether a placer takes it.
+    let (found, placeable) = match source {
         Node::Transform { .. } => {
             unreachable!("the walk above stops at the first node that is not a transform")
         }
-        Node::Datum(_) => family::DATUM,
-        Node::Profile(_) => family::PROFILE,
-        Node::Boolean { .. } => family::BOOLEAN,
-        Node::Split { .. } => family::SPLIT,
-        Node::Pattern { .. } => family::INSTANCES,
-        Node::Declare { .. } => family::DECLARATIONS,
-        Node::Mate { .. } => family::MATE,
-        Node::Measure { .. } => family::MEASURE,
-        Node::Assertion { .. } => family::ASSERTION,
+        Node::Datum(_) => (family::DATUM, false),
+        Node::Profile(_) => (family::PROFILE, false),
+        Node::Boolean { .. } => (family::BOOLEAN, true),
+        Node::Split { .. } => (family::SPLIT, false),
+        Node::Pattern { .. } => (family::INSTANCES, true),
+        Node::Declare { .. } => (family::DECLARATIONS, false),
+        Node::Mate { .. } => (family::MATE, false),
+        Node::Measure { .. } => (family::MEASURE, false),
+        Node::Assertion { .. } => (family::ASSERTION, false),
         Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -672,8 +700,19 @@ pub(crate) fn node_value_kind<P>(
         | Node::Union { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
-        | Node::InstantiatePart { .. } => family::BODY,
-    })
+        | Node::InstantiatePart { .. } => (family::BODY, true),
+    };
+    match placer {
+        Some(transform) if !placeable => Err(Box::new((
+            transform,
+            NodeErrorKind::WrongOperand {
+                input: at,
+                expected: phrase::BODY_OR_INSTANCES,
+                found,
+            },
+        ))),
+        _ => Ok(found),
+    }
 }
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
@@ -2684,6 +2723,115 @@ impl Default for EvalOptions {
     }
 }
 
+/// **The mate solve's reach over a part cache** — the one geometric
+/// read the solve makes (A11), answered from the parts this
+/// evaluation resolves.
+///
+/// The evaluation's own run reads the cache it has already built
+/// ([`CacheReach`]); every caller outside a run — the viewer's mate
+/// tool, the Python door, the demos, the test fixtures — builds one
+/// through [`mate_reach`] over the options it would evaluate with, so
+/// there is one implementation of "a part's extent" and it is the
+/// evaluation's.
+fn reach_over_cache<T: EvalScalar>(
+    parts: &parts::PartCache<'_, T>,
+    part: &crate::ident::DocRef,
+    tol: Tol,
+) -> Result<f64, crate::mate::ReachRefusal> {
+    let value = parts
+        .get(part, tol)
+        .map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
+    // The reach is an UPPER BOUND by definition, and the bracket's `hi`
+    // is that bound at the run's scalar (`EvalScalar` gathers the
+    // ratified compound; on `f64` the bracket is the value). It scales
+    // a margin in the refusal-safe direction and decides no topology:
+    // the solve still decides through `Decide`. A bracket that reads
+    // back non-finite is poison, not a bound.
+    let hi = crate::mate::part_reach(&value.body)?.hi();
+    if !hi.is_finite() {
+        return Err(crate::mate::ReachRefusal::NoFiniteBound);
+    }
+    Ok(hi)
+}
+
+/// The running evaluation's reach: its own cache, borrowed.
+struct CacheReach<'r, 'a, T: EvalScalar> {
+    parts: &'r parts::PartCache<'a, T>,
+    tol: Tol,
+}
+
+impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(self.parts, part, self.tol)
+    }
+}
+
+/// **A mate solve's reach, built outside an evaluation** — what
+/// [`mate_reach`] answers. Owns a part cache over `opts`' resolver,
+/// so a caller that solves a document and then evaluates it resolves
+/// each mated part once here and once there; the evaluation's own
+/// solve shares its run's cache instead. Bound to no document: the
+/// edit door threads one reach through a group of edits, each applied
+/// to its predecessor's output.
+pub struct PartReach<'a, T: EvalScalar> {
+    parts: parts::PartCache<'a, T>,
+    tol: Tol,
+}
+
+impl<'a, T: EvalScalar> PartReach<'a, T> {
+    /// **A reach from a resolver alone** — for the doors that are not
+    /// a run: the edit door, a solve read outside an evaluation, a
+    /// refactoring. Such a door has no evaluation options of its own,
+    /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
+    /// strategy and profile lift), spelled here once; a door that IS
+    /// a run, or holds a run's options, goes through [`mate_reach`].
+    /// `None` is the refusing reach: every part is the typed
+    /// no-resolver fault.
+    pub fn with_resolver(
+        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+        tol: Tol,
+    ) -> Self {
+        let defaults = EvalOptions::default();
+        Self::over(resolver, defaults.boolean_sweep, defaults.profile_lift, tol)
+    }
+
+    /// A reach over a part cache built from these options' parts.
+    fn over(
+        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+        boolean_sweep: topo::SweepStrategy,
+        profile_lift: ProfileLift,
+        tol: Tol,
+    ) -> Self {
+        Self {
+            parts: parts::PartCache::<T>::new(resolver, &[], boolean_sweep, profile_lift, tol),
+            tol,
+        }
+    }
+}
+
+impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(&self.parts, part, self.tol)
+    }
+}
+
+/// **The public door to the evaluation's reach** for
+/// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
+/// mated part's extent, resolved through `opts`' resolver the way an
+/// evaluation over `opts` would resolve it (same seam, same sweep
+/// strategy, same profile lift), at the top of the descent. A caller
+/// with no resolver gets a reach whose every answer is the typed
+/// no-resolver fault, so the solve refuses each mate in the
+/// resolver's own voice rather than levering over nothing.
+pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
+    PartReach::over(
+        opts.resolver.as_ref(),
+        opts.boolean_sweep,
+        opts.profile_lift,
+        tol,
+    )
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -2800,8 +2948,13 @@ where
     // (A11): one spanning tree per cluster, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit".
-    let poses = crate::mate::solve_document(doc, tol);
+    // answer to "where does this cluster sit". Its one geometric read
+    // — each mated part's extent, the lever — comes off THIS run's
+    // part cache, lazily: a mated part is evaluated here, once, under
+    // the cache's own shielding bracket, and its instantiate node
+    // then hits the cache.
+    let reach = CacheReach { parts: &parts, tol };
+    let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
@@ -4066,9 +4219,11 @@ where
             // is a subset of it.** This feed has no record of the
             // evaluation in hand — it runs before one exists — so it
             // asks `LoopProgram::step_radii`, which reads the program
-            // alone. The attach asks `ProfileProgram::segment_radii`,
-            // which additionally reads the replay's spans and drops
-            // what they leave ambiguous. That inclusion is the whole
+            // alone and answers EVERY radius argument it authors. The
+            // attach asks `ProfileProgram::segment_radii`, which
+            // additionally reads the replay's record of which segment
+            // each of those radii drew, and answers only where an arc
+            // was drawn. That inclusion is the whole
             // guard, and it is the direction that cannot go stale: a
             // spelling can be keyed and not attached, which costs a
             // memo hit and nothing else, and cannot be attached without
@@ -4113,9 +4268,11 @@ where
                 verbs::EdgeScalar::Radius,
             )) {
                 for lp in &program.loops {
-                    // Every step's own radius, in program-step order: a
-                    // carrier form's one, a chain's per radius-bearing
-                    // step. The loop shapes are not distinguished here
+                    // Every radius the loop authors, in program-step
+                    // order: a carrier form's one, a chain's per
+                    // radius-bearing ARGUMENT — a fused step's two or
+                    // three all enter. The loop shapes are not
+                    // distinguished here
                     // because the question is not per loop — it is
                     // "which spellings of this program can reach a
                     // stored field", and a chain's arc radii reach the

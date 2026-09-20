@@ -432,6 +432,51 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
+    /// **Write the path editor's numbers over a committed profile's**
+    /// — the door the add-profile form's editor commits through when
+    /// it is opened on an existing node instead of on nothing. A
+    /// `node` that is not a `Node::Profile` refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    ///
+    /// `loops` is the whole program as the editor holds it, lowered in
+    /// the form's notation. What reaches the history is the slot write
+    /// for each argument that MOVED ([`crate::sketch::program_edits`]),
+    /// as ONE action and one undo step — and nothing at all when none
+    /// did, which is what makes opening a profile and applying it
+    /// untouched cost no history entry. A program whose structure
+    /// differs from the committed one's refuses
+    /// [`Refusal::ProfileRestructure`]: the document's edit vocabulary
+    /// writes slots and has no door that rewrites a program's shape. A
+    /// moved argument an expression drives refuses with the affordance
+    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
+    /// does.
+    ///
+    /// The whole program is checked once before any slot is written,
+    /// so a profile that does not close or validate refuses in the
+    /// insert door's own words ([`Refusal::Edit`]). The slot writes
+    /// then land in an order the door accepts one at a time — each
+    /// write re-validates the program, so a corner moved past another
+    /// can refuse until its neighbour follows. The order is searched
+    /// exactly up to [`crate::session::ORDER_SEARCH_CAP`] writes; a
+    /// program that is valid whole and has no such order is
+    /// [`Refusal::ProfileEditOrder`], and one past the cap whose slot
+    /// order does not land is [`Refusal::ProfileEditOrderCapped`] —
+    /// the cost of the missing whole-program door said out loud rather
+    /// than as a refusal about a state nobody wrote.
+    ///
+    /// `base` is the program the editor was loaded from. A document
+    /// whose program is no longer that one (compared by value) refuses
+    /// [`Refusal::ProfileEditStale`]: the numbers were an edit of a
+    /// program that is not there any more.
+    EditProfile {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The committed program the editor's numbers were loaded
+        /// from.
+        base: ProfileProgram,
+        /// The loop programs the editor holds, in description order.
+        loops: Vec<LoopProgram>,
+    },
     /// Insert one extrude of an existing profile node — the extrude
     /// tool's one committed edit. A `profile` that is not a
     /// `Node::Profile` in this document refuses
@@ -785,9 +830,9 @@ impl SessionOp {
     ///   [`SessionOp::BeginFreeMove`], which is the same rule about
     ///   the other drag.
     ///
-    /// Everything else is refused, and 23 of the 24 rows move the
+    /// Everything else is refused, and 24 of the 25 rows move the
     /// document, the history or the file the drag is previewing
-    /// against. [`SessionOp::ProbeBounds`] is the twenty-fourth and
+    /// against. [`SessionOp::ProbeBounds`] is the twenty-fifth and
     /// moves none of them: it READS the shown document, which
     /// mid-drag is the scratch, so a range taken there would be a
     /// statement about a picture the drag is about to replace and
@@ -826,6 +871,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -937,6 +983,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }

@@ -42,9 +42,13 @@ posture under §Process.
    on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended)
    and is **merged** (PR #2809, kernel unit, v6 dual, block EDIT-B2
    slot 0, sample #216); its residue
-   `a-declare-orphaned-by-a-cascade-is-never-reported` is ruled and
-   **spec'd** (middle tier, wave 11: the delete that orphans a
-   `Declare` reports it as maintenance).
+   `a-declare-orphaned-by-a-cascade-is-never-reported` is **merged**
+   (PR #2874, middle tier, wave 11: the delete that orphans a
+   `Declare` reports it as maintenance; the ruling and its transient
+   put to Ev on `[ev]` #2869); its residue
+   `an-orphaned-declare-joins-the-product-root-set` was ruled a
+   non-issue and **closed** (PR #2882, E-class: the root set is the
+   sink set, non-body roots contribute nothing).
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -60,8 +64,11 @@ posture under §Process.
    residue `interface-crossing-heads-are-bare-stable-names` is
    **merged** (PR #2814, middle tier, wave 10); its residue
    `instantiate-part-crossings-are-names-payload-names-does-not-list`
-   is ruled and **spec'd** (middle tier, wave 11: an instance's
-   crossing `outer`s are payload names, its `inner`s are the part's).
+   is **merged** (PR #2872, middle tier, wave 11: an instance's
+   crossing `outer`s are payload names, its `inner`s are the part's;
+   the crossing's `mate` id ruled a provenance reference checked at
+   insertion and its row closed in the same pass; the fourth door on
+   `split` disclosed and put to Ev).
    `no-docedit-splices-a-deleted-node` is deferred on DM6
    and is not work.
 3. **The persisted recipe's honesty** —
@@ -75,15 +82,23 @@ posture under §Process.
    together as round three (PR #2780, middle tier; the census is now
    the code's). `recorded-program-arguments-carry-no-notation` is
    **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
-   doc-param precedent; LIB's Python half unparked at that merge).
+   doc-param precedent; LIB's Python half unparked at that merge); its
+   residue `recorded-notation-makes-a-rust-author-count-step-indices`
+   is **merged** (PR #2876, middle tier, wave 12: the recorder hands
+   back its steps and the notation's authoring door derives the
+   index).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
    **merged** (PR #2793, middle tier). DM8's residue
    `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
    is **merged** (PR #2804, middle tier, wave 8; crossed WIRE's
    `eval::content_key` and `ProfileValue` by announcement); its residue
-   `fused-arc-fillet-steps-have-no-per-segment-radius-address` stands
-   open.
+   `fused-arc-fillet-steps-have-no-per-segment-radius-address` is
+   **merged** (PR #2892, kernel unit, v6 dual, block EDIT-B2 slot 1,
+   wave 14, sample #223: the replay record says which segment each
+   radius drew and DM8's map reads it; both reviewers
+   APPROVE-WITH-FIXES with no MAJOR; the exact-fit close's unguarded
+   fillet arc, found by both, closed with it).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
@@ -100,6 +115,12 @@ posture under §Process.
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
+   `crossing-mate-id-is-provenance-that-nothing-reads` (filed from
+   Ev's condition on `[ev]` #2869) is ruled and **spec'd** (middle
+   tier, wave 15: the field goes; the crossing carries `class`,
+   `outer`, `inner`); `next-id-has-no-layer3-door` (VIEW's filing
+   against DOCM, EDIT's now) is ruled and **spec'd** (E-class, wave
+   15: a `has_minted` predicate on `Doc`, the counter stays private);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
@@ -113,6 +134,12 @@ posture under §Process.
    `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
    **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
+   Two prose rows filed by waves 10–11 were ruled and **merged** as one
+   E-class unit (PR #2879, wave 13, `edit/prose-one-home`):
+   `doc-param-refusals-keep-two-conventions-inside-one-enum` (the
+   convention's scope is a param reference; nothing renamed) and
+   `payload-carrier-lists-have-seven-prose-homes` (two load-bearing
+   homes, five pointers, the eighth match replaced by the door).
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
    E-class this line first guessed: the collapse crossed the persisted

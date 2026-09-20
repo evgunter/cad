@@ -2,16 +2,20 @@
 id: sweep-test-support-brick-is-still-a-second-box-construction
 kind: issue
 title: sweep::test_support::brick still builds the box a second way; one measured thing blocks the delegation and two scope it
-status: open
+status: closed
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
+branch: dup/sweep-brick-delegation
+pr: 2877
+closed: 2026-09-19
 ---
 
 ## Finding
 
 - **Where**: `crates/sweep/src/test_support.rs` (`brick`, `block`,
-  `cube`, over `prism_at` → `prism_on` → the extrude machinery)
-  against `crates/topo/src/test_support_fixtures.rs` (`brick`, over
+  `cube`, which when this row was opened went over `prism_at` →
+  `prism_on` → the extrude machinery) against
+  `crates/topo/src/test_support_fixtures.rs` (`brick`, over
   `prism_ops`).
 - **Importance**: medium
 - **Confidence**: sure about §1, which is read off two signatures and
@@ -123,13 +127,124 @@ which body the corpus should show, so it is not the one-line body
 change the brief's sentence makes it sound like. Reason 1 is what
 carries the deviation on its own.
 
-## What would settle it
+## Measured 2026-09-19 (branch `dup/sweep-brick-delegation`): the STEP bytes do not move, and §1's premises do not hold
 
-§2 is settled (above). The cheapest remaining measurement is whether
-the swap moves the committed STEP bytes at all: the arena permutation may or may not reach the
-exporter's entity numbering, and nobody has run it. If it does not, 1
-and 2 are the whole cost. If it does, the unit is a delegation plus a
-re-baseline with its own argument about which body the corpus should
-show.
+### The STEP corpus: zero bytes move, and the probe was live
 
-Not blocked on anything: the home it needed exists now.
+`cargo run -p step-export --example export_fixtures` at the merge base
+reproduces all **17** committed `.step` files byte for byte. Re-run
+with `sweep::test_support::brick` delegating to `topo`'s construction,
+all 17 are **still byte-identical**. So the curve-arena permutation and
+the swapped `(s1, s2)` never reach the exporter's entity numbering, and
+§3 evaporates: the delegation is not a re-baseline.
+
+**A green diff is not evidence unless the probe is live**, so the
+delegation was mutated (`+0.001` on the mapped z) and re-run: **5 of
+the 17** fixtures moved — `cube`, `die`, `die_pips`, `composed_die`,
+`kiss_assembly`. The zero-movement result is therefore about the
+exporter, not about a probe that never executed.
+
+This closes the blind spot
+`brick-has-two-constructions-and-two-homes`'s measurement disclosed by
+name: *"Nothing downstream of the body. No STL, STEP or mesh output was
+compared."*
+
+### The two constructions still differ, on this head
+
+Dumped side by side at the unit cube: **identical** arena counts, edge
+keys, surface keys and witnesses; **different** curve keys (the same
+twelve permuted) and `(s1, s2)` reversed on the four bottom-rim edges —
+exactly the 2026-09-16 finding, still true. `topo::mapped_cube` under a
+selector map and `topo::brick` are arena-for-arena identical, so the
+delegation reproduces `topo`'s body and nothing else.
+
+### §1, premise by premise
+
+- **"At least one call site passes a genuinely `T`-typed value" — false.**
+  Type-directed census: narrow `brick`, `block` and `cube` to `f64`
+  extents and compile every target at every lane. Result: **zero**
+  `E0308` on the default lane, **3** on `interval`
+  (`m6_surgery_interval.rs`'s `cube(iv(DIE_L), …)` and
+  `review_fillet_e1_probes.rs`'s two `cube(iv(1.0), …)`), **1** on
+  `probe` (`review_fillet_e1_probes.rs`'s `cube(Probe(1.0), …)`). Every
+  one is an **f64 constant lifted at the call site** — `iv` is
+  `Interval::from_f64` — which is precisely what `topo::brick` does
+  inside the door. No call site in the tree passes a computed `T`. Two
+  of the four were not named by this row; the row's instrument could
+  not see them because they are behind `interval` and `probe`, which
+  `cargo check --workspace` does not compile.
+  The remaining cost is **7** inference sites needing a turbofish or an
+  annotation, listed in the PR.
+- **"A change to that paragraph too" — false.** The module header
+  claims the family is *"generic in the scalar"*, and a door that
+  returns `Body<T>` from `f64` extents still is. The same file's
+  [`corners`] already takes `f64` pairs at every scalar and states the
+  reason: *"a fixture's outline is a set of chosen constants, and a
+  chosen constant is an `f64` whatever the lane's arithmetic is."* The
+  extents are the outlier in this module, not the convention.
+- **The widening objection is against a formulation, not the approach.**
+  `x.0 + u·(x.1 − x.0)` is indeed not `x.1` in floating point — but
+  `prism_ops` evaluates its map only at the profile's own corners and
+  the two z stations, so a **selector** map (`if t == 0.0 { lo } else
+  { hi }`) is exact, with no arithmetic at all. Measured: it builds a
+  body arena-for-arena identical to `topo::brick`, and it moves none
+  of the 17 STEP files. The approach works; it is simply not needed,
+  because narrowing is the direction the module's own convention
+  already points.
+
+## Settled (2026-09-19, branch `dup/sweep-brick-delegation`)
+
+All three sections are measured and none of them blocks. The remedy is
+**narrow `sweep`, then delegate**: `brick`, `block` and `cube` take
+`f64` extents like every other constant-taking door in that module,
+and `brick` is one line of `topo::test_support::brick`.
+
+- §1 dies on its own premises: no call site passes a computed `T`, and
+  the header paragraph it cites claims genericity **in the scalar**,
+  which the narrowed doors keep.
+- §2 is a manifest change, cleared by Ev, and the gate passes on the
+  head that makes it.
+- §3 evaporates: the committed STEP bytes do not move.
+
+Cost, measured: **11** call-site edits — 4 that got shorter (the
+call-site lift is now the door's job) and 7 turbofishes for `T`
+witnesses the extent argument used to supply. The suites are
+**8231/8231** on both sides of the diff at default features, 3081 on
+`interval` and 2923 on `probe`, and a `+1e-3` mutation on the
+delegated extent reds **79** rows in `sweep`, so the green is about
+the fold rather than about a fixture nothing executes.
+
+The residue the unit's own structural needle turned up is
+`work/dup/private-extruded-box-builders-outside-the-brick-door.md`.
+
+## Closed (2026-09-19, PR #2877)
+
+`brick`, `block` and `cube` are `topo::test_support::brick`. **One
+construction of the axis-aligned box in the tree.**
+
+All three sections of this row were stated as costs and **none had ever
+been run**:
+
+- **§3** — the delegation moves **zero** of the 17 committed `.step`
+  bytes, with the probe proved live (a `+0.001` mutation moves 5).
+- **§1's first premise** — *"at least one call site passes a genuinely
+  `T`-typed value"*. Not one does. All four are an `f64` constant lifted
+  at the call site, which is what the door now does internally, and two
+  of the four were invisible to this row because they sit behind
+  `interval` and `probe`.
+- **§1's second premise** — *"a change to what that paragraph says"*.
+  The header claims genericity **in the scalar**, which a door returning
+  `Body<T>` from `f64` extents keeps; `corners`, twenty lines below in
+  the same file, already takes `f64` pairs at every scalar.
+- **§2** was already corrected here on 2026-09-19 and Ev cleared the
+  manifest change.
+
+The row's numerical objection to the other direction is **true of the
+formulation it names and false of the approach**: `prism_ops` evaluates
+its map only at the profile's corners, so a selector map is exact. That
+option was built, measured arena-identical, and rejected for a better
+reason — it serves zero call sites.
+
+Residue: `work/dup/private-extruded-box-builders-outside-the-brick-door.md`.
+The `(s1, s2)` blind spot this row inherited is now measured and lives
+on `work/carve/intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself.md`.

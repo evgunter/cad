@@ -4,16 +4,19 @@
 //! Why this file exists: the plate's dimensions were hand-copied into
 //! three suites, so changing `scene::plate_with_hole` would have left
 //! two of them testing a box the scene no longer has — green, and
-//! measuring nothing. `viewer::scene` now exports the plate's identity
-//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and everything here is a
-//! function of those constants, so the fixtures cannot drift from the
-//! subject.
+//! measuring nothing. `viewer::scene` exports the plate's identity
+//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and the plate fixtures here
+//! are functions of it, so they cannot drift from the subject.
 //!
-//! The two review suites (`review_gui0_r1`, `review_gui0_r2`) keep
-//! their own fixtures on purpose: a promoted review suite's value is
-//! that it is an INDEPENDENT derivation of what the unit claims
-//! (`memories/review-and-dependency-policy.md`), and pointing it at
-//! the implementation's own constants would spend exactly that.
+//! **Two kinds of thing live here and they are not interchangeable.**
+//! The plate helpers — `plate_bounds`, `plate_volume`, `framed`, and
+//! `corners` over them — carry an oracle: a row that reads one is
+//! measuring the scene against its own constants on that axis.
+//! Everything else — the literal, datum, session and document sugar,
+//! and the committed gallery fixture — carries no oracle and is a
+//! spelling, not a claim. Which of the two a helper is decides whether
+//! a suite may share it; a suite that keeps its own code says why in
+//! its own header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
@@ -26,8 +29,21 @@
 pub mod asm;
 
 use bvh::Aabb;
+use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
+
+/// **The mate solve of `doc` under `session`'s own seam** — the lever
+/// is each mated part's extent, resolved through the session's
+/// resolver the way its landed evaluation resolved it
+/// (`DocSession::eval_options`), built through the kernel's public
+/// door. `doc` is the session's landed document, or one derived from
+/// it that resolves against the same directory.
+pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
+    let opts = session.eval_options();
+    let reach = mate_reach::<f64>(&opts, tol);
+    solve_document(doc, &reach, tol)
+}
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 
 /// The spike plate's bounding box, from the scene's own dimensions.
@@ -51,6 +67,9 @@ pub fn plate_volume() -> f64 {
 }
 
 /// The default framing on the plate at `aspect`.
+///
+/// This IS a call to `Camera::framing`, so a row whose subject is that
+/// door cannot take its camera from here and still be checking it.
 pub fn framed(aspect: f64) -> Camera {
     Camera::framing(&plate_bounds(), aspect).expect("the plate frames")
 }
@@ -89,7 +108,8 @@ pub fn edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol).expect("the fixture's edit applies");
+    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("the fixture's edit applies");
     (applied.doc, applied.record.minted)
 }
 
@@ -320,8 +340,6 @@ use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, SessionOp};
 
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
@@ -337,6 +355,8 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     )
 }
 
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
 pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -416,10 +436,9 @@ pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
 
 /// A fresh directory under the OS temp root, named for the caller.
 ///
-/// One home: two suites wanted the same six lines and had copied them
-/// verbatim, which is exactly the drift this module's header exists to
-/// prevent. (A review suite keeping its own copy is the one case that
-/// argument does not cover — independence is the point there.)
+/// One home, and it stays one: a temp-directory name carries no oracle
+/// — no row can assert anything about it — so there is nothing here
+/// for a copy to derive independently, whoever wrote the suite.
 pub fn tempdir(label: &str) -> std::path::PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

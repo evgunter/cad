@@ -2,7 +2,9 @@
 id: a-declare-orphaned-by-a-cascade-is-never-reported
 kind: issue
 title: A Declare orphaned by a cascade that deleted its consumer is silent forever
-status: spec
+status: closed
+closed: 2026-09-19
+pr: 2874
 branch: edit/orphaned-declare-report
 opened: 2026-09-17
 ---
@@ -147,3 +149,159 @@ widen; `Node::Declare`'s doc gains one sentence naming the report.
 and its suite (LIB, by announcement — a new tag word, said in one
 line). Middle tier: one opus style review with a correctness arm, then
 the fix pass.
+
+## Built (2026-09-19)
+
+`Maintenance::OrphanedDeclare { declare }` is the arm, and `apply`'s
+`DeleteNode` reports it: `orphaned_declares` (`edit.rs`) takes the
+removed node's `inputs()` and the POST-removal document — the same
+document `stranded_references` is read out of — and names every
+`Declare` among those inputs that no live node's `inputs()` still
+hold, in document order. Report, never refuse, never repair. The rows
+land after the strands of the same delete and before the cluster
+acts; `Applied::maintenance`'s order contract says so and
+`dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`
+holds the boundary with a delete that produces both kinds.
+
+**The spec's "deleting the `Declare` itself reports no orphan" row is
+not buildable, and the row that replaces it says why.** A `Declare` is
+its consumer's DAG input, so deleting it means cascading the consumer
+first, and the consumer's step is the SAME `(document, edit)` pair as
+deleting that consumer for any other reason. `Applied::maintenance` is
+a function of the document and the edit, so the two cases cannot
+report differently: the cascade reports the orphan at the consumer's
+step and its next step removes the subject.
+`dm7_delete_strands::cascading_a_declare_away_reports_the_orphan_and_then_removes_it`
+pins that, the arm's doc states the transient, and a caller who wants
+a cascade's net effect reads the document it ended at.
+
+Premises, checked: (1) holds — `Node::declare_input`'s match is
+exhaustive and only `Boolean` and `Union` carry one, and both list it
+in `inputs()`; consumption is still read through `inputs()`, so a
+future consumer kind counts the day it compiles. (2) holds — nothing
+refuses a second consumer of one `Declare`, and
+`an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer`
+authors two unions over one declaration. (3) holds — the binding's
+three matches and the tag map are the readers; the tag is
+`orphaned_declare`, `Maintenance.node` answers the `Declare`, and
+unlike `stranded_appearance` this arm is REACHABLE from Python
+(`Doc.declare_all` + `Node.boolean(declare=)` + `DocEdit.delete_node`),
+which `test_document.py`'s
+`test_deleting_the_consumer_reports_the_declaration_it_orphaned`
+exercises. (4) holds — `split`'s closure check refuses a cut that
+takes a declared union and leaves its `Declare`, asserted in
+`asm4_split_inline::row3_severing_cut_refuses_naming_the_edge`.
+
+Rows: `review_decl_r1::a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it`
+(re-headed), four in `dm7_delete_strands`, the `Display` case and
+census entry in `display_contract`, the split case in
+`asm4_split_inline`, the Python row and the census entry.
+
+## Built — fix pass (2026-09-19, PR #2874)
+
+The style review (`review/orphan-rv`) came back MERGEABLE; its probes
+and the one row it filed are merged here authorship-preserving, and
+the orchestrator's rulings are built.
+
+**The transient is ruled.** The lane's shape stands at `apply`: it is
+a function of `(document, edit)` and reports what that one delete
+did. The NET over an ACTION is the CASCADE door's answer —
+`Session::commit_action` in the viewer; Python has no cascade door —
+and nothing computes it. So the cancellation is filed where that door
+lives: `work/chrome/cascade-delete-shows-the-strand-count.md` gains a
+`## Widened (2026-09-19, PR #2874)` section saying the affordance owes
+the net of strands AND orphans over the doomed set, with the
+reviewer's one-line filter and the probe that measures it. The arm's
+doc states the transient once; `pncad.pyi` states it once too,
+because Python is the external consumer with no cascade door.
+
+**One home for "who consumes this node".** `roots::consumer` is that
+home — the first live node whose `inputs()` hold the id, walked in
+document order — and `roots::is_sink` is its predicate half.
+`orphaned_declares` calls `is_sink` instead of its own
+`doc.nodes.values().any(…)` copy, and iterates the DELETED node's
+inputs rather than the whole document order, so the doc's cost
+sentence is now true of the code. `apply`'s `DeleteNode` dangle check
+and `refactor::inline`'s `InstanceConsumed` check call `consumer` for
+the witness they name.
+
+**The set is at most one today, said so.** `Applied::maintenance`'s
+"in the document's node order" clause becomes "at most one today —
+`Node::declare_input` is an `Option` — in the deleted node's input
+order should a kind ever hold two", and
+`dm7_delete_strands::no_delete_can_report_two_orphans_today` is the
+guard that reds the day a kind holds two.
+
+**The arm is nobody's but the delete door's.** Nowhere does the code
+call it DM7's: it is "the delete door's orphan report, beside DM7's
+strands (ruled at EDIT's wave 11; for Ev's objection)". The transition
+rule is stated once, in the arm's doc, and pointed to from
+`Node::Declare`, `DocEdit::DeleteNode`, the order contract and the
+`.pyi`.
+
+**The `Display` sentence is true now.** It said "nothing reads the
+declaration"; the root set reads it — the same delete re-roots the
+`Declare` into `doc.roots()` — so it says "no node consumes the
+declaration". `display_contract` pins the new clause, the `.pyi`
+paragraph is re-worded the same way, and
+`an-orphaned-declare-joins-the-product-root-set` (the reviewer's row,
+filed on this slate) is cited from the arm's doc as the open question
+of whether a `Declare` may be a root at all.
+
+**The probes are adopted and the probe suite deleted.** Into
+`dm7_delete_strands`: the at-most-one guard, the mixed
+`Boolean`/`Union` consumer pair (both orders, folded into the
+two-consumer row), the transient's cancellability at the cascade
+door, `SetMembers` cannot orphan, and the re-rooting row the filed
+issue cites. Into `asm4_split_inline::row3_severing_cut_refuses_naming_the_edge`:
+the declare edge refused in BOTH directions, plus the closed cut
+accepted. `crates/editor-core/tests/rv_orphan_probes.rs` is gone.
+
+**MINOR-1/NOTE-3.** `pncad.pyi`'s `last_maintenance` contract sentence
+names all three kinds and their order ("Empty after an edit that moved
+no mate graph, stranded no name and orphaned no declaration"); the
+`DeleteNode` arm's comment says the input list feeds both
+`roots::on_delete` and the orphan door.
+
+**LIB's row cited and appended.**
+`work/lib/maintenance-crosses-python-as-a-nine-attribute-union-class.md`
+gains a `## Widened (2026-09-19, PR #2874)` paragraph: a seventh
+variant, and `node` answering a second question.
+
+**Disclosed deviation.** The asm4 fixture: the spec asked for one
+assertion in an existing row, and the build added a four-node fixture
+inside that row because `part()` has no union. Kept, and now widened
+with the mirror cut and the closed cut.
+
+## Closed (2026-09-19, EDIT orchestrator)
+
+Built and merged as PR #2874 (middle tier: one opus style review with
+a correctness arm, then the union fix pass). The delete that takes a
+`Declare`'s LAST consumer reports `Maintenance::OrphanedDeclare {
+declare }` — a transition rule, never a state (a fresh declaration is
+legally consumerless in the one-pass window), read out of the
+post-removal document exactly as the strands are; report, never
+refuse, never repair; the order contract is strands, then orphans,
+then cluster acts. DM7's clause text is untouched (the arm calls
+itself the delete door's report beside DM7's strands, ruled at EDIT's
+wave 11 and put to Ev for objection). One spec row could not be built
+as ruled and the orchestrator ruled at the fix pass that the built
+shape stands: deleting the `Declare` itself cascades its consumer
+first, and `apply` — a function of `(document, edit)` — reports the
+orphan at the consumer's step and removes its subject at the next;
+the NET over a cascade is the cascade door's answer (the viewer's
+`commit_action`; Python has no cascade door and its docstring states
+the transient), filed on CHROME's `cascade-delete-shows-the-strand-count`
+row with the reviewer's one-line cancellation measured. The review
+(0 MAJOR, 1 MINOR) found the consumer scan copying `roots::is_sink`'s
+body one file over; the fix pass gave "who consumes this node" one
+home (`roots::consumer`, `is_sink` over it) and closed the class
+across the crate (five sites, three fixed), narrowed the walk to the
+deleted node's inputs, said the set is at most one today, corrected
+the Python contract sentence, and cited the LIB row the seventh
+variant widens. Filed by the review and left standing:
+`an-orphaned-declare-joins-the-product-root-set`. Territory crossed
+by announcement: four TCOST/TINT suites, LIB (`pncad.pyi`,
+`py/mate.rs`, `tags.rs` — tag `orphaned_declare` — `tests.rs`, two
+Python suites), FIX (`refactor.rs`, one line), CHROME and LIB rows
+appended.

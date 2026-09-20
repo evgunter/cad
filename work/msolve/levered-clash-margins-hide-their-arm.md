@@ -2,8 +2,10 @@
 id: levered-clash-margins-hide-their-arm
 kind: issue
 title: Three levered mate-fold clash margins reach the refusal with their arm invisible
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-19
+pr: 2896
 ---
 
 
@@ -99,3 +101,22 @@ argument — it is a decision, not a fill.
 
 FIX took nothing here and changed no code; this is a routing move
 only.
+
+## Closed (2026-09-19, PR 2896)
+
+The decision the row owed, ruled by `plan.md` item 11 and built by
+MSOLVE-8: a closed `editor_core::Lever { Roll { radians, arm },
+Residual { value, arm } }` in `crates/editor-core/src/mate.rs` — no
+unit string, no small-angle argument. The three margins fill
+`Residual`: `member_of`'s `mate_member_axis_fixed` and
+`mate_member_rotation_identity` (the bare Frobenius norm, levered by
+the caller) and `candidate_rotation`'s `mate_rotation_two_axis_reachable`,
+carried through `FoldStop::Clash { predicate, margin, lever }`
+(`crates/editor-core/src/mate/coset.rs`). `Display` prints the residual
+sentence; the `lever` field's doc names the arm MSOLVE-6 made it. Rows:
+`crates/editor-core/tests/msolve8_levered_clash.rs` (`a_rotation_identity_clash_…`,
+`an_axis_fixed_clash_…`, `a_two_axis_reach_clash_…`, each pinning
+`value * arm == clash` to the bit and `value` re-derived from the
+frames), `display_contract.rs`'s
+`a_residual_clash_prints_its_pure_number_and_the_product`; the roll
+and the two length predicates keep their rows.

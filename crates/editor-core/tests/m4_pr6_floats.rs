@@ -45,7 +45,11 @@ use proptest::prelude::*;
 /// the loaded document for slot-by-slot bit assertions.
 fn round_trip(value: f64) -> ProfileDoc {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
-    let push = |d: &ProfileDoc, e| editor_core::apply(d, &e, Tol::witness()).expect("edit").doc;
+    let push = |d: &ProfileDoc, e| {
+        editor_core::apply(d, &e, Tol::witness(), &editor_core::RefusingReach)
+            .expect("edit")
+            .doc
+    };
     doc = push(
         &doc,
         DocEdit::SetDocParam {

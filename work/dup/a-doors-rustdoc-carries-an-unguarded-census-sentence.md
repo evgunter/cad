@@ -75,3 +75,29 @@ what makes a `source_walk.rs` guard the right size for them: the guard
 would cover exactly the scope the sentences claim, and the out-of-scope
 members would stay where they already are, on
 `work/tint/the-face-to-solid-walk-is-spelled-per-test-file.md`.
+
+## A third site, 2026-09-19: `sweep::test_support::block`
+
+`crates/sweep/src/test_support.rs` (`block`'s rustdoc, ~:156):
+
+> *"The alternative was **seven** private copies of the construction
+> under one more name, which is what this replaced."*
+
+Same shape as the two above: a number of the tree, in a door's rustdoc,
+with nothing holding it. It is worse-behaved than either, because it
+reads as history (*"was … which is what this replaced"*) while sitting
+where a reader takes it for the door's population — and the population
+is not seven.
+
+**Measured 2026-09-19** (every tracked file under `crates/`, `demos/`
+and `benches/`; files that name the door, `test_support::block(` plus
+the bare call where it is imported): **106 call sites in 22 files**.
+`verbs_shell.rs` alone has 16 and `shell8_r2_probes.rs` 21. Six of the
+106 were added by `private-extruded-box-builders-outside-the-brick-door`'s
+PR, which is what surfaced the sentence.
+
+The remedy this row already argues for applies unchanged: make no
+census claim at the door. `block`'s useful content is the sentence
+above it — that it is a second VIEW of `brick` and not a second body —
+and that is an invariant, which is what a door's rustdoc is for.
+

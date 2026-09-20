@@ -28,17 +28,11 @@ use editor_core::{
     BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
-use fixture::{ang, insert, len, on_frame, scl};
+use fixture::{ang, insert, len, on_frame, scl, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     fixture::run(doc, &EvalOptions::default())
-}
-
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.

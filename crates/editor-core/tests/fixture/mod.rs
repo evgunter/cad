@@ -13,6 +13,22 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
+//!
+//! **This file is the ONE home for what a name-reading suite works an
+//! evaluation with**: the die document above, the [`Recorder`] and the
+//! `insert`/`step` authoring shorthands a suite builds a document
+//! with, the name-authoring shorthands ([`minted`], [`fname`],
+//! [`ename`], [`vname`], [`rim_edge`], [`cap_vertex`], [`pole`],
+//! [`in_copy`]) and, below the banner, the reader doors over a
+//! published table and body ([`table`], [`key_of`], [`face_of`],
+//! [`edge_of`], [`vertex_of`], [`count`], [`point`], [`ends`],
+//! [`face_vertices`], [`face_edges`]). A suite **imports a door; it
+//! never copies one** — a copy diverges silently, and the divergence
+//! is discovered by the row it breaks rather than by the reader of
+//! either file. Where the door does not fit, the suite either widens
+//! the door here or writes an adapter that DELEGATES to it; an
+//! adapter never reuses a door's name, because a door's name in a
+//! suite means the door.
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
@@ -42,9 +58,10 @@ pub mod value_channel;
 
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoopProgram, NameTable, Node, ParamName, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    assemble, evaluate,
+    Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
+    ParamName, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -56,6 +73,17 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// for itself.
 pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The mate solve, through the ordinary door** — levered by the
+/// parts `o`'s resolver reaches, built through the evaluation's own
+/// public door (`mate_reach`) at `f64` and the witness tolerance. A
+/// row that solves with a store it does not hand here levers nothing:
+/// every mate on a part faults in the resolver's voice, which is the
+/// kernel's answer and not a fixture default.
+pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
+    let reach = mate_reach::<f64>(o, tol);
+    solve_document(doc, &reach, tol)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -130,6 +158,13 @@ pub const DIE_VOLUME: f64 = 7.8359375;
 /// `Frame::rotate_then_translate` asks the direction door with. Rows
 /// whose axis is a literal pass this and unwrap; a row whose SUBJECT
 /// is the axis decision reads the refusal instead.
+/// The K funnel name a fixture decides a mate-frame axis or normal
+/// under when a row builds a witness by hand — one name the fixtures
+/// own, rostered in `docs/K-REPORT.md` beside the other fixture
+/// mints, so a suite never names a production funnel for a decision
+/// no door made.
+pub const FIXTURE_MATE_AXIS: &str = "fixture_mate_axis";
+
 pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
@@ -145,8 +180,23 @@ pub fn scl(v: f64) -> Expr {
 }
 
 /// Applies an edit, returning the new doc and any minted id.
+///
+/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// on a mated document mints a frame from the parts' extent and
+/// refuses here — a row that deletes a mate or an instance of a mated
+/// document steps through [`step_with`] and the store's own reach.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit, Tol::witness()).unwrap();
+    step_with(doc, edit, &RefusingReach)
+}
+
+/// [`step`] through `reach` — the store's, for an edit whose
+/// maintenance mints a frame from a solve.
+pub fn step_with(
+    doc: ProfileDoc,
+    edit: DocEdit<ProfileProgram>,
+    reach: &dyn MateReach,
+) -> (ProfileDoc, Option<RecipeNodeId>) {
+    let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
     (applied.doc, applied.record.minted)
 }
 
@@ -204,6 +254,91 @@ pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f
         )
         .expect("a fixture frame's two axes span a plane"),
     )
+}
+
+/// **A profile program on the xy frame, extruded a unit, evaluated**
+/// — the preamble a row that measures a profile door's answer against
+/// the solid the profile swept opens with, written once.
+///
+/// Seven statements, and the only thing that varies between the rows
+/// that write them is the loop list: mint the document, insert the
+/// frame, insert the profile on it, extrude it, evaluate, then reach
+/// back for the program node and the evaluated profile value. Holding
+/// the document and the evaluation together is what lets the last two
+/// be borrows rather than a fourth and fifth thing to unpack.
+///
+/// It wears no door's name: a row asks it for the DOCUMENT it
+/// measures, and asks the kernel for the answer it is measuring.
+pub struct Swept {
+    /// The document, with the frame, the profile and the extrude on it.
+    pub doc: ProfileDoc,
+    /// The frame datum the profile is drawn on.
+    pub plane: RecipeNodeId,
+    /// The profile node.
+    pub profile: RecipeNodeId,
+    /// The extrude over it.
+    pub ext: RecipeNodeId,
+    /// The evaluation of the whole document.
+    pub ev: Evaluation<f64>,
+}
+
+/// [`Swept`]'s constructor: `loops` on a fresh document named `id`.
+///
+/// # Panics
+///
+/// If the document does not build — a fixture that will not author is
+/// a test failure, not a value to hand back.
+pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, plane) = insert(doc, xy_frame());
+    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    Swept {
+        doc,
+        plane,
+        profile,
+        ext,
+        ev,
+    }
+}
+
+impl Swept {
+    /// The program the profile node holds.
+    ///
+    /// # Panics
+    ///
+    /// If the node this built is not a profile.
+    pub fn program(&self) -> &ProfileProgram {
+        match self.doc.node(self.profile) {
+            Some(Node::Profile(p)) => p,
+            _ => panic!("the profile node this fixture inserted is a program"),
+        }
+    }
+
+    /// The evaluated profile value — its validated loops, its naming
+    /// anchor and its per-edge radius table.
+    ///
+    /// # Panics
+    ///
+    /// If the profile did not evaluate, or evaluated to something else.
+    pub fn profile_value(&self) -> &editor_core::eval::ProfileValue<f64> {
+        match &self
+            .ev
+            .value(self.profile)
+            .expect("the fixture profile evaluates")
+            .payload
+        {
+            editor_core::ValuePayload::Profile(pv) => pv,
+            _ => panic!("the profile node's value carries a profile"),
+        }
+    }
 }
 
 /// The world xy frame as a node — origin at the world origin, sketch
@@ -301,7 +436,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -322,10 +457,13 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied =
-            editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
+        let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
+            .expect("recorded edit must apply");
+        self.edits.push(LoggedEdit {
+            edit,
+            maintenance: applied.cluster_rows(),
+        });
         self.doc = applied.doc;
-        self.edits.push(edit);
         applied.record.minted
     }
 
@@ -368,7 +506,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its
@@ -590,6 +728,12 @@ pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> Stable
 /// carries at profile vertex `vertex`.
 pub fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: ProfileVertexRef) -> StableName {
     vname(node, RoleSeg::CapVertex(end, vertex))
+}
+
+/// **A POLE vertex of a revolve**, by name — the vertex the axis pins,
+/// minted for profile vertex `vertex`.
+pub fn pole(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    vname(node, RoleSeg::Pole(vertex))
 }
 
 /// **The symmetric U cutter, whose subtract table holds an N2 tie** —

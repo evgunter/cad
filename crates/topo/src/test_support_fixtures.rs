@@ -1,15 +1,26 @@
 //! **The Euler-op fixture family**: the unit cube, the prism builders,
-//! the straddle seat, and the two construction steps they share.
-//! Generic over the scalar lane (`f64`, `Dual`, `Interval` — every
-//! `Decide` scalar) wherever the builder is.
+//! the straddle seat, the cylinder-wall sheet, and the construction
+//! steps they share. Generic over the scalar lane (`f64`, `Dual`,
+//! `Interval` — every `Decide` scalar) wherever the builder is.
 //!
-//! **Every edge carries a certified chord line**, on every door here.
-//! Face geometry is the one axis the doors differ on, and it is a
-//! parameter ([`FaceGeometry`]): the certified doors put a `Plane` on
-//! every face and build a body whose mass properties compute, while
-//! [`declined_cube`] leaves all `n + 2` faces on the one
+//! **Two families, and what separates them is the boundary they can
+//! describe.**
+//!
+//! The POLYHEDRAL family — [`prism_ops`] and everything grown from it,
+//! [`geometric_cube`] and [`straddle_seat`] — puts a certified chord
+//! line on every edge, and face geometry is the one axis its doors
+//! differ on, as a parameter ([`FaceGeometry`]): the certified doors
+//! put a `Plane` on every face and build a body whose mass properties
+//! compute, while [`declined_cube`] leaves all `n + 2` faces on the one
 //! `Surface::nurbs_placeholder` the seed `mvfs` minted, because the
 //! suites it serves read that shared key.
+//!
+//! [`cyl_wall_sheet`] is the other family, and neither sentence is true
+//! of it: its rims are `Curve3::Circle` carriers described as the
+//! cylinder cut by a plane, and its faces are on the cylinder its
+//! [`CylFrame`] names, so there is no `FaceGeometry` to choose. Only
+//! its two meridian struts are chords. A suite wanting a curved chart
+//! comes here; a suite wanting a polyhedron does not.
 //!
 //! # Which home this is, and the one it is not
 //!
@@ -55,11 +66,11 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-use geom::Surface;
+use crate::{Body, FaceKey, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, Point3, Real};
+use geom_core::{Band, Point3, Real, Vec3};
 
 /// **The two independent at-rest rules a conventional chord breaks**,
 /// asserted as a pair over exactly this body's edges — and nothing
@@ -722,10 +733,341 @@ pub fn flush_declarations<T: geom_core::Decide>(
     crate::flush::declare_all(&found)
 }
 
+// ---------------------------------------------------------------------
+// The cylinder-wall sheet
+// ---------------------------------------------------------------------
+
+/// One cylinder description: the frame a [`cyl_wall_sheet`] is
+/// authored in.
+///
+/// **The fields are `f64` at every scalar.** A sheet's corners, rim
+/// centres and carrier axes are authored at `f64` and lifted
+/// componentwise with `T::from_f64`, the same idiom [`prism_z`]'s point
+/// map uses — so the `Interval` lane's points are the `f64` lane's own
+/// roundings, enclosed exactly, rather than a second rounding taken in
+/// interval arithmetic.
+#[derive(Clone, Copy, Debug)]
+pub struct CylFrame {
+    /// A point on the axis; `v = 0` of the chart.
+    pub origin: Point3<f64>,
+    /// The axis direction, unit; `v` runs along it.
+    pub axis: Vec3<f64>,
+    /// The cylinder's radius.
+    pub radius: f64,
+    /// The seam direction, unit and perpendicular to the axis;
+    /// `u = 0` of the chart.
+    pub u_ref: Vec3<f64>,
+}
+
+impl CylFrame {
+    /// The canonical frame: axis +z through the origin, seam at +x.
+    pub fn canonical(radius: f64) -> Self {
+        Self {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// The canonical frame with its axis TILTED by `theta` about +y
+    /// through the same origin, the seam co-rotated so it stays a unit
+    /// vector perpendicular to the axis.
+    ///
+    /// A NEARBY locus, not the same one, and how near depends on where
+    /// on the chart you look — which is the whole subject of the rows
+    /// that use this frame, so they compute it themselves rather than
+    /// reading a bound from here.
+    pub fn tilted(radius: f64, theta: f64) -> Self {
+        Self {
+            origin: Point3::origin(),
+            axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+            radius,
+            u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
+        }
+    }
+
+    /// The unit cylinder about +z described FROM THE OTHER END: the
+    /// origin a quarter up the axis, the axis reversed, and the seam
+    /// rotated to azimuth `seam`.
+    ///
+    /// Not one field in common with `CylFrame::canonical(1.0)` and the
+    /// SAME locus — every field a real seat's two instances disagree
+    /// on, none of it moving the cylinder. A chart window `[u0, u1]` of
+    /// the canonical frame is `[seam - u1, seam - u0]` here, and a
+    /// height window `[v0, v1]` is `[0.25 - v1, 0.25 - v0]`; the suites
+    /// using this frame write that arithmetic at their call sites,
+    /// where the reader can check it against the world region the row
+    /// names.
+    pub fn opposed(seam: f64) -> Self {
+        Self {
+            origin: Point3::new(0.0, 0.0, 0.25),
+            axis: -Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::new(seam.cos(), seam.sin(), 0.0),
+        }
+    }
+
+    /// The radial unit vector at azimuth `u`.
+    ///
+    /// Read from the frame's own fields rather than by projecting a
+    /// chart point back onto the plane through the axis: the
+    /// projection cancels catastrophically for a tilted frame or a
+    /// small radius, and the direction it yields is then not the one
+    /// the chart names.
+    pub fn radial(&self, u: f64) -> Vec3<f64> {
+        let w = self.axis.cross(self.u_ref);
+        self.u_ref * u.cos() + w * u.sin()
+    }
+
+    /// The chart map `S(u, v) = origin + radial(u)·radius + axis·v`.
+    pub fn at<T: Real>(&self, u: f64, v: f64) -> Point3<T> {
+        lift_point(self.origin + self.radial(u) * self.radius + self.axis * v)
+    }
+
+    /// The axis point at height `v` — the centre of the rim there.
+    fn centre(&self, v: f64) -> Point3<f64> {
+        self.origin + self.axis * v
+    }
+
+    /// This frame's cylinder.
+    pub fn surface<T: Real>(&self) -> Surface<T> {
+        Surface::Cylinder {
+            origin: lift_point(self.origin),
+            axis: lift_vec(self.axis),
+            radius: T::from_f64(self.radius),
+            u_ref: lift_vec(self.u_ref),
+        }
+    }
+}
+
+fn lift_point<T: Real>(p: Point3<f64>) -> Point3<T> {
+    Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z))
+}
+
+fn lift_vec<T: Real>(v: Vec3<f64>) -> Vec3<T> {
+    Vec3::new(T::from_f64(v.x), T::from_f64(v.y), T::from_f64(v.z))
+}
+
+/// An open cylinder-wall sheet over `[u0, u1] x [v0, v1]` of `frame`,
+/// grown into `body` and returned: two rim arcs on exact circle
+/// carriers described as the cylinder cut by the plane at that height,
+/// two meridian struts on certified chord lines, and every pcurve
+/// minted. `source`, when given, is the recipe node id recorded on the
+/// cylinder key as `GeomSource::minted(source, 0)`.
+///
+/// The sheet is the seed face's complement, so the cylinder key lives
+/// in the seed face's surface slot and the returned face shares it.
+/// The descending rim runs on the REVERSED axis so its own parameter
+/// still increases, which is how the split lane mints one.
+///
+/// **Each rim plane arrives on its own scaffold `mvfs`**, and the
+/// reason is visibility, not geometry: a rim's `Intersection`
+/// description has to name the plane it was cut by, `Body::add_surface`
+/// is the door that mints a bare surface key, and that door is
+/// `pub(crate)`. A caller outside this crate cannot reach it, so it
+/// mints a face to carry the plane instead — and a caller inside it
+/// does not have to (`crate::census`'s own sheets call `add_surface`
+/// directly and pass tier 1, because the rim edge's description anchors
+/// both its surfaces once the edge exists).
+///
+/// What that costs is two lone-vertex solids per sheet — one vertex,
+/// one face and no edge each — so a sheet is three solids, four faces
+/// and six vertices, not one, two and four. A caller reasoning about
+/// this body's arenas wants that; a caller handing the returned
+/// [`FaceKey`] to a predicate does not reach them.
+pub fn cyl_wall_sheet<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+    body: &mut Body<T>,
+    frame: CylFrame,
+    source: Option<u64>,
+    (u0, u1): (f64, f64),
+    (v0, v1): (f64, f64),
+    tol: Tol,
+) -> FaceKey {
+    let (p00, p10, p11, p01) = (
+        frame.at(u0, v0),
+        frame.at(u1, v0),
+        frame.at(u1, v1),
+        frame.at(u0, v1),
+    );
+    let seed = body.mvfs(p00).unwrap();
+    let cyl = body
+        .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
+        .unwrap();
+    if let Some(source) = source {
+        body.set_surface_source(cyl, crate::GeomSource::minted(source, 0))
+            .unwrap();
+    }
+    let rim = |body: &mut Body<T>, v: f64, ccw: bool| {
+        let centre = lift_point::<T>(frame.centre(v));
+        let scaffold = body.mvfs(centre).unwrap();
+        let plane = body
+            .set_face_surface(
+                scaffold.face,
+                FaceSurface::New(Surface::Plane {
+                    origin: centre,
+                    normal: lift_vec(frame.axis),
+                    u_ref: lift_vec(frame.u_ref),
+                }),
+            )
+            .unwrap();
+        // Ascending: the frame's own axis and seam, over [u0, u1].
+        // Descending: the REVERSED axis with the seam moved to u1, so
+        // the parameter still runs forward, over [0, u1 - u0]. One
+        // circle either way — the arms pick its axis, its seam and its
+        // window, and nothing else about it differs.
+        let (axis, seam, t0, t1) = if ccw {
+            (frame.axis, frame.u_ref, u0, u1)
+        } else {
+            (-frame.axis, frame.radial(u1), 0.0, u1 - u0)
+        };
+        let carrier = Curve3::Circle {
+            center: centre,
+            axis: lift_vec(axis),
+            radius: T::from_f64(frame.radius),
+            u_ref: lift_vec(seam),
+        };
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cyl,
+                s2: plane,
+                witness: frame.at((u0 + u1) * 0.5, v),
+            },
+            carrier,
+            param_start: T::from_f64(t0),
+            param_end: T::from_f64(t1),
+        }
+    };
+    let bottom = rim(body, v0, true);
+    let e_b = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p10,
+            bottom,
+            tol,
+        )
+        .unwrap();
+    let e_r = body
+        .mev_line(
+            MevSite::Fan {
+                he1: e_b.he_minus,
+                he2: e_b.he_minus,
+            },
+            p11,
+            tol,
+        )
+        .unwrap();
+    let top = rim(body, v1, false);
+    let e_t = body
+        .mev(
+            MevSite::Fan {
+                he1: e_r.he_minus,
+                he2: e_r.he_minus,
+            },
+            p01,
+            top,
+            tol,
+        )
+        .unwrap();
+    let he = body
+        .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+        .unwrap();
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: he,
+                he2: e_b.he_plus,
+            },
+            EdgeCurveSpec::line_between(p01, p00),
+            FaceSurface::Shared(cyl),
+            tol,
+        )
+        .unwrap()
+        .face;
+    crate::pcurves::mint_pcurves(body, tol).unwrap();
+    face
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **What a [`cyl_wall_sheet`] IS, held true rather than said.**
+    /// Its doc states three facts a caller reasons with — the scaffold
+    /// arenas, the shared cylinder key, and the reversed descending
+    /// rim — and each is a claim a rewrite of the builder could break
+    /// silently, because a sheet's consumers read its faces and its
+    /// carriers, not its counts.
+    #[test]
+    fn a_sheet_is_three_solids_with_a_shared_key_and_a_reversed_top_rim() {
+        let mut body = Body::<f64>::new();
+        let face = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            Some(11),
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+
+        // The two rim scaffolds are solids of their own.
+        let counts = crate::test_support::arena_counts(&body);
+        assert_eq!(
+            (counts.solids, counts.faces, counts.vertices),
+            (3, 4, 6),
+            "one sheet solid plus one lone-vertex scaffold per rim: {counts:?}"
+        );
+
+        // The wall and the seed face it was cut from share one
+        // cylinder key, and that key carries the source.
+        let cyl = body.get_face(face).unwrap().surface;
+        assert!(
+            matches!(body.get_surface(cyl), Some(Surface::Cylinder { .. })),
+            "the returned face is on the frame's cylinder"
+        );
+        assert_eq!(
+            body.surface_source(cyl),
+            Some(&crate::GeomSource::minted(11, 0)),
+            "the cylinder key carries the whole source the door mints, \
+             `node` and `expr` both — a row reading only `node` leaves \
+             the minted index asserted by nothing"
+        );
+
+        // The two scaffold solids are what the door's doc says they
+        // are: a face whose outer loop is EMPTY — a lone vertex, no
+        // edge. Stated there as the price of `add_surface` being
+        // `pub(crate)`, so it is checked here rather than left as
+        // prose.
+        let empty_loops = body
+            .loops()
+            .filter(|(_, l)| matches!(l.boundary, crate::entity::LoopBoundary::Empty { .. }))
+            .count();
+        assert_eq!(
+            empty_loops, 2,
+            "two scaffold faces, each a lone vertex with no edge"
+        );
+
+        // The two rim carriers run on OPPOSED axes, which is what
+        // keeps both parameters increasing.
+        let axes: Vec<[f64; 3]> = body
+            .edges()
+            .filter_map(
+                |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
+                    Curve3::Circle { axis, .. } => Some([axis.x, axis.y, axis.z]),
+                    _ => None,
+                },
+            )
+            .collect();
+        assert_eq!(axes.len(), 2, "two rim arcs, on circle carriers");
+        assert_eq!(
+            axes[0],
+            [-axes[1][0], -axes[1][1], -axes[1][2]],
+            "the descending rim reverses the axis"
+        );
+    }
 
     /// **The two `prism`s in this crate build different artifacts, and
     /// the difference is geometric.** `crate::fixtures::raw_prism`

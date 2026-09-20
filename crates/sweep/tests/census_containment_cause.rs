@@ -52,18 +52,7 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
 }
 
 fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x1, y0), 0.0),
-        ProfileVertex::new(p2(x1, y1), 0.0),
-        ProfileVertex::new(p2(x0, y1), 0.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    sweep::test_support::brick((x0, x1), (y0, y1), (z0, z1), Tol::witness())
 }
 
 /// A lens solid in z ∈ [0, 1] and a small box standing on its top cap,

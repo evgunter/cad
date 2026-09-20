@@ -26,7 +26,9 @@ fn scalar(v: f64) -> Expr {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 
 fn doc_with_axis_dir(

@@ -140,6 +140,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
+#[path = "edit_instance_crossing_names.rs"]
+mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
 mod edit_ladder_rim;
 #[path = "edit_one_predicate.rs"]
@@ -242,6 +244,12 @@ mod msolve3_placer_refused;
 mod msolve4_mate_memo;
 #[path = "msolve5_read_below_a_root.rs"]
 mod msolve5_read_below_a_root;
+#[path = "msolve6_part_extent.rs"]
+mod msolve6_part_extent;
+#[path = "msolve7_member_residue.rs"]
+mod msolve7_member_residue;
+#[path = "msolve8_levered_clash.rs"]
+mod msolve8_levered_clash;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
