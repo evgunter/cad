@@ -142,6 +142,18 @@ impl MixFraction {
     /// message. That is what makes a checked constructor affordable in
     /// a `const`, where a `Result` cannot be unwrapped.
     ///
+    /// **That reason names the wrong type, and the door it justifies may
+    /// be redundant.** `MixFraction::new` answers an `Option`, not a
+    /// `Result`, and `Option::unwrap` has been const-stable since Rust
+    /// 1.83 against a 1.97 pin — so `new(x).unwrap()` in a `const` item
+    /// is the same build error this `assert!` gives, from the one public
+    /// door. Whether that collapses the pair is not settled here, because
+    /// the workspace denies `clippy::unwrap_used` and the registry would
+    /// carry the `allow`:
+    /// `work/vgeom/mixfraction-has-two-constructors-where-one-would-do`
+    /// holds the executed evidence and the three things that could defeat
+    /// it.
+    ///
     /// **Nothing enforces that sentence, and the failure it allows is
     /// the one this type exists against.** A `const fn` is callable at
     /// run time too, so a later non-`const` call inside this module
