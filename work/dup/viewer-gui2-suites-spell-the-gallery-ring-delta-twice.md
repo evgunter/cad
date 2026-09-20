@@ -28,7 +28,7 @@ opened: 2026-09-20
   where the reader is. A shared `common::ring_delta()` is the obvious
   home; whether these two suites should share it is the work.
 - **Importance**: low. Measured on 2026-09-20: nothing in the crate
-  reds when the sibling constant `common::pick_delta` is moved by a
+  reds when the sibling constant `common::plate_delta` is moved by a
   factor of 5000 in either direction, so a display tolerance in these
   suites carries no oracle. See
   `work/tint/viewer-plate-suites-index-at-a-display-tolerance-nothing-asserts`.

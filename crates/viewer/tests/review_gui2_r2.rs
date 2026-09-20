@@ -131,12 +131,8 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     (doc, pattern)
 }
 
-fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
-    common::index_of(session, d)
-}
-
 fn landed_index(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
+    common::index_of(session, delta())
 }
 
 /// A δ coarse enough that the gallery ring tessellates cheaply — the
@@ -149,8 +145,6 @@ fn evaluation(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
 }
 
-/// A ray straight down the −z axis through `(x, y)`, starting above
-/// anything these fixtures build.
 /// A ray straight down at `(x, y)` from five metres up. The height is
 /// this suite's claim about its own fixture, which reaches higher than
 /// the plate the shared door's default was chosen for.
@@ -1370,7 +1364,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     let outcome = session.perform(SessionOp::Open(file.clone()));
     assert!(outcome.refusal.is_none(), "the gallery opens: {outcome:?}");
     session.pump();
-    let index = index_at(&session, coarse());
+    let index = common::index_of(&session, coarse());
     println!(
         "E2E opened: {} tree rows, {} drawn parts, {} ids",
         session.tree_rows().len(),
@@ -1484,7 +1478,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
         !index.current_for(Some(PictureKey::of(generation, coarse()))),
         "the pre-edit index is stale after two evaluations"
     );
-    let rebuilt = index_at(&session, coarse());
+    let rebuilt = common::index_of(&session, coarse());
     assert!(rebuilt.current_for(Some(PictureKey::of(generation, coarse()))));
     let _ = std::fs::remove_dir_all(&dir);
 }

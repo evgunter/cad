@@ -73,7 +73,7 @@ The hit list and its disposition:
 
 | site | disposition |
 | --- | --- |
-| `blend_authoring::index_of` | folded → `common::index_of(session, common::pick_delta())`; the private `delta()` went with it |
+| `blend_authoring::index_of` | folded → `common::index_of(session, common::plate_delta())`; the private `delta()` went with it |
 | `edge_pick::index_of` | folded, same |
 | `focus_highlight::index_of` | folded; its own δ (5×10⁻⁴) is not this class's value and stays |
 | `frame_policy::index_of` | folded |
@@ -87,6 +87,7 @@ The hit list and its disposition:
 | `review_gui2_r1::index_at` | folded; the suite keeps `index_at(session, δ)` as its own one-line binding |
 | `review_gui2_r2::index_at` | folded, same |
 | `common/asm.rs::index_of` | folded — it is now `super::index_of(session, delta())`, an adapter binding the assembly's δ |
+| `crates/viewer/src/pane/viewport.rs`'s `tests::plate_index` | **a fifteenth member, left, and the row's description of it was wrong.** The row called it *"the shipped caller"*; it is inside `#[cfg(test)] mod tests`. No non-test `PickIndex::build` exists in `crates/viewer/src/` at all — the shipped path is `DocSession::index_inputs` → `PickCache` → `evalseam::build_index` → `PickIndex::build_with`. It cannot reach `tests/common` (a unit-test module in `src/` is a different target), so the fold is unavailable; the disposition was still owed |
 
 **The blind spots the row named, run rather than restated.**
 `PickIndex::build_with` — `git grep 'build_with'` over every tracked
@@ -122,3 +123,28 @@ itself live: aiming `common::down_from` under the fixture reds
 `pick_windows` appear in NO red set across thirteen plants and are
 filed as
 `work/tint/viewer-plate-suites-index-at-a-display-tolerance-nothing-asserts`.
+
+### The fix pass
+
+The first pass minted **eight byte-identical one-line wrappers** —
+four `fn index_of(session) { common::index_of(session, plate_delta()) }`
+and four `fn delta() { common::corpus_delta() }` — which is verbatim
+the class of `the-fold-left-thirteen-one-line-fixture-wrappers-still-copied`,
+open on this same slate: *"identical one-liners rather than identical
+ten-liners"*. Two more, `review_gui2_r1::index_at` and
+`review_gui2_r2::index_at`, were called *bindings* here and bound
+nothing — identical signature, identical argument order. All ten are
+gone: `common` gained `plate_index(session)` and `corpus_index(session)`,
+the four plate suites and three corpus suites import one of those, and
+`index_memo` spells `common::index_at(session, common::corpus_delta())`
+at its six sites because its arm answers the refusal. What survives is
+the wrapper that genuinely binds a per-suite value — `asm::index_of`,
+`review_gui2_r1::index_of`, `review_gui2_r2::landed_index` — which is
+the same test the parent unit applied to `review_gui2_r2::insert`.
+
+`crates/viewer/examples/r1_gallery_probe.rs` held **two byte-identical
+eleven-line copies** of this construction twenty lines apart, plus two
+copies of a δ literal. The lane's own instrument returned them and the
+first hit list did not disposition them. An example cannot reach
+`tests/common`, so the shared fold is unavailable, but the in-file one
+is not: both now call a private `probe_index` in that file.

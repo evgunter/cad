@@ -37,19 +37,11 @@ use editor_core::{
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
-use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
+use crate::common::corpus_index;
 use crate::corpus;
-
-fn delta() -> DisplayTolerance {
-    common::corpus_delta()
-}
-
-fn fresh_index(session: &DocSession) -> PickIndex {
-    common::index_of(session, delta())
-}
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
     let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
@@ -566,7 +558,7 @@ fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        let index = fresh_index(&session);
+        let index = corpus_index(&session);
         sweep(
             "gallery_ring",
             "open",
@@ -576,7 +568,7 @@ fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
-        let index = fresh_index(&session);
+        let index = corpus_index(&session);
         sweep(
             "gallery_ring",
             "the first edit",
@@ -593,7 +585,7 @@ fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<
         if session.evaluation().is_none() {
             continue;
         }
-        let index = fresh_index(&session);
+        let index = corpus_index(&session);
         sweep(
             doc.name,
             "open",
@@ -605,7 +597,7 @@ fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<
             continue;
         }
         session.pump();
-        let index = fresh_index(&session);
+        let index = corpus_index(&session);
         sweep(
             doc.name,
             "the first edit",

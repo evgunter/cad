@@ -30,7 +30,7 @@
 
 use crate::common;
 
-use common::{ang, insert, len, len3, scl3, shape};
+use common::{ang, insert, len, len3, plate_index, scl3, shape};
 use pncad::document::{
     Dimension, Doc, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
 };
@@ -39,7 +39,7 @@ use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
-use viewer::pickindex::{PickIndex, PickKinds};
+use viewer::pickindex::PickKinds;
 use viewer::session::{
     DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfileShape, Refusal,
     Selection, SessionOp,
@@ -82,17 +82,10 @@ fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
     )
 }
 
-/// The pick index for a session's landed evaluation — the door a
-/// viewport pick answers through. No row here measures a facet, so the
-/// shared coarse δ is the one it wants.
-fn index_of(session: &DocSession) -> PickIndex {
-    common::index_of(session, common::pick_delta())
-}
-
 /// Every drawn edge of a node's body 0, as the pick selections a
 /// viewport click would produce.
 fn drawn_edges(session: &DocSession, node: RecipeNodeId) -> Vec<EdgeSelection> {
-    let index = index_of(session);
+    let index = plate_index(session);
     index
         .edges_in(node, 0)
         .iter()
@@ -117,7 +110,7 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// evaluation for the names, the pick index for the (node, body)
 /// narrowing.
 fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
-    let index = index_of(session);
+    let index = plate_index(session);
     let eval = session.evaluation().expect("the inline seam landed");
     tools
         .blend_mut()
@@ -855,7 +848,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     // The node-wide door sees both halves at once; each drawn half has
     // fewer edges than that.
     let node_wide = all_edge_names(&session, split).len();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let mut tools = Tools::new();
     for body in [0u32, 1] {
         let drawn = index.edges_in(split, body).len();
@@ -889,7 +882,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let display = DisplayView::none();
 
     let mut tools = Tools::new();
@@ -1131,7 +1124,7 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let edge = drawn_edges(&session, target)
         .into_iter()
         .next()

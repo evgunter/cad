@@ -23,6 +23,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::common::plate_index;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -49,12 +50,6 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     (session, extrude)
-}
-
-/// The pick index for a session's landed evaluation, at the shared
-/// coarse δ: fine enough that the plate's hole is a ring of facets.
-fn index_of(session: &DocSession) -> PickIndex {
-    common::index_of(session, common::pick_delta())
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -174,7 +169,7 @@ fn plate_centre_px(camera: &Camera) -> [f64; 2] {
 fn every_drawn_edge_names_an_edge_that_resolves() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (doc, eval) = session.landed_pair().expect("a landed pair");
     let edges = drawn_edges(&index, extrude);
     assert!(
@@ -201,7 +196,7 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
 fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (id, _) = hole_rim(&index, extrude);
     let name = index
         .edge_name_of(id)
@@ -229,7 +224,7 @@ fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
 fn a_cursor_on_a_drawn_edge_picks_that_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -258,7 +253,7 @@ fn a_cursor_on_a_drawn_edge_picks_that_edge() {
 fn hover_and_click_answer_one_cursor_the_same_way() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -320,7 +315,7 @@ fn hover_and_click_answer_one_cursor_the_same_way() {
 fn the_edge_beats_the_face_exactly_inside_the_radius() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -375,7 +370,7 @@ fn the_edge_beats_the_face_exactly_inside_the_radius() {
 fn a_cursor_over_the_background_picks_nothing_at_all() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     // A corner of the pane: the framing fits the plate inside the
@@ -413,7 +408,7 @@ fn a_cursor_over_the_background_picks_nothing_at_all() {
 fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -473,7 +468,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
 fn one_cursor_answers_the_same_edge_twice() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (_, points) = hole_rim(&index, extrude);
@@ -501,7 +496,7 @@ fn one_cursor_answers_the_same_edge_twice() {
 fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, points) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -576,7 +571,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
 fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -608,7 +603,7 @@ fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
 fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let edge = Selection::Edge(EdgeSelection {
         name: index
@@ -661,7 +656,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
 fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mark() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
 
     // The face half: both lanes carry the picked patch.
     let face = index
@@ -746,7 +741,7 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
 fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -782,7 +777,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     // the assertion, a session that stopped landing an evaluation
     // would skip the check and the row would stay green having tested
     // nothing. Both steps are expectations, so both are failures.
-    let after = index_of(&session);
+    let after = plate_index(&session);
     let overlay = marks::edge_overlay(
         &after,
         &DisplayView::none(),
@@ -803,7 +798,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
 fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -878,7 +873,7 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
 fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -956,7 +951,7 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
 fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -1039,7 +1034,7 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
 fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);

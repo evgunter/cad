@@ -17,22 +17,11 @@ use editor_core::resolve::ray_triangle;
 use editor_core::{DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
-use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
+use crate::common::corpus_index;
 use crate::corpus;
-
-// `review_pick_r2`'s private helpers. What carries no oracle comes from
-// `common`, which is not the file under review; what is left here is
-// this probe's own binding of it.
-fn delta() -> DisplayTolerance {
-    common::corpus_delta()
-}
-
-fn fresh_index(session: &DocSession) -> PickIndex {
-    common::index_of(session, delta())
-}
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
     let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
@@ -260,14 +249,14 @@ fn what_the_inform_half_costs_and_buys_over_the_wide_aim() {
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        sweep("gallery_ring", "open", &fresh_index(&session), &mut c);
+        sweep("gallery_ring", "open", &corpus_index(&session), &mut c);
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         sweep(
             "gallery_ring",
             "the first edit",
-            &fresh_index(&session),
+            &corpus_index(&session),
             &mut c,
         );
     }
@@ -280,13 +269,13 @@ fn what_the_inform_half_costs_and_buys_over_the_wide_aim() {
         if session.evaluation().is_none() {
             continue;
         }
-        sweep(doc.name, "open", &fresh_index(&session), &mut c);
+        sweep(doc.name, "open", &corpus_index(&session), &mut c);
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
         session.pump();
-        sweep(doc.name, "the first edit", &fresh_index(&session), &mut c);
+        sweep(doc.name, "the first edit", &corpus_index(&session), &mut c);
     }
     println!("# pick2-r1 contingency (wide aim): {c:#?}");
     assert_eq!(
@@ -414,14 +403,14 @@ fn the_tie_break_aims_unchanged_count_is_not_an_unchanged_set() {
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        tie_sweep("gallery_ring", "open", &fresh_index(&session), &mut a);
+        tie_sweep("gallery_ring", "open", &corpus_index(&session), &mut a);
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         tie_sweep(
             "gallery_ring",
             "the first edit",
-            &fresh_index(&session),
+            &corpus_index(&session),
             &mut a,
         );
     }
@@ -434,13 +423,13 @@ fn the_tie_break_aims_unchanged_count_is_not_an_unchanged_set() {
         if session.evaluation().is_none() {
             continue;
         }
-        tie_sweep(doc.name, "open", &fresh_index(&session), &mut a);
+        tie_sweep(doc.name, "open", &corpus_index(&session), &mut a);
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
         session.pump();
-        tie_sweep(doc.name, "the first edit", &fresh_index(&session), &mut a);
+        tie_sweep(doc.name, "the first edit", &corpus_index(&session), &mut a);
     }
     println!("# pick2-r1 tie-break aim: {a:#?}");
     // The claim the probe was written to make: the amendment's

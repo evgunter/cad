@@ -38,12 +38,6 @@ use viewer::session::{DocSession, SessionOp};
 use crate::common;
 use crate::corpus;
 
-/// The corpus δ: these rows are about reuse across edits, not about
-/// mesh density.
-fn delta() -> DisplayTolerance {
-    common::corpus_delta()
-}
-
 fn fnv(h: &mut u64, x: u64) {
     for b in x.to_le_bytes() {
         *h ^= u64::from(b);
@@ -208,7 +202,7 @@ fn seam_index(
     seam: &mut InlineIndexer,
     session: &DocSession,
 ) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    seam_index_at(seam, session, delta())
+    seam_index_at(seam, session, common::corpus_delta())
 }
 
 /// What the seam's memo holds and did, after a build.
@@ -312,10 +306,6 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
 
 /// The plain door's answer for the same run: the definition of the
 /// picture.
-fn fresh_index(session: &DocSession) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    common::index_at(session, delta())
-}
-
 /// A fixed set of rays for the picture: the six axis rays through the
 /// bounding box's centre and the eight corner-to-centre diagonals.
 fn rays_for(index: &PickIndex) -> Vec<Ray> {
@@ -888,7 +878,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     let mut seam = InlineIndexer::new();
     let mut steps = Vec::new();
     let index = seam_index(&mut seam, &session);
-    let fresh = fresh_index(&session);
+    let fresh = common::index_at(&session, common::corpus_delta());
     assert!(
         index.is_ok(),
         "{name}: the document indexes as opened: {index:?}"
@@ -917,7 +907,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         );
         session.pump();
         let index = seam_index(&mut seam, &session);
-        let fresh = fresh_index(&session);
+        let fresh = common::index_at(&session, common::corpus_delta());
         let landed = assert_same_answer(name, step, &index, &fresh, &session);
         if let Ok(index) = &index {
             assert_memo_is_one_picture(name, step, &seam, index);
@@ -931,7 +921,8 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     // of the one tolerance a process commits, so there is no second
     // value to change to here — the (ε, k) axis is exercised as CI's
     // per-process eps rows, each of which opens its memo cold.
-    let finer = DisplayTolerance::new(delta().get() / 2.0).expect("a positive delta");
+    let finer =
+        DisplayTolerance::new(common::corpus_delta().get() / 2.0).expect("a positive delta");
     let index = seam_index_at(&mut seam, &session, finer);
     if let Ok(index) = &index {
         let r = reading(&seam);
@@ -1046,8 +1037,8 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
             if !ask {
                 continue;
             }
-            let done = answer(&mut worker, request_at(&session, delta()));
-            let fresh = fresh_index(&session);
+            let done = answer(&mut worker, request_at(&session, common::corpus_delta()));
+            let fresh = common::index_at(&session, common::corpus_delta());
             let faces = assert_same_answer(
                 name,
                 &format!("landing {landing}"),
@@ -1147,7 +1138,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         outcome.refusal
     );
     session.pump();
-    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let index =
+        common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let corner = Point3::new(0.3628905537491952, 0.0, 0.07218341914596763);
     let reach = 1.48;
     let ray = Ray {
@@ -1276,7 +1268,8 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         outcome.refusal
     );
     session.pump();
-    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let index =
+        common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
     let reach = 1.48;
     let ray = Ray {
@@ -1446,7 +1439,7 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         .expect("tube_arc is a corpus document");
     let mut session = DocSession::inline(c.doc.clone(), tol);
     session.pump();
-    let index = fresh_index(&session).expect("tube_arc indexes");
+    let index = common::index_at(&session, common::corpus_delta()).expect("tube_arc indexes");
     let vertex = Point3::new(
         1.253_413_016_011_234,
         0.384_323_569_889_266_14,

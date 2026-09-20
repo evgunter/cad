@@ -50,14 +50,20 @@ and `view` (`work.py territory`), so there is no single ground-owner,
 and one constant spelled seven times is S-DUP's charter. Any of the
 five may claim it by `git mv`.
 
-## Closed 2026-09-20 — re-taken at `cd9fdfd6b`, folded onto `common::{pick_delta, corpus_delta}`
+## Closed 2026-09-20 — re-taken at `cd9fdfd6b`, folded onto `common::{plate_delta, corpus_delta}`
 
 ### The census, re-taken
 
 `git grep -n 'DisplayTolerance::new(2.0e-4)'` over every tracked file,
 no path argument: **seven sites in six files, exactly the seven the row
-names.** This is the first row on this program whose count did not move
-under re-taking.
+names.** The row's own count did not move under re-taking — the first
+on this program that did not. **Its SECOND instrument's table did**:
+three cells below were wrong when first published (1.0e-3 given as 4
+against 9, 1.0e-4 called a singleton against 2, and the 1.0e-6 pair
+absent), caught in review. Every disposition was and is "left", so
+nothing folded wrongly; what the correction costs is the claim that
+this row's numbers held. Method item 18 — the census run to show a
+census can be trusted is still a census.
 
 `2e-4`, `0.0002` and an arithmetic spelling of the same value: the row
 named those as its blind spot. Run as a **value-keyed census** — every
@@ -67,14 +73,16 @@ said it could not see, *"any other value shared by two suites"*:
 
 | value | sites | disposition |
 | --- | --- | --- |
-| 2.0e-4 | 7 in 6 files | folded → `common::pick_delta` |
+| 2.0e-4 | 7 in 6 files | folded → `common::plate_delta` |
 | **2.0e-3** | **6 in 6 files** | four folded → `common::corpus_delta` (`index_memo`, `pick3_acceptance`, `review_pick2_r1`, `review_pick_r2` — the corpus pick suites, and `index_memo`'s own prose gives the shared reason: the corpus holds million-triangle documents at the application's δ). The other two are `review_gui2_r1`'s `ring_delta` and `review_gui2_r2`'s `coarse`, one value for one fixture in two promoted review suites, **left** and filed as `viewer-gui2-suites-spell-the-gallery-ring-delta-twice` |
-| 1.0e-3 | `common/asm.rs` (the assembly's own door) + `pick_windows` + two in `review_gui2_r2` | **left**: different fixtures at different scales, not one value with one meaning |
-| 1.5e-4, 3.0e-4, 5.0e-4, 1.0e-5, 5e-3, 1.0e-4 | one each | **left**: singletons, nothing to fold |
+| 1.0e-3 | **9** — `common/asm.rs`, `pick_windows`, `review_gui2_r2` ×2, `frame_policy` ×3, `examples/r1_gallery_probe.rs` ×2 | **left**: different fixtures at different scales, not one value with one meaning. `frame_policy`'s three are `FittedDelta` operands, not a δ a suite indexes at |
+| 1.0e-6 | 2, both `frame_policy` `FittedDelta` operands | **left**, same reason |
+| 1.0e-4 | 2 — `review_gui0_r2` and `src/gpu.rs` | **left**: one test site and one shipped site |
+| 1.5e-4, 3.0e-4, 5.0e-4, 1.0e-5, 5e-3 | one each | **left**: singletons, nothing to fold |
 
 `eval_seam`'s `coarse` local — the row's sharpest observation, a name
 that means something ten times coarser one file over — is gone: the
-site now says `common::pick_delta()` at its one use and the misleading
+site now says `common::plate_delta()` at its one use and the misleading
 binding is deleted.
 
 ### The proof: this class has NO live probe, in either direction
@@ -82,7 +90,7 @@ binding is deleted.
 Baseline **626 passed / 0 failed / 1 ignored**. Direction argued before
 each result was read.
 
-| plant in `common::pick_delta` | direction | total |
+| plant in `common::plate_delta` | direction | total |
 | --- | --- | --- |
 | ×50, 2×10⁻⁴ → 1×10⁻² | **coarsen** — harder for "this ray meets the hole's rim" | 626 / 0 |
 | ×0.1, 2×10⁻⁴ → 2×10⁻⁵ | **refine** — harder only for a row keyed on the value | 626 / 0 |
@@ -100,3 +108,32 @@ that the hole is a ring of facets rather than a polygon that misses the
 ray"*). The fold is therefore compiler-proved, not plant-proved, and
 the coverage half is not this program's: filed as
 `work/tint/viewer-plate-suites-index-at-a-display-tolerance-nothing-asserts`.
+
+### The fix pass
+
+Three things this row's own subject caught in it.
+
+- **The shared door's rustdoc carried the sentence the measurement had
+  just falsified.** *"Finer is what makes the plate's through hole
+  tessellate as a ring of facets rather than a polygon a ray can pass
+  straight through"* was deleted from three private sites and then
+  written into `common`, by the unit that had proved with a 1.0 m plant
+  that nothing can see it. `corpus_delta` carried a measurement claim in
+  the same position. Both now state only what is true of the value —
+  which way the two costs pull — and the measurement lives here, dated,
+  with its instruments named (method item 13).
+- **The name made a claim two of its six callers falsify.**
+  `pick_delta` was renamed `plate_delta`: `eval_seam` hands it to a FIT
+  request and `debug_dumps` to a pick-cache sync, neither of which is a
+  pick, while every caller IS a plate-scale suite.
+- **Four `fn delta() { common::corpus_delta() }` one-liners were
+  minted and are gone** — see the pick-index row's fix-pass note.
+
+### The divergent control, run by the reviewer
+
+`plate_delta`'s body → `panic!`: **551 / 75**, summing to 626, with
+every calling suite red and none missing. That separates the two
+readings a green plant allows: the folded sites ARE executed and 75
+rows reach this value, and not one of them can see it move three orders
+of magnitude. *Called and wholly unasserted*, not dark — which is what
+makes the S-TINT filing the right one.

@@ -94,11 +94,7 @@ fn landed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
-}
-
-fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
-    common::index_of(session, delta)
+    common::index_of(session, delta())
 }
 
 /// A ray straight down at `(x, y)` from above everything here. The
@@ -505,7 +501,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
-    let index = index_at(&session, ring_delta);
+    let index = common::index_of(&session, ring_delta);
     assert!(!index.ids().is_empty(), "the ring draws pickable patches");
 
     let viewport = ViewportSize {
@@ -620,7 +616,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(session.standing().live(), "the un-deleted owner resolves");
-    let fresh = index_at(&session, ring_delta);
+    let fresh = common::index_of(&session, ring_delta);
     let re_hit = fresh
         .op_for(
             session.evaluation().expect("landed"),

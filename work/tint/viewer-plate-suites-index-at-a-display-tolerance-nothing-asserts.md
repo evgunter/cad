@@ -9,7 +9,7 @@ opened: 2026-09-20
 
 ## Finding
 
-- **Where**: `crates/viewer/tests/common/mod.rs`'s `pick_delta`, and
+- **Where**: `crates/viewer/tests/common/mod.rs`'s `plate_delta`, and
   through it `blend_authoring`, `debug_dumps`, `edge_pick`,
   `eval_seam`, `frame_policy` and `select_pick` — the six suites that
   used to write `DisplayTolerance::new(2.0e-4)` out privately and now
@@ -26,6 +26,12 @@ opened: 2026-09-20
   | δ ×50, 2×10⁻⁴ → 1×10⁻² | **coarsen** — harder for every "this ray meets the hole's rim" row | 626 / 0 |
   | δ ×0.1, 2×10⁻⁴ → 2×10⁻⁵ | **refine** — harder only for a row keyed on the δ value itself | 626 / 0 |
   | δ ×5000, 2×10⁻⁴ → **1.0 m**, wider than the plate | **coarsen, maximal** | 626 / 0 |
+  | the door's body → `panic!` | **the divergent control**, method item 19: it separates *unasserted* from *never called* | **551 / 75** |
+
+  The control is what makes the reading safe. 75 rows across every
+  calling suite reach this value and none is missing from the red set,
+  so the folded sites are executed — and not one of them can see the
+  value move three orders of magnitude.
 
   Every row sums to the baseline's 626. The third plant sets the
   display tolerance an order of magnitude wider than the whole
@@ -45,14 +51,22 @@ opened: 2026-09-20
   (the hole tessellates as a ring) that no row can see fail. Either a
   row should hold it, or the prose is a claim with nothing behind it
   and should go.
-- **Six folded sites with no live probe at all**, same unit, same
-  measurement, listed because they are the same kind of finding:
-  `debug_dumps`, `focus_highlight`, `eval_seam`, `pick_windows`,
-  `cascade_delete` and `path_authoring` appear in NO red set across
-  thirteen plants covering every door those sites now call.
-  `path_authoring`'s is explained and fine — its row asserts on the
-  NOTATION a literal is written in, not the value, so a value plant
-  cannot reach it by construction. The other five are open.
+- **The other folded sites with no red, sorted by what the measurement
+  actually shows.** Six suites appear in NO red set across the lane's
+  thirteen plants: `debug_dumps`, `focus_highlight`, `eval_seam`,
+  `pick_windows`, `cascade_delete`, `path_authoring`. The reviewer's
+  divergent controls then split them, and the split is the finding:
+  - **`focus_highlight` and `pick_windows` are live**, proved by a
+    `panic!` planted in `common::index_of` (495 / 131). They are in
+    the same state as the δ above — *called, and wholly unasserted on
+    the value they pass* — not dark.
+  - **`path_authoring` is explained and fine**: its row asserts on the
+    NOTATION a literal is written in, not the value, so a value plant
+    cannot reach it by construction.
+  - **`debug_dumps`, `eval_seam` and `cascade_delete` remain unprobed
+    in either direction** — no control has yet shown their folded
+    sites execute at all, which is a weaker statement than the one
+    above and a different thing to check.
 - **Instrument, and its blind spot**: mutation, over the whole `all`
   binary. A plant in a shared door reaches every consumer of that
   door, so a green result is a statement about the whole crate; it

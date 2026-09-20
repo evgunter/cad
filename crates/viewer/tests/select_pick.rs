@@ -19,6 +19,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::common::plate_index;
 
 use std::collections::BTreeMap;
 
@@ -42,11 +43,6 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     (session, extrude)
-}
-
-/// The pick index for a session's landed evaluation.
-fn index_of(session: &DocSession) -> PickIndex {
-    common::index_of(session, common::pick_delta())
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -163,7 +159,7 @@ fn a_viewport_with_no_area_and_a_non_finite_cursor_are_both_refused() {
 fn every_id_round_trips_to_the_patch_it_names() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let ids = index.ids();
     assert!(ids.len() >= 3, "the plate draws at least three patches");
     for id in ids.ids() {
@@ -178,7 +174,7 @@ fn distinct_patches_never_share_an_id_across_bodies() {
     let (doc, _extrude, pattern) = patterned_blocks(tol, 3);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let ids = index.ids();
 
     let mut bodies = std::collections::BTreeSet::new();
@@ -235,8 +231,8 @@ fn nothing_is_reserved_and_a_repeated_patch_is_refused() {
 fn re_indexing_one_generation_gives_the_same_ids() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let first = index_of(&session);
-    let second = index_of(&session);
+    let first = plate_index(&session);
+    let second = plate_index(&session);
     assert_eq!(
         first.ids(),
         second.ids(),
@@ -250,7 +246,7 @@ fn re_indexing_one_generation_gives_the_same_ids() {
 fn a_ray_down_the_hole_axis_is_a_typed_miss() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let [width, depth, _] = PLATE_EXTENT;
     let hit = index
         .pick(
@@ -268,7 +264,7 @@ fn a_ray_down_the_hole_axis_is_a_typed_miss() {
 fn a_ray_onto_the_top_face_names_it_and_the_name_resolves() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let hit = index
         .pick(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("the hit test does not refuse")
@@ -293,7 +289,7 @@ fn a_ray_onto_the_top_face_names_it_and_the_name_resolves() {
 fn two_cursors_on_one_face_agree_and_a_wall_is_a_different_face() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let eval = eval_of(&session);
     let a = index
         .pick(eval, &common::down_at(0.01, 0.01))
@@ -317,7 +313,7 @@ fn two_cursors_on_one_face_agree_and_a_wall_is_a_different_face() {
 fn the_ray_paths_answer_is_the_id_maps_inverse() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let hit = index
         .pick(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
@@ -353,7 +349,7 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
     // GPU.
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let viewport = ViewportSize {
         width_px: 1024.0,
         height_px: 768.0,
@@ -475,7 +471,7 @@ fn the_primary_button_is_the_select_binding_and_moves_no_camera() {
 fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (viewport, camera) = viewport_and_camera();
     let map = InputMap::default();
 
@@ -541,7 +537,7 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
 fn hovering_never_touches_the_selection_and_leaving_clears_only_the_hover() {
     let tol = Tol::witness();
     let (mut session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (viewport, camera) = viewport_and_camera();
 
     let aspect = viewport.aspect().expect("a positive aspect");
@@ -585,7 +581,7 @@ fn hovering_never_touches_the_selection_and_leaving_clears_only_the_hover() {
 fn selecting_twice_keeps_exactly_one_selection() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let cap = index
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
@@ -610,7 +606,7 @@ fn selecting_twice_keeps_exactly_one_selection() {
 fn a_face_pick_selects_the_owning_node_in_the_tree() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let face = index
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
@@ -645,7 +641,7 @@ fn a_tree_selection_needs_no_viewport_pick() {
 fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
     let tol = Tol::witness();
     let (mut session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let face = index
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
@@ -682,7 +678,7 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
     let (doc, _extrude, pattern) = patterned_blocks(tol, 2);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let face = index
         .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
@@ -716,7 +712,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     let (doc, _extrude, pattern) = patterned_blocks(tol, 3);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     // The third instance sits two spacings along +x.
     let face = index
         .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
@@ -759,7 +755,7 @@ fn undo_across_the_selections_birth_leaves_it_unresolved() {
         value: SlotValue::Count(3),
     });
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let face = index
         .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
@@ -812,12 +808,12 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     let (doc, _extrude, pattern) = patterned_blocks(tol, 2);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     assert!(
         index.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, common::pick_delta()))
+                .map(|g| PictureKey::of(g, common::plate_delta()))
         ),
         "freshly built, it describes the run on screen"
     );
@@ -832,19 +828,19 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
         !index.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, common::pick_delta()))
+                .map(|g| PictureKey::of(g, common::plate_delta()))
         ),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
     // the tessellations the picture is drawn from.
-    let coarser = common::pick_delta().scaled(2.0).expect("a positive delta");
-    let rebuilt = index_of(&session);
+    let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
+    let rebuilt = plate_index(&session);
     assert!(
         rebuilt.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, common::pick_delta()))
+                .map(|g| PictureKey::of(g, common::plate_delta()))
         )
     );
     assert!(
@@ -860,7 +856,7 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
 fn the_index_and_the_picture_are_one_tessellation() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let scene = index.scene().expect("the index draws");
     let triangles: usize = index
         .parts()
@@ -900,7 +896,7 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
     // to no node, so nothing in it is addressable.
     let tol = Tol::witness();
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
-    let scene = scene::scene_of(&doc, common::pick_delta(), tol).expect("the plate tessellates");
+    let scene = scene::scene_of(&doc, common::plate_delta(), tol).expect("the plate tessellates");
     assert!(!scene.ids().is_empty());
     assert!(
         scene.ids().iter().all(|id| *id == IdMap::NOTHING),
@@ -942,7 +938,7 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 fn indexed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     (session, index)
 }
 

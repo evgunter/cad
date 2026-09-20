@@ -45,19 +45,11 @@ use editor_core::resolve::{crossing, ray_triangle};
 use editor_core::{DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
-use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
+use crate::common::corpus_index;
 use crate::corpus;
-
-fn delta() -> DisplayTolerance {
-    common::corpus_delta()
-}
-
-fn fresh_index(session: &DocSession) -> PickIndex {
-    common::index_of(session, delta())
-}
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
     let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
@@ -249,14 +241,14 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        sweep("gallery_ring", "open", &fresh_index(&session), &mut tally);
+        sweep("gallery_ring", "open", &corpus_index(&session), &mut tally);
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         sweep(
             "gallery_ring",
             "the first edit",
-            &fresh_index(&session),
+            &corpus_index(&session),
             &mut tally,
         );
     }
@@ -269,13 +261,18 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
         if session.evaluation().is_none() {
             continue;
         }
-        sweep(c.name, "open", &fresh_index(&session), &mut tally);
+        sweep(c.name, "open", &corpus_index(&session), &mut tally);
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
         session.pump();
-        sweep(c.name, "the first edit", &fresh_index(&session), &mut tally);
+        sweep(
+            c.name,
+            "the first edit",
+            &corpus_index(&session),
+            &mut tally,
+        );
     }
     let counts = (
         tally.rays,

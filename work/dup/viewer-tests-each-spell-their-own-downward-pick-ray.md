@@ -52,7 +52,12 @@ The row's instrument was a whole-function scan for a body containing
 `Ray {`. Re-run as `git grep -n 'Ray {' -- crates/viewer/tests/` over
 every tracked file with no path argument, then a read of each hit:
 **eight helpers in six files, exactly as the row said**, and the three z
-values (1.0, 0.5, 5.0) and the two senses are as described.
+values (1.0, 0.5, 5.0) and the two senses are as described. **Seven of
+the eight are members**: the row itself calls `across_the_rim` a fixed
+oblique ray and not one, so a class count that includes it is counting
+a declared non-member. The class is **7 helpers + 6 inline = 13**, and
+the "8 → 14" first published here was wrong at both ends by the same
+one.
 
 **The row's own blind spot — "a ray whose literal is written inline at
 a row's own site rather than in a helper" — is where the class actually
@@ -90,6 +95,15 @@ axis-aligned pick ray visible across six files; filed as
 `viewer-tests-each-spell-their-own-horizontal-pick-ray`.
 `index_memo`'s three longhand aimed-vertex rays are filed as
 `viewer-index-memo-aims-three-rays-at-one-vertex-longhand`.
+
+The row's OTHER stated blind spot — *"any ray in another crate's
+suites"* — was published as a caveat in the first pass while four
+narrower residues were filed. Run: five **byte-identical** copies of
+one array-to-`Ray` adapter across `bvh` and `editor-core`, and one
+member of this class (`edit_pair_apply_names::down`, a downward ray at
+z = 5.0) one crate over. Filed as
+`cross-crate-pick-ray-constructions-outside-the-viewer-suites`, with
+the denominator so the next lane does not re-derive it.
 
 ### The proof, with each plant's direction argued first
 
