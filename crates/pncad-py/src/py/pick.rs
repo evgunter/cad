@@ -49,7 +49,7 @@
 use std::sync::{Arc, OnceLock};
 
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyString};
+use pyo3::types::{PyAny, PyList, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::doc::{NodeId, name_text};
@@ -71,9 +71,16 @@ fn meters(v: (Length, Length, Length)) -> (f64, f64, f64) {
     (v.0.0.meters(), v.1.0.meters(), v.2.0.meters())
 }
 
-/// The four fields a [`s::HitTestError`] projects, in order: the node,
-/// the failure it was poisoned through, and — on the BUG arm alone —
-/// the unnamed entity's kind and body index.
+/// The five fields a [`s::HitTestError`] projects, in order: the node,
+/// the failure it was poisoned through, the unnamed entity's kind and
+/// body index (the BUG arm alone), and — on the certified tie alone —
+/// the tied hits.
+///
+/// The tie's payload is a LIST of hits rather than a scalar, because
+/// that is what the refusal is: every tied face, each with its own
+/// true parameter and point. It crosses as a Python list of
+/// [`PickHit`], the same class a successful pick answers with, so a
+/// caller that can read a pick can read a refusal.
 ///
 /// The arm's payload is an `EntityRef`, an arena key beside a body
 /// index. The KEY does not cross (G1, and the façade does not name its
@@ -83,7 +90,7 @@ fn meters(v: (Length, Length, Length)) -> (f64, f64, f64) {
 ///
 /// Exhaustive, no wildcard: an arm added kernel-side arrives here as a
 /// compile error rather than as a silently unprojected payload.
-fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
+fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one — the
@@ -102,20 +109,44 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
 
     match err {
         s::HitTestError::NodeNotEvaluated { node: n } | s::HitTestError::NodeFailed { node: n } => {
-            [node(*n), none(), none(), none()]
+            [node(*n), none(), none(), none(), none()]
         }
         s::HitTestError::NodePoisoned { node: n, through } => {
-            [node(*n), node(*through), none(), none()]
+            [node(*n), node(*through), none(), none(), none()]
         }
         // The pairing arm names two DOCUMENTS, which this
         // node/through/kind/body quadruple cannot carry; the message
         // states both, and the tag is what a caller branches on (the
         // `product` door's convention for the same refusal).
-        s::HitTestError::EvaluationOfAnotherDocument { .. } => [none(), none(), none(), none()],
-        s::HitTestError::Unnamed { node: n, entity } => {
-            [node(*n), none(), kind(entity.key.kind()), int(entity.body)]
+        s::HitTestError::EvaluationOfAnotherDocument { .. } => {
+            [none(), none(), none(), none(), none()]
         }
+        // The certified tie names no ONE node, so the node field stays
+        // empty and every tied face rides in `hits` with its own.
+        s::HitTestError::Ambiguous { hits } => {
+            [none(), none(), none(), none(), obj(tied(py, hits))]
+        }
+        s::HitTestError::Unnamed { node: n, entity } => [
+            node(*n),
+            none(),
+            kind(entity.key.kind()),
+            int(entity.body),
+            none(),
+        ],
     }
+}
+
+/// The tied faces as a Python list of [`PickHit`].
+///
+/// A name that fails to serialize degrades the WHOLE list to `None`
+/// rather than to a shorter one: a refusal whose list is complete is
+/// the claim this payload makes ([`s::HitTestError::Ambiguous`]), and
+/// a list quietly missing an entry would be a false one. The refusal's
+/// own message survives either way, which is the `py/readback.rs` rule
+/// this follows.
+fn tied(py: Python<'_>, hits: &[s::PickHit]) -> PyResult<Py<PyAny>> {
+    let built: PyResult<Vec<PickHit>> = hits.iter().map(|hit| projected(py, hit)).collect();
+    Ok(PyList::new(py, built?)?.into_any().unbind())
 }
 
 /// Raise `HitTestError` carrying the refusal's stable tag and payload.
@@ -124,7 +155,7 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
 /// `variant` plus the four fields, each present on every arm and
 /// `None` where that arm does not carry it.
 fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
-    let [node, through, kind, body] = hit_test_fields(py, err);
+    let [node, through, kind, body, hits] = hit_test_fields(py, err);
     typed_err(
         py,
         ErrorClass::HitTest,
@@ -140,6 +171,7 @@ fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
             ("through", through),
             ("kind", kind),
             ("body", body),
+            ("hits", hits),
         ],
     )
 }
@@ -190,12 +222,14 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
 
     // Exhaustive on purpose: an arm added kernel-side is a compile
     // error here, not a silently unprojected payload.
-    let [which, through, kind, body] = match err {
+    let [which, through, kind, body, hits] = match err {
         s::NodePickError::Standing(inner) => hit_test_fields(py, inner),
-        s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none()],
-        s::NodePickError::NoSuchBody { node: n, body } => [node(*n), none(), none(), int(*body)],
+        s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none(), none()],
+        s::NodePickError::NoSuchBody { node: n, body } => {
+            [node(*n), none(), none(), int(*body), none()]
+        }
         s::NodePickError::Tessellate(_) | s::NodePickError::Index(_) => {
-            [none(), none(), none(), none()]
+            [none(), none(), none(), none(), none()]
         }
     };
     let index_variant = match err {
@@ -233,6 +267,7 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             ("through", through),
             ("kind", kind),
             ("body", body),
+            ("hits", hits),
             ("index_variant", index_variant),
             ("patch", patch),
             ("triangle", triangle),
@@ -342,10 +377,12 @@ impl PickHit {
     ///
     /// The kernel orders two candidates only when one interval lies
     /// wholly below the other. Where the intervals OVERLAP the
-    /// geometry has not said which surface is in front, and the
-    /// NARROWER interval wins before position is looked at: `t_lo` and
-    /// `t_hi` are how wide a claim this hit is, not a second answer,
-    /// and they are what decided it against its neighbours.
+    /// geometry has not said which surface is in front, and NOTHING
+    /// else decides: `t_lo` and `t_hi` are how wide a claim this hit
+    /// is, not a second answer and not a rule. Overlapping candidates
+    /// on one face are this hit, with the hull of their intervals;
+    /// overlapping candidates on several faces are `HitTestError`
+    /// with variant `ambiguous`, whose `hits` are all of them.
     ///
     /// The enclosure is conditional — it contains the true crossing's
     /// parameter when that crossing is a point of the closed triangle
@@ -586,13 +623,18 @@ fn slot_name(
     }
 }
 
-/// **What is under this ray** — the nearest face hit across `targets`,
-/// resolved to a stable name.
+/// **What is under this ray** — the face the ray meets first across
+/// `targets`, resolved to a stable name.
 ///
 /// The free `pick_face` as a method on the evaluation it answers as
 /// of, the posture every selector door on `Evaluation` already takes.
 /// `targets` are `NodePick`s: through this surface a pick target has
 /// no other spelling, and that is the point (module docs).
+///
+/// Raises `HitTestError` with variant `ambiguous` where the ray meets
+/// several faces the arithmetic cannot order — the shared edge, the
+/// corner, the edge-on face in front of a transversal one — with
+/// every tied face's own hit on the exception's `hits`.
 pub(crate) fn pick_face(
     py: Python<'_>,
     evaluation: &Evaluation,
@@ -602,17 +644,22 @@ pub(crate) fn pick_face(
     let borrowed: Vec<s::PickTarget<'_>> = targets.iter().map(|t| t.inner.target()).collect();
     match s::pick_face(&evaluation.inner, &borrowed, &ray.0) {
         Ok(None) => Ok(None),
-        Ok(Some(hit)) => Ok(Some(PickHit {
-            name: name_text(py, &hit.name)?,
-            node: NodeId(hit.node),
-            body: hit.body,
-            t: hit.t,
-            t_lo: hit.t_lo,
-            t_hi: hit.t_hi,
-            point: hit.point,
-        })),
+        Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
         Err(err) => Err(hit_test_err(py, &err)),
     }
+}
+
+/// One kernel hit as the class this module answers with.
+fn projected(py: Python<'_>, hit: &s::PickHit) -> PyResult<PickHit> {
+    Ok(PickHit {
+        name: name_text(py, &hit.name)?,
+        node: NodeId(hit.node),
+        body: hit.body,
+        t: hit.t,
+        t_lo: hit.t_lo,
+        t_hi: hit.t_hi,
+        point: hit.point,
+    })
 }
 
 /// Register the picking vocabulary on the module.

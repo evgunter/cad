@@ -723,17 +723,15 @@ fn kfmrh_fuse_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (f1, face1) in body.faces() {
         let solid1 = body
-            .get_shell(face1.shell)
-            .expect("valid body: shell resolves")
-            .solid;
+            .solid_of_face(f1)
+            .expect("valid body: face and shell resolve");
         for (f2, face2) in body.faces() {
             if f1 == f2 || face1.shell == face2.shell || !face2.rings.is_empty() {
                 continue;
             }
             let solid2 = body
-                .get_shell(face2.shell)
-                .expect("valid body: shell resolves")
-                .solid;
+                .solid_of_face(f2)
+                .expect("valid body: face and shell resolve");
             if solid1 == solid2 {
                 out.push(OpChoice::KfmrhFuse(f1, f2));
             }
@@ -1591,15 +1589,21 @@ fn first_empty_outer_extra_face(body: &Body<f64>) -> Option<(FaceKey, FaceKey)> 
         ) {
             continue;
         }
-        let solid2 = body.get_shell(face2.shell).expect("shell resolves").solid;
+        let solid2 = body
+            .solid_of_face(f2)
+            .expect("valid body: face and shell resolve");
         // Same shell first, so a body with one shell per solid takes
         // exactly the step it always took.
         let sibling = body
             .faces()
             .find(|&(f1, face1)| f1 != f2 && face1.shell == face2.shell)
             .or_else(|| {
-                body.faces().find(|&(f1, face1)| {
-                    f1 != f2 && body.get_shell(face1.shell).expect("shell resolves").solid == solid2
+                body.faces().find(|&(f1, _)| {
+                    f1 != f2
+                        && body
+                            .solid_of_face(f1)
+                            .expect("valid body: face and shell resolve")
+                            == solid2
                 })
             });
         if let Some((f1, _)) = sibling {

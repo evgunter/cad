@@ -54,6 +54,15 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
+**Where the dialogs open.** Open… and Save As… start at the first of
+three directories that still exists: the current document's, the one
+the last dialog returned a path in (kept in the preferences file as
+`[files] last_dir`), and the directory the viewer was launched from
+(`frame::dialog_dir`). The portal is handed that directory; `rfd`'s
+zenity fallback is not, and opens at the launch directory, its own
+default. `xdg-desktop-portal` 1.6 honours the directory for Save As…
+but shows its "Recent" view for Open….
+
 **Dialog opens but every character is a box with tiny hex digits.**
 Pango cannot shape the font fontconfig matched. Diagnose with
 `fc-match sans` — if it names a `.pfb` (a PostScript Type 1 font, e.g.
@@ -311,6 +320,7 @@ list. A third driver is an amendment here, not a header edit.
 | `pane` | the pane bodies' parent |
 | `pane::create` | the create pane |
 | `pane::features` | the feature-tree pane |
+| `pane::profile` | the profile editor both profile doors draw (create form, Properties pane) |
 | `pane::properties` | the property pane |
 | `pane::view` | the view pane |
 | `pane::viewport` | the viewport pane |
@@ -660,7 +670,7 @@ neither.
 | Module | Holds |
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
-| `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
+| `drafts` | `Drafts`, `ProfileEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`NO_CHOOSER_BACKEND`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `Disagreement`, `disagreement`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
@@ -807,7 +817,7 @@ at a `save` is green, which was measured rather than assumed.
 **The sweep rule is over the FIELD, not over the string, the name or
 the target**: the population is every read of `app::ViewerApp::store`,
 this crate's only `PrefsStore` value — three, all in `app.rs`:
-`store.unusable()` at the guard in `remember_theme` and again at the
+`store.unusable()` at the guard in `remember_prefs` and again at the
 badge beside the picker, and the `store.save` that guard stands in
 front of. `store.load()` in the constructor is not one of them — it
 reads the LOCAL binding, before the struct literal that makes the
@@ -829,15 +839,16 @@ which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
 fault, the budget's δ, the store that keeps no preferences, the datums
-this view draws nothing of, and the three display seams that hold a
-refusal (scene, pick index, projection) — each a function of the typed
-value it reads, so each one's SILENCE is a row a test can write. The
-datums count is the one member that HOLDS nothing: its writer re-takes
-it every frame and the application zeroes it whether or not the
+this view draws nothing of, the committed profiles it cannot draw, and
+the three display seams that hold a refusal (scene, pick index,
+projection) — each a function of the typed value it reads, so each
+one's SILENCE is a row a test can write. The datums and profiles
+counts are the two members that HOLD nothing: each writer re-takes its
+count every frame and the application zeroes it whether or not the
 viewport drew, so it says what the last frame found. The toolbar draws
 before the panes, so it trails the view it describes by one frame and
 no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
-`frame` function returning `Option<Badge>`** — nine — and that rule
+`frame` function returning `Option<Badge>`** — ten — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so
@@ -1533,7 +1544,7 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Ten** enums here are closed vocabularies: a fixed set of choices the
+**Eleven** enums here are closed vocabularies: a fixed set of choices the
 chrome offers, which something walks in order — a radio row, a combo's
 options, a suite's sweep. Each carried a hand-written `const ALL`
 beside it, and that second copy of the membership was free to fall
@@ -1543,7 +1554,9 @@ lost a button, and every sweep keyed on the list quietly narrowed.
 nine were of this kind. The tenth vocabulary is `frame::WithdrawalKind`
 and it is not one of those ten: it carried no membership list at all
 until the fan-out from a `PruneReport` needed holding to it, and the
-list it got was projected rather than written. Both censuses are stated
+list it got was projected rather than written. The eleventh is
+`marks::EdgeLane`, a renderer's draw order rather than a choice the
+chrome offers, declared through the macro from the start. Both censuses are stated
 because this program's counts have gone wrong before — one is the tree
 at the conversion, the other is the vocabularies today, and nothing
 makes them the same number.)
@@ -1570,7 +1583,7 @@ already holds. If nothing does, they are not table data at all and a
 method beside the enum is the whole of it.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the eight declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
 loop over `Theme::ALL`, `pncad`'s `Axis3::ALL` or the path form's
 `profile::Verb::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
@@ -1579,15 +1592,19 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Five of the eight are walked under `src/` for their words, and all
+**Five of the nine are walked under `src/` for their words, and all
 five ask for one.** Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row, profile row, pattern-rule row,
 pattern-output row and blend-kind row. So all five are LABELLED, and
 there is no shorter account of them than the sweep itself: their words
 are table data because a table walk reads them.
 
-**`ToolKind`, `Seat` and `WithdrawalKind` are the remaining three, and
-are BARE.** `WithdrawalKind` is walked under `src/` and is bare anyway,
+**`ToolKind`, `Seat`, `WithdrawalKind` and `marks::EdgeLane` are the
+remaining four, and are BARE.** `EdgeLane`'s list is named `DRAW_ORDER`
+rather than `ALL`, because its order is the edge pass's priority; `gpu`
+walks it to lay out the vertex buffer and the per-lane style rows, and
+reads no word off it. `WithdrawalKind` is walked under `src/` and is
+bare anyway,
 which is the discriminator doing its job rather than an exception to
 it: `frame`'s own `every_withdrawal_kind_has_a_producer` compares the
 KINDS `Withdrawal::all` produced against the list, and reads no word
@@ -1622,7 +1639,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all eight are formatted by hand. Demonstrated rather
+variant docs of all nine are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -1683,7 +1700,7 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the eight are quiet without an entry. What the gate reads is this
+the nine are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
 two-kinds list above — the list the sentence *"Two kinds of list
@@ -1874,7 +1891,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_theme` are
+(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`

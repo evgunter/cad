@@ -40,13 +40,8 @@ use editor_core::{
     LoopProgram, Node, NodeResult, ParamName, PatternKind, ProfileDoc, ProfileProgram,
     RecipeNodeId, SlotId, StableName, evaluate,
 };
-use geom_core::Tol;
 
-use fixture::Recorder;
-
-fn tol() -> Tol {
-    Tol::witness()
-}
+use fixture::{Recorder, tol};
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -215,6 +210,7 @@ fn no_new_failure(doc: &ProfileDoc, p: &str, value: f64) -> bool {
             value: editor_core::DocParamValue::Continuous(value),
         },
         tol(),
+        &editor_core::RefusingReach,
     )
     .expect("a value edit applies")
     .doc;
@@ -779,6 +775,7 @@ fn a_taken_synthetic_name_refuses() {
             value: DocParam::continuous(Dimension::Length, 3.0),
         },
         tol(),
+        &editor_core::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;

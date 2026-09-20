@@ -75,8 +75,8 @@ mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use pick::{
-    Crossing, MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget,
-    TSpan, crossing, pick_face, ray_triangle,
+    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NodePick, NodePickError, PickHit,
+    PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -1644,10 +1644,9 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// whose nodes are unevaluated, failed, or poisoned in `eval` are
 /// not checkable here and defer to evaluation-time resolution.
 ///
-/// Checked sites: the name-carrying payload of an `InsertNode`
-/// ([`crate::node::Node::payload_names`] — Declare pairs, a blend's
-/// selection, a shell's open list, a derived frame's face, a measure's
-/// references, a mate's two heads) and `Rebind`'s target. Every other
+/// Checked sites: every payload name an `InsertNode` carries
+/// ([`crate::node::Node::payload_names`] is the list) and `Rebind`'s
+/// target. Every other
 /// edit validates exactly as [`crate::edit::apply`] — including the
 /// four appearance edits, which DO carry a name: theirs resolves at
 /// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
@@ -1673,6 +1672,7 @@ pub fn apply_with_names<T: Decide>(
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
     tol: Tol,
+    reach: &dyn crate::mate::MateReach,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     // The pairing, before any name is read (why: this fn's docs).
@@ -1724,7 +1724,7 @@ pub fn apply_with_names<T: Decide>(
             return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
         }
     }
-    crate::edit::apply(doc, edit, tol)
+    crate::edit::apply(doc, edit, tol, reach)
 }
 
 /// The nodes a name's derivation passes through: its minting node,

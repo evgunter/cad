@@ -3,10 +3,12 @@
 //! through `viewer`'s public surface exactly as an outside consumer
 //! would call it.
 //!
-//! Nothing here re-reads the unit's own fixtures: the documents are
-//! authored from scratch through `apply` (a different shape from
-//! `tests/common`'s plate), and every assertion is written from the
-//! PR's prose rather than from the shipped rows.
+//! **Why the documents are authored here** — a reason in these rows,
+//! not in their authorship (`memories/review-and-dependency-policy.md`):
+//! every assertion below is written from the PR's prose, so a fixture
+//! read from the shipped rows' own constants would make the oracle and
+//! the subject one thing. The sugar that carries no oracle is shared
+//! from `tests/common`: `len`, `scl`, `xy_frame`, `tempdir`.
 //!
 //! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,
@@ -23,7 +25,11 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/viewer/tests/common/"
+];
 
 use std::sync::Arc;
 
@@ -32,6 +38,8 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
+
+use crate::common::{len, scl, tempdir, xy_frame};
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
 use viewer::generation::Generation;
@@ -41,30 +49,6 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
-
-fn len(m: f64) -> Expr {
-    Expr::literal(m, Dimension::Length).expect("a finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
 
 fn rect(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
@@ -80,7 +64,13 @@ fn push(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
 }
@@ -102,6 +92,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             value: DocParam::continuous(Dimension::Length, 0.005),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
@@ -140,15 +131,6 @@ fn distance_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> SlotValue {
         .expect("the extrude carries a distance")
         .value
         .expect("the distance evaluates")
-}
-
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
 }
 
 // --- the undo TREE --------------------------------------------------
@@ -415,7 +397,8 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             expr: len(v),
         })
         .collect();
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
+    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
+        .expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");

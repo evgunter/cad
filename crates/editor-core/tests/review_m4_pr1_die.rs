@@ -97,7 +97,9 @@ fn placements() -> Vec<([f64; 3], [f64; 3], f64)> {
 }
 
 fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit, Tol::witness()).unwrap();
+    let applied = doc
+        .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+        .unwrap();
     log.push(edit);
     (applied.doc, applied.record.minted)
 }
@@ -319,11 +321,21 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
     assert_eq!(
-        TDoc::replay(theirs.doc.id(), &theirs.log, Tol::witness()).unwrap(),
+        TDoc::replay(
+            theirs.doc.id(),
+            &editor_core::LoggedEdit::bare_all(&theirs.log),
+            Tol::witness()
+        )
+        .unwrap(),
         theirs.doc
     );
     assert_eq!(
-        TDoc::replay(mine.doc.id(), &mine.log, Tol::witness()).unwrap(),
+        TDoc::replay(
+            mine.doc.id(),
+            &editor_core::LoggedEdit::bare_all(&mine.log),
+            Tol::witness()
+        )
+        .unwrap(),
         mine.doc
     );
 

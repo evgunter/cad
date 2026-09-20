@@ -14,7 +14,7 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName,
+    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName, PartReach,
     PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate,
 };
 use pncad::geom_core::Tol;
@@ -108,13 +108,17 @@ pub(super) fn probe_bounds(
     // against the landed evaluation, which may have been taken at a
     // different memo state.
     let baseline = bounds::Verdict::of(&evaluate_with(base, prior, resolver, tol));
+    // A probe's edit is a slot value on one node — it never moves a
+    // cluster's gauge — but the door is the session's, so it levers
+    // through the session's own seam like every other edit.
+    let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
     let result = bounds::probe(
         bounds::BoundsProbe::new(origin, seed, integral),
         |candidate| {
             let Some(edit) = probe_edit(base, &target, candidate) else {
                 return false;
             };
-            match apply(base, &edit, tol) {
+            match apply(base, &edit, tol, &reach) {
                 Ok(applied) => {
                     let eval = evaluate_with(&applied.doc, prior, resolver, tol);
                     bounds::Verdict::of(&eval).no_worse_than(&baseline)

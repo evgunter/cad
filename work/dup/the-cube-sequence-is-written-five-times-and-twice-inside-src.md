@@ -2,11 +2,12 @@
 id: the-cube-sequence-is-written-five-times-and-twice-inside-src
 kind: issue
 title: The §9.4.2 cube sequence is written five times in topo; after link 3 every copy is in src/ and they fold onto each other
-status: review
+status: closed
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
 branch: dup/fold-the-cube-sequence
 pr: 2843
+closed: 2026-09-19
 ---
 
 
@@ -353,3 +354,24 @@ rather than mis-siting them silently. The comment's evidence is
 corrected too: the recipes' **face coordinates 0.0 and 2.0** are the
 sharp half (flatly off a unit cube's faces), not the section coordinates
 0.5/1.5 the PR's comment led with.
+
+## Closed (2026-09-19, PR #2843)
+
+The §9.4.2 class is closed: eight spellings fold onto `prism_ops` with
+the declined face geometry as a `FaceGeometry` parameter, every body
+proved **byte-identical before and after** by `deep_snapshot` over all
+ten arenas, and the two late members proved identical *before* the edit
+by a scratch probe rather than after. `cube_independent.rs` stays, on
+the surviving clause of
+`memories/review-and-dependency-policy.md` — *its row's claim needs its
+own derivation* — rather than on the protected-class rule Ev withdrew
+(`the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files`).
+
+**The count went 5 → 8 while the unit was being worked**, with the
+census re-run at the head each time. A duplication row's count is a
+lower bound with a date on it, never a total.
+
+Residue filed rather than disclosed:
+`the-9-3-holed-box-sequence-is-written-out-four-times`,
+`the-quad-sheet-helper-is-written-three-times-across-two-chart-region-files`,
+`the-cylindrical-patch-rim-builder-is-written-nine-times`.

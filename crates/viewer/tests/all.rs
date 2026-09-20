@@ -131,6 +131,12 @@ mod pick3_acceptance;
 mod pick_windows;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "profile_draw.rs"]
+mod profile_draw;
+#[path = "profile_edit.rs"]
+mod profile_edit;
+#[path = "profile_edit_order.rs"]
+mod profile_edit_order;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]

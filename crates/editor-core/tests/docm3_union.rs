@@ -245,7 +245,11 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
     ];
     for node in shapes {
         let err = doc
-            .apply(&DocEdit::InsertNode { node: node.clone() }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode { node: node.clone() },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
             .expect_err("a repeated input must refuse");
         assert!(
             matches!(err, EditError::DuplicateInput { input, .. } if input == x),
@@ -266,6 +270,7 @@ fn set_members_refuses_a_duplicate_member() {
                 members: vec![boxes[0], boxes[1], boxes[0]],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a duplicate member must refuse");
     assert!(
@@ -337,6 +342,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
                 members: vec![boxes[0], boxes[2]],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a boolean carries no list");
     assert!(
@@ -357,6 +363,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
                 members: vec![boxes[0], ghost],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a dangling member must refuse");
     assert!(
@@ -386,6 +393,7 @@ fn set_members_refuses_a_cycle() {
                 members: vec![boxes[1], downstream],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a member below the node closes a loop");
     assert!(matches!(err, EditError::WouldCycle { .. }), "{err:?}");
@@ -402,6 +410,7 @@ fn set_members_refuses_fewer_than_two() {
                 members: vec![boxes[0]],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a union of one is its own input");
     assert!(
@@ -432,9 +441,13 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
     for edit in &edits {
-        replayed = replayed.apply(edit, tol).expect("the log replays").doc;
+        replayed = replayed
+            .apply(edit, tol, &editor_core::RefusingReach)
+            .expect("the log replays")
+            .doc;
     }
-    let text = editor_core::persist::save(&empty, &edits, tol).expect("the document saves");
+    let text = editor_core::persist::save(&empty, &editor_core::LoggedEdit::bare_all(&edits), tol)
+        .expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
         loaded.doc.bit_eq(&replayed),
@@ -466,11 +479,16 @@ fn dropping_a_member_leaves_the_others_names_alone() {
                 members: vec![boxes[1], boxes[2]],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the drop applies")
         .doc;
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: boxes[0] }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: boxes[0] },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the orphan deletes")
         .doc;
     let after = run(&doc);
@@ -630,11 +648,16 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
                     members: kept,
                 },
                 tol,
+                &editor_core::RefusingReach,
             )
             .unwrap_or_else(|e| panic!("dropping the {label} pip: {e}"))
             .doc;
         let edited = edited
-            .apply(&DocEdit::DeleteNode { id: members[k] }, tol)
+            .apply(
+                &DocEdit::DeleteNode { id: members[k] },
+                tol,
+                &editor_core::RefusingReach,
+            )
             .unwrap_or_else(|e| panic!("deleting the orphaned {label} transform: {e}"))
             .doc;
         let after = evaluate::<f64>(
@@ -671,7 +694,11 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .collect();
         assert_eq!(kept_rims.len(), rims.len() - 2);
         let edited = edited
-            .apply(&DocEdit::DeleteNode { id: blends[1] }, tol)
+            .apply(
+                &DocEdit::DeleteNode { id: blends[1] },
+                tol,
+                &editor_core::RefusingReach,
+            )
             .expect("the rim blend is a sink")
             .doc;
         let (edited, rim) = insert(
@@ -914,8 +941,10 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// what says the fold added no refusal, only a name space.
 ///
 /// The recourse a caller whose members touch has is this node's own
-/// `declare` input, whose pairs name entities in exactly the space
-/// this refusal names them in (`docm7_union_declare`).
+/// `declare` input, whose pairs are exactly what this refusal hands
+/// back: each side a `SitedRef` naming the MEMBER it was read at and
+/// the entity's name in that member's own table, which is a
+/// declaration the caller can write verbatim (`docm7_union_declare`).
 #[test]
 fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
@@ -951,10 +980,25 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         !uf.contains("FromA(") && !uf.contains("FromB("),
         "the fold's refusal names an uncollapsed fold row: {uf}"
     );
+    // And what it hands back is a declarable pair: each side sited at
+    // the member it was read at, named in that member's own table.
+    let Some(editor_core::NodeResult::Failed(e)) = ev.nodes.get(&u) else {
+        panic!("the fold refuses")
+    };
+    let editor_core::NodeErrorKind::UndeclaredContact { finding, .. } = &e.kind else {
+        panic!("the fold's refusal is the undeclared contact: {uf}")
+    };
+    let sites = [finding.pair.0.at, finding.pair.1.at];
     assert!(
-        uf.contains("FromMember"),
-        "the fold's refusal names member-space entities: {uf}"
+        sites.contains(&a) && sites.contains(&d),
+        "the refusal sites its two faces at the members that touch: {sites:?}"
     );
+    for r in [&finding.pair.0, &finding.pair.1] {
+        assert_eq!(
+            r.name.node, r.at,
+            "and names each in that member's own table, not in the union's"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1014,6 +1058,7 @@ fn a_one_section_loft_is_refused_at_the_insert_door() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a one-section loft has no second section to loft to");
     assert!(
@@ -1077,6 +1122,7 @@ fn set_members_refuses_an_unknown_node() {
                 members: vec![boxes[0], boxes[1]],
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a node the document does not hold cannot be re-membered");
     assert!(
@@ -1117,6 +1163,7 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
                     members: members.unwrap_or_else(|| doc.order()[..2].to_vec()),
                 },
                 tol,
+                &editor_core::RefusingReach,
             );
             let non_list = matches!(outcome, Err(EditError::SetMembersOnNonList { .. }));
             assert_eq!(
@@ -1183,6 +1230,7 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
                 members: vec![c, a],
             },
             tol,
+            &editor_core::RefusingReach,
         )
         .expect("re-membering the second union is a legal edit")
         .doc;

@@ -40,8 +40,8 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
-    RecipeNodeId, ValuePayload, pick_face,
+    CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickTarget, ProfileDoc,
+    Ray, RecipeNodeId, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
@@ -230,10 +230,10 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
                     fuzz::replay()
                 );
                 // Which face: only asserted where the oracle's winner
-                // is not in a near-tie with another face, since the
-                // documented tie-break is lexicographic on positions
-                // the two implementations enumerate identically but
-                // whose `t`s are separately rounded.
+                // is not in a near-tie with another face, since a
+                // near-tie is where the two implementations' separately
+                // rounded `t`s decide whether the door answers or
+                // refuses.
                 let mut rivals = 0;
                 for m in meshes {
                     let mut flat = 0usize;
@@ -327,11 +327,13 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
 }
 
 /// **The seam question**: a ray aimed exactly at a box CORNER — the
-/// point three faces share — must hit, not fall between them. Closed
-/// triangle boundaries are what makes that true; the answer is one of
-/// the three incident faces, and it is the same one every time.
+/// point three faces share — must be ANSWERED FOR, not fall between
+/// them. Closed triangle boundaries are what makes that true; the
+/// three incident faces are one certified tie, so the door refuses
+/// with all three, each placing the hit at the corner itself, and it
+/// refuses the same way every time.
 #[test]
-fn a_ray_through_a_shared_corner_hits_and_is_repeatable() {
+fn a_ray_through_a_shared_corner_refuses_with_every_incident_face() {
     let doc = ProfileDoc::empty_derived("gui1_r2_corner", Tol::witness());
     let (doc, n) = box_node(doc, 0.0, 0.0, 1.0, 1.0);
     let ev = run(&doc);
@@ -340,25 +342,34 @@ fn a_ray_through_a_shared_corner_hits_and_is_repeatable() {
     let targets = [PickTarget::new(&ev, n, 0, &p)];
     // Straight at the (1,1,1) corner along the body diagonal.
     let r = ray([3.0, 3.0, 3.0], [-1.0, -1.0, -1.0]);
-    let hit = pick_face(&ev, &targets, &r)
-        .expect("no error")
-        .expect("a corner ray hits — closed triangle boundaries");
-    assert_eq!(hit.t, 2.0, "dyadic corner hit is exact");
+    let Err(HitTestError::Ambiguous { hits }) = pick_face(&ev, &targets, &r) else {
+        panic!(
+            "a corner ray is answered for — closed triangle boundaries — and the three \
+                incident faces are one tie"
+        );
+    };
     assert_eq!(
-        (hit.point.x, hit.point.y, hit.point.z),
-        (1.0, 1.0, 1.0),
-        "the hit point is the corner"
+        hits.len(),
+        3,
+        "the three faces sharing the corner, each named: {hits:?}"
     );
+    for hit in &hits {
+        assert_eq!(hit.t, 2.0, "dyadic corner hit is exact");
+        assert_eq!(
+            (hit.point.x, hit.point.y, hit.point.z),
+            (1.0, 1.0, 1.0),
+            "every tied hit places the point at the corner"
+        );
+    }
     for _ in 0..8 {
-        let again = pick_face(&ev, &targets, &r)
-            .expect("no error")
-            .expect("hits");
-        assert_eq!(again.name, hit.name, "corner pick is repeatable");
-        assert_eq!(again.t.to_bits(), hit.t.to_bits());
+        let Err(HitTestError::Ambiguous { hits: again }) = pick_face(&ev, &targets, &r) else {
+            panic!("the corner pick refuses");
+        };
+        assert_eq!(again, hits, "corner pick is repeatable, to the bit");
     }
     // The oracle sees the same corner hit.
     let want = brute_nearest(&[&m], &r).expect("oracle sees the corner hit");
-    assert!((want.0 - hit.t).abs() < 1e-12);
+    assert!((want.0 - hits[0].t).abs() < 1e-12);
 }
 
 /// A ray lying exactly IN a face plane. Möller–Trumbore's determinant

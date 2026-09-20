@@ -41,7 +41,11 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
         let applied = doc
-            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
             .unwrap();
         *doc = applied.doc;
         applied.record.minted.unwrap()

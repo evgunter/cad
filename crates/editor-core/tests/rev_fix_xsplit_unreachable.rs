@@ -19,12 +19,12 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, derivation_nodes, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
+    derivation_nodes, split,
 };
 use fixture::resolver::in_part;
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn block(label: &str) -> ProfileDoc {
@@ -50,17 +50,6 @@ fn block_ref(label: &str) -> DocRef {
     let doc = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
     DocRef { id: doc.id(), pin }
-}
-
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
@@ -134,6 +123,7 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
             &cut,
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
+            None,
         ) else {
             seen.refused += 1;
             continue;

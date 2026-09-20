@@ -113,7 +113,7 @@ fn fixture() -> ProfileDoc {
         Tol::witness(),
     );
     for edit in declaring_log() {
-        doc = apply(&doc, &edit, Tol::witness())
+        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the fixture parameters are valid")
             .doc;
     }
@@ -146,6 +146,7 @@ fn annotating_a_standing_parameter_keeps_its_notation() {
             distribution: Some(sigma()),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("an annotation edit on a declared continuous parameter applies")
     .doc;
@@ -181,6 +182,7 @@ fn the_annotation_door_carries_the_value_forward() {
             distribution: Some(band()),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -233,6 +235,7 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
             unit: mm(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the notation edit applies")
     .doc;
@@ -244,6 +247,7 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
             distribution: None,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("clearing goes through the same door")
     .doc;
@@ -278,6 +282,7 @@ fn clearing_is_the_same_door_and_keeps_the_rest_of_the_declaration() {
                 distribution: None,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .is_ok(),
         "writing None over None is the same write"
@@ -352,6 +357,7 @@ fn the_annotation_door_refuses_typed() {
                 distribution,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("refused")
     };
@@ -418,7 +424,7 @@ fn the_annotation_door_refuses_typed() {
             unit: mm(),
         },
     ] {
-        let text = apply(&doc, &other, Tol::witness())
+        let text = apply(&doc, &other, Tol::witness(), &editor_core::RefusingReach)
             .expect_err("the sibling door refuses the same undeclared name")
             .to_string();
         assert_ne!(
@@ -479,7 +485,12 @@ fn the_annotation_edit_saves_replays_and_loads() {
             distribution: None,
         },
     ];
-    let text = save(&snapshot, &edits, Tol::witness()).expect("a legal log saves");
+    let text = save(
+        &snapshot,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect("a legal log saves");
     assert!(
         text.contains("SetDocParamDistribution") && text.contains("\"distribution\""),
         "the wire form is the derive's, symbol and all"
@@ -487,7 +498,8 @@ fn the_annotation_edit_saves_replays_and_loads() {
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(loaded.edits.len(), 3, "the log round-tripped");
     assert_eq!(
-        loaded.edits, edits,
+        loaded.edits,
+        editor_core::LoggedEdit::bare_all(&edits),
         "each edit round-tripped, payload and all"
     );
     assert!(
@@ -521,7 +533,8 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         &[DocEdit::SetDocParamDistribution {
             name: p("wall"),
             distribution: Some(sigma()),
-        }],
+        }
+        .into()],
         Tol::witness(),
     )
     .expect("the legal log saves");
@@ -562,7 +575,8 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
     ];
     for (from, to, direct, want) in cases {
         assert_eq!(
-            apply(&doc, &direct, Tol::witness()).expect_err("apply refuses"),
+            apply(&doc, &direct, Tol::witness(), &editor_core::RefusingReach)
+                .expect_err("apply refuses"),
             want,
             "apply's refusal"
         );
@@ -571,7 +585,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-distribution"),
-                &log,
+                &editor_core::LoggedEdit::bare_all(&log),
                 Tol::witness()
             )
             .expect_err("replay refuses"),
@@ -587,7 +601,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
-        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
+        match save(&doc, &[direct.into()], Tol::witness()).expect_err("save refuses") {
             PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
@@ -615,7 +629,13 @@ fn a_non_finite_offset_on_the_edit_refuses_at_the_persistence_door() {
             hi: 0.0,
         }),
     }];
-    match save(&doc, &edits, Tol::witness()).expect_err("save refuses") {
+    match save(
+        &doc,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect_err("save refuses")
+    {
         PersistError::NonFinite { site } => {
             let shown = format!("{site:?}");
             assert!(

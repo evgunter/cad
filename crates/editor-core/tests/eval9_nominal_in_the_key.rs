@@ -55,6 +55,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                 value: DocParam::continuous(Dimension::Scalar, nominal),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -72,6 +73,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the frame inserts")
         .doc;
@@ -80,6 +82,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
             node: Node::Profile(fixture::desc(FRAME, vec![fixture::square(0.0, 0.0, 1.0)])),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the profile inserts")
     .doc
@@ -133,6 +136,7 @@ mod over_a_param_box {
                 value: DocParamValue::Continuous(value),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the value edit applies")
         .doc

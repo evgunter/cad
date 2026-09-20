@@ -243,6 +243,40 @@ pub fn running_under_wsl() -> bool {
     std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
 }
 
+/// The directory the viewer was launched from: the process's working
+/// directory, read ONCE at startup and held by the application.
+///
+/// It is the last candidate a file dialog opens at
+/// (`crate::frame::dialog_dir`), behind the current document's
+/// directory and the directory the last dialog returned — so a viewer
+/// launched from a project directory with nothing open and nothing
+/// remembered starts its first Save As… there rather than wherever
+/// the dialog backend's own default happens to be.
+///
+/// Here because this file is the viewer's one ambient door, and the
+/// four rows of `scripts/gates/no-ambient-env.sh` are argued the way
+/// [`prefs_path`] argues them. CONTRACT-RATIFIED holds vacuously: a
+/// starting directory changes nothing about what any document
+/// evaluates to. COMMIT-ONCE: read here and never re-read — a process
+/// that `chdir`s mid-run is not one this crate is. REPORTED: the
+/// directory is what the dialog visibly opens at, and the one failure
+/// is a startup notice on the status line. RECONCILED: it is the last
+/// candidate of three and never outranks the document's own place.
+///
+/// # Errors
+///
+/// The `io::Error` the read answers with — a launch directory that no
+/// longer exists or cannot be read. The caller reports it and the
+/// dialogs fall through to the backend's default; nothing is invented.
+///
+/// **Native only.** The browser build has no dialogs to position and
+/// no working directory to read, so there is no arm to `cfg` the
+/// other way.
+#[cfg(not(target_family = "wasm"))]
+pub fn launch_dir() -> Result<std::path::PathBuf, std::io::Error> {
+    std::env::current_dir()
+}
+
 /// **What the disabled dialog controls say**, and the only thing that
 /// says it: the confident half of the #1097 finding, with the
 /// dialog-free workaround.

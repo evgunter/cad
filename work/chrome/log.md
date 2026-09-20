@@ -1075,3 +1075,24 @@ which is what the style-review posture is for, and is now evidenced
 rather than asserted. The sixth came from CI, which ran a configuration
 the local battery did not and caught an assertion that held at one eps
 row only because the floor happens to sit at zero there.
+
+## 2026-09-19 — Ev's arrow rows landed (PR 2856)
+
+Orchestrated from a session taking Ev's high-priority GUI rows across
+the paused viewer programs. One unit took both rows. It was not an
+A/B-protocol unit, by Ev's instruction. The implementer started on
+Fable, hit the account's Fable limit mid-work and was finished on
+Opus from the dead lane's uncommitted diff. The review was style-only,
+per Ev: small diff, low correctness risk. The fix pass took six of its
+nine findings:
+- the grid floor is derived from the ladder, not restated as `2.5`
+- a runtime sweep of `grid_pitch`
+- one home for the pitch band (`MIN_CELL_PX`'s "three to thirteen"
+  was wrong; it is about 4.2..10.5)
+- a tip-separation check on the doubled head
+- the unvaried spacing knob dropped
+- a history aside removed
+
+Declined: the integration tests' hand-copied barb counts. The
+constants are private, so the copy cannot be avoided.
+`TIP_MARK_PX` was left alone and put to Ev in chat.

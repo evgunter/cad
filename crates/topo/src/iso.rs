@@ -734,8 +734,7 @@ mod tests {
             if split {
                 // Move ONE ring to the other face. ring_move is not an
                 // Euler op; counts are unchanged.
-                let other_face = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-                let other_face = body.get_loop(other_face).unwrap().face;
+                let other_face = body.face_of_half_edge(seg.he_minus).unwrap();
                 assert_ne!(other_face, split_faces.face);
                 body.ring_move(r1.ring, other_face).unwrap();
             }

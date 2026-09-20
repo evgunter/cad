@@ -544,7 +544,13 @@ fn child_band_refusal_rows() {
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
     let insert = |doc: &mut ProfileDoc, node: Node<_>| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the insert applies");
         *doc = applied.doc;
         applied.record.minted.expect("an insert mints an id")
     };

@@ -125,6 +125,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
                 value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -160,6 +161,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 .unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;

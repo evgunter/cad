@@ -3302,11 +3302,7 @@ mod face_list_door_tests {
         for (solid, _) in pair.solids() {
             let faces: Vec<FaceKey> = pair
                 .faces()
-                .filter(|&(k, _)| {
-                    pair.get_face(k)
-                        .and_then(|d| pair.get_shell(d.shell))
-                        .is_some_and(|s| s.solid == solid)
-                })
+                .filter(|&(k, _)| pair.solid_of_face(k) == Some(solid))
                 .map(|(k, _)| k)
                 .collect();
             assert_eq!(faces.len(), 6);

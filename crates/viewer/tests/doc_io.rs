@@ -387,8 +387,13 @@ fn insert_node(
     node: pncad::document::Node<pncad::document::ProfileProgram>,
     tol: Tol,
 ) -> pncad::document::RecipeNodeId {
-    let applied = pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-        .expect("the edit applies");
+    let applied = pncad::document::apply(
+        doc,
+        &pncad::document::DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }

@@ -26,7 +26,13 @@ use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
 
 fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness()).expect("the delete is legal")
+    apply(
+        doc,
+        &DocEdit::DeleteNode { id },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the delete is legal")
 }
 
 /// **A carrier that names ITS OWN space reports nothing when it is
@@ -60,6 +66,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
             to: fname(fillet, wall(2)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the rebind target is live");
     let doc = applied.doc;
@@ -118,6 +125,10 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
+    // The delete moves the pair's gauge and the solve levers the
+    // parts, so both go through the store's reach.
+    let opts = fixture::resolver::with_resolver(store);
+    let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("rv_operand"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
@@ -150,7 +161,13 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         },
     );
 
-    let applied = delete(&doc, placed);
+    let applied = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: placed },
+        Tol::witness(),
+        &reach,
+    )
+    .expect("the delete is legal");
     assert!(
         !applied
             .maintenance
@@ -159,7 +176,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         "the operand is a read site, not a name: {:?}",
         applied.maintenance
     );
-    let fault = solve_document(&applied.doc, Tol::witness())
+    let fault = solve_document(&applied.doc, &reach, Tol::witness())
         .fault(mate)
         .expect("the solve refuses the mate whose operand left")
         .clone();
@@ -169,22 +186,36 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     );
 }
 
-/// **A cascade reports strands about carriers the same cascade is
-/// about to delete.** Cascading the `Declare` of a declared union
-/// deletes the union first (it consumes the `Declare`), which strands
-/// every pair of the `Declare` — and then deletes the `Declare`. The
-/// rows are true of the document between the two steps and are about
-/// nothing that survives the cascade, which is the count the CHROME
-/// row's "strand count beside the dependent count" has to define.
+/// **A sited declaration strands nothing inside a cascade**, so the
+/// door's count and a pre-click count built from the survivors agree.
+///
+/// The class this row measured has MOVED rather than vanished, and
+/// where it moved to is worth stating. Noise needs a DOOMED carrier
+/// that names a node the same cascade deletes BEFORE it. A cascade
+/// deletes dependents first, and a payload name points at a producer
+/// upstream of its carrier, so a doomed carrier is always deleted
+/// before the node it names — with one exception, which was this
+/// row's: a `Declare` naming entities in its own CONSUMER's space.
+/// The consumer is a dependent, so it went first, and the door
+/// reported eight strands about a `Declare` it deleted next. A sited
+/// pair names entities that exist BEFORE the consumer, so no payload
+/// points downstream any more and the exception is closed by type.
+///
+/// No carrier in the vocabulary reopens it: a blend's selection names
+/// its own target, a mate head's name is read at an operand, an
+/// appearance key names an upstream row — every one of them upstream
+/// of the carrier. The door still reports a REAL strand, on a carrier
+/// that survives its subject; that half is
+/// `dm7_delete_strands::deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing`.
 #[test]
-fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
+fn rv_a_sited_declaration_strands_nothing_inside_a_cascade() {
     use crate::docm7_union_declare::{declared_union, flush_pairs};
     use editor_core::cascade_delete_order;
 
     let doc = ProfileDoc::empty_derived("rv_cascade_noise", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
 
     let order = cascade_delete_order(&doc, decl);
     assert_eq!(order, vec![union, decl], "the union consumes the declare");
@@ -217,10 +248,16 @@ fn rv_a_cascade_reports_strands_on_carriers_it_then_deletes() {
             .count();
         doc = applied.doc;
     }
+    // RE-BASELINED with the sited payload: the count used to be eight.
+    // A sited pair names entities in the MEMBERS, which this cascade
+    // does not touch, so the doomed set strands nothing and the
+    // door's count agrees with the survivors'.
     assert_eq!(
-        reported, 8,
-        "the door reports eight strands about a Declare the cascade then deletes"
+        reported, survivor_carried,
+        "a sited declaration names entities outside the doomed set, so the door's \
+         count and a pre-click count built from the survivors agree"
     );
+    assert_eq!(reported, 0);
 }
 
 /// **A reported key survives the save/load boundary as a stranded
@@ -243,6 +280,7 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -280,6 +318,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the name's node is live")
     .doc;
@@ -300,6 +339,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
             to: live.clone(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the reported key is rebindable onto a live name")
     .doc;

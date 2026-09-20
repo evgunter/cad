@@ -180,6 +180,30 @@ fn a_themes_ground_stays_off_its_own_swatches() {
     }
 }
 
+/// **A committed profile is told from the grid it lies on and from the
+/// preview drawn over it, by colour, in every palette and under every
+/// dichromacy the suite simulates.**
+///
+/// Width already separates a profile from the grid (`crate::gpu`'s
+/// lane styles), and draw order keeps the grid off it; this is the
+/// colour half, which is what says WHICH of the two lines a thick one
+/// is. Held for every palette rather than only the one that claims
+/// colourblind safety, because the separation is what the lanes were
+/// introduced for and a profile that reads as the grid, or as its own
+/// preview, is the defect whichever palette it happens in.
+#[test]
+fn a_profile_is_told_from_the_grid_and_the_preview() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_profile_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: the profile colour is only {worst:.4} from {at}, under the {:.4} bar",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
 /// Every theme that claims colourblind safety is actually checked.
 ///
 /// The registry and the claim are the only inputs, so a theme added
@@ -292,9 +316,10 @@ fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
 /// property that holds is checkable here, where a number copied out
 /// of a paper is only a second thing to get wrong.
 mod cvd {
+    use editor_core::appearance::Rgba8;
     use perceive_color::Color;
     use perceive_cvd::{CvdType, Severity, simulate};
-    use viewer::theme::{Safety, Theme, linear};
+    use viewer::theme::{DATUM_OPACITY, Safety, Theme, linear};
 
     /// How far apart two swatches must stay, in OKLab.
     ///
@@ -372,22 +397,49 @@ mod cvd {
     /// whole palette scaled toward black — where separations are
     /// smallest and a claim fails first.
     /// **What the GROUND is measured against**: every swatch, plus
-    /// the construction colour.
+    /// the two line colours.
     ///
-    /// `Theme::datum` is not a mark — it shades with nothing and
-    /// tints nothing — so it is absent from [`swatches`] and from the
-    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which
-    /// is the whole of what the ground check is about: a datum the
-    /// colour of the surround is a datum nobody can see. It is
-    /// measured unshaded, once, because a line is not lit.
+    /// `Theme::datum` and `Theme::profile` are not marks — they shade
+    /// with nothing and tint nothing — so they are absent from
+    /// [`swatches`] and from the marks check. They are still DRAWN IN
+    /// THE VIEWPORT, though, which is the whole of what the ground
+    /// check is about: a line the colour of the surround is a line
+    /// nobody can see. Each is measured unshaded, once, because a line
+    /// is not lit.
+    ///
+    /// **The datum is measured as it is SEEN**: blended onto the ground
+    /// at `DATUM_OPACITY`, which is how the edge pass draws it. Its
+    /// full colour would certify a separation half of which the
+    /// picture never shows.
     pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let mut out = swatches(theme, shade);
-        let [r, g, b] = linear(theme.datum);
-        out.push((
-            "datum",
-            Color::new(f64::from(r), f64::from(g), f64::from(b)),
-        ));
+        for (label, line) in [
+            ("datum", seen_over(theme.datum, DATUM_OPACITY, theme.ground)),
+            ("profile", theme.profile),
+        ] {
+            let [r, g, b] = linear(line);
+            out.push((label, Color::new(f64::from(r), f64::from(g), f64::from(b))));
+        }
         out
+    }
+
+    /// `line` drawn at `opacity` over `under`, blended per channel in
+    /// the display encoding — where the edge pass blends on the
+    /// gamma-space framebuffer the viewer runs on. An `*Srgb` surface
+    /// blends in linear light instead (`theme::DATUM_OPACITY` states
+    /// the difference); this measures the arm the viewer takes.
+    fn seen_over(line: Rgba8, opacity: f32, under: Rgba8) -> Rgba8 {
+        let mix = |l: u8, u: u8| {
+            let blended = f32::from(l) * opacity + f32::from(u) * (1.0 - opacity);
+            // In [0, 255] for an opacity in [0, 1]; the clamp is the
+            // cast's range, not a correction.
+            blended.round().clamp(0.0, 255.0) as u8
+        };
+        Rgba8::opaque(
+            mix(line.r, under.r),
+            mix(line.g, under.g),
+            mix(line.b, under.b),
+        )
     }
 
     fn swatches(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
@@ -436,6 +488,51 @@ mod cvd {
     /// claimed themes — but the ground check runs over the whole
     /// registry, and holding an unclaimed palette to a dichromatic
     /// bar would be measuring a promise it never made.
+    /// The closest a theme's committed-profile colour comes to the two
+    /// line colours it is drawn beside, under EVERY vision type in
+    /// [`KINDS`] whatever the palette claims: the datum grid, as seen —
+    /// blended at `DATUM_OPACITY` over the ground and over the fully lit
+    /// body — and the preview, the probe mark over the body, drawn
+    /// unshaded as the edge pass draws it.
+    pub(super) fn worst_profile_separation(theme: &Theme) -> (f64, String) {
+        let color = |c: Rgba8| {
+            let [r, g, b] = linear(c);
+            Color::new(f64::from(r), f64::from(g), f64::from(b))
+        };
+        let profile = color(theme.profile);
+        // `swatches`' reason for asserting rather than defaulting: a
+        // mark that does not composite measured as black would pass
+        // every distance on a value nothing computed.
+        let composited = theme.probe.over(theme.body);
+        assert!(
+            composited.is_some(),
+            "{}: the probe mark does not composite",
+            theme.name
+        );
+        let preview = composited.unwrap_or(theme.body);
+        let neighbours = [
+            (
+                "the datum grid over the ground",
+                color(seen_over(theme.datum, DATUM_OPACITY, theme.ground)),
+            ),
+            (
+                "the datum grid over the body",
+                color(seen_over(theme.datum, DATUM_OPACITY, theme.body)),
+            ),
+            ("the preview", color(preview)),
+        ];
+        let mut worst = (f64::INFINITY, String::new());
+        for (name, neighbour) in neighbours {
+            for kind in KINDS {
+                let d = distance(seen(profile, kind), seen(neighbour, kind));
+                if d < worst.0 {
+                    worst = (d, format!("{name} under {}", name_of(kind)));
+                }
+            }
+        }
+        worst
+    }
+
     fn kinds_of(theme: &Theme) -> &'static [Option<CvdType>] {
         match theme.safety {
             Safety::ColorblindSafe => &KINDS,

@@ -3932,6 +3932,61 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-RADIUS's spec (2026-09-20)
+
+Recoverable at `git show 370e560e7:docs/EDIT-RADIUS-SPEC.md` (PR
+#2892's frozen review head; the spec was not amended on the branch —
+its two corrected premises are argued in the PR body and recorded in
+the unit row's `## Built`). EDIT's second kernel unit of block
+EDIT-B2, ruled by the EDIT orchestrator on the row's own analysis and
+DM8: the replay record gains a per-radius emission record
+(`ReplayStructure.radii`) and DM8's map reads it in place of "one
+radius, one segment", the key's feed widening with the attach so
+"attached ⊆ keyed" holds by construction. Its central premises held —
+the record's shape and home, the emission at the moment the bulge is
+set, the map through the one checked permutation, the feed's
+inclusion, DM8's sentence re-worded not re-decided — and two fell
+before the build, each corrected by the implementer against the
+tree: premise 2's "the current step is the emitter" names, for a
+fused verb's carrier arc, an `At`/`Toward` holding no radius (every
+role addresses the fused verb's own step); and the three-radii row's
+"two `Sweep` specs" is unrepresentable (`arc_fillet_arc(Sweep, r,
+Radius)` is the chain). None fell to the dual, which was
+APPROVE-WITH-FIXES on both arms with no MAJOR; its findings and the
+fix pass that built their union are the unit row's `## Built` and
+its `### Fix pass`. The rule above; the unit's record is its row's
+`## Closed`, its row in `MODEL-AB-LOG.md` (ordinals 4806/4807, sample
+#223; block EDIT-B2 slot 1 concluded) and the MERGED entry in
+`work/edit/log.md`.
+
+## Per-merge deletion — EDIT-DECL's spec (2026-09-19)
+
+Recoverable at `git show df47b36ab:docs/EDIT-DECL-SPEC.md` (PR
+#2809's fix-pass head, carrying the `## Amended at the fix pass`
+section). EDIT's first kernel unit of block EDIT-B2, built on Ev's
+ruling from `[ev]` PR #2795 (sited declarations: a `Declare`'s pairs
+name entities at their members, one pass, the site is the side, DM6
+untouched). Its central premises held — the sited payload, the side
+from the site, the union's routing by site with the member-space
+rewrite ahead of the shared look-through, the doors following the
+payload — and three fell before the build, each corrected by the
+implementer against the tree: `persist/pairs.rs` is the
+appearance-store codec and not the declare one; `pncad::select`'s
+declare doors are re-exports of `editor-core`'s; `declare_node` holds
+no consumer context, so the flush finding carries its sites rather
+than the door siting names. One fell to the dual: premise 4's "fold-
+minted rows are not declaration subjects, by type" left a union's
+refusal against a `Merged` row with no site to carry, and the build
+degraded it to an emission bug — both blinded reviewers found it with
+red probes on the real door, and the fix pass ruled the refusal's
+shape (sited at a constituent for a merged row; typed
+`UndeclarableContact` for a row no member stands for), the decision
+unchanged and Ev told on the next `[ev]` PR. Premise 7's "refuses
+typed … has no case" was withdrawn with it. The rule above; the
+unit's record is its row's `## Closed`, its row in `MODEL-AB-LOG.md`
+(ordinals 4804/4805, sample #216; block EDIT-B2 slot 0 concluded) and
+the MERGED entry in `work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-PICK3's spec (2026-09-17)
 
 Recoverable at `git show af694692:docs/EDIT-PICK3-SPEC.md` (PR
@@ -4007,3 +4062,70 @@ left on the fourth, its row in `MODEL-AB-LOG.md` (ordinal 2406, sample
   `work/exch/log.md`. The §Re-scope ruling (the rung lives in
   `run_iso_checks`' seam class, not `nurbs_iso_derive`) travels in
   the log's adjudication entry.
+
+## Per-merge deletion — MSOLVE-6's spec (2026-09-19)
+
+Recoverable at `git show 71e92e224b64ce2a20117136282950cd10ca0728:docs/MSOLVE-6-SPEC.md`
+(the MSOLVE-6 unit head, before the state-sync commit that deleted it),
+including its "Amendment — the edit door" section, ruled by Ev on
+`[ev]` PR 2118. Its construction held: the lever, the reach trait and
+the edit door landed as written, with three deviations argued on the
+PR (`split`/`inline` take a resolver rather than a reach, because the
+part being minted is what no store holds yet; the edit refuses only
+where the prior solve reached NO verdict, and keeps the cluster's
+frame where it DECIDED there is no pose; `MateReach` is keyed by the
+part, not the instance). The orchestrator ruled against one of its
+sentences: the spec asked `lever_arm`'s doc to "keep the story" of
+the retired floor, and the implementer discipline's rule against
+retired-code archaeology in docs wins — the doc is two sentences.
+The rule above; the unit's record is its item's `## Closed` section
+and its MERGED entry in `work/msolve/log.md` (no A/B row: the program
+runs none).
+
+- `MSOLVE-6-SPEC.md` — MSOLVE-6, the mate's lever is the mated parts' own extent (#2116)
+
+## Per-merge deletion — MSOLVE-7's spec (2026-09-19)
+
+Recoverable at `git show dcf5e149d5f7ef97154473f499011b54f27e03c3:docs/MSOLVE-7-SPEC.md`
+(the MSOLVE-7 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; three of its sentences did
+not survive measurement. It named `fold_pair` as `derived_offset`'s
+caller, which is `pair_left_factor` (the lane took the better
+letter). It said a delete's dependents cascade, which the door
+measures as a `DeleteWouldDangle` refusal — the condition is
+unreachable either way, as the spec said. And its §2 seated only the
+dangling-input shape at the transform, while a transform over a
+DATUM as the axis is reachable through `apply` and was seated at the
+pattern on one road and the transform on the other; the fix pass
+seated it at the transform through the one classifier, which is the
+spec's thesis carried one shape further. The rule above; the unit's
+record is its item's `## Closed` section and its MERGED entry in
+`work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
+
+## Per-merge deletion — MSOLVE-8's spec (2026-09-20)
+
+Recoverable at `git show 399d411c87031e18c2e9135c44fd02c4c66c7b76:docs/MSOLVE-8-SPEC.md`
+(the MSOLVE-8 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; two of its sentences were
+overruled by measurement and one of its clauses was tested. Its §3
+offered a re-mint road "where geom-core admits no witnessed
+transport" and fenced geom-core out; the lane took that road for the
+frame read too, and the reviews measured its cost (the aim decided
+three times per mate under one funnel name, a copied refusal
+projection), so the orchestrator widened the fence by one door —
+geom-core's `point_at_frame`, the witness `point_at` already built.
+Its §3 also let a rotated direction be "re-minted under the run's
+band", which on the planar-pair line was a SECOND decision two ulps
+from `parallel`'s and moved ten door-built documents from UNDER to
+Indeterminate at the boundary (the correctness arm's MAJOR); the fix
+is one decision, `parallel` minting the witness it decides on. And
+its stop clause named the condition the lane met (`OrthoFrame`
+reproducing `point_at` bit for bit) and was argued past rather than
+honoured — recorded in the log as a process lapse; the ruling settled
+it. The rule above; the unit's record is its item's `## Closed`
+section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
+program runs none).
+
+- `MSOLVE-8-SPEC.md` — MSOLVE-8, a levered clash names its arm; the coset's directions carry the witness; `MateFault` names its consumers (#2896)
