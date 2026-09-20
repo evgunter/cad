@@ -557,3 +557,40 @@ and no placement pull-back is needed), the part-local name and the
 rule 5's inputs sentence is the one ratified text that moves; DESIGN.md
 carries no A11 sentence (measured). Both on an `[ev]` PR, waiting for
 Ev's word; the unit dispatches after that merge and after MSOLVE-8.
+
+## MSOLVE-8 reviews adjudicated, fix pass dispatched (2026-09-20)
+
+PR 2896, head `f3896c554`. Correctness arm: C1, C3, C4 HOLD (the
+three residuals re-derived from the frames bit for bit; 266 mate rows
+unchanged at three ε; `Band` reaches every row and
+`PosesOfAnotherDocument` none, measured). C2 PARTIAL with one MAJOR:
+the planar-pair line is minted under a second decision
+(`‖(n1×n2)·arm‖`) that differs from `parallel`'s (`‖n1×n2‖·arm`) by
+up to two ulps, so at the escalate boundary ten door-built two-rest
+documents that were UNDER on main now refuse `Indeterminate` — a
+verdict move, which the spec calls a finding. Ruled: one decision —
+`parallel` decides the levered cross product's length through the
+normalizing constructor under its own name and returns the witness
+it minted, so the planar-pair site takes the direction the predicate
+decided and `mate_planar_pair_line` retires. MINOR: the aim is
+decided three times per mate where main decided twice, under one
+funnel name, because the lane's deviation 1 re-mints the axis under
+`point_at`'s name instead of taking the frame witness — and the spec's
+stop clause named that condition; the lane argued past it (recorded
+as a process lapse). Ruled: the door goes in geom-core after all — a
+`point_at` sibling returning the `OrthoFrame` it already builds, with
+`point_at` its `to_affine`, announced on SCALAR's tracker (the row
+the lane filed closes as done by this unit); `MateFrame::frame` takes
+it, the copied refusal projection, the dead side-A map and the third
+band build go. Style: `Contradictory`'s `clash` stored beside the
+lever's halves (ruled: one closed `Clash { Structural, Length,
+Levered(Lever) }`, the string compare on `MATE_MEMBER_EMPTY` with it);
+`derived_direction` mapping a decided zero to the in-band escalation
+(ruled: the frame ladder's own vocabulary under `MateFault::Frame`);
+two raising sites bypassing the one home for a levered margin; a
+second copy of the no-mate asymmetry on the enum; a hand-kept caller
+list; "thirty-two" counting nothing; rows that cannot go red. The
+Roll/Residual arms print different levers (the mate's own vs the
+fold's) — ruled honest, each the arm its predicate was decided over,
+stated at the type. Twenty-two items to the lane; one row to file
+(`LeverRefusal` mirroring `ReachRefusal`).
