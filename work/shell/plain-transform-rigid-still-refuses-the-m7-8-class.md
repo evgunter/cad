@@ -86,3 +86,34 @@ fix does not compile.
 `boolean/combine.rs`'s `graft_solids_with` is the same shape with a
 weaker bound (`T: Decide`), filed by 2418's lane with reachability
 explicitly NOT established.
+
+## Re-homed to SHELL, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** one of three: a `transform_rigid_certified` convenience door (which needs a
+compound-bound ratification in `crates/geom-core/src/real.rs`), a signpost at
+the plain door naming `transform_rigid_via`, or deciding the asymmetry is
+correct and saying so once.
+
+**Why SHELL.** `crates/topo/src/transform.rs` is **owned by shell**, and SHELL's slate
+already carries this row's siblings: `transform-rigid-refuses-approx-face` (the
+Approx arm of the same two matches, named in FIX's own `keep_out`) and
+`no-approx-faced-body-is-both-movable-and-valid`. The transform split is SHELL's
+family, not FIX's.
+
+**Ev declined to rule it in chat on 2026-09-20 and sent it here instead**, so
+no option is pre-empted; option 3 is PR 2418's own argument and would close the
+row with a sentence. The ratification option is the one that is NOT a lane's to
+take: `real.rs` is PROPS's ground and carries Ev's 2026-08-29 discriminator
+(*"nothing generic calls this door"*), which `transform_rigid` fails because
+its caller chain runs through `verbs::Verb` at `Dual64`. Check first whether PR
+2418 already signposted the plain door before assuming it did not.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

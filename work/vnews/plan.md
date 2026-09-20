@@ -254,6 +254,78 @@ exposure the full pass does not already judge, and the full pass is the
 one CI runs on any branch that touches this crate. Check the gating
 before treating a missing skip-pass receipt as uncovered.
 
+**A named `keep_out` carve-out beats a general fence ruling, and an
+orchestrator's ruling is not a territory amendment.** Adjudicating two
+units on 2026-09-20 this orchestrator ruled that *prose your own diff
+falsifies is yours to fix, and lands with the change that caused it;
+prose that was already wrong is filed across the fence.* That rule is
+**fence-local**. Where `program.md`'s `keep_out` names a file
+specifically — `crates/viewer/README.md`, whose clause says a prose,
+census or citation defect there *"is filed on vdoc and never fixed
+across that fence"* — the carve-out wins and the sentence is filed even
+when this program's own diff falsified it.
+
+Three reasons, so it is not re-litigated. A `keep_out` is a territory
+contract between two live programs, written on both sides; a ruling
+issued in a dispatch message is not an amendment to one. VDOC's whole
+charter is prose, census and citation on that file, so a rule letting
+each of four successor programs fix the sentences its own diffs
+falsified would put four programs in one file — the conflict
+one-file-one-item exists to prevent. And the general rule's
+justification is that such prose *lands with the change that caused
+it*, which holds where the prose sits in the program's own ground and
+not where it does not.
+
+**The same ruling does not license code.** Told to repair a sentence
+in `crates/viewer/src/app.rs`, the tone lane instead made the sentence
+true by adding `app::toned` — better than the letter, and it closed a
+residue row outright. But `app.rs` is **VSEAM's**, not a shared claim,
+and a prose ruling never licensed a new door in another program's file;
+the lane had itself declined to cross for that reason a day earlier and
+was talked out of it by an instruction that did not reach that far. The
+crossing stands and owes a row on the owner's slate naming the door,
+its callers on both sides of the fence, and what its visibility
+forecloses. **Fixing a sentence and adding a function are different
+acts and a fence ruling about one says nothing about the other.**
+
+**Apply the charter's reader test at SPEC time, not at review.** The
+Charter's *"a row belongs here only if a reader would see the
+difference; a rename nobody reads is not news"* is a scoping test —
+does this row belong to a NEWS program at all, rather than to a sibling
+— and it is cheap to run before a lane is dispatched and expensive
+after. `is-instance-collapses-absent-and-wrong-kind` reached its style
+review before anyone asked it: the split it makes is real, its one
+caller draws nothing either way, and `DisplayState::prune` had already
+told the two states apart. The unit is worth having — one decision site
+where there were two, and a `pub` door whose next caller cannot get it
+wrong — but it is NOT news, and nothing on this slate said so until a
+reviewer read the charter back at it.
+
+The consequence is about ORDER, not merit. Three rows in group 6 change
+what a reader is actually told — Undo and Redo disabled in silence over
+a refusal that has words, the range button's third spelling, the New
+document button — and any of them would have been a better wave-1 unit
+than a door nobody can currently misuse. **A row whose fix no reader
+sees goes behind every row whose fix one does.**
+
+**And when a lane refuses the orchestrator's recommended shape, the
+burden is the orchestrator's.** Adjudicating that same unit I proposed
+the panel SAY the absent-node sentence, to make the change news. The
+lane refused and was right on four independent grounds, the decisive
+one being that `pane/properties.rs`'s `standing_ui` already draws
+*"deleted"* three lines earlier from the same lookup on the same
+document — so the sentence would have been a second spelling of news
+already on screen, minting the node-side twin of
+`three-spellings-say-a-parameter-is-not-declared`, which is open on
+this slate against the parameter half of the same function. Two further
+grounds I had not weighed: `session::Standing`'s doc makes the section
+not drawing the SECOND CLAUSE of its own rule (*"the affordances that
+need a live entity switch off"*), and that clause is **GQ7's recorded
+constraint** — ratified design in `crates/viewer/GUI-DESIGN.md`, so the
+shape I recommended would have needed an `[ev]` PR to implement. An
+orchestrator's fix shape is a claim like any other and gets checked
+against the tree before it is issued.
+
 **Read a row's STATUS before you build on its premise — a citation
 check is not a premise check.** Three rows on this slate had premises
 that the tree had already falsified, and the sessions that dispatched

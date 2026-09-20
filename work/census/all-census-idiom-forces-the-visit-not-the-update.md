@@ -240,3 +240,47 @@ precedent rather than adding a proc macro, but it lives in one crate's
 test module and would need a home the other sites can reach — and it
 does not yet **print its own population**, which this file asks of
 whatever lands. Both are the adoption unit's work, not this lane's.
+
+## Re-homed to CENSUS, 2026-09-20
+
+(DOOR orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* — asked of
+FIX and applied to DOOR in the same sitting. **DOOR claims no paths**, so
+unlike FIX it can never be the owning track for any decision: there is no
+row here whose surface this program owns. A row needing a decision
+therefore always leaves. That also retires the charter clause admitting
+*"a small design call (where a shared helper's home goes, what a door
+looks like)"* — DOOR's own rule already said *"a row that grows a design
+question stops being this program's"*, and the two clauses contradicted
+each other.
+
+**The decision this row is blocked on:** which mechanism replaces the idiom — the row lists four (sum the arms, the
+nightly-only `variant_count`, a discriminant walk, a proc macro) and says
+plainly *"none of them decided here"*.
+
+**Why CENSUS.** CENSUS is the program for *a vocabulary spelled by hand in more than one
+place, and the census or instrument that cannot see one of the spellings*
+(`work/census/program.md`) — and this row is that sentence about a guard
+rather than a renderer: three copies of one pin, and the thing the pin claims
+to catch is exactly what it cannot see. Its slate already carries the same
+shape in `inert-deny-unknown-fields-on-unit-enums` (a guard that does not
+guard) and `the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`.
+No single path owns the row: the three sites are WIRE's
+(`crates/verbs/src/verb.rs`), REACH's (`crates/topo/src/boolean/mod.rs`) and
+unowned (`crates/topo/src/param_source.rs` is in no open program's `paths`).
+
+**The false claim is MEASURED, not argued** — the row compiled the
+counterexample standalone: a four-variant enum whose `ALL` holds three
+entries passes `ALL.len() == ops` green, because the exhaustive match forces
+the VISIT and nothing forces the arm's NUMBER, and the arm an author writes
+is the arm they copied. The no-repeats half is sound and does what it claims;
+only the growth-alarm half is false.
+
+Whichever mechanism CENSUS picks reaches WIRE's and REACH's files, so it
+wants their assent rather than an announcement. The row's own reading is that
+the discriminant walk is the most promising — a `const fn index(self)` (three
+of the sites have one already), then assert every index in `0..ALL.len()` is
+hit — because it closes the hole without a macro.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for you.

@@ -66,3 +66,38 @@ over **every tracked file, no path argument** — the brace literal in any
 spelling, which is the one clause every full copy of F6 must contain.
 Its blind spot: a copy that bans only identifiers and never the brace.
 A name-shaped sweep (`assert_f6`, `dumps`, `guts`) finds nothing here.
+
+## Ruled (FIX orchestrator, 2026-09-20): fold onto `test_utils::f6::assert_f6`
+
+`crates/quantity/*` is FIX's by `paths` and territory names no other
+owner, so the manifest call this row flagged is this seat's. The seat
+rules **fold**, and adds `test-utils` to `[dev-dependencies]`.
+
+**The leaf property the manifest comment states is not what is at
+stake.** *"The one home that serves both is a leaf crate with no
+dependencies"* is a claim about what `quantity` makes its DEPENDENTS
+carry; `proptest` already sits in `[dev-dependencies]` beside where
+this edge goes, so the stated property is untouched by construction. A
+test-only edge that buys the shared predicate is the cheap side of that
+trade.
+
+**What the lane re-takes rather than inherits.** The row reasons that
+`pncad-py`'s wheel closure is the **non-dev** dependency closure
+(`docs/prompts/implementer-discipline.md`), so a dev edge from
+`quantity` does not move which crates buy the python suite — and says
+plainly that this is reasoning, not a measurement. Re-take it at the
+merge base and read the `change filter` job's log, which prints both
+the seed set and `RUN_PNCAD_PY`, so the run says which way it went.
+
+**The drift is the reason the fold is worth more than a tidy-up**, and
+the lane should keep it in the PR body: `dumps` here is a one-element
+list (`!shown.contains("NonFinite")`), so a rendering that leaked a
+SIBLING arm's name passes today, and nothing puts a compiler behind
+that list. S-DUP proved that gap mattered on `viewer`'s copy by
+planting a sibling leak — green under the per-arm form, red under the
+roster form. Plant the same leak here and show it red before the fold
+lands, or say why you could not.
+
+**Fence:** `crates/test-utils/*` is S-TCOST's and S-TINT's. The
+dev-dependency edge is announced there, in the PR body and on their
+log.

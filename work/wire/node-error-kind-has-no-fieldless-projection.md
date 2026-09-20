@@ -57,3 +57,31 @@ PR 2344 established that the pairing direction of a hand-written mirror
 is closable by a derive and by nothing else, and three of them now
 carry a copied two-part guard. A fifth hand-rolled pair should not land
 just because four already have.
+
+## Re-homed to WIRE, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** whether a fieldless projection is the right answer at all, or whether the
+three doors should carry `NodeErrorKind` itself — *answer that before minting
+a sixth hand-written mirror*.
+
+**Why WIRE.** `NodeErrorKind` is declared in `crates/editor-core/src/eval/mod.rs`, which
+territory says is **owned by wire**, and WIRE's slate already carries a row on
+this very type: `node-error-kind-renders-the-slot-id-through-debug`. The
+decision is about the type's shape, so it belongs where the type is declared.
+
+**The row's own fence claim is now stale, and that is part of why it moves.**
+It was homed on FIX because *"`crates/editor-core/src/mc.rs` is in no open
+program's `paths`"*. Territory now says `mc.rs` is **owned by props** — as are
+the other two consumer doors, `drive.rs` and `stackup.rs`. So all three doors
+that render the kind away are PROPS's ground and the declaration is WIRE's;
+nothing about it is FIX's any more.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

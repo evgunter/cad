@@ -65,3 +65,33 @@ Neither site has a position to hand.
 Found by `pair-subject-witness-strings-unswept` while establishing
 that the ORDER question that item was opened on does not arise. The
 order is correct at both sites; the content is what is wrong.
+
+## Re-homed to TOPO, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** `ValidationError`'s shape — whether `witness` becomes `Option<String>`, or
+the two arms carry a typed locus.
+
+**Why TOPO.** `crates/topo/src/validate.rs`, where `UndeclaredContact` and
+`ContactContradicted` are declared and documented, is **owned by topo**. The
+decision is about that type; TOPO's slate already carries its neighbours
+(`three-refusal-variants-nest-a-certification-error`,
+`censussubject-eq-answers-false-for-a-new-variant-against-itself`).
+
+**The two defective sites are REACH's, not CURVED's.** Both are in
+`crates/topo/src/census.rs`, which territory says is **owned by reach** —
+`work/fix/program.md`'s `keep_out` called that file CURVED's, which was true
+when the clause was written and is not true now. CURVED's `paths` no longer
+name it. Whoever takes this row crosses REACH at the two `format!` sites and
+announces there; the chart-region half (site `1677` has no position to supply
+because `ChartOverlap::PositiveArea` returns no point) reaches CHART, which
+owns `crates/topo/src/chart_region.rs`.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

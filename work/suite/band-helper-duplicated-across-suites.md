@@ -5,8 +5,6 @@ title: test suites across six crates carry a byte-identical fn band() wrapper; s
 status: open
 opened: 2026-09-04
 refs: [band-derivation-has-a-scalar-twin]
-branch: fix/sweep-band-helper
-pr: 2377
 ---
 
 
@@ -167,3 +165,34 @@ binary, which is not a module of `tests/all.rs` and cannot name
 **What remains is the table above** — the shared-home decision this row
 shares with `band-derivation-has-a-scalar-twin`, unchanged and still
 undispatched. The row stays `open`.
+
+## Re-homed to SUITE, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** the shared home for the `fn band()` wrapper across six crates, and the 20
+further copies in `src` `#[cfg(test)]` modules that cannot reach a `tests/`
+helper tree at all.
+
+**Why SUITE.** SUITE is *the test-side rows S-TINT's and S-TCOST's own boards did not carry*
+(`work/suite/program.md`), and its slate is this row's family:
+`genus-rings-helper-spelled-nine-times`,
+`prune-report-rows-are-nine-copies-of-one-assertion`,
+`topo-arena-census-duplicate-spellings`,
+`editor-core-suites-carry-eleven-part-resolver-stubs`. Every site is under
+`crates/*/tests/*` or a `src` test module — S-TINT's and S-TCOST's ground,
+which SUITE is constituted to hold a slate on without a second claim.
+
+**`branch:` and `pr:` were cleared in the move.** PR 2377 is MERGED (the free
+half: 39 wrappers collapsed onto `crates/sweep/tests/common/approx.rs`); the
+row stayed open only for the shared-home decision, and a live-looking branch
+field on a merged unit reads as work in flight. The body's counts are from that
+PR and are accurate as of `8851abb` — re-derive before taking it.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

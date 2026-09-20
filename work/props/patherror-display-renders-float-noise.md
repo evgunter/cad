@@ -84,3 +84,67 @@ rows on this helper:**
   `num-relative-tolerance-collides-above-a-decimetre` rather than
   carried here, because the helper is FIX's ground. A lane widening
   `num` to a second crate should land after it, or carry it.
+
+## Re-homed to PROPS, 2026-09-20
+
+(DOOR orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* — asked of
+FIX and applied to DOOR in the same sitting. **DOOR claims no paths**, so
+unlike FIX it can never be the owning track for any decision: there is no
+row here whose surface this program owns. A row needing a decision
+therefore always leaves. That also retires the charter clause admitting
+*"a small design call (where a shared helper's home goes, what a door
+looks like)"* — DOOR's own rule already said *"a row that grows a design
+question stops being this program's"*, and the two clauses contradicted
+each other.
+
+**The decision this row is blocked on:** where the `num` helper lives once a second crate consumes it —
+`crates/geom-core/src` beside `Real` is the row's own obvious answer — and
+whether the remaining error types get the same treatment.
+
+**Why PROPS.** The helper's candidate home, `crates/geom-core/src/real.rs`, is **owned by
+props**, and the row's remaining half is *`ProfileError` and the other
+crates' error types that carry scalar payloads*. The `profile` half is
+already done and is not PROPS's: all 38 arms across three `Display` impls in
+`crates/profile/src/path.rs` (PATHS's) go through the helper.
+
+**A correction that matters more than the routing, and it is why this note
+is long.** `work/door/plan.md` carried a long *Review posture* section
+prescribing the rounding point this row should adopt — an absolute cap at
+`DEFAULT_EPS / 10` met with a relative arm, the finer grid winning, spelled
+`tol = (DEFAULT_EPS * 0.1).min(x.abs() * RELATIVE)`, with `RELATIVE` left for
+the lane to pick and argue. **That is not an open choice: it is the code in
+the tree.** `crates/profile/src/path.rs`'s `num` reads
+`let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);` today, landed by FIX's
+PR 2399 on 2026-09-12 closing
+`num-relative-tolerance-collides-above-a-decimetre`, together with the
+reasoning now in the helper's own doc comment (why the cap is compile-time
+`DEFAULT_EPS` and never the run's live `Tolerance::eps()`). The plan was
+written the day before that landed and was never re-read against the tree.
+The section is lifted here rather than deleted with the plan, as a RECORD of
+what was decided and where it landed — not as an instruction to a lane.
+
+**So the blocker this row names has fired.** Its body says a lane widening
+`num` to a second crate *"should land after it, or carry it"*, naming the
+relative-tolerance row; that row closed 2026-09-12.
+
+**The trap in the vocabulary, which cost a reader once already.** The plan
+calls `DEFAULT_EPS / 10` *"an absolute floor"* while this row's body says
+*"do not reintroduce an absolute floor at the small end"* — they mean
+opposite things. `min` CAPS the tolerance, making the grid finer at large
+magnitudes; the defect PR 2366 removed was `1e-9 * x.abs().max(1.0)`, which
+FLOORED the tolerance and rendered every sub-nanometre margin as `0`. The
+helper's doc now states this at the site: *"a FLOOR under the tolerance is
+the mirror defect and is precisely what a `min` cannot become"*. Read the
+doc, not either summary.
+
+**What is actually left**, therefore: the home question above, and the sweep
+of the other crates' error `Display` arms. FIX kept the one PATHS-side
+instance of the same class as a written fix
+(`fillet-leg-carrier-renders-raw-float-noise`,
+`crates/profile/src/validate.rs`) — worth reading beside this row, since a
+second consumer of `num` outside `path.rs` is exactly what forces the home
+question this row asks.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for you.

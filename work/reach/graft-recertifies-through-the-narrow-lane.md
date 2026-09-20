@@ -48,3 +48,33 @@ operand that survives to the graft, which was not cheap at the time of
 filing. A unit taking this row should settle reachability FIRST: if
 the class cannot reach the graft, what is owed is the sentence at the
 door and not a new door.
+
+## Re-homed to REACH, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** whether a body of the M7-8 class ever reaches the graft at all (reachability
+was explicitly NOT established when the row was filed), and only then whether
+`graft_solids_with` gets a `_via` door.
+
+**Why REACH.** `crates/topo/src/boolean/combine.rs` is **owned by reach**
+(`crates/topo/src/boolean/*` in its `paths`), and REACH's slate is where the
+boolean pipeline's reachability questions already live.
+
+**The bound cannot simply be raised** and the row says why:
+`graft_solids_with` is `T: geom_core::Decide` under `boolean_op_with`, which
+`verbs::Verb`'s blanket impl instantiates at `Dual64`, and no `Dual` implements
+`CertifiedEnclosure`. Its sibling
+`plain-transform-rigid-still-refuses-the-m7-8-class` moves to SHELL in this
+sweep with the same structural constraint and the same ratified discriminator
+(`crates/geom-core/src/real.rs`, Ev 2026-08-29: *"the discriminator is that
+nothing generic calls this door"*). If either program rules, the other should
+read that ruling before re-deriving it.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

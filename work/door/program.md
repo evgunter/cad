@@ -9,14 +9,18 @@ prefix: door/
 tag: (DOOR orchestrator)
 ab_band: 3800-3899
 paths: []
-keep_out: [this program claims NO paths - every row here sits on a file some other program owns, and each row's fence is drawn in the PR that lands it and announced to that owner, crates/viewer/src/* and crates/viewer/tests/* are CHROME's and VIEW's - the six rows that touch them (run-on-whitespace in pick.rs, the mirror class in forms.rs and pane/properties.rs, grid-pitch in datums.rs, pathverb in forms.rs and sketch.rs) are announced there, and CHROME's sequencing rule has already fired (viewer-session-god-module-split closed 2026-09-04) so they are free rather than blocked - they go early all the same because CHROME's residue is parked on the same files, crates/step-import/* is EXCH's - the two import rows are announced there, crates/geom-brep/src/props/* and offset_fit.rs and crates/geom/src/* are PROPS' - D306 and S114 are announced there, crates/editor-core/ is NOT DOCM's as a whole - measured by PR 2391: DOCM's paths is a specific file list and expr.rs is on nobody's, so an editor-core path is owned or unowned file by file and territory --base origin/main is the only authority - the mirror class's editor-core edits named S-TCOST and S-TINT (every crate's tests) and no owner at all for expr.rs, crates/topo/src/boolean/* is S-BOOL's and CURVED's and crates/profile/src is S-BOOL's - the message-literal row touches one line each and the BooleanOp::ALL publication adds one item to boolean/mod.rs, both announced, the two rows claimed from VIEW on 2026-09-11 (hand-maintained-mirrors-of-a-kernel-enum-are-unforced and dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum) moved directories with Ev's direction and VIEW told, one PR is one row and a lane that finds itself editing a second row's file has left this program's posture - the mirror class is the one ruled exception and plan.md's Order is where it is ruled, FIX is this program's nearest neighbour and the charters read alike - FIX closed three of DOOR's opening rows on the day DOOR opened, so before dispatching any row READ FIX's slate for it, and file nothing on FIX's slate that DOOR could carry (Ev, 2026-09-12: the rows stay in DOOR, FIX is a grab bag of small things)]
+keep_out: [THIS PROGRAM TAKES NO DESIGN DECISIONS — Ev in chat 2026-09-20 asked of FIX and applied here in the same sitting. Because this program claims NO PATHS it can never be the owning track for a decision: there is no row here whose surface it owns. So a row needing one ALWAYS leaves, by `git mv` to the track that owns the surface, with a `## Re-homed` section and a note on that program's log — four rows left this way on 2026-09-20 and the sweep is in `log.md`. This supersedes the charter's old admission of a small design call about where a shared helper's home goes., this program claims NO paths - every row here sits on a file some other program owns, and each row's fence is drawn in the PR that lands it and announced to that owner., ROUTE FROM THE INSTRUMENT: `scripts/work.py territory --base origin/main` is the only authority and this clause is not one - DOCM closed on 2026-09-13 and three rows here still named it as their owner weeks later., crates/editor-core/src/node.rs and crates/editor-core/src/eval/parts.rs are EDIT's - the node-placer field docs, the PartFault arm and the VectorSlot deletion are announced there., crates/editor-core/src/mate/member.rs is MSOLVE's - the datum-axis literal is one word on one line and is announced there., one PR is one row and a lane that finds itself editing a second row's file has left this program's posture - the mirror class was the one ruled exception and it has closed., FIX is this program's nearest neighbour and the charters read alike - so before dispatching any row READ FIX's slate for it, and file nothing there that DOOR could carry. Ev ruled on the overlap on 2026-09-12: the rows stay in DOOR, FIX is a grab bag of small things and DOOR is the more coherent home. That question is SETTLED and is not to be re-raised; what replaces a re-home is the per-row liveness check.]
 ---
 
 One-PR rows whose body already contains the fix: no design question, no
-ruling, no census to build first. Eleven rows, eight of them **E**, and
-the point of gathering them is that they are the cheapest live work on
-the board and were invisible as such while they sat in two directories
-sorted by nothing. FIX (2026-09-03) is the precedent and this is the
-same idea applied to what has accumulated since. This program claims no
-paths: every row is on someone else's ground and announces its fence in
-the PR that lands it. Charter and unit order: `work/door/plan.md`.
+ruling, no census to build first. The test is **reading it tells you the
+diff** — not that the problem is understood, but that a lane can land it
+without deciding anything first. This program claims no paths: every row
+is on someone else's ground and announces its fence in the PR that lands
+it.
+
+**It carries no design decisions** (Ev, in chat, 2026-09-20, asked of FIX
+and applied here). Owning no ground, this program can never rule; a row
+that needs a decision goes to the track that owns the surface, the day
+it is found. Four such rows were re-homed on 2026-09-20. Charter and
+unit order: `work/door/plan.md`.

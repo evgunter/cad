@@ -122,3 +122,37 @@ this row exists partly to stop that reading hardening. `topo` (78
 sites) and `geom-brep` (21) are where the next look belongs;
 `geom-brep/src/enters.rs` was found there, which is why this row has
 two sites and not one.
+
+## Re-homed to CHART, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** where the repair goes. The row carries its own AMENDMENT: a reviewer
+EXECUTED site 1 and the mechanism the row argued is not the one that fires —
+*"a fix at the offset rung would not close this row"*.
+
+**Why CHART.** `crates/topo/src/chart_region.rs` is **owned by chart**. Site 1 is the whole
+of the executed finding: through `proper_crossings`, two collinear overlapping
+segments refuse `TouchingBoundary` at finite scale and return **`Ok(0
+crossings)`** when scaled by 1e199 — a touching boundary silently lost.
+
+**Start from the reviewer's reproduction, not from the argument above it.**
+The row keeps both halves deliberately: the collapsed `rhat = r.normalize()`
+driving `s0 = s1 = 0` is what fires, and the repair belongs where the collapsed
+`rhat` is USED.
+
+**Site 2 travels with it and is not CHART's**:
+`crates/geom-brep/src/enters.rs` is in **no open program's `paths`** (territory
+returns no owner for it). It is a second instance of the shape
+`geom_core::is_finite_length`'s docs call *the declined half of the direction
+family* while citing only one site — so the doc's count is wrong today whatever
+is decided about the half. If CHART would rather not carry an unowned
+geom-brep site, it wants its own file rather than a sentence.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.
