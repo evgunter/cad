@@ -2,7 +2,8 @@
 id: converged-recourse-has-no-home
 kind: issue
 title: the converged 'declare it first' recourse is two literals in two crates, held in step only by a test
-status: review
+status: closed
+closed: 2026-09-20
 pr: 2920
 branch: edit/recourse-one-home
 opened: 2026-09-05
@@ -162,3 +163,17 @@ through its existing direct `editor-core` edge, the ruling `pncad`'s
 crate docs state for a name the façade does not carry. The public-surface
 question belongs to the recourse census accessor LIB wants, which the
 ruling already separates from this row.
+
+## Closed (2026-09-20, EDIT orchestrator) — E-class, merged on green CI and the orchestrator's read
+
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` (`edit.rs`) is the one
+home of "declare it first"; `EditError::DocParamNotDeclared` and the
+viewer's `Refusal::NoSuchParam` both render it, the viewer through a
+direct `editor-core` edge (the ruling `pncad`'s crate docs state for a
+name the façade does not carry — no root re-export, so no LIB census
+moves), and `panel_edits::refusals_render_as_sentences` pins both
+renderings against the const rather than a literal. Rendered text is
+byte-identical on both sides; nothing re-baselined. The name follows
+the tree's `<subject>_RECOURSE` shape. The recourse-census accessor
+LIB wants stays a separate question. PR #2920.
+
