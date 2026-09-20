@@ -1779,3 +1779,96 @@ the move forced, and the mutation that reddened nothing. **Both rounds'
 findings concentrated there.** A style brief that names its two
 suspicious hunks is not a full review and does most of what one would
 have done here.
+
+## 2026-09-20 — the sitting's close: three units merged, and what the fix passes taught
+
+`967741f59` (#2887, cylindrical rim), `3d4ab7595` (#2886, citation
+census), `cb38b6c82` (#2891, private box builders). Slate: **15 closed,
+19 open** — four new rows filed out of the three units, which is this
+program's normal yield and not a sign anything went wrong.
+
+### The finding of the sitting: a fix pass needs a reader as much as a unit does
+
+Every unit here got a style review, and **every fix pass written
+against that review's findings minted fresh defects** — three, two and
+two, plus one more on a fourth pass. The classes:
+
+- **Code and prose duplication**, the ordinary X4: a unified type left
+  twelve constructors duplicated; three private re-spellings of a const
+  the shared home exports, in files the lane had just censused; a
+  fourteen-line operand written twice inside the file being rewritten.
+- **The defect being fixed, committed inside the fix.** Twice. A lane
+  told to remove unguarded counts wrote **twelve** fresh ones, one of
+  them the same sentence byte-identical in five files. A lane told to
+  fix stale modality promoted a bound out of a deleted local helper's
+  scope into a `src` door, where it does not hold.
+- **A rewritten blanket claim, false for more members than the one it
+  was corrected for.** A section comment false for one entry was
+  replaced by one false for all four, including the entry the brief
+  named as the correct precedent.
+- **A claim about a measurement** — the fourth pass's, and the hardest
+  of the four to see. The measurement was real, was run, came back
+  green, and the sentence describing *what it discriminated* was false:
+  a control offered as varying two axes varied neither.
+
+The mechanism is not carelessness. A fix pass is written fast, against
+a list, by someone who has just been told what the defects are — which
+is exactly the state in which the next one is invisible. **Only a
+reader who did not write the fix has ever caught one**, in this program
+or in the two tracks before it, and that now holds for fix passes as
+firmly as for units.
+
+The cost is small: the same reviewer resumes with its context and is
+told to read one diff. Three delta reads this sitting, ≤80 lines each,
+and each found something the lane had not.
+
+### Counts, one hand at a time
+
+A number was low at every hand it passed through, repeatedly, and the
+orchestrator was one of the hands:
+
+- nine → five (row → lane); seven → twelve (reviewer → lane);
+  twenty-two → twenty-three, ~fifteen → twenty-five, ~forty-eight →
+  forty-seven (orchestrator → lane); seven → thirty-four → forty-four
+  (row → lane → lane); eleven → twelve (reviewer → lane).
+- **The instrument defect worth keeping**: a denominator of 18 where
+  the suite has 9, from `grep -c '^fn r1_\|^#\[test\]'` — an
+  alternation that double-counts a row whose test fn is both attributed
+  and named at column 0. Exactly one file in that crate has the shape,
+  so **three of the four figures taken the same way were right, and the
+  wrong one looked sound**. An instrument that fails on one input in
+  four does not look broken; it looks like it works.
+- Method item 15 is therefore not about lanes. It is about every hand a
+  number passes through, and re-taking is the only act that has ever
+  fixed one.
+
+### An orchestrator failure mode, named because it happened twice
+
+**A modality dropped in relay.** A lane wrote that a visibility scar is
+inert *to the `tests/` side*, with the `src` side still blocking the
+fold; the orchestrator's summary said "inert". A lane wrote that two
+constructions of one box feed a certified width identically; the
+orchestrator called it *"the first end-to-end check of the parent
+unit's arena-level claim through a certified predicate"*, which the
+measurement did not support. Both times the lane's text was correctly
+scoped and the restatement was stronger. **The lane writes the careful
+version; the orchestrator writes the quotable one, and the quotable one
+is what travels** — which is this program's own subject (a row that
+measured one thing and summarised it as the opposite) happening one
+level up.
+
+The repair is the same as everywhere else here: quote the row's own
+sentence rather than paraphrasing it, and when a lane scopes a claim
+down, carry the scope.
+
+### Two things the reviewers established that outlive these units
+
+- **A style brief that names its two suspicious hunks does most of what
+  a full review would.** Style tier held on all three units; in each,
+  both rounds' findings concentrated in the hunks the brief named as
+  the places where a green diff tells you least.
+- **Verify the reviewer too.** One delta read reported a wrong count as
+  living in the lane's hand-back rather than in the tree. It was
+  committed, in a row, on line 139. Merging on that summary would have
+  landed a wrong count in the tracker of the program whose subject is
+  counts that do not survive re-taking.
