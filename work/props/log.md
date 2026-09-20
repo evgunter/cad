@@ -1584,3 +1584,36 @@ at the same time. So `props/*` is claimed by this program and by QUAD,
 `geom-core/src/*` by this program and by FRAME, each `keep_out` says
 so in those words, and no glob was contorted to keep the at-rest check
 quiet. The check itself is a separate change, opened as an `[ev]` PR.
+
+**Two units dispatched after the cut (2026-09-20).** With the slate
+down to 37 rows, the two that carry the most:
+
+- **curved-residues** (`props/curved-residues`, M/NUMERIC, dual) — the
+  three the sphere unit measured and declined to serve: the cone apex
+  cap, which is issue 1250's shape on the other singular chart and
+  needs the closure guard the sphere unit's own MAJOR taught (an
+  unguarded fold answers the UNBOUNDED complement with the cap's
+  area); the shape door's sense-free residue, which is RULED as a
+  measurement first — the door gates `mesh`'s walk, so if anything
+  legitimate stops meshing the lane stops and reports rather than
+  widening a meshing gate on a props unit's judgement; and the
+  rim-level rule that throws by feeding NaN into `classify`, with its
+  sibling reading of the unreachable state explicitly left open.
+- **escalation-channel** (`props/escalation-channel`, H/STRUCTURAL,
+  dual) — the hole the k-stats unit's own dual found in the channel it
+  built: eight shipped sites ask the funnel, get a DEFINITE sign, then
+  mint their own `Indeterminate`, so a caller sees an escalation the
+  frame's log does not. The red-first row was written by that dual and
+  is handed over rather than invented. The unit's one design question
+  is whether such an escalation is RECORDED by the minting site or
+  made IMPOSSIBLE, because a channel that needs every future site to
+  remember has the same hole one commit later. The forty-variant
+  deletion sweep follows it and is scoped by what the channel then
+  carries.
+
+Disk note: the machine reached 93% and the sign-hull lane's 6.5 GB
+build cache was freed (its tree kept; it is held on SYM's fold and
+rebuilds when it resumes). A 5.4 GB target directory under
+`/home/evan/cad-lanes/cont-to-target` belongs to no worktree this
+session owns and was last touched 2026-09-17; it was left alone and is
+reported to Ev rather than deleted.
