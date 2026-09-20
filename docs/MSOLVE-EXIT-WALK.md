@@ -1,9 +1,10 @@
 # MSOLVE exit walk — criteria vs evidence
 
-**STATUS: DRAFT (two units in flight — MSOLVE-9 on Ev's word for
-its A11 sentence, MSOLVE-10 in its lane; this walk becomes PROPOSED
-when both merge, and on Ev's sign-off it is MSOLVE's done-state of
-record and the program closes).**
+**STATUS: DRAFT (one unit in flight — MSOLVE-9, dispatched
+2026-09-20 on `msolve/9-from-face` after Ev's word on its A11 sentence
+and spec (#2895); this walk becomes PROPOSED when it merges, and on
+Ev's sign-off it is MSOLVE's done-state of record and the program
+closes).**
 
 MSOLVE = the mate solve's correctness residue (`work/msolve/plan.md`,
 `work/msolve/log.md`; opened 2026-09-04 on Ev's steer as S-MATE's
@@ -37,10 +38,10 @@ then a fix pass; every unit merged on its own green hosted head.
 | 7 | slate: "the program closes when the lever … [is] in" (`mate-lever-needs-the-parts-extent`, `reconcile-solves-with-no-resolver`) | MET | **#2116** (MSOLVE-6, Ev's B on #2086 and (a) on #2118): `L = (R_a + ‖a‖) + (R_b + ‖b‖) + Σ|lengths|`, every term an upper bound, no floor; `MateReach` keyed by the part; `apply` takes the reach, the log records the maintenance, replay never solves; recorded rows held to the `SetPlacement` predicate at load. |
 | 8 | slate: "the member residue (with the wire hole)" | MET | **#2885** (MSOLVE-7): one nominal environment per solve handed in by the evaluator; the axis operand's refusals seated where the evaluation seats them through one classifier; the flat index closed by citation (ruled: the walk keeps the flat `Part`); `deny_unknown_fields` on `MatePrimitive`. |
 | 9 | slate: "the margins' arm (with the witness and the `MateFault` note)" | MET | **#2896** (MSOLVE-8): `Lever { Roll, Residual }` and the closed `Clash`; `Subgroup` directions as `UnitVec3` with `parallel` deciding once and returning its witness; `MateFrame::frame` over geom-core's `point_at_frame` (the fence widened by that one door, announced on SCALAR's tracker); the `MateFault` consumer sentence, no `subject()`. Honesty: the lane argued past the spec's stop clause and was reversed by ruling; the boundary pairs escalate under the one predicate, as measured. |
-| 10 | slate: "the face-resolved frame" (`mate-frames-resolve-from-a-face-at-evaluation`, Ev's (F) on #2256) | IN FLIGHT | `docs/MSOLVE-9-SPEC.md` and A11 rule 5's inputs sentence on **#2895** (`[ev]`), waiting on Ev; the unit dispatches after that merge. |
-| 11 | slate: "the static clocking refusal" (`mate-clocking-has-no-gui-path`, half 1) | IN FLIGHT | `docs/MSOLVE-10-SPEC.md` (measured: the rider is decided, not static — the door asks the solve's own per-mate admission through the reach it holds); lane on `msolve/10-door-admission`. Half (2) recorded, not built (a coaxial mate with a rider is the spelling; the convention is MSOLVE-9's; the affordance CHROME's). |
+| 10 | slate: "the face-resolved frame" (`mate-frames-resolve-from-a-face-at-evaluation`, Ev's (F) on #2256) | IN FLIGHT | `docs/MSOLVE-9-SPEC.md` and A11 rule 5's inputs sentence ratified on **#2895** (`[ev]`, Ev's word 2026-09-20, merged at `5530c0633`); the lane dispatched from main after MSOLVE-10, since both rewrite `mate/solve.rs`. |
+| 11 | slate: "the static clocking refusal" (`mate-clocking-has-no-gui-path`, half 1) | MET | **#2913** (MSOLVE-10): the insert door asks the solve's own per-mate admission (`admit_mate` — walks, one `check_references` shared with the solve's first loop, `admit_class`, `mate_coset`) and refuses `EditError::MateRefused` carrying the solve's fault unaltered; the table's static gaps have one home (`mate::table_gap`, read by the table and the viewer's tool); replay re-decides the datum and declines the rider (`Maintain::reach` states the two replay rules). Honesty: measured, the rider on a coincidence is DECIDED over the mate's lever, not static, so the door asks the reach it holds; the reviews retired the spec's "never enters the document" — the doors decide edits and the solve decides states (A11 rule 1, an elaboration), a state a mate comes to hold after insert and a loaded snapshot stay the solve's, and a mate on a pair the fold never reads is refused on the datum alone (pinned). The correctness arm's probes were run by the orchestrator after the arm hung: door equals solve to the bit. Half (2) recorded, not built (a coaxial mate with a rider is the spelling; the convention is MSOLVE-9's; the affordance CHROME's). |
 | 12 | process: "one style review per unit, plus a correctness arm where a unit moves a kernel answer" (`plan.md` §Review posture) | MET | Every kernel unit: two reviews on a frozen head, adjudicated against `docs/prompts/implementer-discipline.md` and `reviewer-style-lane.md`, a numbered fix pass, then merge; the adjudications are `log.md` entries. |
-| 13 | process: every unit merged on its own green hosted head | MET | Eight merges, each with the run's conclusion read before the merge call carried the full head SHA; runs cancelled by a follow-up push were verified cancelled, never read as red. |
+| 13 | process: every unit merged on its own green hosted head | MET | Nine unit merges (and one `[ev]` merge on Ev's word), each with the run's conclusion read before the merge call carried the full head SHA; runs cancelled by a follow-up push were verified cancelled, never read as red. |
 
 ## Walk evidence beyond the criteria
 
