@@ -94,9 +94,11 @@ posture under §Process.
    is **merged** (PR #2804, middle tier, wave 8; crossed WIRE's
    `eval::content_key` and `ProfileValue` by announcement); its residue
    `fused-arc-fillet-steps-have-no-per-segment-radius-address` is
-   ruled and **spec'd** as a kernel unit (`docs/EDIT-RADIUS-SPEC.md`,
-   v6 dual, block EDIT-B2 slot 1, wave 14: the replay record says
-   which segment each radius drew and DM8's map reads it).
+   **merged** (PR #2892, kernel unit, v6 dual, block EDIT-B2 slot 1,
+   wave 14, sample #223: the replay record says which segment each
+   radius drew and DM8's map reads it; both reviewers
+   APPROVE-WITH-FIXES with no MAJOR; the exact-fit close's unguarded
+   fillet arc, found by both, closed with it).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
