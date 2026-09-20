@@ -137,6 +137,8 @@ mod sym_drive_memo;
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_rows.rs"]
 mod sym_rule_f_rows;
+#[path = "sym8_r1_probes.rs"]
+mod sym8_r1_probes;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 

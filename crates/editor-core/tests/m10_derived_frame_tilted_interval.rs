@@ -534,6 +534,25 @@ enum Base {
     /// Genuinely NON-unit authored axes: `u = (2,0,0)`, `v = (0,2,t)`.
     /// The datum door normalises them; reached, and no false `Zero`.
     NonUnit,
+    /// **R1 review probe (SYM-8).** BOTH axes tilt out of plane:
+    /// `u = (1,0,t)`, `v = (0,1,t)`. The face normal is
+    /// `(-t, -t, 1)/sqrt(1 + 2t²)`, so `n.z` is an `Inv` of a `sqrt`
+    /// atom as in the tilt-`u` document but over a different `P`, and
+    /// `n.x`, `n.y` carry the parameter too.
+    TiltUV,
+    /// **R1 review probe (SYM-8).** The tilt-`u` frame with `v`
+    /// FLIPPED: `u = (1,0,t)`, `v = (0,-1,0)`, so the face normal is
+    /// `(t, 0, -1)/sqrt(1 + t²)` and `n.z` is NEGATIVE — a `-1` over a
+    /// `sqrt` atom. Rule F's predicate must DECLINE it (a negative
+    /// coefficient on the only term), and the frame must come out the
+    /// same at both dials.
+    FlipZ,
+    /// **R1 review probe (SYM-8).** `u = (1,0,0)`, `v = (0,t,1)`: the
+    /// face normal is `(0,-1,t)/sqrt(1 + t²)`, so `n.z` is a BARE
+    /// PARAMETER over a `sqrt` atom and its enclosure STRADDLES zero at
+    /// a wide box. This is the case `Interval::copysign` must answer
+    /// `[-1, 1]` on; rule F must decline it.
+    TiltNZ,
 }
 
 fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
@@ -557,6 +576,18 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::NonUnit => (
             [scl(2.0), scl(0.0), scl(0.0)],
             [scl(0.0), scl(2.0), t.clone()],
+        ),
+        Base::TiltUV => (
+            [scl(1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(1.0), t.clone()],
+        ),
+        Base::FlipZ => (
+            [scl(1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(-1.0), scl(0.0)],
+        ),
+        Base::TiltNZ => (
+            [scl(1.0), scl(0.0), scl(0.0)],
+            [scl(0.0), t.clone(), scl(1.0)],
         ),
     };
     r.insert(Node::Datum(Datum::Frame {
@@ -903,4 +934,71 @@ fn sym8_phase1_the_tilt_u_ladder() {
             }
         }
     }
+}
+
+/// **R1's SYM-8 review probe — three documents the unit did not
+/// measure**, driven through the public doors at `Sym<Interval>` with
+/// rule F on and off, under BOTH lifts.
+///
+/// - `TiltUV` — a tilt about `u` AND `v`. `n.z = 1/sqrt(1 + 2t²)`: the
+///   shape rule F is for, on a document whose `n.x` and `n.y` also
+///   carry the parameter, so the products above the fold are bigger
+///   than the tilt-`u` document's.
+/// - `FlipZ` — the same tilt with `v` flipped, so `n.z` is NEGATIVE.
+///   `manifest::positive` must decline (`-1` is a negative
+///   coefficient); the document must read the same at both dials.
+/// - `TiltNZ` — `n.z` a bare parameter over a `sqrt` atom, whose
+///   ENCLOSURE straddles zero at the wide box. `Interval::copysign`
+///   answers `[-1, 1]` there; the predicate must decline.
+///
+/// The row asserts the one thing that must hold everywhere: rule F
+/// never refuses what the dial-off tier certifies. Everything else it
+/// prints.
+#[test]
+#[ignore = "evidence-only: R1's SYM-8 review probe on three unmeasured tilt documents"]
+fn r1_sym8_three_documents_the_unit_did_not_measure() {
+    let mut lost: Vec<String> = Vec::new();
+    for (name, base, half) in [
+        ("tiltUV", Base::TiltUV, 1.0e-3),
+        ("flipZ", Base::FlipZ, 1.0e-3),
+        ("tiltNZ narrow", Base::TiltNZ, 1.0e-3),
+        ("tiltNZ wide", Base::TiltNZ, 5.0e-1),
+    ] {
+        for place in [Place::Authored, Place::Derived(1)] {
+            let doc = r2_document(half, base, place);
+            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+                let p = plain(&doc, lift);
+                println!(
+                    "{name} {place:?} {lift:?} plain: {} {}",
+                    p.len(),
+                    head(p.first().map_or("", String::as_str), 160)
+                );
+                let mut answers: Vec<(&str, usize, geom_core::SymCounts)> = Vec::new();
+                for (label, rules) in [
+                    ("F-off", SymRules::without_rule_f()),
+                    ("F-on", SymRules::shipped()),
+                ] {
+                    let t = std::time::Instant::now();
+                    let (f, c) = sym(&doc, lift, rules, budget());
+                    println!(
+                        "{name} {place:?} {lift:?} {label}: sym0 {} reg {} gated {} num {} frozen {} in {:.1}s\n  fails {} {}",
+                        c.symbolic_zero,
+                        c.registered,
+                        c.sign_gated,
+                        c.numeric,
+                        c.frozen,
+                        t.elapsed().as_secs_f64(),
+                        f.len(),
+                        head(f.first().map_or("", String::as_str), 200)
+                    );
+                    answers.push((label, f.len(), c));
+                }
+                let (off, on) = (answers[0], answers[1]);
+                if off.1 == 0 && on.1 > 0 {
+                    lost.push(format!("{name} {place:?} {lift:?}"));
+                }
+            }
+        }
+    }
+    assert!(lost.is_empty(), "rule F refused what the dial off certifies: {lost:?}");
 }
