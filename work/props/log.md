@@ -1617,3 +1617,27 @@ rebuilds when it resumes). A 5.4 GB target directory under
 `/home/evan/cad-lanes/cont-to-target` belongs to no worktree this
 session owns and was last touched 2026-09-17; it was left alone and is
 reported to Ev rather than deleted.
+
+**Sign-hull prepared for SYM's return (2026-09-20).** Ev unpaused SYM.
+Our side was not ready: `props/sign-hull` had drifted **2032 commits**
+behind main and the PR was `dirty`, which matters more than it sounds
+— a conflicting PR gets no CI run at all and none retroactively, so
+the branch had been invisible to CI since 2026-09-16. A merge-forward
+lane is running now so that when the fold lands the only new variable
+is the fold, rather than a two-thousand-commit merge underneath it.
+
+Its success condition is stated precisely rather than as "green":
+exactly three rows red — SYM's tilted-derived-boss acceptance row, the
+refusal-is-not-a-freeze row, and the walk-ledger golden — and any
+fourth red is a finding to report rather than re-bless. Among the
+conflicts is a directory rename (`work/blend/` became `work/carve/` at
+BLEND's cut), so every row this unit filed is re-checked against
+`territory` and moved to whoever owns that ground now — three of those
+owners did not exist when the unit filed them, PROPS having cut QUAD,
+ENCL and FRAME out of itself in the meantime.
+
+The original lane could not be resumed: it ran in the cloud session and
+its transcript did not survive the machine move, so the merge went to a
+fresh lane with the context written out. Worth noting for the next
+handoff — a held unit's lane is not durable across a session move, only
+its branch and its record are.
