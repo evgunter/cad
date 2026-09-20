@@ -9,8 +9,10 @@
 //! rows call directly, because framing is not what they check — the
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
-//! What carries no oracle is shared: `common::xy_frame` and
-//! `common::gallery_ring_at`.
+//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
+//! and the cursor positions aimed at them stay here, where the aim is
+//! written.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
@@ -36,9 +38,9 @@ test_utils::gated_to![
 ];
 
 use crate::common;
-use crate::common::xy_frame;
+use crate::common::{inserted, len, scl, xy_frame};
 
-use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
@@ -56,50 +58,12 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(1.5e-4).expect("a positive delta")
 }
 
-/// A square profile at an offset — this suite's own authoring helper,
-/// so the fixtures do not share the unit's.
-fn offset_square(plane: RecipeNodeId, x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([
-                (x0, y0),
-                (x0 + side, y0),
-                (x0 + side, y0 + side),
-                (x0, y0 + side),
-            ])
-            .expect("finite corners"),
-        ],
-    })
-}
-
-/// Insert one node, keeping the id.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = pncad::document::apply(
-        doc,
-        &pncad::document::DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the fixture edit applies");
-    let id = *applied
-        .doc
-        .order()
-        .last()
-        .expect("the inserted node is last");
-    (applied.doc, id)
-}
-
 /// Two DISJOINT extruded blocks under two separate roots: block A is
 /// `[0,0.02]² × 0.01`, block B is `[0.1,0.14]×[0,0.04] × 0.02`.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, pa) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.02), tol);
+    let (doc, pa) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.02, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
@@ -108,7 +72,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, offset_square(plane, 0.1, 0.0, 0.04), tol);
+    let (doc, pb) = inserted(&doc, common::rectangle(plane, [0.1, 0.0], 0.04, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
@@ -118,16 +82,6 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         tol,
     );
     (doc, a, b)
-}
-
-fn len(metres: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(metres, pncad::document::Dimension::Length)
-        .expect("a finite length")
-}
-
-fn scl(value: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(value, pncad::document::Dimension::Scalar)
-        .expect("a finite scalar")
 }
 
 /// A landed session plus its pick index.
@@ -476,7 +430,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.03), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
