@@ -128,7 +128,7 @@ which is `SolidFaces::of`'s own `NoSuchSolid` row, plus the door's own.
 
 | planted in `Body::faces_of_solid` | topo lib | topo integration |
 | --- | --- | --- |
-| the solid filter deleted | **10 red** — and they are exactly the five folded sites plus the door's own row and a `SolidFaces::of` consumer in `census.rs` | **25 red** |
+| the solid filter deleted | **10 red** — eight of them rows at the five folded sites (`props` ×1, `solid_contain::per_solid_entry_tests` ×2, `offset_together::scope_walks` ×3, `shell10_r2_probes` ×2), plus the door's own row and a `SolidFaces::of` consumer in `census.rs`. **Every folded site reds.** | **25 red** |
 | the `get_solid` guard deleted | 1 red (the door's own row) | 1 red (`bool4_material_containment`) |
 | arena order replaced by shell-walk order, reversed | 3 red (`faces_in_scope` sequence equality ×2, the door's own row) | 0 red |
 
