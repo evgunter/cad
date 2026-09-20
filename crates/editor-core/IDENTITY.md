@@ -80,8 +80,9 @@ lives rather than restated at the holder.
   per-frame question and stays so.
 
 *Record: the rule is ratified; the build is VIEW's and is not in the
-tree — `layer3-recipenodeid-aliases-across-rewinds`, parked behind
-`next-id-has-no-layer3-door`, and no holder checks descent today.
+tree — `layer3-recipenodeid-aliases-across-rewinds`, open since
+`Doc::has_minted` gave the walk its reading, and no holder checks
+descent today.
 History in `docs/DOC-LEDGER.md`.*
 
 ## DI2 — The memo is a pure function of the document; the store is the session's

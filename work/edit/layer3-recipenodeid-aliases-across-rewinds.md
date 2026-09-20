@@ -2,11 +2,10 @@
 id: layer3-recipenodeid-aliases-across-rewinds
 kind: issue
 title: Layer-3 state holding RecipeNodeIds aliases across history rewinds (id reuse)
-status: parked
+status: open
 opened: 2026-08-31
 github: 1384
 refs: [1375]
-blocked_on: [next-id-has-no-layer3-door]
 ---
 
 ## From GitHub issue 1384
