@@ -106,6 +106,28 @@ fn add_seat(
     )
 }
 
+/// **The offender the cluster rows break a cluster with**: a planar
+/// rest alone on `post`, which leaves its pair free to slide and spin,
+/// so the solve refuses UNDER naming that one mate. A verdict about
+/// the PAIR, which the edit door admits — a mate the coset table
+/// refuses on its own datum is refused at the insert, so no row here
+/// can build a refused cluster out of one through the session.
+fn add_rest(
+    session: &mut DocSession,
+    bench: &common::asm::Bench,
+    post: RecipeNodeId,
+) -> RecipeNodeId {
+    common::insert(
+        session,
+        SessionOp::AddMate {
+            a: common::head(common::asm::in_part(post, &bench.post_top)),
+            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            class: ContactClass::Rest,
+            alignment: common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        },
+    )
+}
+
 fn delete(session: &mut DocSession, node: RecipeNodeId) {
     let outcome = session.perform(SessionOp::DeleteNode { node });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -150,13 +172,7 @@ fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
     let (_, first) = check(&session, tol, "sound alone");
     assert_eq!(mate_row_role(&first, sound), MateRole::Determining);
 
-    let offender = add_seat(
-        &mut session,
-        &bench,
-        bench.post_b,
-        common::asm::SHELF_LENGTH / 4.0,
-        Some(0.3),
-    );
+    let offender = add_rest(&mut session, &bench, bench.post_b);
     session.pump();
     let (doc, second) = check(&session, tol, "after the offender");
     let carried = mate_row_fault(&second, sound);
@@ -245,14 +261,9 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     }
 
     // A second, different fault on `held` without repairing the first:
-    // the cluster now also refuses through post_b's clocking rider.
-    let offender = add_seat(
-        &mut session,
-        &bench,
-        bench.post_b,
-        common::asm::SHELF_LENGTH / 4.0,
-        Some(0.3),
-    );
+    // the cluster now also refuses through post_b's under-determined
+    // rest.
+    let offender = add_rest(&mut session, &bench, bench.post_b);
     session.pump();
     let (_, ev) = check(&session, tol, "contradiction + offender");
     // Faulted under both at once; which fault wins is the solve's
@@ -266,9 +277,9 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     session.pump();
     let (_, ev) = check(&session, tol, "offender only");
     let f3 = mate_row_fault(&ev, held);
-    // The offender's fault is itself a self-contradiction (held == added
-    // == offender, "mate_clocking_redundant"); what must not survive is
-    // the PAIR contradiction naming held and added.
+    // The offender's fault is the cluster's UNDER, naming the offender
+    // alone; what must not survive is the PAIR contradiction naming
+    // held and added.
     assert!(
         !matches!(f3, MateFault::Contradictory { held: h, added: a, .. } if h == held && a == added),
         "stale pair contradiction carried: {f3:?}"
