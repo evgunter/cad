@@ -13,24 +13,11 @@
 
 use crate::common;
 use common::*;
-use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, extrude};
+use geom_core::Tol;
 use topo::{BooleanDeclarations, BooleanOp, boolean_op_with};
 
 fn slab(y0: f64) -> topo::Body<f64> {
-    let lp = ProfileLoop::new(
-        [(-2.0, -2.0), (2.0, -2.0), (2.0, y0), (-2.0, y0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let p = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&p, Extrusion::Distance(2.0), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness())
 }
 
 #[test]

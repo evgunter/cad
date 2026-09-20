@@ -7,8 +7,11 @@
 //! restarts the same compile. An example links the crate and one file,
 //! which does fit.
 //!
-//! It prints; it asserts nothing. This is EVIDENCE for a review, not a
-//! gate (`memories/review-and-dependency-policy`'s promotion rule).
+//! It prints; it asserts nothing, so it cannot gate
+//! (`memories/test-suite-cost.md`). It is evidence for a review, and
+//! nothing about having been written by one makes it special
+//! afterwards: it is trimmed or retired under the same rules as any
+//! other row (`memories/review-and-dependency-policy.md`).
 //!
 //! ARM A is this head as it stands: `blend`'s support strut reaches
 //! rest through the scaffolding door.
@@ -31,8 +34,16 @@ use sweep::blend::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
 
-/// A unit cube through the real profile → extrude path (the die blank's
-/// shape; `test_support::cube` is feature-gated and not nameable here).
+/// The die blank: a cube of side `l`, through the real profile →
+/// extrude path.
+///
+/// **Built here rather than taken from `sweep::test_support::cube`**,
+/// and not because that door is out of reach — the self
+/// dev-dependency turns `test-support` on for this crate's example
+/// targets too, and it compiles. This binary is frozen reviewer
+/// evidence: it prints and asserts nothing, so re-authoring its blank
+/// would silently stop it reproducing the numbers it was cited for,
+/// and nothing here could tell anyone.
 fn cube(l: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),

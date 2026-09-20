@@ -7,10 +7,14 @@
 //! run outstanding so the landed (doc, eval) PAIR can be observed while
 //! the shown document is ahead of it.
 //!
-//! Fixtures are authored here on purpose — `tests/common` is derived
-//! from `viewer::scene`'s own constants, and a review suite that read
-//! them would be checking the implementation against itself
-//! (`memories/review-and-dependency-policy.md`).
+//! **Why the documents are authored here** — a reason in these rows,
+//! not in their authorship (`memories/review-and-dependency-policy.md`):
+//! every oracle is a world position or a pick, derived by hand from
+//! the fixture's own dimensions. `Camera::framing` is called directly
+//! below, because the camera is the instrument here and not the
+//! subject; a fixture read from the same constants as the expectation
+//! would track it silently. What carries no oracle is shared:
+//! `common::xy_frame` and `common::gallery_ring_at`.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
@@ -21,9 +25,18 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/bvh/src/",
+    "crates/viewer/tests/common/",
+    "crates/viewer/tests/gallery_ring.pncad"
+];
 
 use std::sync::{Arc, Mutex};
+
+use crate::common;
+use crate::common::xy_frame;
 
 use pncad::document::{
     Dimension, Doc, DocEdit, Evaluation, Expr, LoopProgram, Node, PatternKind, ProfileProgram,
@@ -76,22 +89,6 @@ fn insert(
 }
 
 /// A rectangle profile in the XY plane, `w` by `h`, at the origin.
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
 fn rectangle(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
         plane,
@@ -1372,30 +1369,6 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
 // 8b. End to end on a GALLERY document, through the shipped doors
 // -------------------------------------------------------------------
 
-/// The committed gallery ring, `doc_io`'s fixture. Re-stamped with this
-/// run's ε below for the same reason that suite states: a saved
-/// document records the ε it was decided at, and the matrix sweeps ε.
-const GALLERY_RING: &str = include_str!("gallery_ring.pncad");
-
-/// The fixture's text with this process's ε line, taken from the
-/// serializer rather than spelled here.
-fn gallery_at(t: Tol) -> String {
-    let probe: Doc<ProfileProgram> = Doc::empty_derived("r2-gui2-eps-probe", t);
-    let probe_text = pncad::document::save(&probe, &[], t).expect("an empty document saves");
-    let is_eps = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_eps(line))
-        .expect("a saved document records its ε");
-    let mut text: String = GALLERY_RING
-        .lines()
-        .map(|line| if is_eps(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    text
-}
-
 /// **The e2e walk this review owed**, on a real gallery document rather
 /// than a fixture written for the occasion: open it through
 /// `SessionOp::Open`, frame a camera on what it draws, cast a cursor ray
@@ -1419,7 +1392,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     ));
     std::fs::create_dir_all(&dir).expect("a scratch directory");
     let file = dir.join("ring.pncad");
-    std::fs::write(&file, gallery_at(t)).expect("the fixture is writable");
+    std::fs::write(&file, common::gallery_ring_at(t)).expect("the fixture is writable");
 
     // 1. Open, through the session's own door.
     let mut session = DocSession::inline(Doc::empty_derived("r2-gui2-e2e", t), t);
