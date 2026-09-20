@@ -79,7 +79,7 @@ following one lands somewhere plausible and wrong rather than on a
 404. That is the expensive kind.
 
 The repair is one mechanical pass (each id has exactly one home), but
-it touches five crates on five programs' ground, so it is a VDOC unit
+it touches four crates on five programs' ground, so it is a VDOC unit
 with announced crossings rather than a drive-by. **And the standing
 half is the more valuable one**: nothing stops the next `git mv`
 repeating this, and `work/guard/` is where a gate asserting *"every

@@ -220,3 +220,66 @@ row naming the site.
 
 **Slate after this sitting: twelve rows**, four of them wave-1 lanes in
 flight.
+
+## 2026-09-19 — the census adjudicated, and what it cost to get right
+
+`a-disabled-control-says-why-in-four-shapes` ran as this program's
+first unit under the tier its posture names: a **style review and a
+correctness arm**, two independent lanes on the frozen head
+`0dbbc95f8`, neither with access to the other's report, and a fix pass
+against the orchestrator-adjudicated UNION. No dual, no ordinal, no row
+in `docs/MODEL-AB-LOG.md`.
+
+**The correctness arm earned its dispatch.** It returned a MAJOR that
+the style lane reached from a different direction and neither could have
+been talked out of: the population was not re-derivable. It also
+verified, rather than assumed, two things the item asserted — that the
+`refuse.rs` doc comments say what the item quotes, and that no keyboard
+or AccessKit route pushes `Undo`/`Redo`, so the buttons really are the
+only hand.
+
+**The two findings worth keeping:**
+
+- **The rule as first written is a dichotomy and the tree has three
+  cases.** `pane/create.rs`'s bore-against-radius arm forms a valid
+  `SessionOp::AddProfile` — its own literal says *"a larger bore would
+  swap the roles rather than refuse"* — so the chrome declines
+  something the door would ACCEPT. That is a chrome-policy gate, and it
+  owes a true sentence and a disclosure that it is a policy rather than
+  a refusal it cannot read. The census found a case its own rule did
+  not cover, which is worth more than the count it got wrong.
+- **Enumerating the judgement pass produced hits nobody had.** Three
+  spellings of *a parameter is not declared*, across two panes and
+  `Refusal::NoSuchParam`.
+
+**Two corrections to the orchestrator's own adjudication**, recorded
+because this program's register says the orchestrator's misses are the
+ones that propagate:
+
+1. I ruled that *"the six classification buckets are all P1 sites"* and
+   offered it as the sharpest form of the MAJOR. **It is false.** Three
+   buckets already held judgement-pass members. The ruling survived —
+   the population was not reconstructible and the buckets did not sum —
+   but the diagnosis was wrong, and the evidence was on screen when I
+   wrote it: the draft-gate bucket cites `pane/create.rs:52`, which is
+   one of them. The fix pass caught it and said so.
+2. The class row filed out of S17 said the repair *"touches five
+   crates"*; its own table lists four. Corrected here. Re-deriving its
+   headline independently: **36 citation sites under `crates/`, 26 of
+   them naming a `work/view/` row that the re-scope moved** — that
+   figure holds exactly, which is why the crate count mattered enough
+   to fix rather than shrug at. A row whose thesis is that citations rot
+   cannot carry a count its own receipt contradicts.
+
+**Filed out of this unit: six rows** — three on this slate's
+neighbours (`work/edit/`, `work/vseam/`, `work/guard/`), two here, one
+on VDOC. The VDOC clause request was rewritten mid-fix from *state this
+for the first time* to *generalise what is already stated*, after
+`crates/viewer/README.md` turned out to carry the rule for two families
+and to name the test that holds it.
+
+**Tier note for the next unit.** The correctness arm cost one extra
+lane and returned a MAJOR, two upheld MINORs and a rule change. On this
+program's posture that is the trigger working as written: a census's
+failure mode is a population that looks complete and is not, which is a
+confident wrong answer and not a refusal.
