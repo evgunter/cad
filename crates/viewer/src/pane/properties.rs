@@ -375,11 +375,28 @@ impl ViewerBehavior<'_> {
     }
 
     /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a non-instance node —
-    /// the section is about per-instance display state, which other
-    /// nodes do not have.
+    /// the free-move probe. Draws nothing for a node the document does
+    /// not admit display state on — the section is about per-instance
+    /// display state, which neither another kind of node nor an id the
+    /// document no longer holds has.
+    ///
+    /// **Silence is the whole answer for both refusals, and for the
+    /// absent id it is half of a rule rather than a discard.** A
+    /// selection outlives the thing it names ([`Standing`]: *a vanished
+    /// reference is a STATE, not an event*), so this door really is
+    /// reached with an id the document no longer holds — and in that
+    /// frame [`Self::standing_ui`] has already drawn the vanished
+    /// verdict, from the same `doc().node(..)` lookup, directly above
+    /// this section. The rule's other clause is that *the affordances
+    /// that need a live entity switch off*, which is this. Saying it
+    /// again here would be one fact spelled twice in one pane, which is
+    /// what the parameter half of this panel already does and is not a
+    /// pattern to copy.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        if !crate::display::is_instance(self.session.doc(), node) {
+        // The fault is discarded HERE, at the party that decides the
+        // two refusals are one answer, rather than by a door that
+        // answered a `bool` and could not have offered anything else.
+        if crate::display::instance_check(self.session.doc(), node).is_err() {
             return;
         }
         ui.separator();

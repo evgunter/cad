@@ -1,0 +1,47 @@
+---
+id: op-rs-calls-the-panels-admission-test-its-own-copy
+kind: issue
+title: session/op.rs calls the Properties pane's admission test its own copy, and it is the shared door
+status: open
+opened: 2026-09-20
+---
+
+
+Filed by the `is-instance-collapses-absent-and-wrong-kind` lane (VNEWS,
+PR #2916), which changed the door the sentence is about. `session/op.rs`
+is VSEAM's, so it is filed rather than fixed.
+
+## The sentence
+
+`crates/viewer/src/session/op.rs`, in `SessionOp`'s free-move safety
+argument — the middle bullet of *"They meet in three places"* (`:738`
+at this lane's merge base):
+
+> the view the scene draws (`DocSession::display_view`) resolves
+> against the PREVIEWED one, and so does **the Properties pane's own
+> copy of the admission test**, which decides whether to DRAW the
+> control the operation then decides whether to ACCEPT
+
+**The pane holds no copy.** `PropertiesPane::instance_ui` calls
+`display::instance_check`, which is the same function `drawn_targets`
+runs, so the panel's test and the operation's test are one
+implementation. It was already loose before #2916 — the call was
+`display::is_instance`, also a function in `display.rs` rather than a
+hand-written test — and #2916 makes it pointedly wrong by giving the
+panel and `drawn_targets` literally the same call.
+
+**The bullet's real claim survives and should be kept.** What it is
+about is WHICH DOCUMENT each of the three asks: the operation admits
+against the committed document, the pane and the scene against the
+previewed one. That is still true — `DocSession::doc()` returns the
+scratch document when there is one and `instance_ui` reads `doc()`.
+Only *"own copy"* is false, and the repair is a word.
+
+## Why the VNEWS lane did not just fix it
+
+The same phrase in `display.rs` WAS that lane's — its diff invalidated
+it, so it landed with the change that caused it. This one is one file
+over, in another program's territory, and was already false at that
+lane's merge base, which is the line the VNEWS orchestrator ruled:
+prose your own diff falsifies is yours; prose that was already wrong is
+filed across the fence.

@@ -129,3 +129,31 @@ argument is that an undisclosed blind spot is an unverified claim:
 open for the fall-through spelling**, which nobody has looked for.
 Blind spot 3 (the rule generalises past `Refusal` to the other 21
 typed fault enums in the crate) is untouched and is the large one.
+
+## Blind spot 3's sibling, found by the `is_instance` lane (2026-09-20)
+
+`is-instance-collapses-absent-and-wrong-kind` (VNEWS) names this file
+in its `refs:`, and its sweep ran the class *a door that answers a
+question with more than two answers by discarding all but one bit*
+over every `fn … -> bool` under `crates/viewer/src`. That pattern has
+the same shape of hole blind spot 3 records, one level over: **it keys
+on the type `bool`, and the class is about discarded ANSWERS.** Two
+members it could not match, both verified at the site:
+
+- **`tree::downstream_of_mate(id, error) -> Option<RowStatus>`**
+  (`crates/viewer/src/tree.rs`, the `fn` at `:380`). Its `None` stands
+  over three documented and quite different causes: the error is not a
+  mate fault at all (`let … else`), the row's own id is among the
+  blamed mates (so it is the cause rather than downstream of one), and
+  the fault names no mate (`blamed.into_iter().next()?`). A caller
+  cannot tell "not a mate problem" from "you ARE the problem".
+- **`drafts.rs`'s `let _refused = self.profile_edit(doc, node).is_err();`**
+  (`crates/viewer/src/drafts.rs:559`). A typed `Result` is reduced to a
+  bool and then the bool is discarded too, on a comment's promise that
+  *"a refusal drops the draft (`profile_edit`'s contract) and is said
+  by the pane when it next draws."* Whether the pane does say it is
+  exactly what the binding stops anyone from checking here.
+
+Neither is claimed as a defect; both are the record that the pattern
+could not see them. `tree.rs` is VNEWS's and `drafts.rs` is CHROME's
+and VIEW's, so neither is this file's to fix.
