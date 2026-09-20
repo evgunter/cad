@@ -773,3 +773,44 @@ the mechanism's stated classes; `focus-marking` and `layer3` are
 VIEW's work; `a-committed-profile-program` is on `[ev]` #2904. No
 lane is live.
 
+## 2026-09-20 — thirteenth sitting: wave 16 merged, Ev ruled (B) on the whole-program edit, wave 17 built and in the dual
+
+Wave 16 (`converged-recourse-has-no-home`, E-class, #2920) merged:
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` is the one home of
+"declare it first"; both renderings go through it (the viewer by a
+direct `editor-core` edge, the ruling `pncad`'s crate docs state for a
+name the façade does not carry), the tripwire test is the pin, nine
+code copies swept, rendered text byte-identical on both sides. Two
+deviations, both taken: `story_parametric`'s narrative comment names
+the const; no root re-export and no façade carry (out of LIB's
+censuses by construction).
+
+Ev: `[ev]` #2904 ruled (B) — "(B) makes sense!". Wave 17 cut (#2921):
+`docs/EDIT-PROGRAM-SPEC.md`, kernel unit, v6 dual, block EDIT-B2
+slot 2 (FABLE); V2 and DM7 re-worded on the ruling inside the unit.
+Built on `edit/program-edit` (#2927, frozen head `1a3359122`, 41
+files): `DocEdit::SetProgram { node, loops, provenance }`, the
+provenance's shape refused first as one `ProvenanceMalformed` arm over
+a seven-arm fault enum, the insert door's own checks, a segment map
+read off both replay records (kept = continued and equal span length),
+the walk over every name carrier filtered by the minting node's
+anchoring profile, `Maintenance::Rebound`, persisted, `reshaped_rod`
+the corpus's first `SetProgram`, `DocEdit.set_program` in Python.
+Two of the spec's premises fell to measurement before the build —
+premise 3's vertex convention (a vertex is carried by the segment
+ARRIVING at it) and premise 4's carrier filter (`name.node == profile`
+finds nothing; a profile mints no name) — the third spec in a row on
+this program to carry a false premise, disclosed in the claim entry
+and put to both reviewers as a standing hazard. One deviation is
+design-shaped and goes to Ev: a stranded name is RETIRED to a
+coordinate past the loop's end so it resolves `Vanished` instead of
+aliasing the new program's segment (left in place, a second fillet on
+the rod silently shrank to one — measured). Ordinals 4808/4809 claimed
+on main (#2931); byte 254, parity 0: R1 opus, R2 fable; both
+dispatched concurrently on the frozen head. Two rows filed by the
+build: VIEW's `the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
+
+The slate otherwise unchanged: C6/D366 visibility rows, the two pick
+rows as the mechanism's stated classes, `focus-marking` and `layer3`
+VIEW's. Two reviewer lanes live.
