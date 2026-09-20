@@ -56,3 +56,29 @@ Moved from `work/docm/` to `work/door/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the fix is written in the row and it is one PR on a file another program owns, which is DOOR's test. Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## The decision it asks for was already taken next door (DOOR orchestrator, 2026-09-20)
+
+This row reads *"Delete it, or name the consumer"*, which looks like a
+decision and is not one any more: **its own sibling closed by deletion**.
+`vectorslot-all-has-no-reader` (PR 2446, closed 2026-09-12) deleted the
+neighbouring unread member from this same `impl` in this same file,
+after re-measuring the premise two ways. This row was filed BY that
+unit's compile measurement and differs from it only in which member it
+names.
+
+So the row stays on DOOR's slate through the 2026-09-20 design-free
+sweep: the fix is written (delete `VectorSlot::slots`, and the
+re-export of it through `crates/pncad/src/document.rs`), and the
+precedent for the call is one PR old on the same lines.
+
+**What the lane still does rather than inherits.** Re-take the deletion
+measurement at your own merge base — the row's evidence is
+`cargo check --workspace --all-targets` clean in 8.4 s with the function
+removed, and 36 `.slots()` call sites all having a `Node`,
+`ProfileProgram` or `TubeWindow` receiver — and check the Python surface
+again rather than trusting the note that `VectorSlot` sits in the
+binding census's not-bound set.
+
+**Fence:** `crates/editor-core/src/node.rs` is EDIT's (territory; the
+row's own text says DOCM's, which closed on 2026-09-13). Announce there.

@@ -77,3 +77,39 @@ The macro. `docs/FIX-ERRKINDS-SPEC.md` is retired
 (`docs/DOC-LEDGER.md`), and the declined row records why on its own
 evidence. Do not re-open it from the feasibility answer — the macro can
 be written; the decision was that it should not be.
+
+## Re-homed to CENSUS, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** where the error-type convention sentence lives, and whether the two
+purpose-built guards earn their ~230 unfired lines.
+
+**Why CENSUS.** CENSUS is the program for *a vocabulary spelled by hand in more than one
+place, and the census or instrument that cannot see one of the spellings*
+(`work/census/program.md`), and a fieldless kind beside a payload-carrying
+error is that shape exactly. Its slate already carries
+`the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused`
+and `hand-listed-debug-censuses-in-geom-core-geom-and-topo`. No single
+path-owner exists: the four pairs' declarations are REACH's
+(`topo/src/boolean/mod.rs`), WIRE's (`editor-core/src/product.rs`) and LIB's
+(`pncad-py/src/tags.rs`).
+
+**One half is already answered.** Ev ruled in the same sitting that the
+convention sentence's home is **the owning crate's `README.md`** — the design
+page beside the code, not `docs/DESIGN.md`. That settles the question this row
+left open (*"where to write it is the open half"*); what is still undecided is
+the sentence itself and the guards question.
+
+**The guards half crosses two fences.** Deleting or keeping
+`topo/src/boolean/mod.rs:2878` is REACH's and `editor-core/src/product.rs:963`
+is WIRE's; the convention can be written without touching either, and the
+guards question wants their assent rather than announcement.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

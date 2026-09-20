@@ -81,3 +81,32 @@ coincident nor separated.
 That makes them the easiest half of this item, and possibly its answer:
 if the midpoint earns a name, these two collapse onto it and the pair
 sites stay as they are.
+
+## Re-homed to PRED, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** whether the `(eps, K*eps)` pair gets a named door on `Tolerance`, or these
+~15 sites are fine consulting `Tol` directly.
+
+**Why PRED.** PRED is *the class the 2026-08 scan named and nobody owned: one numeric fact,
+decided in several places, each with its own margin* (`work/pred/program.md`),
+and its slate already carries the same shape three times —
+`period-headroom-margin-has-no-shared-home`,
+`lever-arm-fold-six-hand-rolled-siblings`, `cone-nappe-is-decided-in-five-places`.
+The door itself would land on `crates/geom-core/src/predicate.rs`, which
+territory says is **owned by props**; the row is a class, not a file, so it is
+homed by charter and the door's site is announced.
+
+Its sibling `fixed-band-literals-are-an-unscoped-class` moves to PRED in the
+same sweep, and `band-helper-duplicated-across-suites` to SUITE. The three were
+one family split across three questions: the derivation (PRED), the fixed
+literals (PRED), the test wrapper's home (SUITE).
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

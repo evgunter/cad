@@ -72,3 +72,28 @@ design) and each crate's owning program both. Cut by fence.
 Sibling of `band-derivation-has-a-scalar-twin` and
 `band-helper-duplicated-across-suites`; both are about the run's band
 being restated, this one is about it being replaced.
+
+## Re-homed to PRED, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** which of the 55 hard-coded `Band::new(1e-9, 1e-8)` sites are deliberate
+acceptance figures and which are inheritance — nobody has established it for
+any site but one.
+
+**Why PRED.** Same charter fit as `band-derivation-has-a-scalar-twin`, which moves to PRED
+in this sweep: one numeric fact decided in several places, each site carrying
+its own digits. The class spans `crates/` with no single path-owner.
+
+The row already records one framing that was CHECKED AND IS FALSE — the two
+populations (fixed bands, and suites declaring *"eps posture: no eps literal"*)
+are disjoint. Read that section before re-deriving: the finding survives as an
+unexamined class, not as a live contradiction.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

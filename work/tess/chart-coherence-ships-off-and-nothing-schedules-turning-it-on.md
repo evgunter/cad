@@ -75,3 +75,34 @@ Not a re-litigation of the resident's shape: `Advisory` (DS6's waiver
 `iff`), `CheckKind::Certified`, second in `ALL`, and the
 `skipped`/`unexamined` separation are all argued at their sites in
 PR 2408 and pinned. This row is about one field.
+
+## Re-homed to TESS, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** two measurements — the resident's per-run cost, and whether the examination
+gets a shape door — which together decide whether `CheckId::ChartCoherence`
+stops defaulting `Off`.
+
+**Why TESS.** `crates/topo/src/coherence.rs`, the examination this resident runs, is **owned
+by tess** (`work/tess/program.md`'s `paths`). Both measurements are about that
+examination: what it costs to run over every face of every rest body, and
+whether `Unexaminable::NonIsoCarrier` (two loops per ordinary trimmed cylinder)
+can be narrowed by a shape door.
+
+**The severity default itself lives on FIX's ground** —
+`ChecksConfig`/`CheckId` are in `crates/editor-core/src/checks.rs`, which
+territory says is owned by fix. So the flip, if it comes, is a one-line edit
+here announced to FIX; what gates it is entirely TESS's to measure. The
+orchestrator's standing judgement, unchanged by the move, is that `Off` is
+right until both measurements exist: *"a report that fires everywhere is not a
+report"*, and flipping it would move a PINNED registry cost measurement on
+behalf of a resident nobody has measured.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

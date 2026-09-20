@@ -100,3 +100,31 @@ workable floor), and messages built at runtime.
 `crates/pncad-py/src/prose_census.rs` is **LIB's** glob. FIX built it
 (PR 1809, this program's unit) and owns the two rows that feed it, so
 the claim is by announcement — name the fence in the PR body.
+
+## Re-homed to CENSUS, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** what the guard claims and where its threshold sits — the row settles the
+home (`prose_census.rs`, not `scripts/gates/`) and PR 2364 measured the
+threshold at run >= 9, but nothing has decided the claim itself.
+
+**Why CENSUS.** Same instrument and same board as the two rows above. The home question this
+row answers — *the needle lives inside string literals, and `gate_rust_code`
+builds the code-ONLY view* — is a statement about what a census can see, which
+is CENSUS's charter.
+
+**This is the one row in the sweep that is arguably design-free already**: its
+fence question is settled and its threshold is measured, so a taker could write
+the claim today. It moves anyway because it edits the same file as its two
+siblings and splitting one file's work across two boards costs a conflict for
+no gain. If CENSUS would rather hand it straight back as a written fix, FIX
+will take it.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

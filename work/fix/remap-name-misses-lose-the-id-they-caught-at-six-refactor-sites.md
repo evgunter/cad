@@ -47,3 +47,33 @@ re-deriving.
 an accident: every other caller of `remap_name` in `refactor.rs`, and
 the same question for any sibling remapper that returns a located error
 into a call site that raises a name-shaped one.
+
+## Ruled (FIX orchestrator, 2026-09-20): carry the id
+
+The row offered "the id carried on each of the three error kinds, or a
+stated argument that the outer name suffices". The seat rules **carry
+it**, on FIX's own ground (`crates/editor-core/src/refactor.rs` is
+FIX's by `paths`, territory names no other owner).
+
+**The argument for the alternative does not survive its own question.**
+"The outer name suffices" has to answer what a reader does when the
+outer name is nested and the miss is two segments down — and there is
+no answer: a `StableName` embeds other names in its `path`, so the
+raised error names the outer name while the discarded id names the node
+that actually failed, and for a nested name those are different. PR
+2378's lane classed this `reported` rather than `not-this-unit` for
+exactly that reason; read its argument before re-deriving one.
+
+**What the lane establishes rather than assumes.**
+
+- The six sites (`:831`, `:1504`, `:1544`, `:1807`, `:1840`, `:1858`)
+  are accurate at `af8bbca` — re-derive at your merge base, and sweep
+  the rest of `remap_name`'s callers in the file while you are there:
+  six sites in one file is a class, not an accident.
+- **Whether any of the three error kinds crosses to Python.** Adding a
+  field to a type `pncad-py` mirrors reaches LIB's ground and the tag
+  inventory; if it does, that is a disclosure and possibly a second
+  unit, not something to absorb quietly.
+- Whether a sibling remapper returns a located error into a
+  name-shaped one at some other call site — the row names that as where
+  else to look.
