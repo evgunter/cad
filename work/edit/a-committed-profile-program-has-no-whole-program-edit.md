@@ -3,7 +3,6 @@ id: a-committed-profile-program-has-no-whole-program-edit
 kind: issue
 title: A committed profile's program can be edited only one argument at a time; no edit reshapes it or writes it whole
 status: open
-needs_ev: true
 opened: 2026-09-18
 ---
 
@@ -133,4 +132,20 @@ recommendation) or reported and left for a `Rebind` the author
 issues. On a ruling this is spec'd as a kernel unit (v7: a design
 decision whose impact is broad), block EDIT-B2 slot 2 (FABLE), with
 the viewer's drops announced as VIEW's follow-up.
+
+## RULED (2026-09-20, Ev on `[ev]` #2904) — (B): the edit carries the program and each step's provenance; the door reports and rebinds
+
+Ev: "(B) makes sense!" — the recommendation as put, including its
+sub-choice: a name on a kept step is REWRITTEN to its new index in
+place by the door and the move reported as its own `Maintenance` arm;
+a name on a dropped or changed step is reported `Strand`. So V2's
+"structure changes only by re-authoring" becomes "structure changes by
+`SetProgram`, which reports and rebinds every name its reshaping
+touches", and DM7's subject widens from the delete to the edit that
+removes a name's referent — both re-wordings land with the unit that
+builds them, this ruling being their ratification. Spec'd next as a
+kernel unit (v7: a broad design decision), block EDIT-B2 slot 2
+(FABLE), `docs/EDIT-PROGRAM-SPEC.md`; the viewer's drops (the lock,
+the order search, the two refusals) are VIEW's follow-up, announced
+in the spec.
 
