@@ -1690,3 +1690,62 @@ thirteen members, and a falsifiability clause whose witness point
 on an assertion path, so nothing reds and nothing would ever have
 caught it. Filed with a witness that does still separate the rules
 rather than hand-written geometry the lane could not run.
+
+**Escalation-channel built, and in the dual (2026-09-20).** PR #2928 at
+`aef477d21`, hosted run 35496898199 green. On the spec's one open design
+question — is an op-minted `Indeterminate` RECORDED by its site or made
+IMPOSSIBLE — the unit chose impossible, and the argument is the right
+one: a recording door leaves the mint where it is and asks every future
+site to remember a second call, whose failure mode is silent and is
+*exactly* the empty log the bug produces today. So the requirement
+travels into the funnel as three gate doors (`decide_positive`,
+`decide_nonzero` with a `NonzeroSign` that has no zero arm to forget,
+and `gate_measured`), all minting through one write to the channel, and
+a caller never holds a definite sign long enough to reject it in
+private. The handed red-first row went red exactly as designed before it
+went green.
+
+Two things the unit found that the item had wrong, and both are the
+useful kind. The item's own recipe was **blind to a field name and a
+type spelling**: the class is **82 variants across nine crates**, not
+the "forty-odd across five" the spec inherited from it. And the sweep
+retired **none of them** — not for want of trying, but because the
+escalation log is a *per-bracket side channel* that drops what it is
+given when no frame is open, so for nine consumer crates and every
+library caller the enum is the only channel carrying the escalation and
+retiring a variant would delete information rather than move it. The
+spec said "retire only what the measurement says is a pure wrapper";
+the measurement says none is.
+
+**The zero is the receipt.** This spec's posture paragraph asserted that
+recorded-verdict populations WOULD move. They did not — verdicts
+byte-identical by construction, and no corpus document reaches a gated
+arm. That is the spec asserting a premise again rather than requiring a
+decide, the same fault the sphere spec shipped a MAJOR through; here it
+cost nothing because the unit measured instead of obeying, and the
+reviewers are told to adjudicate the contradiction rather than take
+either side's word.
+
+Filed rather than widened, per §6: `work/msolve/` (family 3, measured
+NOT closed by family 1, plus a `mate/coset.rs` mint of the same shape)
+and `work/curved/` (four `contact_verify` sites, two of them **mis-typed**
+— a definite `Positive` residual dressed as `MarginDiag::Invalid`, which
+says "the margin was poison" about a margin that was measured).
+
+**Dual dispatched at ordinal 2407**, byte 186 ⇒ R1 opus / R2 fable,
+concurrent on the frozen head, briefs stored with sha256 on
+`props/b2-block` before either lane started. The three claims the
+reviewers adjudicate rather than inherit are the three above: whether
+the doors close the hole structurally or only at the eight sites, the
+corrected population and the blind spots it still admits, and the zero.
+
+**An orchestrator error, disclosed at the claim rather than tidied.**
+The two lanes dispatched after the program cut were assigned no block
+slot at dispatch and both ran on opus. Escalation-channel is B3 slot 1
+and correct; curved-residues is not slot 2, because slot 2 is fable by
+the 2026-09-08 draw and drawing a fresh block now to fit an arm already
+in flight is precisely the rigging the draw-before-dispatch rule
+prevents. So curved-residues records the arm that actually ran, marked
+not a drawn assignment, fills no slot, and the next two PROPS units are
+fable — one for the owed slot, one to repay the extra opus row. The
+ratio is restored, not just noted.
