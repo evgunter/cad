@@ -443,6 +443,27 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// corpus over a non-convex body would RED CI row 1 (which fails on a
 /// verdict-less leaf) for a reason that is about the window model and
 /// not about the part.
+///
+/// **`hi` is NOT the sound direction either**, and the row asserts
+/// both halves of what that costs. A minimum over a SUPERSET of the two
+/// faces is at most the minimum over the faces, so a window that covers
+/// the notch pulls BOTH ends of the enclosure down: `hi` lands below
+/// the truth, and the enclosure does not contain it. **That is the
+/// engine's window model, not this unit's frame.** These carriers are
+/// axis-aligned, so the frame this unit stores and the re-chart the
+/// engine used to compute differ by a quarter turn about the normal —
+/// the boundary AABB projected on the frame's axes is the SAME POINT
+/// SET under an axis swap. What a quarter turn changes is which axis
+/// the subdivision halves first, which is why the numbers moved and
+/// the defect did not.
+///
+/// The measure layer already owns the consequence: an arm that would
+/// read an endpoint the run certifies for the CARRIER rather than for
+/// the faces refuses typed, `UnevaluatedReason::WindowSuperset`, whose
+/// `recourse` names
+/// `work/trim/clearance-window-tightening-needs-chart-boundary.md` —
+/// the item that retires it. This row asserts that refusal rather than
+/// printing a number, so the containment property has a red somewhere.
 #[test]
 fn min_clearance_between_two_separated_bodies_reads_zero() {
     let truth = 0.1;
@@ -454,14 +475,17 @@ fn min_clearance_between_two_separated_bodies_reads_zero() {
     let ValuePayload::Measure { value, .. } = &v.payload else {
         panic!("the measure has a value at the interval scalar");
     };
-    eprintln!(
+    println!(
         "notched pair: min_clearance = [{}, {}], true solid separation {truth}",
         value.lo(),
         value.hi()
     );
     assert!(
-        truth <= value.hi(),
-        "the enclosure still contains the truth: {} < {truth}",
+        value.hi() < truth,
+        "the enclosure [{}, {}] now contains the true {truth}: the window model has been \
+         tightened and this finding — a minimum over a SUPERSET pulling BOTH ends down — \
+         is stale",
+        value.lo(),
         value.hi()
     );
     assert_eq!(
@@ -477,11 +501,27 @@ fn min_clearance_between_two_separated_bodies_reads_zero() {
     let ValuePayload::Assertion(verdict) = &a.payload else {
         panic!("an assertion's value is a verdict");
     };
-    eprintln!("notched pair: the assertion reads {verdict:?}");
-    assert!(
-        !matches!(verdict, AssertionVerdict::Holds { .. }),
-        "the requirement `min_clearance >= 0.05` is met by the solids twice over, yet the \
-         verdict is {verdict:?} — a row 1 red on a part that is fine"
+    println!("notched pair: the assertion reads {verdict:?}");
+    let AssertionVerdict::Unevaluated {
+        reason:
+            editor_core::UnevaluatedReason::WindowSuperset {
+                endpoint, recourse, ..
+            },
+    } = verdict
+    else {
+        panic!(
+            "the requirement `min_clearance >= 0.05` is met by the solids twice over, and \
+             the endpoint it would be read off is the carrier's — the verdict owed is a \
+             typed WindowSuperset refusal, not {verdict:?}"
+        );
+    };
+    assert_eq!(
+        *endpoint, "upper",
+        "an `at least` verdict that reads Violated reads it off the UPPER end"
+    );
+    assert_eq!(
+        *recourse, "work/trim/clearance-window-tightening-needs-chart-boundary.md",
+        "the refusal's recourse names the item whose fix retires it"
     );
 }
 

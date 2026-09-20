@@ -2286,11 +2286,13 @@ fn chart_edge<T: PcurveFittedLane>(
 /// ([`crate::chart_bound::MetredBound::certifies_outside`]).
 ///
 /// `chart`'s locus must be the face's carrier. It is a parameter
-/// rather than the stored surface because a consumer may legitimately
-/// re-chart a plane — a stored `u_ref` sign-hulled at the interval
-/// scalar makes the stored chart useless on a vertical wall — and a
-/// description in a chart the consumer does not use answers a question
-/// nobody asked. The azimuth charts pass their stored surface.
+/// rather than the stored surface because a consumer tests this
+/// description against a window of its OWN, and a description in a
+/// chart the consumer does not use answers a question nobody asked: a
+/// caller that charts a plane on axes of its own choosing — a
+/// locus-equal chart with a different `u_ref` — needs the boundary in
+/// that chart, not in the stored one. Consumers that read the stored
+/// chart pass the stored surface, and the azimuth charts do.
 ///
 /// Nothing is read from the pcurve CACHES except a `Fitted`/`General`
 /// image's certificate: every chart image is re-derived by the loop
