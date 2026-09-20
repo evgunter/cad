@@ -123,6 +123,9 @@ and a transform moves one. The alternatives weighed and rejected are in
     and reaches every consumer of `MateFrame`. Spec last, on top of
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
+    Spec `docs/MSOLVE-9-SPEC.md` and the A11 sentence drafted
+    2026-09-19 on an `[ev]` PR; dispatches after Ev's sign-off and
+    after MSOLVE-8.
 
 **Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
 CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
