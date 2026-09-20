@@ -38,11 +38,10 @@ use viewer::session::{DocSession, SessionOp};
 use crate::common;
 use crate::corpus;
 
-/// Coarse on purpose: the rows are about reuse across edits, not about
-/// mesh density, and the corpus has million-triangle documents at the
-/// application's δ.
+/// The corpus δ: these rows are about reuse across edits, not about
+/// mesh density.
 fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+    common::corpus_delta()
 }
 
 fn fnv(h: &mut u64, x: u64) {
@@ -314,16 +313,7 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
 /// The plain door's answer for the same run: the definition of the
 /// picture.
 fn fresh_index(session: &DocSession) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
+    common::index_at(session, delta())
 }
 
 /// A fixed set of rays for the picture: the six axis rays through the
@@ -1577,14 +1567,12 @@ fn first_length_slot(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
                 let value = editor_core::eval(distance, &env).expect("a literal distance");
-                let expr =
-                    Expr::literal(value * 1.03125, Dimension::Length).expect("a length literal");
+                let expr = common::len(value * 1.03125);
                 return (node, SlotId::Distance, expr);
             }
             editor_core::Node::Revolve { angle, .. } => {
                 let value = editor_core::eval(angle, &env).expect("a literal angle");
-                let expr =
-                    Expr::literal(value * 0.96875, Dimension::Angle).expect("an angle literal");
+                let expr = common::ang(value * 0.96875);
                 return (node, SlotId::RevolveAngle, expr);
             }
             _ => {}

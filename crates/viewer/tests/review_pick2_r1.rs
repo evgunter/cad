@@ -14,33 +14,24 @@
 
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::resolve::ray_triangle;
-use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
+use editor_core::{DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use viewer::pickindex::{PickIndex, PictureKey};
+use viewer::pickindex::PickIndex;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
 use crate::corpus;
 
-// `review_pick_r2`'s private helpers, restated so this probe does not
-// edit the file under review.
+// `review_pick_r2`'s private helpers. What carries no oracle comes from
+// `common`, which is not the file under review; what is left here is
+// this probe's own binding of it.
 fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+    common::corpus_delta()
 }
 
 fn fresh_index(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the document indexes")
+    common::index_of(session, delta())
 }
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
@@ -60,17 +51,11 @@ fn ring_bump(doc: &ProfileDoc) -> SessionOp {
         let (slot, expr): (SlotId, Expr) = match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
                 let value = editor_core::eval(distance, &env).expect("a literal distance");
-                (
-                    SlotId::Distance,
-                    Expr::literal(value * 1.03125, Dimension::Length).expect("a length literal"),
-                )
+                (SlotId::Distance, common::len(value * 1.03125))
             }
             editor_core::Node::Revolve { angle, .. } => {
                 let value = editor_core::eval(angle, &env).expect("a literal angle");
-                (
-                    SlotId::RevolveAngle,
-                    Expr::literal(value * 0.96875, Dimension::Angle).expect("an angle literal"),
-                )
+                (SlotId::RevolveAngle, common::ang(value * 0.96875))
             }
             _ => continue,
         };

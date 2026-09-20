@@ -46,39 +46,12 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
 
 /// The pick index for a session's landed evaluation.
 fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
+    common::index_of(session, common::pick_delta())
 }
 
 /// The landed evaluation, for the doors that take one.
 fn eval_of(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
-}
-
-/// The display tolerance every row here uses. Coarse enough to keep
-/// the suite cheap, fine enough that the hole is a ring of facets
-/// rather than a polygon that misses the ray.
-fn delta() -> scene::DisplayTolerance {
-    scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
-/// A ray straight down onto the plate at `(x, y)`.
-fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 1.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
 }
 
 /// A pattern of `count` small blocks — the fixture for the rows that
@@ -280,7 +253,10 @@ fn a_ray_down_the_hole_axis_is_a_typed_miss() {
     let index = index_of(&session);
     let [width, depth, _] = PLATE_EXTENT;
     let hit = index
-        .pick(eval_of(&session), &down_at(width * 0.5, depth * 0.5))
+        .pick(
+            eval_of(&session),
+            &common::down_at(width * 0.5, depth * 0.5),
+        )
         .expect("the hit test does not refuse");
     assert!(
         hit.is_none(),
@@ -294,7 +270,7 @@ fn a_ray_onto_the_top_face_names_it_and_the_name_resolves() {
     let (session, extrude) = plate_session(tol);
     let index = index_of(&session);
     let hit = index
-        .pick(eval_of(&session), &down_at(0.01, 0.01))
+        .pick(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("the hit test does not refuse")
         .expect("a ray onto the plate hits it");
     assert_eq!(hit.node, extrude, "the plate's body is the extrude's");
@@ -320,20 +296,16 @@ fn two_cursors_on_one_face_agree_and_a_wall_is_a_different_face() {
     let index = index_of(&session);
     let eval = eval_of(&session);
     let a = index
-        .pick(eval, &down_at(0.01, 0.01))
+        .pick(eval, &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("a hit");
     let b = index
-        .pick(eval, &down_at(0.05, 0.03))
+        .pick(eval, &common::down_at(0.05, 0.03))
         .expect("no refusal")
         .expect("a hit");
     assert_eq!(a.name, b.name, "one planar cap face, two cursors");
 
-    let [_, depth, thickness] = PLATE_EXTENT;
-    let wall = Ray {
-        origin: Point3::new(-1.0, depth * 0.5, thickness * 0.5),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let wall = at_the_wall();
     let side = index
         .pick(eval, &wall)
         .expect("no refusal")
@@ -347,7 +319,7 @@ fn the_ray_paths_answer_is_the_id_maps_inverse() {
     let (session, _) = plate_session(tol);
     let index = index_of(&session);
     let hit = index
-        .pick(eval_of(&session), &down_at(0.01, 0.01))
+        .pick(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("a hit");
     // The id path, inverted: the name the RAY answered is drawn under
@@ -615,18 +587,11 @@ fn selecting_twice_keeps_exactly_one_selection() {
     let (mut session, extrude) = plate_session(tol);
     let index = index_of(&session);
     let cap = index
-        .face_at(eval_of(&session), &down_at(0.01, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("a hit");
-    let [_, depth, thickness] = PLATE_EXTENT;
     let wall = index
-        .face_at(
-            eval_of(&session),
-            &Ray {
-                origin: Point3::new(-1.0, depth * 0.5, thickness * 0.5),
-                dir: Vec3::new(1.0, 0.0, 0.0),
-            },
-        )
+        .face_at(eval_of(&session), &at_the_wall())
         .expect("no refusal")
         .expect("a hit");
     assert_ne!(cap.name, wall.name);
@@ -647,7 +612,7 @@ fn a_face_pick_selects_the_owning_node_in_the_tree() {
     let (mut session, extrude) = plate_session(tol);
     let index = index_of(&session);
     let face = index
-        .face_at(eval_of(&session), &down_at(0.01, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("a hit");
     session.perform(SessionOp::Select(Selection::Face(face)));
@@ -682,7 +647,7 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
     let (mut session, _) = plate_session(tol);
     let index = index_of(&session);
     let face = index
-        .face_at(eval_of(&session), &down_at(0.01, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("a hit");
 
@@ -719,7 +684,7 @@ fn deleting_the_selected_feature_leaves_a_typed_unresolved_selection() {
     session.pump();
     let index = index_of(&session);
     let face = index
-        .face_at(eval_of(&session), &down_at(0.01, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.01, 0.01))
         .expect("no refusal")
         .expect("the first block is under this ray");
     assert_eq!(face.node, pattern);
@@ -754,7 +719,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     let index = index_of(&session);
     // The third instance sits two spacings along +x.
     let face = index
-        .face_at(eval_of(&session), &down_at(0.11, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
         .expect("the third block is under this ray");
     assert_eq!(face.body, 2, "the third instance is output body 2");
@@ -796,7 +761,7 @@ fn undo_across_the_selections_birth_leaves_it_unresolved() {
     session.pump();
     let index = index_of(&session);
     let face = index
-        .face_at(eval_of(&session), &down_at(0.11, 0.01))
+        .face_at(eval_of(&session), &common::down_at(0.11, 0.01))
         .expect("no refusal")
         .expect("the third block exists now");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
@@ -852,7 +817,7 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
         index.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, delta()))
+                .map(|g| PictureKey::of(g, common::pick_delta()))
         ),
         "freshly built, it describes the run on screen"
     );
@@ -867,19 +832,19 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
         !index.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, delta()))
+                .map(|g| PictureKey::of(g, common::pick_delta()))
         ),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
     // the tessellations the picture is drawn from.
-    let coarser = delta().scaled(2.0).expect("a positive delta");
+    let coarser = common::pick_delta().scaled(2.0).expect("a positive delta");
     let rebuilt = index_of(&session);
     assert!(
         rebuilt.current_for(
             session
                 .landed_generation()
-                .map(|g| PictureKey::of(g, delta()))
+                .map(|g| PictureKey::of(g, common::pick_delta()))
         )
     );
     assert!(
@@ -935,7 +900,7 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
     // to no node, so nothing in it is addressable.
     let tol = Tol::witness();
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
-    let scene = scene::scene_of(&doc, delta(), tol).expect("the plate tessellates");
+    let scene = scene::scene_of(&doc, common::pick_delta(), tol).expect("the plate tessellates");
     assert!(!scene.ids().is_empty());
     assert!(
         scene.ids().iter().all(|id| *id == IdMap::NOTHING),
@@ -977,13 +942,19 @@ fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 fn indexed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let (landed, eval) = session.landed_pair().expect("the inline seam lands");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    let index = PickIndex::build(landed, eval, PictureKey::of(generation, delta()), tol)
-        .expect("the fixture indexes");
+    let index = index_of(&session);
     (session, index)
+}
+
+/// A ray along +x at the plate's mid-depth and mid-thickness: it
+/// meets the plate's x = 0 wall, the one face a downward ray cannot
+/// reach.
+fn at_the_wall() -> Ray {
+    let [_, depth, thickness] = PLATE_EXTENT;
+    Ray {
+        origin: Point3::new(-1.0, depth * 0.5, thickness * 0.5),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    }
 }
 
 /// The ray across the first box's top rim edge: it meets the top face
@@ -1072,7 +1043,7 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
         ..DisplayView::none()
     };
     let refusal = index
-        .pick_for(eval, &down_at(0.01, 0.01), &held)
+        .pick_for(eval, &common::down_at(0.01, 0.01), &held)
         .expect_err("two coincident top faces cannot be ordered");
     let HitTestError::Ambiguous { hits } = refusal else {
         panic!("the certified tie between faces: {refusal}")

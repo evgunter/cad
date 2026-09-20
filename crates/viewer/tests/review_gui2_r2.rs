@@ -15,9 +15,9 @@
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
 //! `common::{ang, xy_frame, rectangle, inserted, len, scl,
-//! gallery_ring_at}`. The slabs' own dimensions and the world
-//! positions aimed at them stay here, where the expectation is
-//! written.
+//! gallery_ring_at, index_of, down_from}`. The slabs' own dimensions,
+//! the height the rays start above them and the world positions aimed
+//! at them stay here, where the expectation is written.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
@@ -132,12 +132,7 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
 }
 
 fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, d), session.tol())
-        .expect("the fixture indexes")
+    common::index_of(session, d)
 }
 
 fn landed_index(session: &DocSession) -> PickIndex {
@@ -156,11 +151,11 @@ fn evaluation(session: &DocSession) -> &Evaluation<f64> {
 
 /// A ray straight down the −z axis through `(x, y)`, starting above
 /// anything these fixtures build.
+/// A ray straight down at `(x, y)` from five metres up — the gallery
+/// ring is metres across, so the plate suites' one metre is not clear
+/// of it.
 fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 5.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 5.0)
 }
 
 /// A camera looking at a box, at `aspect`.

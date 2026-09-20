@@ -10,8 +10,9 @@
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
 //! What carries no oracle is shared: `common::{xy_frame, rectangle,
-//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
-//! and the cursor positions aimed at them stay here, where the aim is
+//! inserted, len, scl, gallery_ring_at, index_of, down_from}`. The
+//! blocks' own dimensions, the height the rays start above them and
+//! the cursor positions aimed at them stay here, where the aim is
 //! written.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
@@ -97,25 +98,13 @@ fn index_of(session: &DocSession) -> PickIndex {
 }
 
 fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(
-            session.landed_generation().expect("a landed generation"),
-            delta,
-        ),
-        session.tol(),
-    )
-    .expect("the fixture indexes")
+    common::index_of(session, delta)
 }
 
-/// A ray straight down at `(x, y)` from above everything here.
+/// A ray straight down at `(x, y)` from above everything here: the
+/// blocks are millimetres thick, so half a metre clears them all.
 fn down(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 0.5),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 0.5)
 }
 
 // --- un-projection, this suite's own construction -------------------

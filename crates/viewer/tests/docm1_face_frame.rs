@@ -17,7 +17,7 @@
 use crate::common;
 use common::{insert, inserted, len};
 
-use pncad::document::{Datum, Dimension, Doc, Expr, LoopProgram, Node, RecipeNodeId};
+use pncad::document::{Datum, Doc, LoopProgram, Node, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use viewer::session::{DocSession, NodeKindWanted, SessionOp, admits};
@@ -52,7 +52,7 @@ fn boxed_with_face_frame(
                 node: cube,
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            spin: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+            spin: common::ang(0.0),
         }),
         tol,
     );

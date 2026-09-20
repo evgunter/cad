@@ -26,9 +26,9 @@ use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
     ProfileProgram, RecipeNodeId, SlotId,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
-use pncad::select::{ContactClass, Ray};
+use pncad::select::ContactClass;
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
@@ -49,10 +49,6 @@ use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
 };
 
-fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
@@ -60,22 +56,8 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, extrude)
 }
 
-fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 1.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
-
 fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(session.landed_generation().expect("a generation"), delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
+    common::index_of(session, common::pick_delta())
 }
 
 // --- the status-line policy ----------------------------------------
@@ -1587,7 +1569,10 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let (session, _) = plate_session(tol);
     let index = index_of(&session);
     let hit = index
-        .pick(session.evaluation().expect("landed"), &down_at(0.01, 0.01))
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.01, 0.01),
+        )
         .expect("no refusal")
         .expect("a hit");
     let id = *index
@@ -1761,7 +1746,10 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
     session.pump();
     let index = index_of(&session);
     let hit = index
-        .pick(session.evaluation().expect("landed"), &down_at(0.115, 0.01))
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.115, 0.01),
+        )
         .expect("no refusal")
         .expect("the right placement is hit");
     assert_eq!(hit.node, right);
@@ -1816,11 +1804,7 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
                 input: extrude,
                 translation: [common::len(x), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: pncad::document::Expr::literal(
-                    0.0,
-                    pncad::document::Dimension::Angle,
-                )
-                .expect("a finite angle"),
+                rotation_angle: common::ang(0.0),
             },
             tol,
         )
@@ -1840,7 +1824,10 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
     session.pump();
     let index = index_of(&session);
     let hit = index
-        .pick(session.evaluation().expect("landed"), &down_at(0.115, 0.01))
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.115, 0.01),
+        )
         .expect("no refusal")
         .expect("a hit on the right placement");
     let face = face_of(&hit);
@@ -1938,7 +1925,7 @@ fn an_unsettled_delta_submits_nothing_and_drops_the_index_it_held() {
     let (seam, submits) = CountingIndexer::new();
     let mut cache = PickCache::new(seam);
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
@@ -1965,7 +1952,7 @@ fn an_unsettled_delta_submits_nothing_and_drops_the_index_it_held() {
     // And the δ arriving is an ordinary submit: the attempt the forget
     // cleared is not held against it.
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(submits.load(Ordering::Relaxed), 2);
@@ -1988,12 +1975,12 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     let (seam, submits) = CountingIndexer::new();
     let mut cache = PickCache::new(seam);
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Current
     );
     assert!(cache.index().is_some());
@@ -2010,7 +1997,7 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     session.pump();
 
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(
@@ -2038,12 +2025,12 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Held,
         "a refused build is not retried on the next frame"
     );
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Held
     );
     assert!(cache.pump().is_empty(), "and nothing was sent to answer");
@@ -2075,13 +2062,13 @@ fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
     let (seam, submits) = CountingIndexer::new();
     let mut cache = PickCache::new(seam);
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     // δ is part of the key: the parts are the tessellations the picture
     // is drawn from.
-    let coarser = delta().scaled(2.0).expect("a positive delta");
+    let coarser = common::pick_delta().scaled(2.0).expect("a positive delta");
     assert_eq!(
         cache.sync(session.index_inputs(), Some(coarser)),
         CacheStep::Submitted
@@ -2114,7 +2101,7 @@ fn a_cache_with_nothing_landed_has_nothing_to_do() {
     let session = DocSession::inline(doc, tol);
     let mut cache = PickCache::inline();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Nothing
     );
     assert!(cache.index().is_none());
@@ -2131,7 +2118,7 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     let (mut session, extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
@@ -2144,7 +2131,7 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     });
     session.pump();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert!(
@@ -2156,7 +2143,7 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     // Asked again on the next frame: still waiting, and nothing is
     // resubmitted.
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Indexing
     );
 
@@ -2187,7 +2174,7 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     let (mut session, extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
@@ -2201,7 +2188,7 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     });
     session.pump();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert!(cache.index().is_none());
@@ -2214,7 +2201,7 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     });
     assert!(session.landed_generation().is_none());
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Nothing
     );
     assert!(
@@ -2238,7 +2225,7 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     // the cache has to be talked out of.
     session.pump();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
 }
@@ -2260,12 +2247,12 @@ fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
     let (session, _extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Current
     );
     assert!(cache.index().is_some());
@@ -2278,7 +2265,7 @@ fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
     assert!(!cache.indexing(), "nothing was outstanding to begin with");
 
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Nothing
     );
     assert!(
@@ -2310,12 +2297,12 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     });
     session.pump();
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
 
     let landing = cache.land(IndexDone {
-        key: PictureKey::of(stale.generation(), delta()),
+        key: PictureKey::of(stale.generation(), common::pick_delta()),
         memo: MemoReport::default(),
         index: Ok(stale),
     });
@@ -2342,13 +2329,13 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
     let generation = session.landed_generation().expect("a generation");
 
     let mut cache = PickCache::inline();
-    let finer = delta().scaled(0.5).expect("a positive delta");
+    let finer = common::pick_delta().scaled(0.5).expect("a positive delta");
     assert_eq!(
         cache.sync(session.index_inputs(), Some(finer)),
         CacheStep::Submitted
     );
     let landing = cache.land(IndexDone {
-        key: PictureKey::of(generation, delta()),
+        key: PictureKey::of(generation, common::pick_delta()),
         memo: MemoReport::default(),
         index: Ok(coarse),
     });
@@ -3051,7 +3038,7 @@ fn a_seam_that_goes_quiet_stops_promising_an_answer() {
     let mut cache = PickCache::new(seam);
 
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Submitted
     );
     assert!(
@@ -3097,7 +3084,7 @@ fn a_seam_that_goes_quiet_stops_promising_an_answer() {
     // submitted attempt — which is why that is a statement about what
     // was asked for and `indexing` is what the chrome reads.
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::pick_delta())),
         CacheStep::Indexing
     );
     assert!(!cache.indexing());

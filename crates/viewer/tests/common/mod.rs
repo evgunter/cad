@@ -375,6 +375,94 @@ use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, SessionOp};
 
+// --- the pick seam: one index build, one axis-aligned ray -----------
+//
+// The index a suite picks against is built from four inputs the
+// session already holds, and `pane::viewport` builds it from the same
+// four. A per-suite copy of that call is a second statement of what
+// the viewport does, so it lives here and the δ — which IS a per-suite
+// choice — stays an argument.
+
+use pncad::geom_core::Vec3;
+use pncad::select::Ray;
+use viewer::pickindex::{PickIndex, PickIndexError, PictureKey};
+use viewer::scene::DisplayTolerance;
+
+/// **The display tolerance the plate-scale pick suites index at**,
+/// 2×10⁻⁴ m.
+///
+/// Both bounds are real and pull opposite ways: coarser keeps a suite
+/// cheap to run, and finer is what makes the plate's through hole
+/// tessellate as a ring of facets rather than a polygon a ray can pass
+/// straight through. A suite whose fixture is a different size chooses
+/// its own — [`asm::delta`] is the assembly fixture's.
+pub fn pick_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+/// **The display tolerance the corpus pick suites index at**,
+/// 2×10⁻³ m.
+///
+/// An order coarser than [`pick_delta`], and for a reason those suites
+/// do not share: the corpus holds million-triangle documents at the
+/// application's own δ, and a suite that walks all of them pays for
+/// every facet. Nothing here reads a facet count, so the density is
+/// free to drop.
+pub fn corpus_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+}
+
+/// The pick index for `session`'s landed evaluation at `delta`, or the
+/// refusal — a failed or poisoned root is an ordinary editing state,
+/// and a suite whose subject is that refusal reads it here.
+///
+/// The four arguments are `pane::viewport`'s: the landed document and
+/// evaluation, the picture key that names the generation and the δ,
+/// and the session's tolerance.
+pub fn index_at(
+    session: &DocSession,
+    delta: DisplayTolerance,
+) -> Result<PickIndex, PickIndexError> {
+    let (doc, eval) = session
+        .landed_pair()
+        .expect("the inline seam lands its first evaluation");
+    let generation = session
+        .landed_generation()
+        .expect("a landed evaluation has a generation");
+    PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+}
+
+/// [`index_at`] for a fixture that indexes by construction: the
+/// refusal is the failure.
+pub fn index_of(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
+    index_at(session, delta).expect("the fixture indexes")
+}
+
+/// A ray straight down through `(x, y)` from height `z`.
+pub fn down_from(x: f64, y: f64, z: f64) -> Ray {
+    Ray {
+        origin: Point3::new(x, y, z),
+        dir: Vec3::new(0.0, 0.0, -1.0),
+    }
+}
+
+/// [`down_from`] at one metre up — above anything the plate- and
+/// assembly-scale fixtures build. A suite whose fixture reaches higher,
+/// or which wants the origin closer, passes its own height.
+pub fn down_at(x: f64, y: f64) -> Ray {
+    down_from(x, y, 1.0)
+}
+
+/// A ray straight up through `(x, y)` from one metre below — under
+/// anything those fixtures build, for the underside faces a downward
+/// ray never reaches.
+pub fn up_at(x: f64, y: f64) -> Ray {
+    Ray {
+        origin: Point3::new(x, y, -1.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {

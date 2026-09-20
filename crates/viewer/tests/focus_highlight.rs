@@ -20,7 +20,7 @@ use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 use viewer::display::DisplayView;
 use viewer::marks;
-use viewer::pickindex::{PickIndex, PictureKey};
+use viewer::pickindex::PickIndex;
 use viewer::scene::{self, DisplayTolerance, SceneMesh};
 use viewer::session::{DocSession, Selection, SessionOp};
 
@@ -37,19 +37,7 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
+    common::index_of(session, delta())
 }
 
 /// Selecting nothing marks nothing — and the empty answer is the same

@@ -31,7 +31,7 @@ use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::marks;
-use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds, PictureKey};
+use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -43,13 +43,6 @@ fn pane() -> ViewportSize {
     }
 }
 
-/// The display tolerance every row here uses — the same reading
-/// `select_pick` takes, for the same reason: coarse enough to keep the
-/// suite cheap, fine enough that the hole is a ring of facets.
-fn delta() -> scene::DisplayTolerance {
-    scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
 /// A session over the spike plate, evaluated and landed.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
@@ -58,21 +51,10 @@ fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, extrude)
 }
 
-/// The pick index for a session's landed evaluation.
+/// The pick index for a session's landed evaluation, at the shared
+/// coarse δ: fine enough that the plate's hole is a ring of facets.
 fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
+    common::index_of(session, common::pick_delta())
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -643,13 +625,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         "an edge selection tints no patch"
     );
     let face = index
-        .face_at(
-            eval_of(&session),
-            &pncad::select::Ray {
-                origin: Point3::new(0.005, 0.005, 1.0),
-                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
-            },
-        )
+        .face_at(eval_of(&session), &common::down_at(0.005, 0.005))
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
     let overlay = marks::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
@@ -689,13 +665,7 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
 
     // The face half: both lanes carry the picked patch.
     let face = index
-        .face_at(
-            eval_of(&session),
-            &pncad::select::Ray {
-                origin: Point3::new(0.005, 0.005, 1.0),
-                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
-            },
-        )
+        .face_at(eval_of(&session), &common::down_at(0.005, 0.005))
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
