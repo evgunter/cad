@@ -37,17 +37,36 @@ This is that blind spot run rather than restated.
   `crates/editor-core/tests/edit_pair_apply_names.rs`'s `fn down()` is
   `common::down_from(0.0, 0.0, 5.0)` written longhand.
 
-- **The denominator, so the next lane does not have to re-derive it.**
-  `git grep -n 'Ray {' -- crates/` over every tracked file, no path
-  argument, minus `crates/viewer/tests/` (closed) and minus
-  `PathError::ContinuationTargetOffRay`, which is a different symbol
-  the needle matches: **about forty construction sites in thirteen
-  files** across `bvh`, `editor-core`, `pncad-py` and `viewer/src`.
-  That figure is deliberately approximate and is a denominator, not a
-  member count: the members have not been classified, and the two
-  results above are what a read of the named helpers established.
-  **Classifying the forty is the work**, and it is why this is a row
-  and not more edits in the unit that found it.
+- **The denominator, so the next lane does not have to re-derive it:
+  41 construction sites in 15 files.** Re-taken at `cd9fdfd6b` over
+  every tracked `.rs` with no path argument, for `Ray {` with an
+  optional path qualifier, minus `crates/viewer/tests/` (closed),
+  minus `PathError::ContinuationTargetOffRay` (a different symbol the
+  needle matches), minus the type's own `struct`/`impl` headers, and
+  minus the nine `-> Ray {` SIGNATURE lines, which the needle matches
+  once per helper on top of that helper's one construction.
+
+  | file | sites |
+  | --- | --- |
+  | `crates/editor-core/src/resolve/pick.rs` | 10 |
+  | `crates/bvh/tests/ray_r2.rs` | 10 |
+  | `crates/editor-core/tests/pick3_early_out.rs` | 5 |
+  | `crates/editor-core/tests/review_pick3_r2_probes.rs` | 4 |
+  | `crates/editor-core/tests/review_pick_r2_probes.rs` | 2 |
+  | `crates/bvh/tests/ray.rs`, `bvh/tests/review_gui1_r1.rs`, `editor-core/tests/{gui1_pick, gui1_pick_r2, review_gui1_r1, review_pick3_r1_probes, edit_pair_apply_names}.rs`, `pncad-py/src/py/pick.rs`, `viewer/src/camera.rs`, `viewer/src/pickindex.rs` | 1 each |
+
+  **This is a denominator, not a member count.** The members have not
+  been classified; the two results above are what a read of the named
+  helpers established. **Classifying the 41 is the work**, and it is
+  why this is a row and not more edits in the unit that found it.
+
+  The first version of this row published *"about forty construction
+  sites in thirteen files"*. The site count was honest as a rounding;
+  the file count was not — thirteen came from a needle that could not
+  see a path-qualified `editor_core::Ray {` or `s::Ray {`, which is
+  two more files. A rounded number that announces its rounding is
+  fine in a row whose purpose is to save a re-derivation; an exact
+  one that is wrong is not.
 
 - **Importance**: low-medium. No oracle on the construction — a wrong
   ray misses and reds the row that aimed it — but `editor-core`'s pick

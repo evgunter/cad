@@ -129,11 +129,15 @@ Three things this row's own subject caught in it.
 - **Four `fn delta() { common::corpus_delta() }` one-liners were
   minted and are gone** — see the pick-index row's fix-pass note.
 
-### The divergent control, run by the reviewer
+### The divergent control — not restated here
 
-`plate_delta`'s body → `panic!`: **551 / 75**, summing to 626, with
-every calling suite red and none missing. That separates the two
-readings a green plant allows: the folded sites ARE executed and 75
-rows reach this value, and not one of them can see it move three orders
-of magnitude. *Called and wholly unasserted*, not dark — which is what
-makes the S-TINT filing the right one.
+A `panic!` planted in `plate_delta`'s body gives **551 / 75**, which
+separates *called and unasserted* from *never called* and is what makes
+the three green rows above safe to read.
+
+**The argument and its per-suite figures live in one place**,
+`work/tint/viewer-plate-suites-index-at-a-display-tolerance-nothing-asserts`.
+They were written out here as well, and in PR #2929, and within that one
+commit the three copies drifted: one of them said two suites were
+unprobed that the control's own table shows red. That row records what
+that cost; this row points at it.

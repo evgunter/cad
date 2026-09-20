@@ -26,12 +26,19 @@ opened: 2026-09-20
   | δ ×50, 2×10⁻⁴ → 1×10⁻² | **coarsen** — harder for every "this ray meets the hole's rim" row | 626 / 0 |
   | δ ×0.1, 2×10⁻⁴ → 2×10⁻⁵ | **refine** — harder only for a row keyed on the δ value itself | 626 / 0 |
   | δ ×5000, 2×10⁻⁴ → **1.0 m**, wider than the plate | **coarsen, maximal** | 626 / 0 |
-  | the door's body → `panic!` | **the divergent control**, method item 19: it separates *unasserted* from *never called* | **551 / 75** |
+  | the door's body → `panic!` | **the divergent control** (method item 19): it separates *unasserted* from *never called*, and is the only plant here whose direction is not a direction | **551 / 75** |
 
-  The control is what makes the reading safe. 75 rows across every
-  calling suite reach this value and none is missing from the red set,
-  so the folded sites are executed — and not one of them can see the
-  value move three orders of magnitude.
+  **This row is the single home for that argument.** The δ row
+  (`work/dup/viewer-tests-spell-one-display-tolerance-in-seven-places`)
+  and PR #2929 point here rather than restating it; why, below.
+
+  The control's red set is **exactly `plate_delta`'s caller set, with
+  nothing missing**: `select_pick` 21, `edge_pick` 17,
+  `blend_authoring` 16, `frame_policy` 16, `eval_seam` 4,
+  `debug_dumps` 1 — six suites, 75 rows, summing with the 551 to the
+  626 baseline. So the folded sites are executed and 75 rows reach
+  this value, and not one of them can see it move three orders of
+  magnitude. *Called and wholly unasserted*, not dark.
 
   Every row sums to the baseline's 626. The third plant sets the
   display tolerance an order of magnitude wider than the whole
@@ -63,10 +70,37 @@ opened: 2026-09-20
   - **`path_authoring` is explained and fine**: its row asserts on the
     NOTATION a literal is written in, not the value, so a value plant
     cannot reach it by construction.
-  - **`debug_dumps`, `eval_seam` and `cascade_delete` remain unprobed
-    in either direction** — no control has yet shown their folded
-    sites execute at all, which is a weaker statement than the one
-    above and a different thing to check.
+  - **`debug_dumps` and `eval_seam` are live too**, and saying
+    otherwise here was wrong: both are `plate_delta` callers and both
+    are IN the control's red set above (1 and 4). They are in the same
+    state as `focus_highlight` and `pick_windows`.
+  - **`cascade_delete` alone remains unprobed in either direction.**
+    It is not a δ caller at all — its folded site is an `ang(0.0)` —
+    so no control run so far has shown that site executes, which is a
+    weaker statement than the one above and a different thing to
+    check.
+
+### How that sentence got written, which is this program's own subject
+
+The false sentence sat **three bullets below the table that
+contradicts it**, in the same commit, because the control's argument
+had been written out three times — here, in the δ row, and in the PR
+body — and the correction reached one copy. The numbers agreed in all
+three; the prose around them did not.
+
+Two things worth keeping. **Duplication became drift inside a single
+commit**, in a unit whose whole subject is duplication, written by the
+lane that had just disclosed the trap. And **the wrong half is the
+actionable half**: "75 rows red, none missing" is a receipt a reader
+checks and moves past, while "these three are unprobed" is a work
+order a later lane would act on — it would have gone looking for
+coverage that the table above it already proves exists. A restated
+argument does not drift evenly; it drifts into the sentence that
+tells someone what to do.
+
+The repair is the one a sibling unit set for
+`orient-module-prose-accumulation`: **one home for the argument, and
+pointers from everywhere else.**
 - **Instrument, and its blind spot**: mutation, over the whole `all`
   binary. A plant in a shared door reaches every consumer of that
   door, so a green result is a statement about the whole crate; it

@@ -25,10 +25,9 @@ use viewer::scene::{self, DisplayTolerance, SceneMesh};
 use viewer::session::{DocSession, Selection, SessionOp};
 
 /// This suite's own δ, kept rather than taken from
-/// `common::plate_delta`. Every assertion here is over which ids a
-/// selection is responsible for and whether the scene flags exactly
-/// those corners — both invariant in the facet count — so the value is
-/// this file's own and nothing outside it has to agree with it.
+/// `common::plate_delta`: no row outside this file has to agree with
+/// it, so sharing would buy agreement nobody needs and cost a reader
+/// the value at the point of use.
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(0.0005).expect("a positive δ")
 }

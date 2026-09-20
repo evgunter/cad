@@ -138,9 +138,27 @@ gone: `common` gained `plate_index(session)` and `corpus_index(session)`,
 the four plate suites and three corpus suites import one of those, and
 `index_memo` spells `common::index_at(session, common::corpus_delta())`
 at its six sites because its arm answers the refusal. What survives is
-the wrapper that genuinely binds a per-suite value — `asm::index_of`,
-`review_gui2_r1::index_of`, `review_gui2_r2::landed_index` — which is
-the same test the parent unit applied to `review_gui2_r2::insert`.
+every wrapper that genuinely binds a per-suite value, which is the same
+test the parent unit applied to `review_gui2_r2::insert`. **The first
+version of this sentence named three and the census is five** — the δ
+row's second-instrument shape, one pass later, in the row whose job is
+to say the class is empty. Re-taken mechanically over every one-line
+`fn` in `crates/viewer/tests/` whose body is a single call, the
+complete surviving set is:
+
+| wrapper | what it binds |
+| --- | --- |
+| `common/asm.rs::index_of` | the assembly fixture's δ (`asm::delta`) |
+| `focus_highlight::index_of` | this suite's own δ, 5×10⁻⁴ |
+| `review_gui2_r1::index_of` | this suite's own δ, 1.5×10⁻⁴ |
+| `review_gui2_r2::landed_index` | this suite's own δ, 3×10⁻⁴ |
+| `index_memo::seam_index` | the corpus δ, onto the SEAM door (`seam_index_at`) — a different construction from this class, and in the class only by its shape |
+
+Outside this class, on the same test: `review_gui2_r1::down` and
+`review_gui2_r2::down_at` bind a ray height, `review_gui2_r2::insert`
+binds a tolerance, `camera_ops::framed` and `input_mapping::framed`
+bind different aspect ratios. No two of the ten are byte-identical and
+none binds nothing.
 
 `crates/viewer/examples/r1_gallery_probe.rs` held **two byte-identical
 eleven-line copies** of this construction twenty lines apart, plus two
