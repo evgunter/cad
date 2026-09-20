@@ -425,6 +425,33 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "an id the document does not hold is the ABSENT refusal, not \
          the wrong-kind one — the two are the sentences a person reads"
     );
+
+    // **The point of the split, asserted as the thing a person reads.**
+    // Two arms of one enum prove nothing on their own; what the door
+    // exists to buy is that the two states reach an operation's reader
+    // as DIFFERENT sentences, so the renderings are pinned here and not
+    // only the variants.
+    let absent_says = display::instance_check(doc, absent)
+        .expect_err("absent refuses")
+        .to_string();
+    let wrong_kind_says = display::instance_check(doc, mate)
+        .expect_err("a mate is not an instance")
+        .to_string();
+    assert_eq!(
+        absent_says, "node 9999 is not in the document",
+        "the absent id's sentence says the id denotes nothing"
+    );
+    assert_eq!(
+        wrong_kind_says,
+        format!("node {} is not a part instance", mate.0),
+        "the wrong-kind sentence says something IS there and is the \
+         wrong thing"
+    );
+    assert_ne!(
+        absent_says, wrong_kind_says,
+        "a door that collapsed these two would render one sentence for \
+         both, which is the whole defect this signature closes"
+    );
 }
 
 #[test]

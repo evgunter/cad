@@ -379,10 +379,23 @@ impl ViewerBehavior<'_> {
     /// not admit display state on — the section is about per-instance
     /// display state, which neither another kind of node nor an id the
     /// document no longer holds has.
+    ///
+    /// **Silence is the whole answer for both refusals, and for the
+    /// absent id it is half of a rule rather than a discard.** A
+    /// selection outlives the thing it names ([`Standing`]: *a vanished
+    /// reference is a STATE, not an event*), so this door really is
+    /// reached with an id the document no longer holds — and in that
+    /// frame [`Self::standing_ui`] has already drawn the vanished
+    /// verdict, from the same `doc().node(..)` lookup, directly above
+    /// this section. The rule's other clause is that *the affordances
+    /// that need a live entity switch off*, which is this. Saying it
+    /// again here would be one fact spelled twice in one pane, which is
+    /// what the parameter half of this panel already does and is not a
+    /// pattern to copy.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        // Both admission refusals draw the same thing — nothing — so
-        // the fault is discarded HERE, where the panel is the party
-        // deciding the absent id and the wrong kind are one answer.
+        // The fault is discarded HERE, at the party that decides the
+        // two refusals are one answer, rather than by a door that
+        // answered a `bool` and could not have offered anything else.
         if crate::display::instance_check(self.session.doc(), node).is_err() {
             return;
         }

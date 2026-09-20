@@ -147,17 +147,28 @@ pub enum AdmissionFault {
     /// discards on, so the difference is the whole content of the
     /// sentence the status line then shows.
     ///
-    /// **It is decided in [`instance_check`], so every door downstream
-    /// of it answers this arm** and not only the prune:
-    /// [`drawn_targets`], which runs it first;
-    /// [`DisplayState::set_hidden`]; the free-move admission
-    /// ([`free_move_check`], and so [`DisplayState::begin_free_move`]);
-    /// and the properties panel, which runs the same test. A user who
+    /// **It is decided in [`instance_check`]**, which [`drawn_targets`]
+    /// runs first, so the arm reaches every OPERATION downstream of it
+    /// and not only the prune: [`DisplayState::set_hidden`] and the
+    /// free-move admission ([`free_move_check`], and so
+    /// [`DisplayState::begin_free_move`]). At those doors a user who
     /// aims a display operation at an id the document does not hold
-    /// now reads *node N is not in the document* where they read *node
-    /// N is not a part instance*, which is the better sentence at every
-    /// one of those doors — the id denotes nothing, and saying only
-    /// that it is not an instance implies something is there.
+    /// reads *node N is not in the document* where they read *node N is
+    /// not a part instance* — the better sentence, because the id
+    /// denotes nothing and saying only that it is not an instance
+    /// implies something is there.
+    ///
+    /// **The properties panel runs the same test and renders neither
+    /// arm, which is not a discard.** `PropertiesPane::instance_ui`
+    /// draws no per-instance section for either refusal. For this arm
+    /// the sentence is already on screen directly above it:
+    /// `standing_ui` renders [`crate::session::Standing::Node`]'s
+    /// vanished arm from the SAME lookup on the SAME document in the
+    /// same frame, and that type's ratified rule is that a vanished
+    /// reference is rendered there *while the affordances that need a
+    /// live entity switch off*. The section switching off IS the second
+    /// clause; a sentence at the affordance would be one fact spelled
+    /// twice in one pane.
     NoSuchNode {
         /// The id named.
         node: RecipeNodeId,
@@ -350,11 +361,13 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 ///
 /// **The two refusals are spelled apart** for
 /// [`AdmissionFault::NoSuchNode`]'s reason: an absent id and a
-/// wrong-kind node are different news to a person, and a `bool` is a
-/// type that cannot carry the difference. A caller for which both mean
-/// the same thing — the properties panel, which draws no per-instance
-/// section either way — says so by discarding the fault at the call
-/// site rather than by being handed a door that discarded it first.
+/// wrong-kind node are different news at the doors that ANSWER a user's
+/// operation, and a `bool` is a type that cannot carry the difference.
+/// A caller for which both mean the same thing says so by discarding
+/// the fault at its own call site, where the decision is readable,
+/// rather than by being handed a door that discarded it first. The
+/// properties panel is that caller, and
+/// [`AdmissionFault::NoSuchNode`] carries why silence is right there.
 ///
 /// # Errors
 ///
