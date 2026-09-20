@@ -1923,10 +1923,10 @@ impl core::fmt::Display for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration at the remainder's {} claims {} {} of \
-                 the part (minted by its node {}), which the pinned part's product does \
-                 not name — the crossing does not re-verify against this version of the \
-                 part",
+                "instance {}'s seam declaration crosses at the remainder's {} and claims \
+                 {} {} of the part (minted by its node {}), which the pinned part's \
+                 product does not name — the crossing does not re-verify against this \
+                 version of the part",
                 instance.0,
                 outer,
                 name.kind.article(),

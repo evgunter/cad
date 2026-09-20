@@ -5591,7 +5591,7 @@ class InterfaceCrossing:
     record's type and neither getter can answer anything else.
 
     Those two and the class are the whole of it: a crossing carries no
-    provenance, so it does not name the mate the split saw."""
+    provenance, and the kernel's `InterfaceCrossing::Mate` says why."""
 
     @property
     def variant(self) -> str:

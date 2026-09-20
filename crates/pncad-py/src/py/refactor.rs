@@ -84,7 +84,7 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// record's type and neither getter can answer anything else.
 ///
 /// Those two and the class are the whole of it: a crossing carries no
-/// provenance, so there is no id here for the mate the split saw.
+/// provenance, and the kernel's `InterfaceCrossing::Mate` says why.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);

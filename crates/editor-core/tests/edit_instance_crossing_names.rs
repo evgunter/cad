@@ -19,9 +19,11 @@
 //! name of this document (`Node::payload_names`' arm is the one home
 //! for why), so neither the liveness check nor `Rebind` may reach it.
 //!
-//! Those two references and the class are the WHOLE of a crossing, so
-//! an instance has no read site at all: `Node::payload_read_sites`
-//! answers nothing for one, and the last row here pins that.
+//! Those two references and the class are the WHOLE of a crossing
+//! (`InterfaceCrossing::Mate`'s doc argues why it carries no
+//! provenance), so an instance has no read site at all:
+//! `Node::payload_read_sites` answers nothing for one, and the last
+//! row here pins that.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

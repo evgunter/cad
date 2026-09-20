@@ -3531,10 +3531,11 @@ impl<P> Node<P> {
             // [`Node::inputs`] reports — so the input check covers
             // the site and there is nothing extra to name here; and
             // an instance, whose interface record holds NO node id at
-            // all. A crossing is a class and two face names: the
-            // `outer` is a payload name, checked as one by the
-            // reading twin's list, and the `inner` is spelled in the
-            // part's id space, which no door here may read.
+            // all ([`InterfaceCrossing::Mate`] argues why). A crossing
+            // is a class and two face names: the `outer` is a payload
+            // name, checked as one by the reading twin's list, and the
+            // `inner` is spelled in the part's id space, which no door
+            // here may read.
             name_free_node!()
             | Node::Fillet { .. }
             | Node::Chamfer { .. }

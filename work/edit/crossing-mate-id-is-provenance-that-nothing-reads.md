@@ -16,11 +16,15 @@ opened: 2026-09-19
 crossed the cut. Since PR #2872's fix pass it is a PROVENANCE reference
 the insert door checks live (`Node::payload_read_sites` lists it, so a
 dangling id refuses `ReadSiteMissingNode`), and a later delete of the
-mate is not reported. Nothing READS the id: `eval/wire.rs` carries it
-into `NodeErrorKind::CrossingUnverified`'s prose (`mate.0` is printed)
-and `crates/pncad-py/src/py/refactor.rs` republishes it as a `NodeId`;
-no door looks the node up, no re-verification resolves against it, and
-the two references that do the work are `outer` and `inner`.
+mate is not reported. The id is read only by PROSE, and keyed
+(memo-only, never persisted): `eval/wire.rs` carries it into
+`NodeErrorKind::CrossingUnverified`'s message (`mate.0` is printed),
+`crates/pncad-py/src/py/refactor.rs` republishes it as a `NodeId`, and
+the instantiate arm of the content key feeds it (`h.write_u64(mate.0)`
+in `eval/mod.rs`) — so two documents differing in the id alone key
+apart, in a memo that no file holds. No door looks the node up, no
+re-verification resolves against it, and the two references that do
+the work are `outer` and `inner`.
 
 ## Why it may matter
 
@@ -149,8 +153,51 @@ control). Added in `asm_r2b_interface_wire`:
 moved with the shape; the latter now pins that the refusal names the
 crossing by its `outer`.
 
-**Premise corrections** (both reported in the PR body): the Display
-row lives in `asm_r2b_assembly`, not `display_contract.rs` (which has
-no `CrossingUnverified` row at all), and `crates/pncad/tests/all.rs`'s
+**Premise corrections** — four, all reported in the PR body: the
+Display row lives in `asm_r2b_assembly`, not `display_contract.rs`
+(which has no `CrossingUnverified` row at all); `crates/pncad/tests/all.rs`'s
 cross-process probe is a fifth construction site the spec did not
-list.
+list; the binding census DOES move, though not for the reason premise
+4 allowed (it never listed the field — it counted the ARM as spelled
+because the retired getter shared the arm's snake-cased name); and
+premise 4's other half, that no design page names the field, HOLDS as
+written.
+
+**AQ8.** `refactor::split`'s crossing walk is the field's only writer
+and is unreachable today (`rev_fix_xsplit_unreachable`: a crossing
+mate welds its ends into one cluster and `TornCluster` refuses cutting
+through one), so the seam's write path stays hypothetical and the
+round trip is pinned through the hand-built door,
+`Node::instantiate_part_with`.
+
+### Fix pass (2026-09-20)
+
+The review's two probes are adopted authorship-preserving (merge of
+`review/mateid-rv`, no cherry-picks): `asm_r2b_assembly`'s `row5_b`
+now pins that the ONE construction site hands in `outer`, and
+`a_crossing_record_keys_on_each_of_its_fields` pins that each
+surviving field feeds the content key. Both mutants were re-applied
+after the merge and each reds its row.
+
+- **One home for the read-only wire walk.** `tests/wire/mod.rs` gains
+  `wire_body` beside `doctored`, and both come off one `split_body`,
+  so the read-only half and the surgery cut the file in the same
+  place. `asm_r2b_interface_wire` imports it instead of re-inlining
+  the split; the three suites the review named
+  (`docm7_union_declare`, `asm_r2a_mate_solve`, `r2_m10_2_probes`)
+  turned out to be copies of the WRITE walk, not the read-only one,
+  and all three now call `doctored`.
+- **One home for the "no provenance" argument.** The variant's doc in
+  `node.rs` argues it; `payload_read_sites`' group comment, the
+  `pncad.pyi`/`py/refactor.rs` pair (one sentence, identically
+  worded), the census comment and the two suite headers point to it.
+- **The census's spelling rule is explicit.** A new roster,
+  `ARMS_SPELLED_BY_A_PROPERTY`, lists every arm rule 1 accounts for by
+  a same-named property, and a new row fails until a new one is
+  written down. Five arms are accounted that way on the merge base —
+  `InterfaceCrossing::Mate` among them, which is the accident that
+  hid this field's arm — and four today. No binding moved.
+- **The sentences.** The finding above says "read only by prose, and
+  keyed"; the `Display` reads "…declaration crosses at the
+  remainder's … and claims …"; the premise corrections are counted
+  here and in the PR body alike.

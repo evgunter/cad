@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::wire::doctored;
+use crate::wire::{doctored, wire_body};
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
     EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, MateFrame, MatePrimitive, Node,
@@ -163,16 +163,15 @@ fn saved_crossing() -> (String, RecipeNodeId) {
 /// **A crossing is THREE fields on the wire** — the class it declares
 /// and its two references, and nothing else.
 ///
-/// A crossing carries no provenance: what the seam needs is the two
-/// ends and the kind of contact, and a field no door reads is a cost
-/// every file with a record pays. Read off the SAVED document rather
-/// than a serialized value, because a file is what the row below
-/// corrupts and what a stale writer produces.
+/// A crossing carries no provenance — `InterfaceCrossing::Mate`'s own
+/// doc argues why — and this is that absence as BYTES: a field no door
+/// reads is a cost every file with a record would pay. Read off the
+/// SAVED document rather than a serialized value, because a file is
+/// what the row below corrupts and what a stale writer produces.
 #[test]
 fn a_crossing_is_three_fields_on_the_wire() {
     let (text, instance) = saved_crossing();
-    let body = text.split_at(text.find('{').expect("the JSON body follows the header"));
-    let mut wire: serde_json::Value = serde_json::from_str(body.1).expect("the body parses");
+    let mut wire = wire_body(&text);
     let mut keys: Vec<String> = crossing_of(&mut wire, instance)
         .as_object()
         .expect("a crossing is an object")

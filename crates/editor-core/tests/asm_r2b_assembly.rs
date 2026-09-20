@@ -1169,7 +1169,7 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6-fields", doc_ref);
     // The SAME live node, a different face of it: only the `outer`
     // moves between the two records below.
-    let other_outer = FaceName::new(in_part((*outer).node, CapEnd::Start))
+    let other_outer = FaceName::new(in_part(outer.node, CapEnd::Start))
         .expect("a crossing's references are face names");
     let record = |outer: FaceName, inner: FaceName, class| editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
