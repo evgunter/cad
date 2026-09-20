@@ -553,7 +553,7 @@ The typed lever and the closed `Clash`; the coset's directions as
 `MateFrame::frame` over geom-core's new `point_at_frame` (the fence
 widened by that one door, announced on SCALAR's tracker); the
 `MateFault` consumer sentence. Reviews on `f3896c554` (correctness
-one MAJOR — the planar-pair line's second decision moved verdicts at
+one MAJOR — the planar-pair line's second decision refused under its own name at
 the boundary — and one MINOR, the aim decided three times per mate;
 style no MAJOR); the twenty-two-item fix pass landed in one push,
 the lane's argued-past stop clause reversed by ruling. Orchestrator
