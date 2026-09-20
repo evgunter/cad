@@ -78,17 +78,3 @@ recommended it to. The check that catches it is not `git log -S` on the
 sentence (which lands correctly on `e9eeace50`) but reading the cited
 thread and asking which comments are the account's owner speaking.
 
-## The count is six, not seven (re-taken 2026-09-20, `b29fe8bd1`)
-
-`git grep -l "Promoted per Ev's request"` over every tracked file names
-**six** sources: `review_m1_pr1.rs` and five of the six files under
-`review_m1_pr2/`. The sixth, `review_m1_pr2/mod.rs`, does not carry the
-sentence — the row read "all six `review_m1_pr2/*.rs`" off a directory
-listing that counts the module root as a carrier. The title and the
-`Where` clause above still say seven and are wrong by one; they are left
-as written because the question this row holds is Ev's and the wording
-of the finding is not this lane's to re-cut.
-
-Added by the S-DUP lane closing
-`viewer-review-suite-fixtures-have-no-oracle-role`, which was told the
-population was seven and measured it.
