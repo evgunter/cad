@@ -10,10 +10,14 @@
 //! definite verdict the classifier reached, and no op mints an
 //! `Indeterminate` its caller's log cannot see.
 //!
-//! The rows below drive that through the public doors; the census at the
-//! end is the structural half — this crate's shipped code holds no
-//! hand-built `Indeterminate` at all, so there is no site left that
-//! could forget.
+//! The rows below drive that through the public doors. The census at
+//! the end says a narrower thing than it looks: no file under this
+//! crate's `src` still SPELLS an `Indeterminate` literal outside a test
+//! body. That closes the eight sites' own shape, and it is a census
+//! over one spelling in one crate — a mint through `sign_within` plus
+//! `with_predicate`, through an alias, or from a helper one module over
+//! walks straight past it. Its own doc comment lists the routes, each
+//! one executed rather than imagined.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -166,46 +170,45 @@ fn the_material_pairing_gate_records_its_escalation() {
     );
 }
 
-/// **The structural half: this crate mints no `Indeterminate` of its
-/// own.** Every escalation `geom-brep` hands a caller now comes back
-/// from a funnel door, which is the same call that put it on the frame's
-/// log — so "does the log hold it" is not a property each site has to
-/// remember, and a new site cannot reintroduce the gap without this row
-/// going red.
+/// **The structural half, at the eight sites: this crate spells no
+/// `Indeterminate` literal of its own.** Every escalation `geom-brep`
+/// hands a caller comes back from a funnel door, which is the same call
+/// that put it on the frame's log — so "does the log hold it" is not a
+/// property each of those sites has to remember.
 ///
-/// **Blind spot**, stated rather than implied: the scan reads
-/// `crates/geom-brep/src/**/*.rs` with comments and string literals
-/// blanked, and excludes the body of every `#[cfg(test)]` item — a
-/// fixture is not a shipped mint. It matches the struct literal
-/// `Indeterminate {`, so a mint spelled through a helper that builds one
-/// elsewhere, through a type alias, or in a file reached by `include!`
-/// is invisible to it. It is a guard on the spelling the eight sites
-/// used, not a proof about the crate.
+/// **What this row is NOT.** It is a census over one spelling in one
+/// crate, not a proof that the defect cannot return. The blind spots
+/// below are executed, not hypothetical — the first two were reproduced
+/// by the review of the change that added this row:
+///
+/// - **The raw classifier route.** `margin.sign_within(band)` followed
+///   by `.with_predicate(name)` mints the defect's exact payload with no
+///   `Indeterminate` token anywhere in the file. Nothing here sees it.
+/// - **The same shape through `k_stats::decide` and a hand-built
+///   error.** Ask the funnel, match `Positive`, build the refusal — with
+///   the payload assembled anywhere but at the call site, this row is
+///   silent and the log is empty.
+/// - **An alias or a helper.** `use geom_core::Indeterminate as Diag;`,
+///   or a constructor in another module whose return value is the mint.
+/// - **A file this walk does not read**: one reached by `include!` or
+///   `#[path]`, and every crate other than this one.
+/// - **The `#[cfg(test)]` exclusion is ITEM-shaped.** A test-only helper
+///   gated some other way (a cargo feature, a `cfg(debug_assertions)`)
+///   reads as shipped and reds this row. That direction is loud, which
+///   is the one it should be.
 #[test]
-fn shipped_geom_brep_code_builds_no_indeterminate_of_its_own() {
+fn shipped_geom_brep_code_spells_no_indeterminate_literal() {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut mints = Vec::new();
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).expect("a readable source file");
-        let code = test_utils::source::code_only(&text);
-        let fixtures = cfg_test_bodies(&code);
-        let mut at = 0usize;
-        while let Some(rel) = code[at..].find("Indeterminate") {
-            let start = at + rel;
-            at = start + "Indeterminate".len();
-            if !test_utils::source::boundary_before(&code, start) {
-                continue;
-            }
-            if code[at..].trim_start().starts_with('{')
-                && !fixtures.iter().any(|r| r.contains(&start))
-            {
-                let rel_path = path.strip_prefix(&src).unwrap_or(&path);
-                mints.push(format!(
-                    "{}:{}",
-                    rel_path.display(),
-                    test_utils::source::line(&text, start)
-                ));
-            }
+        let rel_path = path.strip_prefix(&src).unwrap_or(&path);
+        for at in shipped_mints(&test_utils::source::code_only(&text)) {
+            mints.push(format!(
+                "{}:{}",
+                rel_path.display(),
+                test_utils::source::line(&text, at)
+            ));
         }
     }
     assert!(
@@ -215,16 +218,112 @@ fn shipped_geom_brep_code_builds_no_indeterminate_of_its_own() {
     );
 }
 
+/// **The scanner, exercised on text this file owns** — so a change that
+/// broke it reds here instead of reading as a clean tree.
+///
+/// Each case is one line of the contract: the shipped mint is found, a
+/// fixture's is not, a brace-less `#[cfg(test)]` item does not carry its
+/// exclusion into the shipped code after it, and a signature that NAMES
+/// the type is not a construction of it.
+#[test]
+fn the_mint_scanner_finds_a_shipped_literal_and_nothing_else() {
+    let found = |src: &str| shipped_mints(&test_utils::source::code_only(src)).len();
+
+    assert_eq!(
+        found("fn f() -> R { Err(Indeterminate { margin: m, band, predicate: None }) }"),
+        1,
+        "a shipped mint"
+    );
+    assert_eq!(
+        found("#[cfg(test)]\nmod tests {\n fn g() { let _ = Indeterminate { band }; }\n}"),
+        0,
+        "a fixture inside a `#[cfg(test)]` body is not a shipped mint"
+    );
+    assert_eq!(
+        found("#[cfg(test)]\nmod tests;\nfn f() { let _ = Indeterminate { band }; }"),
+        1,
+        "a BRACE-LESS `#[cfg(test)]` item has no body, so its exclusion must not run over \
+         the next shipped one — the regression this case pins"
+    );
+    assert_eq!(
+        found("#[cfg(test)]\nconst N: [u8; 2] = [0, 0];\nfn f() { let _ = Indeterminate { b }; }"),
+        1,
+        "a `;` inside brackets does not terminate the item either"
+    );
+    assert_eq!(
+        found("fn f(x: T) -> Indeterminate {\n    g(x)\n}"),
+        0,
+        "a return type NAMES the type; it does not construct one"
+    );
+    assert_eq!(
+        found("impl Indeterminate {\n    fn f() {}\n}"),
+        0,
+        "nor does an inherent impl block"
+    );
+}
+
+/// The byte offset of every `Indeterminate { … }` struct literal in
+/// `code` (a code-only view) that is not inside a `#[cfg(test)]` item.
+fn shipped_mints(code: &str) -> Vec<usize> {
+    let fixtures = cfg_test_bodies(code);
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(rel) = code[at..].find("Indeterminate") {
+        let start = at + rel;
+        at = start + "Indeterminate".len();
+        if !test_utils::source::boundary_before(code, start) {
+            continue;
+        }
+        if !code[at..].trim_start().starts_with('{') {
+            continue;
+        }
+        // `-> Indeterminate {`, `impl Indeterminate {`, `struct …` and
+        // friends NAME the type where a literal CONSTRUCTS one, and a
+        // `{` follows either way.
+        let before = code[..start].trim_end();
+        let names_rather_than_builds = before.ends_with("->")
+            || ["impl", "struct", "enum", "union", "for"].iter().any(|kw| {
+                before.ends_with(kw)
+                    && test_utils::source::boundary_before(before, before.len() - kw.len())
+            });
+        if names_rather_than_builds || fixtures.iter().any(|r| r.contains(&start)) {
+            continue;
+        }
+        out.push(start);
+    }
+    out
+}
+
 /// The byte range of every `#[cfg(test)]` item's body in `code`.
+///
+/// **An item's body is found by its TERMINATOR, not by the next `{`.**
+/// A brace-less item — `mod tests;`, a `use`, a `const` — ends at a `;`
+/// and has no body at all; taking the next `{` for one silently ran the
+/// exclusion over the following SHIPPED item, which is a guard that
+/// stops guarding without saying so. `;` and `{` are both read at
+/// bracket depth zero, so a `;` inside a type (`[u8; 2]`) terminates
+/// nothing.
 fn cfg_test_bodies(code: &str) -> Vec<std::ops::Range<usize>> {
     let mut out = Vec::new();
     let mut at = 0usize;
     while let Some(rel) = code[at..].find("#[cfg(test)]") {
         let start = at + rel;
         at = start + "#[cfg(test)]".len();
-        let Some(open) = code[at..].find('{').map(|o| at + o) else {
-            continue;
-        };
+        let mut depth = 0i32;
+        let mut open = None;
+        for (i, c) in code[at..].char_indices() {
+            match c {
+                '(' | '[' => depth += 1,
+                ')' | ']' => depth -= 1,
+                ';' if depth <= 0 => break,
+                '{' if depth <= 0 => {
+                    open = Some(at + i);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let Some(open) = open else { continue };
         if let Some(close) = test_utils::source::balanced_end(code, open) {
             out.push(open..close);
             at = close;
