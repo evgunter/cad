@@ -13,24 +13,17 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::common::{ang, len, scl};
 
 use common::asm;
 use pncad::document::{
-    AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, apply,
+    AssemblyError, DocEdit, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusedRef, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
-
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a length literal")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar literal")
-}
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(
@@ -58,7 +51,7 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
             input: shelf,
             translation: [len(0.0), len(0.0), len(0.05)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("an angle literal"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );

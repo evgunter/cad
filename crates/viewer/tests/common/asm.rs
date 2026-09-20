@@ -20,14 +20,16 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, apply, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, apply, content_pin, evaluate,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
+
+use super::len;
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -64,10 +66,6 @@ pub struct Bench {
     pub shelf_bottom: StableName,
 }
 
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a length literal")
-}
-
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
@@ -88,15 +86,10 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
 /// One extruded box, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
-        .expect("a literal rectangle");
     let plane = insert(&mut doc, super::xy_frame(), tol);
     let profile = insert(
         &mut doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![outline],
-        }),
+        super::rectangle(plane, [0.0, 0.0], width, depth),
         tol,
     );
     insert(

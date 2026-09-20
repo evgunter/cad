@@ -137,15 +137,25 @@ pub fn xy_frame() -> Node<ProfileProgram> {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
-/// A square profile node's payload on `plane`, `side` metres on a side.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+/// An axis-aligned rectangular profile node's payload on `plane`:
+/// `w` by `h`, its lower-left corner at `origin` in the plane's own
+/// coordinates. `square` is this with two equal sides at the plane
+/// origin, and a fixture whose block sits elsewhere moves `origin`.
+pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
+    let [x0, y0] = origin;
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
+            LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
                 .expect("finite corners"),
         ],
     })
+}
+
+/// A square profile node's payload on `plane`, `side` metres on a side,
+/// at the plane origin.
+pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+    rectangle(plane, [0.0, 0.0], side, side)
 }
 
 /// **A frame and a square drawn on it**, answering the document and the
@@ -273,7 +283,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
             input: extrude,
             translation: [len(0.01), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );
