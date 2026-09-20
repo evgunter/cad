@@ -7464,6 +7464,47 @@ EDIT-RADIUS RECORDED AT MERGE (2026-09-20, PR #2892, sample #223 — prior highe
 
 | EDIT-RADIUS | 2026-09-20 | EDIT-RADIUS (PR #2892; spec docs/EDIT-RADIUS-SPEC.md, not amended, deleted at merge; closes `fused-arc-fillet-steps-have-no-per-segment-radius-address`): `ReplayStructure` gains `radii: Vec<RadiusEmission { step, role: RadiusRole { Fillet, Carrier, Carrier2 }, segment }>`, recorded as the pass emits — a fillet arc at the step that BOUND its radius (the pending fillet's meta carries `bound_at`), a carrier arc at the fused verb's own step, an arc no radius drew recording nothing; `replay_guided` compares emissions as it compares spans; DM8's `segment_radii` answers one pair per emission through the one checked permutation `profile_edges_of` uses (`CheckedRecords`), "one radius, one segment" and `radius_arg` retired, `step_radii` yielding every radius argument so "attached ⊆ keyed" holds by construction; the finding's own `FilletArc { Via }` arrival row authored green; corpus keys byte-identical (355; the corpus authors no fused step, so the inclusion's strict side is an authored document). **Two spec premises fell before the build** (premise 2's "current step" names a step holding no radius for a fused verb's carrier arc; "two `Sweep` specs" unrepresentable) and **none to the dual** | M / STRUCTURAL (pre-draw at the spec, after the block byte — disclosed) | OPUS (block EDIT-B2 slot 1; byte 131 → fable at slot 2) | **DUAL (ordinals 4806/4807, v6 byte 155 parity 1: R1 fable, R2 opus, concurrent same-head on frozen 370e560e7)**: R1 0/4/6 APPROVE-WITH-FIXES, rubric 4/4/4 — MINOR: the guided positive half blind to `Carrier2` (mutant survives both suites; no coverage-corpus arrival carries a radius), the exact-fit close's fillet arc re-read by nothing (the PR's "junction check covers the same joint" false: it reads the computed arc, not the stored bulge; filed), mutant-table row 4 misattributed, `RadiusNotAnArgument` renders "radius radius"; NOTE: the PR's corpus-grep sentence literally false (a byte golden names the verbs; dump reproduced identical), the close's fillet address unpinned profile-side, `arc_to(Radius)` unauthorable (brief premise), a lying `radii` on a carrier record never refused. R2 0/5/3 APPROVE-WITH-FIXES, rubric 4/4/3 — MINOR: the same stutter, `segment_radii`'s CARRIER arm skipping the span check the chain arm goes through (red probe: `profile_edges_of` refuses where `segment_radii` answers — the factoring minting the class it closed, one arm out), three stale `radius_arg`/SPAN sentences in the rewritten suite, `anchor.rs`'s `None` enumeration missing the PR's own fourth case, the inclusion's strict side reds only on a two-radius step; NOTE: the same exact-fit gap measured (`bulge * 2.0` passes both suites; filed), the same grep sentence, `edge_radii`'s `unreachable!` arguing the wrong fact. Convergent on five findings. Adjudicated: **0 bilateral MAJOR + 0 unilateral — v6 tally after this pair: +0 candidates.** Rulings: one checked walk for both arms and a typed refusal for a carrier record carrying emissions; the exact-fit arm through `record_fillet_arc` if the re-read holds (it did — row closed, duplicate folded); both fence halves (R2's row + a `Radius`-arrival corpus chain); the sentences fixed and pinned whole; one address spelling and one `Option` for the pending fillet; the two mode vocabularies pinned against each other; the prose swept and the PR body corrected; a profile-side close-address row; the §5 preamble one home; both probe sets adopted authorship-preserving. Pair FAIR (no glimpse either side; both complete; private cold target dirs; no other lane on the box). Spec flaws disclosed by both and owned by the orchestrator: premise 2 mis-named the carrier arc's step; the three-radii row named an unrepresentable chain; the brief's claim 2 asked for an unauthorable `arc_to(Radius)`. | 8 reported / 0 silent by both counts (R1: the seam list omitted `lib.rs`'s re-export, which the territory list carried) | R1 4 / R2 4 | R1 4 / R2 4 | R1 4 / R2 3 | substantial, IMPLEMENTER-INHERITED: `CheckedRecords::{span_of, edges_of_step}` the one walk for both doors, `CarrierRecordsEmissions` and `EmissionOffTheLoop` new arms (the latter argued over reusing `SpanOffTheLoop`'s range sentence), the exact-fit close through `record_fillet_arc` with the `bulge * 2.0` mutant now refused BY THE DOOR (`FilletCarrierBelowSceneResolution`) and `fillets_carry_their_tangency`'s reach widened to "every door but three" with the seam's reason, `record_fillet_arc` = `record_radius` + the list, `carrier_address` folded, `Option<(Pending, PendingMeta)>`, `every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither`, coverage-corpus row 16 (`arc_fillet_arc(Sweep, r, Radius)`) with `every_radius_role_is_reached_by_the_corpus` on `RadiusRole::ALL`, a `Via`-close binder-address row (the shape that sees R1's surviving mutant), `fixture::wall_row`; three previously surviving mutants now red; `radius_arg` sweep re-counted (5 at the merge base); two goldens re-baselined and stated (the corpus dump gains a loop; the interval relay pin gains the new row at 1e-12 — the fillet's tangency puts the centre separation on the classifier's edge, not an escalation); one red CI run on the way (the lane had not built `--features interval` locally — the lane brief's first named hazard) | impl CI green (run 35468514625 on 370e560e7, full matrix); fix CI green (runs 35477474770 on be3c4f229 and 35478910022 on 795aac968, full matrix; one red run 35475008996 between, the relay pin) | impl ~429k (harness) / fix ~544k (harness) / R1 ~280k + R2 ~266k (harness) | impl ~86 min (harness) / fix ~174 min (harness) / R1 ~27 min + R2 ~39 min concurrent (harness) |
 
+## EDIT-PROGRAM review ordinals fixed at dispatch (2026-09-20)
+
+EDIT-PROGRAM (`a-committed-profile-program-has-no-whole-program-edit`,
+PR #2927 open — frozen head `1a3359122192f1dec517f75f2098f8b28d70796c`,
+five commits, 41 files, +3688/−206): **ordinals 4808 (R1) and 4809
+(R2)** (EDIT band; after 4807). Pre-draw fields at the spec
+(`docs/EDIT-PROGRAM-SPEC.md`, logged AFTER block EDIT-B2's byte was
+drawn — disclosed; the covariate is contaminated for this row as for
+every non-first slot): difficulty **L**, task-class **STRUCTURAL** (a
+new `DocEdit` arm replacing a live profile's program whole, a segment
+map read off two replay records, a name walk over every carrier with a
+rebind-or-strand verdict per name, persisted, with a Python door);
+implementer arm per block EDIT-B2 slot 2 = FABLE (byte 131 → fable at
+slot 2). Protocol v6 dual: draw = `/dev/urandom` byte **254**, parity 0
+⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review
+runs: CONCURRENT same-head on frozen `1a3359122`, both briefs authored
+and STORED with sha256 before either dispatches (11 057 bytes each;
+sha256 `43e389386e3aba24…` r1 / `ed4f7c4c33d6f71f…` r2 — identical
+text modulo lane names and lane paths, verified by diff: five lines),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer (both EMPTY — cold and
+symmetric), both lanes on one 4-core remote box with no other lane
+live (a method note applying to both arms equally). Disclosed for the
+dual to adjudicate, and in the briefs: the implementer reports six
+deviations from the spec, two of them premise corrections measured
+before the build (premise 3's vertex convention — a vertex is carried
+by the segment ARRIVING at it, not leaving; premise 4's carrier filter
+`name.node == profile` finds nothing, a profile mints no name, so the
+walk filters by the minting node's `anchoring_profile`), and one that
+is design-shaped and **flagged for Ev**: a stranded name is RETIRED to
+a coordinate past the loop's end so it resolves `Vanished` rather than
+aliasing the new program's segment (the spec said report only). The
+other three: one `ProvenanceMalformed` arm carrying a seven-arm fault
+enum instead of seven `EditError` arms; the changed-step row in the
+corner-fillet form; the old-build refusal's `detail` unable to name the
+tag (filed). The implementer's unit log entry is not written until the
+dual concludes. The spec's premise record on this program (three of
+the last three specs carried a false premise) is put to both reviewers
+as a standing hazard: every premise a hypothesis, the corrections
+included.
+
 ## EDIT-PICK3 review ordinals fixed at dispatch (2026-09-16)
 
 EDIT-PICK3 (`pick-door-answers-a-t-interval`, PR #2786 open — frozen
