@@ -42,3 +42,42 @@ about how loudly they are drawn. A fix to either leaves the other
 standing.
 
 `properties.rs` is VNEWS's, VGEOM's, CHROME's and VIEW's.
+
+## Widened at the tone unit's fix pass (2026-09-20)
+
+The original sweep here was over the **coloured** half —
+`colored_label` / `.color(chrome(` and the `ui.weak` sibling each is
+chosen against. A review sweep of a different shape found members that
+grep structurally cannot see, so the rule is restated and the
+population grows.
+
+**The sweep rule**, which is about the PROPERTY and not the call: every
+site under `crates/viewer/src` that renders a typed refusal or verdict
+and **chooses its salience at the call** — a coloured label, a `weak`
+one, or a plain `ui.label` — rather than reading a `frame::Tone` from
+the value. Run as the union of `colored_label`, `.color(chrome(`,
+`ui.weak(<typed value>.to_string())` and `ui.label(<typed
+value>.to_string())`, each read for whether an alternative salience was
+available at that site.
+
+**What the coloured-only pattern could not match, and now does:**
+
+- `pane/create.rs`, the store/directory refusal arm (~`:308-310`) —
+  `ui.label(refusal.to_string())`, **a tone decision by OMISSION**.
+  Neither weak nor coloured, so it takes the body colour, and nothing
+  at the site or on the value says whether that was chosen. A grep over
+  either salience call is blind to the site that made neither call.
+- `pane/properties.rs`, the free-move probe (~`:399`) —
+  `ui.weak(fault.to_string())` over a typed `DisplayFault`. (The same
+  line is `a-disabled-control-says-why-in-four-shapes`'s on the WORDS
+  axis; this row is the salience.)
+- `pane/properties.rs` (~`:485`, ~`:508`) — `ui.weak` over a
+  dimension's `Display`. These two are the control case: a dimension is
+  not a refusal at all, so `weak` is secondary text rather than a tone,
+  and they are members of the pattern and **not** of the class. Kept
+  here because a sweep that silently drops its non-members cannot be
+  re-run.
+
+The decision the row states is unchanged and now covers more: these
+values are `pncad`'s and `crate::display`'s, so where a tone for a
+non-viewer value lives is still what has to be settled first.

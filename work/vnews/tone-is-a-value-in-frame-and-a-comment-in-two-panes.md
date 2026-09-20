@@ -2,10 +2,11 @@
 id: tone-is-a-value-in-frame-and-a-comment-in-two-panes
 kind: issue
 title: The actionable-or-not rule is a value at the toolbar and a comment in two panes
-status: review
+status: closed
 opened: 2026-09-05
 branch: vnews/tone-row-badge
 pr: 2915
+closed: 2026-09-20
 ---
 
 
@@ -91,3 +92,33 @@ reaches `app.rs`), and
 is `parked` on it and on nothing else, so the PR that closes this one
 reds `work.py lint` until that row is re-parked, opened or deferred in
 the same commit.
+
+## What the fix pass changed, and the title's own count (2026-09-20)
+
+**The pane's draw is an exhaustive `match` again.** The first cut
+spelled the silence decision `if !matches!(row.status, RowStatus::Ok)`,
+which bought `tone()`'s totality at the price of the property this
+module states twice — *"one arm per variant so a new node type cannot
+fall into a wildcard"*, *"Exhaustive on purpose"* — and the header
+anticipates the very variant that would have walked through it (*"a
+status saying 'the run, not this row'"*,
+`work/chrome/band-refusal-still-badges-every-row`). `tone()` stays
+total; the call site is a `match` with `Ok` drawing nothing as its own
+arm. Receipt: a planted `RowStatus::RunFault` reds `pane/features.rs`
+along with `badge()`, `tone()` and `message()` — four sites, where the
+`matches!` spelling would have compiled and drawn.
+
+**The tone-to-chrome mapping has one home**, `app::toned`, read by the
+toolbar badge family and by this row — see
+`tone-to-chrome-mapping-is-spelled-twice`, closed with this row rather
+than left as residue.
+
+**The title undercounts.** *"a comment in two panes"* was the reading
+at filing; the prose census the fix pass ran found the rule attributed
+to a SITE in **four** further homes — two in `frame.rs`, one in
+`theme.rs`, one in `crates/viewer/README.md` — none of which any grep
+for the tone CALL could reach. The population and its sweep rule are
+`tone-doc-argues-from-a-site-that-now-reads-the-value` and VDOC's
+`viewer-readme-attributes-the-tone-rule-to-the-pane`. A second
+`frame` value re-spelled inside the repaired function is
+`a-tree-rows-message-line-picks-its-affordance-by-hand`.

@@ -2,8 +2,11 @@
 id: tone-to-chrome-mapping-is-spelled-twice
 kind: issue
 title: The tone-to-chrome mapping is spelled at the toolbar and again at the feature row
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-20
+pr: 2915
+branch: vnews/tone-row-badge
 ---
 
 
@@ -37,3 +40,28 @@ a row rather than a residue of the unit that found it.
 is the crate's one `Rgba8 -> Color32` door and both go through it; the
 defect is that the two-arm MAPPING is written twice, so a change to
 what `Advisory` looks like reaches one badge family and not the other.
+
+## Closed at the fix pass that would otherwise have left it open
+(2026-09-20)
+
+Filed as residue, then taken in the same PR once the orchestrator ruled
+that `app.rs` was not behind this lane's `frame.rs` fence. **The row was
+answered by making the sentence true rather than by re-wording it**:
+`app::draw_badge`'s comment said *"The tone's two spellings, in the one
+place the mapping is made"*, and the diff that created this row made
+that false.
+
+`app::toned(text, theme, tone) -> egui::RichText` is that one place
+now. Its readers are `app::draw_badge` for the toolbar badge family and
+`pane::features::feature_row` for the tree's row badge — two families,
+one rule, so what `Advisory` looks like changes in one place or
+nowhere. The claim moved onto the function's own doc, where a reader
+meets it.
+
+**What this does NOT settle**, and why
+`work/chrome/chrome-weight-is-outside-the-palette` still stands: the
+mapping having one home makes that row's decision 1 — whether a
+semantic distinction drawn in WEIGHT belongs inside the theme
+contract — answerable in one edit, but does not answer it. `ui.weak` is
+still an egui default no palette can tune, and the paint is still not
+headlessly assertable.
