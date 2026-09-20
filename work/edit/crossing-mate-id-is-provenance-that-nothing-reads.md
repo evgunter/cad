@@ -2,7 +2,8 @@
 id: crossing-mate-id-is-provenance-that-nothing-reads
 kind: issue
 title: An interface crossing's mate id is provenance nothing reads: checked at insertion today, deletable tomorrow
-status: review
+status: closed
+closed: 2026-09-20
 pr: 2906
 branch: edit/crossing-drops-mate-id
 opened: 2026-09-19
@@ -204,3 +205,27 @@ after the merge and each reds its row.
   keyed"; the `Display` reads "…declaration crosses at the
   remainder's … and claims …"; the premise corrections are counted
   here and in the PR body alike.
+
+## Closed (2026-09-20, EDIT orchestrator) — middle tier, one opus style review, merged on green CI
+
+Built and merged as PR #2906. `InterfaceCrossing::Mate` is
+`{ class, outer, inner }` — the references the seam needs and no
+provenance; the refusal names the crossing by `outer`; a file carrying
+the old field refuses typed at the load door under
+`deny_unknown_fields` (no migration: the format is unversioned and no
+committed corpus or fixture carries a crossing, measured); the
+persist codecs were not touched. The review was MERGEABLE (0/2/3):
+its two probes — the one refusal site handing in `outer`, and each
+crossing field feeding the content key — are adopted
+authorship-preserving; the fix pass gave the read-only wire walk one
+home beside `doctored` (three suites the review took for read-only
+copies were write-walk copies and now call `doctored`), the
+"no provenance" argument one home, and the Python census a written
+rule for a same-named property spelling an arm (an additive roster
+and guard, four members listed, that would have named this accident
+the day it landed — Ev's 2026-09-09 census rule untouched). The
+"read by nobody" sentence was corrected: the merge base keyed the id,
+memo-only. One row filed on S-DUP's slate for the by-line header
+split spelled at sixteen more sites. The split walk that writes the
+record stays unreachable (AQ8), said so on the row.
+
