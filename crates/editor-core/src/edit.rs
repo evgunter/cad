@@ -490,6 +490,22 @@ impl core::fmt::Display for CarryForwardDoor {
     }
 }
 
+/// **The one recourse for a parameter name that does not exist**, and
+/// the only home of its wording.
+///
+/// One mistake reaches two doors. Typing an undeclared name into the
+/// value field reaches a carry-forward edit, which refuses
+/// [`EditError::DocParamNotDeclared`]; dragging that parameter's row
+/// is a lookup with no edit behind it, and the viewer refuses
+/// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
+/// second reader of this const and the only one outside this crate).
+/// The two are converged on the RECOURSE and not on the sentence,
+/// because a drag has no refused edit to report and a sentence that
+/// borrowed the door's frame would report a refusal of something
+/// nobody attempted. What is converged is what the user must DO, so
+/// it is written once here and rendered twice.
+pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
+
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
 /// **The param-ref naming convention is stated here and nowhere else.**
@@ -1434,15 +1450,13 @@ impl core::fmt::Display for EditError {
                 f,
                 "parameter {name}: a continuous parameter cannot be a count — use a count parameter"
             ),
-            // The closing clause is also `Refusal::NoSuchParam`'s, in
-            // the viewer: one mistake reaches this door by typing and
-            // that lookup by dragging, and the two are converged on the
-            // RECOURSE rather than on the sentence. A viewer test holds
-            // them in step (`panel_edits::refusals_render_as_sentences`).
+            // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
+            // the viewer's `Refusal::NoSuchParam` renders too; the
+            // const's own doc says why the two doors converge there.
             Self::DocParamNotDeclared { name, door } => write!(
                 f,
                 "parameter {name} is not declared, so {door} has no declaration to carry \
-                 forward — declare it first"
+                 forward — {UNDECLARED_PARAM_RECOURSE}"
             ),
             Self::DocParamCountHasNoUnit { name } => write!(
                 f,
