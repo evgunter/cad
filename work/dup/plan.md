@@ -167,6 +167,30 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     baseline under it is wrong, and checking the delta feels like
     checking the number.
 
+16. **A plant that relaxes a one-sided assertion is not a probe.** The
+    newest and most dangerous way a mutation lies. A fixture was planted
+    AWAY from a rim to test whether anything watched it; the consuming
+    row asserts `examined == 0` for a plate clear of the rim, so the
+    plant could only ever make the assertion easier, and the suite went
+    green. Read naively that is "this fixture is asserted by nothing" —
+    a coverage finding, filed, wrong. Re-planting TOWARD the rim
+    reddened it at once. So before reading a plant's result, **say which
+    direction makes the predicate harder**, and plant that way; a
+    `count == 0`, `is_empty` or "loses none" row is satisfied by every
+    move in one direction. Verified independently by the reviewer
+    (2026-09-20, `dup/one-line-fixture-wrappers`), with the caveat that
+    matters: the trap is a property of the fixture's **row set**, not of
+    the fixture. A sibling fixture in the same unit reds in both
+    directions because it also feeds an accepting corpus row; the clean
+    isolation is a fixture whose only consumer asserts one-sidedly.
+    Its relatives: a symmetric change cannot reach a row that asserts
+    additivity of a pair built from two copies of one fixture (the same
+    unit found a site live on a fixture's height and dead on both
+    in-plane extents, whose FIRST plant left the suite green), and a
+    plant in a door the folded site does not route through cannot reach
+    it at all. **One plant is not a probe; a plant whose direction you
+    have not argued is not a probe either.**
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full
