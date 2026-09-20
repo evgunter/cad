@@ -2,7 +2,8 @@
 id: fused-arc-fillet-steps-have-no-per-segment-radius-address
 kind: issue
 title: A fillet arc's radius never reaches the wall it drew: the radius binds on one step and the segments are credited to another
-status: review
+status: closed
+closed: 2026-09-20
 pr: 2892
 branch: edit/radius-emission-record
 opened: 2026-09-17
@@ -222,3 +223,35 @@ separation straddles the classifier's edge — the same fact row 1 is
 already pinned for on the internal side. Not an escalation; the
 escalating set stays EMPTY. Hosted CI caught it, which a local run
 could not: the lane did not build `--features interval` first.
+
+## Closed (2026-09-20, EDIT orchestrator)
+
+Built and merged as PR #2892 (kernel unit, v6 dual, block EDIT-B2 slot
+1; sample #223, ordinals 4806/4807). The replay record now says which
+segment each radius drew: `ReplayStructure.radii` is a decision like
+`steps` beside it, a fillet arc credited to the step that bound its
+radius and a carrier arc to the step whose spec authored it, and DM8's
+map reads that record through the one checked permutation both of its
+doors now share. The finding's own shape — a `FilletArc { Via }`
+arrival in a closed chain — is a green row, as are a fused step's
+two and three radii each on its own wall. Two spec premises fell to
+the implementer before the build (a fused verb's carrier arc is
+emitted when the arrival resolves, so "the current step" names a
+step holding no radius — every role addresses the fused verb's own
+step; two `Sweep` specs are unrepresentable, the three-radii chain is
+`arc_fillet_arc(Sweep, r, Radius)`), and none to the dual: both
+blinded reviewers were APPROVE-WITH-FIXES with no MAJOR, converging on
+the guided fence's blind spot for `Carrier2`, the exact-fit close's
+fillet arc that nothing re-read (both measured the PR's stated reason
+for not filing it false), the refusal sentence's doubled word, and two
+false sentences in the PR body; one reviewer alone found the carrier
+arm of `segment_radii` skipping the span check the chain arm goes
+through — the factoring minting the class it closed, one arm out. The
+fix pass built the union: one checked walk for both arms, the
+exact-fit arm through `record_fillet_arc` (closing the row filed for
+it on PATHS's slate), one address spelling and one `Option` for the
+pending fillet, the two mode vocabularies pinned against each other,
+a `Radius`-arrival chain in the coverage corpus, and the §5 preamble
+given one home. The spec is deleted and ledgered; the sample row is
+in `docs/MODEL-AB-LOG.md`; the block record's slot-1 line is on
+`edit/b2-block`.
