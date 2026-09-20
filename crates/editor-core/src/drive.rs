@@ -1546,21 +1546,26 @@ fn classify_replay<T: geom_core::Decide>(
     // it — on the value if the op built anyway, on the error if it did
     // not — so an escalation an op wrapped in its own error enum (a
     // sweep's `ExtrusionEscalated`, ~40 such variants across five
-    // crates) is seen without matching on any of them, and the FIRST
+    // crates) is seen without matching on any of them — which is what
+    // the log buys HERE, not a claim that those variants are redundant:
+    // the log is a per-bracket side channel, empty for every caller of
+    // those ops that opens no bracket — and the FIRST
     // escalation in decision order speaks: a sliver, or the cue to
     // bisect (a later sliver behind a refinable escalation does not
     // argue — refinement may never reach it on the branch a definite
     // first decision takes — so that order is the conservative one);
     // (3) the error-enum arms. Those arms are LOAD-BEARING, not a
-    // fallback: the log carries the funnel's escalations only, and a
-    // predicate that asks the funnel, gets a definite sign, and then
-    // mints an `Indeterminate` of its own (`geom_brep::enters`,
-    // `dihedral`, `pcurve_cache`, `certify`, `edge_nurbs`, `ssi::march`
-    // — eight sites) reaches this loop only through the enum it was
-    // wrapped in; the whole-document mate solve's escalations likewise
-    // arrive only as `NodeErrorKind::Mate`, since no node's bracket is
-    // open when it runs. The gap and the unit that closes it:
-    // `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+    // fallback. The log carries every escalation the funnel produced on
+    // the node's own frame — including the gate doors' refusals of a
+    // definite sign a predicate cannot use — but an escalation produced
+    // where no node bracket was open reaches this loop only through the
+    // enum it was wrapped in. Two such paths ship: the whole-document
+    // mate solve, which runs before any node's bracket opens and
+    // arrives as `NodeErrorKind::Mate`, and a rayon map whose units
+    // decide without a frame of their own
+    // (`work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md`).
+    // Reading the arms after the log therefore costs nothing when the
+    // log spoke, and is the only read left when it could not.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a
