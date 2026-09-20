@@ -912,6 +912,32 @@ impl<P> Doc<P> {
         self.nodes.get(&id)
     }
 
+    /// **Could this document have minted `id`** — the one reading of
+    /// the mint counter that leaves this crate, and the one DI1's
+    /// minting-entry walk asks of a history entry
+    /// (`crates/editor-core/IDENTITY.md`).
+    ///
+    /// True exactly when `id` is below the counter. The counter is
+    /// monotone — never decremented, because deletion does not free
+    /// ids (spec D3) — so along any forward path of [`Doc::apply`]s
+    /// this answer goes false to true and never back. That is what
+    /// makes DI1's walk — up the history until the counter drops
+    /// below the held id — land on the entry that minted it: the
+    /// predicate is false above the mint and true from the mint on.
+    ///
+    /// **What a `true` does NOT mean**: not that the node is there.
+    /// A minted id may since have been deleted, and its id is not
+    /// reused, so the predicate keeps answering true for it forever.
+    /// Liveness is [`Doc::node`]'s question, and DI1's rule asks both
+    /// — descent first, then liveness.
+    ///
+    /// The counter itself stays private: a caller can ask whether a
+    /// particular id is behind it and cannot read where it stands, so
+    /// the monotonicity argument stays on the side that owns it.
+    pub fn has_minted(&self, id: RecipeNodeId) -> bool {
+        id.0 < self.next_id
+    }
+
     /// Live node ids in insertion order.
     pub fn order(&self) -> &[RecipeNodeId] {
         &self.order
@@ -1469,7 +1495,6 @@ mod tests {
                 },
                 interface: InterfaceRecord {
                     crossings: vec![InterfaceCrossing::Mate {
-                        mate: RecipeNodeId(1),
                         class: ContactClass::Rest,
                         outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
                         inner: FaceName::new(name(12, EntityKind::Face))

@@ -371,3 +371,24 @@ left and 1b closes. Finding filed against the ratified §5:
 unreachable on real fixtures; a sharper `sup‖C″‖` candidate would move
 mesh chord counts) — ruled after the dual. Dual: ordinal 2205, byte
 240 ⇒ R1 Opus, R2 Fable.
+
+## Spiric PR-1b dual adjudicated (2026-09-20)
+
+R2 (Fable) killed once by a 429 and resumed after the reset; both arms
+MERGEABLE-AFTER-FIXES (R1 Opus 2 MAJOR/7 MINOR/7 NOTE, rubric
+4/4/2/4/4; R2 Fable 1 MAJOR/5 MINOR/7 NOTE, rubric 4/4/3/5/5). Every
+PR number reproduced on both sides; both hand re-derived the images;
+both confirmed the filed STEP finding and the sharper `sup‖C″‖`
+candidate (76×, not rescuing `ε/4`). Bilateral headline: two new
+predicates decide dimensionless quantities through `over_lever`
+(divide) where the spec says levered — false audit rows, no verdict
+moved. Also bilateral: the identity's chart-equals-carrier premise
+gated by nothing (a drifted chart certifies with envelope 0), three
+silent mutants, the "bit-equal" doc. R1 alone: `mirror_v` on a
+`SpiricImage::Wall` yields a wrong locus and the every-kind
+involution census was not extended — code-class, unreachable in-tree,
+a tally CANDIDATE (R2 reached the site from the style side); pair
+EXCLUDED under 3(e) (R2's 429). Adjudication on the PR (comment
+5746969779); fourteen items; fix pass dispatched. Spec note for the
+ledger at deletion: §3's `nurbs_tighten` sentence was wrong (the
+harmonic arm does not skip; the lane refused, correctly).

@@ -19,11 +19,11 @@ use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
-    EvalOptions, Frame, FrameFault, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
-    MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault, PartReach, PersistError,
-    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError, content_pin, mate_reach,
-    product, split,
+    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
+    EditError, EvalOptions, Frame, FrameFault, Lever, LeverRefusal, LoggedEdit, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault,
+    PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError,
+    content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
@@ -117,7 +117,8 @@ fn frame(origin: [f64; 3]) -> MateFrame {
 /// A frame coincidence between `a`'s top cap and `b`'s bottom cap,
 /// with a clocking rider: on a coincidence the rider is
 /// redundant-or-contradictory, DECIDED at the lever, so it is the one
-/// arm that reports `lever: Some((θ, L))` — the row's window onto `L`.
+/// arm that reports `Clash::Levered(Lever::Roll { radians: θ, arm: L })`
+/// — the row's window onto `L`.
 fn clocked(
     a: RecipeNodeId,
     b: RecipeNodeId,
@@ -223,7 +224,10 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
         .fault(mate)
         .expect("a quarter-turn rider contradicts the coincidence");
     let MateFault::Contradictory {
-        lever: Some((theta, arm)),
+        clash: Clash::Levered(Lever::Roll {
+            radians: theta,
+            arm,
+        }),
         ..
     } = fault
     else {
@@ -286,7 +290,7 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
         }
         Some(MateFault::Contradictory {
             predicate,
-            lever: Some((t, l)),
+            clash: Clash::Levered(Lever::Roll { radians: t, arm: l }),
             ..
         }) => {
             assert_eq!(*predicate, "mate_clocking_redundant");

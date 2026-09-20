@@ -2,9 +2,10 @@
 id: mate-clocking-has-no-gui-path
 kind: issue
 title: Mate clocking through the GUI: the tool admits a rider the coset table statically refuses, and no affordance can turn a mate's roll
-status: open
+status: parked
 opened: 2026-09-01
 github: 1461
+blocked_on: [MSOLVE-10]
 ---
 
 ## From GitHub issue 1461

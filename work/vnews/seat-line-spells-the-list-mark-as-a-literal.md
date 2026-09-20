@@ -2,7 +2,7 @@
 id: seat-line-spells-the-list-mark-as-a-literal
 kind: issue
 title: seat_line joins its items with a bare "; " rather than frame::LIST_SEPARATOR
-status: open
+status: spec
 opened: 2026-09-15
 refs: [withdrawal-causes-join-on-a-mark-a-fault-may-contain]
 ---
