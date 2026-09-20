@@ -906,6 +906,41 @@ impl<T: Real> Body<T> {
             .map(|s| s.solid)
     }
 
+    /// The faces of `solid`, in slot-index order (deterministic per D9
+    /// — the order [`Body::faces`] yields), or `None` where the solid
+    /// key does not resolve.
+    ///
+    /// [`Body::solid_of_face`]'s inverse, and
+    /// [`crate::query::all_faces`] restricted to one solid. It selects
+    /// on the FACES' own back-pointers rather than walking
+    /// [`Solid::shells`]: on a tier-1 valid body the two answer the
+    /// same SET — the ownership partition and the back-pointers are
+    /// validated against each other — and differ in ORDER, this door
+    /// answering in arena order and a shell walk in shell-then-face-
+    /// list order. A caller that needs the shells kept apart walks
+    /// them; a caller that wants "the faces of this solid" to hand to
+    /// a key-taking verb asks here.
+    ///
+    /// **The empty list and the absent solid are different answers**,
+    /// which is why this refuses rather than returning a bare `Vec`: a
+    /// solid with no faces is a body state, a solid key that does not
+    /// resolve is a caller's mistake, and a door that answered `vec![]`
+    /// to both would hide the second inside the first.
+    ///
+    /// A face whose own shell does not resolve is absent from the list
+    /// rather than refused — it belongs to no solid, which is what
+    /// [`Body::solid_of_face`] already answers about it.
+    #[must_use]
+    pub fn faces_of_solid(&self, solid: SolidKey) -> Option<Vec<FaceKey>> {
+        self.get_solid(solid)?;
+        Some(
+            self.faces()
+                .filter(|&(k, _)| self.solid_of_face(k) == Some(solid))
+                .map(|(k, _)| k)
+                .collect(),
+        )
+    }
+
     /// The face owning `he`'s loop — through the half-edge's
     /// [`HalfEdge::parent_loop`] back-pointer and that loop's
     /// [`Loop::face`] — or `None` where either key is stale. A foreign
@@ -1370,6 +1405,51 @@ mod tests {
         assert_eq!(shell.faces, vec![t.face_a, t.face_b]);
         assert_eq!(shell.solid, t.solid);
         assert_eq!(body.get_solid(t.solid).unwrap().shells, vec![t.shell]);
+    }
+
+    /// [`Body::faces_of_solid`] is [`Body::faces`] restricted to one
+    /// solid: same order, same set as the shell walk, and the three
+    /// answers it can give — a list, the empty list, and `None` —
+    /// kept apart.
+    #[test]
+    fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // Arena order, and a restriction: `faces` yields all three.
+        assert_eq!(body.faces().count(), 3);
+        assert_eq!(
+            body.faces_of_solid(t.solid).unwrap(),
+            vec![t.face_a, t.face_b]
+        );
+        assert_eq!(
+            body.faces_of_solid(second.solid).unwrap(),
+            vec![second.face]
+        );
+
+        // The same SET the shell walk answers, which is the other
+        // spelling of this question.
+        let walk: std::collections::BTreeSet<FaceKey> = body
+            .get_solid(t.solid)
+            .unwrap()
+            .shells
+            .iter()
+            .flat_map(|&sh| body.get_shell(sh).unwrap().faces.clone())
+            .collect();
+        assert_eq!(
+            body.faces_of_solid(t.solid)
+                .unwrap()
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>(),
+            walk
+        );
+
+        // A solid with no faces answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.faces_of_solid(barren).unwrap(), Vec::<FaceKey>::new());
+        assert_eq!(body.faces_of_solid(SolidKey::default()), None);
     }
 
     #[test]

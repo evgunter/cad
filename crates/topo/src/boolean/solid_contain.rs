@@ -2405,14 +2405,9 @@ impl SolidFaces {
     /// served). An empty selection is not refused here: the probe
     /// answers [`PointInSolidError::ZeroVolumeBody`] for it.
     pub fn of<T: Decide>(body: &Body<T>, solid: SolidKey) -> Result<Self, PointInSolidError> {
-        if body.get_solid(solid).is_none() {
-            return Err(PointInSolidError::NoSuchSolid { solid });
-        }
-        let faces: Vec<FaceKey> = body
-            .faces()
-            .filter(|&(k, _)| body.solid_of_face(k) == Some(solid))
-            .map(|(k, _)| k)
-            .collect();
+        let faces = body
+            .faces_of_solid(solid)
+            .ok_or(PointInSolidError::NoSuchSolid { solid })?;
         // A group-read kind whose surface key is carried on both sides
         // of the selection boundary (the variant's doc). One pass over
         // the arena: every key's first face outside the selection.
@@ -3761,10 +3756,6 @@ mod per_solid_entry_tests {
         (v[0], v[1])
     }
 
-    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-        SolidFaces::of(body, solid).unwrap().faces().to_vec()
-    }
-
     /// A sphere key on one face of each solid — the SAME key, written
     /// into the second solid's face arena by hand (no public door
     /// produces this: instance placement mints a fresh key per placed
@@ -3776,8 +3767,8 @@ mod per_solid_entry_tests {
         let band = Band::linear(tol).unwrap();
         let mut body = two_cubes();
         let (a, b) = solids(&body);
-        let fa = faces_of(&body, a)[0];
-        let fb = faces_of(&body, b)[0];
+        let fa = body.faces_of_solid(a).unwrap()[0];
+        let fb = body.faces_of_solid(b).unwrap()[0];
         let sphere = Surface::Sphere {
             center: Point3::new(0.5, 0.5, 0.5),
             radius: 0.5,
@@ -3817,8 +3808,8 @@ mod per_solid_entry_tests {
         let band = Band::linear(tol).unwrap();
         let mut body = two_cubes();
         let (a, b) = solids(&body);
-        let fa = faces_of(&body, a)[0];
-        let fb = faces_of(&body, b)[0];
+        let fa = body.faces_of_solid(a).unwrap()[0];
+        let fb = body.faces_of_solid(b).unwrap()[0];
         let key = body.get_face(fa).unwrap().surface;
         // Re-point a face of `b` at `a`'s plane key: `b` is no longer a
         // sound body, but `a`'s query never reads `b`'s faces.

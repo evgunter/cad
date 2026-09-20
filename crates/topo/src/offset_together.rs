@@ -986,20 +986,13 @@ mod scope_walks {
         (body, first, second)
     }
 
-    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-        body.faces()
-            .filter(|&(k, _)| body.solid_of_face(k).expect("a live face names its solid") == solid)
-            .map(|(k, _)| k)
-            .collect()
-    }
-
     /// Every chart of `solid`, as a move of `distance`. A zero distance
     /// is a legal move set — the corner solve answers an unmoved corner
     /// before any meter runs — and it is what these rows use, so that
     /// what they measure is the BOOKKEEPING around the solve.
     fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
         let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for face in faces_of(body, solid) {
+        for face in body.faces_of_solid(solid).expect("a live solid") {
             let key = body.get_face(face).unwrap().surface;
             match out.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, v)) => v.push(face),
@@ -1014,7 +1007,7 @@ mod scope_walks {
     /// Breaks `solid`'s first loop cycle: one half-edge's `next` is
     /// re-pointed at a key no arena holds, so the walk is `Broken`.
     fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
-        let face = faces_of(body, solid)[0];
+        let face = body.faces_of_solid(solid).expect("a live solid")[0];
         let outer = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("a box face bounds a cycle");
@@ -1029,18 +1022,19 @@ mod scope_walks {
     #[test]
     fn a_scope_holds_only_the_solids_it_names() {
         let (body, first, second) = two_boxes();
+        let seconds = body.faces_of_solid(second).expect("a live solid");
         let scope = Scope::of_solids(&body, &[first]).unwrap();
-        for f in faces_of(&body, first) {
+        for f in body.faces_of_solid(first).expect("a live solid") {
             assert_eq!(scope.solid_of(f), Some(first));
             assert!(scope.holds_face(f));
         }
-        for f in faces_of(&body, second) {
+        for &f in &seconds {
             assert_eq!(scope.solid_of(f), None, "an unwalked solid's face");
             assert!(!scope.holds_face(f));
         }
         // The whole body, for contrast: one walk, both solids.
         let whole = Scope::whole(&body).unwrap();
-        for f in faces_of(&body, second) {
+        for &f in &seconds {
             assert_eq!(whole.solid_of(f), Some(second));
         }
     }
@@ -1071,10 +1065,13 @@ mod scope_walks {
         let moves = moves_of(&body, first, 0.0);
         let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
         // `faces_in_scope` is face-arena order by contract and
-        // `faces_of` reads the arena, so this is an equality of
-        // sequences, not of sets.
-        assert_eq!(scope.faces_in_scope(), faces_of(&body, first));
-        for f in faces_of(&body, second) {
+        // `Body::faces_of_solid` answers in it, so this is an equality
+        // of sequences, not of sets.
+        assert_eq!(
+            scope.faces_in_scope(),
+            body.faces_of_solid(first).expect("a live solid")
+        );
+        for f in body.faces_of_solid(second).expect("a live solid") {
             assert!(!scope.holds_face(f));
         }
     }
@@ -1090,7 +1087,7 @@ mod scope_walks {
     fn an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door() {
         let tol = Tol::witness();
         let (mut body, first, second) = two_boxes();
-        let victim = faces_of(&body, second)[0];
+        let victim = body.faces_of_solid(second).expect("a live solid")[0];
         body.set_face_surface(
             victim,
             crate::euler::FaceSurface::New(geom::Surface::Cylinder {
@@ -1172,7 +1169,7 @@ mod scope_walks {
         // Hop 2 — a live face of that same body whose `shell`
         // back-pointer is not. Every key the caller holds is good, so
         // the refusal names none of them.
-        let live = faces_of(&body, first)[0];
+        let live = body.faces_of_solid(first).expect("a live solid")[0];
         let moves = vec![ChartMove {
             faces: vec![live],
             distance: 0.0,
