@@ -110,17 +110,21 @@ posture under §Process.
    is refused and the width key goes — **merged** (PR #2816, middle
    tier, wave 9; the viewer's pick seed is a depth, so only a face
    answer refuses); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stands open; `pick-face-raw-target-path-survives-only-for-rows`
+   was ruled by Ev on `[ev]` #2889 — the certificate stops at the
+   tessellation by design — and is **closed** (one doc sentence); `pick-face-raw-target-path-survives-only-for-rows`
    is ruled and **merged** (PR #2801, middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
    `crossing-mate-id-is-provenance-that-nothing-reads` (filed from
-   Ev's condition on `[ev]` #2869) is ruled and **spec'd** (middle
+   Ev's condition on `[ev]` #2869) is **merged** (PR #2906, middle
    tier, wave 15: the field goes; the crossing carries `class`,
    `outer`, `inner`); `next-id-has-no-layer3-door` (VIEW's filing
-   against DOCM, EDIT's now) is ruled and **spec'd** (E-class, wave
-   15: a `has_minted` predicate on `Doc`, the counter stays private);
+   against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
+   15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
+   row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
+   is on `[ev]` #2904 (V2 and DM7 both move; block EDIT-B2 slot 2
+   banks for it);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
