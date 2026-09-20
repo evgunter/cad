@@ -418,6 +418,88 @@
 //! and `editor-core/tests/m10_derived_frame_tilted_interval`'s
 //! `sym5_the_reach_on_documents_the_unit_did_not_build` the numbers.
 //!
+//! # Rule F — the manifest sign (SYM-8)
+//!
+//! **What a `copysign` costs the tier, and what the form already
+//! knows.** [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis)
+//! is the branchless Pixar construction, and its first two lines are
+//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` — a `copysign` and an
+//! `abs` of one quantity, the normal's `z`. Both reach the DAG as
+//! OPAQUE atoms, so a frame built through them carries two
+//! indeterminates that stand for nothing the tier can cancel against.
+//! On a `FaceFrame` over a body extruded from a frame tilted about `u`
+//! (`u = (1,0,t)`) that `z` is `1/sqrt(P(t))` — an `Inv` of a `sqrt`
+//! atom, positive wherever it has a value at all — and the `abs` over
+//! it is an atom UNRELATED to the `sqrt` it was built from, so nothing
+//! downstream cancels and the squares freeze.
+//! [`SymRules::manifest_sign`] folds both in the early walk:
+//! `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever the FORM shows
+//! `X` positive. [`manifest`] carries the predicate, the two
+//! identities as equalities of reals under clause 1, and the
+//! SIGNED-ZERO edge that makes the predicate strict rather than
+//! `manifestly_nonneg`'s non-negativity.
+//!
+//! **Where it sits against A/B/C/D/E.** At the node, in `combine`,
+//! early walk only: A0's exact constant fold first, then this rule,
+//! then rule C — the value-free rule before the one that reads a
+//! value, so a discharge that can be a theorem is never counted
+//! `sign_gated` — pinned by `geom-core`'s `sym_rule_f_rows`, whose
+//! rule-C-on row still answers `theorem`. Against rules A/B and E the
+//! order is STRUCTURAL rather than chosen: they run after `combine`
+//! returns, on the form this rule left, and an atom this rule prevents
+//! from being minted is not one they could have folded later. The walk
+//! ledger (`editor-core/tests/m10_sym_profile_interval`) is unmoved by
+//! the rule on the slab and the plate — every form either walk builds
+//! is digest-identical — which is the same statement as "it fires
+//! nowhere on them", and is what would red if the site moved.
+//!
+//! **What it reaches, measured** (the tilt-`u` derived frame,
+//! `editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym8_phase1_*` rows — the document SYM-5's rule E turned a DEGREE
+//! wall into a TERM wall on and stopped). At `half = 1e-3` under
+//! `Guided` the refused `carrier_endpoint_end` residual is
+//! `sqrt(?#…)` over a FROZEN `Powi ^2` whose kid is 440 terms at
+//! degree 27 over 298 at degree 28, and `440² > MAX_TERMS`: with the
+//! rule on that node is built, the predicate goes 24/0/0/1 → 33/0/0/0
+//! — every decision a THEOREM — and the document's refusal moves on to
+//! a `newell_plane_residual` straddle, a wall this rule does not reach
+//! (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`). Under
+//! `Pinned` the same document certifies at both dials and the rule
+//! moves 122 decisions out of `numeric` into `symbolic_zero`
+//! (754 → 876) at a sixth of the cost (2.6 → 0.4 s at `1e-3`,
+//! 2.3 → 0.3 s at `5e-2`). The authored twin is untouched.
+//!
+//! **What it moves on the measured documents: nothing, with one
+//! exception.** Every per-predicate split at the nominal is
+//! BIT-IDENTICAL with the rule on and off on seven of the eight
+//! (plate, annulus, bracket, link, R1's segment boss, both D-tabs; the
+//! pad's nominal split with the shape report installed exhausts the
+//! measuring box's memory at BOTH dials and is not takeable there),
+//! and every whole-certifying ceiling is identical to the digit on all
+//! EIGHT, with the over-band set at ceiling + δ identical too. The
+//! exception is the pad's replay at the scale it certifies whole at:
+//! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
+//! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+//! of them moving into the door, twenty out of `numeric` and FOUR out
+//! of `symbolic_zero`. Those four are the unit's disclosed finding:
+//! opening an atom the early walk was cancelling OVER can cost that
+//! walk a theorem, which is
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class
+//! and the same hazard rule E ships with. No decision is lost, and the
+//! registry re-takes all four.
+//!
+//! **What it costs** — the affordability line's own instrument, one
+//! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+//! release, rule F off → on: plate at `1e2 · ε` 0.493 → 0.501 s, plate
+//! at its REAL study 0.527 → 0.482, annulus 0.439 → 0.401, bracket
+//! 2.490 → 2.368, link 3.285 → 3.321, pad 19.734 → 18.796. On the
+//! ceiling-bisection instrument the eight documents read 0.43 → 0.42,
+//! 1.14 → 1.14, 0.32 → 0.31, 9.74 → 9.25, 2.06 → 1.99, 0.26 → 0.25,
+//! 0.21 → 0.20 and 0.59 → 0.58 seconds a probe. The rule is free to
+//! within the measurement's noise and slightly cheaper on most
+//! documents — it removes indeterminates and mints none.
+//! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
+//!
 //! # Node ids are CONTENT HASHES (D9)
 //!
 //! A node's id is a 128-bit structural hash of `(op, children ids,
@@ -707,6 +789,11 @@ mod algebra;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+/// Rule F: the manifest sign — `copysign` and `abs` atoms whose sign
+/// the form already shows, and the non-negativity predicate rule D
+/// shares with it.
+#[path = "sym/manifest.rs"]
+mod manifest;
 /// The DRIVE-scoped plain memo: the one piece of the tier's state that
 /// outlives a leaf, and the argument that lets it.
 #[path = "sym/memo.rs"]
@@ -1277,6 +1364,27 @@ pub struct SymRules {
     /// the one it was given ([`quotient`]'s docs carry the argument).
     /// Needs `early`.
     pub common_factor: bool,
+    /// **F — the MANIFEST SIGN** ([`manifest`]): in the early walk a
+    /// `copysign(Y, X)` node becomes `abs(Y)` and an `abs(X)` node
+    /// becomes `X` wherever the FORM of `X` is manifestly POSITIVE —
+    /// a positive numerator over a non-negative denominator, with
+    /// `sqrt`/`abs` atoms of manifestly positive arguments the only
+    /// indeterminates a positive term may carry. Both are equalities
+    /// of reals at every point clause 1 admits and neither reads a
+    /// value, so a zero reached through this rule is a THEOREM.
+    ///
+    /// It is rule C's shape without rule C's value read: where C folds
+    /// `abs(R)` on a bracket of `R` the session holds, this folds it on
+    /// a fact about the form, and a discharge through it is counted
+    /// `symbolic_zero` rather than `sign_gated`.
+    ///
+    /// **Strict positivity, not non-negativity**, and the reason is
+    /// `copysign`: it reads a SIGN BIT, so `copysign(1, −0.0) = −1`
+    /// while `copysign(1, +0.0) = +1`, and at a real zero of `X` the
+    /// node denotes no function of the real value of `X` at all. The
+    /// predicate excludes that point. [`manifest`]'s header carries
+    /// the argument and the shapes it must not fold. Needs `early`.
+    pub manifest_sign: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1306,6 +1414,7 @@ impl SymRules {
             trig_of_atan: true,
             signed_root: true,
             common_factor: true,
+            manifest_sign: true,
             registered: true,
         }
     }
@@ -1329,6 +1438,7 @@ impl SymRules {
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
+    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | one whole-box leaf, release: plate 0.49 → 0.50 s, annulus 0.44 → 0.40, bracket 2.49 → 2.37, link 3.29 → 3.32, pad 19.73 → 18.80 — free to the measurement's noise | **yes**, with the pad's four `symbolic_zero` → `registered` disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1344,6 +1454,7 @@ impl SymRules {
             trig_of_atan: true,
             signed_root: false,
             common_factor: true,
+            manifest_sign: true,
             registered: true,
         }
     }
@@ -1361,6 +1472,7 @@ impl SymRules {
             trig_of_atan: false,
             signed_root: false,
             common_factor: false,
+            manifest_sign: false,
             registered: false,
         }
     }
@@ -1403,6 +1515,19 @@ impl SymRules {
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
+    /// atoms of a manifestly positive argument left opaque, every other
+    /// rule as it is: SYM-5's tier exactly, bit for bit, and the
+    /// differential every claim about what rule F costs and what it
+    /// buys is measured against ([`Self::manifest_sign`]).
+    #[must_use]
+    pub const fn without_rule_f() -> Self {
+        Self {
+            manifest_sign: false,
             ..Self::shipped()
         }
     }
@@ -1902,6 +2027,8 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     let a0 = sess.rules.const_fold && (early || !sess.rules.early);
     // Rule C applies in the EARLY walk only (`SymRules::signed_root`).
     let c = early && sess.rules.signed_root;
+    // Rule F, the manifest sign, likewise (`SymRules::manifest_sign`).
+    let f_sign = early && sess.rules.manifest_sign;
     // An atom over a gated argument is gated: it stands for the value
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
@@ -1980,10 +2107,14 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule C
-        // (early walk): a sqrt of a perfect square, or an abs, of a
-        // form with a certified sign folds to the signed root.
-        SymOp::Sqrt | SymOp::Abs if (a0 || c) && !a.poisoned => {
+        // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule F
+        // (early walk): `abs(X) = X` where the FORM shows `X` positive,
+        // which reads no value; then rule C (early walk): a sqrt of a
+        // perfect square, or an abs, of a form with a CERTIFIED sign
+        // folds to the signed root. The value-free rule is asked
+        // before the one that reads a value, so a discharge that can
+        // be a theorem is never counted `sign_gated`.
+        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign) && !a.poisoned => {
             let folded = (|| {
                 if !a0 {
                     return None;
@@ -1996,14 +2127,19 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                     _ => Some(c.abs()),
                 }
             })();
-            match folded {
-                Some(k) => Some(gate(Form::poly(Poly::constant(k)))),
-                None if c => match signed::fold(node.op, a, &sess.params, budget) {
-                    Some(f) => Some(gate(f)),
-                    None => atom1(node.op, sess),
-                },
-                None => atom1(node.op, sess),
+            if let Some(k) = folded {
+                return Some(gate(Form::poly(Poly::constant(k))));
             }
+            if f_sign
+                && node.op == SymOp::Abs
+                && let Some(f) = manifest::fold_abs(a, sess)
+            {
+                return Some(gate(f));
+            }
+            if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
+                return Some(gate(f));
+            }
+            atom1(node.op, sess)
         }
         // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
         // closed form; any other argument shape keeps the atom.
@@ -2031,6 +2167,20 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             if a.tainted(b) {
                 return Some(Form::poison());
             }
+            // **Rule F** (early walk): `copysign(Y, X) = |Y|` wherever
+            // the FORM of `X` is manifestly POSITIVE — the sign the
+            // node asks for is one the form already shows, so the
+            // opaque `copysign` atom is never minted (`manifest`
+            // carries the predicate, the two identities and the
+            // signed-zero edge that makes the predicate STRICT).
+            if node.op == SymOp::Copysign
+                && f_sign
+                && manifest::positive(b, sess)
+                && let Some(mut m) = manifest::magnitude(a, sess)
+            {
+                m.gated = a.gated || b.gated;
+                return Some(m);
+            }
             // min(0, 0) and max(0, 0) are zero; a one-sided zero says
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero
@@ -2046,10 +2196,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
                 SymOp::Atan2 => {
-                    early
-                        && sess.rules.trig_of_atan
-                        && a.is_zero()
-                        && trig::manifestly_nonneg(b, sess)
+                    early && sess.rules.trig_of_atan && a.is_zero() && manifest::nonneg(b, sess)
                 }
                 _ => false,
             };
