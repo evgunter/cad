@@ -4132,9 +4132,8 @@ program runs none).
 
 ## Per-merge deletion — TRIM-2's spec (2026-09-20)
 
-Recoverable at the SHA of PR #2863's merge commit (the last head
-carrying it; named in `work/trim/log.md`'s "TRIM-2 PR-2 merged"
-entry). Both PRs delivered: PR-1 (#2564, the trimmed-region
+Recoverable at `git show d0e577121:docs/TRIM-2-SPEC.md` (PR #2863's
+merge commit, the last head carrying it). Both PRs delivered: PR-1 (#2564, the trimmed-region
 quadrature, A/B row T2Q) and PR-2 (#2863, the tessellation arms, A/B
 row T2T). The spec's §8 Rulings (the rectangle certificate as the
 all-iso fast path; the Newton–Cotes window fenced; the `Fitted` mesh
@@ -4146,3 +4145,7 @@ the two MERGED entries in `work/trim/log.md`, and the residues left on
 the program (`curved-trim-e2e-fixture-waits-for-a-producer`,
 `trimmed-quadrature-composite-rounds`,
 `chord-count-arithmetic-is-plain-f64-across-every-speed-arm`).
+Spec note at deletion: §3's survey sentence that `nurbs_tighten`
+"skips `Harmonic`" was wrong (the harmonic arm answers a UV speed
+bound); PR-2's spiric-adjacent refusal at that site was the right
+disposition and the spiric spec's PR-1b said so.
