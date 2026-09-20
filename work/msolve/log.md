@@ -611,3 +611,35 @@ without the string compare; the aim-count row at two per mate. Spec
 into the ledger at the unit head. Closes the three items; two rows
 filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
 (the static clocking refusal at `AddMate`) specs next.
+## MSOLVE-10 reviews adjudicated; fix pass to the lane (2026-09-20)
+
+Lane's head `7534c8854` on PR 2913, CI green. Style review (nineteen
+findings, six MAJOR) and a correctness arm whose probe rows the
+orchestrator ran after the arm hung on its own cargo call: C1 the
+door's fault equals the solve's on a bypass road to the bit (arm
+`0x400b988e1409212e`), C4 a rider asks the reach once per part in
+document order and every other row asks nothing, the band's edges
+agree at mid-band, zero and escalate, `Rebind` onto a non-member is
+admitted and the solve refuses `DanglingHead` after it (N5, as the
+PR said). Rulings. (1) "Never enters the document" is retired: the
+load door's snapshot walk asks only the non-finite predicate, and it
+stays that way — THE DOORS DECIDE EDITS AND THE SOLVE DECIDES STATES;
+a state that comes to hold a per-mate fault (a rebind-stranded head,
+a shrunk pattern, a doctored snapshot) is the solve's at evaluation,
+and a `save` that refused states the doors produced would be a trap.
+Every sentence becomes "refused at the insert door", the A11 clause
+with it (so worded it elaborates and lands with the unit), one row
+pins the snapshot road, the lane's Band finding is re-premised.
+(2) The pair the fold never reads — two members over one instance,
+the copies pair — carries a datum the solve never decides and the
+door now refuses; ruled the door's (which pairs the fold reads is a
+cluster fact), not the stop clause, disclosed in the corpus row and
+the claim text. A loop-closing mate IS read (measured: door equals
+solve). (3) The viewer's second match over the table's static gaps
+goes; one `table_gap` beside `class_admission` in `mate.rs`, read by
+`mate_coset` and the tool — the fence widened by that one pub fn.
+(4) `admit_mate` restated the solve's first loop and `admit_pair`'s
+self-mate arm was dead at the fold — one shared per-reference prefix.
+(5) Three comments called `Maintain::Never` the re-apply arm; it
+refuses at the maintenance and `Recorded` re-applies — the two replay
+rules stated together, the lever's answer a named type. Nine MINOR.
