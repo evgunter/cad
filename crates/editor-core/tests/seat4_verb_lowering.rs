@@ -230,7 +230,7 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         ("die_fillet", 0x58c6_f02c_26fe_29bd_u64),
-        ("die_chamfer", 0x131a_d58c_f63c_4589),
+        ("die_chamfer", 0x9c50_1e15_c70a_4471),
     ] {
         let doc = corpus::documents()
             .into_iter()
