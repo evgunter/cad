@@ -550,53 +550,21 @@ fn the_rim_only_cap_records_its_two_named_decides() {
 // The sibling kinds
 // ---------------------------------------------------------------------
 
-/// **The cone apex cap, MEASURED — it is not served here, and why.**
+/// **The cone apex cap is the sphere cap's sibling, and it is served
+/// on its own chart** — `props_cone_apex_cap.rs`, whose fold pushes
+/// level `0` where this one pushes a pole. The two differ in exactly
+/// one thing and this row is where that difference is stated: the
+/// sphere's missing extreme is one of TWO poles and σ picks between
+/// them, so `sphere_rim_only_pole_level` reads the face's sense bit;
+/// a cone is bounded on the apex side only, so its fold reads no bit
+/// at all and `fn cone` still takes none.
 ///
-/// A cone face bounded by one rim with the apex interior has issue
-/// 1250's shape exactly: no generator edge, one level, `lo == hi`,
-/// `DegenerateFace`. It is NOT served by this unit's mechanism, and the
-/// reason is structural rather than a matter of effort: the sphere's
-/// missing extreme is one of TWO poles and σ picks between them, while
-/// the cone's is the apex, level `0`, with no second candidate — what σ
-/// would decide on a cone is whether the face is the apex cap at all or
-/// its unbounded complement, and `fn cone` takes no sense bit to form σ
-/// from (its flux needs no material side: generators run through the
-/// apex, so the anchored term vanishes). Filed as
-/// `work/props/cone-apex-cap-refuses-degenerateface.md` with this
-/// measurement.
-#[test]
-fn the_cone_apex_cap_still_refuses_degenerate_face() {
-    let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
-    // The rim at signed slant v = 1: radius |v|·sin α, height |v|·cos α.
-    let s = core::f64::consts::FRAC_1_SQRT_2;
-    let apex_cap = |u0: f64, u1: f64| {
-        vec![topo::edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, s),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: s,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
-            u0,
-            u1,
-            0,
-            0,
-        )]
-    };
-    for (u0, u1) in [(0.0, TAU), (TAU, 0.0)] {
-        let got = curved_face(&cone, &apex_cap(u0, u1), true, band());
-        assert!(
-            matches!(got, Err(PropsError::DegenerateFace)),
-            "the cone apex cap is still refused (u {u0}→{u1}); got {got:?}"
-        );
-    }
-}
-
+/// What a cone cannot do without a bit is tell the apex cap from the
+/// rest of its nappe, which is unbounded and no finite face of any
+/// solid. That question is the boundary's material side, answered by
+/// `boundary_material_sign` and compared with `Face::sense` at tier
+/// 3's check 6 — where this cap's is `Unencoded` and nothing compares
+/// it at all (`a_rim_only_cap_encodes_no_material_side` above).
 /// **The cylinder's rim-only face is genuinely extent-less** — the
 /// sweep's negative result, executed. A cylinder is unbounded along
 /// its axis in BOTH directions, so one rim circle bounds no finite

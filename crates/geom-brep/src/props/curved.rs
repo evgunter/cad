@@ -199,7 +199,14 @@ pub fn boundary_material_sign<T: Decide>(
             ..
         } => {
             let (sin_a, cos_a) = half_angle.sin_cos();
-            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            // The apex cap ANSWERS here, where the sphere's rim-only
+            // cap declines: the cone's missing extreme is the apex
+            // whichever way the rim runs ([`cone_apex_level`]), so the
+            // side the traversal encodes is a side, and the one
+            // traversal that would bound the nappe's unbounded
+            // complement disagrees with the face's bit instead of
+            // measuring the cap.
+            let (b, _folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             let (lo, hi) = min_max(&b.levels)?;
             Ok(MaterialSign::Encoded(linear_rim_side(&b, (lo, hi), band)?))
         }
@@ -435,7 +442,7 @@ pub fn require_iso_rectangle<T: Decide>(
             ..
         } => {
             let (sin_a, cos_a) = half_angle.sin_cos();
-            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let (b, _folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
         Surface::Sphere {
@@ -998,8 +1005,7 @@ impl<T: Real> RimArms<T> {
 /// * **the fail direction.** A mixed representation is structurally
 ///   impossible (one surface builds every rim of a face AND both its
 ///   ends), and it REFUSES here — [`mixed_levels`]. Answering
-///   `Ok(false)` would let a caller that only groups carry on, and
-///   [`require_zero`] would let a poisoned `Zero` through outright.
+///   `Ok(false)` would let a caller that only groups carry on.
 ///
 /// There are exactly two shapes and the signature says so: `other` is
 /// a group key, or the face's `lo` extreme with `or` carrying `hi`.
@@ -1021,11 +1027,11 @@ fn level_coincides<T: Decide>(
     band: Band,
 ) -> Result<bool, PropsError> {
     let Some(mut gap) = level_gap(level, other) else {
-        return Err(mixed_levels::<T>(name, band));
+        return Err(mixed_levels(name));
     };
     if let Some(second) = or {
         let Some(d) = level_gap(level, second) else {
-            return Err(mixed_levels::<T>(name, band));
+            return Err(mixed_levels(name));
         };
         gap = gap.min(d);
     }
@@ -1057,16 +1063,32 @@ fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     }
 }
 
-/// The refusal a mixed-representation level pair gets. The escalation
-/// is attempted first, so the ordinary outcome is a typed
-/// [`PropsError::Escalated`] rather than a panic (D9); a `Zero` from
-/// the poisoned margin still refuses, which is why this is not routed
-/// through [`require_zero`].
-fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
-    match classify::<T>(name, Margin::of(T::from_f64(f64::NAN)), band) {
-        Ok(_) => PropsError::NotIsoRectangle { what: name },
-        Err(escalated) => escalated,
-    }
+/// The refusal a mixed-representation level pair gets: the typed
+/// structural refusal, named for the predicate that asked.
+///
+/// **It is not routed through the funnel, and it used to be.** A mixed
+/// pair has no comparand — the two representations are not two values
+/// of one quantity — so there is nothing to decide, and the refusal
+/// was manufactured by feeding `f64::NAN` into [`classify`] and
+/// keeping whatever came back: a decision predicate used as a `throw`,
+/// which spends a recorded verdict on a margin that measures nothing
+/// and makes the error's TYPE depend on how the funnel happens to
+/// treat a poisoned value. The outcome this arm owes its callers is
+/// the one they always got — an `Err`, never `Ok(false)`, so a
+/// mixed-representation face neither measures nor groups — and it is
+/// stated here directly.
+///
+/// **Which reading of D9 this leaves.** The state is kernel-bug-only
+/// (one surface builds every rim of a face AND both its ends), and
+/// `props/curved.rs` answers that class two ways —
+/// [`torus_meridian_orient`]'s `unreachable!` sibling and
+/// [`unreachable_zero`]'s poison return. Neither is adopted here: this
+/// arm keeps the typed refusal it already produced, because choosing
+/// between the two is the file-wide census
+/// `props-curved-carries-two-readings-of-d9-unreachable-vs-poison`
+/// asks for and a decision taken at one site would pre-empt it.
+fn mixed_levels(name: &'static str) -> PropsError {
+    PropsError::NotIsoRectangle { what: name }
 }
 
 /// **The iso-rectangle predicate**: every rim sits at one of the
@@ -1577,7 +1599,12 @@ fn cone<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
-    let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
+    // A generator-free cone boundary of rims alone carries no extent of
+    // its own: every level it touches is a rim's slant, and where those
+    // coincide the face's missing extreme is the APEX
+    // ([`cone_apex_level`], folded inside the shared parse so all three
+    // doors read the same extent).
+    let (b, folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(Margin::of(hi - lo), band)?;
     // The iso-rectangle premise (S58/#649). Cone levels are the signed
@@ -1591,6 +1618,12 @@ fn cone<T: Decide>(
     // premise with it.
     require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
     let du = du_of_rims(&b.rims, b.arms, band)?;
+    // A folded apex is a claim that the rim CLOSES around it, and `Δu`
+    // is the only place that claim can be read
+    // ([`require_rim_only_closed`], at the cone's own azimuthal arm).
+    if folded_apex {
+        require_rim_only_closed(du, b.arms.azimuth, band)?;
+    }
     // Single-nappe check: definitely-negative low AND definitely-positive
     // high would straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
@@ -1606,8 +1639,18 @@ fn cone<T: Decide>(
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
-/// the shared parse consumed by both the flux closed form and
-/// [`boundary_material_sign`].
+/// the shared parse consumed by the flux closed form,
+/// [`boundary_material_sign`] and [`require_iso_rectangle`] — **with
+/// the apex folded in where the boundary needs it**
+/// ([`cone_apex_level`]; the returned flag says whether it was).
+///
+/// The fold lives here rather than in the flux lane because the cone's
+/// missing extreme needs no sense bit, so all three doors can and must
+/// read the SAME extent: the gate's `Encoded` side for an apex cap is
+/// what catches the inverted traversal at tier 3's check 6, and it can
+/// only be read against an extent the parse supplies. The sphere's
+/// pole fold is the other shape — it reads `Face::sense`, so it sits
+/// in `sphere` and the gate arm declines to answer at all.
 fn cone_boundary<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1615,12 +1658,14 @@ fn cone_boundary<T: Decide>(
     cos_a: T,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<LinearBoundary<T>, PropsError> {
+) -> Result<(LinearBoundary<T>, bool), PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
+    let mut generators = false;
     for e in edges {
         match e.carrier {
             Curve3::Line { dir, .. } => {
+                generators = true;
                 require_zero(
                     "props_meridian_generator",
                     Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
@@ -1683,12 +1728,57 @@ fn cone_boundary<T: Decide>(
     // and the arm is the first rim's own radius ([`cone_arm`]), which
     // meters only the dimensionless margins in `du_of_rims`.
     let arms = RimArms::uniform(cone_arm(&rims, sin_a));
-    Ok(LinearBoundary {
+    let mut b = LinearBoundary {
         rims,
         levels,
         arms,
         as_level: RimLevel::Length,
-    })
+    };
+    let folded_apex = !generators && !b.rims.is_empty() && cone_apex_level(&mut b, band)?;
+    Ok((b, folded_apex))
+}
+
+/// **A generator-free cone boundary's missing extreme is the APEX** —
+/// level `0`, pushed into the levels so the face has the extent its
+/// rims alone cannot state.
+///
+/// A cone face bounded by one rim circle and nothing else is the shape
+/// a ball cut by one plane gives on the sphere: the levels hold one
+/// slant, `min_max` answers `lo == hi` and [`require_extent`] refuses
+/// `DegenerateFace` for a face that plainly has an area. **Unlike the
+/// sphere's, it needs no σ**: the sphere's missing extreme is one of
+/// TWO poles and the rim's traversal under the face's sense bit picks
+/// between them, while a cone is bounded on the apex side ONLY, so
+/// there is a single candidate and no bit to read. (A cylinder is
+/// unbounded both ways along its axis and has no candidate at all,
+/// which is why it has no fold.)
+///
+/// **Unanimous traversal direction is required, and that is the
+/// sphere's premise transposed.** [`sphere_rim_only_pole_level`] folds
+/// only where every rim's σ agrees; σ is `d_u_sign` times the face's
+/// one sense bit ([`rim_interior_side`]), so unanimity of σ IS
+/// unanimity of `d_u_sign` and the cone can require it without the
+/// bit. What it excludes is the true zero-extent patch — rims at one
+/// level traversed opposite ways, which point at opposite sides and
+/// contain no apex — and that face keeps its `DegenerateFace`.
+///
+/// The extent question is [`require_extent`]'s own comparand asked one
+/// step earlier, under the name the sphere's fold asks it by
+/// (`props_rim_only_extent`): the cone's is the bare slant difference,
+/// as `require_extent`'s cone call reads it.
+fn cone_apex_level<T: Decide>(b: &mut LinearBoundary<T>, band: Band) -> Result<bool, PropsError> {
+    let (lo, hi) = min_max(&b.levels)?;
+    if classify("props_rim_only_extent", Margin::of(hi - lo), band)? != Sign::Zero {
+        return Ok(false);
+    }
+    let Some((first, rest)) = b.rims.split_first() else {
+        return Ok(false);
+    };
+    if !rest.iter().all(|r| r.d_u_sign == first.d_u_sign) {
+        return Ok(false);
+    }
+    b.levels.push(T::zero());
+    Ok(true)
 }
 
 /// The cone's azimuthal lever arm: the first rim's own radius
@@ -2539,8 +2629,11 @@ fn sphere_rim_only_pole_level<T: Decide>(
     Ok(true)
 }
 
-/// **A pole is interior to a rim only if the rim CLOSES around it**
-/// (`props_rim_only_closed`), decided on the `Δu` the rim spans sum to.
+/// **A folded extreme is interior to a rim only if the rim CLOSES
+/// around it** (`props_rim_only_closed`), decided on the `Δu` the rim
+/// spans sum to — the sphere's pole ([`sphere_rim_only_pole_level`])
+/// and the cone's apex ([`cone_apex_level`]) alike, since the two
+/// folds share the defect exactly.
 ///
 /// [`sphere_rim_only_pole_level`] reads a traversal DIRECTION, which
 /// says which side of the rim the material is on and nothing about how
@@ -2556,11 +2649,24 @@ fn sphere_rim_only_pole_level<T: Decide>(
 /// same full rim stated twice at double, and a full rim with an extra
 /// half arc at 1.5×.
 ///
-/// The comparand is `(Δu − τ)·R`, the arc the rim fails to close by,
-/// at the azimuthal arm — a length, like every other margin here. It
-/// is asked ONLY where a pole was folded: a face whose levels carry
-/// their own extent states its `u`-domain the way every other face
-/// does, and `props_du_consistent` is what bounds it there.
+/// The comparand is `(Δu − τ)` at the kind's azimuthal arm
+/// ([`RimArms::azimuth`] — the sphere's `R`, the cone's own rim
+/// radius), the arc the rim fails to close by: a length, like every
+/// other margin here. It is asked ONLY where an extreme was folded: a
+/// face whose levels carry their own extent states its `u`-domain the
+/// way every other face does, and `props_du_consistent` is what bounds
+/// it there.
+///
+/// **On the cone it is the only guard the public door has.** The
+/// sphere's two traversals are two valid faces (the cap and the ball
+/// minus it), which σ tells apart; the cone's other traversal bounds
+/// the rest of the nappe, which runs to infinity and is no finite face
+/// of any solid — and `fn cone` takes no sense bit to tell them apart
+/// with, because a cone's flux needs no material side (generators run
+/// through the apex, so the anchored term vanishes). What catches that
+/// face is tier 3's check 6, against the `Encoded` side
+/// [`boundary_material_sign`]'s cone arm reads off the same folded
+/// extent.
 ///
 /// **The rimless branch's sibling is [`require_band_opposite`]**
 /// (`props_band_opposite`), and the two can never both fire: this one
@@ -2571,10 +2677,10 @@ fn sphere_rim_only_pole_level<T: Decide>(
 /// branch's other premises are blind to: a coplanar rimless loop that
 /// doubles back on one half-plane (a slit) and a rim-only loop whose
 /// spans are a part or a multiple of a turn.
-fn require_rim_only_closed<T: Decide>(du: T, radius: T, band: Band) -> Result<(), PropsError> {
+fn require_rim_only_closed<T: Decide>(du: T, arm: T, band: Band) -> Result<(), PropsError> {
     require_zero(
         "props_rim_only_closed",
-        Margin::levered(du - T::tau(), radius),
+        Margin::levered(du - T::tau(), arm),
         band,
     )
 }
@@ -3162,10 +3268,10 @@ mod rim_level_review_probe {
     use super::*;
     use geom_core::Tol;
 
-    /// The structurally-impossible mixed-kind arm must escalate typed
-    /// (poisoned classify), never panic and never answer false.
+    /// The structurally-impossible mixed-kind arm must refuse typed,
+    /// never panic and never answer false.
     #[test]
-    fn mixed_kind_levels_escalate_typed() {
+    fn mixed_kind_levels_refuse_typed() {
         let band = Band::linear(Tol::witness()).expect("band");
         let got = level_coincides(
             "props_rim_level_group",
@@ -3175,7 +3281,7 @@ mod rim_level_review_probe {
             RimArms::uniform(1.0),
             band,
         );
-        assert!(got.is_err(), "mixed kinds must poison typed: {got:?}");
+        assert!(got.is_err(), "mixed kinds must refuse typed: {got:?}");
     }
 
     /// **One rule, so one fail direction** (#714's review asked for the
