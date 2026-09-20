@@ -1927,7 +1927,13 @@ class TestMateFrameFromFace(BenchWorkspace):
         )
 
     def test_a_vanished_face_refuses_typed_with_the_face_named(self):
-        bogus = self.post_cap(bench_scene.prism("elsewhere-post", 0.02, 0.02, 0.5))
+        # The post's own cap name, re-headed at a node the post does
+        # not have: the shape of a name whose face an edit removed.
+        import json
+
+        spelled = json.loads(self.post_cap(self.post))
+        spelled["node"] = 99
+        bogus = json.dumps(spelled)
         doc = Doc("from-face-vanished")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
@@ -1950,7 +1956,9 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertEqual(fault.variant, "mate_face_unresolved")
         self.assertEqual(fault.inner_variant, "no_such_name")
         self.assertEqual(fault.instance, post_i)
-        self.assertEqual(fault.face, bogus)
+        # The name text is opaque; the fault's face is the same name,
+        # compared as names rather than as one spelling of the text.
+        self.assertEqual(json.loads(fault.face), spelled)
         self.assertIn("did not resolve to a pose", str(fault))
 
 

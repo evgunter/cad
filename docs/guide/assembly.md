@@ -280,17 +280,22 @@ def seat(a, b):
     return Alignment(a, b, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
 
 
+# The insert asks the solve's own admission of each mate, and a side
+# that names a face is resolved there — through the store, since the
+# face is the part's.
 mate_a = stand.insert(
     Node.mate(
         post_a, a_top, shelf_i, shelf_underside, ContactClass.Rest,
         seat(post_seat, seat_a),
-    )
+    ),
+    resolver=store,
 )
 mate_b = stand.insert(
     Node.mate(
         shelf_i, shelf_underside, post_b, b_top, ContactClass.Rest,
         seat(seat_b, post_seat),
-    )
+    ),
+    resolver=store,
 )
 
 # The two mates couple all three instances into ONE cluster, gauged
@@ -361,8 +366,9 @@ against the mate whenever it reads the datum. So `Doc.insert` asks
 the solve's own per-mate admission and raises `EditError` with
 variant `mate_refused`, `fault` carrying the solve's `MateFault`
 whole. The rider on a coincidence is decided over the mated parts'
-extent, so that one needs `resolver=` at the insert; everything else
-is decided on the datum alone. The doors decide edits and the solve
+extent, and a side that names a face is resolved from the part's own
+evaluation, so those two need `resolver=` at the insert; everything
+else is decided on the datum alone. The doors decide edits and the solve
 decides states: a verdict about a *pair* — under-determined, two
 mates that contradict each other — is the solve's, met at evaluation
 as below, and so is a per-mate fault a mate comes to carry after

@@ -93,9 +93,9 @@ from bench_scene import (
     GAUGE_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
+    POST_CAP,
     POST_HEIGHT,
     POST_SECTION,
-    POST_SEAT,
     POST_VOLUME,
     SEAT_A,
     SEAT_B,
@@ -775,15 +775,15 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
                 self.assertScene(tour_value(self.declared(name, "f64")), value, name)
 
     def test_the_derived_seats_still_use_the_tours_formulas(self):
-        """The hole a value comparison leaves: `SEAT_A`, `SEAT_B` and
-        `POST_SEAT` are COMPUTED from the bases, so a guard that read
-        only the bases passed a changed formula. The formula is read
-        and evaluated here, against the values `bench_scene` derives
-        the same way."""
+        """The hole a value comparison leaves: `SEAT_A` and `SEAT_B`
+        are COMPUTED from the bases, so a guard that read only the
+        bases passed a changed formula. The formula is read and
+        evaluated here, against the values `bench_scene` derives the
+        same way. (The post's seat is its cap FACE, not a formula —
+        the stand row below reads that call site.)"""
         for name, value in (
             ("SEAT_A", SEAT_A),
             ("SEAT_B", SEAT_B),
-            ("POST_SEAT", POST_SEAT),
         ):
             with self.subTest(constant=name):
                 self.assertScene(
@@ -840,11 +840,16 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             (0.0, GAUGE_OFFSET_Y, 0.0),
             "the gauge post's offset",
         )
-        seats = re.findall(r"^\s+[ab]: mate_frame\((\w+)\),$", stand, re.M)
+        # A seat is an authored point (`mate_frame(NAME)`) or the
+        # post's cap face (`post_seat(post_top)`), read in document
+        # order.
+        seats = re.findall(
+            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(post_seat)\(post_top\)),$", stand, re.M
+        )
         self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "POST_SEAT": POST_SEAT}
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "post_seat": POST_CAP}
         self.assertScene(
-            tuple(named[name] for name in seats),
+            tuple(named[point or face] for point, face in seats),
             tuple(seat for mate in STAND_SEATS for seat in mate),
             "the stand's mate seats",
         )
