@@ -5742,3 +5742,4 @@ Block TRIM-B2 slot record (branch-side, appended as each slot concludes):
 
 slot 0 = TRIM-2 PR-1 (OPUS) — concluded 2026-09-19 at merge a833156d4 (PR #2564), ordinal 2503, sample #222 (R2's A1 a code-class candidate; pair EXCLUDED under 3(e): R2 killed by a 429 and resumed; seam gate closed on Ev's in-chat ruling that PROPS is paused).
 slot 1 = TRIM-2 PR-2 (`docs/TRIM-2-SPEC.md` §2 the tessellation arms, E2; branch `trim/2-tess`) — pre-draw fields logged 2026-09-19 before dispatch: difficulty **S**, task-class **NUMERIC** (pre-logged at the spec §6). Arm by the block's draw (byte 53 ⇒ fable at slot 2): **OPUS**. Seam to TESS announced on #2564 (comment 5739405116) before dispatch.
+slot 1 = TRIM-2 PR-2 (OPUS) — concluded 2026-09-20 at merge d0e577121 (PR #2863), ordinal 2504, sample #224 (no candidate; a clean pair — neither reviewer arm killed or paused). Slot 2 (FABLE by the draw) draws its unit at the next TRIM dispatch.
