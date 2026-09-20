@@ -3932,6 +3932,33 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-RADIUS's spec (2026-09-20)
+
+Recoverable at `git show 370e560e7:docs/EDIT-RADIUS-SPEC.md` (PR
+#2892's frozen review head; the spec was not amended on the branch —
+its two corrected premises are argued in the PR body and recorded in
+the unit row's `## Built`). EDIT's second kernel unit of block
+EDIT-B2, ruled by the EDIT orchestrator on the row's own analysis and
+DM8: the replay record gains a per-radius emission record
+(`ReplayStructure.radii`) and DM8's map reads it in place of "one
+radius, one segment", the key's feed widening with the attach so
+"attached ⊆ keyed" holds by construction. Its central premises held —
+the record's shape and home, the emission at the moment the bulge is
+set, the map through the one checked permutation, the feed's
+inclusion, DM8's sentence re-worded not re-decided — and two fell
+before the build, each corrected by the implementer against the
+tree: premise 2's "the current step is the emitter" names, for a
+fused verb's carrier arc, an `At`/`Toward` holding no radius (every
+role addresses the fused verb's own step); and the three-radii row's
+"two `Sweep` specs" is unrepresentable (`arc_fillet_arc(Sweep, r,
+Radius)` is the chain). None fell to the dual, which was
+APPROVE-WITH-FIXES on both arms with no MAJOR; its findings and the
+fix pass that built their union are the unit row's `## Built` and
+its `### Fix pass`. The rule above; the unit's record is its row's
+`## Closed`, its row in `MODEL-AB-LOG.md` (ordinals 4806/4807, sample
+#223; block EDIT-B2 slot 1 concluded) and the MERGED entry in
+`work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-DECL's spec (2026-09-19)
 
 Recoverable at `git show df47b36ab:docs/EDIT-DECL-SPEC.md` (PR
@@ -4076,3 +4103,49 @@ record is its item's `## Closed` section and its MERGED entry in
 `work/msolve/log.md` (no A/B row: the program runs none).
 
 - `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
+
+## Per-merge deletion — MSOLVE-8's spec (2026-09-20)
+
+Recoverable at `git show 399d411c87031e18c2e9135c44fd02c4c66c7b76:docs/MSOLVE-8-SPEC.md`
+(the MSOLVE-8 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; two of its sentences were
+overruled by measurement and one of its clauses was tested. Its §3
+offered a re-mint road "where geom-core admits no witnessed
+transport" and fenced geom-core out; the lane took that road for the
+frame read too, and the reviews measured its cost (the aim decided
+three times per mate under one funnel name, a copied refusal
+projection), so the orchestrator widened the fence by one door —
+geom-core's `point_at_frame`, the witness `point_at` already built.
+Its §3 also let a rotated direction be "re-minted under the run's
+band", which on the planar-pair line was a SECOND decision two ulps
+from `parallel`'s and moved ten door-built documents from UNDER to
+Indeterminate at the boundary (the correctness arm's MAJOR); the fix
+is one decision, `parallel` minting the witness it decides on. And
+its stop clause named the condition the lane met (`OrthoFrame`
+reproducing `point_at` bit for bit) and was argued past rather than
+honoured — recorded in the log as a process lapse; the ruling settled
+it. The rule above; the unit's record is its item's `## Closed`
+section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
+program runs none).
+
+- `MSOLVE-8-SPEC.md` — MSOLVE-8, a levered clash names its arm; the coset's directions carry the witness; `MateFault` names its consumers (#2896)
+
+## Per-merge deletion — TRIM-2's spec (2026-09-20)
+
+Recoverable at `git show d0e577121:docs/TRIM-2-SPEC.md` (PR #2863's
+merge commit, the last head carrying it). Both PRs delivered: PR-1 (#2564, the trimmed-region
+quadrature, A/B row T2Q) and PR-2 (#2863, the tessellation arms, A/B
+row T2T). The spec's §8 Rulings (the rectangle certificate as the
+all-iso fast path; the Newton–Cotes window fenced; the `Fitted` mesh
+arms stay; the item corrected by PR-1; PR-2's seam TESS's) and its
+Amendments (§4's PROPS gate with the week's-silence fallback, closed on
+Ev's ruling that PROPS was paused) are the unit's record together with
+the closed item `work/trim/general-pcurve-face-props-and-tess-refuse.md`,
+the two MERGED entries in `work/trim/log.md`, and the residues left on
+the program (`curved-trim-e2e-fixture-waits-for-a-producer`,
+`trimmed-quadrature-composite-rounds`,
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm`).
+Spec note at deletion: §3's survey sentence that `nurbs_tighten`
+"skips `Harmonic`" was wrong (the harmonic arm answers a UV speed
+bound); PR-2's spiric-adjacent refusal at that site was the right
+disposition and the spiric spec's PR-1b said so.

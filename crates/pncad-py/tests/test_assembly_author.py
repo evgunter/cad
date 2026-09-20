@@ -1141,11 +1141,13 @@ class TestMateFaultPayload(BenchWorkspace):
         contact feature: it names the parts' scale and nothing else
         in the model. So the two halves cross beside the deviation
         they multiply to, and a caller that wants the tilt reads it
-        rather than dividing prose."""
+        rather than dividing prose. An authored roll is a TILT; the
+        residual half is for a pure number and stays `None` here."""
         fault = self.clocked(0.25 * rad)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual(fault.predicate, "mate_clocking_redundant")
         self.assertEqual(fault.lever_tilt, 0.25 * rad)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNotNone(fault.lever_arm)
         # To the kernel's own rounding, because the kernel computes
         # the product at the raising site rather than storing a
@@ -1163,15 +1165,80 @@ class TestMateFaultPayload(BenchWorkspace):
             self.assertIsNone(getattr(fault, absent), absent)
 
     def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
-        """The pair is `None`, not a pair of zeroes: an arm whose
-        predicate measured its margin without a lever names no lever
-        at all."""
+        """The three are `None`, not zeroes: an arm whose predicate
+        measured its margin without a lever names no lever at all."""
         doc, _, (mate_1, _) = self.stand_planar()
         fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         self.assertEqual(fault.variant, "mate_under")
         self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
         self.assertIsNone(fault.clash)
+
+    def test_a_residual_clash_carries_its_pure_number_and_its_arm(self):
+        """A membership margin that levers a PURE NUMBER — here the
+        added coincidence's rotation departing from the held one, the
+        Frobenius norm of `Q − I` — crosses as `lever_residual`, a
+        bare float, beside the arm; `lever_tilt` is for an authored
+        roll and stays `None`. `clash` is the product, to the kernel's
+        own rounding, and the message says the number is
+        dimensionless rather than calling it radians."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        held = doc.insert(
+            Node.mate(
+                post_i,
+                a_top,
+                shelf_i,
+                s_bottom,
+                ContactClass.Rest,
+                Alignment(
+                    mate_frame(POST_SEAT),
+                    mate_frame(SEAT_A),
+                    MatePrimitive.frame_coincidence(),
+                    AxisSense.Aligned,
+                    None,
+                ),
+            )
+        )
+        # The same coincidence with the shelf's frame turned onto +x:
+        # no rotation satisfies both.
+        turned = MateFrame(
+            origin=mate_frame(SEAT_A).origin,
+            axis=(1.0, 0.0, 0.0),
+            reference=(0.0, 0.0, 1.0),
+        )
+        added = doc.insert(
+            Node.mate(
+                post_i,
+                a_top,
+                shelf_i,
+                s_bottom,
+                ContactClass.Rest,
+                Alignment(
+                    mate_frame(POST_SEAT),
+                    turned,
+                    MatePrimitive.frame_coincidence(),
+                    AxisSense.Aligned,
+                    None,
+                ),
+            )
+        )
+        fault = solve_document(doc, resolver=self.ws).fault(added)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual((fault.held, fault.added), (held, added))
+        self.assertEqual(fault.predicate, "mate_member_rotation_identity")
+        self.assertIsNone(fault.lever_tilt)
+        self.assertIsInstance(fault.lever_residual, float)
+        self.assertGreater(fault.lever_residual, 0.0)
+        self.assertIsNotNone(fault.lever_arm)
+        self.assertEqual(
+            fault.clash.meters,
+            fault.lever_residual * fault.lever_arm.meters,
+        )
+        self.assertIn("dimensionless residual", str(fault))
+        self.assertNotIn(" rad", str(fault))
 
     def test_a_solve_read_for_another_document_names_both(self):
         """`SolvedPoses.placement` must answer with a frame or not at
@@ -1223,8 +1290,9 @@ class TestMateFaultPayload(BenchWorkspace):
         # is levered by the parts on either side of it.
         self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
         # A lever REFUSED is not a lever measured: the contradictory
-        # arm's two halves are absent here.
+        # arm's halves are absent here.
         self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
 
     def test_a_mate_frame_in_the_ambiguity_band_carries_the_classifier(self):

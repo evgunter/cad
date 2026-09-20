@@ -904,6 +904,33 @@ the value). The names that reach the funnel through them today:
 | `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
 | `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
+| `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
+| `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
+| `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
+
+**Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
+one added, two test-owned.** `mate_axes_parallel` was a bare `decide`
+on `Margin::levered(‖u × v‖, arm)`; it is now the `UnitVec3::new` mint
+of the levered vector `(u × v) · arm`, so the margin it records is that
+vector's norm — the same quantity to within two ulps, and the one
+decision the non-parallel verdict's line is minted by (a second
+decision of the same number at a mint was spelled a rounding apart and
+could land in the band where the first did not). A re-baseline of a
+decided margin by at most two ulps at every site that decides it, with
+no threshold moved; the mate suites at three ε rows are the evidence no
+verdict moved on a shipped document. `mate_coset_inverse` is new: the
+solve re-mints a direction it transports by a rotation, a length one
+within rounding, so its samples sit at `1` and never in the band on a
+document the doors build. Neither name reaches `scripts/k_probe_sweep.sh`'s
+corpus, because the mate solve is not in it; that gap is the one
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`
+records for the binding, and the two mate names are added to it there.
+The two test-owned names follow `fixture_frame_axis`: a const the
+suite owns, reaching no corpus by construction. The aim decision
+`frame_point_at_aim` is recorded twice per mate by a solve — once per
+side — as before; the mate frame's axis is read off the ladder's
+witness rather than decided again.
 
 `tour_frame_axis` is a demo minting a roster name because the type's
 decision-free mints are the three cyclic world frames and the tour's

@@ -2,10 +2,11 @@
 id: private-extruded-box-builders-outside-the-brick-door
 kind: issue
 title: Seven private builders still extrude a rectangle into a box, one per suite, now that the box door is topo's
-status: review
+status: closed
 branch: dup/private-box-builders
 opened: 2026-09-19
 pr: 2891
+closed: 2026-09-19
 ---
 
 

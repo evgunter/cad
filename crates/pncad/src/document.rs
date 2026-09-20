@@ -328,10 +328,10 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal, RefusingReach,
-    SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
+    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
+    member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
