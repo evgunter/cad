@@ -2,7 +2,8 @@
 id: double-claim-lint-rule-waits-on-the-tests-seam
 kind: issue
 title: The double-claim check is a warning until the */tests/* seam is decided and ten pairs are recorded
-status: open
+status: closed
+closed: 2026-09-20
 opened: 2026-09-11
 ---
 
@@ -129,3 +130,45 @@ So the flip wants a `keep_out` that names programs in a field rather than in
 prose (a schema change: a `cedes_to`-shaped key, or a convention that a clause
 opens with the program id), and that is part of the same decision as the
 `*/tests/*` seam — both are questions about what a `keep_out` IS.
+
+## Closed by a ruling, not by the flip it waited for (Ev, in chat, 2026-09-20)
+
+This row waited for the `*/tests/*` seam to be decided so the warning
+could become the error `work/meta/plan.md` asked for. Ev ruled the
+other way, and the question the row was parked on no longer exists.
+
+Asked while PROPS was cutting three programs out of itself and said it
+would have to write territory clauses on both sides of each overlap
+because the lint treats a one-sided record as a live conflict, Ev:
+*"hm the conflict checker might be too overbearing. it's ok if units
+have shared ground, they should just be aware of each other if working
+at the same time"*.
+
+So an unrecorded overlap is **not** a conflict and never becomes an
+error. What two programs owe each other is awareness while a lane is
+live on a shared file, which is a per-branch question `territory`
+already answered all along — it reads a branch's diff and names every
+path another program claims. The at-rest census keeps its value as a
+MAP and loses its standing as a complaint: it moved to
+`work.py territory --overlaps`, out of `lint`'s warnings.
+
+**The measurement that says this was right, from this row's own
+argument.** The row already recorded that the population moves faster
+than anyone can write it down — 13 pairs, then 22 ninety minutes
+later. What it did not draw out is that a warning nobody is expected
+to act on is worse than no warning: `lint` printed 25 of these on
+every run, in front of every reader of every program, for a condition
+whose fix was a line in a file they may not edit. The reading after
+the change is 0 warnings from `lint` and the same 25 pairs available
+on request.
+
+Built with the ruling: the census function keeps its measurement and
+loses its verdict (its message now says which side recorded the
+overlap and that it is worth a line "if a lane is likely to be live on
+both", rather than naming the record one-sided); `lint` no longer
+extends its warnings with it; `territory --overlaps` prints it with a
+count; the three self-tests now assert that shared ground does NOT
+warn and that the report still names it. `work/README.md`'s rule is
+rewritten to match. Done by the PROPS orchestrator rather than META,
+Ev having said in the same conversation that META is not active and
+the change could be taken directly if it was straightforward.

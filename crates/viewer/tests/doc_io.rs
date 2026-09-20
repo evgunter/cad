@@ -319,8 +319,8 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
     let mut roots = Vec::new();
     for _ in 0..2 {
-        let plane = insert_node(&mut doc, common::xy_frame(), tol);
-        let profile = insert_node(
+        let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
+        let profile = common::insert_into(
             &mut doc,
             pncad::document::Node::Profile(pncad::document::ProfileProgram {
                 plane,
@@ -336,7 +336,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
             }),
             tol,
         );
-        roots.push(insert_node(
+        roots.push(common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
                 profile,
@@ -379,21 +379,4 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
             "the finding names both roots: {rendered}"
         );
     }
-}
-
-/// Insert one node, returning its minted id.
-fn insert_node(
-    doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
-    node: pncad::document::Node<pncad::document::ProfileProgram>,
-    tol: Tol,
-) -> pncad::document::RecipeNodeId {
-    let applied = pncad::document::apply(
-        doc,
-        &pncad::document::DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the edit applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("insert mints an id")
 }

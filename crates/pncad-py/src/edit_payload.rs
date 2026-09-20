@@ -37,7 +37,9 @@
 //! counter-example: its payload is recipe node ids, which are leaf
 //! values, so they cross under the node roles every other arm uses.
 
-use pncad::document::{ContentPin, DocParamValue, EditError, ParamName, RecipeNodeId, RootFault};
+use pncad::document::{
+    ContentPin, DocParamValue, EditError, MateFault, ParamName, RecipeNodeId, RootFault,
+};
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
@@ -107,6 +109,13 @@ pub struct EditPayload<'a> {
     pub value_path: Option<&'a str>,
     /// The content pin a reference already names.
     pub pin: Option<ContentPin>,
+    /// The solve's own fault about a mate the door refused on its
+    /// datum — the one nested refusal that crosses as a VALUE rather
+    /// than as a word alone, because it is the same value
+    /// `SolvedPoses.fault` answers for a mate the solve refused, and a
+    /// caller reads its lever, its clash and its recourse off the
+    /// `MateFault` type it already knows.
+    pub fault: Option<&'a MateFault>,
 }
 
 impl EditPayload<'_> {
@@ -116,7 +125,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 21] {
+    pub fn presence(&self) -> [(&'static str, bool); 22] {
         let Self {
             node,
             input,
@@ -139,6 +148,7 @@ impl EditPayload<'_> {
             path,
             value_path,
             pin,
+            fault,
         } = self;
         [
             ("node", node.is_some()),
@@ -162,6 +172,7 @@ impl EditPayload<'_> {
             ("path", path.is_some()),
             ("value_path", value_path.is_some()),
             ("pin", pin.is_some()),
+            ("fault", fault.is_some()),
         ]
     }
 
@@ -197,6 +208,7 @@ impl EditPayload<'_> {
         path: None,
         value_path: None,
         pin: None,
+        fault: None,
     };
 }
 
@@ -222,6 +234,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::MaintenanceRefused { gauge, .. }
         | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
             node: Some(*gauge),
+            ..none
+        },
+        // The mate is the subject, and the solve's fault about it
+        // crosses whole: `inner_variant` says which arm, `fault` is
+        // the arm's own payload.
+        EditError::MateRefused { node, fault } => EditPayload {
+            node: Some(*node),
+            fault: Some(fault),
             ..none
         },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {

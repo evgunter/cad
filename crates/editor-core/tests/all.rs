@@ -140,6 +140,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
+#[path = "edit_has_minted.rs"]
+mod edit_has_minted;
 #[path = "edit_instance_crossing_names.rs"]
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
@@ -234,6 +236,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "msolve10_door_admission.rs"]
+mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]

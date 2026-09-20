@@ -8,15 +8,19 @@
 //! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and the plate fixtures here
 //! are functions of it, so they cannot drift from the subject.
 //!
-//! **Two kinds of thing live here and they are not interchangeable.**
-//! The plate helpers — `plate_bounds`, `plate_volume`, `framed`, and
-//! `corners` over them — carry an oracle: a row that reads one is
-//! measuring the scene against its own constants on that axis.
-//! Everything else — the literal, datum, session and document sugar,
-//! and the committed gallery fixture — carries no oracle and is a
-//! spelling, not a claim. Which of the two a helper is decides whether
-//! a suite may share it; a suite that keeps its own code says why in
-//! its own header.
+//! **Whether a helper here carries an oracle is a question about that
+//! helper, not about what kind of file reads it**, and it is asked one
+//! helper at a time: a blanket sentence over this module is false for
+//! whatever is added to it next. Some of what lives here plainly does
+//! carry one — the plate helpers are functions of `PLATE_EXTENT`, so a
+//! row reading one measures the scene against its own constants;
+//! `framed` IS a call to `Camera::framing`; `near` fixes the tolerance
+//! a comparison passes at. Others are spelling and nothing more. Three
+//! whose signatures do not show it say so in their own docs instead —
+//! `near`'s chosen bound, `body_volume`'s choice of WHICH document it
+//! reads, and `gallery_ring_at`'s note of the row that checks its work.
+//! A suite that keeps its own code instead of sharing says why in its
+//! own header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
@@ -123,6 +127,27 @@ pub fn inserted(
     (doc, minted.expect("an insert mints an id"))
 }
 
+/// The `&mut` spelling of `inserted`: insert a node in place and
+/// answer the minted id, for a fixture that threads one document
+/// through a sequence of edits rather than rebinding at each one.
+/// Same call and same refusal behaviour — only the caller differs.
+pub fn insert_into(
+    doc: &mut Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> RecipeNodeId {
+    let (applied, id) = inserted(doc, node, tol);
+    *doc = applied;
+    id
+}
+
+/// The `&mut` spelling of `edited`, for an edit whose minted id (if
+/// any) the caller does not want.
+pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
+    let (applied, _) = edited(doc, edit, tol);
+    *doc = applied;
+}
+
 /// A sketch frame node's payload.
 pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
     Node::Datum(pncad::document::Datum::Frame {
@@ -137,15 +162,25 @@ pub fn xy_frame() -> Node<ProfileProgram> {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
-/// A square profile node's payload on `plane`, `side` metres on a side.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+/// An axis-aligned rectangular profile node's payload on `plane`:
+/// `w` by `h`, its lower-left corner at `origin` in the plane's own
+/// coordinates. `square` is this with two equal sides at the plane
+/// origin, and a fixture whose block sits elsewhere moves `origin`.
+pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
+    let [x0, y0] = origin;
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
+            LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
                 .expect("finite corners"),
         ],
     })
+}
+
+/// A square profile node's payload on `plane`, `side` metres on a side,
+/// at the plane origin.
+pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+    rectangle(plane, [0.0, 0.0], side, side)
 }
 
 /// **A frame and a square drawn on it**, answering the document and the
@@ -273,7 +308,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
             input: extrude,
             translation: [len(0.01), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );

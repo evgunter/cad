@@ -110,17 +110,25 @@ posture under §Process.
    is refused and the width key goes — **merged** (PR #2816, middle
    tier, wave 9; the viewer's pick seed is a depth, so only a face
    answer refuses); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stands open; `pick-face-raw-target-path-survives-only-for-rows`
+   was ruled by Ev on `[ev]` #2889 — the certificate stops at the
+   tessellation by design — and is **closed** (one doc sentence); `pick-face-raw-target-path-survives-only-for-rows`
    is ruled and **merged** (PR #2801, middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
    `crossing-mate-id-is-provenance-that-nothing-reads` (filed from
-   Ev's condition on `[ev]` #2869) is ruled and **spec'd** (middle
+   Ev's condition on `[ev]` #2869) is **merged** (PR #2906, middle
    tier, wave 15: the field goes; the crossing carries `class`,
    `outer`, `inner`); `next-id-has-no-layer3-door` (VIEW's filing
-   against DOCM, EDIT's now) is ruled and **spec'd** (E-class, wave
-   15: a `has_minted` predicate on `Doc`, the counter stays private);
+   against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
+   15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
+   row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
+   was ruled (B) by Ev on `[ev]` #2904 and is **built and in the
+   dual** as a kernel unit (`docs/EDIT-PROGRAM-SPEC.md`, PR #2927,
+   v6 dual, ordinals 4808/4809, block EDIT-B2 slot 2, wave 17:
+   `SetProgram` carries the program and each step's provenance, the
+   door reports strands, retires stranded names and rebinds kept
+   ones; V2 and DM7 re-worded on the ruling);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
@@ -134,6 +142,11 @@ posture under §Process.
    `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
    **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
+   `converged-recourse-has-no-home` (re-homed from VNEWS 2026-09-19:
+   the "declare it first" clause written in two crates) is ruled and
+   **merged** (PR #2920, E-class, wave 16: `UNDECLARED_PARAM_RECOURSE`
+   beside `EditError`, both renderings through it, the tripwire test
+   is the pin).
    Two prose rows filed by waves 10–11 were ruled and **merged** as one
    E-class unit (PR #2879, wave 13, `edit/prose-one-home`):
    `doc-param-refusals-keep-two-conventions-inside-one-enum` (the

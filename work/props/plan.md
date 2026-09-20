@@ -13,6 +13,25 @@ entry in the opening commit, per that entry's rule.
 
 **Opened 2026-09-06** at S-CERT's exit walk (#1924). See §Opening condition.
 
+## Cut down, 2026-09-20
+
+Three programs were cut out of this one with Ev's agreement in chat,
+when the slate reached 66 open rows: **QUAD** (`props/quad.rs`, eight
+rows), **ENCL** (the offset fit, the patch bound and the certificate
+family, twelve rows — S-CERT's second successor), and **FRAME** (the
+who-answers-give-me-a-frame family, eight rows, inheriting the rest of
+that family when this program lands the sign-hull unit). Their
+charters and lanes are in `work/{quad,encl,frame}/`; none has an
+orchestrator seated yet.
+
+What stays here, and why: the **closed-form flux arms** in
+`props/curved.rs` — where three units landed in the week before the
+cut, so the context is live — with the sphere lane's residues, the
+lune family and the cone apex; the **verdict and escalation channel**
+in `k_stats.rs`; and the **geom-core scalar and spline doors**. The
+sign-hull unit stays to its landing because Ev ruled it and it is
+mid-flight.
+
 ## Charter
 
 Certified enclosures that are wrong-but-green or uselessly wide, and

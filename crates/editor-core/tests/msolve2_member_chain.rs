@@ -32,7 +32,9 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
-use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{
+    ang, door_refusal, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform,
+};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -772,24 +774,28 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
     let a = in_part(base, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
     let reference = crate::fixture::head_at(part, b.clone());
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a), reference.clone(), FIRST_SEAT),
-        },
-    );
-    let mate = mate.unwrap();
     // ADMISSION is structural and evaluates nothing, so the walk
     // still resolves this reference to a member: the disagreement is
-    // a fact about two numbers, and numbers are the offset's half.
+    // a fact about two numbers, which the per-reference check reads
+    // — and that check is the mate's own, so the edit door asks it
+    // where the mate is authored and refuses with the solve's fault.
     assert!(
         member_of(&doc, &reference).is_some(),
-        "the walk admits the reference; the offset is what refuses"
+        "the walk admits the reference; the number check is what refuses"
     );
-    let fault = solve(&doc, &s.opts, Tol::witness())
-        .fault(mate)
-        .cloned()
-        .expect("a disagreeing Part refuses");
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: seat_at(crate::fixture::head(a), reference.clone(), FIRST_SEAT),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("a disagreeing Part refuses");
+    let editor_core::EditError::MateRefused { node: mate, fault } = err else {
+        panic!("expected MateRefused, got {err:?}");
+    };
+    let fault = *fault;
     let MateFault::PartSelectsAnotherCopy {
         mate: at,
         side,
@@ -1086,7 +1092,11 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     let (base, top) = (s.base, s.top);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
-    let (doc, part2) = insert(doc, part_of(pattern, 2));
+    // `part2` agrees with the name at insert — the edit door refuses
+    // a disagreeing `Part` where the mate is authored — and is
+    // re-pointed at copy 2 below, which is how a `Part` comes to
+    // disagree after insert.
+    let (doc, part2) = insert(doc, part_of(pattern, 0));
     let a = in_part(base, CapEnd::End);
     let b = in_copy(pattern, 0, in_part(top, CapEnd::Start));
     let (doc, m1) = step(
@@ -1110,6 +1120,14 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetStructuralParam {
+            node: part2,
+            slot: editor_core::SlotId::Instance,
+            expr: Expr::count(2),
+        },
+    );
     // Both references are members: admission is structural and the
     // disagreement is about two numbers.
     assert!(member_of(&doc, &crate::fixture::head_at(part2, b)).is_some());
@@ -1229,20 +1247,14 @@ fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
     let b = in_copy(outer, 1, in_copy(inner_a, 1, in_part(top, CapEnd::Start)));
     let r = crate::fixture::head_at(outer, b);
     assert!(member_of(&doc, &r).is_none(), "no member stands there");
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(
-                crate::fixture::head(in_part(base, CapEnd::End)),
-                r,
-                FIRST_SEAT,
-            ),
-        },
+    let fault = door_refusal(
+        &doc,
+        seat_at(
+            crate::fixture::head(in_part(base, CapEnd::End)),
+            r,
+            FIRST_SEAT,
+        ),
     );
-    let fault = solve(&doc, &s.opts, Tol::witness())
-        .fault(mate.unwrap())
-        .cloned()
-        .expect("refuses");
     assert!(
         matches!(fault, MateFault::DanglingHead { head, .. } if head == inner_b),
         "the walk stops at the pattern it actually reached: {fault:?}"
@@ -1267,20 +1279,14 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
     let r = crate::fixture::head_at(part, b);
     assert!(member_of(&doc, &r).is_none(), "not a member");
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(
-                crate::fixture::head(in_part(base, CapEnd::End)),
-                r,
-                FIRST_SEAT,
-            ),
-        },
+    let fault = door_refusal(
+        &doc,
+        seat_at(
+            crate::fixture::head(in_part(base, CapEnd::End)),
+            r,
+            FIRST_SEAT,
+        ),
     );
-    let fault = solve(&doc, &s.opts, Tol::witness())
-        .fault(mate.unwrap())
-        .cloned()
-        .expect("refuses");
     assert!(
         matches!(fault, MateFault::DanglingHead { head, .. } if head == part),
         "the walk stops at the Part itself: {fault:?}"

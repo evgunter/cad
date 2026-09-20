@@ -2162,7 +2162,13 @@ impl Crossing {
 /// operands `e1`, `e2`, `d`, `s` as exact**. It is a bound on this
 /// evaluation's rounding, not on the mesh's own coordinates: a
 /// triangle whose corners are themselves approximations is a question
-/// for whoever tessellated it, and nothing here can see it.
+/// for whoever tessellated it, and nothing here can see it. That is
+/// by design, not a gap: the pick is a question about the picture the
+/// user sees, and the tessellation IS what is picked, so the mesh's
+/// deviation from the surface it stands for is not a pick error
+/// (ruled by Ev on `[ev]` PR 2889; the row
+/// `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+/// closed by design).
 ///
 /// # The derivation (the one site; [`ray_triangle`] cites it)
 ///

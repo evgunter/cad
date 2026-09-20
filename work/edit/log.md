@@ -724,3 +724,93 @@ answered that the proposal is about δ alone, with the user-visible
 consequence (a pick within the sag of an edge between two curved
 faces refuses) and the three alternatives restated. Awaiting Ev's
 reading.
+
+## 2026-09-20 — twelfth sitting: Ev ruled the pick certificate, wave 15 merged, the whole-program edit put to Ev
+
+Ev: `[ev]` #2889 ruled (b) — "referring to the tesselation is probably
+correct? it's what the user can see", confirmed on the PR: the pick is
+a question about the picture the user sees, the tessellation IS what
+is picked, so the certified `t` interval stops at the triangle by
+design. `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+closed by design with one sentence at `crossing`'s "what the bounds
+bound" paragraph; no kernel unit; merged (#2889). `[ev]` #2904 opened
+(the seventh): `a-committed-profile-program-has-no-whole-program-edit`
+is a design change on two ratified pages — V2's "structure changes
+only by re-authoring" and DM7's "reported at the delete" — because
+every holder of a profile name holds a `ProfileEdgeRef` by index and a
+reshaped program re-denotes those indices silently. Recommendation
+(B): `SetProgram { node, loops, provenance }`, the door reporting
+strands for dropped or changed steps and rewriting names on kept steps
+to their new index as its own `Maintenance` arm; alternatives (A)
+refuse-when-referenced, (C) program only (rejected), (D) leave V2.
+Awaiting Ev; block EDIT-B2 slot 2 (FABLE) banks for it.
+
+Wave 15 cut (#2902) and merged. `next-id-has-no-layer3-door` (E-class,
+#2905): `Doc::has_minted(id)` is the counter's one public reading,
+the counter stays private, four rows each red under `<` → `<=`; DI1's
+parenthetical names the door (a description the code moved,
+ratification `087779036`); the parked VIEW row
+`layer3-recipenodeid-aliases-across-rewinds` is `open` again with its
+`blocked_on` cleared — the walk is VIEW's. `crossing-mate-id-is-provenance-that-nothing-reads`
+(middle tier, #2906): `InterfaceCrossing::Mate` is `{ class, outer,
+inner }`, the refusal names the crossing by `outer`, a file carrying
+the old field refuses typed at the load door, no codec touched; the
+review was MERGEABLE 0/2/3 (two unguarded claims, both probed:
+the one refusal site handing in `outer`, each crossing field feeding
+the content key); the fix pass gave the read-only wire walk one home
+beside `doctored` (the three copies the review took for read-only
+were write-walk copies and now call it), the "no provenance" argument
+one home, and the Python census a written rule for a same-named
+property spelling an arm — an additive roster and guard listing four
+members, which run against the merge base names the very accident
+this unit fixed; Ev's 2026-09-09 census rule untouched; one row filed
+on S-DUP's slate (the by-line header split at sixteen more sites).
+The split walk that writes the record stays unreachable (AQ8), said
+so on the row.
+
+The slate: C6/D366 stay visibility rows; the two pick rows stand as
+the mechanism's stated classes; `focus-marking` and `layer3` are
+VIEW's work; `a-committed-profile-program` is on `[ev]` #2904. No
+lane is live.
+
+## 2026-09-20 — thirteenth sitting: wave 16 merged, Ev ruled (B) on the whole-program edit, wave 17 built and in the dual
+
+Wave 16 (`converged-recourse-has-no-home`, E-class, #2920) merged:
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` is the one home of
+"declare it first"; both renderings go through it (the viewer by a
+direct `editor-core` edge, the ruling `pncad`'s crate docs state for a
+name the façade does not carry), the tripwire test is the pin, nine
+code copies swept, rendered text byte-identical on both sides. Two
+deviations, both taken: `story_parametric`'s narrative comment names
+the const; no root re-export and no façade carry (out of LIB's
+censuses by construction).
+
+Ev: `[ev]` #2904 ruled (B) — "(B) makes sense!". Wave 17 cut (#2921):
+`docs/EDIT-PROGRAM-SPEC.md`, kernel unit, v6 dual, block EDIT-B2
+slot 2 (FABLE); V2 and DM7 re-worded on the ruling inside the unit.
+Built on `edit/program-edit` (#2927, frozen head `1a3359122`, 41
+files): `DocEdit::SetProgram { node, loops, provenance }`, the
+provenance's shape refused first as one `ProvenanceMalformed` arm over
+a seven-arm fault enum, the insert door's own checks, a segment map
+read off both replay records (kept = continued and equal span length),
+the walk over every name carrier filtered by the minting node's
+anchoring profile, `Maintenance::Rebound`, persisted, `reshaped_rod`
+the corpus's first `SetProgram`, `DocEdit.set_program` in Python.
+Two of the spec's premises fell to measurement before the build —
+premise 3's vertex convention (a vertex is carried by the segment
+ARRIVING at it) and premise 4's carrier filter (`name.node == profile`
+finds nothing; a profile mints no name) — the third spec in a row on
+this program to carry a false premise, disclosed in the claim entry
+and put to both reviewers as a standing hazard. One deviation is
+design-shaped and goes to Ev: a stranded name is RETIRED to a
+coordinate past the loop's end so it resolves `Vanished` instead of
+aliasing the new program's segment (left in place, a second fillet on
+the rod silently shrank to one — measured). Ordinals 4808/4809 claimed
+on main (#2931); byte 254, parity 0: R1 opus, R2 fable; both
+dispatched concurrently on the frozen head. Two rows filed by the
+build: VIEW's `the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
+
+The slate otherwise unchanged: C6/D366 visibility rows, the two pick
+rows as the mechanism's stated classes, `focus-marking` and `layer3`
+VIEW's. Two reviewer lanes live.

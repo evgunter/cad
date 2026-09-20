@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::wire::doctored;
 
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
@@ -20,7 +21,7 @@ use editor_core::{
     clusters, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, run, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -1408,18 +1409,16 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     // reached through the wire's own structure, so a fixture or
     // field-order change breaks the probe instead of silently moving it
     // onto an unrelated id.
-    let split = text.find('{').expect("the JSON body follows the header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
-    assert_eq!(
-        head["node"],
-        serde_json::json!(ids[2].0),
-        "the probe is aimed at the `b` head"
-    );
-    head["node"] = serde_json::json!(99);
-    let doctored = format!("{header}{wire}");
-    match load(&doctored, Tol::witness()) {
+    let corrupt = doctored(&text, |wire| {
+        let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
+        assert_eq!(
+            head["node"],
+            serde_json::json!(ids[2].0),
+            "the probe is aimed at the `b` head"
+        );
+        head["node"] = serde_json::json!(99);
+    });
+    match load(&corrupt, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
             id,
             ..
@@ -1518,26 +1517,22 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
 
 #[test]
 fn row7a_a_standalone_clocking_refuses_typed() {
-    let (doc, ids, store) = assembly("asm-r2a-row7a", 2);
-    let (doc, mate_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::Clocking,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.5),
-            ),
-        },
+    let (doc, ids, _store) = assembly("asm-r2a-row7a", 2);
+    // The table's static gap is a fact about the mate alone, so the
+    // edit door refuses it where it is authored, carrying the solve's
+    // own fault — and asks no reach for it.
+    let fault = door_refusal(
+        &doc,
+        mate(
+            ids[0],
+            ids[1],
+            MatePrimitive::Clocking,
+            AxisSense::Aligned,
+            z_up(),
+            z_up(),
+            Some(0.5),
+        ),
     );
-    let o = with_resolver(store);
-    let fault = solve(&doc, &o, Tol::witness())
-        .fault(mate_id)
-        .expect("refuses")
-        .clone();
     let editor_core::MateFault::TableLacks { what, .. } = &fault else {
         panic!("expected TableLacks, got {fault:?}");
     };
@@ -1547,26 +1542,19 @@ fn row7a_a_standalone_clocking_refuses_typed() {
 
 #[test]
 fn row7b_a_clocking_rider_on_a_planar_rest_refuses_typed() {
-    let (doc, ids, store) = assembly("asm-r2a-row7b", 2);
-    let (doc, mate_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::PlanarRest { offset: 0.0 },
-                AxisSense::Opposed,
-                z_up(),
-                z_up(),
-                Some(0.5),
-            ),
-        },
+    let (doc, ids, _store) = assembly("asm-r2a-row7b", 2);
+    let fault = door_refusal(
+        &doc,
+        mate(
+            ids[0],
+            ids[1],
+            MatePrimitive::PlanarRest { offset: 0.0 },
+            AxisSense::Opposed,
+            z_up(),
+            z_up(),
+            Some(0.5),
+        ),
     );
-    let o = with_resolver(store);
-    let fault = solve(&doc, &o, Tol::witness())
-        .fault(mate_id)
-        .expect("refuses")
-        .clone();
     assert!(
         matches!(&fault, editor_core::MateFault::TableLacks { what, .. }
                  if what.contains("planar rest")),
@@ -1725,26 +1713,21 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
 
 #[test]
 fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
-    let (doc, ids, store) = assembly("asm-r2a-row7e", 2);
-    let (doc, mate_id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[0],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                None,
-            ),
-        },
+    let (doc, ids, _store) = assembly("asm-r2a-row7e", 2);
+    // One member on both sides is a fact about the mate alone: the
+    // edit door refuses it with the solve's own fault.
+    let fault = door_refusal(
+        &doc,
+        mate(
+            ids[0],
+            ids[0],
+            MatePrimitive::Coaxial,
+            AxisSense::Aligned,
+            z_up(),
+            z_up(),
+            None,
+        ),
     );
-    let o = with_resolver(store);
-    let fault = solve(&doc, &o, Tol::witness())
-        .fault(mate_id)
-        .expect("refuses")
-        .clone();
     assert!(
         matches!(&fault, editor_core::MateFault::SelfMate { instance, .. } if *instance == ids[0]),
         "{fault:?}"
@@ -1787,23 +1770,33 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
 #[test]
 fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     let (doc, ids, store) = assembly("asm-r2a-row7g", 2);
-    let (doc, id) = mint(
-        doc,
-        DocEdit::InsertNode {
-            node: mate(
-                ids[0],
-                ids[1],
-                MatePrimitive::FrameCoincidence,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(core::f64::consts::FRAC_PI_2),
-            ),
-        },
-    );
+    // The rider on a coincidence is DECIDED over the mate's own lever,
+    // so the door asks the reach for the two parts and refuses the
+    // contradiction where the mate is authored; the id it names is
+    // the one the insert would have minted.
     let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(id).expect("the rider refuses").clone();
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: mate(
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::FrameCoincidence,
+                    AxisSense::Aligned,
+                    z_up(),
+                    z_up(),
+                    Some(core::f64::consts::FRAC_PI_2),
+                ),
+            },
+            Tol::witness(),
+            &reach,
+        )
+        .expect_err("the rider contradicts the coincidence");
+    let EditError::MateRefused { node: id, fault } = err else {
+        panic!("expected MateRefused, got {err:?}");
+    };
+    let fault = *fault;
     let editor_core::MateFault::Contradictory {
         held,
         added,

@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::wire::doctored;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -1322,9 +1323,6 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     );
     let assertion = *doc.order().last().expect("the assertion is the last node");
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
     // Length, so `measured: Length` against `bound: Angle`. BOTH
@@ -1333,18 +1331,16 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // one door earlier, by the wire's `Expr::literal_with_unit`
     // rebuild, and would never reach the snapshot walk this row is
     // about.
-    let mut corrupt = wire.clone();
-    let lit =
-        &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-    assert_eq!(
-        lit["dim"],
-        serde_json::json!("Length"),
-        "the surgery is aimed at the bound's length literal"
-    );
-    lit["dim"] = serde_json::json!("Angle");
-    lit["unit"] = serde_json::json!("rad");
-    let dim_corrupt = format!("{header}{corrupt}");
-    assert_ne!(dim_corrupt, text, "the dimension corruption must land");
+    let dim_corrupt = doctored(&text, |wire| {
+        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
+        assert_eq!(
+            lit["dim"],
+            serde_json::json!("Length"),
+            "the surgery is aimed at the bound's length literal"
+        );
+        lit["dim"] = serde_json::json!("Angle");
+        lit["unit"] = serde_json::json!("rad");
+    });
     match editor_core::load(&dim_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             measured: Dimension::Length,
@@ -1355,16 +1351,16 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     }
 
     // (b) the assertion's target repointed at a non-measure node.
-    let mut corrupt = wire;
-    let target = &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
-    assert_eq!(
-        *target,
-        serde_json::json!(measure.0),
-        "the surgery is aimed at the assertion's target"
-    );
-    *target = serde_json::json!(b.0);
-    let tgt_corrupt = format!("{header}{corrupt}");
-    assert_ne!(tgt_corrupt, text, "the target corruption must land");
+    let tgt_corrupt = doctored(&text, |wire| {
+        let target =
+            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        assert_eq!(
+            *target,
+            serde_json::json!(measure.0),
+            "the surgery is aimed at the assertion's target"
+        );
+        *target = serde_json::json!(b.0);
+    });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
             measure,
