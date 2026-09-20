@@ -4,6 +4,8 @@ kind: issue
 title: Nothing reds when an unlabelled current figure arrives in docs/TESS-BUDGET.md, and the fix that disclosed the hole walked into it
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: tess-lint admits worst_cert = 0 as a reading, and the kernel says it has two meanings
 status: open
 opened: 2026-09-08
+priority: P3
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: the note-vs-finding rule has a fourth home in docs/TESS-BUDGET.md, carrying only its short form
 status: open
 opened: 2026-09-07
+priority: P3
+cost: E
 ---
 
 Filed by the style-review fix pass on `meter/join-gated-voice` (PR 2111,

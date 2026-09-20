@@ -4,6 +4,8 @@ kind: issue
 title: tools/ doc prose cites thirteen work/meter/ paths that resolve nowhere, two of them in the list whose own sentence claims its pointers followed
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

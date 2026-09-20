@@ -4,6 +4,8 @@ kind: issue
 title: the gate's finding lines render figures through a helper and name no columns; Row::recoverable and SceneTotals::recoverable are one name over two aggregations
 status: open
 opened: 2026-09-08
+priority: P3
+cost: D
 ---
 
 

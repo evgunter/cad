@@ -4,6 +4,8 @@ kind: issue
 title: docs/TESS-BUDGET.md's two identity-column enumerations still name the sizing-block entry tess-lint no longer carries
 status: open
 opened: 2026-09-07
+priority: P3
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: Two blind spots in the tools-wide cannot-fail assert sweep, and nothing schedules them
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

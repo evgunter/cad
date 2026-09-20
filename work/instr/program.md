@@ -13,16 +13,24 @@ keep_out: [scripts/gates/* is GATES' — Track K was claimed whole by two progra
 priority: P3
 ---
 
-The instruments MEASURE and REPORT; they never gate on a millisecond and
-never justify a mesh by its own size. METER fixed where an instrument's
-claim and its arithmetic had parted; what it left is the layer beneath —
-where an instrument's claim and its own EXECUTION have parted. Every row
-is a check that does not check, a figure with no home that can red, or a
-sentence that describes a tree that has moved — save one, `C15`, which is
-here because the census that detects it is here rather than because the
-scene is, and whose corpus change has since landed. The standing rule stays: a census has one
-executable home and every other site points at it.
+**The predicate instrument, after the 2026-09-20 cut**: k-lint, the
+K-report, and the frame-mint funnel corpus. METER's rule holds
+unchanged — an instrument's claim and its own execution must not part,
+and a census has one executable home with every other site pointing at
+it.
 
-Opened by METER's exit walk (`docs/METER-EXIT-WALK.md` §4, ratified by Ev
-on 2026-09-08 at PR #2212). Charter and order: `work/instr/plan.md`;
-narrative in `work/instr/log.md`.
+The row to read first is that **what makes a predicate eps-coupled is
+nowhere written down**, so k-lint's rule 1 prose, its roster pin and
+its CSV header are all being judged against a criterion that does not
+exist. Beside them: the K-roster claim has no mechanical guard, so a
+new decide name missing from the K-report reds nothing; `EXPECTED_HEADER`
+is hand-copied at five producers; and two sites say the gate diffs the
+fresh sweep against the committed baselines, which is not what it does.
+
+`C15` is dischargeable now that the canal is the first sized scene
+carrying names, and its three rows go together.
+
+The tessellation-budget instrument went to BUDGET at the cut. INSTR
+keeps its band 3300-3399.
+
+Charter and order: `work/instr/plan.md`; narrative in `work/instr/log.md`.

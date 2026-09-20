@@ -5,6 +5,8 @@ title: A re-cut folds every column the gate reads but compares against nothing, 
 status: open
 opened: 2026-09-16
 refs: [tess-lint-ungated-columns-fold-silently, C15]
+priority: P3
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: tess-meter's 21-sample retune figure names a draw nothing records, and its reference moved with SPLIT_SCAN_SAMPLES
 status: open
 opened: 2026-09-08
+priority: P3
+cost: E
 ---
 
 

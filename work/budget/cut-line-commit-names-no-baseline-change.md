@@ -5,6 +5,8 @@ title: The tess-budget cut line stamps the sweeping tree's HEAD, so the commit i
 status: open
 opened: 2026-09-07
 refs: [2151]
+priority: P3
+cost: D
 ---
 
 

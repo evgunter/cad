@@ -4,6 +4,8 @@ kind: issue
 title: The gate's growth margin is unprotected from the split scan's ceil quantisation — D206 closed only the continuous half
 status: open
 opened: 2026-09-08
+priority: P3
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: tess-lint's constraint-activity line prints four indicator columns under prose names
 status: open
 opened: 2026-09-08
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: cut_line_pin's TABLE has no row whose date carries a non-space whitespace tail
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 Routed here by the CIW orchestrator rather than filed by the lane that

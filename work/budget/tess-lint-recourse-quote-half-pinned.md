@@ -5,6 +5,8 @@ title: the recourse quote is pinned from the binary's side only, and docs/TESS-B
 status: open
 opened: 2026-09-08
 refs: [2179]
+priority: P3
+cost: E
 ---
 
 
