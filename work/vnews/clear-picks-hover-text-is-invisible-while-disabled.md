@@ -44,7 +44,7 @@ the receiver is gated. **Six are:**
 
 The other eleven sit on ungated receivers — `ui.button`, `ui.label`,
 `ui.weak` — and are not members: `pane/create.rs:241`, `:315`, `:996`,
-`pane/properties.rs:806`, `widgets.rs:870` (`delete_button`'s
+`pane/properties.rs:823`, `widgets.rs:870` (`delete_button`'s
 affordance hover, on a plain `ui.button`), `app.rs:228`, `:1375`,
 `:1535`, `:1589`, `:1601`.
 
