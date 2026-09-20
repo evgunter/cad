@@ -4,6 +4,8 @@ kind: issue
 title: A Python FlushFinding hides the site the kernel's declare doors now depend on
 status: open
 opened: 2026-09-17
+priority: P4
+cost: E
 ---
 
 

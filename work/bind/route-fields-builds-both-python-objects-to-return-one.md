@@ -4,6 +4,8 @@ kind: issue
 title: route_fields builds of and via on every call and each of its four getter callers discards one
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: The document-layer export guard counts cfg-gated names; its profile-layer sibling does not
 status: open
 opened: 2026-09-14
+priority: P4
+cost: E
 ---
 
 ## What

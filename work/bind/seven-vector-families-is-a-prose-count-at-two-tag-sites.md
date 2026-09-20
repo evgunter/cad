@@ -4,6 +4,8 @@ kind: issue
 title: the seven vector families is an unforced prose count at two pncad-py tag sites
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: Expr::written_length's rustdoc cites switch_display_units::every_authored_unit_reaches_a_literal_without_a_mismatch, which no test defines
 status: open
 opened: 2026-09-09
+priority: P4
+cost: E
 ---
 
 

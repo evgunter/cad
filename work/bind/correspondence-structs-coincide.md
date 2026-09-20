@@ -4,6 +4,8 @@ kind: issue
 title: BlendVerb and ShellVerb coincide field for field: the generic correspondence waits for its third instance
 status: open
 opened: 2026-09-08
+priority: P1
+cost: D
 ---
 
 `crates/editor-core/src/verbs/blend.rs`'s `BlendVerb<T>` and

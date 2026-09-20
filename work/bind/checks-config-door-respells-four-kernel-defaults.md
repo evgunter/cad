@@ -1,10 +1,12 @@
 ---
 id: checks-config-door-respells-four-kernel-defaults
 kind: issue
-title: "The Python ChecksConfig door re-spells three kernel defaults; the two config doors are a deliberate half-fix of the options class"
+title: The Python ChecksConfig door re-spells three kernel defaults; the two config doors are a deliberate half-fix of the options class
 status: open
 opened: 2026-09-15
 refs: [1493, 1495, 2678]
+priority: P4
+cost: E
 ---
 
 ## From PORT's `python-cannot-set-options-structs` sweep (PR #2678)

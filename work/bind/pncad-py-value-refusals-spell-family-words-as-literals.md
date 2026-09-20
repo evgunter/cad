@@ -5,6 +5,8 @@ title: pncad-py's Value refusals build a sentence with kind_name() on one side a
 status: open
 opened: 2026-09-11
 refs: [2376]
+priority: P4
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: docs/guide/north-star-audit.md's verb list still names arc_continue after
 status: open
 opened: 2026-09-08
 refs: [2135]
+priority: P4
+cost: E
 ---
 
 Reported by BOOL-10's class sweep (PR 2135; the guide is LIB's, so the

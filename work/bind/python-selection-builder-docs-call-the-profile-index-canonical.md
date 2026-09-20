@@ -4,6 +4,8 @@ kind: issue
 title: Python's selection-builder docs call seg/vertex a canonical chain index, which is false for a program loop
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 Filed by EDIT's `dm8-follow-through` unit, sweeping the class the row

@@ -4,6 +4,8 @@ kind: issue
 title: pncad-py — tags minted at the boundary are outside TAG_INVENTORY's reach, so nothing pins their values or sees them collide with a kernel word
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

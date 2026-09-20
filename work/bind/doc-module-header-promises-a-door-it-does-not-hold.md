@@ -4,6 +4,8 @@ kind: issue
 title: pncad-py — py/doc.rs's module header names evaluate (which lives in py/value.rs) and 3 of the 12 classes its register adds
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

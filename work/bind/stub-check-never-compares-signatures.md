@@ -5,6 +5,8 @@ title: test_stubs.py pins names but not signatures, so the options census's stub
 status: open
 opened: 2026-09-15
 refs: [1309]
+priority: P4
+cost: E
 ---
 
 ## From PORT's `python-cannot-set-options-structs` review (PR #2678)

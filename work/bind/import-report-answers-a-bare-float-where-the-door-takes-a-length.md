@@ -5,6 +5,8 @@ title: ImportReport.eps_in answers a bare float while import_step now takes a Le
 status: open
 opened: 2026-09-15
 refs: [2249]
+priority: P4
+cost: E
 ---
 
 ## From PORT's `python-cannot-set-options-structs` review (PR #2678)

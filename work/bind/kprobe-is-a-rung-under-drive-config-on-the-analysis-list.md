@@ -4,6 +4,8 @@ kind: issue
 title: KProbe is a payload rung under DriveConfig, now that the sweep reads the analysis list
 status: open
 opened: 2026-09-09
+priority: P4
+cost: E
 ---
 
 

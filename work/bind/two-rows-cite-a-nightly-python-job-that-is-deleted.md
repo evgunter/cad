@@ -4,6 +4,8 @@ kind: issue
 title: Two items name nightly.yml's 'python suite (ungated re-take)' as their coverage lane; that job is deleted and the PR gate now runs it
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

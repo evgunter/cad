@@ -5,6 +5,8 @@ title: Maintenance crosses Python as one class with nine attributes, seven of th
 status: open
 opened: 2026-09-16
 refs: [2753, payload-accessor-wildcards-remain-in-checks-and-assembly]
+priority: P4
+cost: E
 ---
 
 (Found by the style review of PR 2753, which widened

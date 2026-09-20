@@ -4,6 +4,8 @@ kind: issue
 title: pncad.pyi's ValidationError declares three attributes; the class ships seven, and nothing checks that direction
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

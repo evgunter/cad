@@ -4,6 +4,8 @@ kind: issue
 title: pncad-py — persist_err is a 319-line function projecting 14 arms through a 15-slot positional tuple, where a transposed pair is invisible
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

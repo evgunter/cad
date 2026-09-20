@@ -4,6 +4,8 @@ kind: issue
 title: dimension_of maps the Python quantity classes onto Dimension in an unfenced if-chain
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: three live kernel files are in no program's paths: editor-core mc.rs, names/interrogate.rs, topo flush.rs
 status: open
 opened: 2026-09-09
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: four of the five SelectRefusal.predicate names reachable from Python are pinned nowhere
 status: open
 opened: 2026-09-03
+priority: P4
+cost: E
 ---
 
 
