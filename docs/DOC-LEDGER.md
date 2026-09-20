@@ -4129,3 +4129,20 @@ section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
 program runs none).
 
 - `MSOLVE-8-SPEC.md` — MSOLVE-8, a levered clash names its arm; the coset's directions carry the witness; `MateFault` names its consumers (#2896)
+
+## Per-merge deletion — TRIM-2's spec (2026-09-20)
+
+Recoverable at the SHA of PR #2863's merge commit (the last head
+carrying it; named in `work/trim/log.md`'s "TRIM-2 PR-2 merged"
+entry). Both PRs delivered: PR-1 (#2564, the trimmed-region
+quadrature, A/B row T2Q) and PR-2 (#2863, the tessellation arms, A/B
+row T2T). The spec's §8 Rulings (the rectangle certificate as the
+all-iso fast path; the Newton–Cotes window fenced; the `Fitted` mesh
+arms stay; the item corrected by PR-1; PR-2's seam TESS's) and its
+Amendments (§4's PROPS gate with the week's-silence fallback, closed on
+Ev's ruling that PROPS was paused) are the unit's record together with
+the closed item `work/trim/general-pcurve-face-props-and-tess-refuse.md`,
+the two MERGED entries in `work/trim/log.md`, and the residues left on
+the program (`curved-trim-e2e-fixture-waits-for-a-producer`,
+`trimmed-quadrature-composite-rounds`,
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm`).
