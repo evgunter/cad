@@ -5,6 +5,7 @@ title: The actionable-or-not rule is a value at the toolbar and a comment in two
 status: review
 opened: 2026-09-05
 branch: vnews/tone-row-badge
+pr: 2915
 ---
 
 
